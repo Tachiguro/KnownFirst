@@ -7,11 +7,15 @@ using KnownFirst.Services;
 using KnownFirst.Services.Lexical;
 using KnownFirst.Services.Study;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics.CodeAnalysis;
 
 namespace KnownFirst;
 
 public static class MauiProgram
 {
+    [DynamicDependency(
+        DynamicallyAccessedMemberTypes.All,
+        typeof(Microsoft.AspNetCore.Components.Web.HeadOutlet))]
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();

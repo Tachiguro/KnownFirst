@@ -111,6 +111,29 @@
     font-family: ui-monospace, Consolas, monospace;
 }
 
+.analysis-focus {
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: var(--color-surface-muted);
+}
+
+.analysis-exact-text {
+    min-width: 18rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+#analysis-details details {
+    margin-top: 1rem;
+}
+
+#analysis-details summary {
+    cursor: pointer;
+    font-weight: 800;
+}
+
 .loading-message,
 .empty-message {
     color: var(--color-muted);

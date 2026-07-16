@@ -48,6 +48,16 @@
                 </div>
             </dl>
 
+            @if (IsDebugBuild)
+            {
+                <button type="button"
+                        class="button button-secondary"
+                        disabled="@_isSaving"
+                        @onclick="OpenAnalysisDetails">
+                    @Localizer["Analysis_Details"]
+                </button>
+            }
+
             @if (_candidate.Contexts.Count > 1)
             {
                 <p class="context-notice">@Localizer["Review_MultipleContextsNotice"]</p>
@@ -149,6 +159,18 @@
     private bool _loadFailed;
     private bool _decisionFailed;
     private bool _showDiscardConfirmation;
+
+    private static bool IsDebugBuild
+    {
+        get
+        {
+#if DEBUG
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
 
     private ReviewContext? CurrentContext => _candidate is null || _candidate.Contexts.Count == 0
         ? null
@@ -255,6 +277,15 @@
         if (_candidate is not null)
         {
             _contextIndex = Math.Min(_candidate.Contexts.Count - 1, _contextIndex + 1);
+        }
+    }
+
+    private void OpenAnalysisDetails()
+    {
+        if (_candidate is not null)
+        {
+            Navigation.NavigateTo(
+                $"diagnostics?analysisDocumentId={_candidate.DocumentId}&analysisIdentity={Uri.EscapeDataString(_candidate.Identity)}#analysis-details");
         }
     }
 

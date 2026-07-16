@@ -45,7 +45,9 @@ public sealed record ReviewContext(
     string AfterTarget);
 
 public sealed record ReviewCandidateDetails(
+    int DocumentId,
     int WordId,
+    string Identity,
     string Candidate,
     TokenKind TokenKind,
     IReadOnlyList<string> SurfaceForms,

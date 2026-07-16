@@ -39,6 +39,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
         builder.Services.AddSingleton<IDashboardService, DashboardService>();
+        builder.Services.AddSingleton<ISentenceSegmenter, DeterministicSentenceSegmenter>();
         builder.Services.AddSingleton<TextAnalyzer>();
         builder.Services.AddSingleton<ITextReviewService, TextReviewService>();
         builder.Services.AddSingleton<IClock, SystemClock>();

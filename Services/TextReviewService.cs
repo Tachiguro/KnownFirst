@@ -14,7 +14,6 @@ public sealed class TextReviewService(
     IKnownFirstDatabase database,
     TextAnalyzer analyzer) : ITextReviewService
 {
-    private const int MaximumRetainedContexts = 3;
     private static readonly HashSet<string> SupportedLanguages = new(StringComparer.Ordinal)
     {
         "de",
@@ -29,7 +28,6 @@ public sealed class TextReviewService(
         ValidateImport(request);
 
         var analysis = analyzer.Analyze(request.Content);
-        ValidateCoordinates(request.Content, analysis);
         var contentFingerprint = CreateContentFingerprint(request.Content);
 
         await _operationGate.WaitAsync();
@@ -92,31 +90,56 @@ public sealed class TextReviewService(
             .Where(occurrence => occurrence.WordId == word.Id && occurrence.DocumentId == document.Id)
             .OrderBy(occurrence => occurrence.Order)
             .ToListAsync();
-        var contexts = new List<ReviewContext>();
-        var contextFingerprints = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var occurrence in occurrences)
+        var sentenceEntities = await connection.Table<SentenceSpanEntity>()
+            .Where(sentence => sentence.DocumentId == document.Id)
+            .OrderBy(sentence => sentence.Order)
+            .ToListAsync();
+        var sentencesById = sentenceEntities.ToDictionary(sentence => sentence.Id);
+        var sentenceSpans = sentenceEntities.Select(sentence => new TextSpan(
+                sentence.StartPosition,
+                sentence.Length,
+                sentence.Order))
+            .ToArray();
+        var analyzedOccurrences = occurrences.Select(occurrence =>
         {
-            var sentence = await connection.FindAsync<SentenceSpanEntity>(occurrence.SentenceSpanId)
+            var sentence = sentencesById.GetValueOrDefault(occurrence.SentenceSpanId)
                 ?? throw new InvalidOperationException("A review occurrence has no sentence span.");
-            var context = CreateContext(document.Content, sentence, occurrence);
-            var contextText = context.BeforeTarget + context.Target + context.AfterTarget;
-            if (contextFingerprints.Add(NormalizeContextForComparison(contextText)))
+            return new TokenOccurrence(
+                occurrence.SurfaceForm,
+                word.NormalizedTerm,
+                word.TokenKind,
+                occurrence.StartPosition,
+                occurrence.Length,
+                occurrence.Order,
+                sentence.Order);
+        }).ToArray();
+        var contexts = ContextSelectionPolicy.Select(
+                document.Content,
+                sentenceSpans,
+                analyzedOccurrences,
+                word.NormalizedTerm)
+            .Where(context => context.IsSelected)
+            .Select(context =>
             {
-                contexts.Add(context);
-            }
-
-            if (contexts.Count == MaximumRetainedContexts)
-            {
-                break;
-            }
-        }
+                var relativeStart = context.OccurrenceStartPosition - context.SentenceStartPosition;
+                return new ReviewContext(
+                    context.OccurrenceStartPosition,
+                    context.OccurrenceLength,
+                    context.SentenceText[..relativeStart],
+                    context.Target,
+                    context.SentenceText[(relativeStart + context.OccurrenceLength)..]);
+            })
+            .ToArray();
 
         return new ReviewCandidateDetails(
+            document.Id,
             word.Id,
+            word.NormalizedTerm,
             word.CanonicalTerm,
             word.TokenKind,
-            forms.Select(form => form.SurfaceForm).ToArray(),
+            EncounteredFormPolicy.Deduplicate(
+                word.TokenKind,
+                forms.Select(form => form.SurfaceForm)),
             occurrences.Count,
             contexts,
             session.ReviewedCount,
@@ -188,6 +211,56 @@ public sealed class TextReviewService(
         var document = await connection.FindAsync<DocumentEntity>(session.DocumentId);
         return document is null ? null : CreateCompletedSummary(session, document.Title);
     });
+
+#if DEBUG
+    public Task<DocumentAnalysisReport?> GetAnalysisReportAsync(int? documentId = null) =>
+        database.ReadAsync(async connection =>
+        {
+            DocumentEntity? document;
+            if (documentId.HasValue)
+            {
+                document = await connection.FindAsync<DocumentEntity>(documentId.Value);
+            }
+            else
+            {
+                var activeSession = await connection.Table<ReviewSessionEntity>()
+                    .Where(session => session.Status == ReviewSessionStatus.Active)
+                    .FirstOrDefaultAsync();
+                document = activeSession is not null
+                    ? await connection.FindAsync<DocumentEntity>(activeSession.DocumentId)
+                    : await connection.Table<DocumentEntity>()
+                        .OrderByDescending(item => item.Id)
+                        .FirstOrDefaultAsync();
+            }
+
+            if (document is null)
+            {
+                return null;
+            }
+
+            var analysis = analyzer.Analyze(document.Content);
+            var diagnostics = analysis.Diagnostics
+                ?? throw new InvalidOperationException("DEBUG word-analysis diagnostics were not created.");
+            var sentences = analysis.Sentences.Select(sentence => new AnalysisSentenceDetails(
+                    sentence,
+                    document.Content.Substring(sentence.StartPosition, sentence.Length),
+                    IsRangeInside(document.Content.Length, sentence.StartPosition, sentence.Length)))
+                .ToArray();
+            var summary = new AnalysisDocumentSummary(
+                document.Id,
+                document.Title,
+                document.TextLanguage,
+                document.ExplanationLanguage,
+                document.Content.Length,
+                document.ContentFingerprint,
+                analysis.Sentences.Count,
+                diagnostics.TokenDecisions.Count(decision => decision.IsIncluded),
+                diagnostics.TokenDecisions.Count(decision => !decision.IsIncluded),
+                analysis.Candidates.Count,
+                analysis.OccurrenceCount);
+            return new DocumentAnalysisReport(summary, sentences, diagnostics);
+        });
+#endif
 
     public Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync() => database.ReadAsync(async connection =>
     {
@@ -413,6 +486,8 @@ public sealed class TextReviewService(
         TextAnalysisResult analysis,
         string contentFingerprint)
     {
+        ValidateCoordinates(request.Content, analysis);
+
         if (connection.Table<ReviewSessionEntity>().Any(session => session.Status == ReviewSessionStatus.Active))
         {
             throw new ActiveReviewExistsException();
@@ -485,6 +560,7 @@ public sealed class TextReviewService(
         connection.Insert(session);
 
         var reviewOrder = 0;
+        var expectedPersistedOccurrenceCount = 0;
         foreach (var analyzedCandidate in analysis.Candidates)
         {
             existingWords.TryGetValue(analyzedCandidate.Identity, out var word);
@@ -500,6 +576,7 @@ public sealed class TextReviewService(
                         document.Id,
                         sentenceIds,
                         analyzedCandidate);
+                    expectedPersistedOccurrenceCount += analyzedCandidate.Occurrences.Count;
                 }
 
                 continue;
@@ -540,6 +617,7 @@ public sealed class TextReviewService(
                 document.Id,
                 sentenceIds,
                 analyzedCandidate.Occurrences);
+            expectedPersistedOccurrenceCount += analyzedCandidate.Occurrences.Count;
 
             connection.Insert(new ReviewCandidateEntity
             {
@@ -557,6 +635,10 @@ public sealed class TextReviewService(
 
         session.TotalCandidates = reviewOrder;
         connection.Update(session);
+        ValidatePersistedOccurrenceCount(
+            connection,
+            document.Id,
+            expectedPersistedOccurrenceCount);
         return new ImportAnalysisResult(
             ImportAnalysisOutcome.Accepted,
             document.Id,
@@ -944,34 +1026,6 @@ public sealed class TextReviewService(
         .Replace('\n', ' ')
         .Replace('\t', ' ');
 
-    private static string NormalizeContextForComparison(string value) => string.Join(' ',
-        value.Replace("\r\n", "\n").Replace('\r', '\n')
-            .Trim()
-            .Normalize(NormalizationForm.FormC)
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-
-    private static ReviewContext CreateContext(
-        string content,
-        SentenceSpanEntity sentence,
-        WordOccurrenceEntity occurrence)
-    {
-        var relativeStart = occurrence.StartPosition - sentence.StartPosition;
-        if (relativeStart < 0
-            || relativeStart + occurrence.Length > sentence.Length
-            || content.Substring(occurrence.StartPosition, occurrence.Length) != occurrence.SurfaceForm)
-        {
-            throw new InvalidOperationException("Stored review coordinates do not match the original document.");
-        }
-
-        var sentenceText = content.Substring(sentence.StartPosition, sentence.Length);
-        return new ReviewContext(
-            occurrence.StartPosition,
-            occurrence.Length,
-            sentenceText[..relativeStart],
-            occurrence.SurfaceForm,
-            sentenceText[(relativeStart + occurrence.Length)..]);
-    }
-
     private static ActiveReviewSummary CreateActiveSummary(
         ReviewSessionEntity session,
         DocumentEntity document) => new(
@@ -1033,17 +1087,28 @@ public sealed class TextReviewService(
 
     private static void ValidateCoordinates(string content, TextAnalysisResult analysis)
     {
-        foreach (var sentence in analysis.Sentences)
+        var failures = AnalysisInvariantValidator.Validate(content, analysis);
+        if (failures.Count > 0)
         {
-            _ = content.Substring(sentence.StartPosition, sentence.Length);
-        }
-
-        foreach (var occurrence in analysis.Candidates.SelectMany(candidate => candidate.Occurrences))
-        {
-            if (content.Substring(occurrence.StartPosition, occurrence.Length) != occurrence.SurfaceForm)
-            {
-                throw new InvalidOperationException("Analyzed token coordinates do not match the original document.");
-            }
+            throw new InvalidOperationException(
+                $"Text analysis invariant validation failed: {string.Join("; ", failures.Select(failure => $"{failure.Code}: {failure.Explanation}"))}");
         }
     }
+
+    private static void ValidatePersistedOccurrenceCount(
+        SQLiteConnection connection,
+        int documentId,
+        int expectedCount)
+    {
+        var persistedCount = connection.Table<WordOccurrenceEntity>()
+            .Count(occurrence => occurrence.DocumentId == documentId);
+        if (persistedCount != expectedCount)
+        {
+            throw new InvalidOperationException(
+                $"Text analysis invariant validation failed: PersistedOccurrenceCountMismatch: Expected {expectedCount} persisted occurrence rows but found {persistedCount}.");
+        }
+    }
+
+    private static bool IsRangeInside(int contentLength, int start, int length) =>
+        start >= 0 && length >= 0 && start <= contentLength - length;
 }

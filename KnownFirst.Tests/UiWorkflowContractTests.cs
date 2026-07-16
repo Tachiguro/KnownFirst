@@ -89,6 +89,25 @@ public sealed class UiWorkflowContractTests
         Assert.DoesNotContain("API key", settings, StringComparison.OrdinalIgnoreCase);
     }
 
+    [TestMethod]
+    public void AnalysisDiagnostics_AreDebugEntryPointsAndReleaseExcludesTheDiagnosticsPage()
+    {
+        var review = LoadUi("ReviewWords.razor");
+        var diagnostics = LoadUi("Diagnostics.razor");
+        var project = LoadUi("KnownFirst.csproj");
+
+        Assert.Contains("Analysis_Details", review);
+        Assert.Contains("IsDebugBuild", review);
+        Assert.Contains("analysisDocumentId", review);
+        Assert.Contains("Analysis_CopyReport", diagnostics);
+        Assert.Contains("Analysis_SentenceSpans", diagnostics);
+        Assert.Contains("Analysis_TokenDecisions", diagnostics);
+        Assert.Contains("Analysis_CandidateGrouping", diagnostics);
+        Assert.Contains("Analysis_ContextSelection", diagnostics);
+        Assert.Contains("Components\\Pages\\Diagnostics.razor", project);
+        Assert.Contains("Condition=\"'$(Configuration)' != 'Debug'\"", project);
+    }
+
     private static string LoadUi(string fileName) => File.ReadAllText(Path.Combine(
         AppContext.BaseDirectory,
         "Ui",

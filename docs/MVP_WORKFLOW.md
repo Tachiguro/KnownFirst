@@ -172,6 +172,8 @@ Android:
 
 The original text is stored exactly as entered only after preflight accepts it.
 
+Text-analysis behavior and DEBUG explainability follow the binding specification in [`WORD_ANALYSIS.md`](WORD_ANALYSIS.md).
+
 Show progress and prevent double submission.
 
 ---

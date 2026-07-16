@@ -19,4 +19,8 @@ public interface ITextReviewService
     Task<CompletedReviewSummary?> GetLatestCompletedReviewAsync();
 
     Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync();
+
+#if DEBUG
+    Task<DocumentAnalysisReport?> GetAnalysisReportAsync(int? documentId = null);
+#endif
 }

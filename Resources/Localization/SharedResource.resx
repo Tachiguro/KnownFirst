@@ -924,4 +924,94 @@
   <data name="Diagnostics_No" xml:space="preserve">
     <value>No</value>
   </data>
+  <data name="Analysis_Details" xml:space="preserve">
+    <value>Analysis details</value>
+  </data>
+  <data name="Analysis_CopyReport" xml:space="preserve">
+    <value>Copy analysis report</value>
+  </data>
+  <data name="Analysis_ReportCopied" xml:space="preserve">
+    <value>Analysis report copied.</value>
+  </data>
+  <data name="Analysis_Title" xml:space="preserve">
+    <value>Document analysis</value>
+  </data>
+  <data name="Analysis_DocumentSummary" xml:space="preserve">
+    <value>Document summary</value>
+  </data>
+  <data name="Analysis_IncludedTokens" xml:space="preserve">
+    <value>Included tokens</value>
+  </data>
+  <data name="Analysis_ExcludedDecisions" xml:space="preserve">
+    <value>Excluded decisions</value>
+  </data>
+  <data name="Analysis_Fingerprint" xml:space="preserve">
+    <value>Fingerprint</value>
+  </data>
+  <data name="Analysis_CandidateDetails" xml:space="preserve">
+    <value>Candidate details: {0}</value>
+  </data>
+  <data name="Analysis_FormsBefore" xml:space="preserve">
+    <value>Forms before deduplication</value>
+  </data>
+  <data name="Analysis_FormsAfter" xml:space="preserve">
+    <value>Forms after deduplication</value>
+  </data>
+  <data name="Analysis_SentenceSpans" xml:space="preserve">
+    <value>Sentence spans</value>
+  </data>
+  <data name="Analysis_BoundaryReason" xml:space="preserve">
+    <value>Boundary reason</value>
+  </data>
+  <data name="Analysis_ExactText" xml:space="preserve">
+    <value>Exact text</value>
+  </data>
+  <data name="Analysis_TokenDecisions" xml:space="preserve">
+    <value>Token decisions</value>
+  </data>
+  <data name="Analysis_RawValue" xml:space="preserve">
+    <value>Raw value</value>
+  </data>
+  <data name="Analysis_NormalizedValue" xml:space="preserve">
+    <value>Normalized value</value>
+  </data>
+  <data name="Analysis_Decision" xml:space="preserve">
+    <value>Decision</value>
+  </data>
+  <data name="Analysis_Reason" xml:space="preserve">
+    <value>Reason</value>
+  </data>
+  <data name="Analysis_Included" xml:space="preserve">
+    <value>Included</value>
+  </data>
+  <data name="Analysis_Excluded" xml:space="preserve">
+    <value>Excluded</value>
+  </data>
+  <data name="Analysis_CandidateGrouping" xml:space="preserve">
+    <value>Candidate grouping</value>
+  </data>
+  <data name="Analysis_ContextSelection" xml:space="preserve">
+    <value>Context selection</value>
+  </data>
+  <data name="Analysis_Selected" xml:space="preserve">
+    <value>Selected</value>
+  </data>
+  <data name="Analysis_Rejected" xml:space="preserve">
+    <value>Rejected</value>
+  </data>
+  <data name="Analysis_Target" xml:space="preserve">
+    <value>Target</value>
+  </data>
+  <data name="Analysis_Coordinates" xml:space="preserve">
+    <value>Coordinates</value>
+  </data>
+  <data name="Analysis_RelativeStart" xml:space="preserve">
+    <value>Relative start</value>
+  </data>
+  <data name="Analysis_Invariants" xml:space="preserve">
+    <value>Coordinate invariants</value>
+  </data>
+  <data name="Analysis_InvariantsPassed" xml:space="preserve">
+    <value>All coordinate invariants passed.</value>
+  </data>
 </root>

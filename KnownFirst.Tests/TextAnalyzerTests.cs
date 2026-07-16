@@ -174,6 +174,186 @@ public sealed class TextAnalyzerTests
         Assert.AreEqual(7, identities.Distinct(StringComparer.Ordinal).Count());
     }
 
+    [TestMethod]
+    public void SentenceSegmenter_SplitsBasicPunctuation()
+    {
+        const string content = "First. Second! Third?";
+
+        CollectionAssert.AreEqual(
+            new[] { "First.", "Second!", "Third?" },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_AttachesSingleAndAdjacentCitations()
+    {
+        const string content = "First sentence.[1] Second sentence.[2][3] Final sentence.";
+
+        CollectionAssert.AreEqual(
+            new[] { "First sentence.[1]", "Second sentence.[2][3]", "Final sentence." },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_RetainsClosingQuotesParenthesesAndCitations()
+    {
+        const string content = "He said \"Stop.\"[1] (Really?)[2] Next.";
+
+        CollectionAssert.AreEqual(
+            new[] { "He said \"Stop.\"[1]", "(Really?)[2]", "Next." },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_DoesNotSplitKnownAbbreviations()
+    {
+        const string content = "Use e.g. OAuth2, i.e. one option, in the U.S. market. Next.";
+
+        CollectionAssert.AreEqual(
+            new[] { "Use e.g. OAuth2, i.e. one option, in the U.S. market.", "Next." },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_DoesNotSplitDecimalValues()
+    {
+        const string content = "Version 3.14 is stable. Next.";
+
+        CollectionAssert.AreEqual(
+            new[] { "Version 3.14 is stable.", "Next." },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_RetainsFinalSentenceWithoutPunctuation()
+    {
+        const string content = "First sentence. Final sentence without punctuation";
+
+        CollectionAssert.AreEqual(
+            new[] { "First sentence.", "Final sentence without punctuation" },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_ObservedCitationExampleCreatesTwoSpans()
+    {
+        const string content = "It is part of information risk management.[1] It typically involves preventing or reducing unauthorized access.[2]";
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "It is part of information risk management.[1]",
+                "It typically involves preventing or reducing unauthorized access.[2]"
+            },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_ObservedCitationExampleCreatesThreeSpans()
+    {
+        const string content = "Protected information may take any form.[2] Information security protects confidentiality.[3] It also supports availability.[4]";
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Protected information may take any form.[2]",
+                "Information security protects confidentiality.[3]",
+                "It also supports availability.[4]"
+            },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void Analyze_EncounteredFormsDeduplicateCaseOnlyVariantsAndPreferLowercase()
+    {
+        var candidate = _analyzer.Analyze("Information information INFORMATION.")
+            .Candidates
+            .Single(item => item.Identity == "W:information");
+
+        CollectionAssert.AreEqual(new[] { "information" }, candidate.EncounteredForms.ToArray());
+        Assert.HasCount(3, candidate.Occurrences);
+    }
+
+    [TestMethod]
+    public void Analyze_EncounteredFormGroupingKeepsStableCandidateOrder()
+    {
+        var candidates = _analyzer.Analyze("Alpha alpha BETA beta.")
+            .Candidates
+            .Where(candidate => candidate.Identity is "W:alpha" or "W:beta")
+            .ToArray();
+
+        CollectionAssert.AreEqual(new[] { "W:alpha", "W:beta" }, candidates.Select(item => item.Identity).ToArray());
+        CollectionAssert.AreEqual(new[] { "alpha" }, candidates[0].EncounteredForms.ToArray());
+        CollectionAssert.AreEqual(new[] { "beta" }, candidates[1].EncounteredForms.ToArray());
+    }
+
+    [TestMethod]
+    public void Analyze_EncounteredFormsUseUnicodeNormalizedComparison()
+    {
+        var candidate = _analyzer.Analyze("café cafe\u0301.")
+            .Candidates
+            .Single(item => item.Identity == "W:café");
+
+        CollectionAssert.AreEqual(new[] { "café" }, candidate.EncounteredForms.ToArray());
+        Assert.HasCount(2, candidate.Occurrences);
+    }
+
+    [TestMethod]
+    public void ContextFingerprint_PreservesDiacritics()
+    {
+        Assert.AreNotEqual(
+            ContextSelectionPolicy.CreateFingerprint("Café protects data."),
+            ContextSelectionPolicy.CreateFingerprint("Cafe protects data."));
+    }
+
+    [TestMethod]
+    public void Analyze_DiagnosticsExplainBoundariesTokensGroupingAndDuplicateContexts()
+    {
+        const string content = "Information information here.[1] Information information here.[1] test@example.com";
+        var result = _analyzer.Analyze(content);
+        var diagnostics = result.Diagnostics
+            ?? throw new InvalidOperationException("DEBUG analysis diagnostics were not created.");
+
+        Assert.IsTrue(result.Sentences.Any(sentence =>
+            sentence.BoundaryReasonCode == AnalysisReasonCodes.SentenceBoundaryTerminatorCitation));
+        Assert.IsTrue(diagnostics.TokenDecisions.Any(decision =>
+            decision.IsIncluded && decision.ReasonCode == AnalysisReasonCodes.IncludedUnicodeWord));
+        Assert.IsTrue(diagnostics.TokenDecisions.Any(decision =>
+            !decision.IsIncluded && decision.ReasonCode == AnalysisReasonCodes.ExcludedEmailAddress));
+        Assert.IsTrue(diagnostics.CandidateGroups.Any(group =>
+            group.Identity == "W:information"
+            && group.ReasonCode == AnalysisReasonCodes.OrdinaryWordCaseGrouping));
+        Assert.IsTrue(diagnostics.ContextDecisions.Any(context =>
+            context.CandidateIdentity == "W:information"
+            && context.ReasonCode == AnalysisReasonCodes.RejectedDuplicateContext));
+        Assert.IsEmpty(diagnostics.InvariantFailures);
+    }
+
+    [TestMethod]
+    public void Analyze_UnicodeAndTechnicalCoordinatesRemainExact()
+    {
+        const string content = "Äußere Straße schützt OAuth2 und SHA-256.";
+        var result = _analyzer.Analyze(content);
+
+        foreach (var sentence in result.Sentences)
+        {
+            Assert.AreEqual(
+                content.Substring(sentence.StartPosition, sentence.Length),
+                content[sentence.StartPosition..sentence.EndPosition]);
+        }
+
+        foreach (var occurrence in result.Candidates.SelectMany(candidate => candidate.Occurrences))
+        {
+            Assert.AreEqual(
+                occurrence.SurfaceForm,
+                content.Substring(occurrence.StartPosition, occurrence.Length));
+        }
+    }
+
+    private string[] SentenceTexts(string content) => _analyzer.ExtractSentenceSpans(content)
+        .Select(span => content.Substring(span.StartPosition, span.Length))
+        .ToArray();
+
     private string[] AnalyzeSurfaces(string content) => _analyzer.Analyze(content)
         .Candidates
         .SelectMany(candidate => candidate.SurfaceForms.Keys)

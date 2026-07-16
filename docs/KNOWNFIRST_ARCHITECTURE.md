@@ -195,6 +195,8 @@ KnownFirst must not automatically claim that a word is permanently learned after
 
 Text import must be analyzed through a temporary or transactional preflight result before permanent storage.
 
+The binding deterministic rules for sentence segmentation, token decisions, candidate grouping, encountered forms, context selection, coordinate validation, and DEBUG explainability are defined in [`WORD_ANALYSIS.md`](WORD_ANALYSIS.md).
+
 The original text must be preserved exactly as entered:
 
 - no trimming

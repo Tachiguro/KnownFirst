@@ -17,6 +17,8 @@
   <ItemGroup>
     <None Update="Fixtures\Wiktionary\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\ReviewWords.razor" Link="Ui\ReviewWords.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\Diagnostics.razor" Link="Ui\Diagnostics.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\KnownFirst.csproj" Link="Ui\KnownFirst.csproj" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Layout\NavMenu.razor" Link="Ui\NavMenu.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Settings.razor" Link="Ui\Settings.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Learn.razor" Link="Ui\Learn.razor" CopyToOutputDirectory="PreserveNewest" />

@@ -17,6 +17,9 @@
         <button type="button" class="button button-secondary" disabled="@(_isLoading || _snapshot is null)" @onclick="CopyDatabasePathAsync">
             @Localizer["Diagnostics_CopyDatabasePath"]
         </button>
+        <button type="button" class="button button-secondary" disabled="@(_isLoading || _analysisReport is null)" @onclick="CopyAnalysisReportAsync">
+            @Localizer["Analysis_CopyReport"]
+        </button>
     </div>
 
     @if (_copyMessageKey is not null)
@@ -91,6 +94,144 @@
                 <p>@Localizer["Diagnostics_NoActiveSession"]</p>
             }
         </section>
+
+        @if (_analysisReport is not null)
+        {
+            <section id="analysis-details" class="settings-card diagnostic-section">
+                <h2>@Localizer["Analysis_Title"]</h2>
+
+                <h3>@Localizer["Analysis_DocumentSummary"]</h3>
+                <dl class="diagnostic-definitions">
+                    <div><dt>@Localizer["Diagnostics_TitleColumn"]</dt><dd>@_analysisReport.Summary.Title</dd></div>
+                    <div><dt>@Localizer["Diagnostics_Characters"]</dt><dd>@_analysisReport.Summary.CharacterCount</dd></div>
+                    <div><dt>@Localizer["Diagnostics_SentenceCount"]</dt><dd>@_analysisReport.Summary.SentenceCount</dd></div>
+                    <div><dt>@Localizer["Analysis_IncludedTokens"]</dt><dd>@_analysisReport.Summary.IncludedTokenCount</dd></div>
+                    <div><dt>@Localizer["Analysis_ExcludedDecisions"]</dt><dd>@_analysisReport.Summary.ExcludedTokenCount</dd></div>
+                    <div><dt>@Localizer["Diagnostics_Candidates"]</dt><dd>@_analysisReport.Summary.CandidateCount</dd></div>
+                    <div><dt>@Localizer["Diagnostics_StoredOccurrences"]</dt><dd>@_analysisReport.Summary.OccurrenceCount</dd></div>
+                    <div><dt>@Localizer["Analysis_Fingerprint"]</dt><dd class="diagnostic-value">@_analysisReport.Summary.ContentFingerprint</dd></div>
+                </dl>
+
+                @if (SelectedCandidateAnalysis is not null)
+                {
+                    <section class="analysis-focus">
+                        <h3>@Localizer["Analysis_CandidateDetails", SelectedCandidateAnalysis.CanonicalTerm]</h3>
+                        <p><strong>@SelectedCandidateAnalysis.ReasonCode</strong>: @SelectedCandidateAnalysis.Explanation</p>
+                        <p>@Localizer["Analysis_FormsBefore"]: @string.Join(", ", SelectedCandidateAnalysis.FormsBeforeDeduplication)</p>
+                        <p>@Localizer["Analysis_FormsAfter"]: @string.Join(", ", SelectedCandidateAnalysis.FormsAfterDeduplication)</p>
+                    </section>
+                }
+
+                <details open>
+                    <summary>@Localizer["Analysis_SentenceSpans"] (@_analysisReport.Sentences.Count)</summary>
+                    <div class="diagnostic-table-wrap">
+                        <table class="diagnostic-table">
+                            <thead><tr><th>@Localizer["Diagnostics_Order"]</th><th>@Localizer["Diagnostics_Start"]</th><th>@Localizer["Diagnostics_Length"]</th><th>@Localizer["Analysis_BoundaryReason"]</th><th>@Localizer["Analysis_ExactText"]</th></tr></thead>
+                            <tbody>
+                                @foreach (var sentence in _analysisReport.Sentences)
+                                {
+                                    <tr>
+                                        <td>@sentence.Span.Order</td>
+                                        <td>@sentence.Span.StartPosition</td>
+                                        <td>@sentence.Span.Length</td>
+                                        <td><strong>@sentence.Span.BoundaryReasonCode</strong><br />@sentence.Span.BoundaryExplanation</td>
+                                        <td class="analysis-exact-text">@sentence.Text</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>@Localizer["Analysis_TokenDecisions"] (@_analysisReport.Diagnostics.TokenDecisions.Count)</summary>
+                    <div class="diagnostic-table-wrap">
+                        <table class="diagnostic-table">
+                            <thead><tr><th>@Localizer["Analysis_RawValue"]</th><th>@Localizer["Diagnostics_Start"]</th><th>@Localizer["Diagnostics_Length"]</th><th>@Localizer["Analysis_NormalizedValue"]</th><th>@Localizer["Review_TokenKind"]</th><th>@Localizer["Analysis_Decision"]</th><th>@Localizer["Analysis_Reason"]</th></tr></thead>
+                            <tbody>
+                                @foreach (var token in _analysisReport.Diagnostics.TokenDecisions)
+                                {
+                                    <tr>
+                                        <td class="analysis-exact-text">@token.RawValue</td>
+                                        <td>@token.StartPosition</td>
+                                        <td>@token.Length</td>
+                                        <td>@token.NormalizedValue</td>
+                                        <td>@(token.Kind.HasValue ? GetTokenKindName(token.Kind.Value) : "—")</td>
+                                        <td>@Localizer[token.IsIncluded ? "Analysis_Included" : "Analysis_Excluded"]</td>
+                                        <td><strong>@token.ReasonCode</strong><br />@token.Explanation</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>@Localizer["Analysis_CandidateGrouping"] (@_analysisReport.Diagnostics.CandidateGroups.Count)</summary>
+                    <div class="diagnostic-table-wrap">
+                        <table class="diagnostic-table">
+                            <thead><tr><th>@Localizer["Diagnostics_CandidateText"]</th><th>@Localizer["Review_TokenKind"]</th><th>@Localizer["Analysis_FormsBefore"]</th><th>@Localizer["Analysis_FormsAfter"]</th><th>@Localizer["Analysis_Reason"]</th></tr></thead>
+                            <tbody>
+                                @foreach (var candidate in _analysisReport.Diagnostics.CandidateGroups)
+                                {
+                                    <tr>
+                                        <td>@candidate.CanonicalTerm<br /><small>@candidate.Identity</small></td>
+                                        <td>@GetTokenKindName(candidate.Kind)</td>
+                                        <td>@string.Join(", ", candidate.FormsBeforeDeduplication)</td>
+                                        <td>@string.Join(", ", candidate.FormsAfterDeduplication)</td>
+                                        <td><strong>@candidate.ReasonCode</strong><br />@candidate.Explanation</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>@Localizer["Analysis_ContextSelection"] (@_analysisReport.Diagnostics.ContextDecisions.Count)</summary>
+                    <div class="diagnostic-table-wrap">
+                        <table class="diagnostic-table">
+                            <thead><tr><th>@Localizer["Diagnostics_CandidateText"]</th><th>@Localizer["Diagnostics_Order"]</th><th>@Localizer["Analysis_Decision"]</th><th>@Localizer["Analysis_Fingerprint"]</th><th>@Localizer["Analysis_Coordinates"]</th><th>@Localizer["Analysis_ExactText"]</th><th>@Localizer["Analysis_Target"]</th><th>@Localizer["Analysis_Reason"]</th></tr></thead>
+                            <tbody>
+                                @foreach (var context in _analysisReport.Diagnostics.ContextDecisions)
+                                {
+                                    <tr>
+                                        <td>@context.CandidateIdentity</td>
+                                        <td>@context.OccurrenceOrder</td>
+                                        <td>@Localizer[context.IsSelected ? "Analysis_Selected" : "Analysis_Rejected"]</td>
+                                        <td class="diagnostic-value">@context.Fingerprint</td>
+                                        <td>
+                                            @Localizer["Diagnostics_TermSentenceSpan"]: @Localizer["Diagnostics_Start"]=@context.SentenceStartPosition, @Localizer["Diagnostics_Length"]=@context.SentenceLength<br />
+                                            @Localizer["Analysis_Target"]: @Localizer["Diagnostics_Start"]=@context.OccurrenceStartPosition, @Localizer["Diagnostics_Length"]=@context.OccurrenceLength, @Localizer["Analysis_RelativeStart"]=@context.TargetStartInSentence
+                                        </td>
+                                        <td class="analysis-exact-text">@context.SentenceText</td>
+                                        <td>@context.Target</td>
+                                        <td><strong>@context.ReasonCode</strong><br />@context.Explanation</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+
+                <details>
+                    <summary>@Localizer["Analysis_Invariants"]</summary>
+                    @if (_analysisReport.Diagnostics.InvariantFailures.Count == 0)
+                    {
+                        <p class="inline-message inline-message-success">@Localizer["Analysis_InvariantsPassed"]</p>
+                    }
+                    else
+                    {
+                        <ul>
+                            @foreach (var failure in _analysisReport.Diagnostics.InvariantFailures)
+                            {
+                                <li><strong>@failure.Code</strong>: @failure.Explanation</li>
+                            }
+                        </ul>
+                    }
+                </details>
+            </section>
+        }
 
         <section class="settings-card diagnostic-section">
             <h2>@Localizer["Diagnostics_Documents"] (@_snapshot.Documents.Count)</h2>
@@ -476,10 +617,21 @@
 
 @code {
     private ReviewDiagnosticsSnapshot? _snapshot;
+    private DocumentAnalysisReport? _analysisReport;
     private bool _isLoading = true;
     private bool _loadFailed;
     private bool _copyFailed;
     private string? _copyMessageKey;
+
+    [SupplyParameterFromQuery(Name = "analysisDocumentId")]
+    public int? AnalysisDocumentId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "analysisIdentity")]
+    public string? AnalysisIdentity { get; set; }
+
+    private CandidateGroupingAnalysis? SelectedCandidateAnalysis =>
+        _analysisReport?.Diagnostics.CandidateGroups.FirstOrDefault(candidate =>
+            string.Equals(candidate.Identity, AnalysisIdentity, StringComparison.Ordinal));
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -491,6 +643,7 @@
         try
         {
             _snapshot = await TextReviewService.GetDiagnosticsAsync();
+            _analysisReport = await TextReviewService.GetAnalysisReportAsync(AnalysisDocumentId);
         }
         catch (Exception exception)
         {
@@ -510,6 +663,10 @@
     private Task CopyDatabasePathAsync() => CopyAsync(
         _snapshot?.DatabasePath,
         "Diagnostics_DatabasePathCopied");
+
+    private Task CopyAnalysisReportAsync() => CopyAsync(
+        _analysisReport is null ? null : WordAnalysisReportFormatter.Format(_analysisReport),
+        "Analysis_ReportCopied");
 
     private async Task CopyAsync(string? value, string successMessageKey)
     {

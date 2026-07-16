@@ -156,6 +156,111 @@ public sealed class TextReviewServiceTests
     }
 
     [TestMethod]
+    public async Task GetCurrentCandidateAsync_CitationSeparatedContextsEachEqualOneSentence()
+    {
+        const string content = "Information supports risk management.[1] Information protects confidentiality.[2]";
+        var import = await _service.ImportAsync(CreateRequest(content));
+
+        var candidate = await _service.GetCurrentCandidateAsync()
+            ?? throw new InvalidOperationException("The expected review candidate was not created.");
+        var storedSentences = await _database.ReadAsync(connection => connection.Table<SentenceSpanEntity>()
+            .Where(sentence => sentence.DocumentId == import.DocumentId)
+            .OrderBy(sentence => sentence.Order)
+            .ToListAsync());
+
+        Assert.AreEqual("Information", candidate.Candidate);
+        Assert.HasCount(2, storedSentences);
+        Assert.HasCount(2, candidate.Contexts);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Information supports risk management.[1]",
+                "Information protects confidentiality.[2]"
+            },
+            candidate.Contexts
+                .Select(context => context.BeforeTarget + context.Target + context.AfterTarget)
+                .ToArray());
+        foreach (var context in candidate.Contexts)
+        {
+            Assert.AreEqual(context.Target, content.Substring(context.StartPosition, context.Length));
+        }
+    }
+
+    [TestMethod]
+    public async Task GetCurrentCandidateAsync_DeduplicatesCaseOnlyEncounteredFormsForDisplay()
+    {
+        await _service.ImportAsync(CreateRequest("Information information INFORMATION."));
+
+        var candidate = await _service.GetCurrentCandidateAsync()
+            ?? throw new InvalidOperationException("The expected review candidate was not created.");
+
+        Assert.AreEqual(3, candidate.OccurrenceCount);
+        CollectionAssert.AreEqual(new[] { "information" }, candidate.SurfaceForms.ToArray());
+    }
+
+    [TestMethod]
+    public async Task GetCurrentCandidateAsync_DuplicateContextsDoNotReduceOccurrenceCount()
+    {
+        const string content = "Security is important. Security is important. Security protects information.";
+        await _service.ImportAsync(CreateRequest(content));
+
+        var candidate = await _service.GetCurrentCandidateAsync()
+            ?? throw new InvalidOperationException("The expected review candidate was not created.");
+        var occurrenceRows = await _database.ReadAsync(connection => connection.Table<WordOccurrenceEntity>()
+            .Where(occurrence => occurrence.WordId == candidate.WordId)
+            .CountAsync());
+
+        Assert.AreEqual(3, candidate.OccurrenceCount);
+        Assert.AreEqual(3, occurrenceRows);
+        Assert.HasCount(2, candidate.Contexts);
+        CollectionAssert.AreEqual(
+            new[] { "Security is important.", "Security protects information." },
+            candidate.Contexts
+                .Select(context => context.BeforeTarget + context.Target + context.AfterTarget)
+                .ToArray());
+    }
+
+    [TestMethod]
+    public async Task GetCurrentCandidateAsync_ContextDedupNormalizesLineEndingsAndWhitespaceButRetainsFirstExactSentence()
+    {
+        const string content = "Target  line\r\nwraps. Target line wraps.";
+        await _service.ImportAsync(CreateRequest(content));
+
+        var candidate = await _service.GetCurrentCandidateAsync()
+            ?? throw new InvalidOperationException("The expected review candidate was not created.");
+
+        Assert.AreEqual(2, candidate.OccurrenceCount);
+        Assert.HasCount(1, candidate.Contexts);
+        Assert.AreEqual(
+            "Target  line\r\nwraps.",
+            candidate.Contexts[0].BeforeTarget
+            + candidate.Contexts[0].Target
+            + candidate.Contexts[0].AfterTarget);
+    }
+
+#if DEBUG
+    [TestMethod]
+    public async Task GetAnalysisReportAsync_ProducesReadableBoundaryGroupingAndContextReasons()
+    {
+        const string content = "Information information here.[1] Information information here.[1]";
+        var import = await _service.ImportAsync(CreateRequest(content));
+
+        var report = await _service.GetAnalysisReportAsync(import.DocumentId)
+            ?? throw new InvalidOperationException("The expected DEBUG analysis report was not created.");
+        var text = WordAnalysisReportFormatter.Format(report);
+
+        Assert.AreEqual(import.DocumentId, report.Summary.DocumentId);
+        Assert.Contains("KnownFirst analysis report", text);
+        Assert.Contains("Sentence spans", text);
+        Assert.Contains(AnalysisReasonCodes.SentenceBoundaryTerminatorCitation, text);
+        Assert.Contains(AnalysisReasonCodes.OrdinaryWordCaseGrouping, text);
+        Assert.Contains(AnalysisReasonCodes.RejectedDuplicateContext, text);
+        Assert.Contains("targetRelativeStart=", text);
+        Assert.Contains("All coordinate invariants passed.", text);
+    }
+#endif
+
+    [TestMethod]
     public async Task UndoPreviousDecisionAsync_RestoresPreviousCandidateAndStatus()
     {
         await _service.ImportAsync(CreateRequest("Alpha Beta."));
@@ -182,6 +287,40 @@ public sealed class TextReviewServiceTests
 
         var documentCount = await _database.ReadAsync(connection =>
             connection.Table<DocumentEntity>().CountAsync());
+        Assert.AreEqual(1, documentCount);
+    }
+
+    [TestMethod]
+    public async Task ImportAsync_WhenCoordinateInvariantFails_RollsBackWithoutDeletingExistingData()
+    {
+        var existingId = await _database.RunInTransactionAsync(connection =>
+        {
+            var document = new DocumentEntity
+            {
+                Title = "Existing",
+                TextLanguage = "en",
+                ExplanationLanguage = "de",
+                Content = "Existing content.",
+                ContentFingerprint = "existing",
+                ImportedAt = DateTime.UtcNow
+            };
+            connection.Insert(document);
+            return document.Id;
+        });
+        var invalidService = new TextReviewService(
+            _database,
+            new TextAnalyzer(new InvalidSentenceSegmenter()));
+
+        var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => invalidService.ImportAsync(CreateRequest("New content.")));
+        var retained = await _database.ReadAsync(connection =>
+            connection.FindAsync<DocumentEntity>(existingId));
+        var documentCount = await _database.ReadAsync(connection =>
+            connection.Table<DocumentEntity>().CountAsync());
+
+        Assert.Contains("SentenceRangeOutsideDocument", exception.Message);
+        Assert.IsNotNull(retained);
+        Assert.AreEqual("Existing content.", retained.Content);
         Assert.AreEqual(1, documentCount);
     }
 
@@ -370,11 +509,16 @@ public sealed class TextReviewServiceTests
         var active = await _service.GetActiveReviewAsync();
         var current = await _service.GetCurrentCandidateAsync();
         var wordsAfter = await GetWordsByCanonicalTermAsync();
+        var persistedOccurrences = await _database.ReadAsync(connection =>
+            connection.Table<WordOccurrenceEntity>()
+                .Where(occurrence => occurrence.DocumentId == result.DocumentId)
+                .CountAsync());
 
         Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
         Assert.AreEqual(1, result.CandidateCount);
         Assert.AreEqual(1, active!.TotalCandidates);
         Assert.AreEqual("Newword", current!.Candidate);
+        Assert.AreEqual(3, persistedOccurrences);
         Assert.AreEqual(
             wordsBefore["Unknownword"].TotalOccurrenceCount + 2,
             wordsAfter["Unknownword"].TotalOccurrenceCount);
@@ -620,6 +764,12 @@ public sealed class TextReviewServiceTests
         content,
         "en",
         "de");
+
+    private sealed class InvalidSentenceSegmenter : ISentenceSegmenter
+    {
+        public IReadOnlyList<TextSpan> Segment(string content) =>
+            [new TextSpan(content.Length + 1, 1, 0)];
+    }
 
     private sealed class TemporaryDatabase : IKnownFirstDatabase, IAsyncDisposable
     {

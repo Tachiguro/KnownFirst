@@ -26,6 +26,12 @@
             <NavLink class="nav-link" href="settings" @onclick="NotifyNavigationAsync">
                 @Localizer["Navigation_Settings"]
             </NavLink>
+            @if (IsDebugBuild)
+            {
+                <NavLink class="nav-link" href="diagnostics" @onclick="NotifyNavigationAsync">
+                    @Localizer["Navigation_Diagnostics"]
+                </NavLink>
+            }
         </nav>
     </div>
 
@@ -40,6 +46,18 @@
 @code {
     [Parameter]
     public EventCallback OnNavigate { get; set; }
+
+    private static bool IsDebugBuild
+    {
+        get
+        {
+#if DEBUG
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
 
     private Task NotifyNavigationAsync() => OnNavigate.InvokeAsync();
 }

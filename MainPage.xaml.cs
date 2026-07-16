@@ -1,5 +1,6 @@
 using KnownFirst.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.WebView;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -34,6 +35,28 @@ public partial class MainPage : ContentPage
         }
 
         return true;
+    }
+
+    private static void OnBlazorWebViewInitialized(
+        object? sender,
+        BlazorWebViewInitializedEventArgs eventArgs)
+    {
+#if WINDOWS
+        var webView = eventArgs.WebView;
+        if (webView.CoreWebView2 is not null)
+        {
+            webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            return;
+        }
+
+        webView.CoreWebView2Initialized += (_, _) =>
+        {
+            if (webView.CoreWebView2 is not null)
+            {
+                webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            }
+        };
+#endif
     }
 
     private async Task NavigateBackInBlazorAsync()

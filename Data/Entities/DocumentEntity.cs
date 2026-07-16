@@ -16,6 +16,9 @@ public sealed class DocumentEntity
 
     public string Content { get; set; } = string.Empty;
 
+    [Indexed]
+    public string ContentFingerprint { get; set; } = string.Empty;
+
     public DateTime ImportedAt { get; set; }
 
     public int WordCount { get; set; }

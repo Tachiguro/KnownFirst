@@ -1,8 +1,294 @@
 @page "/review-words"
+@inject ITextReviewService TextReviewService
+@inject NavigationManager Navigation
+@inject ILogger<ReviewWords> Logger
 
 <PageTitle>@Localizer["Navigation_ReviewWords"]</PageTitle>
 
-<section class="placeholder-card">
+<section class="review-page">
     <PageHeader Title="@(Localizer["Navigation_ReviewWords"])" />
-    <p>@Localizer["Placeholder_Message"]</p>
+
+    @if (_isLoading)
+    {
+        <p class="loading-message" role="status">@Localizer["Review_Loading"]</p>
+    }
+    else if (_loadFailed)
+    {
+        <div class="inline-message inline-message-error" role="alert">
+            <span>@Localizer["Review_LoadError"]</span>
+            <button type="button" class="button button-secondary" @onclick="LoadAsync">
+                @Localizer["Common_Retry"]
+            </button>
+        </div>
+    }
+    else if (_candidate is not null)
+    {
+        <article class="review-card">
+            <div class="review-progress" aria-label="@Localizer["Review_ProgressLabel"]">
+                <span>@Localizer["Review_Progress", _candidate.ReviewedCount + 1, _candidate.TotalCandidates]</span>
+                <progress value="@_candidate.ReviewedCount" max="@_candidate.TotalCandidates"></progress>
+            </div>
+
+            <p class="candidate-label">@Localizer["Review_Candidate"]</p>
+            <h2>@_candidate.Candidate</h2>
+
+            <dl class="candidate-details">
+                <div>
+                    <dt>@Localizer["Review_TokenKind"]</dt>
+                    <dd>@GetTokenKindName(_candidate.TokenKind)</dd>
+                </div>
+                <div>
+                    <dt>@Localizer["Review_EncounteredForms"]</dt>
+                    <dd>@string.Join(", ", _candidate.SurfaceForms)</dd>
+                </div>
+                <div>
+                    <dt>@Localizer["Review_OccurrenceCount"]</dt>
+                    <dd>@_candidate.OccurrenceCount</dd>
+                </div>
+            </dl>
+
+            @if (_candidate.Contexts.Count > 1)
+            {
+                <p class="context-notice">@Localizer["Review_MultipleContextsNotice"]</p>
+            }
+
+            @if (CurrentContext is not null)
+            {
+                <section class="context-card" aria-label="@Localizer["Review_Context"]">
+                    <p class="context-text"><span>@CurrentContext.BeforeTarget</span><mark>@CurrentContext.Target</mark><span>@CurrentContext.AfterTarget</span></p>
+                    <div class="context-navigation">
+                        <button type="button"
+                                class="button button-secondary"
+                                disabled="@(_contextIndex == 0 || _isSaving)"
+                                @onclick="ShowPreviousContext">
+                            @Localizer["Review_PreviousContext"]
+                        </button>
+                        <span>@Localizer["Review_ContextPosition", _contextIndex + 1, _candidate.Contexts.Count]</span>
+                        <button type="button"
+                                class="button button-secondary"
+                                disabled="@(_contextIndex >= _candidate.Contexts.Count - 1 || _isSaving)"
+                                @onclick="ShowNextContext">
+                            @Localizer["Review_NextContext"]
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <h3>@Localizer["Review_Question"]</h3>
+            <div class="decision-grid">
+                <button type="button" class="button button-primary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.Known)">
+                    @Localizer["Review_Known"]
+                </button>
+                <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
+                    @Localizer["Review_Unknown"]
+                </button>
+                <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.Ignored)">
+                    @Localizer["Review_Ignore"]
+                </button>
+            </div>
+            <button type="button"
+                    class="undo-button"
+                    disabled="@(!_candidate.CanUndo || _isSaving)"
+                    @onclick="UndoAsync">
+                @Localizer["Review_Undo"]
+            </button>
+
+            @if (_decisionFailed)
+            {
+                <p class="inline-message inline-message-error" role="alert">@Localizer["Review_DecisionError"]</p>
+            }
+        </article>
+
+        <section class="discard-card">
+            <h2>@Localizer["Review_DiscardTitle"]</h2>
+            @if (!_showDiscardConfirmation)
+            {
+                <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="ShowDiscardConfirmation">
+                    @Localizer["Review_DiscardAction"]
+                </button>
+            }
+            else
+            {
+                <p>@Localizer["Review_DiscardMessage"]</p>
+                <div class="button-row">
+                    <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="CancelDiscard">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="DiscardAsync">
+                        @Localizer["Review_DiscardConfirm"]
+                    </button>
+                </div>
+            }
+        </section>
+    }
+    else if (_completedSummary is not null)
+    {
+        <section class="completion-card" role="status">
+            <h2>@Localizer["Review_CompleteTitle"]</h2>
+            <p>@Localizer["Review_CompleteDescription", _completedSummary.DocumentTitle]</p>
+            <dl class="completion-summary">
+                <div><dt>@Localizer["Review_Known"]</dt><dd>@_completedSummary.KnownCount</dd></div>
+                <div><dt>@Localizer["Review_Unknown"]</dt><dd>@_completedSummary.UnknownCount</dd></div>
+                <div><dt>@Localizer["Review_Ignore"]</dt><dd>@_completedSummary.IgnoredCount</dd></div>
+            </dl>
+            <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
+        </section>
+    }
+    else
+    {
+        <section class="placeholder-card">
+            <p>@Localizer["Review_NoActive"]</p>
+            <a class="button button-primary" href="import-text">@Localizer["Review_StartImport"]</a>
+        </section>
+    }
 </section>
+
+@code {
+    private ReviewCandidateDetails? _candidate;
+    private CompletedReviewSummary? _completedSummary;
+    private int _contextIndex;
+    private bool _isLoading = true;
+    private bool _isSaving;
+    private bool _loadFailed;
+    private bool _decisionFailed;
+    private bool _showDiscardConfirmation;
+
+    private ReviewContext? CurrentContext => _candidate is null || _candidate.Contexts.Count == 0
+        ? null
+        : _candidate.Contexts[_contextIndex];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadFailed = false;
+        _decisionFailed = false;
+
+        try
+        {
+            _candidate = await TextReviewService.GetCurrentCandidateAsync();
+            _completedSummary = _candidate is null
+                ? await TextReviewService.GetLatestCompletedReviewAsync()
+                : null;
+            _contextIndex = 0;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The active word review could not be loaded.");
+            _loadFailed = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task DecideAsync(WordStatus status)
+    {
+        if (_candidate is null || _isSaving)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _decisionFailed = false;
+        try
+        {
+            var result = await TextReviewService.DecideAsync(_candidate.WordId, status);
+            if (result.IsComplete)
+            {
+                _candidate = null;
+                _completedSummary = result.Summary;
+            }
+            else
+            {
+                _candidate = await TextReviewService.GetCurrentCandidateAsync();
+                _contextIndex = 0;
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The word review decision could not be saved.");
+            _decisionFailed = true;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task UndoAsync()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _decisionFailed = false;
+        try
+        {
+            if (await TextReviewService.UndoPreviousDecisionAsync())
+            {
+                _candidate = await TextReviewService.GetCurrentCandidateAsync();
+                _contextIndex = 0;
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The previous word review decision could not be undone.");
+            _decisionFailed = true;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void ShowPreviousContext() => _contextIndex = Math.Max(0, _contextIndex - 1);
+
+    private void ShowNextContext()
+    {
+        if (_candidate is not null)
+        {
+            _contextIndex = Math.Min(_candidate.Contexts.Count - 1, _contextIndex + 1);
+        }
+    }
+
+    private string GetTokenKindName(TokenKind kind) => kind switch
+    {
+        TokenKind.Acronym => Localizer["TokenKind_Acronym"],
+        TokenKind.Abbreviation => Localizer["TokenKind_Abbreviation"],
+        TokenKind.TechnicalTerm => Localizer["TokenKind_TechnicalTerm"],
+        _ => Localizer["TokenKind_Word"]
+    };
+
+    private void ShowDiscardConfirmation() => _showDiscardConfirmation = true;
+
+    private void CancelDiscard() => _showDiscardConfirmation = false;
+
+    private async Task DiscardAsync()
+    {
+        if (_isSaving)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            await TextReviewService.DiscardActiveImportAsync();
+            Navigation.NavigateTo(string.Empty);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The unfinished text import could not be discarded.");
+            _decisionFailed = true;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

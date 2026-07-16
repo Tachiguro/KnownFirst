@@ -57,6 +57,29 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
         }
     }
 
+    public async Task<T> RunInTransactionAsync<T>(Func<SQLiteConnection, T> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        await _databaseGate.WaitAsync();
+        try
+        {
+            await EnsureInitializedAsync();
+            T? result = default;
+            await _connection!.RunInTransactionAsync(connection => result = operation(connection));
+            return result!;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "KnownFirst database transaction failed.");
+            throw;
+        }
+        finally
+        {
+            _databaseGate.Release();
+        }
+    }
+
     public async Task ResetAsync()
     {
         await _databaseGate.WaitAsync();
@@ -95,12 +118,7 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
         }
 
         _connection ??= new SQLiteAsyncConnection(DatabasePath, DatabaseFlags);
-        await _connection.CreateTableAsync<DocumentEntity>();
-        await _connection.CreateTableAsync<WordEntity>();
-        await _connection.CreateTableAsync<WordFormEntity>();
-        await _connection.CreateTableAsync<WordOccurrenceEntity>();
-        await _connection.CreateTableAsync<MeaningEntity>();
-        await _connection.CreateTableAsync<ReviewStateEntity>();
+        await DatabaseSchema.InitializeAsync(_connection);
         _initialized = true;
     }
 }

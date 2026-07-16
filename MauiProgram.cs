@@ -1,5 +1,6 @@
 using KnownFirst.Data;
 using KnownFirst.Core.Language;
+using KnownFirst.Core.Text;
 using KnownFirst.Services;
 using Microsoft.Extensions.Logging;
 
@@ -30,6 +31,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
         builder.Services.AddSingleton<IDashboardService, DashboardService>();
+        builder.Services.AddSingleton<TextAnalyzer>();
+        builder.Services.AddSingleton<ITextReviewService, TextReviewService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

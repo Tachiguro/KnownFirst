@@ -1,5 +1,6 @@
 @page "/"
 @inject IDashboardService DashboardService
+@inject ITextReviewService TextReviewService
 @inject ILogger<Home> Logger
 
 <PageTitle>@Localizer["Home_Title"]</PageTitle>
@@ -10,11 +11,53 @@
     <p class="subtitle">@Localizer["Home_Subtitle"]</p>
 </section>
 
+@if (_activeReview is not null)
+{
+    <section class="continue-review-card" aria-labelledby="continue-review-title">
+        <div>
+            <p class="eyebrow">@Localizer["Home_ReviewInProgress"]</p>
+            <h2 id="continue-review-title">@Localizer["Home_ContinueReviewTitle"]</h2>
+            <p>@Localizer["Home_ContinueReviewDescription", _activeReview.DocumentTitle]</p>
+            <strong>@Localizer["Home_ReviewProgress", _activeReview.ReviewedCount, _activeReview.TotalCandidates]</strong>
+        </div>
+        <div class="continue-review-actions">
+            <a class="button button-primary" href="review-words">@Localizer["Home_ContinueReviewAction"]</a>
+            @if (!_showDiscardConfirmation)
+            {
+                <button type="button" class="button button-danger" disabled="@_isDiscarding" @onclick="ShowDiscardConfirmation">
+                    @Localizer["Review_DiscardAction"]
+                </button>
+            }
+        </div>
+
+        @if (_showDiscardConfirmation)
+        {
+            <div class="home-discard-confirmation" role="alertdialog" aria-labelledby="home-discard-title">
+                <h3 id="home-discard-title">@Localizer["Review_DiscardTitle"]</h3>
+                <p>@Localizer["Review_DiscardMessage"]</p>
+                <div class="continue-review-actions">
+                    <button type="button" class="button button-secondary" disabled="@_isDiscarding" @onclick="CancelDiscard">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button type="button" class="button button-danger" disabled="@_isDiscarding" @onclick="DiscardAsync">
+                        @Localizer["Review_DiscardConfirm"]
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (_discardFailed)
+        {
+            <p class="inline-message inline-message-error" role="alert">@Localizer["Review_DiscardError"]</p>
+        }
+    </section>
+}
+
 <section class="action-grid">
-    <a class="action-card" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
+    <a class="action-card @(IsReviewBlocked ? "blocked" : null)" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
     <a class="action-card" href="review-words">@Localizer["Navigation_ReviewWords"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="prepare-words">@Localizer["Navigation_PrepareWords"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
+    <a class="action-card @(IsReviewBlocked ? "blocked" : null)" href="prepare-words">@Localizer["Navigation_PrepareWords"]<span aria-hidden="true">→</span></a>
+    <a class="action-card @(IsReviewBlocked ? "blocked" : null)" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
     <a class="action-card" href="dictionary">@Localizer["Navigation_Dictionary"]<span aria-hidden="true">→</span></a>
     <a class="action-card" href="settings">@Localizer["Navigation_Settings"]<span aria-hidden="true">→</span></a>
 </section>
@@ -58,8 +101,14 @@ else
 
 @code {
     private DashboardStatistics _statistics = DashboardStatistics.Empty;
+    private ActiveReviewSummary? _activeReview;
     private bool _isLoading = true;
     private bool _loadFailed;
+    private bool _showDiscardConfirmation;
+    private bool _isDiscarding;
+    private bool _discardFailed;
+
+    private bool IsReviewBlocked => _activeReview is not null;
 
     protected override Task OnInitializedAsync() => LoadStatisticsAsync();
 
@@ -71,6 +120,7 @@ else
         try
         {
             _statistics = await DashboardService.GetStatisticsAsync();
+            _activeReview = await TextReviewService.GetActiveReviewAsync();
         }
         catch (Exception exception)
         {
@@ -80,6 +130,40 @@ else
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private void ShowDiscardConfirmation()
+    {
+        _discardFailed = false;
+        _showDiscardConfirmation = true;
+    }
+
+    private void CancelDiscard() => _showDiscardConfirmation = false;
+
+    private async Task DiscardAsync()
+    {
+        if (_isDiscarding)
+        {
+            return;
+        }
+
+        _isDiscarding = true;
+        _discardFailed = false;
+        try
+        {
+            await TextReviewService.DiscardActiveImportAsync();
+            _showDiscardConfirmation = false;
+            await LoadStatisticsAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The unfinished text import could not be discarded from Home.");
+            _discardFailed = true;
+        }
+        finally
+        {
+            _isDiscarding = false;
         }
     }
 }

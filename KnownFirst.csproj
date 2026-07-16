@@ -50,6 +50,10 @@
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(Configuration)' != 'Debug'">
+        <DefaultItemExcludes>$(DefaultItemExcludes);Components\Pages\Diagnostics.razor;Components\Pages\Diagnostics.razor.css</DefaultItemExcludes>
+    </PropertyGroup>
+
     <ItemGroup>
         <!-- App Icon -->
         <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
@@ -78,6 +82,14 @@
 
     <ItemGroup>
         <ProjectReference Include="KnownFirst.Core\KnownFirst.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+        <Content Remove="Components\Pages\Diagnostics.razor" />
+        <Content Remove="Components\Pages\Diagnostics.razor.css" />
+        <RazorComponent Remove="Components\Pages\Diagnostics.razor" />
+        <None Remove="Components\Pages\Diagnostics.razor" />
+        <None Remove="Components\Pages\Diagnostics.razor.css" />
     </ItemGroup>
 
 </Project>

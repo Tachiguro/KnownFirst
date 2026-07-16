@@ -1,0 +1,58 @@
+@using System.Globalization
+@implements IDisposable
+@inject ILanguageSelectionService LanguageSelection
+@inject IJSRuntime JsRuntime
+@inject ILogger<LocalizationHost> Logger
+
+<Routes @key="_rootRenderKey" />
+
+@code {
+    private int _rootRenderKey;
+    private bool _documentLanguageUpdatePending;
+    private bool _refreshCompletionLogPending;
+
+    protected override void OnInitialized()
+    {
+        LanguageSelection.UiLanguageChanged += OnUiLanguageChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || _documentLanguageUpdatePending)
+        {
+            _documentLanguageUpdatePending = false;
+            await JsRuntime.InvokeVoidAsync(
+                "knownFirst.setDocumentLanguage",
+                LanguageSelection.CurrentUiLanguage);
+        }
+
+        if (_refreshCompletionLogPending)
+        {
+            _refreshCompletionLogPending = false;
+            Logger.LogDebug(
+                "Language after root refresh: active language = {LanguageCode}, CurrentUICulture = {CurrentUiCulture}",
+                LanguageSelection.CurrentUiLanguage,
+                CultureInfo.CurrentUICulture.Name);
+        }
+    }
+
+    public void Dispose()
+    {
+        LanguageSelection.UiLanguageChanged -= OnUiLanguageChanged;
+    }
+
+    private void OnUiLanguageChanged(object? sender, EventArgs eventArgs)
+    {
+        _ = InvokeAsync(() =>
+        {
+            LanguageSelection.ReapplyCurrentCulture();
+            _rootRenderKey++;
+            _documentLanguageUpdatePending = true;
+            _refreshCompletionLogPending = true;
+            Logger.LogDebug(
+                "Root UI refresh requested for language: {LanguageCode}",
+                LanguageSelection.CurrentUiLanguage);
+            StateHasChanged();
+        });
+    }
+}

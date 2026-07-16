@@ -1,17 +1,87 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject INavigationHistoryService NavigationHistory
 
 <div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+    <header class="mobile-header">
+        <button type="button"
+                class="menu-toggle"
+                aria-controls="primary-navigation"
+                aria-expanded="@_isMenuOpen"
+                aria-label="@MenuButtonLabel"
+                title="@MenuButtonLabel"
+                @onclick="ToggleMenu">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+        </button>
+        <span class="mobile-page-title">@CurrentPageTitle</span>
+    </header>
+
+    <aside id="primary-navigation" class="sidebar @(_isMenuOpen ? "open" : null)">
+        <NavMenu OnNavigate="CloseMenu" />
+    </aside>
 
     <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
+        <article class="content">
             @Body
         </article>
     </main>
 </div>
+
+@code {
+    private bool _isMenuOpen;
+    private string _currentRoute = string.Empty;
+
+    private string MenuButtonLabel => Localizer[_isMenuOpen
+        ? "Navigation_CloseMenu"
+        : "Navigation_OpenMenu"];
+
+    private string CurrentPageTitle => _currentRoute.ToLowerInvariant() switch
+    {
+        "" => Localizer["Home_Title"],
+        "import-text" => Localizer["Navigation_ImportText"],
+        "review-words" => Localizer["Navigation_ReviewWords"],
+        "prepare-words" => Localizer["Navigation_PrepareWords"],
+        "learn" => Localizer["Navigation_Learn"],
+        "dictionary" => Localizer["Navigation_Dictionary"],
+        "settings" => Localizer["Navigation_Settings"],
+        _ => Localizer["NotFound_Title"]
+    };
+
+    protected override void OnInitialized()
+    {
+        RecordCurrentRoute(Navigation.Uri);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
+    private void ToggleMenu() => _isMenuOpen = !_isMenuOpen;
+
+    private void CloseMenu() => _isMenuOpen = false;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs eventArgs)
+    {
+        RecordCurrentRoute(eventArgs.Location);
+        _isMenuOpen = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void RecordCurrentRoute(string absoluteUri)
+    {
+        _currentRoute = NormalizeRoute(Navigation.ToBaseRelativePath(absoluteUri));
+        NavigationHistory.RecordNavigation(_currentRoute);
+    }
+
+    private static string NormalizeRoute(string relativeRoute)
+    {
+        var suffixIndex = relativeRoute.IndexOfAny(['?', '#']);
+        var route = suffixIndex >= 0 ? relativeRoute[..suffixIndex] : relativeRoute;
+        return route.Trim('/');
+    }
+}

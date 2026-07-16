@@ -1,3 +1,5 @@
 <Solution>
+  <Project Path="KnownFirst.Core\KnownFirst.Core.csproj" />
+  <Project Path="KnownFirst.Tests\KnownFirst.Tests.csproj" />
   <Project Path="KnownFirst.csproj" />
 </Solution>

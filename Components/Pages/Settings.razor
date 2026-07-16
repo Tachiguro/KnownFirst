@@ -1,0 +1,368 @@
+@page "/settings"
+@inject ILanguageSelectionService LanguageSelection
+@inject IThemeService ThemeService
+@inject IAppSettingsService AppSettings
+@inject ISettingsFeedbackService SettingsFeedback
+@inject KnownFirst.Data.IKnownFirstDatabase Database
+@inject ILogger<Settings> Logger
+@inject IJSRuntime JsRuntime
+
+<PageTitle>@Localizer["Settings_Title"]</PageTitle>
+
+<section class="settings-page">
+    <PageHeader Title="@(Localizer["Settings_Title"])" />
+
+    <section class="settings-card" aria-labelledby="language-setting-title">
+        <h2 id="language-setting-title">@Localizer["Settings_UILanguage"]</h2>
+        <div class="choice-grid choice-grid-two">
+            <button type="button"
+                    class="choice-button @(IsLanguageSelected(LanguageSelectionService.EnglishLanguageCode) ? "active" : null)"
+                    aria-pressed="@IsLanguageSelected(LanguageSelectionService.EnglishLanguageCode)"
+                    disabled="@_isChangingLanguage"
+                    @onclick="() => SelectUiLanguage(LanguageSelectionService.EnglishLanguageCode)">
+                @Localizer["Settings_English"]
+            </button>
+            <button type="button"
+                    class="choice-button @(IsLanguageSelected(LanguageSelectionService.GermanLanguageCode) ? "active" : null)"
+                    aria-pressed="@IsLanguageSelected(LanguageSelectionService.GermanLanguageCode)"
+                    disabled="@_isChangingLanguage"
+                    @onclick="() => SelectUiLanguage(LanguageSelectionService.GermanLanguageCode)">
+                @Localizer["Settings_German"]
+            </button>
+        </div>
+        @if (_languageConfirmation is not null)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                @Localizer[_languageConfirmation == LanguageSelectionService.GermanLanguageCode
+                    ? "Settings_LanguageChangedToGerman"
+                    : "Settings_LanguageChangedToEnglish"]
+            </p>
+        }
+        else if (_languageChangeFailed)
+        {
+            <p class="setting-feedback setting-feedback-error" role="alert">@Localizer["Settings_SaveError"]</p>
+        }
+    </section>
+
+    <section class="settings-card" aria-labelledby="appearance-setting-title">
+        <h2 id="appearance-setting-title">@Localizer["Settings_Appearance"]</h2>
+        <div class="choice-grid choice-grid-three">
+            <button type="button"
+                    class="choice-button @(IsThemeSelected(ThemePreference.System) ? "active" : null)"
+                    aria-pressed="@IsThemeSelected(ThemePreference.System)"
+                    @onclick="() => SelectTheme(ThemePreference.System)">
+                @Localizer["Settings_AppearanceSystem"]
+            </button>
+            <button type="button"
+                    class="choice-button @(IsThemeSelected(ThemePreference.Light) ? "active" : null)"
+                    aria-pressed="@IsThemeSelected(ThemePreference.Light)"
+                    @onclick="() => SelectTheme(ThemePreference.Light)">
+                @Localizer["Settings_AppearanceLight"]
+            </button>
+            <button type="button"
+                    class="choice-button @(IsThemeSelected(ThemePreference.Dark) ? "active" : null)"
+                    aria-pressed="@IsThemeSelected(ThemePreference.Dark)"
+                    @onclick="() => SelectTheme(ThemePreference.Dark)">
+                @Localizer["Settings_AppearanceDark"]
+            </button>
+        </div>
+        @if (_appearanceConfirmation is not null)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                @Localizer["Settings_AppearanceChangedTo", GetAppearanceDisplayName(_appearanceConfirmation.Value)]
+            </p>
+        }
+        else if (_appearanceChangeFailed)
+        {
+            <p class="setting-feedback setting-feedback-error" role="alert">@Localizer["Settings_SaveError"]</p>
+        }
+    </section>
+
+    <section class="settings-card" aria-labelledby="preparation-limit-title">
+        <h2 id="preparation-limit-title">
+            <label for="preparation-limit">@Localizer["Settings_PreparationLimit"]</label>
+        </h2>
+        <div class="field-group">
+            <select id="preparation-limit"
+                    @bind="_selectedPreparationLimit"
+                    @bind:after="SavePreparationLimit">
+                @foreach (var limit in AppSettings.SupportedPreparationLimits)
+                {
+                    <option value="@limit">@limit</option>
+                }
+            </select>
+        </div>
+        @if (_preparationLimitConfirmation is not null)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                @Localizer["Settings_PreparationLimitSaved", _preparationLimitConfirmation.Value]
+            </p>
+        }
+        else if (_preparationLimitChangeFailed)
+        {
+            <p class="setting-feedback setting-feedback-error" role="alert">@Localizer["Settings_SaveError"]</p>
+        }
+    </section>
+
+    <section class="settings-card" aria-labelledby="help-and-support-title">
+        <h2 id="help-and-support-title">@Localizer["Settings_HelpAndSupport"]</h2>
+        <div class="support-actions">
+            <button type="button" class="button button-secondary" @onclick="ShowFeaturePlaceholder">
+                @Localizer["Settings_SupportKnownFirst"]
+            </button>
+            <button type="button" class="button button-secondary" @onclick="ShowFeaturePlaceholder">
+                @Localizer["Settings_ReportBug"]
+            </button>
+        </div>
+
+        @if (_showFeaturePlaceholder)
+        {
+            <div class="feature-placeholder" role="status">
+                <span>@Localizer["Common_FeatureComingSoon"]</span>
+                <button type="button" class="button button-secondary" @onclick="CloseFeaturePlaceholder">
+                    @Localizer["Common_Close"]
+                </button>
+            </div>
+        }
+    </section>
+
+    <section class="settings-card danger-zone" aria-labelledby="reset-data-title">
+        <h2 id="reset-data-title">@Localizer["Settings_ResetData"]</h2>
+        <p>@Localizer["Settings_ResetDescription"]</p>
+        <button type="button"
+                class="button button-danger"
+                @ref="_resetButton"
+                @onclick="ShowResetConfirmation">
+            @Localizer["Settings_ResetData"]
+        </button>
+
+        @if (_resetSucceeded)
+        {
+            <p class="inline-message inline-message-success" role="status" aria-live="polite">
+                @Localizer["Settings_ResetSuccess"]
+            </p>
+        }
+
+        @if (_showResetConfirmation)
+        {
+            <section class="reset-confirmation"
+                     role="alertdialog"
+                     aria-labelledby="reset-confirmation-title"
+                     aria-describedby="reset-confirmation-message"
+                     @ref="_resetConfirmation"
+                     @onkeydown="HandleResetDialogKeyDown">
+                <h2 id="reset-confirmation-title">@Localizer["Settings_ResetConfirmTitle"]</h2>
+                <p id="reset-confirmation-message">@Localizer["Settings_ResetConfirmMessage"]</p>
+                <div class="button-row">
+                    <button type="button"
+                            class="button button-secondary"
+                            disabled="@_isResetting"
+                            @ref="_cancelResetButton"
+                            @onclick="CancelReset">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button type="button"
+                            class="button button-danger"
+                            disabled="@_isResetting"
+                            @onclick="ResetDataAsync">
+                        @Localizer["Settings_ResetConfirmAction"]
+                    </button>
+                </div>
+                @if (_resetFailed)
+                {
+                    <p class="inline-message inline-message-error" role="alert">@Localizer["Settings_ResetError"]</p>
+                }
+            </section>
+        }
+    </section>
+</section>
+
+@code {
+    private string _selectedUiLanguage = LanguageSelectionService.EnglishLanguageCode;
+    private ThemePreference _selectedTheme = ThemePreference.System;
+    private int _selectedPreparationLimit = AppSettingsService.DefaultPreparationLimit;
+    private string? _languageConfirmation;
+    private ThemePreference? _appearanceConfirmation;
+    private int? _preparationLimitConfirmation;
+    private bool _languageChangeFailed;
+    private bool _appearanceChangeFailed;
+    private bool _preparationLimitChangeFailed;
+    private bool _isChangingLanguage;
+    private bool _showResetConfirmation;
+    private bool _isResetting;
+    private bool _resetSucceeded;
+    private bool _resetFailed;
+    private bool _showFeaturePlaceholder;
+    private bool _revealResetConfirmation;
+    private bool _returnFocusToResetButton;
+    private ElementReference _resetButton;
+    private ElementReference _resetConfirmation;
+    private ElementReference _cancelResetButton;
+
+    protected override void OnInitialized()
+    {
+        _selectedUiLanguage = LanguageSelection.CurrentUiLanguage;
+        _selectedTheme = ThemeService.Preference;
+        _selectedPreparationLimit = AppSettings.PreparationLimit;
+        _languageConfirmation = SettingsFeedback.ConsumePendingLanguageConfirmation();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_revealResetConfirmation)
+        {
+            _revealResetConfirmation = false;
+            await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _resetConfirmation);
+            await _cancelResetButton.FocusAsync(preventScroll: true);
+        }
+        else if (_returnFocusToResetButton)
+        {
+            _returnFocusToResetButton = false;
+            await _resetButton.FocusAsync();
+        }
+    }
+
+    private bool IsLanguageSelected(string languageCode) =>
+        string.Equals(_selectedUiLanguage, languageCode, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsThemeSelected(ThemePreference preference) => _selectedTheme == preference;
+
+    private string GetAppearanceDisplayName(ThemePreference preference) => preference switch
+    {
+        ThemePreference.Light => Localizer["Settings_AppearanceLight"],
+        ThemePreference.Dark => Localizer["Settings_AppearanceDark"],
+        _ => Localizer["Settings_AppearanceSystem"]
+    };
+
+    private void SelectUiLanguage(string languageCode)
+    {
+        if (_isChangingLanguage || IsLanguageSelected(languageCode))
+        {
+            return;
+        }
+
+        _isChangingLanguage = true;
+        _languageConfirmation = null;
+        _languageChangeFailed = false;
+        SettingsFeedback.SetPendingLanguageConfirmation(languageCode);
+
+        try
+        {
+            LanguageSelection.SetUiLanguage(languageCode);
+            _selectedUiLanguage = LanguageSelection.CurrentUiLanguage;
+        }
+        catch (Exception exception)
+        {
+            SettingsFeedback.ClearPendingLanguageConfirmation();
+            Logger.LogError(exception, "The UI language could not be changed.");
+            _languageChangeFailed = true;
+        }
+        finally
+        {
+            _isChangingLanguage = false;
+        }
+    }
+
+    private void SelectTheme(ThemePreference preference)
+    {
+        if (IsThemeSelected(preference))
+        {
+            return;
+        }
+
+        _appearanceConfirmation = null;
+        _appearanceChangeFailed = false;
+
+        try
+        {
+            if (ThemeService.SetPreference(preference))
+            {
+                _selectedTheme = ThemeService.Preference;
+                _appearanceConfirmation = _selectedTheme;
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The appearance preference could not be changed.");
+            _appearanceChangeFailed = true;
+        }
+    }
+
+    private void SavePreparationLimit()
+    {
+        _preparationLimitConfirmation = null;
+        _preparationLimitChangeFailed = false;
+
+        try
+        {
+            AppSettings.SetPreparationLimit(_selectedPreparationLimit);
+            _selectedPreparationLimit = AppSettings.PreparationLimit;
+            _preparationLimitConfirmation = _selectedPreparationLimit;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The preparation limit could not be saved.");
+            _preparationLimitChangeFailed = true;
+        }
+    }
+
+    private void ShowFeaturePlaceholder() => _showFeaturePlaceholder = true;
+
+    private void CloseFeaturePlaceholder() => _showFeaturePlaceholder = false;
+
+    private void ShowResetConfirmation()
+    {
+        _resetSucceeded = false;
+        _resetFailed = false;
+        _showResetConfirmation = true;
+        _revealResetConfirmation = true;
+    }
+
+    private void CancelReset()
+    {
+        if (_isResetting)
+        {
+            return;
+        }
+
+        _showResetConfirmation = false;
+        _resetFailed = false;
+        _returnFocusToResetButton = true;
+    }
+
+    private void HandleResetDialogKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Escape")
+        {
+            CancelReset();
+        }
+    }
+
+    private async Task ResetDataAsync()
+    {
+        _isResetting = true;
+        _resetSucceeded = false;
+        _resetFailed = false;
+
+        try
+        {
+            await Database.ResetAsync();
+            Microsoft.Maui.Storage.Preferences.Default.Clear();
+            ThemeService.ResetPreference();
+            AppSettings.Reset();
+            LanguageSelection.ResetToDeviceLanguage();
+            _showResetConfirmation = false;
+            _resetSucceeded = true;
+            _returnFocusToResetButton = true;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Local application data could not be reset.");
+            _resetFailed = true;
+        }
+        finally
+        {
+            _isResetting = false;
+        }
+    }
+}

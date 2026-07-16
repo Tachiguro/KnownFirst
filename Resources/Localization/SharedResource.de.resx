@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="App_Name" xml:space="preserve">
+    <value>KnownFirst</value>
+  </data>
+  <data name="App_Initializing" xml:space="preserve">
+    <value>KnownFirst wird vorbereitet…</value>
+  </data>
+  <data name="App_InitializationError" xml:space="preserve">
+    <value>Die lokale Datenbank von KnownFirst konnte nicht initialisiert werden.</value>
+  </data>
+  <data name="Navigation_Home" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Navigation_Menu" xml:space="preserve">
+    <value>Navigationsmenü</value>
+  </data>
+  <data name="Navigation_ImportText" xml:space="preserve">
+    <value>Text importieren</value>
+  </data>
+  <data name="Navigation_ReviewWords" xml:space="preserve">
+    <value>Wörter überprüfen</value>
+  </data>
+  <data name="Navigation_PrepareWords" xml:space="preserve">
+    <value>Wörter vorbereiten</value>
+  </data>
+  <data name="Navigation_Learn" xml:space="preserve">
+    <value>Lernen</value>
+  </data>
+  <data name="Navigation_Dictionary" xml:space="preserve">
+    <value>Wörterbuch</value>
+  </data>
+  <data name="Navigation_Settings" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="Home_Title" xml:space="preserve">
+    <value>KnownFirst</value>
+  </data>
+  <data name="Home_Subtitle" xml:space="preserve">
+    <value>Überspringe, was du schon kennst. Lerne, was zählt.</value>
+  </data>
+  <data name="Home_ImportedTexts" xml:space="preserve">
+    <value>Importierte Texte</value>
+  </data>
+  <data name="Home_WordsToReview" xml:space="preserve">
+    <value>Zu überprüfende Wörter</value>
+  </data>
+  <data name="Home_KnownWords" xml:space="preserve">
+    <value>Bekannte Wörter</value>
+  </data>
+  <data name="Home_UnknownWords" xml:space="preserve">
+    <value>Unbekannte Wörter</value>
+  </data>
+  <data name="Home_PreparedWords" xml:space="preserve">
+    <value>Vorbereitete Wörter</value>
+  </data>
+  <data name="Home_LoadingStatistics" xml:space="preserve">
+    <value>Dein Fortschritt wird geladen…</value>
+  </data>
+  <data name="Home_DashboardError" xml:space="preserve">
+    <value>Dein Fortschritt konnte nicht geladen werden.</value>
+  </data>
+  <data name="Common_Save" xml:space="preserve">
+    <value>Speichern</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Abbrechen</value>
+  </data>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Zurück</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Erneut versuchen</value>
+  </data>
+  <data name="Settings_Title" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="Settings_UILanguage" xml:space="preserve">
+    <value>Sprache</value>
+  </data>
+  <data name="Settings_English" xml:space="preserve">
+    <value>Englisch</value>
+  </data>
+  <data name="Settings_German" xml:space="preserve">
+    <value>Deutsch</value>
+  </data>
+  <data name="Settings_Appearance" xml:space="preserve">
+    <value>Darstellung</value>
+  </data>
+  <data name="Settings_AppearanceSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_AppearanceLight" xml:space="preserve">
+    <value>Hell</value>
+  </data>
+  <data name="Settings_AppearanceDark" xml:space="preserve">
+    <value>Dunkel</value>
+  </data>
+  <data name="Settings_LanguageChangedTo" xml:space="preserve">
+    <value>Sprache auf {0} geändert.</value>
+  </data>
+  <data name="Settings_LanguageChangedToEnglish" xml:space="preserve">
+    <value>Sprache auf Englisch geändert.</value>
+  </data>
+  <data name="Settings_LanguageChangedToGerman" xml:space="preserve">
+    <value>Sprache auf Deutsch geändert.</value>
+  </data>
+  <data name="Settings_AppearanceChangedTo" xml:space="preserve">
+    <value>Darstellung auf {0} geändert.</value>
+  </data>
+  <data name="Settings_PreparationLimit" xml:space="preserve">
+    <value>Wörter pro Vorbereitung</value>
+  </data>
+  <data name="Settings_ResetData" xml:space="preserve">
+    <value>Alle Anwendungsdaten zurücksetzen</value>
+  </data>
+  <data name="Settings_ResetDescription" xml:space="preserve">
+    <value>Alle lokal gespeicherten Texte und Wortdaten dauerhaft löschen.</value>
+  </data>
+  <data name="Settings_ResetConfirmTitle" xml:space="preserve">
+    <value>Alle Daten zurücksetzen?</value>
+  </data>
+  <data name="Settings_ResetConfirmMessage" xml:space="preserve">
+    <value>Diese Aktion kann nicht rückgängig gemacht werden. Die lokale Datenbank wird gelöscht und neu erstellt.</value>
+  </data>
+  <data name="Settings_ResetConfirmAction" xml:space="preserve">
+    <value>Daten zurücksetzen</value>
+  </data>
+  <data name="Settings_PreparationLimitSaved" xml:space="preserve">
+    <value>Wörter pro Vorbereitung gespeichert: {0}.</value>
+  </data>
+  <data name="Settings_ResetSuccess" xml:space="preserve">
+    <value>Alle lokalen Anwendungsdaten wurden zurückgesetzt.</value>
+  </data>
+  <data name="Settings_ResetError" xml:space="preserve">
+    <value>Die lokalen Anwendungsdaten konnten nicht zurückgesetzt werden.</value>
+  </data>
+  <data name="Settings_SaveError" xml:space="preserve">
+    <value>Die Einstellungen konnten nicht gespeichert werden.</value>
+  </data>
+  <data name="Placeholder_Message" xml:space="preserve">
+    <value>Diese Funktion wird als Nächstes umgesetzt.</value>
+  </data>
+  <data name="NotFound_Title" xml:space="preserve">
+    <value>Seite nicht gefunden</value>
+  </data>
+  <data name="NotFound_Message" xml:space="preserve">
+    <value>Die gesuchte Seite ist nicht vorhanden.</value>
+  </data>
+  <data name="Navigation_BackToHome" xml:space="preserve">
+    <value>Zurück zur Startseite</value>
+  </data>
+  <data name="Navigation_OpenMenu" xml:space="preserve">
+    <value>Menü öffnen</value>
+  </data>
+  <data name="Navigation_CloseMenu" xml:space="preserve">
+    <value>Menü schließen</value>
+  </data>
+  <data name="Footer_DevelopedBy" xml:space="preserve">
+    <value>Entwickelt von Tachiguro</value>
+  </data>
+  <data name="Footer_TachiguroLogoAlt" xml:space="preserve">
+    <value>Tachiguro-Logo</value>
+  </data>
+  <data name="Settings_HelpAndSupport" xml:space="preserve">
+    <value>Hilfe und Support</value>
+  </data>
+  <data name="Settings_SupportKnownFirst" xml:space="preserve">
+    <value>KnownFirst unterstützen</value>
+  </data>
+  <data name="Settings_ReportBug" xml:space="preserve">
+    <value>Fehler melden</value>
+  </data>
+  <data name="Common_FeatureComingSoon" xml:space="preserve">
+    <value>Diese Funktion wird in einer zukünftigen Version verfügbar sein.</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Schließen</value>
+  </data>
+</root>

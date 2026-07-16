@@ -1,6 +1,85 @@
-﻿<Router AppAssembly="typeof(MauiProgram).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-    <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-</Router>
+@implements IDisposable
+@inject KnownFirst.Data.IKnownFirstDatabase Database
+@inject IThemeService ThemeService
+@inject IJSRuntime JsRuntime
+
+<div class="app-theme-root" data-theme="@ThemeService.EffectiveThemeCssName">
+    @if (_isInitializing)
+    {
+        <div class="app-status" role="status">@Localizer["App_Initializing"]</div>
+    }
+    else if (_initializationFailed)
+    {
+        <div class="app-status app-status-error" role="alert">
+            <p>@Localizer["App_InitializationError"]</p>
+            <button class="button button-primary" @onclick="InitializeDatabaseAsync">
+                @Localizer["Common_Retry"]
+            </button>
+        </div>
+    }
+    else
+    {
+        <Router AppAssembly="typeof(MauiProgram).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+            <Found Context="routeData">
+                <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+                <FocusOnNavigate RouteData="routeData" Selector="h1" />
+            </Found>
+        </Router>
+    }
+</div>
+
+@code {
+    private bool _isInitializing = true;
+    private bool _initializationFailed;
+
+    protected override void OnInitialized()
+    {
+        ThemeService.ThemeChanged += OnThemeChanged;
+    }
+
+    protected override Task OnInitializedAsync() => InitializeDatabaseAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ApplyDocumentThemeAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        ThemeService.ThemeChanged -= OnThemeChanged;
+    }
+
+    private async Task InitializeDatabaseAsync()
+    {
+        _isInitializing = true;
+        _initializationFailed = false;
+
+        try
+        {
+            await Database.InitializeAsync();
+        }
+        catch
+        {
+            _initializationFailed = true;
+        }
+        finally
+        {
+            _isInitializing = false;
+        }
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs eventArgs)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await ApplyDocumentThemeAsync();
+            StateHasChanged();
+        });
+    }
+
+    private ValueTask ApplyDocumentThemeAsync() =>
+        JsRuntime.InvokeVoidAsync("knownFirst.setDocumentTheme", ThemeService.EffectiveThemeCssName);
+}

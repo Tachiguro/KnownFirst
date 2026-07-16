@@ -3,11 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:KnownFirst"
              xmlns:components="clr-namespace:KnownFirst.Components"
-             x:Class="KnownFirst.MainPage">
+             xmlns:blazor="clr-namespace:Microsoft.AspNetCore.Components.Web;assembly=Microsoft.AspNetCore.Components.Web"
+             x:Class="KnownFirst.MainPage"
+             SafeAreaEdges="Container"
+             BackgroundColor="{AppThemeBinding Light=#F4F7F5, Dark=#121916}">
 
     <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
         <BlazorWebView.RootComponents>
-            <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
+            <RootComponent Selector="#app" ComponentType="{x:Type components:LocalizationHost}" />
+            <RootComponent Selector="head::after" ComponentType="{x:Type blazor:HeadOutlet}" />
         </BlazorWebView.RootComponents>
     </BlazorWebView>
 

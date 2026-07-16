@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" Version="4.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KnownFirst.Core\KnownFirst.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Resources\Localization\SharedResource.resx"
+          Link="Resources\Localization\SharedResource.resx"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Resources\Localization\SharedResource.de.resx"
+          Link="Resources\Localization\SharedResource.de.resx"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+</Project>

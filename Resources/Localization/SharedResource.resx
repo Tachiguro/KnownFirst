@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="App_Name" xml:space="preserve">
+    <value>KnownFirst</value>
+  </data>
+  <data name="App_Initializing" xml:space="preserve">
+    <value>Preparing KnownFirst…</value>
+  </data>
+  <data name="App_InitializationError" xml:space="preserve">
+    <value>KnownFirst could not initialize its local database.</value>
+  </data>
+  <data name="Navigation_Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="Navigation_Menu" xml:space="preserve">
+    <value>Navigation menu</value>
+  </data>
+  <data name="Navigation_ImportText" xml:space="preserve">
+    <value>Import text</value>
+  </data>
+  <data name="Navigation_ReviewWords" xml:space="preserve">
+    <value>Review words</value>
+  </data>
+  <data name="Navigation_PrepareWords" xml:space="preserve">
+    <value>Prepare words</value>
+  </data>
+  <data name="Navigation_Learn" xml:space="preserve">
+    <value>Learn</value>
+  </data>
+  <data name="Navigation_Dictionary" xml:space="preserve">
+    <value>Dictionary</value>
+  </data>
+  <data name="Navigation_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Home_Title" xml:space="preserve">
+    <value>KnownFirst</value>
+  </data>
+  <data name="Home_Subtitle" xml:space="preserve">
+    <value>Skip what you know. Learn what matters.</value>
+  </data>
+  <data name="Home_ImportedTexts" xml:space="preserve">
+    <value>Imported texts</value>
+  </data>
+  <data name="Home_WordsToReview" xml:space="preserve">
+    <value>Words to review</value>
+  </data>
+  <data name="Home_KnownWords" xml:space="preserve">
+    <value>Known words</value>
+  </data>
+  <data name="Home_UnknownWords" xml:space="preserve">
+    <value>Unknown words</value>
+  </data>
+  <data name="Home_PreparedWords" xml:space="preserve">
+    <value>Prepared words</value>
+  </data>
+  <data name="Home_LoadingStatistics" xml:space="preserve">
+    <value>Loading your progress…</value>
+  </data>
+  <data name="Home_DashboardError" xml:space="preserve">
+    <value>Your progress could not be loaded.</value>
+  </data>
+  <data name="Common_Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="Settings_Title" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_UILanguage" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="Settings_English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Settings_German" xml:space="preserve">
+    <value>German</value>
+  </data>
+  <data name="Settings_Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_AppearanceSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_AppearanceLight" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_AppearanceDark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Settings_LanguageChangedTo" xml:space="preserve">
+    <value>Language changed to {0}.</value>
+  </data>
+  <data name="Settings_LanguageChangedToEnglish" xml:space="preserve">
+    <value>Language changed to English.</value>
+  </data>
+  <data name="Settings_LanguageChangedToGerman" xml:space="preserve">
+    <value>Language changed to German.</value>
+  </data>
+  <data name="Settings_AppearanceChangedTo" xml:space="preserve">
+    <value>Appearance changed to {0}.</value>
+  </data>
+  <data name="Settings_PreparationLimit" xml:space="preserve">
+    <value>Words per preparation</value>
+  </data>
+  <data name="Settings_ResetData" xml:space="preserve">
+    <value>Reset all application data</value>
+  </data>
+  <data name="Settings_ResetDescription" xml:space="preserve">
+    <value>Permanently remove all locally stored texts and word data.</value>
+  </data>
+  <data name="Settings_ResetConfirmTitle" xml:space="preserve">
+    <value>Reset all data?</value>
+  </data>
+  <data name="Settings_ResetConfirmMessage" xml:space="preserve">
+    <value>This action cannot be undone. Your local database will be deleted and recreated.</value>
+  </data>
+  <data name="Settings_ResetConfirmAction" xml:space="preserve">
+    <value>Reset data</value>
+  </data>
+  <data name="Settings_PreparationLimitSaved" xml:space="preserve">
+    <value>Words per preparation saved: {0}.</value>
+  </data>
+  <data name="Settings_ResetSuccess" xml:space="preserve">
+    <value>All local application data was reset.</value>
+  </data>
+  <data name="Settings_ResetError" xml:space="preserve">
+    <value>The local application data could not be reset.</value>
+  </data>
+  <data name="Settings_SaveError" xml:space="preserve">
+    <value>The settings could not be saved.</value>
+  </data>
+  <data name="Placeholder_Message" xml:space="preserve">
+    <value>This feature will be implemented next.</value>
+  </data>
+  <data name="NotFound_Title" xml:space="preserve">
+    <value>Page not found</value>
+  </data>
+  <data name="NotFound_Message" xml:space="preserve">
+    <value>The page you are looking for does not exist.</value>
+  </data>
+  <data name="Navigation_BackToHome" xml:space="preserve">
+    <value>Back to home</value>
+  </data>
+  <data name="Navigation_OpenMenu" xml:space="preserve">
+    <value>Open menu</value>
+  </data>
+  <data name="Navigation_CloseMenu" xml:space="preserve">
+    <value>Close menu</value>
+  </data>
+  <data name="Footer_DevelopedBy" xml:space="preserve">
+    <value>Developed by Tachiguro</value>
+  </data>
+  <data name="Footer_TachiguroLogoAlt" xml:space="preserve">
+    <value>Tachiguro logo</value>
+  </data>
+  <data name="Settings_HelpAndSupport" xml:space="preserve">
+    <value>Help and support</value>
+  </data>
+  <data name="Settings_SupportKnownFirst" xml:space="preserve">
+    <value>Support KnownFirst</value>
+  </data>
+  <data name="Settings_ReportBug" xml:space="preserve">
+    <value>Report a bug</value>
+  </data>
+  <data name="Common_FeatureComingSoon" xml:space="preserve">
+    <value>This feature will be available in a future version.</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+</root>

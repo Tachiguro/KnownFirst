@@ -1,5 +1,85 @@
-﻿@page "/"
+@page "/"
+@inject IDashboardService DashboardService
+@inject ILogger<Home> Logger
 
-<h1>Hello, world!</h1>
+<PageTitle>@Localizer["Home_Title"]</PageTitle>
 
-Welcome to your new app.
+<section class="home-hero">
+    <p class="eyebrow">@Localizer["App_Name"]</p>
+    <h1>@Localizer["Home_Title"]</h1>
+    <p class="subtitle">@Localizer["Home_Subtitle"]</p>
+</section>
+
+<section class="action-grid">
+    <a class="action-card" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
+    <a class="action-card" href="review-words">@Localizer["Navigation_ReviewWords"]<span aria-hidden="true">→</span></a>
+    <a class="action-card" href="prepare-words">@Localizer["Navigation_PrepareWords"]<span aria-hidden="true">→</span></a>
+    <a class="action-card" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
+    <a class="action-card" href="dictionary">@Localizer["Navigation_Dictionary"]<span aria-hidden="true">→</span></a>
+    <a class="action-card" href="settings">@Localizer["Navigation_Settings"]<span aria-hidden="true">→</span></a>
+</section>
+
+@if (_isLoading)
+{
+    <p class="loading-message" role="status">@Localizer["Home_LoadingStatistics"]</p>
+}
+else if (_loadFailed)
+{
+    <div class="inline-message inline-message-error" role="alert">
+        <span>@Localizer["Home_DashboardError"]</span>
+        <button class="button button-secondary" @onclick="LoadStatisticsAsync">@Localizer["Common_Retry"]</button>
+    </div>
+}
+else
+{
+    <section class="statistics-grid">
+        <article class="statistic-card">
+            <strong>@_statistics.DocumentCount</strong>
+            <span>@Localizer["Home_ImportedTexts"]</span>
+        </article>
+        <article class="statistic-card">
+            <strong>@_statistics.UnreviewedWordCount</strong>
+            <span>@Localizer["Home_WordsToReview"]</span>
+        </article>
+        <article class="statistic-card">
+            <strong>@_statistics.KnownWordCount</strong>
+            <span>@Localizer["Home_KnownWords"]</span>
+        </article>
+        <article class="statistic-card">
+            <strong>@_statistics.UnknownBacklogWordCount</strong>
+            <span>@Localizer["Home_UnknownWords"]</span>
+        </article>
+        <article class="statistic-card">
+            <strong>@_statistics.PreparedAndLearningWordCount</strong>
+            <span>@Localizer["Home_PreparedWords"]</span>
+        </article>
+    </section>
+}
+
+@code {
+    private DashboardStatistics _statistics = DashboardStatistics.Empty;
+    private bool _isLoading = true;
+    private bool _loadFailed;
+
+    protected override Task OnInitializedAsync() => LoadStatisticsAsync();
+
+    private async Task LoadStatisticsAsync()
+    {
+        _isLoading = true;
+        _loadFailed = false;
+
+        try
+        {
+            _statistics = await DashboardService.GetStatisticsAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Dashboard statistics could not be loaded.");
+            _loadFailed = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

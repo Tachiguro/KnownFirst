@@ -1,4 +1,5 @@
 using KnownFirst.Core.Text;
+using KnownFirst.Core.Preparation;
 using KnownFirst.Models;
 using SQLite;
 
@@ -22,6 +23,9 @@ public sealed class WordEntity
     public WordStatus Status { get; set; } = WordStatus.Unreviewed;
 
     public TokenKind TokenKind { get; set; } = TokenKind.Word;
+
+    [Indexed("IX_Words_PreparationState", 1)]
+    public PreparationState PreparationState { get; set; } = PreparationState.Unprepared;
 
     public int TotalOccurrenceCount { get; set; }
 

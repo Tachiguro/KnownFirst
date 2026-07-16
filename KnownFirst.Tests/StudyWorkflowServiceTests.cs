@@ -1,0 +1,806 @@
+using KnownFirst.Core.Learning;
+using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Settings;
+using KnownFirst.Core.Text;
+using KnownFirst.Data.Entities;
+using KnownFirst.Models;
+using KnownFirst.Services;
+using KnownFirst.Services.Lexical;
+using KnownFirst.Services.Study;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Diagnostics;
+
+namespace KnownFirst.Tests;
+
+[TestClass]
+public sealed class StudyWorkflowServiceTests
+{
+    private static readonly DateTime Now = new(2026, 7, 16, 12, 0, 0, DateTimeKind.Utc);
+    private TemporaryKnownFirstDatabase _database = null!;
+    private FakeClock _clock = null!;
+    private TextReviewService _review = null!;
+    private MutableDictionaryProvider _provider = null!;
+    private PreparationService _preparation = null!;
+    private LearningService _learning = null!;
+
+    [TestInitialize]
+    public async Task InitializeAsync()
+    {
+        _database = new TemporaryKnownFirstDatabase("knownfirst-study");
+        await _database.InitializeAsync();
+        _clock = new FakeClock(Now);
+        _review = new TextReviewService(_database, new TextAnalyzer());
+        _provider = new MutableDictionaryProvider(_clock);
+        _preparation = CreatePreparationService(_provider);
+        _learning = CreateLearningService();
+    }
+
+    [TestCleanup]
+    public async Task CleanupAsync()
+    {
+        await _database.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task Preparation_SelectsOnlyUnknownUnpreparedByFrequency()
+    {
+        await ImportAllUnknownAsync("network network network network network encryption.");
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var current = await _preparation.GetCurrentAsync();
+
+        Assert.AreEqual("network", current!.Term, ignoreCase: true);
+        Assert.AreEqual(5, current.AcceptedOccurrenceCount);
+        Assert.AreEqual(1, current.TotalItems);
+    }
+
+    [TestMethod]
+    public async Task Preparation_ConfiguredLimitAndHardMaximumAreApplied()
+    {
+        await SeedUnknownWordsAsync(60);
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 500);
+        var session = await _database.ReadAsync(connection =>
+            connection.Table<PreparationSessionEntity>()
+                .Where(item => item.Status == PreparationSessionStatus.Active)
+                .FirstAsync());
+
+        Assert.AreEqual(50, session.TotalItems);
+    }
+
+    [TestMethod]
+    public async Task Preparation_DueCardsDoNotReduceNewItemLimit()
+    {
+        await SeedUnknownWordsAsync(6);
+        await SeedDueCardAsync();
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 5);
+        var session = await _database.ReadAsync(connection =>
+            connection.Table<PreparationSessionEntity>()
+                .Where(item => item.Status == PreparationSessionStatus.Active)
+                .FirstAsync());
+
+        Assert.AreEqual(5, session.TotalItems);
+    }
+
+    [TestMethod]
+    public async Task Preparation_AutomaticResultCanBeAcceptedWithoutTyping()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.Both);
+
+        var meaning = await _database.ReadAsync(connection =>
+            connection.Table<MeaningEntity>().Where(candidate => candidate.WordId == item.WordId).FirstAsync());
+        Assert.IsTrue(meaning.ConfirmedByUser);
+        Assert.AreEqual("Definition for network", meaning.Definition);
+    }
+
+    [TestMethod]
+    public async Task Preparation_ExplicitImportedMfaExpansionOutranksLookupAndBecomesCaseSensitiveAcronym()
+    {
+        await ImportWithSingleUnknownAsync(
+            "Multi-Factor Authentication (MFA) reduces authentication risk.",
+            "MFA");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+
+        var item = await _preparation.LookupCurrentAsync();
+        Assert.IsNotNull(item);
+        Assert.AreEqual("Multi-Factor Authentication", item.Result!.AcronymExpansion);
+        await _preparation.AcceptAsync(
+            item.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.Both);
+
+        var stored = await _database.ReadAsync(async connection => new
+        {
+            Word = await connection.FindAsync<WordEntity>(item.WordId),
+            Meaning = await connection.Table<MeaningEntity>()
+                .Where(meaning => meaning.WordId == item.WordId)
+                .FirstAsync()
+        });
+        Assert.AreEqual(TokenKind.Acronym, stored.Word!.TokenKind);
+        Assert.AreEqual(TokenKind.Acronym, stored.Meaning.TokenKind);
+        Assert.AreEqual("Multi-Factor Authentication", stored.Meaning.AcronymExpansion);
+    }
+
+    [TestMethod]
+    public async Task Preparation_ExplicitExpansionCanComeFromAnyRelatedOriginalDocument()
+    {
+        await ImportWithSingleUnknownAsync("MFA protects information.", "MFA");
+        await ImportWithSingleUnknownAsync(
+            "Multi-Factor Authentication (MFA) reduces risk.",
+            "MFA");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+
+        var item = await _preparation.LookupCurrentAsync();
+
+        Assert.IsNotNull(item);
+        Assert.AreEqual("MFA", item.Term);
+        Assert.AreEqual("Multi-Factor Authentication", item.Result!.AcronymExpansion);
+    }
+
+    [TestMethod]
+    public async Task Preparation_AlternativeMeaningSelectionIsPersisted()
+    {
+        await ImportAllUnknownAsync("network.");
+        _provider.MeaningsFactory = request =>
+        [
+            new LexicalMeaning("first", "noun", "First meaning", null, null, []),
+            new LexicalMeaning("second", "noun", "Second meaning", null, null, [])
+        ];
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+        var item = await _preparation.LookupCurrentAsync();
+
+        await _preparation.SelectMeaningAsync(item!.CandidateId, 1);
+        item = await _preparation.GetCurrentAsync();
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.TermToMeaning);
+
+        var meaning = await _database.ReadAsync(connection => connection.Table<MeaningEntity>().FirstAsync());
+        Assert.AreEqual("second", meaning.SelectedMeaningId);
+        Assert.AreEqual("Second meaning", meaning.Definition);
+    }
+
+    [TestMethod]
+    public async Task Preparation_FailedLookupDoesNotBlockRemainingItems()
+    {
+        await ImportAllUnknownAsync("alpha beta.");
+        _provider.ResultFactory = request => request.Term.Equals("alpha", StringComparison.OrdinalIgnoreCase)
+            ? FailureResult(request)
+            : SuccessResult(request);
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+
+        var failed = await _preparation.LookupCurrentAsync();
+        Assert.AreEqual(PreparationCandidateStatus.Failed, failed!.Status);
+        await _preparation.SkipAsync(failed.CandidateId);
+        var remaining = await _preparation.LookupCurrentAsync();
+
+        Assert.AreEqual("beta", remaining!.Term, ignoreCase: true);
+        Assert.AreEqual(PreparationCandidateStatus.ResultReady, remaining.Status);
+    }
+
+    [TestMethod]
+    public async Task Preparation_InterruptedSessionResumesAtSameItem()
+    {
+        await ImportAllUnknownAsync("alpha beta.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 10);
+        var before = await _preparation.GetCurrentAsync();
+
+        var recreated = CreatePreparationService(_provider);
+        var after = await recreated.GetCurrentAsync();
+
+        Assert.AreEqual(before!.CandidateId, after!.CandidateId);
+        Assert.AreEqual(before.Term, after.Term);
+    }
+
+    [TestMethod]
+    public async Task Preparation_DuplicateContextsKeepActualCountAndCreateTwoSnapshots()
+    {
+        await ImportAllUnknownAsync(
+            "Security is important. Security is important. Security protects information.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            ManualInput(item.Term),
+            CardDirectionPreference.TermToMeaning);
+
+        var stored = await _database.ReadAsync(async connection =>
+        {
+            var snapshots = await connection.Table<ContextSnapshotEntity>()
+                .Where(snapshot => snapshot.WordId == item.WordId)
+                .ToListAsync();
+            var occurrences = await connection.Table<WordOccurrenceEntity>()
+                .Where(occurrence => occurrence.WordId == item.WordId)
+                .CountAsync();
+            return (snapshots, occurrences);
+        });
+        Assert.AreEqual(3, item.AcceptedOccurrenceCount);
+        Assert.AreEqual(3, stored.occurrences);
+        Assert.HasCount(2, stored.snapshots);
+    }
+
+    [TestMethod]
+    public async Task Preparation_ContextSnapshotsAreLimitedToThree()
+    {
+        await ImportAllUnknownAsync("Target one. Target two. Target three. Target four.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            ManualInput(item.Term),
+            CardDirectionPreference.TermToMeaning);
+
+        var snapshots = await _database.ReadAsync(connection =>
+            connection.Table<ContextSnapshotEntity>().Where(snapshot => snapshot.WordId == item.WordId).CountAsync());
+        Assert.AreEqual(3, snapshots);
+    }
+
+    [TestMethod]
+    public async Task Preparation_TwoDirectionsCountAsOneNewVocabularyItem()
+    {
+        var item = await PrepareSingleAsync("network.", CardDirectionPreference.Both);
+
+        var overview = await _preparation.GetOverviewAsync();
+        var cardCount = await _database.ReadAsync(connection =>
+            connection.Table<LearningCardEntity>().Where(card => card.WordId == item.WordId).CountAsync());
+
+        Assert.AreEqual(1, overview.PreparedNewItemCount);
+        Assert.AreEqual(2, cardCount);
+    }
+
+    [TestMethod]
+    public async Task Learning_OnlyPreparedItemsEnterSessionAndAnswerStartsHidden()
+    {
+        await ImportAllUnknownAsync("unprepared.");
+        var none = await _learning.GetOrStartAsync();
+        Assert.IsNull(none.Card);
+
+        await PrepareExistingBacklogAsync(CardDirectionPreference.TermToMeaning);
+        var ready = await _learning.GetOrStartAsync();
+        Assert.IsNotNull(ready.Card);
+        Assert.IsFalse(ready.Card.AnswerRevealed);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => _learning.RateAsync(ready.Card.QueueItemId, ReviewRating.Good));
+    }
+
+    [TestMethod]
+    public async Task Learning_CardDirectionsHaveIndependentSchedules()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.Both);
+        var first = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(first.QueueItemId);
+        var second = (await _learning.RateAsync(first.QueueItemId, ReviewRating.Good)).Card!;
+
+        var states = await _database.ReadAsync(connection =>
+            connection.Table<LearningCardEntity>().OrderBy(card => card.Direction).ToListAsync());
+        Assert.AreEqual(CardDirection.MeaningToTerm, second.Direction);
+        Assert.AreEqual(CardState.Review, states.Single(card => card.Direction == CardDirection.TermToMeaning).State);
+        Assert.AreEqual(CardState.New, states.Single(card => card.Direction == CardDirection.MeaningToTerm).State);
+    }
+
+    [TestMethod]
+    public async Task Learning_WrongSpellingRecordsAgainAndShowsDifference()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.MeaningToTerm);
+        var card = (await _learning.GetOrStartAsync()).Card!;
+
+        var result = await _learning.CheckSpellingAsync(card.QueueItemId, "netwark");
+        var review = await _database.ReadAsync(connection => connection.Table<LearningReviewEntity>().FirstAsync());
+
+        Assert.IsFalse(result.IsCorrect);
+        Assert.IsTrue(result.RatingWasPersisted);
+        Assert.AreEqual(ReviewRating.Again, review.Rating);
+        Assert.Contains("o", result.Difference);
+    }
+
+    [TestMethod]
+    public async Task Learning_CorrectSpellingAllowsHardGoodOrEasy()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.MeaningToTerm);
+        var card = (await _learning.GetOrStartAsync()).Card!;
+
+        var result = await _learning.CheckSpellingAsync(card.QueueItemId, "network");
+        var completed = await _learning.RateAsync(card.QueueItemId, ReviewRating.Hard);
+
+        Assert.IsTrue(result.IsCorrect);
+        Assert.AreEqual(1, completed.CompletedSummary!.HardCount);
+    }
+
+    [TestMethod]
+    public async Task Learning_EveryRatingPersistsImmediately()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
+        var card = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(card.QueueItemId);
+
+        await _learning.RateAsync(card.QueueItemId, ReviewRating.Good);
+
+        var review = await _database.ReadAsync(connection => connection.Table<LearningReviewEntity>().FirstAsync());
+        Assert.AreEqual(ReviewRating.Good, review.Rating);
+        Assert.AreEqual(Now, review.ReviewedAtUtc);
+    }
+
+    [TestMethod]
+    public async Task Learning_AgainReappearsOnlyOnceAndSessionEnds()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
+        var first = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(first.QueueItemId);
+        var repeat = (await _learning.RateAsync(first.QueueItemId, ReviewRating.Again)).Card!;
+        await _learning.RevealAnswerAsync(repeat.QueueItemId);
+
+        var completed = await _learning.RateAsync(repeat.QueueItemId, ReviewRating.Again);
+        var rows = await _database.ReadAsync(connection => connection.Table<LearningSessionCardEntity>().CountAsync());
+
+        Assert.IsNull(completed.Card);
+        Assert.AreEqual(2, completed.CompletedSummary!.AgainCount);
+        Assert.AreEqual(2, rows);
+    }
+
+    [TestMethod]
+    public async Task Learning_DueCardsAreOrderedBeforeNewCards()
+    {
+        var old = await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
+        var oldCard = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(oldCard.QueueItemId);
+        await _learning.RateAsync(oldCard.QueueItemId, ReviewRating.Good);
+
+        await ImportAllUnknownAsync("encryption.");
+        await PrepareExistingBacklogAsync(CardDirectionPreference.TermToMeaning);
+        _clock.Advance(TimeSpan.FromDays(4));
+
+        var next = await _learning.GetOrStartAsync();
+        Assert.AreEqual(old.WordId, next.Card!.WordId);
+    }
+
+    [TestMethod]
+    public async Task Learning_NewCardsAreOrderedByFrequency()
+    {
+        await ImportAllUnknownAsync("network network network encryption.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 10);
+        while (await _preparation.GetCurrentAsync() is { } item)
+        {
+            await _preparation.AcceptAsync(
+                item.CandidateId,
+                ManualInput(item.Term),
+                CardDirectionPreference.TermToMeaning);
+        }
+
+        var first = await _learning.GetOrStartAsync();
+        Assert.AreEqual("network", first.Card!.Term, ignoreCase: true);
+    }
+
+    [TestMethod]
+    public async Task Learning_InterruptedSessionResumesExactQueueItem()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.Both);
+        var before = (await _learning.GetOrStartAsync()).Card!;
+
+        var recreated = CreateLearningService();
+        var after = (await recreated.GetOrStartAsync()).Card!;
+
+        Assert.AreEqual(before.QueueItemId, after.QueueItemId);
+        Assert.AreEqual(before.CardId, after.CardId);
+    }
+
+    [TestMethod]
+    public async Task Learning_SummaryCountsAreCorrect()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.Both);
+        var recognition = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(recognition.QueueItemId);
+        var spelling = (await _learning.RateAsync(recognition.QueueItemId, ReviewRating.Good)).Card!;
+        await _learning.CheckSpellingAsync(spelling.QueueItemId, "network");
+
+        var completed = await _learning.RateAsync(spelling.QueueItemId, ReviewRating.Easy);
+
+        Assert.AreEqual(2, completed.CompletedSummary!.CardsReviewed);
+        Assert.AreEqual(1, completed.CompletedSummary.GoodCount);
+        Assert.AreEqual(1, completed.CompletedSummary.EasyCount);
+    }
+
+    [TestMethod]
+    public async Task Diagnostics_ExposeCachePreparationMeaningsCardsRatingsSessionAndCleanupEligibility()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.Both);
+        var recognition = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(recognition.QueueItemId);
+        await _learning.RateAsync(recognition.QueueItemId, ReviewRating.Good);
+
+        var diagnostics = await _review.GetDiagnosticsAsync();
+
+        Assert.HasCount(1, diagnostics.LexicalCache);
+        Assert.HasCount(1, diagnostics.PreparationSessions);
+        Assert.AreEqual(PreparationSessionStatus.Completed, diagnostics.PreparationSessions[0].Status);
+        Assert.HasCount(1, diagnostics.PreparationCandidates);
+        Assert.HasCount(1, diagnostics.PreparationCandidates[0].AvailableMeanings);
+        Assert.AreEqual(PreparationCandidateStatus.Prepared, diagnostics.PreparationCandidates[0].Status);
+        Assert.HasCount(1, diagnostics.PreparedMeanings);
+        Assert.IsTrue(diagnostics.PreparedMeanings[0].ConfirmedByUser);
+        Assert.HasCount(2, diagnostics.LearningCards);
+        Assert.IsTrue(diagnostics.LearningCards.Any(card =>
+            card.Direction == CardDirection.TermToMeaning
+            && card.LastRating == ReviewRating.Good
+            && card.IntervalDays == 3));
+        Assert.HasCount(1, diagnostics.LearningReviews);
+        Assert.AreEqual(ReviewRating.Good, diagnostics.LearningReviews[0].Rating);
+        Assert.HasCount(1, diagnostics.LearningSessions);
+        Assert.AreEqual(LearningSessionStatus.Active, diagnostics.LearningSessions[0].Status);
+        Assert.HasCount(1, diagnostics.CleanupEligibility);
+        Assert.IsFalse(diagnostics.CleanupEligibility[0].IsEligible);
+        Assert.IsTrue(diagnostics.CleanupEligibility[0].HasOccurrences);
+        Assert.IsTrue(diagnostics.CleanupEligibility[0].HasActiveContextSnapshots);
+    }
+
+    [TestMethod]
+    public async Task PermanentKnown_RequiresConfirmation()
+    {
+        var item = await PrepareSingleAsync("network.", CardDirectionPreference.Both);
+        var changed = await _learning.MarkPermanentlyKnownAsync(item.WordId, confirmed: false);
+        var cards = await _database.ReadAsync(connection => connection.Table<LearningCardEntity>().CountAsync());
+        Assert.IsFalse(changed);
+        Assert.AreEqual(2, cards);
+    }
+
+    [TestMethod]
+    public async Task PermanentKnown_RemovesBothDirectionsPersonalDataHistoryAndCompletedDocument()
+    {
+        var item = await PrepareSingleAsync("network.", CardDirectionPreference.Both);
+        var recognition = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(recognition.QueueItemId);
+        var spelling = (await _learning.RateAsync(recognition.QueueItemId, ReviewRating.Good)).Card!;
+
+        await _learning.MarkPermanentlyKnownAsync(spelling.WordId, confirmed: true);
+
+        var state = await _database.ReadAsync(async connection => new
+        {
+            Word = await connection.FindAsync<WordEntity>(item.WordId),
+            Cards = await connection.Table<LearningCardEntity>().Where(card => card.WordId == item.WordId).CountAsync(),
+            Meanings = await connection.Table<MeaningEntity>().Where(meaning => meaning.WordId == item.WordId).CountAsync(),
+            Contexts = await connection.Table<ContextSnapshotEntity>().Where(context => context.WordId == item.WordId).CountAsync(),
+            Reviews = await connection.Table<LearningReviewEntity>().CountAsync(),
+            LearningSessions = await connection.Table<LearningSessionEntity>().CountAsync(),
+            LearningQueueItems = await connection.Table<LearningSessionCardEntity>().CountAsync(),
+            PreparationSessions = await connection.Table<PreparationSessionEntity>().CountAsync(),
+            PreparationCandidates = await connection.Table<PreparationCandidateEntity>().CountAsync(),
+            Occurrences = await connection.Table<WordOccurrenceEntity>().Where(occurrence => occurrence.WordId == item.WordId).CountAsync(),
+            Documents = await connection.Table<DocumentEntity>().CountAsync()
+        });
+        Assert.AreEqual(WordStatus.Known, state.Word!.Status);
+        Assert.AreEqual(0, state.Word.TotalOccurrenceCount);
+        Assert.AreEqual(0, state.Cards);
+        Assert.AreEqual(0, state.Meanings);
+        Assert.AreEqual(0, state.Contexts);
+        Assert.AreEqual(0, state.Reviews);
+        Assert.AreEqual(0, state.LearningSessions);
+        Assert.AreEqual(0, state.LearningQueueItems);
+        Assert.AreEqual(0, state.PreparationSessions);
+        Assert.AreEqual(0, state.PreparationCandidates);
+        Assert.AreEqual(0, state.Occurrences);
+        Assert.AreEqual(0, state.Documents);
+    }
+
+    [TestMethod]
+    public async Task PermanentKnown_ReimportSkipsMinimalKnownMarkerAndCleanupIsIdempotent()
+    {
+        var item = await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
+        await _learning.MarkPermanentlyKnownAsync(item.WordId, confirmed: true);
+
+        var reimport = await _review.ImportAsync(Request("network."));
+        var firstMaintenance = await _learning.RunMaintenanceAsync();
+        var secondMaintenance = await _learning.RunMaintenanceAsync();
+
+        Assert.AreEqual(ImportAnalysisOutcome.NoNewVocabulary, reimport.Outcome);
+        Assert.AreEqual(0, firstMaintenance);
+        Assert.AreEqual(0, secondMaintenance);
+    }
+
+    [TestMethod]
+    public async Task PermanentKnown_UpdatesEveryRelatedDocumentAndDeletesCompletedSourceData()
+    {
+        await ImportWithSingleUnknownAsync("network alpha.", "network");
+        await ImportWithSingleUnknownAsync("network beta.", "network");
+        var item = await PrepareExistingBacklogAsync(CardDirectionPreference.Both);
+
+        var changed = await _learning.MarkPermanentlyKnownAsync(item.WordId, confirmed: true);
+        var state = await _database.ReadAsync(async connection => new
+        {
+            Documents = await connection.Table<DocumentEntity>().CountAsync(),
+            Sentences = await connection.Table<SentenceSpanEntity>().CountAsync(),
+            Occurrences = await connection.Table<WordOccurrenceEntity>().CountAsync(),
+            Contexts = await connection.Table<ContextSnapshotEntity>().CountAsync(),
+            Word = await connection.FindAsync<WordEntity>(item.WordId)
+        });
+
+        Assert.IsTrue(changed);
+        Assert.AreEqual(0, state.Documents);
+        Assert.AreEqual(0, state.Sentences);
+        Assert.AreEqual(0, state.Occurrences);
+        Assert.AreEqual(0, state.Contexts);
+        Assert.AreEqual(0, state.Word!.DocumentCount);
+        Assert.AreEqual(0, state.Word.TotalOccurrenceCount);
+    }
+
+    [TestMethod]
+    public async Task StartupMaintenance_StartDoesNotWaitForCleanupCompletion()
+    {
+        var blocking = new BlockingLearningService();
+        var maintenance = new StartupMaintenanceService(
+            blocking,
+            NullLogger<StartupMaintenanceService>.Instance);
+        var stopwatch = Stopwatch.StartNew();
+
+        maintenance.Start();
+        await blocking.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        stopwatch.Stop();
+
+        Assert.IsLessThan(TimeSpan.FromSeconds(1), stopwatch.Elapsed);
+        blocking.Release.TrySetResult();
+    }
+
+    private PreparationService CreatePreparationService(IDictionaryLookupProvider provider) => new(
+        _database,
+        new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(_database),
+            provider),
+        _clock);
+
+    private LearningService CreateLearningService() => new(
+        _database,
+        new SimpleSpacedRepetitionScheduler(),
+        new SpellingAnswerComparer(),
+        _clock);
+
+    private async Task<PreparationItem> PrepareSingleAsync(
+        string content,
+        CardDirectionPreference preference)
+    {
+        await ImportAllUnknownAsync(content);
+        return await PrepareExistingBacklogAsync(preference);
+    }
+
+    private async Task<PreparationItem> PrepareExistingBacklogAsync(CardDirectionPreference preference)
+    {
+        await _preparation.StartAsync(PreparationMethod.Manual, 10);
+        var item = await _preparation.GetCurrentAsync()
+            ?? throw new InvalidOperationException("The expected preparation item was not created.");
+        await _preparation.AcceptAsync(item.CandidateId, ManualInput(item.Term), preference);
+        return item;
+    }
+
+    private async Task ImportAllUnknownAsync(string content)
+    {
+        var result = await _review.ImportAsync(Request(content));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+        while (await _review.GetCurrentCandidateAsync() is { } candidate)
+        {
+            await _review.DecideAsync(candidate.WordId, WordStatus.UnknownBacklog);
+        }
+    }
+
+    private async Task ImportWithSingleUnknownAsync(string content, string unknownTerm)
+    {
+        var result = await _review.ImportAsync(Request(content));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+        while (await _review.GetCurrentCandidateAsync() is { } candidate)
+        {
+            await _review.DecideAsync(
+                candidate.WordId,
+                string.Equals(candidate.Candidate, unknownTerm, StringComparison.OrdinalIgnoreCase)
+                    ? WordStatus.UnknownBacklog
+                    : WordStatus.Known);
+        }
+    }
+
+    private Task SeedUnknownWordsAsync(int count) => _database.RunInTransactionAsync(connection =>
+    {
+        for (var index = 0; index < count; index++)
+        {
+            connection.Insert(new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = $"word-{index:D2}",
+                NormalizedTerm = $"W:word-{index:D2}",
+                TokenKind = TokenKind.Word,
+                Status = WordStatus.UnknownBacklog,
+                PreparationState = PreparationState.Unprepared,
+                TotalOccurrenceCount = count - index,
+                DocumentCount = 1,
+                CreatedAt = Now.AddMinutes(index),
+                UpdatedAt = Now
+            });
+        }
+
+        return true;
+    });
+
+    private Task SeedDueCardAsync() => _database.RunInTransactionAsync(connection =>
+    {
+        var word = new WordEntity
+        {
+            Language = "en",
+            CanonicalTerm = "due",
+            NormalizedTerm = "W:due",
+            Status = WordStatus.Learning,
+            PreparationState = PreparationState.Prepared,
+            CreatedAt = Now,
+            UpdatedAt = Now
+        };
+        connection.Insert(word);
+        var meaning = new MeaningEntity
+        {
+            WordId = word.Id,
+            SourceLanguage = "en",
+            ExplanationLanguage = "de",
+            DisplayTerm = "due",
+            Definition = "f\u00E4llig",
+            ConfirmedByUser = true,
+            CreatedAt = Now,
+            UpdatedAt = Now,
+            PreparedAt = Now
+        };
+        connection.Insert(meaning);
+        connection.Insert(new LearningCardEntity
+        {
+            WordId = word.Id,
+            MeaningId = meaning.Id,
+            Direction = CardDirection.TermToMeaning,
+            State = CardState.Review,
+            DueAtUtc = Now.AddMinutes(-1),
+            IntervalDays = 3,
+            EaseFactor = 2.5,
+            CreatedAtUtc = Now,
+            UpdatedAtUtc = Now
+        });
+        return true;
+    });
+
+    private static ImportTextRequest Request(string content) => new(
+        $"Document {Guid.NewGuid():N}",
+        content,
+        "en",
+        "de");
+
+    private static PreparedMeaningInput ManualInput(string term) => new(
+        null,
+        null,
+        null,
+        $"Definition for {term.ToLowerInvariant()}",
+        null,
+        null,
+        [],
+        "Manual",
+        string.Empty,
+        string.Empty,
+        null,
+        string.Empty);
+
+    private static PreparedMeaningInput InputFrom(PreparationItem item)
+    {
+        var result = item.Result ?? throw new InvalidOperationException("The item has no result.");
+        var meaning = result.Meanings[item.SelectedMeaningIndex];
+        return new PreparedMeaningInput(
+            meaning.MeaningId,
+            result.AcronymExpansion,
+            meaning.Translation,
+            meaning.Definition,
+            meaning.Example,
+            null,
+            [],
+            result.ProviderName,
+            result.SourceProject,
+            result.PageTitle,
+            result.RevisionId,
+            result.Attribution);
+    }
+
+    private LexicalResult SuccessResult(LexicalLookupRequest request) => new(
+        LexicalLookupStatus.Success,
+        request.NormalizedLemma,
+        request.Term,
+        request.TokenKind,
+        request.SourceLanguage,
+        request.ExplanationLanguage,
+        null,
+        _provider.MeaningsFactory(request),
+        "Fake Wiktionary",
+        "en.wiktionary.org",
+        request.Term,
+        123,
+        "Fixture attribution",
+        _clock.UtcNow);
+
+    private LexicalResult FailureResult(LexicalLookupRequest request) => new(
+        LexicalLookupStatus.Unavailable,
+        request.NormalizedLemma,
+        request.Term,
+        request.TokenKind,
+        request.SourceLanguage,
+        request.ExplanationLanguage,
+        null,
+        [],
+        "Fake Wiktionary",
+        "en.wiktionary.org",
+        request.Term,
+        null,
+        "Fixture attribution",
+        _clock.UtcNow,
+        ErrorCode: "offline");
+
+    private sealed class MutableDictionaryProvider(FakeClock clock) : IDictionaryLookupProvider
+    {
+        public Func<LexicalLookupRequest, IReadOnlyList<LexicalMeaning>> MeaningsFactory { get; set; } = request =>
+        [new LexicalMeaning(
+            "primary",
+            "noun",
+            $"Definition for {request.Term.ToLowerInvariant()}",
+            request.ExplanationLanguage == "de" ? $"\u00DCbersetzung {request.Term}" : null,
+            null,
+            [])];
+
+        public Func<LexicalLookupRequest, LexicalResult>? ResultFactory { get; set; }
+
+        public string ProviderName => "Fake Wiktionary";
+
+        public int ProviderSchemaVersion => 1;
+
+        public Task<LexicalResult> LookupAsync(
+            LexicalLookupRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var result = ResultFactory?.Invoke(request) ?? new LexicalResult(
+                LexicalLookupStatus.Success,
+                request.NormalizedLemma,
+                request.Term,
+                request.TokenKind,
+                request.SourceLanguage,
+                request.ExplanationLanguage,
+                null,
+                MeaningsFactory(request),
+                ProviderName,
+                "en.wiktionary.org",
+                request.Term,
+                123,
+                "Fixture attribution",
+                clock.UtcNow);
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class BlockingLearningService : ILearningService
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<LearningLoadResult> GetOrStartAsync() => throw new NotSupportedException();
+        public Task RevealAnswerAsync(int queueItemId) => throw new NotSupportedException();
+        public Task<SpellingSubmissionResult> CheckSpellingAsync(int queueItemId, string enteredAnswer) => throw new NotSupportedException();
+        public Task<LearningLoadResult> RateAsync(int queueItemId, ReviewRating rating) => throw new NotSupportedException();
+        public Task<bool> MarkPermanentlyKnownAsync(int wordId, bool confirmed) => throw new NotSupportedException();
+
+        public async Task<int> RunMaintenanceAsync()
+        {
+            Started.TrySetResult();
+            await Release.Task;
+            return 0;
+        }
+    }
+}

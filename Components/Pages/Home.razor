@@ -2,6 +2,7 @@
 @inject IDashboardService DashboardService
 @inject ITextReviewService TextReviewService
 @inject ILogger<Home> Logger
+@inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
 
 <PageTitle>@Localizer["Home_Title"]</PageTitle>
 
@@ -54,11 +55,35 @@
 }
 
 <section class="action-grid">
-    <a class="action-card @(IsReviewBlocked ? "blocked" : null)" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="review-words">@Localizer["Navigation_ReviewWords"]<span aria-hidden="true">→</span></a>
-    <a class="action-card @(IsReviewBlocked ? "blocked" : null)" href="prepare-words">@Localizer["Navigation_PrepareWords"]<span aria-hidden="true">→</span></a>
-    <a class="action-card @(IsReviewBlocked ? "blocked" : null)" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="dictionary">@Localizer["Navigation_Dictionary"]<span aria-hidden="true">→</span></a>
+    @if (_workflow.CanLearn)
+    {
+        <a class="action-card" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
+    }
+    else
+    {
+        <div class="action-card blocked" aria-disabled="true" title="@(Localizer["Navigation_LearnUnavailable"])">
+            <span class="action-card-label">@Localizer["Navigation_Learn"]</span>
+            <small>@Localizer["Navigation_LearnUnavailable"]</small>
+        </div>
+    }
+    @if (_workflow.CanImport)
+    {
+        <a class="action-card" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
+    }
+    else
+    {
+        <div class="action-card blocked" aria-disabled="true" title="@(Localizer["Navigation_ImportBlockedByReview"])">
+            <span class="action-card-label">@Localizer["Navigation_ImportText"]</span>
+            <small>@Localizer["Navigation_ImportBlockedByReview"]</small>
+        </div>
+    }
+    @if (_workflow.PrimaryAction is WorkflowPrimaryAction.ContinuePreparation or WorkflowPrimaryAction.PrepareWords)
+    {
+        <a class="action-card" href="prepare-words">
+            @Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
+            <span aria-hidden="true">→</span>
+        </a>
+    }
     <a class="action-card" href="settings">@Localizer["Navigation_Settings"]<span aria-hidden="true">→</span></a>
 </section>
 
@@ -102,6 +127,14 @@ else
 @code {
     private DashboardStatistics _statistics = DashboardStatistics.Empty;
     private ActiveReviewSummary? _activeReview;
+    private WorkflowSnapshot _workflow = new(
+        false,
+        false,
+        false,
+        0,
+        0,
+        0,
+        WorkflowPrimaryAction.ImportText);
     private bool _isLoading = true;
     private bool _loadFailed;
     private bool _showDiscardConfirmation;
@@ -121,6 +154,7 @@ else
         {
             _statistics = await DashboardService.GetStatisticsAsync();
             _activeReview = await TextReviewService.GetActiveReviewAsync();
+            _workflow = await WorkflowState.GetSnapshotAsync();
         }
         catch (Exception exception)
         {

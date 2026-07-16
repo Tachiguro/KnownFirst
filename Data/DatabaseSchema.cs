@@ -5,7 +5,7 @@ namespace KnownFirst.Data;
 
 public static class DatabaseSchema
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public static async Task InitializeAsync(SQLiteAsyncConnection connection)
     {
@@ -20,6 +20,14 @@ public static class DatabaseSchema
         await connection.CreateTableAsync<ReviewStateEntity>();
         await connection.CreateTableAsync<ReviewSessionEntity>();
         await connection.CreateTableAsync<ReviewCandidateEntity>();
+        await connection.CreateTableAsync<LexicalCacheEntity>();
+        await connection.CreateTableAsync<PreparationSessionEntity>();
+        await connection.CreateTableAsync<PreparationCandidateEntity>();
+        await connection.CreateTableAsync<ContextSnapshotEntity>();
+        await connection.CreateTableAsync<LearningCardEntity>();
+        await connection.CreateTableAsync<LearningReviewEntity>();
+        await connection.CreateTableAsync<LearningSessionEntity>();
+        await connection.CreateTableAsync<LearningSessionCardEntity>();
         await connection.ExecuteAsync($"PRAGMA user_version = {CurrentVersion}");
     }
 }

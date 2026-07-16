@@ -1,3 +1,5 @@
+using KnownFirst.Core.Learning;
+using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -123,6 +125,94 @@ public sealed record DiagnosticsSession(
     DateTime StartedAt,
     DateTime? CompletedAt);
 
+public sealed record DiagnosticsLexicalCache(
+    int Id,
+    string NormalizedLemma,
+    string SourceLanguage,
+    string ExplanationLanguage,
+    TokenKind TokenKind,
+    string Provider,
+    string SourceProject,
+    string PageTitle,
+    long? RevisionId,
+    DateTime FetchedAtUtc);
+
+public sealed record DiagnosticsPreparationSession(
+    int Id,
+    PreparationSessionStatus Status,
+    PreparationMethod Method,
+    int CompletedItems,
+    int TotalItems,
+    DateTime UpdatedAtUtc);
+
+public sealed record DiagnosticsPreparationCandidate(
+    int Id,
+    int SessionId,
+    int WordId,
+    string Term,
+    int Order,
+    PreparationCandidateStatus Status,
+    int SelectedMeaningIndex,
+    IReadOnlyList<string> AvailableMeanings,
+    int LookupAttemptCount,
+    string LastErrorCode);
+
+public sealed record DiagnosticsPreparedMeaning(
+    int Id,
+    int WordId,
+    string DisplayTerm,
+    string SelectedMeaningId,
+    string? AcronymExpansion,
+    string? Translation,
+    string Definition,
+    string Source,
+    string SourceProject,
+    string SourcePageTitle,
+    bool ConfirmedByUser,
+    DateTime PreparedAt);
+
+public sealed record DiagnosticsLearningCard(
+    int Id,
+    int WordId,
+    int MeaningId,
+    CardDirection Direction,
+    CardState State,
+    DateTime DueAtUtc,
+    int IntervalDays,
+    double EaseFactor,
+    ReviewRating? LastRating);
+
+public sealed record DiagnosticsLearningReview(
+    int Id,
+    int CardId,
+    int SessionId,
+    ReviewRating Rating,
+    bool WasTypedAnswer,
+    bool WasCorrect,
+    DateTime ReviewedAtUtc,
+    DateTime DueAtUtc,
+    int IntervalDays,
+    double EaseFactor);
+
+public sealed record DiagnosticsLearningSession(
+    int Id,
+    LearningSessionStatus Status,
+    int CompletedCards,
+    int TotalCards,
+    int AgainCount,
+    int HardCount,
+    int GoodCount,
+    int EasyCount,
+    DateTime UpdatedAtUtc);
+
+public sealed record DiagnosticsCleanupEligibility(
+    int DocumentId,
+    string DocumentTitle,
+    bool HasActiveReview,
+    bool HasOccurrences,
+    bool HasActiveContextSnapshots,
+    bool IsEligible);
+
 public sealed record ReviewDiagnosticsSnapshot(
     string DatabasePath,
     IReadOnlyList<DiagnosticsDocument> Documents,
@@ -130,6 +220,14 @@ public sealed record ReviewDiagnosticsSnapshot(
     IReadOnlyList<DiagnosticsCandidate> Candidates,
     IReadOnlyList<DiagnosticsOccurrence> Occurrences,
     IReadOnlyList<DiagnosticsSession> Sessions,
+    IReadOnlyList<DiagnosticsLexicalCache> LexicalCache,
+    IReadOnlyList<DiagnosticsPreparationSession> PreparationSessions,
+    IReadOnlyList<DiagnosticsPreparationCandidate> PreparationCandidates,
+    IReadOnlyList<DiagnosticsPreparedMeaning> PreparedMeanings,
+    IReadOnlyList<DiagnosticsLearningCard> LearningCards,
+    IReadOnlyList<DiagnosticsLearningReview> LearningReviews,
+    IReadOnlyList<DiagnosticsLearningSession> LearningSessions,
+    IReadOnlyList<DiagnosticsCleanupEligibility> CleanupEligibility,
     ActiveReviewSummary? ActiveSession);
 
 public static class DiagnosticsReportFormatter

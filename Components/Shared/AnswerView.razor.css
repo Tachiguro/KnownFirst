@@ -1,0 +1,18 @@
+.learning-answer {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 0.8rem;
+    background: var(--color-primary-soft);
+}
+
+.learning-answer h3,
+.learning-answer p {
+    margin: 0;
+}
+
+.learning-answer small {
+    display: block;
+    color: var(--color-muted);
+}

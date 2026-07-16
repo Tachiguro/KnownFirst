@@ -194,6 +194,7 @@ public sealed class TextReviewServiceTests
         Assert.IsTrue(ReviewRoutePolicy.IsBlocked("learn", active is not null));
         Assert.IsTrue(ReviewRoutePolicy.IsBlocked("prepare-words", active is not null));
         Assert.IsTrue(ReviewRoutePolicy.IsBlocked("import-text", active is not null));
+        Assert.IsFalse(ReviewRoutePolicy.IsBlocked("settings", active is not null));
 
         var candidate = await _service.GetCurrentCandidateAsync();
         await _service.DecideAsync(candidate!.WordId, WordStatus.Known);
@@ -233,11 +234,66 @@ public sealed class TextReviewServiceTests
         Assert.AreEqual(0, retained.Item2.TotalOccurrenceCount);
         Assert.AreEqual(0, retained.knownOccurrences);
         Assert.AreEqual(0, retained.ignoredOccurrences);
-        Assert.AreEqual(2, retained.formCount);
+        Assert.AreEqual(0, retained.formCount);
     }
 
     [TestMethod]
-    public async Task Completion_UnknownRetainsAtMostThreeDistinctContexts()
+    public async Task Completion_AllKnownDeletesTemporaryDocumentData()
+    {
+        await _service.ImportAsync(CreateRequest("Alpha Beta."));
+        await CompleteReviewAsync(_ => WordStatus.Known);
+
+        var counts = await _database.ReadAsync(async connection => new
+        {
+            Documents = await connection.Table<DocumentEntity>().CountAsync(),
+            Sentences = await connection.Table<SentenceSpanEntity>().CountAsync(),
+            Occurrences = await connection.Table<WordOccurrenceEntity>().CountAsync(),
+            Sessions = await connection.Table<ReviewSessionEntity>().CountAsync(),
+            Candidates = await connection.Table<ReviewCandidateEntity>().CountAsync(),
+            KnownWords = await connection.Table<WordEntity>()
+                .Where(word => word.Status == WordStatus.Known)
+                .CountAsync()
+        });
+
+        Assert.AreEqual(0, counts.Documents);
+        Assert.AreEqual(0, counts.Sentences);
+        Assert.AreEqual(0, counts.Occurrences);
+        Assert.AreEqual(0, counts.Sessions);
+        Assert.AreEqual(0, counts.Candidates);
+        Assert.AreEqual(2, counts.KnownWords);
+    }
+
+    [TestMethod]
+    public async Task LegacyIgnoredVocabulary_RemainsReadableAndPreventsAnotherReviewPrompt()
+    {
+        var analyzed = new TextAnalyzer().Analyze("Legacy.");
+        Assert.HasCount(1, analyzed.Candidates);
+        var candidate = analyzed.Candidates[0];
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = candidate.CanonicalTerm,
+                NormalizedTerm = candidate.Identity,
+                TokenKind = candidate.Kind,
+                Status = WordStatus.Ignored,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            return true;
+        });
+
+        var result = await _service.ImportAsync(CreateRequest("Legacy."));
+        var ignored = (await _service.GetDiagnosticsAsync()).Candidates.Single();
+
+        Assert.AreEqual(ImportAnalysisOutcome.NoNewVocabulary, result.Outcome);
+        Assert.AreEqual(WordStatus.Ignored, ignored.Status);
+        Assert.AreEqual("Legacy", ignored.CanonicalTerm);
+    }
+
+    [TestMethod]
+    public async Task Completion_UnknownPreservesEveryAcceptedOccurrence()
     {
         await _service.ImportAsync(CreateRequest("Target. Target! Target? Target."));
         var candidate = await _service.GetCurrentCandidateAsync();
@@ -255,8 +311,8 @@ public sealed class TextReviewServiceTests
 
         Assert.AreEqual(WordStatus.UnknownBacklog, retained.Word.Status);
         Assert.AreEqual(4, retained.Word.TotalOccurrenceCount);
-        Assert.HasCount(3, retained.Occurrences);
-        Assert.AreEqual(3, retained.Occurrences.Select(item => item.SentenceSpanId).Distinct().Count());
+        Assert.HasCount(4, retained.Occurrences);
+        Assert.AreEqual(4, retained.Occurrences.Select(item => item.SentenceSpanId).Distinct().Count());
     }
 
     [TestMethod]
@@ -348,7 +404,7 @@ public sealed class TextReviewServiceTests
     }
 
     [TestMethod]
-    public async Task Completion_AcceptedImportUpdatesExistingUnknownAndRetainsAtMostThreeContexts()
+    public async Task Completion_AcceptedImportUpdatesExistingUnknownAndPreservesOccurrences()
     {
         await _service.ImportAsync(CreateRequest("Existing. Existing!"));
         await CompleteReviewAsync(_ => WordStatus.UnknownBacklog);
@@ -372,10 +428,8 @@ public sealed class TextReviewServiceTests
 
         Assert.AreEqual(5, retained.existing.TotalOccurrenceCount);
         Assert.AreEqual(2, retained.existing.DocumentCount);
-        Assert.IsLessThanOrEqualTo(3, retained.occurrences.Count);
-        Assert.AreEqual(
-            retained.occurrences.Count,
-            retained.occurrences.Select(occurrence => occurrence.SentenceSpanId).Distinct().Count());
+        Assert.HasCount(5, retained.occurrences);
+        Assert.AreEqual(5, retained.occurrences.Select(occurrence => occurrence.SentenceSpanId).Distinct().Count());
     }
 
     [TestMethod]
@@ -391,6 +445,13 @@ public sealed class TextReviewServiceTests
         Assert.Contains("\"Candidates\"", report);
         Assert.Contains("\"Occurrences\"", report);
         Assert.Contains("\"Sessions\"", report);
+        Assert.Contains("\"LexicalCache\"", report);
+        Assert.Contains("\"PreparationSessions\"", report);
+        Assert.Contains("\"PreparedMeanings\"", report);
+        Assert.Contains("\"LearningCards\"", report);
+        Assert.Contains("\"LearningReviews\"", report);
+        Assert.Contains("\"LearningSessions\"", report);
+        Assert.Contains("\"CleanupEligibility\"", report);
         Assert.Contains("Test document", report);
         Assert.Contains("Alpha appears.", report);
         Assert.Contains("\"CandidateText\": \"Alpha\"", report);

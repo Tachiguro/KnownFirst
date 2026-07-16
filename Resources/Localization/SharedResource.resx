@@ -561,4 +561,367 @@
   <data name="WordStatus_Mastered" xml:space="preserve">
     <value>Mastered</value>
   </data>
+  <data name="Common_Continue" xml:space="preserve">
+    <value>Continue</value>
+  </data>
+  <data name="Common_Later" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="Navigation_LearnUnavailable" xml:space="preserve">
+    <value>No words are ready to learn yet.</value>
+  </data>
+  <data name="Navigation_ImportBlockedByReview" xml:space="preserve">
+    <value>Finish or discard the active vocabulary review first.</value>
+  </data>
+  <data name="Home_ContinuePreparation" xml:space="preserve">
+    <value>Continue preparation</value>
+  </data>
+  <data name="Settings_ReturnToReview" xml:space="preserve">
+    <value>Return to active review</value>
+  </data>
+  <data name="Settings_CardDirection" xml:space="preserve">
+    <value>Card directions</value>
+  </data>
+  <data name="Settings_CardDirectionTermToMeaning" xml:space="preserve">
+    <value>Term to meaning</value>
+  </data>
+  <data name="Settings_CardDirectionMeaningToTerm" xml:space="preserve">
+    <value>Meaning to term</value>
+  </data>
+  <data name="Settings_CardDirectionBoth" xml:space="preserve">
+    <value>Both directions</value>
+  </data>
+  <data name="Settings_CardDirectionSaved" xml:space="preserve">
+    <value>Card directions saved.</value>
+  </data>
+  <data name="Settings_OnlineDictionary" xml:space="preserve">
+    <value>Online dictionary</value>
+  </data>
+  <data name="Settings_OnlineConsentGranted" xml:space="preserve">
+    <value>Online dictionary lookup is enabled.</value>
+  </data>
+  <data name="Settings_OnlineConsentNotGranted" xml:space="preserve">
+    <value>Online dictionary lookup has not been enabled.</value>
+  </data>
+  <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
+    <value>Revoke online lookup consent</value>
+  </data>
+  <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
+    <value>Online lookup consent was revoked.</value>
+  </data>
+  <data name="Prepare_Loading" xml:space="preserve">
+    <value>Loading vocabulary preparation…</value>
+  </data>
+  <data name="Prepare_LoadError" xml:space="preserve">
+    <value>Vocabulary preparation could not be loaded.</value>
+  </data>
+  <data name="Prepare_OnlineDisclosureTitle" xml:space="preserve">
+    <value>Online dictionary lookup</value>
+  </data>
+  <data name="Prepare_OnlineDisclosure" xml:space="preserve">
+    <value>KnownFirst does not send your documents, example sentences, learning history, or personal data to the KnownFirst developer. Only the selected term and the selected language information are sent directly to Wikimedia for dictionary lookup. Wikimedia receives normal network information such as your IP address and the KnownFirst User-Agent. Retrieved dictionary content and your personal learning data are stored locally on this device.</value>
+  </data>
+  <data name="Prepare_StartOnlineLookup" xml:space="preserve">
+    <value>Start online lookup</value>
+  </data>
+  <data name="Prepare_NoWordsTitle" xml:space="preserve">
+    <value>No words to prepare</value>
+  </data>
+  <data name="Prepare_NoWords" xml:space="preserve">
+    <value>Review a text and mark unknown vocabulary before preparing learning cards.</value>
+  </data>
+  <data name="Prepare_MethodQuestion" xml:space="preserve">
+    <value>How should these words be prepared?</value>
+  </data>
+  <data name="Prepare_BatchDescription" xml:space="preserve">
+    <value>Up to {0} vocabulary items will be prepared in this batch.</value>
+  </data>
+  <data name="Prepare_AutomaticOnline" xml:space="preserve">
+    <value>Automatic online</value>
+  </data>
+  <data name="Prepare_AutomaticRecommended" xml:space="preserve">
+    <value>Recommended: retrieve and review dictionary suggestions.</value>
+  </data>
+  <data name="Prepare_Manual" xml:space="preserve">
+    <value>Prepare manually</value>
+  </data>
+  <data name="Prepare_MethodManual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="Prepare_ManualDescription" xml:space="preserve">
+    <value>Enter the learning content yourself without an online request.</value>
+  </data>
+  <data name="Prepare_Progress" xml:space="preserve">
+    <value>Preparing vocabulary — {0} of {1}</value>
+  </data>
+  <data name="Prepare_Candidate" xml:space="preserve">
+    <value>Vocabulary item</value>
+  </data>
+  <data name="Prepare_LookingUp" xml:space="preserve">
+    <value>Looking up this term…</value>
+  </data>
+  <data name="Prepare_ManualEntry" xml:space="preserve">
+    <value>Enter manually</value>
+  </data>
+  <data name="Prepare_SkipForNow" xml:space="preserve">
+    <value>Skip for now</value>
+  </data>
+  <data name="Prepare_AcronymExpansion" xml:space="preserve">
+    <value>Acronym expansion</value>
+  </data>
+  <data name="Prepare_Translation" xml:space="preserve">
+    <value>Translation</value>
+  </data>
+  <data name="Prepare_Definition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
+  <data name="Prepare_AdditionalNote" xml:space="preserve">
+    <value>Additional note</value>
+  </data>
+  <data name="Prepare_AcceptedAliases" xml:space="preserve">
+    <value>Accepted spelling aliases (separated by semicolons)</value>
+  </data>
+  <data name="Prepare_DefinitionRequired" xml:space="preserve">
+    <value>Enter a definition before continuing.</value>
+  </data>
+  <data name="Prepare_SaveAndContinue" xml:space="preserve">
+    <value>Save and continue</value>
+  </data>
+  <data name="Prepare_SeveralMeanings" xml:space="preserve">
+    <value>Several meanings may fit this context.</value>
+  </data>
+  <data name="Prepare_Source" xml:space="preserve">
+    <value>Source: {0}, “{1}”</value>
+  </data>
+  <data name="Prepare_AcceptAndContinue" xml:space="preserve">
+    <value>Accept and continue</value>
+  </data>
+  <data name="Prepare_ChooseAnotherMeaning" xml:space="preserve">
+    <value>Choose another meaning</value>
+  </data>
+  <data name="Prepare_Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Prepare_CancelPreparation" xml:space="preserve">
+    <value>Cancel preparation</value>
+  </data>
+  <data name="Prepare_SaveError" xml:space="preserve">
+    <value>The preparation change could not be saved.</value>
+  </data>
+  <data name="Prepare_BatchCompleteTitle" xml:space="preserve">
+    <value>Preparation complete</value>
+  </data>
+  <data name="Prepare_BatchComplete" xml:space="preserve">
+    <value>You prepared {0} new words. Learn these words before adding more, or change the limit in Settings.</value>
+  </data>
+  <data name="Prepare_ChangeLimit" xml:space="preserve">
+    <value>Change limit</value>
+  </data>
+  <data name="Prepare_StartLearning" xml:space="preserve">
+    <value>Start learning</value>
+  </data>
+  <data name="Prepare_RateLimited" xml:space="preserve">
+    <value>The dictionary service asked KnownFirst to wait. Please try again shortly.</value>
+  </data>
+  <data name="Prepare_Offline" xml:space="preserve">
+    <value>The dictionary service is unavailable. Cached results remain available.</value>
+  </data>
+  <data name="Prepare_NoResult" xml:space="preserve">
+    <value>No suitable dictionary result was found.</value>
+  </data>
+  <data name="Learn_Loading" xml:space="preserve">
+    <value>Loading your learning session…</value>
+  </data>
+  <data name="Learn_LoadError" xml:space="preserve">
+    <value>The learning session could not be loaded.</value>
+  </data>
+  <data name="Learn_Progress" xml:space="preserve">
+    <value>Card {0} of {1}</value>
+  </data>
+  <data name="Learn_TermToMeaning" xml:space="preserve">
+    <value>Recall the meaning</value>
+  </data>
+  <data name="Learn_MeaningToTerm" xml:space="preserve">
+    <value>Recall the term</value>
+  </data>
+  <data name="Learn_RevealAnswer" xml:space="preserve">
+    <value>Reveal answer</value>
+  </data>
+  <data name="Learn_YourAnswer" xml:space="preserve">
+    <value>Your answer</value>
+  </data>
+  <data name="Learn_CheckAnswer" xml:space="preserve">
+    <value>Check answer</value>
+  </data>
+  <data name="Learn_SpellingCorrect" xml:space="preserve">
+    <value>Correct.</value>
+  </data>
+  <data name="Learn_SpellingIncorrect" xml:space="preserve">
+    <value>Not quite. Review the difference below.</value>
+  </data>
+  <data name="Learn_EnteredAnswer" xml:space="preserve">
+    <value>Your answer</value>
+  </data>
+  <data name="Learn_CorrectAnswer" xml:space="preserve">
+    <value>Correct answer</value>
+  </data>
+  <data name="Learn_AcceptedAlias" xml:space="preserve">
+    <value>Accepted spelling alias</value>
+  </data>
+  <data name="Learn_Difference" xml:space="preserve">
+    <value>Difference</value>
+  </data>
+  <data name="Learn_HiddenTarget" xml:space="preserve">
+    <value>Hidden target term</value>
+  </data>
+  <data name="Learn_DictionaryExample" xml:space="preserve">
+    <value>Dictionary example</value>
+  </data>
+  <data name="Learn_Again" xml:space="preserve">
+    <value>Again</value>
+  </data>
+  <data name="Learn_Hard" xml:space="preserve">
+    <value>Hard</value>
+  </data>
+  <data name="Learn_Good" xml:space="preserve">
+    <value>Good</value>
+  </data>
+  <data name="Learn_Easy" xml:space="preserve">
+    <value>Easy</value>
+  </data>
+  <data name="Learn_MarkPermanentlyKnown" xml:space="preserve">
+    <value>Mark permanently known</value>
+  </data>
+  <data name="Learn_PermanentKnownConfirmation" xml:space="preserve">
+    <value>This permanently removes both card directions, prepared personal content, contexts, schedules, and obsolete review history. Only a minimal known-vocabulary marker remains.</value>
+  </data>
+  <data name="Learn_ActionError" xml:space="preserve">
+    <value>The learning change could not be saved.</value>
+  </data>
+  <data name="Learn_SessionComplete" xml:space="preserve">
+    <value>Learning session complete</value>
+  </data>
+  <data name="Learn_CardsReviewed" xml:space="preserve">
+    <value>Cards reviewed</value>
+  </data>
+  <data name="Learn_NextDue" xml:space="preserve">
+    <value>Next card due: {0}</value>
+  </data>
+  <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
+    <value>All current reviews are complete. More unknown words are waiting for preparation.</value>
+  </data>
+  <data name="Learn_PrepareNextWords" xml:space="preserve">
+    <value>Prepare next frequent words</value>
+  </data>
+  <data name="Learn_NothingDue" xml:space="preserve">
+    <value>No more words are due right now.</value>
+  </data>
+  <data name="Learn_NoCardsTitle" xml:space="preserve">
+    <value>No learning cards available</value>
+  </data>
+  <data name="Diagnostics_LexicalCache" xml:space="preserve">
+    <value>Lexical cache</value>
+  </data>
+  <data name="Diagnostics_Lemma" xml:space="preserve">
+    <value>Lemma</value>
+  </data>
+  <data name="Diagnostics_Languages" xml:space="preserve">
+    <value>Languages</value>
+  </data>
+  <data name="Diagnostics_Provider" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="Diagnostics_SourcePage" xml:space="preserve">
+    <value>Source page</value>
+  </data>
+  <data name="Diagnostics_Revision" xml:space="preserve">
+    <value>Revision</value>
+  </data>
+  <data name="Diagnostics_Fetched" xml:space="preserve">
+    <value>Fetched</value>
+  </data>
+  <data name="Diagnostics_Preparation" xml:space="preserve">
+    <value>Vocabulary preparation</value>
+  </data>
+  <data name="Diagnostics_Method" xml:space="preserve">
+    <value>Method</value>
+  </data>
+  <data name="Diagnostics_Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="Diagnostics_SelectedMeaning" xml:space="preserve">
+    <value>Selected meaning</value>
+  </data>
+  <data name="Diagnostics_AvailableMeanings" xml:space="preserve">
+    <value>Available meanings</value>
+  </data>
+  <data name="Diagnostics_LookupAttempts" xml:space="preserve">
+    <value>Lookup attempts</value>
+  </data>
+  <data name="Diagnostics_ErrorCode" xml:space="preserve">
+    <value>Error code</value>
+  </data>
+  <data name="Diagnostics_PreparedMeanings" xml:space="preserve">
+    <value>Prepared items and meanings</value>
+  </data>
+  <data name="Diagnostics_Confirmed" xml:space="preserve">
+    <value>Confirmed</value>
+  </data>
+  <data name="Diagnostics_Learning" xml:space="preserve">
+    <value>Learning and scheduling</value>
+  </data>
+  <data name="Diagnostics_LearningSessions" xml:space="preserve">
+    <value>Learning sessions</value>
+  </data>
+  <data name="Diagnostics_Ratings" xml:space="preserve">
+    <value>Ratings</value>
+  </data>
+  <data name="Diagnostics_LearningCards" xml:space="preserve">
+    <value>Learning cards</value>
+  </data>
+  <data name="Diagnostics_Direction" xml:space="preserve">
+    <value>Direction</value>
+  </data>
+  <data name="Diagnostics_Due" xml:space="preserve">
+    <value>Due</value>
+  </data>
+  <data name="Diagnostics_IntervalDays" xml:space="preserve">
+    <value>Interval (days)</value>
+  </data>
+  <data name="Diagnostics_EaseFactor" xml:space="preserve">
+    <value>Ease factor</value>
+  </data>
+  <data name="Diagnostics_LastRating" xml:space="preserve">
+    <value>Last rating</value>
+  </data>
+  <data name="Diagnostics_LearningReviews" xml:space="preserve">
+    <value>Learning reviews</value>
+  </data>
+  <data name="Diagnostics_Rating" xml:space="preserve">
+    <value>Rating</value>
+  </data>
+  <data name="Diagnostics_ReviewedAt" xml:space="preserve">
+    <value>Reviewed at</value>
+  </data>
+  <data name="Diagnostics_CleanupEligibility" xml:space="preserve">
+    <value>Document cleanup eligibility</value>
+  </data>
+  <data name="Diagnostics_ActiveReview" xml:space="preserve">
+    <value>Active review</value>
+  </data>
+  <data name="Diagnostics_HasOccurrences" xml:space="preserve">
+    <value>Stored occurrences</value>
+  </data>
+  <data name="Diagnostics_ActiveContexts" xml:space="preserve">
+    <value>Active contexts</value>
+  </data>
+  <data name="Diagnostics_Eligible" xml:space="preserve">
+    <value>Eligible</value>
+  </data>
+  <data name="Diagnostics_Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="Diagnostics_No" xml:space="preserve">
+    <value>No</value>
+  </data>
 </root>

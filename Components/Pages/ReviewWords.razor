@@ -2,6 +2,7 @@
 @inject ITextReviewService TextReviewService
 @inject NavigationManager Navigation
 @inject ILogger<ReviewWords> Logger
+@inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
 
 <PageTitle>@Localizer["Navigation_ReviewWords"]</PageTitle>
 
@@ -82,9 +83,6 @@
                 <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
                     @Localizer["Review_Unknown"]
                 </button>
-                <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.Ignored)">
-                    @Localizer["Review_Ignore"]
-                </button>
             </div>
             <button type="button"
                     class="undo-button"
@@ -129,7 +127,6 @@
             <dl class="completion-summary">
                 <div><dt>@Localizer["Review_Known"]</dt><dd>@_completedSummary.KnownCount</dd></div>
                 <div><dt>@Localizer["Review_Unknown"]</dt><dd>@_completedSummary.UnknownCount</dd></div>
-                <div><dt>@Localizer["Review_Ignore"]</dt><dd>@_completedSummary.IgnoredCount</dd></div>
             </dl>
             <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
         </section>
@@ -200,6 +197,11 @@
             {
                 _candidate = null;
                 _completedSummary = result.Summary;
+                if (result.Summary?.UnknownCount > 0)
+                {
+                    var workflow = await WorkflowState.GetSnapshotAsync();
+                    Navigation.NavigateTo(workflow.CanLearn ? string.Empty : "prepare-words");
+                }
             }
             else
             {

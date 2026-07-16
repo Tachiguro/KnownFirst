@@ -1,0 +1,17 @@
+.learning-context {
+    padding: 1rem;
+    border-radius: 0.8rem;
+    background: var(--color-surface-muted);
+    line-height: 1.65;
+}
+
+mark {
+    border-radius: 0.2rem;
+    background: var(--color-primary-soft);
+    color: var(--color-text);
+    font-weight: 800;
+}
+
+.hidden-target {
+    letter-spacing: 0.15em;
+}

@@ -1,3 +1,4 @@
+using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
@@ -5,6 +6,7 @@ using KnownFirst.Models;
 using SQLite;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace KnownFirst.Services;
 
@@ -91,15 +93,23 @@ public sealed class TextReviewService(
             .OrderBy(occurrence => occurrence.Order)
             .ToListAsync();
         var contexts = new List<ReviewContext>();
+        var contextFingerprints = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var occurrence in occurrences
-                     .GroupBy(item => item.SentenceSpanId)
-                     .Select(group => group.First())
-                     .Take(MaximumRetainedContexts))
+        foreach (var occurrence in occurrences)
         {
             var sentence = await connection.FindAsync<SentenceSpanEntity>(occurrence.SentenceSpanId)
                 ?? throw new InvalidOperationException("A review occurrence has no sentence span.");
-            contexts.Add(CreateContext(document.Content, sentence, occurrence));
+            var context = CreateContext(document.Content, sentence, occurrence);
+            var contextText = context.BeforeTarget + context.Target + context.AfterTarget;
+            if (contextFingerprints.Add(NormalizeContextForComparison(contextText)))
+            {
+                contexts.Add(context);
+            }
+
+            if (contexts.Count == MaximumRetainedContexts)
+            {
+                break;
+            }
         }
 
         return new ReviewCandidateDetails(
@@ -187,6 +197,14 @@ public sealed class TextReviewService(
         var forms = await connection.Table<WordFormEntity>().OrderBy(item => item.Id).ToListAsync();
         var occurrences = await connection.Table<WordOccurrenceEntity>().OrderBy(item => item.Id).ToListAsync();
         var sessions = await connection.Table<ReviewSessionEntity>().OrderBy(item => item.Id).ToListAsync();
+        var lexicalCache = await connection.Table<LexicalCacheEntity>().OrderBy(item => item.Id).ToListAsync();
+        var preparationSessions = await connection.Table<PreparationSessionEntity>().OrderBy(item => item.Id).ToListAsync();
+        var preparationCandidates = await connection.Table<PreparationCandidateEntity>().OrderBy(item => item.Id).ToListAsync();
+        var meanings = await connection.Table<MeaningEntity>().OrderBy(item => item.Id).ToListAsync();
+        var learningCards = await connection.Table<LearningCardEntity>().OrderBy(item => item.Id).ToListAsync();
+        var learningReviews = await connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToListAsync();
+        var learningSessions = await connection.Table<LearningSessionEntity>().OrderBy(item => item.Id).ToListAsync();
+        var contextSnapshots = await connection.Table<ContextSnapshotEntity>().OrderBy(item => item.Id).ToListAsync();
         var documentsById = documents.ToDictionary(item => item.Id);
         var sentencesById = sentences.ToDictionary(item => item.Id);
         var wordsById = words.ToDictionary(item => item.Id);
@@ -275,8 +293,119 @@ public sealed class TextReviewService(
                 Math.Max(0, session.TotalCandidates - session.ReviewedCount),
                 session.StartedAt,
                 session.CompletedAt)).ToArray(),
+            lexicalCache.Select(entry => new DiagnosticsLexicalCache(
+                entry.Id,
+                entry.NormalizedLemma,
+                entry.SourceLanguage,
+                entry.ExplanationLanguage,
+                entry.TokenKind,
+                entry.Provider,
+                entry.SourceProject,
+                entry.PageTitle,
+                entry.RevisionId,
+                entry.FetchedAtUtc)).ToArray(),
+            preparationSessions.Select(session => new DiagnosticsPreparationSession(
+                session.Id,
+                session.Status,
+                session.Method,
+                session.CompletedItems,
+                session.TotalItems,
+                session.UpdatedAtUtc)).ToArray(),
+            preparationCandidates.Select(candidate => new DiagnosticsPreparationCandidate(
+                candidate.Id,
+                candidate.SessionId,
+                candidate.WordId,
+                wordsById.GetValueOrDefault(candidate.WordId)?.CanonicalTerm ?? string.Empty,
+                candidate.Order,
+                candidate.Status,
+                candidate.SelectedMeaningIndex,
+                CreateDiagnosticMeanings(candidate.ResultJson),
+                candidate.LookupAttemptCount,
+                candidate.LastErrorCode)).ToArray(),
+            meanings.Select(meaning => new DiagnosticsPreparedMeaning(
+                meaning.Id,
+                meaning.WordId,
+                meaning.DisplayTerm,
+                meaning.SelectedMeaningId,
+                string.IsNullOrWhiteSpace(meaning.AcronymExpansion) ? null : meaning.AcronymExpansion,
+                string.IsNullOrWhiteSpace(meaning.Translation) ? null : meaning.Translation,
+                meaning.Definition,
+                meaning.Source,
+                meaning.SourceProject,
+                meaning.SourcePageTitle,
+                meaning.ConfirmedByUser,
+                meaning.PreparedAt)).ToArray(),
+            learningCards.Select(card => new DiagnosticsLearningCard(
+                card.Id,
+                card.WordId,
+                card.MeaningId,
+                card.Direction,
+                card.State,
+                card.DueAtUtc,
+                card.IntervalDays,
+                card.EaseFactor,
+                card.LastRating)).ToArray(),
+            learningReviews.Select(review => new DiagnosticsLearningReview(
+                review.Id,
+                review.CardId,
+                review.SessionId,
+                review.Rating,
+                review.WasTypedAnswer,
+                review.WasCorrect,
+                review.ReviewedAtUtc,
+                review.DueAtUtc,
+                review.IntervalDays,
+                review.EaseFactor)).ToArray(),
+            learningSessions.Select(session => new DiagnosticsLearningSession(
+                session.Id,
+                session.Status,
+                session.CompletedCards,
+                session.TotalCards,
+                session.AgainCount,
+                session.HardCount,
+                session.GoodCount,
+                session.EasyCount,
+                session.UpdatedAtUtc)).ToArray(),
+            documents.Select(document =>
+            {
+                var hasActiveReview = sessions.Any(session => session.DocumentId == document.Id
+                    && session.Status == ReviewSessionStatus.Active);
+                var hasOccurrences = occurrences.Any(occurrence => occurrence.DocumentId == document.Id);
+                var hasActiveSnapshots = contextSnapshots
+                    .Where(snapshot => snapshot.SourceDocumentId == document.Id)
+                    .Any(snapshot => wordsById.GetValueOrDefault(snapshot.WordId)?.Status != WordStatus.Known);
+                return new DiagnosticsCleanupEligibility(
+                    document.Id,
+                    document.Title,
+                    hasActiveReview,
+                    hasOccurrences,
+                    hasActiveSnapshots,
+                    !hasActiveReview && !hasOccurrences && !hasActiveSnapshots);
+            }).ToArray(),
             activeSummary);
     });
+
+    private static IReadOnlyList<string> CreateDiagnosticMeanings(string resultJson)
+    {
+        if (string.IsNullOrWhiteSpace(resultJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            var result = JsonSerializer.Deserialize<LexicalResult>(resultJson);
+            return result?.Meanings
+                .Select(meaning => string.IsNullOrWhiteSpace(meaning.Translation)
+                    ? meaning.Definition
+                    : $"{meaning.Translation} — {meaning.Definition}")
+                .ToArray() ?? [];
+        }
+        catch (JsonException)
+        {
+            return ["The stored lookup result could not be parsed."];
+        }
+    }
 
     private static ImportAnalysisResult CreateImport(
         SQLiteConnection connection,
@@ -476,10 +605,11 @@ public sealed class TextReviewService(
         session.Status = ReviewSessionStatus.Completed;
         session.CompletedAt = DateTime.UtcNow;
         connection.Update(session);
-        CompleteSession(connection, session);
         var document = connection.Find<DocumentEntity>(session.DocumentId)
             ?? throw new InvalidOperationException("The completed review session has no document.");
-        return new ReviewDecisionResult(true, CreateCompletedSummary(session, document.Title));
+        var summary = CreateCompletedSummary(session, document.Title);
+        CompleteSession(connection, session);
+        return new ReviewDecisionResult(true, summary);
     }
 
     private static bool UndoPreviousDecision(SQLiteConnection connection)
@@ -621,31 +751,24 @@ public sealed class TextReviewService(
                 word.DocumentCount = 0;
                 foreach (var form in connection.Table<WordFormEntity>().Where(form => form.WordId == word.Id))
                 {
-                    form.OccurrenceCount = 0;
-                    connection.Update(form);
+                    connection.Delete(form);
                 }
-            }
-            else if (word.Status == WordStatus.UnknownBacklog)
-            {
-                TrimUnknownContexts(connection, occurrences);
             }
 
             connection.Update(word);
         }
 
-        foreach (var wordId in existingUnknownWordIds)
-        {
-            var occurrences = connection.Table<WordOccurrenceEntity>()
-                .Where(occurrence => occurrence.WordId == wordId)
-                .OrderBy(occurrence => occurrence.Id)
-                .ToList();
-            affectedDocumentIds.UnionWith(occurrences.Select(occurrence => occurrence.DocumentId));
-            TrimUnknownContexts(connection, occurrences);
-        }
-
         RemoveUnreferencedSentenceSpans(connection, affectedDocumentIds);
 
         connection.Execute("DELETE FROM ReviewCandidates WHERE SessionId = ?", session.Id);
+
+        if (session.UnknownCount == 0 && existingUnknownWordIds.Length == 0)
+        {
+            connection.Execute("DELETE FROM WordOccurrences WHERE DocumentId = ?", session.DocumentId);
+            connection.Execute("DELETE FROM SentenceSpans WHERE DocumentId = ?", session.DocumentId);
+            connection.Delete(session);
+            connection.Delete<DocumentEntity>(session.DocumentId);
+        }
     }
 
     private static bool IsEstablishedVocabularyStatus(WordStatus status) => status != WordStatus.Unreviewed;
@@ -748,25 +871,6 @@ public sealed class TextReviewService(
         }
     }
 
-    private static void TrimUnknownContexts(
-        SQLiteConnection connection,
-        IReadOnlyList<WordOccurrenceEntity> occurrences)
-    {
-        var retainedIds = occurrences
-            .OrderBy(occurrence => occurrence.DocumentId)
-            .ThenBy(occurrence => occurrence.Order)
-            .ThenBy(occurrence => occurrence.Id)
-            .GroupBy(occurrence => occurrence.SentenceSpanId)
-            .Select(group => group.First().Id)
-            .Take(MaximumRetainedContexts)
-            .ToHashSet();
-
-        foreach (var occurrence in occurrences.Where(occurrence => !retainedIds.Contains(occurrence.Id)))
-        {
-            connection.Delete(occurrence);
-        }
-    }
-
     private static void RemoveUnreferencedSentenceSpans(
         SQLiteConnection connection,
         IEnumerable<int> documentIds)
@@ -839,6 +943,12 @@ public sealed class TextReviewService(
         .Replace('\r', ' ')
         .Replace('\n', ' ')
         .Replace('\t', ' ');
+
+    private static string NormalizeContextForComparison(string value) => string.Join(' ',
+        value.Replace("\r\n", "\n").Replace('\r', '\n')
+            .Trim()
+            .Normalize(NormalizationForm.FormC)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static ReviewContext CreateContext(
         string content,

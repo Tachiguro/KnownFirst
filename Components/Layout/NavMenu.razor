@@ -1,28 +1,42 @@
+@implements IDisposable
+@inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
+@inject NavigationManager Navigation
+
 <div class="nav-shell">
     <div class="nav-header">
-        <a class="brand" href="" @onclick="NotifyNavigationAsync">@Localizer["App_Name"]</a>
+        <a class="brand" href="@HomeRoute" @onclick="NotifyNavigationAsync">@Localizer["App_Name"]</a>
     </div>
 
     <div class="nav-scrollable">
         <nav class="nav-list" aria-label="@(Localizer["Navigation_Menu"])">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_Home"]
-            </NavLink>
-            <NavLink class="nav-link" href="import-text" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_ImportText"]
-            </NavLink>
-            <NavLink class="nav-link" href="review-words" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_ReviewWords"]
-            </NavLink>
-            <NavLink class="nav-link" href="prepare-words" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_PrepareWords"]
-            </NavLink>
-            <NavLink class="nav-link" href="learn" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_Learn"]
-            </NavLink>
-            <NavLink class="nav-link" href="dictionary" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_Dictionary"]
-            </NavLink>
+            @if (_workflow?.CanLearn == true)
+            {
+                <NavLink class="nav-link" href="learn" @onclick="NotifyNavigationAsync">
+                    @Localizer["Navigation_Learn"]
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link nav-link-disabled"
+                      aria-disabled="true"
+                      title="@(Localizer["Navigation_LearnUnavailable"])">
+                    @Localizer["Navigation_Learn"]
+                </span>
+            }
+            @if (_workflow?.CanImport != false)
+            {
+                <NavLink class="nav-link" href="import-text" @onclick="NotifyNavigationAsync">
+                    @Localizer["Navigation_ImportText"]
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link nav-link-disabled"
+                      aria-disabled="true"
+                      title="@(Localizer["Navigation_ImportBlockedByReview"])">
+                    @Localizer["Navigation_ImportText"]
+                </span>
+            }
             <NavLink class="nav-link" href="settings" @onclick="NotifyNavigationAsync">
                 @Localizer["Navigation_Settings"]
             </NavLink>
@@ -56,6 +70,40 @@
 #else
             return false;
 #endif
+        }
+    }
+
+    private WorkflowSnapshot? _workflow;
+
+    private string HomeRoute => _workflow?.HasActiveReview == true ? "review-words" : string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        await LoadWorkflowAsync();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs eventArgs) =>
+        _ = InvokeAsync(async () =>
+        {
+            await LoadWorkflowAsync();
+            StateHasChanged();
+        });
+
+    private async Task LoadWorkflowAsync()
+    {
+        try
+        {
+            _workflow = await WorkflowState.GetSnapshotAsync();
+        }
+        catch
+        {
+            _workflow = null;
         }
     }
 

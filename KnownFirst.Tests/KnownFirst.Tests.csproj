@@ -8,8 +8,20 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="1.5.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageReference Include="MSTest" Version="4.0.2" />
     <PackageReference Include="sqlite-net-pcl" Version="1.11.285" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Fixtures\Wiktionary\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\ReviewWords.razor" Link="Ui\ReviewWords.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Layout\NavMenu.razor" Link="Ui\NavMenu.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\Settings.razor" Link="Ui\Settings.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\Learn.razor" Link="Ui\Learn.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\PrepareWords.razor" Link="Ui\PrepareWords.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Shared\AnswerView.razor" Link="Ui\AnswerView.razor" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,6 +49,8 @@
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
+    <Compile Include="..\Services\Lexical\*.cs" Link="Production\Services\Lexical\%(Filename)%(Extension)" />
+    <Compile Include="..\Services\Study\*.cs" Link="Production\Services\Study\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

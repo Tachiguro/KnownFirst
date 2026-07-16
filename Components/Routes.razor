@@ -2,6 +2,7 @@
 @inject KnownFirst.Data.IKnownFirstDatabase Database
 @inject IThemeService ThemeService
 @inject IJSRuntime JsRuntime
+@inject KnownFirst.Services.Study.IStartupMaintenanceService StartupMaintenance
 
 <div class="app-theme-root" data-theme="@ThemeService.EffectiveThemeCssName">
     @if (_isInitializing)
@@ -60,6 +61,7 @@
         try
         {
             await Database.InitializeAsync();
+            StartupMaintenance.Start();
         }
         catch
         {

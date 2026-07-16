@@ -561,4 +561,367 @@
   <data name="WordStatus_Mastered" xml:space="preserve">
     <value>Gemeistert</value>
   </data>
+  <data name="Common_Continue" xml:space="preserve">
+    <value>Weiter</value>
+  </data>
+  <data name="Common_Later" xml:space="preserve">
+    <value>Später</value>
+  </data>
+  <data name="Navigation_LearnUnavailable" xml:space="preserve">
+    <value>Es sind noch keine Wörter zum Lernen vorbereitet.</value>
+  </data>
+  <data name="Navigation_ImportBlockedByReview" xml:space="preserve">
+    <value>Schließe zuerst die aktive Wortschatzprüfung ab oder verwirf sie.</value>
+  </data>
+  <data name="Home_ContinuePreparation" xml:space="preserve">
+    <value>Vorbereitung fortsetzen</value>
+  </data>
+  <data name="Settings_ReturnToReview" xml:space="preserve">
+    <value>Zur aktiven Prüfung zurückkehren</value>
+  </data>
+  <data name="Settings_CardDirection" xml:space="preserve">
+    <value>Kartenrichtungen</value>
+  </data>
+  <data name="Settings_CardDirectionTermToMeaning" xml:space="preserve">
+    <value>Begriff zur Bedeutung</value>
+  </data>
+  <data name="Settings_CardDirectionMeaningToTerm" xml:space="preserve">
+    <value>Bedeutung zum Begriff</value>
+  </data>
+  <data name="Settings_CardDirectionBoth" xml:space="preserve">
+    <value>Beide Richtungen</value>
+  </data>
+  <data name="Settings_CardDirectionSaved" xml:space="preserve">
+    <value>Kartenrichtungen gespeichert.</value>
+  </data>
+  <data name="Settings_OnlineDictionary" xml:space="preserve">
+    <value>Online-Wörterbuch</value>
+  </data>
+  <data name="Settings_OnlineConsentGranted" xml:space="preserve">
+    <value>Die Online-Wörterbuchabfrage ist aktiviert.</value>
+  </data>
+  <data name="Settings_OnlineConsentNotGranted" xml:space="preserve">
+    <value>Die Online-Wörterbuchabfrage wurde noch nicht aktiviert.</value>
+  </data>
+  <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
+    <value>Einwilligung zur Online-Abfrage widerrufen</value>
+  </data>
+  <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
+    <value>Die Einwilligung zur Online-Abfrage wurde widerrufen.</value>
+  </data>
+  <data name="Prepare_Loading" xml:space="preserve">
+    <value>Wortschatzvorbereitung wird geladen…</value>
+  </data>
+  <data name="Prepare_LoadError" xml:space="preserve">
+    <value>Die Wortschatzvorbereitung konnte nicht geladen werden.</value>
+  </data>
+  <data name="Prepare_OnlineDisclosureTitle" xml:space="preserve">
+    <value>Online-Wörterbuchabfrage</value>
+  </data>
+  <data name="Prepare_OnlineDisclosure" xml:space="preserve">
+    <value>KnownFirst sendet keine Dokumente, Beispielsätze, Lernhistorie oder persönlichen Daten an den Entwickler von KnownFirst. Für die Wörterbuchabfrage werden ausschließlich der ausgewählte Begriff und die gewählten Sprachinformationen direkt an Wikimedia übertragen. Wikimedia erhält dabei übliche Netzwerkdaten wie deine IP-Adresse und den KnownFirst-User-Agent. Abgerufene Wörterbuchinhalte und deine persönlichen Lerndaten werden lokal auf diesem Gerät gespeichert.</value>
+  </data>
+  <data name="Prepare_StartOnlineLookup" xml:space="preserve">
+    <value>Online-Abfrage starten</value>
+  </data>
+  <data name="Prepare_NoWordsTitle" xml:space="preserve">
+    <value>Keine Wörter vorzubereiten</value>
+  </data>
+  <data name="Prepare_NoWords" xml:space="preserve">
+    <value>Prüfe einen Text und markiere unbekannten Wortschatz, bevor du Lernkarten vorbereitest.</value>
+  </data>
+  <data name="Prepare_MethodQuestion" xml:space="preserve">
+    <value>Wie sollen diese Wörter vorbereitet werden?</value>
+  </data>
+  <data name="Prepare_BatchDescription" xml:space="preserve">
+    <value>In diesem Durchgang werden bis zu {0} Wortschatzeinträge vorbereitet.</value>
+  </data>
+  <data name="Prepare_AutomaticOnline" xml:space="preserve">
+    <value>Automatisch online</value>
+  </data>
+  <data name="Prepare_AutomaticRecommended" xml:space="preserve">
+    <value>Empfohlen: Wörterbuchvorschläge abrufen und prüfen.</value>
+  </data>
+  <data name="Prepare_Manual" xml:space="preserve">
+    <value>Manuell vorbereiten</value>
+  </data>
+  <data name="Prepare_MethodManual" xml:space="preserve">
+    <value>Manuell</value>
+  </data>
+  <data name="Prepare_ManualDescription" xml:space="preserve">
+    <value>Gib die Lerninhalte selbst und ohne Online-Anfrage ein.</value>
+  </data>
+  <data name="Prepare_Progress" xml:space="preserve">
+    <value>Wörter werden vorbereitet — {0} von {1}</value>
+  </data>
+  <data name="Prepare_Candidate" xml:space="preserve">
+    <value>Wortschatzeintrag</value>
+  </data>
+  <data name="Prepare_LookingUp" xml:space="preserve">
+    <value>Dieser Begriff wird nachgeschlagen…</value>
+  </data>
+  <data name="Prepare_ManualEntry" xml:space="preserve">
+    <value>Manuell eingeben</value>
+  </data>
+  <data name="Prepare_SkipForNow" xml:space="preserve">
+    <value>Später</value>
+  </data>
+  <data name="Prepare_AcronymExpansion" xml:space="preserve">
+    <value>Auflösung des Akronyms</value>
+  </data>
+  <data name="Prepare_Translation" xml:space="preserve">
+    <value>Übersetzung</value>
+  </data>
+  <data name="Prepare_Definition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
+  <data name="Prepare_AdditionalNote" xml:space="preserve">
+    <value>Zusätzliche Notiz</value>
+  </data>
+  <data name="Prepare_AcceptedAliases" xml:space="preserve">
+    <value>Akzeptierte Schreibvarianten (durch Semikolons getrennt)</value>
+  </data>
+  <data name="Prepare_DefinitionRequired" xml:space="preserve">
+    <value>Gib eine Definition ein, bevor du fortfährst.</value>
+  </data>
+  <data name="Prepare_SaveAndContinue" xml:space="preserve">
+    <value>Speichern und weiter</value>
+  </data>
+  <data name="Prepare_SeveralMeanings" xml:space="preserve">
+    <value>Mehrere Bedeutungen könnten zu diesem Zusammenhang passen.</value>
+  </data>
+  <data name="Prepare_Source" xml:space="preserve">
+    <value>Quelle: {0}, „{1}“</value>
+  </data>
+  <data name="Prepare_AcceptAndContinue" xml:space="preserve">
+    <value>Übernehmen und weiter</value>
+  </data>
+  <data name="Prepare_ChooseAnotherMeaning" xml:space="preserve">
+    <value>Andere Bedeutung wählen</value>
+  </data>
+  <data name="Prepare_Edit" xml:space="preserve">
+    <value>Bearbeiten</value>
+  </data>
+  <data name="Prepare_CancelPreparation" xml:space="preserve">
+    <value>Vorbereitung beenden</value>
+  </data>
+  <data name="Prepare_SaveError" xml:space="preserve">
+    <value>Die Änderung an der Vorbereitung konnte nicht gespeichert werden.</value>
+  </data>
+  <data name="Prepare_BatchCompleteTitle" xml:space="preserve">
+    <value>Vorbereitung abgeschlossen</value>
+  </data>
+  <data name="Prepare_BatchComplete" xml:space="preserve">
+    <value>Du hast {0} neue Wörter vorbereitet. Lerne diese Wörter zuerst oder ändere das Limit in den Einstellungen.</value>
+  </data>
+  <data name="Prepare_ChangeLimit" xml:space="preserve">
+    <value>Limit ändern</value>
+  </data>
+  <data name="Prepare_StartLearning" xml:space="preserve">
+    <value>Lernen starten</value>
+  </data>
+  <data name="Prepare_RateLimited" xml:space="preserve">
+    <value>Der Wörterbuchdienst hat KnownFirst gebeten zu warten. Versuche es gleich noch einmal.</value>
+  </data>
+  <data name="Prepare_Offline" xml:space="preserve">
+    <value>Der Wörterbuchdienst ist nicht erreichbar. Bereits gespeicherte Ergebnisse bleiben verfügbar.</value>
+  </data>
+  <data name="Prepare_NoResult" xml:space="preserve">
+    <value>Es wurde kein passender Wörterbucheintrag gefunden.</value>
+  </data>
+  <data name="Learn_Loading" xml:space="preserve">
+    <value>Deine Lernsitzung wird geladen…</value>
+  </data>
+  <data name="Learn_LoadError" xml:space="preserve">
+    <value>Die Lernsitzung konnte nicht geladen werden.</value>
+  </data>
+  <data name="Learn_Progress" xml:space="preserve">
+    <value>Karte {0} von {1}</value>
+  </data>
+  <data name="Learn_TermToMeaning" xml:space="preserve">
+    <value>Bedeutung erinnern</value>
+  </data>
+  <data name="Learn_MeaningToTerm" xml:space="preserve">
+    <value>Begriff erinnern</value>
+  </data>
+  <data name="Learn_RevealAnswer" xml:space="preserve">
+    <value>Antwort anzeigen</value>
+  </data>
+  <data name="Learn_YourAnswer" xml:space="preserve">
+    <value>Deine Antwort</value>
+  </data>
+  <data name="Learn_CheckAnswer" xml:space="preserve">
+    <value>Antwort prüfen</value>
+  </data>
+  <data name="Learn_SpellingCorrect" xml:space="preserve">
+    <value>Richtig.</value>
+  </data>
+  <data name="Learn_SpellingIncorrect" xml:space="preserve">
+    <value>Noch nicht ganz. Sieh dir unten den Unterschied an.</value>
+  </data>
+  <data name="Learn_EnteredAnswer" xml:space="preserve">
+    <value>Deine Antwort</value>
+  </data>
+  <data name="Learn_CorrectAnswer" xml:space="preserve">
+    <value>Richtige Antwort</value>
+  </data>
+  <data name="Learn_AcceptedAlias" xml:space="preserve">
+    <value>Akzeptierte Schreibvariante</value>
+  </data>
+  <data name="Learn_Difference" xml:space="preserve">
+    <value>Unterschied</value>
+  </data>
+  <data name="Learn_HiddenTarget" xml:space="preserve">
+    <value>Ausgeblendeter Zielbegriff</value>
+  </data>
+  <data name="Learn_DictionaryExample" xml:space="preserve">
+    <value>Wörterbuchbeispiel</value>
+  </data>
+  <data name="Learn_Again" xml:space="preserve">
+    <value>Nochmal</value>
+  </data>
+  <data name="Learn_Hard" xml:space="preserve">
+    <value>Schwer</value>
+  </data>
+  <data name="Learn_Good" xml:space="preserve">
+    <value>Gut</value>
+  </data>
+  <data name="Learn_Easy" xml:space="preserve">
+    <value>Einfach</value>
+  </data>
+  <data name="Learn_MarkPermanentlyKnown" xml:space="preserve">
+    <value>Dauerhaft als bekannt markieren</value>
+  </data>
+  <data name="Learn_PermanentKnownConfirmation" xml:space="preserve">
+    <value>Dadurch werden beide Kartenrichtungen, vorbereitete persönliche Inhalte, Kontexte, Zeitpläne und veraltete Lernhistorie dauerhaft gelöscht. Nur eine minimale Markierung als bekannter Wortschatz bleibt erhalten.</value>
+  </data>
+  <data name="Learn_ActionError" xml:space="preserve">
+    <value>Die Lernänderung konnte nicht gespeichert werden.</value>
+  </data>
+  <data name="Learn_SessionComplete" xml:space="preserve">
+    <value>Lernsitzung abgeschlossen</value>
+  </data>
+  <data name="Learn_CardsReviewed" xml:space="preserve">
+    <value>Geprüfte Karten</value>
+  </data>
+  <data name="Learn_NextDue" xml:space="preserve">
+    <value>Nächste fällige Karte: {0}</value>
+  </data>
+  <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
+    <value>Alle aktuellen Wiederholungen sind abgeschlossen. Weitere unbekannte Wörter warten auf die Vorbereitung.</value>
+  </data>
+  <data name="Learn_PrepareNextWords" xml:space="preserve">
+    <value>Nächste häufige Wörter vorbereiten</value>
+  </data>
+  <data name="Learn_NothingDue" xml:space="preserve">
+    <value>Aktuell sind keine weiteren Wörter fällig.</value>
+  </data>
+  <data name="Learn_NoCardsTitle" xml:space="preserve">
+    <value>Keine Lernkarten verfügbar</value>
+  </data>
+  <data name="Diagnostics_LexicalCache" xml:space="preserve">
+    <value>Lexikalischer Zwischenspeicher</value>
+  </data>
+  <data name="Diagnostics_Lemma" xml:space="preserve">
+    <value>Lemma</value>
+  </data>
+  <data name="Diagnostics_Languages" xml:space="preserve">
+    <value>Sprachen</value>
+  </data>
+  <data name="Diagnostics_Provider" xml:space="preserve">
+    <value>Anbieter</value>
+  </data>
+  <data name="Diagnostics_SourcePage" xml:space="preserve">
+    <value>Quellseite</value>
+  </data>
+  <data name="Diagnostics_Revision" xml:space="preserve">
+    <value>Revision</value>
+  </data>
+  <data name="Diagnostics_Fetched" xml:space="preserve">
+    <value>Abgerufen</value>
+  </data>
+  <data name="Diagnostics_Preparation" xml:space="preserve">
+    <value>Wortschatzvorbereitung</value>
+  </data>
+  <data name="Diagnostics_Method" xml:space="preserve">
+    <value>Methode</value>
+  </data>
+  <data name="Diagnostics_Completed" xml:space="preserve">
+    <value>Abgeschlossen</value>
+  </data>
+  <data name="Diagnostics_SelectedMeaning" xml:space="preserve">
+    <value>Ausgewählte Bedeutung</value>
+  </data>
+  <data name="Diagnostics_AvailableMeanings" xml:space="preserve">
+    <value>Verfügbare Bedeutungen</value>
+  </data>
+  <data name="Diagnostics_LookupAttempts" xml:space="preserve">
+    <value>Abfrageversuche</value>
+  </data>
+  <data name="Diagnostics_ErrorCode" xml:space="preserve">
+    <value>Fehlercode</value>
+  </data>
+  <data name="Diagnostics_PreparedMeanings" xml:space="preserve">
+    <value>Vorbereitete Einträge und Bedeutungen</value>
+  </data>
+  <data name="Diagnostics_Confirmed" xml:space="preserve">
+    <value>Bestätigt</value>
+  </data>
+  <data name="Diagnostics_Learning" xml:space="preserve">
+    <value>Lernen und Zeitplanung</value>
+  </data>
+  <data name="Diagnostics_LearningSessions" xml:space="preserve">
+    <value>Lernsitzungen</value>
+  </data>
+  <data name="Diagnostics_Ratings" xml:space="preserve">
+    <value>Bewertungen</value>
+  </data>
+  <data name="Diagnostics_LearningCards" xml:space="preserve">
+    <value>Lernkarten</value>
+  </data>
+  <data name="Diagnostics_Direction" xml:space="preserve">
+    <value>Richtung</value>
+  </data>
+  <data name="Diagnostics_Due" xml:space="preserve">
+    <value>Fällig</value>
+  </data>
+  <data name="Diagnostics_IntervalDays" xml:space="preserve">
+    <value>Intervall (Tage)</value>
+  </data>
+  <data name="Diagnostics_EaseFactor" xml:space="preserve">
+    <value>Leichtigkeitsfaktor</value>
+  </data>
+  <data name="Diagnostics_LastRating" xml:space="preserve">
+    <value>Letzte Bewertung</value>
+  </data>
+  <data name="Diagnostics_LearningReviews" xml:space="preserve">
+    <value>Lernbewertungen</value>
+  </data>
+  <data name="Diagnostics_Rating" xml:space="preserve">
+    <value>Bewertung</value>
+  </data>
+  <data name="Diagnostics_ReviewedAt" xml:space="preserve">
+    <value>Geprüft am</value>
+  </data>
+  <data name="Diagnostics_CleanupEligibility" xml:space="preserve">
+    <value>Eignung zur Dokumentbereinigung</value>
+  </data>
+  <data name="Diagnostics_ActiveReview" xml:space="preserve">
+    <value>Aktive Prüfung</value>
+  </data>
+  <data name="Diagnostics_HasOccurrences" xml:space="preserve">
+    <value>Gespeicherte Vorkommen</value>
+  </data>
+  <data name="Diagnostics_ActiveContexts" xml:space="preserve">
+    <value>Aktive Kontexte</value>
+  </data>
+  <data name="Diagnostics_Eligible" xml:space="preserve">
+    <value>Geeignet</value>
+  </data>
+  <data name="Diagnostics_Yes" xml:space="preserve">
+    <value>Ja</value>
+  </data>
+  <data name="Diagnostics_No" xml:space="preserve">
+    <value>Nein</value>
+  </data>
 </root>

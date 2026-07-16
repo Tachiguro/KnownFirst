@@ -100,6 +100,18 @@ h1 {
     color: var(--color-muted);
 }
 
+.action-card small {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.action-card .action-card-label {
+    color: inherit;
+    font-size: inherit;
+}
+
 .action-card span {
     color: var(--color-primary);
     font-size: 1.4rem;

@@ -190,6 +190,131 @@ public sealed class LocalizationResourceTests
         "WordStatus_Mastered"
     ];
 
+    private static readonly string[] RequiredAutomaticDictionaryMvpKeys =
+    [
+        "Common_Continue",
+        "Common_Later",
+        "Navigation_LearnUnavailable",
+        "Navigation_ImportBlockedByReview",
+        "Home_ContinuePreparation",
+        "Settings_ReturnToReview",
+        "Settings_CardDirection",
+        "Settings_CardDirectionTermToMeaning",
+        "Settings_CardDirectionMeaningToTerm",
+        "Settings_CardDirectionBoth",
+        "Settings_CardDirectionSaved",
+        "Settings_OnlineDictionary",
+        "Settings_OnlineConsentGranted",
+        "Settings_OnlineConsentNotGranted",
+        "Settings_RevokeOnlineConsent",
+        "Settings_OnlineConsentRevoked",
+        "Prepare_Loading",
+        "Prepare_LoadError",
+        "Prepare_OnlineDisclosureTitle",
+        "Prepare_OnlineDisclosure",
+        "Prepare_StartOnlineLookup",
+        "Prepare_NoWordsTitle",
+        "Prepare_NoWords",
+        "Prepare_MethodQuestion",
+        "Prepare_BatchDescription",
+        "Prepare_AutomaticOnline",
+        "Prepare_AutomaticRecommended",
+        "Prepare_Manual",
+        "Prepare_MethodManual",
+        "Prepare_ManualDescription",
+        "Prepare_Progress",
+        "Prepare_Candidate",
+        "Prepare_LookingUp",
+        "Prepare_ManualEntry",
+        "Prepare_SkipForNow",
+        "Prepare_AcronymExpansion",
+        "Prepare_Translation",
+        "Prepare_Definition",
+        "Prepare_AdditionalNote",
+        "Prepare_AcceptedAliases",
+        "Prepare_DefinitionRequired",
+        "Prepare_SaveAndContinue",
+        "Prepare_SeveralMeanings",
+        "Prepare_Source",
+        "Prepare_AcceptAndContinue",
+        "Prepare_ChooseAnotherMeaning",
+        "Prepare_Edit",
+        "Prepare_CancelPreparation",
+        "Prepare_SaveError",
+        "Prepare_BatchCompleteTitle",
+        "Prepare_BatchComplete",
+        "Prepare_ChangeLimit",
+        "Prepare_StartLearning",
+        "Prepare_RateLimited",
+        "Prepare_Offline",
+        "Prepare_NoResult",
+        "Learn_Loading",
+        "Learn_LoadError",
+        "Learn_Progress",
+        "Learn_TermToMeaning",
+        "Learn_MeaningToTerm",
+        "Learn_RevealAnswer",
+        "Learn_YourAnswer",
+        "Learn_CheckAnswer",
+        "Learn_SpellingCorrect",
+        "Learn_SpellingIncorrect",
+        "Learn_EnteredAnswer",
+        "Learn_CorrectAnswer",
+        "Learn_AcceptedAlias",
+        "Learn_Difference",
+        "Learn_HiddenTarget",
+        "Learn_DictionaryExample",
+        "Learn_Again",
+        "Learn_Hard",
+        "Learn_Good",
+        "Learn_Easy",
+        "Learn_MarkPermanentlyKnown",
+        "Learn_PermanentKnownConfirmation",
+        "Learn_ActionError",
+        "Learn_SessionComplete",
+        "Learn_CardsReviewed",
+        "Learn_NextDue",
+        "Learn_MoreUnknownWaiting",
+        "Learn_PrepareNextWords",
+        "Learn_NothingDue",
+        "Learn_NoCardsTitle",
+        "Diagnostics_LexicalCache",
+        "Diagnostics_Lemma",
+        "Diagnostics_Languages",
+        "Diagnostics_Provider",
+        "Diagnostics_SourcePage",
+        "Diagnostics_Revision",
+        "Diagnostics_Fetched",
+        "Diagnostics_Preparation",
+        "Diagnostics_Method",
+        "Diagnostics_Completed",
+        "Diagnostics_SelectedMeaning",
+        "Diagnostics_AvailableMeanings",
+        "Diagnostics_LookupAttempts",
+        "Diagnostics_ErrorCode",
+        "Diagnostics_PreparedMeanings",
+        "Diagnostics_Confirmed",
+        "Diagnostics_Learning",
+        "Diagnostics_LearningSessions",
+        "Diagnostics_Ratings",
+        "Diagnostics_LearningCards",
+        "Diagnostics_Direction",
+        "Diagnostics_Due",
+        "Diagnostics_IntervalDays",
+        "Diagnostics_EaseFactor",
+        "Diagnostics_LastRating",
+        "Diagnostics_LearningReviews",
+        "Diagnostics_Rating",
+        "Diagnostics_ReviewedAt",
+        "Diagnostics_CleanupEligibility",
+        "Diagnostics_ActiveReview",
+        "Diagnostics_HasOccurrences",
+        "Diagnostics_ActiveContexts",
+        "Diagnostics_Eligible",
+        "Diagnostics_Yes",
+        "Diagnostics_No"
+    ];
+
     [TestMethod]
     public void Resources_EveryEnglishKeyHasGermanCounterpart()
     {
@@ -228,11 +353,35 @@ public sealed class LocalizationResourceTests
         var english = LoadResources("SharedResource.resx");
         var german = LoadResources("SharedResource.de.resx");
 
-        foreach (var key in RequiredMilestoneOneKeys)
+        foreach (var key in RequiredMilestoneOneKeys.Concat(RequiredAutomaticDictionaryMvpKeys))
         {
             Assert.IsTrue(english.ContainsKey(key), $"The English resource key '{key}' is missing.");
             Assert.IsTrue(german.ContainsKey(key), $"The German resource key '{key}' is missing.");
         }
+    }
+
+    [TestMethod]
+    public void Resources_OnlineDisclosureMatchesBindingSpecification()
+    {
+        const string expectedEnglish = "KnownFirst does not send your documents, example sentences, learning history, or personal data to the KnownFirst developer. Only the selected term and the selected language information are sent directly to Wikimedia for dictionary lookup. Wikimedia receives normal network information such as your IP address and the KnownFirst User-Agent. Retrieved dictionary content and your personal learning data are stored locally on this device.";
+        const string expectedGerman = "KnownFirst sendet keine Dokumente, Beispielsätze, Lernhistorie oder persönlichen Daten an den Entwickler von KnownFirst. Für die Wörterbuchabfrage werden ausschließlich der ausgewählte Begriff und die gewählten Sprachinformationen direkt an Wikimedia übertragen. Wikimedia erhält dabei übliche Netzwerkdaten wie deine IP-Adresse und den KnownFirst-User-Agent. Abgerufene Wörterbuchinhalte und deine persönlichen Lerndaten werden lokal auf diesem Gerät gespeichert.";
+
+        Assert.AreEqual(expectedEnglish, LoadResources("SharedResource.resx")["Prepare_OnlineDisclosure"]);
+        Assert.AreEqual(expectedGerman, LoadResources("SharedResource.de.resx")["Prepare_OnlineDisclosure"]);
+    }
+
+    [TestMethod]
+    public void Resources_BindingGermanLearningActionsUseSpecifiedLabels()
+    {
+        var german = LoadResources("SharedResource.de.resx");
+
+        Assert.AreEqual("Nochmal", german["Learn_Again"]);
+        Assert.AreEqual("Schwer", german["Learn_Hard"]);
+        Assert.AreEqual("Gut", german["Learn_Good"]);
+        Assert.AreEqual("Einfach", german["Learn_Easy"]);
+        Assert.AreEqual("Dauerhaft als bekannt markieren", german["Learn_MarkPermanentlyKnown"]);
+        Assert.AreEqual("Online-Abfrage starten", german["Prepare_StartOnlineLookup"]);
+        Assert.AreEqual("Manuell vorbereiten", german["Prepare_Manual"]);
     }
 
     private static Dictionary<string, string> LoadResources(string fileName)

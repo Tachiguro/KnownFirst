@@ -1,0 +1,26 @@
+<section class="learning-context">
+    <p>
+        <span>@Context.BeforeTarget</span>
+        @if (HideTarget)
+        {
+            <mark class="hidden-target" aria-label="@(Localizer["Learn_HiddenTarget"])">_____</mark>
+        }
+        else
+        {
+            <mark>@Context.Target</mark>
+        }
+        <span>@Context.AfterTarget</span>
+    </p>
+    @if (!string.IsNullOrWhiteSpace(Context.DocumentTitle))
+    {
+        <small>@Context.DocumentTitle</small>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public LearningContext Context { get; set; } = null!;
+
+    [Parameter]
+    public bool HideTarget { get; set; }
+}

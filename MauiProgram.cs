@@ -1,7 +1,11 @@
 using KnownFirst.Data;
 using KnownFirst.Core.Language;
 using KnownFirst.Core.Text;
+using KnownFirst.Core.Learning;
+using KnownFirst.Core.Preparation;
 using KnownFirst.Services;
+using KnownFirst.Services.Lexical;
+using KnownFirst.Services.Study;
 using Microsoft.Extensions.Logging;
 
 namespace KnownFirst;
@@ -33,6 +37,21 @@ public static class MauiProgram
         builder.Services.AddSingleton<IDashboardService, DashboardService>();
         builder.Services.AddSingleton<TextAnalyzer>();
         builder.Services.AddSingleton<ITextReviewService, TextReviewService>();
+        builder.Services.AddSingleton<IClock, SystemClock>();
+        builder.Services.AddSingleton<ISpacedRepetitionScheduler, SimpleSpacedRepetitionScheduler>();
+        builder.Services.AddSingleton<SpellingAnswerComparer>();
+        builder.Services.AddSingleton<AcronymExpansionDetector>();
+        builder.Services.AddSingleton<MeaningRanker>();
+        builder.Services.AddSingleton<ILexicalCacheRepository, LexicalCacheRepository>();
+        builder.Services.AddSingleton<WiktionaryHtmlParser>();
+        builder.Services.AddSingleton<IAsyncDelay, SystemAsyncDelay>();
+        builder.Services.AddSingleton(new HttpClient());
+        builder.Services.AddSingleton<IDictionaryLookupProvider, WiktionaryLookupProvider>();
+        builder.Services.AddSingleton<ILexicalEnrichmentService, LexicalEnrichmentService>();
+        builder.Services.AddSingleton<IPreparationService, PreparationService>();
+        builder.Services.AddSingleton<ILearningService, LearningService>();
+        builder.Services.AddSingleton<IWorkflowStateService, WorkflowStateService>();
+        builder.Services.AddSingleton<IStartupMaintenanceService, StartupMaintenanceService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();

@@ -1,0 +1,82 @@
+.learning-page {
+    display: grid;
+    gap: 1rem;
+}
+
+.learning-card {
+    display: grid;
+    gap: 1.15rem;
+    padding: clamp(1rem, 4vw, 1.8rem);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.learning-progress,
+.context-navigation,
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.learning-progress progress {
+    flex: 1 1 12rem;
+}
+
+.learning-term {
+    margin: 0;
+    font-size: clamp(2rem, 7vw, 3.5rem);
+}
+
+.meaning-prompt,
+.spelling-result,
+.permanent-confirmation {
+    padding: 1rem;
+    border-radius: 0.8rem;
+    background: var(--color-surface-muted);
+}
+
+.spelling-form {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.spelling-result.correct {
+    border: 1px solid var(--color-success, #2f855a);
+}
+
+.spelling-result.incorrect,
+.permanent-confirmation {
+    border: 1px solid var(--color-danger, #c53030);
+}
+
+.spelling-result dl,
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.75rem;
+}
+
+.spelling-result dt,
+.summary-grid dt {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}
+
+.spelling-result dd,
+.summary-grid dd {
+    margin: 0.2rem 0 0;
+    font-weight: 800;
+}
+
+.difference {
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.permanent-known {
+    justify-self: start;
+}

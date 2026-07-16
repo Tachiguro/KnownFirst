@@ -261,6 +261,180 @@
             }
         </section>
 
+        <section class="settings-card diagnostic-section">
+            <h2>@Localizer["Diagnostics_LexicalCache"] (@_snapshot.LexicalCache.Count)</h2>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead>
+                        <tr>
+                            <th>@Localizer["Diagnostics_Lemma"]</th>
+                            <th>@Localizer["Diagnostics_Languages"]</th>
+                            <th>@Localizer["Diagnostics_Provider"]</th>
+                            <th>@Localizer["Diagnostics_SourcePage"]</th>
+                            <th>@Localizer["Diagnostics_Revision"]</th>
+                            <th>@Localizer["Diagnostics_Fetched"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in _snapshot.LexicalCache)
+                        {
+                            <tr>
+                                <td>@entry.NormalizedLemma</td>
+                                <td>@entry.SourceLanguage → @entry.ExplanationLanguage</td>
+                                <td>@entry.Provider</td>
+                                <td>@entry.SourceProject / @entry.PageTitle</td>
+                                <td>@entry.RevisionId</td>
+                                <td>@entry.FetchedAtUtc.ToString("u")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_snapshot.LexicalCache.Count == 0)
+            {
+                <p class="empty-message">@Localizer["Diagnostics_NoRows"]</p>
+            }
+        </section>
+
+        <section class="settings-card diagnostic-section">
+            <h2>@Localizer["Diagnostics_Preparation"]</h2>
+            <h3>@Localizer["Diagnostics_Sessions"] (@_snapshot.PreparationSessions.Count)</h3>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>@Localizer["Diagnostics_State"]</th>
+                            <th>@Localizer["Diagnostics_Method"]</th>
+                            <th>@Localizer["Diagnostics_Completed"]</th>
+                            <th>@Localizer["Diagnostics_Total"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var session in _snapshot.PreparationSessions)
+                        {
+                            <tr><td>@session.Id</td><td>@session.Status</td><td>@session.Method</td><td>@session.CompletedItems</td><td>@session.TotalItems</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <h3>@Localizer["Diagnostics_Candidates"] (@_snapshot.PreparationCandidates.Count)</h3>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead>
+                        <tr>
+                            <th>@Localizer["Diagnostics_CandidateText"]</th>
+                            <th>@Localizer["Diagnostics_Order"]</th>
+                            <th>@Localizer["Diagnostics_State"]</th>
+                            <th>@Localizer["Diagnostics_SelectedMeaning"]</th>
+                            <th>@Localizer["Diagnostics_AvailableMeanings"]</th>
+                            <th>@Localizer["Diagnostics_LookupAttempts"]</th>
+                            <th>@Localizer["Diagnostics_ErrorCode"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var candidate in _snapshot.PreparationCandidates)
+                        {
+                            <tr>
+                                <td>@candidate.Term</td>
+                                <td>@candidate.Order</td>
+                                <td>@candidate.Status</td>
+                                <td>@candidate.SelectedMeaningIndex</td>
+                                <td class="preview-cell">@(string.Join(" | ", candidate.AvailableMeanings))</td>
+                                <td>@candidate.LookupAttemptCount</td>
+                                <td>@candidate.LastErrorCode</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <h3>@Localizer["Diagnostics_PreparedMeanings"] (@_snapshot.PreparedMeanings.Count)</h3>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead>
+                        <tr>
+                            <th>@Localizer["Diagnostics_CandidateText"]</th>
+                            <th>@Localizer["Diagnostics_SelectedMeaning"]</th>
+                            <th>@Localizer["Prepare_AcronymExpansion"]</th>
+                            <th>@Localizer["Prepare_Translation"]</th>
+                            <th>@Localizer["Prepare_Definition"]</th>
+                            <th>@Localizer["Diagnostics_Provider"]</th>
+                            <th>@Localizer["Diagnostics_Confirmed"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var meaning in _snapshot.PreparedMeanings)
+                        {
+                            <tr>
+                                <td>@meaning.DisplayTerm</td>
+                                <td>@meaning.SelectedMeaningId</td>
+                                <td>@meaning.AcronymExpansion</td>
+                                <td>@meaning.Translation</td>
+                                <td class="preview-cell">@meaning.Definition</td>
+                                <td>@meaning.Source</td>
+                                <td>@GetBooleanName(meaning.ConfirmedByUser)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="settings-card diagnostic-section">
+            <h2>@Localizer["Diagnostics_Learning"]</h2>
+            <h3>@Localizer["Diagnostics_LearningSessions"] (@_snapshot.LearningSessions.Count)</h3>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead><tr><th>ID</th><th>@Localizer["Diagnostics_State"]</th><th>@Localizer["Diagnostics_Completed"]</th><th>@Localizer["Diagnostics_Total"]</th><th>@Localizer["Diagnostics_Ratings"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var session in _snapshot.LearningSessions)
+                        {
+                            <tr><td>@session.Id</td><td>@session.Status</td><td>@session.CompletedCards</td><td>@session.TotalCards</td><td>Again=@session.AgainCount; Hard=@session.HardCount; Good=@session.GoodCount; Easy=@session.EasyCount</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <h3>@Localizer["Diagnostics_LearningCards"] (@_snapshot.LearningCards.Count)</h3>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead><tr><th>ID</th><th>@Localizer["Diagnostics_Direction"]</th><th>@Localizer["Diagnostics_State"]</th><th>@Localizer["Diagnostics_Due"]</th><th>@Localizer["Diagnostics_IntervalDays"]</th><th>@Localizer["Diagnostics_EaseFactor"]</th><th>@Localizer["Diagnostics_LastRating"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var card in _snapshot.LearningCards)
+                        {
+                            <tr><td>@card.Id</td><td>@card.Direction</td><td>@card.State</td><td>@card.DueAtUtc.ToString("u")</td><td>@card.IntervalDays</td><td>@card.EaseFactor.ToString("0.00")</td><td>@card.LastRating</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <h3>@Localizer["Diagnostics_LearningReviews"] (@_snapshot.LearningReviews.Count)</h3>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead><tr><th>ID</th><th>@Localizer["Diagnostics_Rating"]</th><th>@Localizer["Diagnostics_Confirmed"]</th><th>@Localizer["Diagnostics_ReviewedAt"]</th><th>@Localizer["Diagnostics_Due"]</th><th>@Localizer["Diagnostics_IntervalDays"]</th><th>@Localizer["Diagnostics_EaseFactor"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var review in _snapshot.LearningReviews)
+                        {
+                            <tr><td>@review.Id</td><td>@review.Rating</td><td>@GetBooleanName(review.WasCorrect)</td><td>@review.ReviewedAtUtc.ToString("u")</td><td>@review.DueAtUtc.ToString("u")</td><td>@review.IntervalDays</td><td>@review.EaseFactor.ToString("0.00")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="settings-card diagnostic-section">
+            <h2>@Localizer["Diagnostics_CleanupEligibility"] (@_snapshot.CleanupEligibility.Count)</h2>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead><tr><th>@Localizer["Diagnostics_DocumentTitle"]</th><th>@Localizer["Diagnostics_ActiveReview"]</th><th>@Localizer["Diagnostics_HasOccurrences"]</th><th>@Localizer["Diagnostics_ActiveContexts"]</th><th>@Localizer["Diagnostics_Eligible"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var document in _snapshot.CleanupEligibility)
+                        {
+                            <tr><td>@document.DocumentTitle</td><td>@GetBooleanName(document.HasActiveReview)</td><td>@GetBooleanName(document.HasOccurrences)</td><td>@GetBooleanName(document.HasActiveContextSnapshots)</td><td>@GetBooleanName(document.IsEligible)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <details class="settings-card diagnostic-section technical-details">
             <summary>@Localizer["Diagnostics_TechnicalDetails"]</summary>
             <div class="diagnostic-table-wrap">
@@ -389,4 +563,7 @@
         ReviewSessionStatus.Completed => Localizer["Diagnostics_StatusCompleted"],
         _ => Localizer["Diagnostics_StatusNoSession"]
     };
+
+    private string GetBooleanName(bool value) => Localizer[
+        value ? "Diagnostics_Yes" : "Diagnostics_No"];
 }

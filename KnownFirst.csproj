@@ -1,6 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor" TreatAsLocalProperty="Configuration">
 
     <PropertyGroup>
+        <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
         <TargetFrameworks>net10.0-android</TargetFrameworks>
         <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
         <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
@@ -21,7 +22,7 @@
         <Nullable>enable</Nullable>
         <NeutralLanguage>en</NeutralLanguage>
         <Configurations>Debug;Release;BetaDiagnostic</Configurations>
-        <DefaultItemExcludes>$(DefaultItemExcludes);KnownFirst.Core\**;KnownFirst.Tests\**</DefaultItemExcludes>
+        <DefaultItemExcludes>$(DefaultItemExcludes);KnownFirst.Core\**;KnownFirst.Tests\**;artifacts\**;temp\**;TestResults\**;.vs\**;**\*.log;**\*.binlog</DefaultItemExcludes>
 
         <!-- Enable XAML source generation for faster build times and improved performance.
              This generates C# code from XAML at compile time instead of runtime inflation.
@@ -42,6 +43,8 @@
         <ApplicationVersion>3</ApplicationVersion>
         <PackageVersion>0.1.0-beta.3</PackageVersion>
 
+        <ApplicationDisplayVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">0.1.0</ApplicationDisplayVersion>
+
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>
 
@@ -60,13 +63,22 @@
         <AndroidPackageFormats>apk</AndroidPackageFormats>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic'">
+        <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+        <PackageVersion>0.1.0-beta.3-diagnostic</PackageVersion>
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <PackageVersion>0.1.0-beta.3-debug</PackageVersion>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>
         <ApplicationDisplayVersion>0.1.0-beta.3-diagnostic</ApplicationDisplayVersion>
         <ApplicationVersion>3</ApplicationVersion>
-        <PackageVersion>0.1.0-beta.3-diagnostic</PackageVersion>
-        <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
         <Optimize>true</Optimize>
         <PublishTrimmed>true</PublishTrimmed>
         <RunAOTCompilation>true</RunAOTCompilation>
@@ -81,7 +93,6 @@
         <ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>
         <ApplicationDisplayVersion>0.1.0-beta.3-debug</ApplicationDisplayVersion>
         <ApplicationVersion>3</ApplicationVersion>
-        <PackageVersion>0.1.0-beta.3-debug</PackageVersion>
         <Optimize>false</Optimize>
         <PublishTrimmed>false</PublishTrimmed>
         <RunAOTCompilation>false</RunAOTCompilation>

@@ -27,7 +27,7 @@ public sealed class TextReviewService(
         ArgumentNullException.ThrowIfNull(request);
         ValidateImport(request);
 
-        var analysis = analyzer.Analyze(request.Content);
+        var analysis = analyzer.Analyze(request.Content, request.TextLanguage);
         var contentFingerprint = CreateContentFingerprint(request.Content);
 
         await _operationGate.WaitAsync();
@@ -247,7 +247,7 @@ public sealed class TextReviewService(
                 return null;
             }
 
-            var analysis = analyzer.Analyze(document.Content);
+            var analysis = analyzer.Analyze(document.Content, document.TextLanguage);
             var diagnostics = analysis.Diagnostics
                 ?? throw new InvalidOperationException("DEBUG word-analysis diagnostics were not created.");
             var sentences = analysis.Sentences.Select(sentence => new AnalysisSentenceDetails(

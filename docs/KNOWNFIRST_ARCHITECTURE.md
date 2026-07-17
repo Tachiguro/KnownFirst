@@ -347,6 +347,8 @@ Ordinary capitalization variants may be grouped conservatively:
 - network
 - NETWORK
 
+One explicit source-language rule is supported for English imports: `I`, `me`, and `my` share the canonical `I` vocabulary identity. The rule is applied only when the imported-text language is English. Every encountered surface form and exact source coordinate remains unchanged.
+
 Broad stemming is prohibited in the initial architecture. False merges are worse than temporary duplicates.
 
 Do not automatically merge:

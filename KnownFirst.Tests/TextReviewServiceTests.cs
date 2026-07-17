@@ -131,6 +131,44 @@ public sealed class TextReviewServiceTests
     }
 
     [TestMethod]
+    public async Task ImportAsync_EnglishPronounVariantsPersistAsOneVocabularyRecord()
+    {
+        var result = await _service.ImportAsync(new ImportTextRequest(
+            "Pronoun variants",
+            "I me my.",
+            "en",
+            LexicalLookupMode.Definition,
+            null));
+
+        var stored = await _database.ReadAsync(async connection =>
+        {
+            var words = await connection.Table<WordEntity>()
+                .Where(item => item.Language == "en" && item.NormalizedTerm == "W:i")
+                .ToListAsync();
+            var word = words.Single();
+            var forms = await connection.Table<WordFormEntity>()
+                .Where(item => item.WordId == word.Id)
+                .OrderBy(item => item.Id)
+                .ToListAsync();
+            var occurrences = await connection.Table<WordOccurrenceEntity>()
+                .Where(item => item.WordId == word.Id)
+                .OrderBy(item => item.Order)
+                .ToListAsync();
+            return (word, forms, occurrences);
+        });
+
+        Assert.AreEqual(1, result.CandidateCount);
+        Assert.AreEqual("I", stored.word.CanonicalTerm);
+        Assert.AreEqual(3, stored.word.TotalOccurrenceCount);
+        CollectionAssert.AreEqual(
+            new[] { "I", "me", "my" },
+            stored.forms.Select(form => form.SurfaceForm).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "I", "me", "my" },
+            stored.occurrences.Select(occurrence => occurrence.SurfaceForm).ToArray());
+    }
+
+    [TestMethod]
     public async Task DecideAsync_PersistsEveryDecisionAndResumeFindsFirstUnresolvedCandidate()
     {
         await _service.ImportAsync(CreateRequest("Alpha Beta Gamma."));

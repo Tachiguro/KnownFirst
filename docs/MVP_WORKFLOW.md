@@ -155,6 +155,8 @@ Fields:
 
 Definition mode has no target language. Translation modes require a target language different from the source language. These lexical languages are saved with the import and never derived from the English/German UI language.
 
+Deterministic vocabulary normalization uses the imported-text language. English `I`, `me`, and `my` are one canonical `I` vocabulary identity; their original forms and coordinates remain unchanged. This closed rule does not enable broad stemming.
+
 The multiline field must support:
 
 Windows:

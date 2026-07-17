@@ -170,6 +170,54 @@ public sealed class TextAnalyzerTests
     }
 
     [TestMethod]
+    public void Analyze_EnglishPronounVariantsUseOneExplicitVocabularyIdentity()
+    {
+        const string content = "I can test me and my examples.";
+
+        var result = _analyzer.Analyze(content, "en-US");
+        var candidate = result.Candidates
+            .Single(item => item.Identity == "W:i");
+
+        Assert.AreEqual("I", candidate.CanonicalTerm);
+        CollectionAssert.AreEqual(
+            new[] { "I", "me", "my" },
+            candidate.Occurrences.Select(occurrence => occurrence.SurfaceForm).ToArray());
+        foreach (var occurrence in candidate.Occurrences)
+        {
+            Assert.AreEqual(
+                occurrence.SurfaceForm,
+                content.Substring(occurrence.StartPosition, occurrence.Length));
+        }
+
+        Assert.AreEqual(
+            AnalysisReasonCodes.ExplicitLanguageRuleGrouping,
+            result.Diagnostics!.CandidateGroups
+                .Single(group => group.Identity == "W:i")
+                .ReasonCode);
+    }
+
+    [TestMethod]
+    public void Analyze_NonEnglishSourceDoesNotApplyEnglishPronounRule()
+    {
+        var identities = _analyzer.Analyze("I me my.", "de")
+            .Candidates
+            .Select(candidate => candidate.Identity)
+            .ToArray();
+
+        CollectionAssert.AreEqual(new[] { "W:i", "W:me", "W:my" }, identities);
+    }
+
+    [TestMethod]
+    public void VocabularyIdentityPolicy_EnglishPronounRuleIsExplicitAndLanguageAware()
+    {
+        var english = VocabularyIdentityPolicy.Resolve("my", TokenKind.Word, "EN_gb");
+        var german = VocabularyIdentityPolicy.Resolve("my", TokenKind.Word, "de-DE");
+
+        Assert.AreEqual(new VocabularyIdentityResolution("W:i", "I", true), english);
+        Assert.AreEqual(new VocabularyIdentityResolution("W:my", "my", false), german);
+    }
+
+    [TestMethod]
     public void Analyze_RequiredPreflightCorpusProducesExactCandidatesOccurrencesAndOffsets()
     {
         const string content = "IT protects smart systems. It protects smart networks. Smart systems use OAuth2.";

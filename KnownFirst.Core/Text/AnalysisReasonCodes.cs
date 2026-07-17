@@ -24,6 +24,7 @@ public static class AnalysisReasonCodes
     public const string RepeatedIdentity = nameof(RepeatedIdentity);
     public const string FirstIdentityOccurrence = nameof(FirstIdentityOccurrence);
     public const string TechnicalFamilyGrouping = nameof(TechnicalFamilyGrouping);
+    public const string ExplicitLanguageRuleGrouping = nameof(ExplicitLanguageRuleGrouping);
 
     public const string SelectedFirstUniqueContext = nameof(SelectedFirstUniqueContext);
     public const string SelectedUniqueContext = nameof(SelectedUniqueContext);

@@ -29,12 +29,12 @@ public sealed partial class TextAnalyzer
         _sentenceSegmenter = sentenceSegmenter ?? throw new ArgumentNullException(nameof(sentenceSegmenter));
     }
 
-    public TextAnalysisResult Analyze(string content)
+    public TextAnalysisResult Analyze(string content, string? sourceLanguage = null)
     {
         ArgumentNullException.ThrowIfNull(content);
 
         var sentences = ExtractSentenceSpans(content);
-        var extraction = ExtractOccurrences(content, sentences);
+        var extraction = ExtractOccurrences(content, sentences, sourceLanguage);
         var candidates = extraction.Occurrences
             .GroupBy(occurrence => occurrence.Identity, StringComparer.Ordinal)
             .Select(group =>
@@ -89,7 +89,8 @@ public sealed partial class TextAnalyzer
 
     private static ExtractionResult ExtractOccurrences(
         string content,
-        IReadOnlyList<TextSpan> sentences)
+        IReadOnlyList<TextSpan> sentences,
+        string? sourceLanguage)
     {
         var excludedRanges = CreateExcludedRanges(content);
         var occurrences = new List<TokenOccurrence>();
@@ -256,7 +257,9 @@ public sealed partial class TextAnalyzer
             var technicalFamily = TechnicalTokenFamilyPolicy.Resolve(surfaceForm);
             var kind = technicalFamily?.TokenKind
                 ?? Classify(surfaceForm, hasDigit, hasHyphen, hasInternalPeriod);
-            var identity = technicalFamily?.Identity ?? CreateIdentity(surfaceForm, kind);
+            var identityResolution = VocabularyIdentityPolicy.Resolve(surfaceForm, kind, sourceLanguage);
+            var identity = technicalFamily?.Identity ?? identityResolution.Identity;
+            var canonicalTerm = technicalFamily?.CanonicalTerm ?? identityResolution.CanonicalTerm;
 
             while (sentenceIndex < sentences.Count && tokenStart >= sentences[sentenceIndex].EndPosition)
             {
@@ -277,7 +280,7 @@ public sealed partial class TextAnalyzer
                     tokenEnd - tokenStart,
                     occurrences.Count,
                     containingSentenceOrder.Value,
-                    technicalFamily?.CanonicalTerm,
+                    canonicalTerm,
                     technicalFamily?.Family ?? TechnicalTokenFamily.None,
                     technicalFamily?.InstanceYear,
                     technicalFamily?.InstanceIdentifier,
@@ -346,6 +349,18 @@ public sealed partial class TextAnalyzer
             reasonCode = AnalysisReasonCodes.TechnicalFamilyGrouping;
             explanation = $"Grouped explicit technical forms with the canonical `{candidate.CanonicalTerm}` acronym identity.";
         }
+        else if (candidate.Kind == TokenKind.Word
+                 && candidate.Occurrences.Any(occurrence =>
+                     !string.Equals(
+                         occurrence.Identity,
+                         VocabularyIdentityPolicy.Resolve(
+                             occurrence.SurfaceForm,
+                             occurrence.Kind).Identity,
+                         StringComparison.Ordinal)))
+        {
+            reasonCode = AnalysisReasonCodes.ExplicitLanguageRuleGrouping;
+            explanation = $"Grouped by an explicit source-language rule under the canonical `{candidate.CanonicalTerm}` identity.";
+        }
         else if (candidate.Kind == TokenKind.Word && formsAfter.Count < formsBefore.Length)
         {
             reasonCode = AnalysisReasonCodes.OrdinaryWordCaseGrouping;
@@ -392,19 +407,6 @@ public sealed partial class TextAnalyzer
         return KnownAcronyms.Contains(surfaceForm)
             ? TokenKind.Acronym
             : TokenKind.Word;
-    }
-
-    private static string CreateIdentity(string surfaceForm, TokenKind kind)
-    {
-        var normalized = surfaceForm.Normalize(NormalizationForm.FormC);
-        return kind switch
-        {
-            TokenKind.Word => $"W:{normalized.ToLowerInvariant()}",
-            TokenKind.Acronym => $"A:{normalized}",
-            TokenKind.Abbreviation => $"B:{normalized}",
-            TokenKind.TechnicalTerm => $"T:{normalized}",
-            _ => throw new ArgumentOutOfRangeException(nameof(kind))
-        };
     }
 
     private static int? FindSentenceOrder(

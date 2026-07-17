@@ -1,4 +1,5 @@
 using KnownFirst.Core.Review;
+using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
@@ -52,6 +53,8 @@ public sealed class TextReviewServiceTests
         Assert.AreEqual(64, stored.Document.ContentFingerprint.Length);
         Assert.AreEqual("en", stored.Document.TextLanguage);
         Assert.AreEqual("de", stored.Document.ExplanationLanguage);
+        Assert.AreEqual(LexicalLookupMode.DefinitionAndTranslation, stored.Document.LookupMode);
+        Assert.AreEqual("de", stored.Document.TargetLanguage);
         foreach (var sentence in stored.Sentences)
         {
             Assert.IsFalse(string.IsNullOrWhiteSpace(
@@ -64,6 +67,34 @@ public sealed class TextReviewServiceTests
                 occurrence.SurfaceForm,
                 stored.Document.Content.Substring(occurrence.StartPosition, occurrence.Length));
         }
+    }
+
+    [TestMethod]
+    public async Task ImportAsync_StoresExplicitDefinitionRequestWithoutTargetLanguage()
+    {
+        var result = await _service.ImportAsync(new ImportTextRequest(
+            "Definition request",
+            "Network security matters.",
+            "en",
+            LexicalLookupMode.Definition,
+            null));
+
+        var document = await _database.ReadAsync(connection =>
+            connection.FindAsync<DocumentEntity>(result.DocumentId));
+        Assert.AreEqual(LexicalLookupMode.Definition, document!.LookupMode);
+        Assert.AreEqual(string.Empty, document.TargetLanguage);
+        Assert.AreEqual("en", document.ExplanationLanguage);
+    }
+
+    [TestMethod]
+    public async Task ImportAsync_RejectsIdenticalTranslationLanguages()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.ImportAsync(new ImportTextRequest(
+            "Invalid request",
+            "Network security matters.",
+            "en",
+            LexicalLookupMode.Translation,
+            "en")));
     }
 
     [TestMethod]

@@ -55,6 +55,7 @@ public sealed class MvpCorePolicyTests
     {
         Assert.AreEqual("system", ProviderFormRelationPolicy.Resolve("plural of system")!.BaseLemma);
         Assert.AreEqual("risk", ProviderFormRelationPolicy.Resolve("plural form of risk")!.BaseLemma);
+        Assert.AreEqual("data", ProviderFormRelationPolicy.Resolve("singular of data")!.BaseLemma);
         Assert.AreEqual(
             "identify",
             ProviderFormRelationPolicy.Resolve("third-person singular simple present indicative of identify")!.BaseLemma);
@@ -67,10 +68,91 @@ public sealed class MvpCorePolicyTests
     public void LookupOutcome_RetryIsLimitedToRecoverableFailures()
     {
         Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.TransientFailure));
-        Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.ParseFailure));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.ParseFailure));
         Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.Success));
         Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.NotFound));
         Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.PermanentFailure));
+    }
+
+    [TestMethod]
+    [DataRow("Contact", "contact")]
+    [DataRow("Information", "information")]
+    [DataRow("NETWORK", "network")]
+    public void LexicalLookupTerm_OrdinaryEnglishWordsUseLowercase(
+        string encounteredTerm,
+        string expectedLookupTerm)
+    {
+        var request = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            encounteredTerm,
+            TokenKind.Word,
+            "Wiktionary",
+            encounteredTerm,
+            encounteredTerm);
+
+        Assert.AreEqual(expectedLookupTerm, request.CanonicalLookupTerm);
+        Assert.AreEqual(encounteredTerm, request.DisplayedSurfaceForm);
+        Assert.AreEqual(encounteredTerm, request.VocabularyCanonicalTerm);
+    }
+
+    [TestMethod]
+    [DataRow("IT", TokenKind.Acronym)]
+    [DataRow("US", TokenKind.Acronym)]
+    [DataRow("NETWORK", TokenKind.TechnicalTerm)]
+    public void LexicalLookupTerm_CaseSensitiveTokenKindsKeepCase(string term, TokenKind tokenKind)
+    {
+        var request = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            term,
+            tokenKind,
+            "Wiktionary");
+
+        Assert.AreEqual(term, request.CanonicalLookupTerm);
+    }
+
+    [TestMethod]
+    public void LexicalLookupLanguages_ValidateModeAndTargetLanguage()
+    {
+        _ = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            "network",
+            TokenKind.Word,
+            "Wiktionary");
+        _ = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Translation,
+            "de",
+            "network",
+            TokenKind.Word,
+            "Wiktionary");
+
+        Assert.Throws<ArgumentException>(() => new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            "de",
+            "network",
+            TokenKind.Word,
+            "Wiktionary"));
+        Assert.Throws<ArgumentException>(() => new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Translation,
+            null,
+            "network",
+            TokenKind.Word,
+            "Wiktionary"));
+        Assert.Throws<ArgumentException>(() => new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "en",
+            "network",
+            TokenKind.Word,
+            "Wiktionary"));
     }
 
     [TestMethod]

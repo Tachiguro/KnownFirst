@@ -27,10 +27,12 @@
     <None Include="..\Components\Pages\PrepareWords.razor.css" Link="Ui\PrepareWords.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\ReviewWords.razor.css" Link="Ui\ReviewWords.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Home.razor" Link="Ui\Home.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\ImportText.razor" Link="Ui\ImportText.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Shared\AnswerView.razor" Link="Ui\AnswerView.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Shared\SourceDetails.razor" Link="Ui\SourceDetails.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Shared\PageHeader.razor.css" Link="Ui\PageHeader.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\Study\PreparationService.cs" Link="Ui\PreparationService.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\scripts\publish-android-beta.ps1" Link="Ui\publish-android-beta.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -48,12 +48,27 @@
                 </select>
             </div>
             <div class="field-group">
-                <label for="explanation-language">@Localizer["Import_ExplanationLanguage"]</label>
-                <select id="explanation-language" disabled="@_isSubmitting" @bind="_explanationLanguage">
-                    <option value="en">@Localizer["Settings_English"]</option>
-                    <option value="de">@Localizer["Settings_German"]</option>
+                <label for="lookup-mode">@Localizer["Import_LookupMode"]</label>
+                <select id="lookup-mode" disabled="@_isSubmitting" @bind="_lookupMode">
+                    <option value="@LexicalLookupMode.Definition">@Localizer["Import_LookupDefinition"]</option>
+                    <option value="@LexicalLookupMode.Translation">@Localizer["Import_LookupTranslation"]</option>
+                    <option value="@LexicalLookupMode.DefinitionAndTranslation">@Localizer["Import_LookupDefinitionAndTranslation"]</option>
                 </select>
             </div>
+            @if (_lookupMode != LexicalLookupMode.Definition)
+            {
+                <div class="field-group">
+                    <label for="target-language">@Localizer["Import_TargetLanguage"]</label>
+                    <select id="target-language" disabled="@_isSubmitting" @bind="_targetLanguage">
+                        <option value="en">@Localizer["Settings_English"]</option>
+                        <option value="de">@Localizer["Settings_German"]</option>
+                    </select>
+                    @if (_lookupLanguageInvalid)
+                    {
+                        <span class="field-error" role="alert">@Localizer["Import_TargetLanguageMustDiffer"]</span>
+                    }
+                </div>
+            }
         </div>
 
         <button type="submit" class="button button-primary" disabled="@_isSubmitting">
@@ -83,9 +98,11 @@
     private string _title = string.Empty;
     private string _content = string.Empty;
     private string _textLanguage = "en";
-    private string _explanationLanguage = "en";
+    private LexicalLookupMode _lookupMode = LexicalLookupMode.Definition;
+    private string _targetLanguage = "de";
     private bool _titleMissing;
     private bool _contentMissing;
+    private bool _lookupLanguageInvalid;
     private bool _isSubmitting;
     private bool _submitFailed;
     private string? _preflightMessageKey;
@@ -99,9 +116,11 @@
 
         _titleMissing = string.IsNullOrWhiteSpace(_title);
         _contentMissing = string.IsNullOrWhiteSpace(_content);
+        _lookupLanguageInvalid = _lookupMode != LexicalLookupMode.Definition
+            && string.Equals(_textLanguage, _targetLanguage, StringComparison.OrdinalIgnoreCase);
         _submitFailed = false;
         _preflightMessageKey = null;
-        if (_titleMissing || _contentMissing)
+        if (_titleMissing || _contentMissing || _lookupLanguageInvalid)
         {
             return;
         }
@@ -113,7 +132,8 @@
                 _title,
                 _content,
                 _textLanguage,
-                _explanationLanguage));
+                _lookupMode,
+                _lookupMode == LexicalLookupMode.Definition ? null : _targetLanguage));
             if (result.IsAccepted)
             {
                 Navigation.NavigateTo("review-words");

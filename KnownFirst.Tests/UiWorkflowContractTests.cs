@@ -145,6 +145,39 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Preparation_ManualEntryActionOpensUsableEditorAndSavesThroughService()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("@onclick=\"EnableManualEntry\"", markup);
+        Assert.Contains("PreparationCandidateStatus.Failed && !_showEditor", markup);
+        Assert.Contains("Prepare_CanonicalTerm", markup);
+        Assert.Contains("Prepare_EncounteredForm", markup);
+        Assert.Contains("readonly", markup);
+        Assert.Contains("_usefulAnswerMissing", markup);
+        Assert.Contains("Prepare_UsefulAnswerRequired", markup);
+        Assert.Contains("PreparationService.AcceptAsync", markup);
+        Assert.Contains("await MoveNextAsync()", markup);
+        Assert.Contains("knownFirst.revealElement", markup);
+        Assert.Contains("knownFirst.focusElement", markup);
+    }
+
+    [TestMethod]
+    public void Preparation_BackPausesWhileCancelEndsTheActiveBatch()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var service = LoadUi("PreparationService.cs");
+
+        Assert.Contains("<PageHeader", markup);
+        Assert.Contains("RequestCancelPreparationAsync", markup);
+        Assert.Contains("Prepare_CancelPreparationConfirmation", markup);
+        Assert.Contains("PreparationService.CancelActiveSessionAsync", markup);
+        Assert.Contains("PreparationSessionStatus.Cancelled", service);
+        Assert.Contains("PreparationCandidateStatus.Cancelled", service);
+        Assert.Contains("PreparationState.Unprepared", service);
+    }
+
+    [TestMethod]
     public void MobileReview_HasCollapsedMetadataAndStableTwoColumnActionBar()
     {
         var markup = LoadUi("ReviewWords.razor");
@@ -220,6 +253,41 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("Analysis_ContextSelection", diagnostics);
         Assert.Contains("Components\\Pages\\Diagnostics.razor", project);
         Assert.Contains("Condition=\"'$(Configuration)' != 'Debug'\"", project);
+    }
+
+    [TestMethod]
+    public void Import_UsesExplicitLookupModeAndRejectsIdenticalTargetLanguage()
+    {
+        var markup = LoadUi("ImportText.razor");
+
+        Assert.Contains("LexicalLookupMode.Definition", markup);
+        Assert.Contains("LexicalLookupMode.Translation", markup);
+        Assert.Contains("LexicalLookupMode.DefinitionAndTranslation", markup);
+        Assert.Contains("_lookupLanguageInvalid", markup);
+        Assert.Contains("Import_TargetLanguageMustDiffer", markup);
+        Assert.DoesNotContain("CurrentUiCulture", markup);
+    }
+
+    [TestMethod]
+    public void AndroidBeta_IdentityAndPublishingContractAreStableAndExternalized()
+    {
+        var project = LoadUi("KnownFirst.csproj");
+        var script = LoadUi("publish-android-beta.ps1");
+
+        Assert.Contains("<ApplicationId>com.tachiguro.knownfirst</ApplicationId>", project);
+        Assert.Contains("<ApplicationDisplayVersion>0.1.0-beta.2</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationVersion>2</ApplicationVersion>", project);
+        Assert.Contains("<PackageVersion>0.1.0-beta.2</PackageVersion>", project);
+        Assert.Contains("KnownFirst-Secrets", script);
+        Assert.Contains("knownfirst-beta.keystore", script);
+        Assert.Contains("env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD", script);
+        Assert.Contains("AndroidPackageFormats=apk", script);
+        Assert.Contains("apksigner", script);
+        Assert.Contains("Get-FileHash", script);
+        Assert.Contains("Compress-Archive", script);
+        Assert.Contains("artifacts\\android-beta", script);
+        Assert.DoesNotContain("storepass ", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("keypass ", script, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string LoadUi(string fileName) => File.ReadAllText(Path.Combine(

@@ -6,6 +6,7 @@ using KnownFirst.Services.Lexical;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Globalization;
 
 namespace KnownFirst.Tests;
 
@@ -399,6 +400,183 @@ public sealed class WiktionaryProviderTests
         Assert.AreEqual("risky", result.DisplayTerm);
         Assert.IsNull(result.EncounteredSurfaceForm);
         CollectionAssert.AreEqual(new[] { "risky" }, provider.RequestedTerms.ToArray());
+    }
+
+    [TestMethod]
+    [DataRow("Contact", TokenKind.Word, "contact")]
+    [DataRow("Information", TokenKind.Word, "information")]
+    [DataRow("IT", TokenKind.Acronym, "IT")]
+    public void RequestUri_UsesNormalizedLookupTermWithoutChangingDisplayedSurface(
+        string displayedTerm,
+        TokenKind tokenKind,
+        string expectedLookupTerm)
+    {
+        var request = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            displayedTerm,
+            tokenKind,
+            WiktionaryLookupProvider.Name,
+            displayedTerm,
+            displayedTerm);
+
+        var uri = WiktionaryLookupProvider.CreateRequestUri(request).AbsoluteUri;
+
+        Assert.Contains($"page={expectedLookupTerm}", uri);
+        Assert.AreEqual(displayedTerm, request.DisplayedSurfaceForm);
+    }
+
+    [TestMethod]
+    public async Task Cache_ContactAndContactLowercaseReuseOneEntry()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-normalized-cache");
+        await database.InitializeAsync();
+        var cache = new LexicalCacheRepository(database);
+        var sentenceStart = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            "Contact",
+            TokenKind.Word,
+            WiktionaryLookupProvider.Name,
+            "Contact",
+            "Contact");
+        var lowercase = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            "contact",
+            TokenKind.Word,
+            WiktionaryLookupProvider.Name,
+            "contact",
+            "contact");
+
+        await cache.SaveAsync(sentenceStart, SuccessResult(sentenceStart), WiktionaryLookupProvider.SchemaVersion);
+        var result = await cache.GetAsync(lowercase, WiktionaryLookupProvider.Name, WiktionaryLookupProvider.SchemaVersion);
+        var count = await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().CountAsync());
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, count);
+        Assert.AreEqual(
+            LexicalCacheRepository.CreateCacheKey(sentenceStart, WiktionaryLookupProvider.Name, WiktionaryLookupProvider.SchemaVersion),
+            LexicalCacheRepository.CreateCacheKey(lowercase, WiktionaryLookupProvider.Name, WiktionaryLookupProvider.SchemaVersion));
+    }
+
+    [TestMethod]
+    public async Task Cache_InitializationInvalidatesLegacyIncompleteKeys()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-legacy-cache");
+        await database.InitializeAsync();
+        await database.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new LexicalCacheEntity
+            {
+                CacheKey = "en|network|0|de|wiktionary|2",
+                SourceLanguage = "en",
+                ExplanationLanguage = "de",
+                NormalizedLemma = "network",
+                Provider = WiktionaryLookupProvider.Name,
+                ProviderSchemaVersion = 2,
+                ResultJson = "{}"
+            });
+            return true;
+        });
+
+        await database.InitializeAsync();
+
+        var count = await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().CountAsync());
+        Assert.AreEqual(0, count);
+    }
+
+    [TestMethod]
+    public void CacheKey_IncludesExplicitLanguagesModeProviderAndSchemaButNotUiCulture()
+    {
+        var originalCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-DE");
+            var first = new LexicalLookupRequest(
+                "en",
+                LexicalLookupMode.Translation,
+                "de",
+                "Contact",
+                TokenKind.Word,
+                WiktionaryLookupProvider.Name);
+            var firstKey = LexicalCacheRepository.CreateCacheKey(first, first.Provider, 3);
+
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+            var second = new LexicalLookupRequest(
+                "en",
+                LexicalLookupMode.Translation,
+                "de",
+                "Contact",
+                TokenKind.Word,
+                WiktionaryLookupProvider.Name);
+            var secondKey = LexicalCacheRepository.CreateCacheKey(second, second.Provider, 3);
+            var definition = new LexicalLookupRequest(
+                "en",
+                LexicalLookupMode.Definition,
+                null,
+                "Contact",
+                TokenKind.Word,
+                WiktionaryLookupProvider.Name);
+
+            Assert.AreEqual(firstKey, secondKey);
+            Assert.AreNotEqual(
+                firstKey,
+                LexicalCacheRepository.CreateCacheKey(definition, definition.Provider, 3));
+            Assert.AreNotEqual(
+                firstKey,
+                LexicalCacheRepository.CreateCacheKey(first, "AnotherProvider", 3));
+            Assert.AreNotEqual(
+                firstKey,
+                LexicalCacheRepository.CreateCacheKey(first, first.Provider, 4));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = originalCulture;
+        }
+    }
+
+    [TestMethod]
+    public void Parser_SeparatesDirectSensesFromFormRelations()
+    {
+        const string html = "<h2 id='English'>English</h2><h3>Noun</h3><ol><li>A collection of facts.</li><li>singular of data</li></ol>";
+
+        var parsed = new WiktionaryHtmlParser().ParseEntry(html, "en", "en");
+
+        Assert.HasCount(1, parsed.DirectMeanings);
+        Assert.AreEqual("A collection of facts.", parsed.DirectMeanings[0].Definition);
+        Assert.HasCount(1, parsed.FormRelations);
+        Assert.AreEqual("data", parsed.FormRelations[0].BaseLemma);
+    }
+
+    [TestMethod]
+    public async Task ProviderChain_DataKeepsDirectSenseWhenFormRelationAlsoExists()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-data-direct");
+        await database.InitializeAsync();
+        var provider = new RoutingDictionaryProvider(request => SuccessResult(request) with
+        {
+            Meanings =
+            [
+                new LexicalMeaning("direct", "noun", "Facts collected for reference.", null, null, []),
+                new LexicalMeaning("relation", "form", "singular of data", null, null, [])
+            ]
+        });
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database),
+            provider);
+
+        var result = await service.EnrichAsync(Request("data", "en", "en"), "data", "data");
+
+        Assert.AreEqual("data", result.DisplayTerm);
+        Assert.AreEqual("Facts collected for reference.", result.Meanings.Single().Definition);
+        Assert.IsNull(result.EncounteredSurfaceForm);
+        CollectionAssert.AreEqual(new[] { "data" }, provider.RequestedTerms.ToArray());
     }
 
     private static WiktionaryLookupProvider CreateProvider(

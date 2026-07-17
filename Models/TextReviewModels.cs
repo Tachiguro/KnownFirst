@@ -17,7 +17,29 @@ public sealed record ImportTextRequest(
     string Title,
     string Content,
     string TextLanguage,
-    string ExplanationLanguage);
+    LexicalLookupMode LookupMode,
+    string? TargetLanguage)
+{
+    public ImportTextRequest(
+        string title,
+        string content,
+        string textLanguage,
+        string explanationLanguage)
+        : this(
+            title,
+            content,
+            textLanguage,
+            string.Equals(textLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
+                ? LexicalLookupMode.Definition
+                : LexicalLookupMode.DefinitionAndTranslation,
+            string.Equals(textLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : explanationLanguage)
+    {
+    }
+
+    public string ExplanationLanguage => TargetLanguage ?? TextLanguage;
+}
 
 public sealed record ImportAnalysisResult(
     ImportAnalysisOutcome Outcome,

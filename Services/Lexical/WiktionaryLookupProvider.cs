@@ -10,7 +10,7 @@ namespace KnownFirst.Services.Lexical;
 public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
 {
     public const string Name = "Wiktionary";
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
     public const string UserAgent =
         "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only dictionary lookup)";
     public const string AttributionText =
@@ -48,7 +48,14 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateLanguage(request.SourceLanguage);
-        ValidateLanguage(request.ExplanationLanguage);
+        LexicalLookupLanguagePolicy.Validate(
+            request.SourceLanguage,
+            request.LookupMode,
+            request.TargetLanguage);
+        if (!string.Equals(request.Provider, Name, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("The request is for a different lexical provider.", nameof(request));
+        }
 
         await _concurrencyGate.WaitAsync(cancellationToken);
         try
@@ -64,8 +71,9 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
     public static Uri CreateRequestUri(LexicalLookupRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ValidateLanguage(request.ExplanationLanguage);
-        var host = request.ExplanationLanguage.Equals("de", StringComparison.OrdinalIgnoreCase)
+        var resultLanguage = request.TargetLanguage ?? request.SourceLanguage;
+        ValidateLanguage(resultLanguage);
+        var host = resultLanguage.Equals("de", StringComparison.OrdinalIgnoreCase)
             ? "de.wiktionary.org"
             : "en.wiktionary.org";
         var query = string.Join('&',
@@ -75,14 +83,16 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             "prop=text%7Crevid",
             "redirects=1",
             "disabletoc=1",
-            $"uselang={Uri.EscapeDataString(request.ExplanationLanguage.ToLowerInvariant())}",
-            $"page={Uri.EscapeDataString(request.Term)}");
+            $"uselang={Uri.EscapeDataString(resultLanguage.ToLowerInvariant())}",
+            $"page={Uri.EscapeDataString(request.CanonicalLookupTerm)}");
         return new UriBuilder(Uri.UriSchemeHttps, host)
         {
             Path = "/w/api.php",
             Query = query
         }.Uri;
     }
+
+    public string DescribeRequest(LexicalLookupRequest request) => CreateRequestUri(request).AbsoluteUri;
 
     private async Task<LexicalResult> SendWithRetryAsync(
         LexicalLookupRequest request,
@@ -194,15 +204,16 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             return Failure(request, LexicalLookupStatus.ParseFailure, "missing-html");
         }
 
-        var meanings = _parser.Parse(html, request.SourceLanguage, request.ExplanationLanguage);
-        if (meanings.Count == 0)
+        var parsedEntry = _parser.ParseEntry(html, request.SourceLanguage, request.ExplanationLanguage);
+        var meanings = SelectMeanings(parsedEntry.DirectMeanings, request.LookupMode);
+        if (meanings.Count == 0 && parsedEntry.FormRelations.Count == 0)
         {
             return Failure(request, LexicalLookupStatus.NotFound, "language-section-not-found");
         }
 
         var pageTitle = parsed.TryGetProperty("title", out var titleElement)
-            ? titleElement.GetString() ?? request.Term
-            : request.Term;
+            ? titleElement.GetString() ?? request.CanonicalLookupTerm
+            : request.CanonicalLookupTerm;
         long? revisionId = parsed.TryGetProperty("revid", out var revisionElement)
             && revisionElement.TryGetInt64(out var parsedRevision)
                 ? parsedRevision
@@ -224,8 +235,30 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             pageTitle,
             revisionId,
             AttributionText,
-            _clock.UtcNow);
+            _clock.UtcNow,
+            FormRelations: parsedEntry.FormRelations,
+            LookupMode: request.LookupMode,
+            TargetLanguage: request.TargetLanguage);
     }
+
+    private static IReadOnlyList<LexicalMeaning> SelectMeanings(
+        IReadOnlyList<LexicalMeaning> meanings,
+        LexicalLookupMode lookupMode) => lookupMode switch
+        {
+            LexicalLookupMode.Definition => meanings
+                .Where(meaning => !string.IsNullOrWhiteSpace(meaning.Definition))
+                .Select(meaning => meaning with { Translation = null })
+                .ToArray(),
+            LexicalLookupMode.Translation => meanings
+                .Where(meaning => !string.IsNullOrWhiteSpace(meaning.Translation))
+                .Select(meaning => meaning with { Definition = string.Empty })
+                .ToArray(),
+            LexicalLookupMode.DefinitionAndTranslation => meanings
+                .Where(meaning => !string.IsNullOrWhiteSpace(meaning.Definition)
+                    || !string.IsNullOrWhiteSpace(meaning.Translation))
+                .ToArray(),
+            _ => throw new ArgumentOutOfRangeException(nameof(lookupMode))
+        };
 
     private TimeSpan GetRetryDelay(RetryConditionHeaderValue? retryAfter, int attempt)
     {
@@ -269,7 +302,9 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         null,
         AttributionText,
         _clock.UtcNow,
-        ErrorCode: errorCode);
+        ErrorCode: errorCode,
+        LookupMode: request.LookupMode,
+        TargetLanguage: request.TargetLanguage);
 
     private static void ValidateLanguage(string language)
     {

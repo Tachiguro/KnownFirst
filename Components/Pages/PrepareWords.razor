@@ -72,7 +72,7 @@
                 <progress value="@(_item.Position - 1)" max="@_item.TotalItems"></progress>
             </div>
             <p class="eyebrow">@Localizer["Prepare_Candidate"]</p>
-            <h2>@_item.LearningTerm</h2>
+            <h2 tabindex="-1" @ref="_candidateHeading">@_item.LearningTerm</h2>
             @if (_item.EncounteredSurfaceForm is { } encounteredSurfaceForm)
             {
                 <p class="encountered-form">@Localizer["Prepare_InText", encounteredSurfaceForm]</p>
@@ -108,7 +108,7 @@
                     <span>@Localizer["Prepare_LookingUp"]</span>
                 </p>
             }
-            else if (_item.Status == PreparationCandidateStatus.Failed)
+            else if (_item.Status == PreparationCandidateStatus.Failed && !_showEditor)
             {
                 <div class="inline-message inline-message-error" role="alert">
                     <p>@GetLookupFailureMessage()</p>
@@ -119,27 +119,45 @@
                         }
                         <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableManualEntry">@Localizer["Prepare_ManualEntry"]</button>
                     </div>
+                    @if (IsDebugBuild
+                        && _item.Result?.Status == LexicalLookupStatus.NotFound
+                        && _item.Result.Diagnostics is { } diagnostics)
+                    {
+                        <details class="lookup-diagnostics">
+                            <summary>@Localizer["Prepare_DebugLookupDetails"]</summary>
+                            <dl>
+                                <div><dt>@Localizer["Prepare_DebugDisplayedSurface"]</dt><dd>@diagnostics.DisplayedSurfaceForm</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugCanonicalTerm"]</dt><dd>@diagnostics.VocabularyCanonicalTerm</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugLookupTerm"]</dt><dd>@diagnostics.LookupTerm</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugSourceLanguage"]</dt><dd>@diagnostics.SourceLanguage</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugLookupMode"]</dt><dd>@diagnostics.LookupMode</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugTargetLanguage"]</dt><dd>@(diagnostics.TargetLanguage ?? "-")</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugCacheKey"]</dt><dd>@diagnostics.CacheKey</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugProviderRequest"]</dt><dd>@diagnostics.ProviderRequest</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugProviderOutcome"]</dt><dd>@diagnostics.ProviderOutcome</dd></div>
+                            </dl>
+                        </details>
+                    }
                 </div>
             }
             else if (_showEditor || _item.Method == PreparationMethod.Manual)
             {
                 <div class="editor-grid">
+                    <label>@Localizer["Prepare_CanonicalTerm"]<input class="text-input" readonly value="@_item.LearningTerm" /></label>
+                    <label>@Localizer["Prepare_EncounteredForm"]<input class="text-input" readonly value="@(_item.EncounteredSurfaceForm ?? _item.Term)" /></label>
                     <label>@Localizer["Prepare_AcronymExpansion"]<input class="text-input" @bind="_acronymExpansion" /></label>
                     <label>@Localizer["Prepare_Translation"]<input class="text-input" @bind="_translation" /></label>
                     <label>@Localizer["Prepare_Definition"]<textarea class="text-area" rows="4" @bind="_definition"></textarea></label>
                     <label>@Localizer["Prepare_AdditionalNote"]<textarea class="text-area" rows="2" @bind="_additionalNote"></textarea></label>
                     <label>@Localizer["Prepare_AcceptedAliases"]<input class="text-input" @bind="_aliases" /></label>
                 </div>
-                @if (_definitionMissing)
+                @if (_usefulAnswerMissing)
                 {
-                    <p class="field-error" role="alert">@Localizer["Prepare_DefinitionRequired"]</p>
+                    <p class="field-error" role="alert">@Localizer["Prepare_UsefulAnswerRequired"]</p>
                 }
                 <div class="button-row">
                     <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_SaveAndContinue"]</button>
-                    @if (_item.Result?.HasUsableData == true)
-                    {
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditing">@Localizer["Common_Cancel"]</button>
-                    }
+                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditing">@Localizer["Common_Cancel"]</button>
                 </div>
             }
             else if (_item.Result?.HasUsableData == true)
@@ -153,7 +171,10 @@
                     {
                         <div><h3>@Localizer["Prepare_Translation"]</h3><p>@_translation</p></div>
                     }
-                    <div><h3>@Localizer["Prepare_Definition"]</h3><p class="full-definition">@_definition</p></div>
+                    @if (!string.IsNullOrWhiteSpace(_definition))
+                    {
+                        <div><h3>@Localizer["Prepare_Definition"]</h3><p class="full-definition">@_definition</p></div>
+                    }
                     @if (_item.Result.Meanings.Count > 1)
                     {
                         <p>@Localizer["Prepare_SeveralMeanings"]</p>
@@ -207,7 +228,19 @@
                 </section>
             }
 
-            <button type="button" class="button button-secondary cancel-preparation" disabled="@_isBusy" @onclick="CancelPreparation">@Localizer["Prepare_CancelPreparation"]</button>
+            @if (_cancelConfirmationVisible)
+            {
+                <section class="preparation-confirmation" role="alertdialog" aria-labelledby="cancel-preparation-title">
+                    <h3 id="cancel-preparation-title">@Localizer["Prepare_CancelPreparation"]</h3>
+                    <p>@Localizer["Prepare_CancelPreparationConfirmation"]</p>
+                    <div class="button-row">
+                        <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="ConfirmCancelPreparationAsync">@Localizer["Common_Confirm"]</button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelCancelPreparation">@Localizer["Common_Cancel"]</button>
+                    </div>
+                </section>
+            }
+
+            <button type="button" class="button button-secondary cancel-preparation" disabled="@_isBusy" @onclick="RequestCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
             @if (_saveFailed)
             {
                 <p class="inline-message inline-message-error" role="alert">@Localizer["Prepare_SaveError"]</p>
@@ -282,10 +315,11 @@
     private bool _saveFailed;
     private bool _showPrivacyDisclosure;
     private bool _showEditor;
-    private bool _definitionMissing;
+    private bool _usefulAnswerMissing;
     private bool _batchCompleted;
     private bool _isMeaningPickerOpen;
     private bool _showTransitionSpinner;
+    private bool _cancelConfirmationVisible;
     private int _contextIndex;
     private int _selectedMeaningIndex;
     private string _acronymExpansion = string.Empty;
@@ -298,6 +332,7 @@
     private IDisposable? _meaningPickerBackRegistration;
     private ElementReference _meaningPickerButton;
     private ElementReference _meaningPickerDialog;
+    private ElementReference _candidateHeading;
     private PreparationCompletionAction? _confirmationAction;
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
@@ -493,8 +528,10 @@
             return;
         }
 
-        _definitionMissing = string.IsNullOrWhiteSpace(_definition);
-        if (_definitionMissing)
+        _usefulAnswerMissing = string.IsNullOrWhiteSpace(_acronymExpansion)
+            && string.IsNullOrWhiteSpace(_translation)
+            && string.IsNullOrWhiteSpace(_definition);
+        if (_usefulAnswerMissing)
         {
             return;
         }
@@ -625,13 +662,20 @@
             _overview = await PreparationService.GetOverviewAsync();
             _batchCompleted = true;
         }
+        else
+        {
+            await InvokeAsync(StateHasChanged);
+            await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _candidateHeading);
+            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _candidateHeading);
+        }
     }
 
     private void InitializeFields()
     {
         _showEditor = _item?.Method == PreparationMethod.Manual;
-        _definitionMissing = false;
+        _usefulAnswerMissing = false;
         _confirmationAction = null;
+        _cancelConfirmationVisible = false;
         _selectedMeaningIndex = _item?.SelectedMeaningIndex ?? 0;
         _acronymExpansion = _item?.Result?.AcronymExpansion ?? string.Empty;
         _translation = string.Empty;
@@ -736,12 +780,55 @@
 
     private void CancelDisclosure() => _showPrivacyDisclosure = false;
 
-    private async Task CancelPreparation()
+    private async Task RequestCancelPreparationAsync()
     {
-        _lookupCancellation?.Cancel();
-        await PreparationService.CancelPrefetchAsync();
-        Navigation.NavigateTo(string.Empty);
+        if (_isBusy)
+        {
+            return;
+        }
+
+        if (_overview.ActiveCompletedItems > 0 || (_item?.Position ?? 1) > 1)
+        {
+            _cancelConfirmationVisible = true;
+            return;
+        }
+
+        await ConfirmCancelPreparationAsync();
     }
+
+    private async Task ConfirmCancelPreparationAsync()
+    {
+        if (_isBusy)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _lookupCancellation?.Cancel();
+        try
+        {
+            await PreparationService.CancelActiveSessionAsync();
+            _cancelConfirmationVisible = false;
+            _confirmationAction = null;
+            _isMeaningPickerOpen = false;
+            _saveFailed = false;
+            _item = null;
+            Navigation.NavigateTo(string.Empty);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The preparation batch could not be cancelled.");
+            _saveFailed = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void CancelCancelPreparation() => _cancelConfirmationVisible = false;
+
+    private void CancelPreparation() => Navigation.NavigateTo(string.Empty);
 
     public async ValueTask DisposeAsync()
     {
@@ -754,6 +841,18 @@
     }
 
     private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static bool IsDebugBuild
+    {
+        get
+        {
+#if DEBUG
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
 
     private enum PreparationCompletionAction
     {

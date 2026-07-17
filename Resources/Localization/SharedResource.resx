@@ -1140,4 +1140,64 @@
   <data name="Diagnostics_TimingPhase_NetworkWork" xml:space="preserve">
     <value>Network work</value>
   </data>
+  <data name="Import_LookupMode" xml:space="preserve">
+    <value>Dictionary lookup</value>
+  </data>
+  <data name="Import_LookupDefinition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
+  <data name="Import_LookupTranslation" xml:space="preserve">
+    <value>Translation</value>
+  </data>
+  <data name="Import_LookupDefinitionAndTranslation" xml:space="preserve">
+    <value>Definition and translation</value>
+  </data>
+  <data name="Import_TargetLanguage" xml:space="preserve">
+    <value>Translation language</value>
+  </data>
+  <data name="Import_TargetLanguageMustDiffer" xml:space="preserve">
+    <value>The translation language must differ from the text language.</value>
+  </data>
+  <data name="Prepare_CanonicalTerm" xml:space="preserve">
+    <value>Canonical term</value>
+  </data>
+  <data name="Prepare_EncounteredForm" xml:space="preserve">
+    <value>Encountered form</value>
+  </data>
+  <data name="Prepare_UsefulAnswerRequired" xml:space="preserve">
+    <value>Enter an acronym expansion, translation, or definition.</value>
+  </data>
+  <data name="Prepare_CancelPreparationConfirmation" xml:space="preserve">
+    <value>Cancel this batch? Accepted items remain prepared; unresolved and skipped items return to the preparation backlog.</value>
+  </data>
+  <data name="Prepare_DebugLookupDetails" xml:space="preserve">
+    <value>DEBUG lookup details</value>
+  </data>
+  <data name="Prepare_DebugDisplayedSurface" xml:space="preserve">
+    <value>Displayed surface form</value>
+  </data>
+  <data name="Prepare_DebugCanonicalTerm" xml:space="preserve">
+    <value>Canonical term</value>
+  </data>
+  <data name="Prepare_DebugLookupTerm" xml:space="preserve">
+    <value>Lookup term</value>
+  </data>
+  <data name="Prepare_DebugSourceLanguage" xml:space="preserve">
+    <value>Source language</value>
+  </data>
+  <data name="Prepare_DebugLookupMode" xml:space="preserve">
+    <value>Lookup mode</value>
+  </data>
+  <data name="Prepare_DebugTargetLanguage" xml:space="preserve">
+    <value>Target language</value>
+  </data>
+  <data name="Prepare_DebugCacheKey" xml:space="preserve">
+    <value>Cache key</value>
+  </data>
+  <data name="Prepare_DebugProviderRequest" xml:space="preserve">
+    <value>Provider request</value>
+  </data>
+  <data name="Prepare_DebugProviderOutcome" xml:space="preserve">
+    <value>Provider outcome</value>
+  </data>
 </root>

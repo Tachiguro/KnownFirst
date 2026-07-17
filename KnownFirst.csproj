@@ -34,11 +34,12 @@
         <ApplicationTitle>KnownFirst</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.knownfirst</ApplicationId>
+        <ApplicationId>com.tachiguro.knownfirst</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationDisplayVersion>0.1.0-beta.2</ApplicationDisplayVersion>
+        <ApplicationVersion>2</ApplicationVersion>
+        <PackageVersion>0.1.0-beta.2</PackageVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>

@@ -8,5 +8,6 @@ public enum PreparationCandidateStatus
     Skipped = 3,
     Failed = 4,
     MarkedKnown = 5,
-    Excluded = 6
+    Excluded = 6,
+    Cancelled = 7
 }

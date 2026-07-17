@@ -5,7 +5,7 @@ namespace KnownFirst.Data;
 
 public static class DatabaseSchema
 {
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     public static async Task InitializeAsync(SQLiteAsyncConnection connection)
     {
@@ -28,6 +28,7 @@ public static class DatabaseSchema
         await connection.CreateTableAsync<LearningReviewEntity>();
         await connection.CreateTableAsync<LearningSessionEntity>();
         await connection.CreateTableAsync<LearningSessionCardEntity>();
+        await connection.ExecuteAsync("DELETE FROM LexicalCache WHERE CacheKey NOT LIKE 'v2|%'");
         await connection.ExecuteAsync($"PRAGMA user_version = {CurrentVersion}");
     }
 }

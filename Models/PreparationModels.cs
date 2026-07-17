@@ -26,7 +26,9 @@ public sealed record PreparationItem(
     IReadOnlyList<PreparationContext> Contexts,
     LexicalResult? Result,
     int SelectedMeaningIndex,
-    string? LastErrorCode)
+    string? LastErrorCode,
+    LexicalLookupMode LookupMode = LexicalLookupMode.Definition,
+    string? TargetLanguage = null)
 {
     public string LearningTerm => string.IsNullOrWhiteSpace(Result?.DisplayTerm)
         ? Term

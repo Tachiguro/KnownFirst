@@ -1,4 +1,5 @@
 using KnownFirst.Core.Text;
+using KnownFirst.Core.Preparation;
 using SQLite;
 
 namespace KnownFirst.Data.Entities;
@@ -17,6 +18,12 @@ public sealed class LexicalCacheEntity
     public string ExplanationLanguage { get; set; } = string.Empty;
 
     public string NormalizedLemma { get; set; } = string.Empty;
+
+    public LexicalLookupMode LookupMode { get; set; }
+
+    public string TargetLanguage { get; set; } = string.Empty;
+
+    public string CanonicalLookupTerm { get; set; } = string.Empty;
 
     public TokenKind TokenKind { get; set; }
 

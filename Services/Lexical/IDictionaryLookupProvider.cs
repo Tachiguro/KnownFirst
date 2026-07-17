@@ -8,6 +8,8 @@ public interface IDictionaryLookupProvider
 
     int ProviderSchemaVersion { get; }
 
+    string DescribeRequest(LexicalLookupRequest request) => ProviderName;
+
     Task<LexicalResult> LookupAsync(
         LexicalLookupRequest request,
         CancellationToken cancellationToken = default);

@@ -6,12 +6,13 @@ namespace KnownFirst.Core.Preparation;
 public enum GrammaticalRelationKind
 {
     Plural = 0,
-    ThirdPersonSingular = 1,
-    PastTense = 2,
-    PastParticiple = 3,
-    PresentParticiple = 4,
-    Comparative = 5,
-    Superlative = 6
+    Singular = 1,
+    ThirdPersonSingular = 2,
+    PastTense = 3,
+    PastParticiple = 4,
+    PresentParticiple = 5,
+    Comparative = 6,
+    Superlative = 7
 }
 
 public sealed record ProviderFormRelation(
@@ -43,6 +44,7 @@ public static partial class ProviderFormRelationPolicy
         var value = providerDefinition.Trim().Normalize(NormalizationForm.FormC);
 
         return Match(value, PluralPattern(), GrammaticalRelationKind.Plural, "plural of")
+            ?? Match(value, SingularPattern(), GrammaticalRelationKind.Singular, "singular of")
             ?? Match(value, ThirdPersonPattern(), GrammaticalRelationKind.ThirdPersonSingular, "third-person singular of")
             ?? Match(value, CombinedPastPattern(), GrammaticalRelationKind.PastTense, "past tense and past participle of")
             ?? Match(value, PastTensePattern(), GrammaticalRelationKind.PastTense, "past tense of")
@@ -68,6 +70,9 @@ public static partial class ProviderFormRelationPolicy
 
     [GeneratedRegex(@"^(?:the\s+)?plural(?:\s+form)?\s+of\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PluralPattern();
+
+    [GeneratedRegex(@"^(?:the\s+)?singular(?:\s+form)?\s+of\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex SingularPattern();
 
     [GeneratedRegex(@"^(?:the\s+)?third-person\s+singular(?:\s+simple\s+present(?:\s+indicative)?)?(?:\s+form)?\s+of\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ThirdPersonPattern();

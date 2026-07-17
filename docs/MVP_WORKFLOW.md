@@ -149,8 +149,11 @@ Fields:
 - required document title
 - large multiline editable text field
 - source language: English or German
-- explanation language: English or German
+- lookup mode: Definition, Translation, or Definition and translation
+- target language: English or German, shown only for translation modes
 - Save and analyze
+
+Definition mode has no target language. Translation modes require a target language different from the source language. These lexical languages are saved with the import and never derived from the English/German UI language.
 
 The multiline field must support:
 
@@ -452,12 +455,15 @@ For every selected vocabulary item:
 1. detect an explicit acronym expansion in the original text
 2. check the local lexical cache
 3. query the relevant Wiktionary provider when needed
-4. parse structured meanings
-5. follow an explicit provider relation to a base lemma through the same cache/provider chain when supported
-6. rank possible meanings
-7. show the best result for confirmation
+4. parse direct lexical senses separately from grammatical form relations
+5. keep the queried term when at least one suitable direct sense exists
+6. only for a form-only entry, follow an explicit provider relation to a base lemma through the same cache/provider chain when supported
+7. rank possible meanings
+8. show the best result for confirmation
 
-Supported relations are explicit plural, third-person singular, past tense, past participle, present participle, comparative, and superlative forms. Store the canonical learning term, encountered surface form, and grammatical relationship while keeping the original context unchanged. Use a visited set and fixed redirect-depth limit. Never infer a lemma with broad stemming: `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without provider evidence.
+Supported relations are explicit singular, plural, third-person singular, past tense, past participle, present participle, comparative, and superlative forms. Direct senses outrank grammatical descriptions, so `data` remains `data` when a direct sense exists; form-only `systems`, `risks`, and `protects` may resolve to their provider-supplied base lemmas. Store the canonical learning term, encountered surface form, and grammatical relationship while keeping the original context unchanged. Use a visited set and fixed redirect-depth limit. Never infer a lemma with broad stemming: `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without provider evidence.
+
+Ordinary English words use the lowercase canonical lookup term (`Contact` -> `contact`, `Information` -> `information`, ordinary `NETWORK` -> `network`) while the exact displayed surface and coordinates remain unchanged. Acronyms and case-sensitive technical tokens retain their case (`IT` remains `IT`).
 
 Progress example:
 
@@ -531,15 +537,19 @@ Do not fabricate an answer.
 
 A failure for one word does not block the remaining batch.
 
+In DEBUG only, a NotFound details section may show the displayed surface, vocabulary canonical term, normalized lookup term, source, mode, target, versioned cache key, provider request, and provider outcome. Release remains concise.
+
 ### 11.3 Lookup outcomes and retry
 
-The explicit outcomes are `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Try again is shown only for offline/timeout, HTTP 429, transient HTTP 5xx, and temporary parse/download failures. It is not shown for Success, NotFound, or PermanentFailure. Do not show another-source actions until another provider actually exists.
+The explicit outcomes are `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Try again is shown only for `TransientFailure`, including offline/timeout, HTTP 429, and transient HTTP 5xx. It is not shown for Success, NotFound, ParseFailure, or PermanentFailure. Do not show another-source actions until another provider actually exists.
 
 ### 11.4 Preparation dispositions and transition performance
 
 - **Mark as known** requires confirmation, stores the minimal PermanentlyKnown marker, creates no cards, removes obsolete preparation/context/frequency data transactionally, updates document-cleanup eligibility, and advances exactly once.
 - **Do not learn** requires a scope explanation, stores a minimal exact exclusion marker that is not Known, creates no cards, excludes no related identity, and advances exactly once.
 - **Skip for now** removes the candidate only from the current batch, leaves it Unknown and Unprepared for future batches, and cannot repeat within the same session even when every item is skipped.
+
+Back or Home pauses the active batch and preserves its method and current candidate. **Cancel preparation** ends the batch: accepted items remain prepared, while unresolved and skipped items return to the Unknown/Unprepared backlog. Partially completed cancellation requires confirmation. The next entry shows the Automatic/Manual choice and creates no duplicate candidate for accepted vocabulary.
 
 Accepting a loaded result performs no network request. Query only the current/next required state, prefetch at most one matching next lexical result with cancellation and deduplication, reject double submission, and delay the spinner until the transition is perceptible. DEBUG diagnostics measure validation, database transaction, prepared-meaning save, card creation, session update, next-candidate query, context loading, UI transition, and network work with a monotonic timer.
 
@@ -551,9 +561,11 @@ Manual entry is optional fallback behavior.
 
 Fields:
 
+- canonical term, read-only
+- encountered form, read-only
 - acronym expansion, optional
-- translation, optional when definition is available
-- definition, required
+- translation, optional
+- definition, optional
 - additional note, optional
 - accepted answer aliases, optional
 
@@ -565,7 +577,7 @@ Actions:
 - Skip for now
 - Cancel
 
-Do not allow an empty learning item.
+Require at least one of acronym expansion, translation, or definition. The validation is localized. Save transactionally, reject double submission, advance exactly once, and focus/scroll the next item. Cancel editing returns to the same candidate and contexts.
 
 ---
 

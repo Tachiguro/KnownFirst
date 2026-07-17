@@ -491,10 +491,12 @@ A lexical result is structured data, not one unstructured HTML or text blob.
 It supports where available:
 
 - source language
-- explanation language
-- queried lemma
+- lookup mode (`Definition`, `Translation`, or `DefinitionAndTranslation`)
+- nullable target language
+- canonical lookup term
 - display term
 - token kind
+- provider
 - part of speech
 - acronym expansion
 - definitions
@@ -511,7 +513,9 @@ It supports where available:
 
 ### 13.1 Provider-supported form-to-lemma resolution
 
-After a provider returns a successful result, lexical enrichment may follow only an explicit provider relation such as plural, third-person singular, past tense, past participle, present participle, comparative, or superlative **of** a named base lemma. The base lemma is resolved through the same cache/provider chain and supplies the definition or translation used for learning.
+The provider parser separates direct lexical senses from grammatical form relations. When the originally queried page has at least one suitable direct sense, enrichment keeps the queried canonical term, ranks only the direct senses, and does not redirect merely because a form relation is also present. This keeps ordinary modern-English `data` on the `data` entry when that page supplies direct senses.
+
+Only a form-only result may follow an explicit provider relation such as singular, plural, third-person singular, past tense, past participle, present participle, comparative, or superlative **of** a named base lemma. The base lemma is resolved through the same cache/provider chain and supplies the definition or translation used for learning. Thus form-only `systems`, `risks`, and `protects` may resolve to `system`, `risk`, and `protect` respectively.
 
 The redirect chain has a visited-lemma set and a fixed maximum depth. A loop or depth overflow is a permanent lookup failure. No stemming or inferred suffix removal is permitted: for example, `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without explicit provider evidence.
 
@@ -570,7 +574,9 @@ Requirements:
 - retain source attribution and revision information
 - never fabricate a missing definition or translation
 
-Lookup results use the explicit outcomes `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Retry is offered only for transient transport/service failures and temporary parse/download failures. A successful result, a missing entry, and a permanent failure do not present a meaningless Retry action.
+Every request carries its lexical languages explicitly. `SourceLanguage` is the imported-text language. `Definition` requires a null target and requests a definition in the source language. `Translation` and `DefinitionAndTranslation` require a supported target language different from the source. UI culture is never consulted when building a lexical request or cache key. Ordinary English `Word` tokens use a lowercase canonical lookup term while their exact display/context forms remain unchanged; acronym and case-sensitive technical token kinds retain case (`IT` never becomes `it`).
+
+Lookup results use the explicit outcomes `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Retry is offered only for `TransientFailure`. A successful result, a missing entry, a parse failure, and a permanent failure do not present a meaningless Retry action.
 
 Before the first online lookup, the user sees an explicit privacy disclosure and chooses whether to continue.
 
@@ -594,11 +600,14 @@ Successful lexical results are cached in SQLite.
 A stable cache key includes at least:
 
 - source language
-- normalized lemma
+- normalized canonical lookup term
+- lookup mode
+- target language or an explicit null marker
 - token kind where relevant
-- explanation language
 - provider
 - provider schema version
+
+The key format is versioned. Schema version 6 invalidates legacy lexical-cache rows whose keys omit request mode or target language, preventing old results from crossing language or lookup-mode boundaries.
 
 The cache stores:
 
@@ -671,6 +680,8 @@ Preparation disposition semantics are transactional:
 - **Do not learn** stores the minimal exact `Ignored` marker, creates no learning cards, excludes no related identity, removes obsolete preparation data, and advances one candidate.
 - **Skip for now** completes only the current batch candidate, leaves the word Unknown and Unprepared for later batches, and cannot cycle within the same session.
 
+Back navigation, Home navigation, application suspension, and application restart pause an active preparation session so Home continues to offer **Continue preparation**. **Cancel preparation** is different: it marks the batch cancelled, keeps accepted prepared items and their learning cards, returns unresolved and skipped words to Unknown/Unprepared, clears transient result/error state, and leaves no active preparation method. A partially completed batch requires confirmation. The next Prepare Words entry starts with the Automatic/Manual method choice, and later selection must not duplicate already prepared vocabulary.
+
 The next active candidate is selected with a bounded ordered query. Accepting an already loaded result performs no lexical request. At most one following lexical result is prefetched; the prefetch is deduplicated, cancellable, and consumed only for its matching candidate.
 
 The meaning chooser is an accessible bounded dialog/listbox rather than a native single-line select. Closed previews are limited to two visual lines and about 160 characters; alternative previews use about 240 characters with an accessible full-text expansion. Preview shortening never mutates persisted text. The picker constrains every child to the viewport, wraps unbroken text, respects safe areas, closes on Escape or Android Back, and restores focus to its invoking control.
@@ -711,7 +722,7 @@ A prepared learning item stores at least:
 - token kind
 - acronym expansion, nullable
 - selected translation, nullable
-- selected definition
+- selected definition, nullable
 - optional dictionary example
 - up to three context snapshots
 - source attribution
@@ -725,6 +736,8 @@ For acronyms, answer order is:
 3. definition
 
 A prepared item must survive application restart.
+
+Manual acceptance requires at least one useful answer: acronym expansion, translation, or definition. The canonical term and encountered form are read-only in the editor; note and accepted aliases remain optional. Acceptance is one transaction, rejects double submission, advances once, and restores focus/scroll position to the next item.
 
 Normal preparation and learning cards show source metadata through a collapsed **Source details / Quelldetails** control. Expansion retains the provider/project, page title and supported link, revision ID, attribution, and license reference. Learning uses the compact form of the same control.
 

@@ -17,20 +17,21 @@ public sealed class LexicalEnrichmentService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        var displayedSurfaceForm = request.DisplayedSurfaceForm;
         var detectionKind = request.TokenKind == KnownFirst.Core.Text.TokenKind.Word
-            && AcronymExpansionDetector.IsAcronymCandidate(request.Term)
+            && AcronymExpansionDetector.IsAcronymCandidate(displayedSurfaceForm)
                 ? KnownFirst.Core.Text.TokenKind.Acronym
                 : request.TokenKind;
         var importedExpansion = acronymDetector.FindExpansion(
             originalDocumentContent,
-            request.Term,
+            displayedSurfaceForm,
             detectionKind);
 
-        var originalTerm = request.Term;
+        var originalTerm = displayedSurfaceForm;
         var currentRequest = request;
         var visitedLemmas = new HashSet<string>(StringComparer.Ordinal)
         {
-            NormalizeLemma(request.NormalizedLemma)
+            NormalizeLemma(request.CanonicalLookupTerm)
         };
         ProviderFormRelation? initialRelation = null;
         var redirectDepth = 0;
@@ -43,18 +44,43 @@ public sealed class LexicalEnrichmentService(
                 return ApplyRelationMetadata(result, originalTerm, initialRelation, redirectDepth);
             }
 
-            var relation = ProviderFormRelationPolicy.Resolve(result.Meanings);
-            if (relation is null)
+            var directMeanings = result.Meanings
+                .Where(meaning => ProviderFormRelationPolicy.Resolve(meaning.Definition) is null)
+                .ToArray();
+            var relations = (result.FormRelations ?? [])
+                .Concat(result.Meanings
+                    .Select(meaning => ProviderFormRelationPolicy.Resolve(meaning.Definition))
+                    .Where(relation => relation is not null)
+                    .Cast<ProviderFormRelation>())
+                .Distinct()
+                .ToArray();
+            if (directMeanings.Length > 0)
             {
                 var ranked = RankAndApplyExpansion(
                     result with
                     {
-                        QueriedLemma = currentRequest.NormalizedLemma,
-                        DisplayTerm = currentRequest.Term
+                        QueriedLemma = currentRequest.CanonicalLookupTerm,
+                        DisplayTerm = currentRequest.CanonicalLookupTerm,
+                        Meanings = directMeanings,
+                        FormRelations = relations
                     },
                     importedExpansion,
                     representativeContext);
                 return ApplyRelationMetadata(ranked, originalTerm, initialRelation, redirectDepth);
+            }
+
+            var relation = relations.FirstOrDefault();
+            if (relation is null)
+            {
+                return ApplyRelationMetadata(
+                    result with
+                    {
+                        Status = LexicalLookupStatus.NotFound,
+                        ErrorCode = "no-suitable-direct-sense"
+                    },
+                    originalTerm,
+                    initialRelation,
+                    redirectDepth);
             }
 
             initialRelation ??= relation;
@@ -81,11 +107,14 @@ public sealed class LexicalEnrichmentService(
 
             redirectDepth++;
             currentRequest = new LexicalLookupRequest(
-                relation.BaseLemma,
-                normalizedLemma,
-                KnownFirst.Core.Text.TokenKind.Word,
                 request.SourceLanguage,
-                request.ExplanationLanguage);
+                request.LookupMode,
+                request.TargetLanguage,
+                relation.BaseLemma,
+                KnownFirst.Core.Text.TokenKind.Word,
+                request.Provider,
+                request.DisplayedSurfaceForm,
+                request.VocabularyCanonicalTerm);
         }
     }
 
@@ -99,7 +128,7 @@ public sealed class LexicalEnrichmentService(
             provider.ProviderSchemaVersion);
         if (cached is not null)
         {
-            return cached;
+            return AddDiagnostics(cached, request, "cache-hit");
         }
 
         var online = await provider.LookupAsync(request, cancellationToken);
@@ -108,7 +137,10 @@ public sealed class LexicalEnrichmentService(
             await cache.SaveAsync(request, online, provider.ProviderSchemaVersion);
         }
 
-        return online;
+        var outcome = online.ErrorCode is null
+            ? online.Status.ToString()
+            : $"{online.Status}: {online.ErrorCode}";
+        return AddDiagnostics(online, request, outcome);
     }
 
     private LexicalResult RankAndApplyExpansion(
@@ -159,4 +191,26 @@ public sealed class LexicalEnrichmentService(
 
     private static string NormalizeLemma(string value) =>
         value.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+
+    private LexicalResult AddDiagnostics(
+        LexicalResult result,
+        LexicalLookupRequest request,
+        string outcome) => result with
+        {
+            Diagnostics = new LexicalLookupDiagnostics(
+                request.DisplayedSurfaceForm,
+                request.VocabularyCanonicalTerm,
+                request.CanonicalLookupTerm,
+                request.SourceLanguage,
+                request.LookupMode,
+                request.TargetLanguage,
+                LexicalCacheRepository.CreateCacheKey(
+                    request,
+                    provider.ProviderName,
+                    provider.ProviderSchemaVersion),
+                provider.DescribeRequest(request),
+                outcome),
+            LookupMode = request.LookupMode,
+            TargetLanguage = request.TargetLanguage
+        };
 }

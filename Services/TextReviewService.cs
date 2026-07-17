@@ -545,6 +545,8 @@ public sealed class TextReviewService(
             Title = request.Title.Trim(),
             TextLanguage = request.TextLanguage,
             ExplanationLanguage = request.ExplanationLanguage,
+            LookupMode = request.LookupMode,
+            TargetLanguage = request.TargetLanguage ?? string.Empty,
             Content = request.Content,
             ContentFingerprint = contentFingerprint,
             ImportedAt = now,
@@ -1102,6 +1104,11 @@ public sealed class TextReviewService(
         {
             throw new ArgumentException("Only English and German are supported.", nameof(request));
         }
+
+        LexicalLookupLanguagePolicy.Validate(
+            request.TextLanguage,
+            request.LookupMode,
+            request.TargetLanguage);
     }
 
     private static void ValidateCoordinates(string content, TextAnalysisResult analysis)

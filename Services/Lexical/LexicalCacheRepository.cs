@@ -42,7 +42,7 @@ public sealed class LexicalCacheRepository(IKnownFirstDatabase database) : ILexi
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(result);
-        if (result.Status != LexicalLookupStatus.Success || !result.HasUsableData)
+        if (!result.HasReferenceData)
         {
             return Task.CompletedTask;
         }
@@ -61,6 +61,9 @@ public sealed class LexicalCacheRepository(IKnownFirstDatabase database) : ILexi
                     SourceLanguage = request.SourceLanguage,
                     ExplanationLanguage = request.ExplanationLanguage,
                     NormalizedLemma = request.NormalizedLemma,
+                    LookupMode = request.LookupMode,
+                    TargetLanguage = request.TargetLanguage ?? string.Empty,
+                    CanonicalLookupTerm = request.CanonicalLookupTerm,
                     TokenKind = request.TokenKind,
                     Provider = result.ProviderName,
                     ProviderSchemaVersion = providerSchemaVersion,
@@ -92,10 +95,12 @@ public sealed class LexicalCacheRepository(IKnownFirstDatabase database) : ILexi
         LexicalLookupRequest request,
         string provider,
         int providerSchemaVersion) => string.Join('|',
+        "v2",
         request.SourceLanguage.ToLowerInvariant(),
-        request.NormalizedLemma.Normalize().ToLowerInvariant(),
+        request.CanonicalLookupTerm.Normalize(),
+        (int)request.LookupMode,
+        request.TargetLanguage?.ToLowerInvariant() ?? "-",
         (int)request.TokenKind,
-        request.ExplanationLanguage.ToLowerInvariant(),
         provider.ToLowerInvariant(),
         providerSchemaVersion);
 }

@@ -408,6 +408,157 @@ public sealed class StudyWorkflowServiceTests
     }
 
     [TestMethod]
+    public async Task Preparation_ManualTranslationWithoutDefinitionSavesAndAdvances()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            new PreparedMeaningInput(
+                null,
+                null,
+                "Netzwerk",
+                string.Empty,
+                null,
+                "Manual note",
+                [],
+                "Manual",
+                string.Empty,
+                string.Empty,
+                null,
+                string.Empty),
+            CardDirectionPreference.TermToMeaning);
+
+        var stored = await _database.ReadAsync(connection =>
+            connection.Table<MeaningEntity>().FirstAsync());
+        Assert.AreEqual("Netzwerk", stored.Translation);
+        Assert.AreEqual(string.Empty, stored.Definition);
+        Assert.AreEqual("Netzwerk", stored.TranslationOrDefinition);
+        Assert.IsNull(await _preparation.GetCurrentAsync());
+    }
+
+    [TestMethod]
+    public async Task Preparation_ManualAcronymWithoutDefinitionSavesUsefulAnswer()
+    {
+        await ImportAllUnknownAsync("MFA.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            new PreparedMeaningInput(
+                null,
+                "Multi-Factor Authentication",
+                null,
+                string.Empty,
+                null,
+                null,
+                [],
+                "Manual",
+                string.Empty,
+                string.Empty,
+                null,
+                string.Empty),
+            CardDirectionPreference.TermToMeaning);
+
+        var stored = await _database.ReadAsync(connection =>
+            connection.Table<MeaningEntity>().FirstAsync());
+        Assert.AreEqual("Multi-Factor Authentication", stored.AcronymExpansion);
+        Assert.AreEqual("Multi-Factor Authentication", stored.TranslationOrDefinition);
+    }
+
+    [TestMethod]
+    public async Task Preparation_ManualEmptyAnswerIsRejected()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+        var candidateId = item!.CandidateId;
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _preparation.AcceptAsync(
+            candidateId,
+            new PreparedMeaningInput(
+                null,
+                null,
+                null,
+                string.Empty,
+                null,
+                null,
+                [],
+                "Manual",
+                string.Empty,
+                string.Empty,
+                null,
+                string.Empty),
+            CardDirectionPreference.TermToMeaning));
+
+        Assert.AreEqual(candidateId, (await _preparation.GetCurrentAsync())!.CandidateId);
+    }
+
+    [TestMethod]
+    public async Task Preparation_CancelKeepsAcceptedAndReturnsUnresolvedAndSkippedToBacklog()
+    {
+        await ImportAllUnknownAsync("alpha beta gamma.");
+        var cancelledSessionId = await _preparation.StartAsync(PreparationMethod.Manual, 3);
+        var accepted = await _preparation.GetCurrentAsync();
+        await _preparation.AcceptAsync(
+            accepted!.CandidateId,
+            ManualInput(accepted.Term),
+            CardDirectionPreference.TermToMeaning);
+        var skipped = await _preparation.GetCurrentAsync();
+        await _preparation.SkipAsync(skipped!.CandidateId);
+        var unresolved = await _preparation.GetCurrentAsync();
+
+        Assert.IsTrue(await _preparation.CancelActiveSessionAsync());
+
+        var afterCancel = await _preparation.GetOverviewAsync();
+        Assert.IsNull(afterCancel.ActiveSessionId);
+        Assert.IsNull(afterCancel.ActiveMethod);
+        Assert.IsNull(await _preparation.GetCurrentAsync());
+        var stored = await _database.ReadAsync(async connection => new
+        {
+            Session = await connection.FindAsync<PreparationSessionEntity>(cancelledSessionId),
+            Candidates = await connection.Table<PreparationCandidateEntity>()
+                .Where(candidate => candidate.SessionId == cancelledSessionId)
+                .OrderBy(candidate => candidate.Order)
+                .ToListAsync(),
+            Words = await connection.Table<WordEntity>().ToListAsync(),
+            Meanings = await connection.Table<MeaningEntity>().CountAsync(),
+            Cards = await connection.Table<LearningCardEntity>().CountAsync()
+        });
+        Assert.AreEqual(PreparationSessionStatus.Cancelled, stored.Session!.Status);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                PreparationCandidateStatus.Prepared,
+                PreparationCandidateStatus.Cancelled,
+                PreparationCandidateStatus.Cancelled
+            },
+            stored.Candidates.Select(candidate => candidate.Status).ToArray());
+        Assert.AreEqual(1, stored.Meanings);
+        Assert.AreEqual(1, stored.Cards);
+        Assert.AreEqual(WordStatus.Prepared, stored.Words.Single(word => word.Id == accepted.WordId).Status);
+        foreach (var wordId in new[] { skipped.WordId, unresolved!.WordId })
+        {
+            var word = stored.Words.Single(candidate => candidate.Id == wordId);
+            Assert.AreEqual(WordStatus.UnknownBacklog, word.Status);
+            Assert.AreEqual(PreparationState.Unprepared, word.PreparationState);
+        }
+
+        var nextSessionId = await _preparation.StartAsync(PreparationMethod.Manual, 10);
+        var nextCandidates = await _database.ReadAsync(connection => connection
+            .Table<PreparationCandidateEntity>()
+            .Where(candidate => candidate.SessionId == nextSessionId)
+            .ToListAsync());
+        Assert.AreNotEqual(cancelledSessionId, nextSessionId);
+        Assert.HasCount(2, nextCandidates);
+        Assert.AreEqual(2, nextCandidates.Select(candidate => candidate.WordId).Distinct().Count());
+        Assert.IsFalse(nextCandidates.Any(candidate => candidate.WordId == accepted.WordId));
+    }
+
+    [TestMethod]
     public async Task Learning_CompletionReportsRemainingUnknownPreparationCount()
     {
         await ImportAllUnknownAsync("alpha beta.");
@@ -438,6 +589,26 @@ public sealed class StudyWorkflowServiceTests
 
         Assert.AreEqual(before!.CandidateId, after!.CandidateId);
         Assert.AreEqual(before.Term, after.Term);
+    }
+
+    [TestMethod]
+    [DataRow("Contact", "contact")]
+    [DataRow("Information", "information")]
+    [DataRow("IT", "IT")]
+    public async Task Preparation_LookupNormalizesRequestAndPreservesExactContext(
+        string encounteredForm,
+        string expectedLookupTerm)
+    {
+        await ImportWithSingleUnknownAsync($"{encounteredForm} protects information.", encounteredForm);
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 1);
+
+        var item = await _preparation.LookupCurrentAsync();
+
+        Assert.AreEqual(expectedLookupTerm, _provider.LastRequest!.CanonicalLookupTerm);
+        Assert.AreEqual(encounteredForm, _provider.LastRequest.DisplayedSurfaceForm);
+        Assert.AreEqual(encounteredForm, item!.Contexts[0].Text.Substring(
+            item.Contexts[0].TargetStart,
+            item.Contexts[0].TargetLength));
     }
 
     [TestMethod]
@@ -1004,6 +1175,8 @@ public sealed class StudyWorkflowServiceTests
 
         public int CallCount => Volatile.Read(ref _callCount);
 
+        public LexicalLookupRequest? LastRequest { get; private set; }
+
         public string ProviderName => "Fake Wiktionary";
 
         public int ProviderSchemaVersion => 1;
@@ -1013,6 +1186,7 @@ public sealed class StudyWorkflowServiceTests
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _callCount);
+            LastRequest = request;
             var result = ResultFactory?.Invoke(request) ?? new LexicalResult(
                 LexicalLookupStatus.Success,
                 request.NormalizedLemma,

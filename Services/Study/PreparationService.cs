@@ -306,9 +306,13 @@ public sealed partial class PreparationService(
     {
         var validationStarted = Stopwatch.GetTimestamp();
         ArgumentNullException.ThrowIfNull(input);
-        if (string.IsNullOrWhiteSpace(input.Definition))
+        if (string.IsNullOrWhiteSpace(input.AcronymExpansion)
+            && string.IsNullOrWhiteSpace(input.Translation)
+            && string.IsNullOrWhiteSpace(input.Definition))
         {
-            throw new ArgumentException("A definition is required.", nameof(input));
+            throw new ArgumentException(
+                "An acronym expansion, translation, or definition is required.",
+                nameof(input));
         }
 
         RecordTiming(candidateId, "Accept", PreparationTimingPhase.Validation, validationStarted);
@@ -365,9 +369,11 @@ public sealed partial class PreparationService(
                     DictionaryExample = input.DictionaryExample?.Trim() ?? string.Empty,
                     AdditionalNote = input.AdditionalNote?.Trim() ?? string.Empty,
                     AcceptedAliasesJson = JsonSerializer.Serialize(aliases),
-                    TranslationOrDefinition = string.IsNullOrWhiteSpace(input.Translation)
-                        ? input.Definition.Trim()
-                        : input.Translation.Trim(),
+                    TranslationOrDefinition = !string.IsNullOrWhiteSpace(input.Translation)
+                        ? input.Translation.Trim()
+                        : !string.IsNullOrWhiteSpace(input.Definition)
+                            ? input.Definition.Trim()
+                            : input.AcronymExpansion!.Trim(),
                     Source = input.ProviderName,
                     SourceProject = input.SourceProject,
                     SourcePageTitle = input.SourcePageTitle,
@@ -470,6 +476,67 @@ public sealed partial class PreparationService(
                     candidate,
                     PreparationCandidateStatus.Skipped,
                     clock.UtcNow);
+                return true;
+            });
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    public async Task<bool> CancelActiveSessionAsync()
+    {
+        await CancelPrefetchAsync();
+        await _operationGate.WaitAsync();
+        try
+        {
+            return await database.RunInTransactionAsync(connection =>
+            {
+                var session = connection.Table<PreparationSessionEntity>()
+                    .FirstOrDefault(item => item.Status == PreparationSessionStatus.Active);
+                if (session is null)
+                {
+                    return false;
+                }
+
+                var now = clock.UtcNow;
+                var retainedCompletedItems = 0;
+                var candidates = connection.Table<PreparationCandidateEntity>()
+                    .Where(candidate => candidate.SessionId == session.Id)
+                    .ToList();
+                foreach (var candidate in candidates)
+                {
+                    if (candidate.Status is PreparationCandidateStatus.Prepared
+                        or PreparationCandidateStatus.MarkedKnown
+                        or PreparationCandidateStatus.Excluded)
+                    {
+                        retainedCompletedItems++;
+                        continue;
+                    }
+
+                    var word = connection.Find<WordEntity>(candidate.WordId);
+                    if (word?.Status == WordStatus.UnknownBacklog)
+                    {
+                        word.PreparationState = PreparationState.Unprepared;
+                        word.UpdatedAt = now;
+                        connection.Update(word);
+                    }
+
+                    candidate.Status = PreparationCandidateStatus.Cancelled;
+                    candidate.ResultJson = string.Empty;
+                    candidate.SelectedMeaningIndex = 0;
+                    candidate.LastErrorCode = string.Empty;
+                    candidate.LookupAttemptCount = 0;
+                    candidate.UpdatedAtUtc = now;
+                    connection.Update(candidate);
+                }
+
+                session.Status = PreparationSessionStatus.Cancelled;
+                session.CompletedItems = retainedCompletedItems;
+                session.UpdatedAtUtc = now;
+                session.CompletedAtUtc = now;
+                connection.Update(session);
                 return true;
             });
         }
@@ -770,6 +837,9 @@ public sealed partial class PreparationService(
         var contexts = new List<PreparationContext>();
         var fingerprints = new HashSet<string>(StringComparer.Ordinal);
         string explanationLanguage = word.Language;
+        var lookupMode = LexicalLookupMode.Definition;
+        string? targetLanguage = null;
+        var lookupSettingsLoaded = false;
         foreach (var occurrence in occurrences)
         {
             var document = await connection.FindAsync<DocumentEntity>(occurrence.DocumentId);
@@ -779,7 +849,12 @@ public sealed partial class PreparationService(
                 continue;
             }
 
-            explanationLanguage = document.ExplanationLanguage;
+            if (!lookupSettingsLoaded)
+            {
+                (lookupMode, targetLanguage) = ResolveLookupSettings(document);
+                explanationLanguage = targetLanguage ?? document.TextLanguage;
+                lookupSettingsLoaded = true;
+            }
             if (fingerprints.Add(CreateFingerprint(NormalizeContext(context.Text))))
             {
                 contexts.Add(context);
@@ -807,7 +882,9 @@ public sealed partial class PreparationService(
             contexts,
             DeserializeResult(candidate.ResultJson),
             candidate.SelectedMeaningIndex,
-            string.IsNullOrWhiteSpace(candidate.LastErrorCode) ? null : candidate.LastErrorCode);
+            string.IsNullOrWhiteSpace(candidate.LastErrorCode) ? null : candidate.LastErrorCode,
+            lookupMode,
+            targetLanguage);
     }
 
     private static List<ContextData> BuildContextData(SQLiteConnection connection, int wordId)
@@ -992,15 +1069,34 @@ public sealed partial class PreparationService(
     }
 #endif
 
-    private static string NormalizeLemma(string value) =>
-        value.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
-
     private static LexicalLookupRequest CreateLookupRequest(PreparationItem item) => new(
-        item.Term,
-        NormalizeLemma(item.Term),
-        item.TokenKind,
         item.SourceLanguage,
-        item.ExplanationLanguage);
+        item.LookupMode,
+        item.TargetLanguage,
+        item.Term,
+        item.TokenKind,
+        WiktionaryLookupProvider.Name,
+        item.EncounteredSurfaceForm ?? item.Term,
+        item.Term);
+
+    private static (LexicalLookupMode Mode, string? TargetLanguage) ResolveLookupSettings(
+        DocumentEntity document)
+    {
+        if (!string.IsNullOrWhiteSpace(document.TargetLanguage))
+        {
+            return (document.LookupMode, document.TargetLanguage);
+        }
+
+        if (!string.Equals(
+            document.TextLanguage,
+            document.ExplanationLanguage,
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return (LexicalLookupMode.DefinitionAndTranslation, document.ExplanationLanguage);
+        }
+
+        return (LexicalLookupMode.Definition, null);
+    }
 
     private static string NormalizeContext(string value) =>
         WhitespaceRegex().Replace(value.Replace("\r\n", "\n").Replace('\r', '\n').Trim(), " ")

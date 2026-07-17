@@ -27,6 +27,8 @@ public interface IPreparationService
 
     Task SkipAsync(int candidateId);
 
+    Task<bool> CancelActiveSessionAsync();
+
     Task CancelPrefetchAsync();
 
 #if DEBUG

@@ -56,7 +56,16 @@
                     {
                         <p><strong>@Localizer["Prepare_Translation"]:</strong> @_card.Translation</p>
                     }
-                    <p><strong>@Localizer["Prepare_Definition"]:</strong> @_card.Definition</p>
+                    @if (!string.IsNullOrWhiteSpace(_card.Definition))
+                    {
+                        <p><strong>@Localizer["Prepare_Definition"]:</strong> @_card.Definition</p>
+                    }
+                    @if (string.IsNullOrWhiteSpace(_card.Translation)
+                        && string.IsNullOrWhiteSpace(_card.Definition)
+                        && !string.IsNullOrWhiteSpace(_card.AcronymExpansion))
+                    {
+                        <p><strong>@Localizer["Prepare_AcronymExpansion"]:</strong> @_card.AcronymExpansion</p>
+                    }
                 </section>
                 @if (CurrentContext is not null)
                 {

@@ -628,6 +628,11 @@ public sealed class LearningService(
                 continue;
             }
 
+            if (session.Status == PreparationSessionStatus.Cancelled)
+            {
+                continue;
+            }
+
             var candidates = connection.Table<PreparationCandidateEntity>()
                 .Where(item => item.SessionId == sessionId)
                 .OrderBy(item => item.Order)

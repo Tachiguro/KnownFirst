@@ -5,6 +5,10 @@ using AngleElement = AngleSharp.Dom.IElement;
 
 namespace KnownFirst.Services.Lexical;
 
+public sealed record LexicalEntryParseResult(
+    IReadOnlyList<LexicalMeaning> DirectMeanings,
+    IReadOnlyList<ProviderFormRelation> FormRelations);
+
 public sealed partial class WiktionaryHtmlParser
 {
     private readonly HtmlParser _parser = new();
@@ -12,11 +16,16 @@ public sealed partial class WiktionaryHtmlParser
     public IReadOnlyList<LexicalMeaning> Parse(
         string html,
         string sourceLanguage,
+        string explanationLanguage) => ParseEntry(html, sourceLanguage, explanationLanguage).DirectMeanings;
+
+    public LexicalEntryParseResult ParseEntry(
+        string html,
+        string sourceLanguage,
         string explanationLanguage)
     {
         if (string.IsNullOrWhiteSpace(html))
         {
-            return [];
+            return new LexicalEntryParseResult([], []);
         }
 
         var document = _parser.ParseDocument(html);
@@ -24,7 +33,7 @@ public sealed partial class WiktionaryHtmlParser
             .FirstOrDefault(candidate => IsLanguageHeading(candidate, sourceLanguage));
         if (heading is null)
         {
-            return [];
+            return new LexicalEntryParseResult([], []);
         }
 
         var sectionStart = GetHeadingContainer(heading);
@@ -46,11 +55,21 @@ public sealed partial class WiktionaryHtmlParser
             meanings = ParseOrderedDefinitionLists(sectionElements);
         }
 
-        return meanings
+        var distinctMeanings = meanings
             .GroupBy(meaning => $"{meaning.Definition}\u001f{meaning.Translation}", StringComparer.Ordinal)
             .Select(group => group.First())
             .Take(20)
             .ToArray();
+        var directMeanings = distinctMeanings
+            .Where(meaning => ProviderFormRelationPolicy.Resolve(meaning.Definition) is null)
+            .ToArray();
+        var formRelations = distinctMeanings
+            .Select(meaning => ProviderFormRelationPolicy.Resolve(meaning.Definition))
+            .Where(relation => relation is not null)
+            .Cast<ProviderFormRelation>()
+            .Distinct()
+            .ToArray();
+        return new LexicalEntryParseResult(directMeanings, formRelations);
     }
 
     private static List<LexicalMeaning> ParseGermanMeaningLists(

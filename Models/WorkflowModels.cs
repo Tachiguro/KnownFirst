@@ -25,5 +25,6 @@ public sealed record WorkflowSnapshot(
 
     public bool CanImport => !HasActiveReview;
 
-    public bool CanPrepare => !HasActiveReview && UnpreparedUnknownCount > 0;
+    public bool CanPrepare => !HasActiveReview
+        && (HasActivePreparation || UnpreparedUnknownCount > 0);
 }

@@ -16,7 +16,10 @@
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
         </button>
-        <span class="mobile-page-title">@CurrentPageTitle</span>
+        @if (!string.IsNullOrEmpty(CurrentPageTitle))
+        {
+            <span class="mobile-page-title">@CurrentPageTitle</span>
+        }
     </header>
 
     <aside id="primary-navigation" class="sidebar @(_isMenuOpen ? "open" : null)">
@@ -40,7 +43,7 @@
 
     private string CurrentPageTitle => _currentRoute.ToLowerInvariant() switch
     {
-        "" => Localizer["Home_Title"],
+        "" => string.Empty,
         "import-text" => Localizer["Navigation_ImportText"],
         "review-words" => Localizer["Navigation_ReviewWords"],
         "prepare-words" => Localizer["Navigation_PrepareWords"],

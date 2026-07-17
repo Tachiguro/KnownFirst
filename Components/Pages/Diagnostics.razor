@@ -1,5 +1,6 @@
 @page "/diagnostics"
 @inject ITextReviewService TextReviewService
+@inject IPreparationService PreparationService
 @inject ILogger<Diagnostics> Logger
 
 <PageTitle>@Localizer["Diagnostics_Title"]</PageTitle>
@@ -92,6 +93,40 @@
             else
             {
                 <p>@Localizer["Diagnostics_NoActiveSession"]</p>
+            }
+        </section>
+
+        <section class="settings-card diagnostic-section">
+            <h2>@Localizer["Diagnostics_PreparationTiming"] (@_preparationTimings.Count)</h2>
+            <p>@Localizer["Diagnostics_PreparationTimingDescription"]</p>
+            <div class="diagnostic-table-wrap">
+                <table class="diagnostic-table">
+                    <thead>
+                        <tr>
+                            <th>@Localizer["Diagnostics_Sequence"]</th>
+                            <th>@Localizer["Diagnostics_Operation"]</th>
+                            <th>@Localizer["Diagnostics_Phase"]</th>
+                            <th>@Localizer["Diagnostics_DurationMilliseconds"]</th>
+                            <th>@Localizer["Diagnostics_CandidateId"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var timing in _preparationTimings.OrderByDescending(item => item.Sequence))
+                        {
+                            <tr>
+                                <td>@timing.Sequence</td>
+                                <td>@timing.Operation</td>
+                                <td>@GetTimingPhaseName(timing.Phase)</td>
+                                <td>@timing.DurationMilliseconds.ToString("0.00")</td>
+                                <td>@timing.CandidateId</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_preparationTimings.Count == 0)
+            {
+                <p class="empty-message">@Localizer["Diagnostics_NoRows"]</p>
             }
         </section>
 
@@ -618,6 +653,7 @@
 @code {
     private ReviewDiagnosticsSnapshot? _snapshot;
     private DocumentAnalysisReport? _analysisReport;
+    private IReadOnlyList<PreparationTimingMeasurement> _preparationTimings = [];
     private bool _isLoading = true;
     private bool _loadFailed;
     private bool _copyFailed;
@@ -644,6 +680,7 @@
         {
             _snapshot = await TextReviewService.GetDiagnosticsAsync();
             _analysisReport = await TextReviewService.GetAnalysisReportAsync(AnalysisDocumentId);
+            _preparationTimings = PreparationService.GetTimingDiagnostics();
         }
         catch (Exception exception)
         {
@@ -702,6 +739,8 @@
         TokenKind.TechnicalTerm => Localizer["TokenKind_TechnicalTerm"],
         _ => Localizer["TokenKind_Word"]
     };
+
+    private string GetTimingPhaseName(PreparationTimingPhase phase) => Localizer[$"Diagnostics_TimingPhase_{phase}"];
 
     private string GetStatusName(WordStatus status) => status switch
     {

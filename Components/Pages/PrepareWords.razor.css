@@ -1,26 +1,47 @@
 .preparation-page {
     display: grid;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     gap: 1rem;
 }
 
 .preparation-card {
     display: grid;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     gap: 1rem;
     padding: clamp(1rem, 4vw, 1.75rem);
     border: 1px solid var(--color-border);
     border-radius: 1rem;
     background: var(--color-surface);
     box-shadow: var(--shadow-card);
+    overflow-wrap: anywhere;
+}
+
+.preparation-card > *,
+.lexical-result > *,
+.button-row > *,
+.preparation-disposition-actions > * {
+    min-width: 0;
+}
+
+.preparation-card h2,
+.preparation-card p {
+    overflow-wrap: anywhere;
 }
 
 .method-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    min-width: 0;
     gap: 0.8rem;
 }
 
 .method-card {
     display: grid;
+    min-width: 0;
     gap: 0.5rem;
     padding: 1.25rem;
     border: 1px solid var(--color-border);
@@ -28,6 +49,7 @@
     background: var(--color-surface-muted);
     color: var(--color-text);
     text-align: left;
+    overflow-wrap: anywhere;
 }
 
 .method-card.recommended {
@@ -36,19 +58,28 @@
 
 .review-progress,
 .context-navigation,
-.button-row {
+.button-row,
+.preparation-disposition-actions {
     display: flex;
+    min-width: 0;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem;
 }
 
 .review-progress progress {
+    min-width: 0;
     flex: 1 1 12rem;
+}
+
+.encountered-form {
+    margin: -0.5rem 0 0;
+    color: var(--color-muted);
 }
 
 .preparation-details {
     display: flex;
+    min-width: 0;
     flex-wrap: wrap;
     gap: 1rem;
 }
@@ -64,15 +95,24 @@
 
 .preparation-details dd {
     margin: 0.2rem 0 0;
+    overflow-wrap: anywhere;
     font-weight: 700;
 }
 
 .context-card,
 .lexical-result,
-.privacy-disclosure {
+.privacy-disclosure,
+.preparation-confirmation {
+    min-width: 0;
     padding: 1rem;
     border-radius: 0.8rem;
     background: var(--color-surface-muted);
+}
+
+.context-card p,
+.lexical-result p {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .context-card mark {
@@ -84,20 +124,205 @@
 
 .editor-grid {
     display: grid;
+    min-width: 0;
     gap: 0.9rem;
 }
 
 .editor-grid label {
     display: grid;
+    min-width: 0;
     gap: 0.35rem;
     font-weight: 700;
 }
 
-.source-attribution {
+.editor-grid input,
+.editor-grid textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.full-definition {
+    overflow-wrap: anywhere;
+}
+
+.meaning-picker-trigger {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--color-input-border);
+    border-radius: 0.7rem;
+    background: var(--color-input-background);
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+}
+
+.meaning-picker-trigger span {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.45;
+}
+
+.meaning-picker-backdrop {
+    position: fixed;
+    z-index: 1100;
+    inset: 0;
+    display: grid;
+    min-width: 0;
+    align-items: end;
+    justify-items: center;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    background: rgba(0, 0, 0, 0.58);
+}
+
+.meaning-picker {
+    display: grid;
+    width: min(42rem, 100%);
+    max-width: 100%;
+    max-height: calc(100dvh - max(2rem, env(safe-area-inset-top)) - max(2rem, env(safe-area-inset-bottom)));
+    min-width: 0;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 1.5rem);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+}
+
+.meaning-picker header {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.meaning-picker h2 {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-size: 1.25rem;
+}
+
+.meaning-options {
+    display: grid;
+    min-width: 0;
+    gap: 0.65rem;
+    margin: 0;
+    padding: 0 0.15rem 0 0;
+    list-style: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.meaning-option {
+    min-width: 0;
+    padding: 0.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    background: var(--color-surface-muted);
+}
+
+.meaning-option.selected {
+    border-color: var(--color-primary);
+}
+
+.meaning-option > button {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0.75rem;
+    border: 0;
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    text-align: left;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.meaning-option details {
+    min-width: 0;
+    padding: 0 0.75rem 0.75rem;
     color: var(--color-muted);
-    font-size: 0.85rem;
+}
+
+.meaning-option summary {
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.meaning-option details p {
+    margin-bottom: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.preparation-confirmation {
+    border: 1px solid var(--color-border-strong);
+}
+
+.preparation-confirmation h3 {
+    margin-top: 0;
+}
+
+.transition-spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: transition-spin 700ms linear infinite;
+}
+
+.preparation-transition-status {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
 }
 
 .cancel-preparation {
     justify-self: start;
+}
+
+@keyframes transition-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (min-width: 640px) {
+    .meaning-picker-backdrop {
+        align-items: center;
+    }
+}
+
+@media (max-width: 620px) {
+    .context-navigation {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        text-align: center;
+    }
+
+    .context-navigation span {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    .context-navigation .button,
+    .preparation-disposition-actions .button {
+        width: 100%;
+    }
+
+    .meaning-picker {
+        border-radius: 1rem 1rem 0 0;
+    }
 }

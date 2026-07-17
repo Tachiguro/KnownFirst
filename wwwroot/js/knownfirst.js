@@ -17,5 +17,10 @@ window.knownFirst = {
         if (!isFullyVisible) {
             element.scrollIntoView({ behavior: "smooth", block: "nearest" });
         }
+    },
+    focusElement: element => {
+        if (element) {
+            element.focus({ preventScroll: true });
+        }
     }
 };

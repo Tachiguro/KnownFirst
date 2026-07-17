@@ -10,7 +10,7 @@ namespace KnownFirst.Services.Lexical;
 public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
 {
     public const string Name = "Wiktionary";
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
     public const string UserAgent =
         "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only dictionary lookup)";
     public const string AttributionText =
@@ -106,7 +106,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                 {
                     if (attempt == MaximumAttempts - 1)
                     {
-                        return Failure(request, LexicalLookupStatus.RateLimited, "rate-limited");
+                        return Failure(request, LexicalLookupStatus.TransientFailure, "rate-limited");
                     }
 
                     await _delay.DelayAsync(GetRetryDelay(response.Headers.RetryAfter, attempt), cancellationToken);
@@ -117,7 +117,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                 {
                     if (attempt == MaximumAttempts - 1)
                     {
-                        return Failure(request, LexicalLookupStatus.Unavailable, "transient-server-error");
+                        return Failure(request, LexicalLookupStatus.TransientFailure, "transient-server-error");
                     }
 
                     await _delay.DelayAsync(GetBackoff(attempt), cancellationToken);
@@ -133,7 +133,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                 {
                     return Failure(
                         request,
-                        LexicalLookupStatus.Unavailable,
+                        LexicalLookupStatus.PermanentFailure,
                         $"http-{(int)response.StatusCode}");
                 }
 
@@ -142,7 +142,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                return Failure(request, LexicalLookupStatus.TimedOut, "timeout");
+                return Failure(request, LexicalLookupStatus.TransientFailure, "timeout");
             }
             catch (HttpRequestException) when (attempt < MaximumAttempts - 1)
             {
@@ -150,15 +150,15 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             }
             catch (HttpRequestException)
             {
-                return Failure(request, LexicalLookupStatus.Unavailable, "network-unavailable");
+                return Failure(request, LexicalLookupStatus.TransientFailure, "network-unavailable");
             }
             catch (JsonException)
             {
-                return Failure(request, LexicalLookupStatus.MalformedResponse, "malformed-json");
+                return Failure(request, LexicalLookupStatus.ParseFailure, "malformed-json");
             }
         }
 
-        return Failure(request, LexicalLookupStatus.Unavailable, "network-unavailable");
+        return Failure(request, LexicalLookupStatus.TransientFailure, "network-unavailable");
     }
 
     private LexicalResult ParseResponse(LexicalLookupRequest request, string json)
@@ -174,14 +174,14 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                 request,
                 code.Contains("missing", StringComparison.OrdinalIgnoreCase)
                     ? LexicalLookupStatus.NotFound
-                    : LexicalLookupStatus.Unavailable,
+                    : LexicalLookupStatus.PermanentFailure,
                 code);
         }
 
         if (!root.TryGetProperty("parse", out var parsed)
             || !parsed.TryGetProperty("text", out var textElement))
         {
-            return Failure(request, LexicalLookupStatus.MalformedResponse, "missing-parse-payload");
+            return Failure(request, LexicalLookupStatus.ParseFailure, "missing-parse-payload");
         }
 
         var html = textElement.ValueKind == JsonValueKind.String
@@ -191,7 +191,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                 : null;
         if (string.IsNullOrWhiteSpace(html))
         {
-            return Failure(request, LexicalLookupStatus.MalformedResponse, "missing-html");
+            return Failure(request, LexicalLookupStatus.ParseFailure, "missing-html");
         }
 
         var meanings = _parser.Parse(html, request.SourceLanguage, request.ExplanationLanguage);

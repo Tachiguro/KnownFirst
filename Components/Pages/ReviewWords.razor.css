@@ -1,5 +1,6 @@
 .review-page {
     width: min(100%, 54rem);
+    min-width: 0;
     margin: 0 auto;
 }
 
@@ -53,6 +54,21 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.75rem;
     margin: 0;
+}
+
+.candidate-details-panel {
+    min-width: 0;
+}
+
+.candidate-details-panel summary {
+    width: fit-content;
+    cursor: pointer;
+    color: var(--color-primary);
+    font-weight: 750;
+}
+
+.candidate-details-panel[open] summary {
+    margin-bottom: 0.75rem;
 }
 
 .candidate-details div,
@@ -118,8 +134,22 @@ dd {
 
 .decision-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
+}
+
+.review-action-bar {
+    min-width: 0;
+    margin-top: 1.25rem;
+}
+
+.review-saving-state {
+    min-height: 1.25rem;
+    margin: 0 0 0.4rem;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
 }
 
 .undo-button {
@@ -161,8 +191,7 @@ dd {
 
 @media (max-width: 620px) {
     .candidate-details,
-    .completion-summary,
-    .decision-grid {
+    .completion-summary {
         grid-template-columns: 1fr;
     }
 
@@ -177,5 +206,36 @@ dd {
 
     .context-navigation .button {
         width: 100%;
+    }
+
+    .review-page {
+        padding-bottom: calc(11.5rem + env(safe-area-inset-bottom));
+    }
+
+    .review-card {
+        padding: 1rem;
+    }
+
+    .review-action-bar {
+        position: fixed;
+        z-index: 900;
+        right: max(0.75rem, env(safe-area-inset-right));
+        bottom: max(0.75rem, env(safe-area-inset-bottom));
+        left: max(0.75rem, env(safe-area-inset-left));
+        margin: 0;
+        padding: 0.65rem;
+        border: 1px solid var(--color-border-strong);
+        border-radius: 0.9rem;
+        background: var(--color-surface);
+        box-shadow: var(--shadow-card);
+    }
+
+    .review-action-bar .button {
+        width: 100%;
+    }
+
+    .review-action-bar .undo-button {
+        display: block;
+        margin: 0.55rem auto 0;
     }
 }

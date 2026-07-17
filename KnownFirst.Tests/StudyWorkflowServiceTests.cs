@@ -15,6 +15,8 @@ namespace KnownFirst.Tests;
 [TestClass]
 public sealed class StudyWorkflowServiceTests
 {
+    public TestContext TestContext { get; set; } = null!;
+
     private static readonly DateTime Now = new(2026, 7, 16, 12, 0, 0, DateTimeKind.Utc);
     private TemporaryKnownFirstDatabase _database = null!;
     private FakeClock _clock = null!;
@@ -38,6 +40,7 @@ public sealed class StudyWorkflowServiceTests
     [TestCleanup]
     public async Task CleanupAsync()
     {
+        await _preparation.CancelPrefetchAsync();
         await _database.DisposeAsync();
     }
 
@@ -99,6 +102,47 @@ public sealed class StudyWorkflowServiceTests
             connection.Table<MeaningEntity>().Where(candidate => candidate.WordId == item.WordId).FirstAsync());
         Assert.IsTrue(meaning.ConfirmedByUser);
         Assert.AreEqual("Definition for network", meaning.Definition);
+    }
+
+    [TestMethod]
+    public async Task Preparation_ExplicitFormRelationStoresLemmaSurfaceRelationAndOriginalContext()
+    {
+        await ImportAllUnknownAsync("Smart systems protect data.");
+        _provider.MeaningsFactory = request => request.Term.Equals("systems", StringComparison.Ordinal)
+            ? [new LexicalMeaning("relation", "form", "plural of system", null, null, [])]
+            : [new LexicalMeaning("base", "noun", "A set of connected parts.", null, null, [])];
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+        PreparationItem? item;
+        do
+        {
+            item = await _preparation.GetCurrentAsync();
+            if (item is not null && !item.Term.Equals("systems", StringComparison.Ordinal))
+            {
+                await _preparation.SkipAsync(item.CandidateId);
+            }
+        }
+        while (item is not null && !item.Term.Equals("systems", StringComparison.Ordinal));
+
+        item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.TermToMeaning);
+
+        var stored = await _database.ReadAsync(async connection => new
+        {
+            Meaning = await connection.Table<MeaningEntity>()
+                .Where(meaning => meaning.WordId == item.WordId)
+                .FirstAsync(),
+            Context = await connection.Table<ContextSnapshotEntity>()
+                .Where(context => context.WordId == item.WordId)
+                .FirstAsync()
+        });
+        Assert.AreEqual("system", stored.Meaning.DisplayTerm);
+        Assert.AreEqual("systems", stored.Meaning.EncounteredSurfaceForm);
+        Assert.Contains("plural of system", stored.Meaning.GrammaticalRelationship);
+        Assert.AreEqual("Smart systems protect data.", stored.Context.Text);
+        Assert.AreEqual("systems", stored.Context.Text.Substring(stored.Context.TargetStart, stored.Context.TargetLength));
     }
 
     [TestMethod]
@@ -185,6 +229,201 @@ public sealed class StudyWorkflowServiceTests
 
         Assert.AreEqual("beta", remaining!.Term, ignoreCase: true);
         Assert.AreEqual(PreparationCandidateStatus.ResultReady, remaining.Status);
+    }
+
+    [TestMethod]
+    public async Task Preparation_MarkKnownCreatesNoCardsAndAdvancesExactlyOnce()
+    {
+        await ImportAllUnknownAsync("alpha beta.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 2);
+        var first = await _preparation.GetCurrentAsync();
+
+        await _preparation.MarkKnownAsync(first!.CandidateId);
+
+        var next = await _preparation.GetCurrentAsync();
+        var state = await _database.ReadAsync(async connection => new
+        {
+            Word = await connection.FindAsync<WordEntity>(first.WordId),
+            Cards = await connection.Table<LearningCardEntity>().Where(card => card.WordId == first.WordId).CountAsync(),
+            Meanings = await connection.Table<MeaningEntity>().Where(meaning => meaning.WordId == first.WordId).CountAsync(),
+            Occurrences = await connection.Table<WordOccurrenceEntity>().Where(occurrence => occurrence.WordId == first.WordId).CountAsync(),
+            Candidate = await connection.FindAsync<PreparationCandidateEntity>(first.CandidateId)
+        });
+
+        Assert.AreEqual(WordStatus.Known, state.Word!.Status);
+        Assert.AreEqual(0, state.Cards);
+        Assert.AreEqual(0, state.Meanings);
+        Assert.AreEqual(0, state.Occurrences);
+        Assert.AreEqual(PreparationCandidateStatus.MarkedKnown, state.Candidate!.Status);
+        Assert.AreEqual(2, next!.Position);
+    }
+
+    [TestMethod]
+    public async Task Preparation_DoNotLearnStoresExactExclusionAndIsNotKnown()
+    {
+        await ImportAllUnknownAsync("network networking.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+
+        await _preparation.ExcludeAsync(item!.CandidateId);
+
+        var state = await _database.ReadAsync(async connection => new
+        {
+            Word = await connection.FindAsync<WordEntity>(item.WordId),
+            Cards = await connection.Table<LearningCardEntity>().Where(card => card.WordId == item.WordId).CountAsync(),
+            Candidate = await connection.FindAsync<PreparationCandidateEntity>(item.CandidateId)
+        });
+        var import = await _review.ImportAsync(Request("network protection."));
+        var reviewCandidate = await _review.GetCurrentCandidateAsync();
+
+        Assert.AreEqual(WordStatus.Ignored, state.Word!.Status);
+        Assert.AreNotEqual(WordStatus.Known, state.Word.Status);
+        Assert.AreEqual(0, state.Cards);
+        Assert.AreEqual(PreparationCandidateStatus.Excluded, state.Candidate!.Status);
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, import.Outcome);
+        Assert.AreEqual("protection", reviewCandidate!.Candidate, ignoreCase: true);
+    }
+
+    [TestMethod]
+    public async Task Preparation_SkipRemainsFutureBacklogAndAllSkippedBatchTerminates()
+    {
+        await ImportAllUnknownAsync("alpha beta.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 2);
+        var first = await _preparation.GetCurrentAsync();
+        await _preparation.SkipAsync(first!.CandidateId);
+        var second = await _preparation.GetCurrentAsync();
+        await _preparation.SkipAsync(second!.CandidateId);
+
+        var afterBatch = await _preparation.GetCurrentAsync();
+        var completed = await _database.ReadAsync(connection => connection.Table<PreparationSessionEntity>()
+            .Where(session => session.Status == PreparationSessionStatus.Completed)
+            .OrderByDescending(session => session.Id)
+            .FirstAsync());
+        var skippedWords = await _database.ReadAsync(connection => connection.Table<WordEntity>()
+            .Where(word => word.Status == WordStatus.UnknownBacklog)
+            .ToListAsync());
+        await _preparation.StartAsync(PreparationMethod.Manual, 2);
+        var future = await _preparation.GetCurrentAsync();
+
+        Assert.IsNull(afterBatch);
+        Assert.AreEqual(2, completed.CompletedItems);
+        Assert.AreEqual(2, completed.TotalItems);
+        Assert.IsTrue(skippedWords.All(word => word.PreparationState == PreparationState.Unprepared));
+        Assert.IsNotNull(future);
+        Assert.AreEqual(WordStatus.UnknownBacklog, await _database.ReadAsync(async connection =>
+            (await connection.FindAsync<WordEntity>(future!.WordId))!.Status));
+    }
+
+    [TestMethod]
+    public async Task Preparation_AcceptLoadedResultPerformsNoNetworkRequest()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        var callsBeforeAccept = _provider.CallCount;
+
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.TermToMeaning);
+
+        Assert.AreEqual(callsBeforeAccept, _provider.CallCount);
+    }
+
+    [TestMethod]
+    public async Task Preparation_PrefetchesAtMostOneNextResultAndReusesIt()
+    {
+        await ImportAllUnknownAsync("alpha beta.");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 2);
+        var first = await _preparation.LookupCurrentAsync();
+        await WaitForAsync(() => _provider.CallCount >= 2);
+
+        await _preparation.AcceptAsync(
+            first!.CandidateId,
+            InputFrom(first),
+            CardDirectionPreference.TermToMeaning);
+        var second = await _preparation.LookupCurrentAsync();
+
+        Assert.IsNotNull(second);
+        Assert.AreEqual(2, _provider.CallCount);
+    }
+
+#if DEBUG
+    [TestMethod]
+    public async Task Preparation_TimingCapturesEveryRequiredPhase()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 1);
+        _ = await _preparation.GetCurrentAsync();
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(
+            item!.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.TermToMeaning);
+        _ = await _preparation.GetCurrentAsync();
+        _preparation.RecordUiTransition(item.CandidateId, TimeSpan.FromMilliseconds(12));
+
+        var timings = _preparation.GetTimingDiagnostics();
+        foreach (var timing in timings)
+        {
+            TestContext.WriteLine(
+                $"{timing.Operation} | {timing.Phase} | {timing.DurationMilliseconds:0.000} ms");
+        }
+
+        var phases = timings.Select(timing => timing.Phase).ToHashSet();
+
+        foreach (var phase in Enum.GetValues<PreparationTimingPhase>())
+        {
+            Assert.Contains(phase, phases, $"The {phase} timing phase was not captured.");
+        }
+    }
+#endif
+
+    [TestMethod]
+    public async Task Preparation_ConcurrentAcceptCreatesOneMeaningAndOneCard()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+        var input = ManualInput(item!.Term);
+
+        var first = _preparation.AcceptAsync(item.CandidateId, input, CardDirectionPreference.TermToMeaning);
+        var second = _preparation.AcceptAsync(item.CandidateId, input, CardDirectionPreference.TermToMeaning);
+        try
+        {
+            await Task.WhenAll(first, second);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        var counts = await _database.ReadAsync(async connection => new
+        {
+            Meanings = await connection.Table<MeaningEntity>().CountAsync(),
+            Cards = await connection.Table<LearningCardEntity>().CountAsync()
+        });
+        Assert.AreEqual(1, counts.Meanings);
+        Assert.AreEqual(1, counts.Cards);
+        Assert.AreEqual(1, new[] { first, second }.Count(task => task.IsCompletedSuccessfully));
+    }
+
+    [TestMethod]
+    public async Task Learning_CompletionReportsRemainingUnknownPreparationCount()
+    {
+        await ImportAllUnknownAsync("alpha beta.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var prepared = await _preparation.GetCurrentAsync();
+        await _preparation.AcceptAsync(
+            prepared!.CandidateId,
+            ManualInput(prepared.Term),
+            CardDirectionPreference.TermToMeaning);
+        var card = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(card.QueueItemId);
+
+        var completed = await _learning.RateAsync(card.QueueItemId, ReviewRating.Good);
+
+        Assert.IsNotNull(completed.CompletedSummary);
+        Assert.AreEqual(1, completed.CompletedSummary.RemainingUnpreparedCount);
     }
 
     [TestMethod]
@@ -709,7 +948,10 @@ public sealed class StudyWorkflowServiceTests
             result.SourceProject,
             result.PageTitle,
             result.RevisionId,
-            result.Attribution);
+            result.Attribution,
+            item.EncounteredSurfaceForm,
+            result.GrammaticalRelationship,
+            result.DisplayTerm);
     }
 
     private LexicalResult SuccessResult(LexicalLookupRequest request) => new(
@@ -747,6 +989,8 @@ public sealed class StudyWorkflowServiceTests
 
     private sealed class MutableDictionaryProvider(FakeClock clock) : IDictionaryLookupProvider
     {
+        private int _callCount;
+
         public Func<LexicalLookupRequest, IReadOnlyList<LexicalMeaning>> MeaningsFactory { get; set; } = request =>
         [new LexicalMeaning(
             "primary",
@@ -758,6 +1002,8 @@ public sealed class StudyWorkflowServiceTests
 
         public Func<LexicalLookupRequest, LexicalResult>? ResultFactory { get; set; }
 
+        public int CallCount => Volatile.Read(ref _callCount);
+
         public string ProviderName => "Fake Wiktionary";
 
         public int ProviderSchemaVersion => 1;
@@ -766,6 +1012,7 @@ public sealed class StudyWorkflowServiceTests
             LexicalLookupRequest request,
             CancellationToken cancellationToken = default)
         {
+            Interlocked.Increment(ref _callCount);
             var result = ResultFactory?.Invoke(request) ?? new LexicalResult(
                 LexicalLookupStatus.Success,
                 request.NormalizedLemma,
@@ -782,6 +1029,15 @@ public sealed class StudyWorkflowServiceTests
                 "Fixture attribution",
                 clock.UtcNow);
             return Task.FromResult(result);
+        }
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
         }
     }
 

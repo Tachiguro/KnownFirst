@@ -18,6 +18,10 @@ public sealed class MeaningEntity
 
     public string DisplayTerm { get; set; } = string.Empty;
 
+    public string EncounteredSurfaceForm { get; set; } = string.Empty;
+
+    public string GrammaticalRelationship { get; set; } = string.Empty;
+
     public TokenKind TokenKind { get; set; } = TokenKind.Word;
 
     public string SelectedMeaningId { get; set; } = string.Empty;

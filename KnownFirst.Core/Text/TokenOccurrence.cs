@@ -7,4 +7,9 @@ public sealed record TokenOccurrence(
     int StartPosition,
     int Length,
     int Order,
-    int SentenceOrder);
+    int SentenceOrder,
+    string? CanonicalTerm = null,
+    TechnicalTokenFamily TechnicalFamily = TechnicalTokenFamily.None,
+    int? TechnicalInstanceYear = null,
+    string? TechnicalInstanceIdentifier = null,
+    string? TechnicalVariant = null);

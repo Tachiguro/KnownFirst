@@ -13,23 +13,25 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void PrimaryNavigation_LearnComesBeforeImportAndSettings()
+    public void PrimaryNavigation_UsesLearnPrepareImportSettingsOrder()
     {
         var markup = LoadUi("NavMenu.razor");
         var learn = markup.IndexOf("href=\"learn\"", StringComparison.Ordinal);
+        var prepare = markup.IndexOf("href=\"prepare-words\"", StringComparison.Ordinal);
         var import = markup.IndexOf("href=\"import-text\"", StringComparison.Ordinal);
         var settings = markup.IndexOf("href=\"settings\"", StringComparison.Ordinal);
-        Assert.IsGreaterThanOrEqualTo(0, learn);
-        Assert.IsGreaterThan(learn, import);
-        Assert.IsGreaterThan(import, settings);
+        Assert.IsTrue(learn >= 0 && learn < prepare && prepare < import && import < settings);
     }
 
     [TestMethod]
-    public void PrimaryNavigation_DoesNotExposeReviewOrPrepareAsPermanentLinks()
+    public void PrimaryNavigation_ExposesStatefulPrepareButNotReview()
     {
         var markup = LoadUi("NavMenu.razor");
         Assert.IsFalse(markup.Contains("href=\"review-words\"", StringComparison.Ordinal));
-        Assert.IsFalse(markup.Contains("href=\"prepare-words\"", StringComparison.Ordinal));
+        Assert.Contains("href=\"prepare-words\"", markup);
+        Assert.Contains("Navigation_PrepareBlockedByReview", markup);
+        Assert.Contains("Navigation_PrepareUnavailable", markup);
+        Assert.Contains("Home_ContinuePreparation", markup);
     }
 
     [TestMethod]
@@ -90,6 +92,118 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Preparation_MeaningPickerIsBoundedResponsiveAndDoesNotUseNativeSelect()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var styles = LoadUi("PrepareWords.razor.css");
+
+        Assert.DoesNotContain("<select", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("role=\"dialog\"", markup);
+        Assert.Contains("role=\"listbox\"", markup);
+        Assert.Contains("MeaningPreviewPolicy.CreateClosedPreview", markup);
+        Assert.Contains("MeaningPreviewPolicy.CreateAlternativePreview", markup);
+        Assert.Contains("MeaningPreviewPolicy.IsAlternativeTruncated", markup);
+        Assert.Contains("Escape", markup);
+        Assert.Contains("RegisterDismissibleOverlay", markup);
+        Assert.Contains("focusElement", markup);
+        Assert.Contains("max-width: 100%", styles);
+        Assert.Contains("min-width: 0", styles);
+        Assert.Contains("overflow-wrap: anywhere", styles);
+        Assert.Contains("-webkit-line-clamp: 2", styles);
+        Assert.Contains("env(safe-area-inset-bottom)", styles);
+    }
+
+    [TestMethod]
+    public void Preparation_ActionsRequireConfirmationAndRetryIsConditional()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("ShowMarkKnownConfirmation", markup);
+        Assert.Contains("ShowExcludeConfirmation", markup);
+        Assert.Contains("Prepare_MarkKnownConfirmation", markup);
+        Assert.Contains("Prepare_DoNotLearnConfirmation", markup);
+        Assert.Contains("PreparationService.MarkKnownAsync", markup);
+        Assert.Contains("PreparationService.ExcludeAsync", markup);
+        Assert.Contains("PreparationService.SkipAsync", markup);
+        Assert.Contains("if (CanRetryLookup)", markup);
+        Assert.Contains("LexicalLookupOutcomePolicy.CanRetry", markup);
+        Assert.DoesNotContain("Search another source", markup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
+    public void Preparation_TransitionPreventsDoubleSubmissionAndUsesBoundedNextQuery()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var service = LoadUi("PreparationService.cs");
+
+        Assert.Contains("if (_item is null || _isBusy)", markup);
+        Assert.Contains("disabled=\"@_isBusy\"", markup);
+        Assert.Contains("TimeSpan.FromMilliseconds(150)", markup);
+        Assert.Contains("FindCurrentCandidateAsync", service);
+        Assert.Contains("FirstOrDefaultAsync", service);
+        Assert.DoesNotContain("candidates = await connection.Table<PreparationCandidateEntity>().ToListAsync", service);
+    }
+
+    [TestMethod]
+    public void MobileReview_HasCollapsedMetadataAndStableTwoColumnActionBar()
+    {
+        var markup = LoadUi("ReviewWords.razor");
+        var styles = LoadUi("ReviewWords.razor.css");
+
+        Assert.Contains("<details class=\"candidate-details-panel\">", markup);
+        Assert.DoesNotContain("<details class=\"candidate-details-panel\" open", markup);
+        Assert.Contains("review-action-bar", markup);
+        Assert.Contains("Review_Saving", markup);
+        Assert.Contains("position: fixed", styles);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", styles);
+        Assert.Contains("env(safe-area-inset-bottom)", styles);
+        Assert.Contains("padding-bottom", styles);
+    }
+
+    [TestMethod]
+    public void MobileTitle_IsNotDuplicatedAndHomeShowsKnownFirstOnce()
+    {
+        var pageHeaderStyles = LoadUi("PageHeader.razor.css");
+        var home = LoadUi("Home.razor");
+        var layout = LoadUi("MainLayout.razor");
+
+        Assert.Contains("@media (max-width: 799px)", pageHeaderStyles);
+        Assert.Contains("display: none", pageHeaderStyles);
+        Assert.DoesNotContain("Localizer[\"App_Name\"]", home);
+        Assert.AreEqual(1, CountOccurrences(home, "<h1>@Localizer[\"Home_Title\"]</h1>"));
+        Assert.Contains("\"\" => string.Empty", layout);
+    }
+
+    [TestMethod]
+    public void Learning_ContextNavigationIsAdjacentToContextAndRecommendationUsesCount()
+    {
+        var markup = LoadUi("Learn.razor");
+
+        Assert.AreEqual(2, CountOccurrences(markup, "@ContextNavigation"));
+        Assert.Contains("learning-context-block", markup);
+        Assert.Contains("Learn_MoreUnknownWaiting\", _summary.RemainingUnpreparedCount", markup);
+        Assert.Contains("Learn_PrepareNextWords", markup);
+        Assert.Contains("Common_Later", markup);
+        Assert.Contains("Prepare_ChangeLimit", markup);
+    }
+
+    [TestMethod]
+    public void SourceDetails_AreCollapsedAndLearningUsesCompactControl()
+    {
+        var source = LoadUi("SourceDetails.razor");
+        var answer = LoadUi("AnswerView.razor");
+
+        Assert.Contains("<details class=\"source-details", source);
+        Assert.DoesNotContain("<details open", source);
+        Assert.Contains("SourceProject", source);
+        Assert.Contains("PageTitle", source);
+        Assert.Contains("RevisionId", source);
+        Assert.Contains("Attribution", source);
+        Assert.Contains("Source_License", source);
+        Assert.Contains("Compact=\"true\"", answer);
+    }
+
+    [TestMethod]
     public void AnalysisDiagnostics_AreDebugEntryPointsAndReleaseExcludesTheDiagnosticsPage()
     {
         var review = LoadUi("ReviewWords.razor");
@@ -112,4 +226,17 @@ public sealed class UiWorkflowContractTests
         AppContext.BaseDirectory,
         "Ui",
         fileName));
+
+    private static int CountOccurrences(string value, string search)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += search.Length;
+        }
+
+        return count;
+    }
 }

@@ -23,6 +23,21 @@
                     @Localizer["Navigation_Learn"]
                 </span>
             }
+            @if (_workflow?.CanPrepare == true)
+            {
+                <NavLink class="nav-link" href="prepare-words" @onclick="NotifyNavigationAsync">
+                    @Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link nav-link-disabled"
+                      aria-disabled="true"
+                      title="@PrepareUnavailableReason">
+                    @Localizer[_workflow?.HasActivePreparation == true ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
+                    <small>@PrepareUnavailableReason</small>
+                </span>
+            }
             @if (_workflow?.CanImport != false)
             {
                 <NavLink class="nav-link" href="import-text" @onclick="NotifyNavigationAsync">
@@ -76,6 +91,11 @@
     private WorkflowSnapshot? _workflow;
 
     private string HomeRoute => _workflow?.HasActiveReview == true ? "review-words" : string.Empty;
+
+    private string PrepareUnavailableReason => Localizer[
+        _workflow?.HasActiveReview == true
+            ? "Navigation_PrepareBlockedByReview"
+            : "Navigation_PrepareUnavailable"];
 
     protected override async Task OnInitializedAsync()
     {

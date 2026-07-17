@@ -121,7 +121,7 @@
     <value>Appearance changed to {0}.</value>
   </data>
   <data name="Settings_PreparationLimit" xml:space="preserve">
-    <value>Words per preparation</value>
+    <value>New words per day</value>
   </data>
   <data name="Settings_ResetData" xml:space="preserve">
     <value>Reset all application data</value>
@@ -139,7 +139,7 @@
     <value>Reset data</value>
   </data>
   <data name="Settings_PreparationLimitSaved" xml:space="preserve">
-    <value>Words per preparation saved: {0}.</value>
+    <value>New-word daily limit saved: {0}.</value>
   </data>
   <data name="Settings_ResetSuccess" xml:space="preserve">
     <value>All local application data was reset.</value>
@@ -715,7 +715,7 @@
     <value>You prepared {0} new words. Learn these words before adding more, or change the limit in Settings.</value>
   </data>
   <data name="Prepare_ChangeLimit" xml:space="preserve">
-    <value>Change limit</value>
+    <value>Change daily limit</value>
   </data>
   <data name="Prepare_StartLearning" xml:space="preserve">
     <value>Start learning</value>
@@ -808,10 +808,10 @@
     <value>Next card due: {0}</value>
   </data>
   <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
-    <value>All current reviews are complete. More unknown words are waiting for preparation.</value>
+    <value>All current reviews are complete. {0} unknown words are waiting for preparation.</value>
   </data>
   <data name="Learn_PrepareNextWords" xml:space="preserve">
-    <value>Prepare next frequent words</value>
+    <value>Prepare next words</value>
   </data>
   <data name="Learn_NothingDue" xml:space="preserve">
     <value>No more words are due right now.</value>
@@ -1013,5 +1013,131 @@
   </data>
   <data name="Analysis_InvariantsPassed" xml:space="preserve">
     <value>All coordinate invariants passed.</value>
+  </data>
+  <data name="Common_TryAgain" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="Common_ShowFullText" xml:space="preserve">
+    <value>Show full text</value>
+  </data>
+  <data name="Navigation_PrepareBlockedByReview" xml:space="preserve">
+    <value>Finish or discard the active vocabulary review first.</value>
+  </data>
+  <data name="Navigation_PrepareUnavailable" xml:space="preserve">
+    <value>No unknown, unprepared words are waiting.</value>
+  </data>
+  <data name="Settings_PreparationLimitHelp" xml:space="preserve">
+    <value>Limits new learning words per day so preparation and study remain manageable. Due reviews do not count.</value>
+  </data>
+  <data name="Review_Details" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="Review_Saving" xml:space="preserve">
+    <value>Saving decision…</value>
+  </data>
+  <data name="Prepare_InText" xml:space="preserve">
+    <value>In the text: {0}</value>
+  </data>
+  <data name="Prepare_Saving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="Prepare_OtherActions" xml:space="preserve">
+    <value>Other preparation actions</value>
+  </data>
+  <data name="Prepare_MarkKnown" xml:space="preserve">
+    <value>Mark as known</value>
+  </data>
+  <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
+    <value>This word will be stored as permanently known. No learning cards will be created, and obsolete preparation, context, and frequency data will be removed.</value>
+  </data>
+  <data name="Prepare_DoNotLearn" xml:space="preserve">
+    <value>Do not learn</value>
+  </data>
+  <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
+    <value>This exact vocabulary identity will be excluded from future review and preparation. Related words and forms will not be excluded, and no learning cards will be created.</value>
+  </data>
+  <data name="Prepare_TransientFailure" xml:space="preserve">
+    <value>The dictionary service is temporarily unavailable. Cached results remain available.</value>
+  </data>
+  <data name="Prepare_ParseFailure" xml:space="preserve">
+    <value>The downloaded dictionary result could not be read. You can try again.</value>
+  </data>
+  <data name="Prepare_PermanentFailure" xml:space="preserve">
+    <value>The dictionary service cannot complete this request.</value>
+  </data>
+  <data name="Prepare_NotFound" xml:space="preserve">
+    <value>No suitable dictionary result was found.</value>
+  </data>
+  <data name="Source_Details" xml:space="preserve">
+    <value>Source details</value>
+  </data>
+  <data name="Source_Provider" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="Source_Project" xml:space="preserve">
+    <value>Wiktionary/Wikimedia project</value>
+  </data>
+  <data name="Source_PageTitle" xml:space="preserve">
+    <value>Page title</value>
+  </data>
+  <data name="Source_Revision" xml:space="preserve">
+    <value>Revision ID</value>
+  </data>
+  <data name="Source_Attribution" xml:space="preserve">
+    <value>Attribution</value>
+  </data>
+  <data name="Source_License" xml:space="preserve">
+    <value>License reference</value>
+  </data>
+  <data name="Diagnostics_PreparationTiming" xml:space="preserve">
+    <value>Preparation timing</value>
+  </data>
+  <data name="Diagnostics_PreparationTimingDescription" xml:space="preserve">
+    <value>Monotonic DEBUG measurements for preparation transitions. Network work is reported separately from local transition phases.</value>
+  </data>
+  <data name="Diagnostics_Sequence" xml:space="preserve">
+    <value>Sequence</value>
+  </data>
+  <data name="Diagnostics_Operation" xml:space="preserve">
+    <value>Operation</value>
+  </data>
+  <data name="Diagnostics_Phase" xml:space="preserve">
+    <value>Phase</value>
+  </data>
+  <data name="Diagnostics_DurationMilliseconds" xml:space="preserve">
+    <value>Duration (ms)</value>
+  </data>
+  <data name="Diagnostics_CandidateId" xml:space="preserve">
+    <value>Candidate ID</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_Validation" xml:space="preserve">
+    <value>Validation</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_DatabaseTransaction" xml:space="preserve">
+    <value>Database transaction</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_PreparedMeaningSave" xml:space="preserve">
+    <value>Prepared-meaning save</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_LearningCardCreation" xml:space="preserve">
+    <value>Learning-card creation</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_SessionUpdate" xml:space="preserve">
+    <value>Session update</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NextCandidateQuery" xml:space="preserve">
+    <value>Next-candidate query</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_ContextLoading" xml:space="preserve">
+    <value>Context loading</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_UiTransition" xml:space="preserve">
+    <value>UI transition</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NetworkWork" xml:space="preserve">
+    <value>Network work</value>
   </data>
 </root>

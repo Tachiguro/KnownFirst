@@ -26,7 +26,33 @@ public sealed record PreparationItem(
     IReadOnlyList<PreparationContext> Contexts,
     LexicalResult? Result,
     int SelectedMeaningIndex,
-    string? LastErrorCode);
+    string? LastErrorCode)
+{
+    public string LearningTerm => string.IsNullOrWhiteSpace(Result?.DisplayTerm)
+        ? Term
+        : Result.DisplayTerm;
+
+    public string? EncounteredSurfaceForm => string.IsNullOrWhiteSpace(Result?.EncounteredSurfaceForm)
+        ? GetContextSurfaceForm()
+        : Result.EncounteredSurfaceForm;
+
+    private string? GetContextSurfaceForm()
+    {
+        var context = Contexts.FirstOrDefault();
+        if (context is null
+            || context.TargetStart < 0
+            || context.TargetLength <= 0
+            || context.TargetStart + context.TargetLength > context.Text.Length)
+        {
+            return null;
+        }
+
+        var surfaceForm = context.Text.Substring(context.TargetStart, context.TargetLength);
+        return string.Equals(surfaceForm, LearningTerm, StringComparison.Ordinal)
+            ? null
+            : surfaceForm;
+    }
+}
 
 public sealed record PreparationOverview(
     int UnpreparedCount,
@@ -50,4 +76,7 @@ public sealed record PreparedMeaningInput(
     string SourceProject,
     string SourcePageTitle,
     long? SourceRevisionId,
-    string Attribution);
+    string Attribution,
+    string? EncounteredSurfaceForm = null,
+    string? GrammaticalRelationship = null,
+    string? CanonicalLearningTerm = null);

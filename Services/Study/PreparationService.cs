@@ -6,6 +6,7 @@ using KnownFirst.Data.Entities;
 using KnownFirst.Models;
 using KnownFirst.Services.Lexical;
 using SQLite;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -25,6 +26,16 @@ public sealed partial class PreparationService(
         Converters = { new JsonStringEnumConverter() }
     };
     private readonly SemaphoreSlim _operationGate = new(1, 1);
+    private readonly object _prefetchSync = new();
+    private CancellationTokenSource? _prefetchCancellation;
+    private Task<PrefetchedLookup?>? _prefetchTask;
+    private int? _prefetchOriginCandidateId;
+#if DEBUG
+    private const int MaximumTimingMeasurements = 200;
+    private readonly object _timingSync = new();
+    private readonly List<PreparationTimingMeasurement> _timingMeasurements = [];
+    private long _timingSequence;
+#endif
 
     public Task<PreparationOverview> GetOverviewAsync() => database.ReadAsync(async connection =>
     {
@@ -158,16 +169,18 @@ public sealed partial class PreparationService(
             return null;
         }
 
-        var candidate = (await connection.Table<PreparationCandidateEntity>()
-                .Where(item => item.SessionId == session.Id)
-                .OrderBy(item => item.Order)
-                .ToListAsync())
-            .FirstOrDefault(item => item.Status is PreparationCandidateStatus.Pending
-                or PreparationCandidateStatus.ResultReady
-                or PreparationCandidateStatus.Failed);
-        return candidate is null
-            ? null
-            : await CreateItemAsync(connection, session, candidate);
+        var queryStarted = Stopwatch.GetTimestamp();
+        var candidate = await FindCurrentCandidateAsync(connection, session.Id);
+        RecordTiming(candidate?.Id, "Get current", PreparationTimingPhase.NextCandidateQuery, queryStarted);
+        if (candidate is null)
+        {
+            return null;
+        }
+
+        var contextStarted = Stopwatch.GetTimestamp();
+        var item = await CreateItemAsync(connection, session, candidate);
+        RecordTiming(candidate.Id, "Get current", PreparationTimingPhase.ContextLoading, contextStarted);
+        return item;
     });
 
     public async Task<PreparationItem?> LookupCurrentAsync(CancellationToken cancellationToken = default)
@@ -175,15 +188,15 @@ public sealed partial class PreparationService(
         await _operationGate.WaitAsync(cancellationToken);
         try
         {
-            var source = await GetLookupSourceAsync();
-            if (source is null)
+            var item = await GetLookupItemAsync();
+            if (item is null)
             {
                 return null;
             }
 
             await database.RunInTransactionAsync(connection =>
             {
-                var candidate = connection.Find<PreparationCandidateEntity>(source.Item.CandidateId)
+                var candidate = connection.Find<PreparationCandidateEntity>(item.CandidateId)
                     ?? throw new InvalidOperationException("The preparation candidate no longer exists.");
                 EnsureCurrentCandidate(connection, candidate);
                 candidate.Status = PreparationCandidateStatus.Pending;
@@ -197,20 +210,25 @@ public sealed partial class PreparationService(
                 return true;
             });
 
-            var request = new LexicalLookupRequest(
-                source.Item.Term,
-                NormalizeLemma(source.Item.Term),
-                source.Item.TokenKind,
-                source.Item.SourceLanguage,
-                source.Item.ExplanationLanguage);
-            var result = await lexicalEnrichment.EnrichAsync(
-                request,
-                source.DocumentContent,
-                source.Item.Contexts.FirstOrDefault()?.Text,
-                cancellationToken);
+            var result = await TryConsumePrefetchAsync(item.CandidateId, cancellationToken);
+            if (result is null)
+            {
+                var documentContent = await GetDocumentContentAsync(item.WordId);
+                var networkStarted = Stopwatch.GetTimestamp();
+                result = await lexicalEnrichment.EnrichAsync(
+                    CreateLookupRequest(item),
+                    documentContent,
+                    item.Contexts.FirstOrDefault()?.Text,
+                    cancellationToken);
+                RecordTiming(
+                    item.CandidateId,
+                    "Lookup",
+                    PreparationTimingPhase.NetworkWork,
+                    networkStarted);
+            }
             await database.RunInTransactionAsync(connection =>
             {
-                var candidate = connection.Find<PreparationCandidateEntity>(source.Item.CandidateId)
+                var candidate = connection.Find<PreparationCandidateEntity>(item.CandidateId)
                     ?? throw new InvalidOperationException("The preparation candidate no longer exists.");
                 EnsureCurrentCandidate(connection, candidate);
                 candidate.ResultJson = JsonSerializer.Serialize(result, SerializerOptions);
@@ -230,7 +248,21 @@ public sealed partial class PreparationService(
                 return true;
             });
 
-            return await GetCurrentAsync();
+            var updated = item with
+            {
+                Status = result.HasUsableData
+                    ? PreparationCandidateStatus.ResultReady
+                    : PreparationCandidateStatus.Failed,
+                Result = result,
+                SelectedMeaningIndex = 0,
+                LastErrorCode = result.ErrorCode
+            };
+            if (result.HasUsableData)
+            {
+                BeginPrefetch(item);
+            }
+
+            return updated;
         }
         finally
         {
@@ -272,15 +304,19 @@ public sealed partial class PreparationService(
         PreparedMeaningInput input,
         CardDirectionPreference cardDirectionPreference)
     {
+        var validationStarted = Stopwatch.GetTimestamp();
         ArgumentNullException.ThrowIfNull(input);
         if (string.IsNullOrWhiteSpace(input.Definition))
         {
             throw new ArgumentException("A definition is required.", nameof(input));
         }
 
+        RecordTiming(candidateId, "Accept", PreparationTimingPhase.Validation, validationStarted);
+
         await _operationGate.WaitAsync();
         try
         {
+            var transactionStarted = Stopwatch.GetTimestamp();
             await database.RunInTransactionAsync(connection =>
             {
                 var candidate = connection.Find<PreparationCandidateEntity>(candidateId)
@@ -296,7 +332,9 @@ public sealed partial class PreparationService(
                     throw new InvalidOperationException("This vocabulary item is already prepared.");
                 }
 
+                var contextStarted = Stopwatch.GetTimestamp();
                 var contextData = BuildContextData(connection, word.Id);
+                RecordTiming(candidateId, "Accept", PreparationTimingPhase.ContextLoading, contextStarted);
                 var explanationLanguage = contextData.FirstOrDefault()?.ExplanationLanguage ?? word.Language;
                 var now = clock.UtcNow;
                 var preparedTokenKind = !string.IsNullOrWhiteSpace(input.AcronymExpansion)
@@ -308,12 +346,17 @@ public sealed partial class PreparationService(
                     .Where(alias => alias.Length > 0)
                     .Distinct(StringComparer.Ordinal)
                     .ToArray();
+                var meaningSaveStarted = Stopwatch.GetTimestamp();
                 var meaning = new MeaningEntity
                 {
                     WordId = word.Id,
                     SourceLanguage = word.Language,
                     ExplanationLanguage = explanationLanguage,
-                    DisplayTerm = word.CanonicalTerm,
+                    DisplayTerm = string.IsNullOrWhiteSpace(input.CanonicalLearningTerm)
+                        ? word.CanonicalTerm
+                        : input.CanonicalLearningTerm.Trim(),
+                    EncounteredSurfaceForm = input.EncounteredSurfaceForm?.Trim() ?? string.Empty,
+                    GrammaticalRelationship = input.GrammaticalRelationship?.Trim() ?? string.Empty,
                     TokenKind = preparedTokenKind,
                     SelectedMeaningId = input.SelectedMeaningId ?? string.Empty,
                     AcronymExpansion = input.AcronymExpansion?.Trim() ?? string.Empty,
@@ -352,6 +395,13 @@ public sealed partial class PreparationService(
                     });
                 }
 
+                RecordTiming(
+                    candidateId,
+                    "Accept",
+                    PreparationTimingPhase.PreparedMeaningSave,
+                    meaningSaveStarted);
+
+                var cardCreationStarted = Stopwatch.GetTimestamp();
                 foreach (var direction in CardDirectionPreferencePolicy.GetDirections(cardDirectionPreference))
                 {
                     connection.Insert(new LearningCardEntity
@@ -367,14 +417,31 @@ public sealed partial class PreparationService(
                     });
                 }
 
+                RecordTiming(
+                    candidateId,
+                    "Accept",
+                    PreparationTimingPhase.LearningCardCreation,
+                    cardCreationStarted);
+
+                var sessionUpdateStarted = Stopwatch.GetTimestamp();
                 word.TokenKind = preparedTokenKind;
                 word.Status = WordStatus.Prepared;
                 word.PreparationState = PreparationState.Prepared;
                 word.UpdatedAt = now;
                 connection.Update(word);
                 CompleteCandidate(connection, session, candidate, PreparationCandidateStatus.Prepared, now);
+                RecordTiming(
+                    candidateId,
+                    "Accept",
+                    PreparationTimingPhase.SessionUpdate,
+                    sessionUpdateStarted);
                 return true;
             });
+            RecordTiming(
+                candidateId,
+                "Accept",
+                PreparationTimingPhase.DatabaseTransaction,
+                transactionStarted);
         }
         finally
         {
@@ -412,7 +479,114 @@ public sealed partial class PreparationService(
         }
     }
 
-    private Task<PreparationLookupSource?> GetLookupSourceAsync() => database.ReadAsync(async connection =>
+    public Task MarkKnownAsync(int candidateId) =>
+        CompleteWithoutLearningAsync(
+            candidateId,
+            WordStatus.Known,
+            PreparationCandidateStatus.MarkedKnown);
+
+    public Task ExcludeAsync(int candidateId) =>
+        CompleteWithoutLearningAsync(
+            candidateId,
+            WordStatus.Ignored,
+            PreparationCandidateStatus.Excluded);
+
+    public async Task CancelPrefetchAsync()
+    {
+        CancellationTokenSource? cancellation;
+        Task<PrefetchedLookup?>? task;
+        lock (_prefetchSync)
+        {
+            cancellation = _prefetchCancellation;
+            task = _prefetchTask;
+            _prefetchCancellation = null;
+            _prefetchTask = null;
+            _prefetchOriginCandidateId = null;
+        }
+
+        cancellation?.Cancel();
+        if (task is not null)
+        {
+            try
+            {
+                await task;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        cancellation?.Dispose();
+    }
+
+#if DEBUG
+    public IReadOnlyList<PreparationTimingMeasurement> GetTimingDiagnostics()
+    {
+        lock (_timingSync)
+        {
+            return _timingMeasurements.ToArray();
+        }
+    }
+
+    public void RecordUiTransition(int? candidateId, TimeSpan elapsed) => RecordTiming(
+        candidateId,
+        "Accept to next item",
+        PreparationTimingPhase.UiTransition,
+        elapsed);
+#endif
+
+    private async Task CompleteWithoutLearningAsync(
+        int candidateId,
+        WordStatus finalWordStatus,
+        PreparationCandidateStatus finalCandidateStatus)
+    {
+        await _operationGate.WaitAsync();
+        try
+        {
+            await database.RunInTransactionAsync(connection =>
+            {
+                var candidate = connection.Find<PreparationCandidateEntity>(candidateId)
+                    ?? throw new InvalidOperationException("The preparation candidate does not exist.");
+                EnsureCurrentCandidate(connection, candidate);
+                var session = connection.Find<PreparationSessionEntity>(candidate.SessionId)
+                    ?? throw new InvalidOperationException("The preparation session does not exist.");
+                var word = connection.Find<WordEntity>(candidate.WordId)
+                    ?? throw new InvalidOperationException("The preparation word does not exist.");
+                if (word.Status != WordStatus.UnknownBacklog
+                    || connection.Table<MeaningEntity>().Any(meaning => meaning.WordId == word.Id)
+                    || connection.Table<LearningCardEntity>().Any(card => card.WordId == word.Id))
+                {
+                    throw new InvalidOperationException("Only unprepared Unknown vocabulary can be completed without learning.");
+                }
+
+                connection.Execute("DELETE FROM ContextSnapshots WHERE WordId = ?", word.Id);
+                connection.Execute("DELETE FROM WordOccurrences WHERE WordId = ?", word.Id);
+                connection.Execute("DELETE FROM WordForms WHERE WordId = ?", word.Id);
+                connection.Execute("DELETE FROM ReviewStates WHERE WordId = ?", word.Id);
+
+                var now = clock.UtcNow;
+                word.Status = finalWordStatus;
+                word.PreparationState = PreparationState.Unprepared;
+                word.TotalOccurrenceCount = 0;
+                word.DocumentCount = 0;
+                word.UpdatedAt = now;
+                connection.Update(word);
+
+                candidate.ResultJson = string.Empty;
+                candidate.SelectedMeaningIndex = 0;
+                candidate.LastErrorCode = string.Empty;
+                CompleteCandidate(connection, session, candidate, finalCandidateStatus, now);
+                DocumentCleanupOperations.CleanupEligibleDocuments(connection);
+                return true;
+            });
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    private Task<PreparationItem?> GetLookupItemAsync() => database.ReadAsync(async connection =>
     {
         var session = await connection.Table<PreparationSessionEntity>()
             .Where(item => item.Status == PreparationSessionStatus.Active)
@@ -422,21 +596,39 @@ public sealed partial class PreparationService(
             return null;
         }
 
-        var candidate = (await connection.Table<PreparationCandidateEntity>()
-                .Where(item => item.SessionId == session.Id)
-                .OrderBy(item => item.Order)
-                .ToListAsync())
-            .FirstOrDefault(item => item.Status is PreparationCandidateStatus.Pending
-                or PreparationCandidateStatus.ResultReady
-                or PreparationCandidateStatus.Failed);
+        var queryStarted = Stopwatch.GetTimestamp();
+        var candidate = await FindCurrentCandidateAsync(connection, session.Id);
+        RecordTiming(candidate?.Id, "Lookup", PreparationTimingPhase.NextCandidateQuery, queryStarted);
         if (candidate is null)
         {
             return null;
         }
 
+        var contextStarted = Stopwatch.GetTimestamp();
         var item = await CreateItemAsync(connection, session, candidate);
+        RecordTiming(candidate.Id, "Lookup", PreparationTimingPhase.ContextLoading, contextStarted);
+        return item;
+    });
+
+    private Task<string> GetDocumentContentAsync(int wordId) => database.ReadAsync(
+        connection => LoadDocumentContentAsync(connection, wordId));
+
+    private static async Task<PreparationLookupSource> CreateLookupSourceAsync(
+        SQLiteAsyncConnection connection,
+        PreparationSessionEntity session,
+        PreparationCandidateEntity candidate)
+    {
+        var item = await CreateItemAsync(connection, session, candidate);
+        var documentContent = await LoadDocumentContentAsync(connection, candidate.WordId);
+        return new PreparationLookupSource(item, documentContent);
+    }
+
+    private static async Task<string> LoadDocumentContentAsync(
+        SQLiteAsyncConnection connection,
+        int wordId)
+    {
         var documentIds = (await connection.Table<WordOccurrenceEntity>()
-                .Where(occurrence => occurrence.WordId == candidate.WordId)
+                .Where(occurrence => occurrence.WordId == wordId)
                 .OrderBy(occurrence => occurrence.DocumentId)
                 .ToListAsync())
             .Select(occurrence => occurrence.DocumentId)
@@ -452,8 +644,116 @@ public sealed partial class PreparationService(
             }
         }
 
-        return new PreparationLookupSource(item, string.Join('\n', documentContents));
-    });
+        return string.Join('\n', documentContents);
+    }
+
+    private void BeginPrefetch(PreparationItem currentItem)
+    {
+        lock (_prefetchSync)
+        {
+            if (_prefetchOriginCandidateId == currentItem.CandidateId && _prefetchTask is not null)
+            {
+                return;
+            }
+
+            _prefetchCancellation?.Cancel();
+            _prefetchCancellation?.Dispose();
+            _prefetchCancellation = new CancellationTokenSource();
+            _prefetchOriginCandidateId = currentItem.CandidateId;
+            _prefetchTask = PrefetchNextAsync(
+                currentItem.SessionId,
+                currentItem.Position - 1,
+                _prefetchCancellation.Token);
+        }
+    }
+
+    private async Task<PrefetchedLookup?> PrefetchNextAsync(
+        int sessionId,
+        int currentOrder,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var source = await database.ReadAsync(async connection =>
+            {
+                var session = await connection.FindAsync<PreparationSessionEntity>(sessionId);
+                if (session?.Status != PreparationSessionStatus.Active)
+                {
+                    return null;
+                }
+
+                var candidate = await connection.Table<PreparationCandidateEntity>()
+                    .Where(item => item.SessionId == sessionId
+                        && item.Order > currentOrder
+                        && item.Status == PreparationCandidateStatus.Pending)
+                    .OrderBy(item => item.Order)
+                    .FirstOrDefaultAsync();
+                return candidate is null
+                    ? null
+                    : await CreateLookupSourceAsync(connection, session, candidate);
+            });
+            if (source is null)
+            {
+                return null;
+            }
+
+            var networkStarted = Stopwatch.GetTimestamp();
+            var result = await lexicalEnrichment.EnrichAsync(
+                CreateLookupRequest(source.Item),
+                source.DocumentContent,
+                source.Item.Contexts.FirstOrDefault()?.Text,
+                cancellationToken);
+            RecordTiming(
+                source.Item.CandidateId,
+                "Prefetch",
+                PreparationTimingPhase.NetworkWork,
+                networkStarted);
+            return new PrefetchedLookup(source.Item.CandidateId, result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<LexicalResult?> TryConsumePrefetchAsync(
+        int candidateId,
+        CancellationToken cancellationToken)
+    {
+        Task<PrefetchedLookup?>? task;
+        lock (_prefetchSync)
+        {
+            task = _prefetchTask;
+        }
+
+        if (task is null)
+        {
+            return null;
+        }
+
+        var prefetched = await task.WaitAsync(cancellationToken);
+        if (prefetched?.CandidateId != candidateId)
+        {
+            return null;
+        }
+
+        lock (_prefetchSync)
+        {
+            if (ReferenceEquals(task, _prefetchTask))
+            {
+                _prefetchCancellation?.Dispose();
+                _prefetchCancellation = null;
+                _prefetchTask = null;
+                _prefetchOriginCandidateId = null;
+            }
+        }
+
+        return prefetched.Result;
+    }
 
     private static async Task<PreparationItem> CreateItemAsync(
         SQLiteAsyncConnection connection,
@@ -599,12 +899,12 @@ public sealed partial class PreparationService(
         }
 
         var current = connection.Table<PreparationCandidateEntity>()
-            .Where(item => item.SessionId == session.Id)
+            .Where(item => item.SessionId == session.Id
+                && (item.Status == PreparationCandidateStatus.Pending
+                    || item.Status == PreparationCandidateStatus.ResultReady
+                    || item.Status == PreparationCandidateStatus.Failed))
             .OrderBy(item => item.Order)
-            .ToList()
-            .FirstOrDefault(item => item.Status is PreparationCandidateStatus.Pending
-                or PreparationCandidateStatus.ResultReady
-                or PreparationCandidateStatus.Failed);
+            .FirstOrDefault();
         if (current?.Id != candidate.Id)
         {
             throw new InvalidOperationException("The submitted item is not the current preparation candidate.");
@@ -637,8 +937,70 @@ public sealed partial class PreparationService(
             ? null
             : JsonSerializer.Deserialize<LexicalResult>(resultJson, SerializerOptions);
 
+    private static async Task<PreparationCandidateEntity?> FindCurrentCandidateAsync(
+        SQLiteAsyncConnection connection,
+        int sessionId) => (PreparationCandidateEntity?)await connection.Table<PreparationCandidateEntity>()
+            .Where(item => item.SessionId == sessionId
+                && (item.Status == PreparationCandidateStatus.Pending
+                    || item.Status == PreparationCandidateStatus.ResultReady
+                    || item.Status == PreparationCandidateStatus.Failed))
+            .OrderBy(item => item.Order)
+            .FirstOrDefaultAsync();
+
+#if DEBUG
+    private void RecordTiming(
+        int? candidateId,
+        string operation,
+        PreparationTimingPhase phase,
+        long startedTimestamp) => RecordTiming(
+            candidateId,
+            operation,
+            phase,
+            Stopwatch.GetElapsedTime(startedTimestamp));
+
+    private void RecordTiming(
+        int? candidateId,
+        string operation,
+        PreparationTimingPhase phase,
+        TimeSpan elapsed)
+    {
+        var measurement = new PreparationTimingMeasurement(
+            Interlocked.Increment(ref _timingSequence),
+            candidateId,
+            operation,
+            phase,
+            elapsed.TotalMilliseconds,
+            clock.UtcNow);
+        lock (_timingSync)
+        {
+            _timingMeasurements.Add(measurement);
+            if (_timingMeasurements.Count > MaximumTimingMeasurements)
+            {
+                _timingMeasurements.RemoveRange(
+                    0,
+                    _timingMeasurements.Count - MaximumTimingMeasurements);
+            }
+        }
+    }
+#else
+    private static void RecordTiming(
+        int? candidateId,
+        string operation,
+        PreparationTimingPhase phase,
+        long startedTimestamp)
+    {
+    }
+#endif
+
     private static string NormalizeLemma(string value) =>
         value.Trim().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+
+    private static LexicalLookupRequest CreateLookupRequest(PreparationItem item) => new(
+        item.Term,
+        NormalizeLemma(item.Term),
+        item.TokenKind,
+        item.SourceLanguage,
+        item.ExplanationLanguage);
 
     private static string NormalizeContext(string value) =>
         WhitespaceRegex().Replace(value.Replace("\r\n", "\n").Replace('\r', '\n').Trim(), " ")
@@ -651,6 +1013,8 @@ public sealed partial class PreparationService(
     private static partial Regex WhitespaceRegex();
 
     private sealed record PreparationLookupSource(PreparationItem Item, string DocumentContent);
+
+    private sealed record PrefetchedLookup(int CandidateId, LexicalResult Result);
 
     private sealed record ContextData(
         int DocumentId,

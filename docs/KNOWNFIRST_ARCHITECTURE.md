@@ -151,7 +151,7 @@ The durable user-facing knowledge states are:
 - `Unknown`
 - `PermanentlyKnown`
 
-The existing `Ignored` state may remain internally for migration compatibility, invalid-token exclusion, or legacy data. It is not a normal visible review choice.
+The existing `Ignored` state is the minimal exact-identity marker used for migration compatibility, invalid-token exclusion, legacy data, and the confirmed **Do not learn** preparation action. It is not a normal visible initial-review choice and must never exclude related identities by stemming.
 
 ### 6.2 Preparation state
 
@@ -321,6 +321,14 @@ Retain examples such as:
 - SHA-256
 - CVE-2026-12345
 
+Two explicit technical families are canonicalized during deterministic analysis:
+
+- `CVE-YYYY-NNNN...` becomes the case-sensitive `CVE` acronym identity while the occurrence retains the complete identifier, year, identifier number, and exact coordinates.
+- `SHA-1`, `SHA-224`, `SHA-256`, `SHA-384`, and `SHA-512` become the case-sensitive `SHA` acronym identity while each occurrence retains its variant and exact coordinates.
+
+These are closed family rules, not generic suffix removal. `IPv6` and `OAuth2` remain unchanged unless a later explicit, tested rule is added. DEBUG analysis records a human-readable reason for each extraction and grouping decision.
+The explicit bare acronyms `CVE` and `SHA` use the same identities as their supported family forms, so an imported family instance does not create a second learning identity beside its acronym.
+
 Token kind participates in vocabulary identity:
 
 - `Word`
@@ -378,6 +386,8 @@ An unfinished review:
 - allows Discard import with destructive confirmation
 
 After leaving Settings, workflow routing returns to the active review.
+
+On narrow/mobile layouts, the app bar is the single page title and the duplicate page heading/back-to-home control is hidden. Review keeps progress, candidate, one highlighted context, context navigation, and the two decisions prominent. Token kind, encountered forms, and occurrence count are collapsed under Details; DEBUG analysis remains separate. Known and Unknown stay in a stable two-column fixed action bar above the bottom safe area, with guarded submission, a reserved saving state, reachable Undo, and matching bottom content padding. Discard remains in normal page flow.
 
 ---
 
@@ -499,6 +509,14 @@ It supports where available:
 - lookup timestamp
 - ranking or confidence metadata
 
+### 13.1 Provider-supported form-to-lemma resolution
+
+After a provider returns a successful result, lexical enrichment may follow only an explicit provider relation such as plural, third-person singular, past tense, past participle, present participle, comparative, or superlative **of** a named base lemma. The base lemma is resolved through the same cache/provider chain and supplies the definition or translation used for learning.
+
+The redirect chain has a visited-lemma set and a fixed maximum depth. A loop or depth overflow is a permanent lookup failure. No stemming or inferred suffix removal is permitted: for example, `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without explicit provider evidence.
+
+Prepared content stores the canonical learning term, encountered surface form, and grammatical relationship. Its context remains the unchanged original sentence with exact target coordinates.
+
 Dictionary reference data and personal learning state remain separate.
 
 ---
@@ -551,6 +569,8 @@ Requirements:
 - use a maintained HTML parser rather than one large fragile regular expression
 - retain source attribution and revision information
 - never fabricate a missing definition or translation
+
+Lookup results use the explicit outcomes `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Retry is offered only for transient transport/service failures and temporary parse/download failures. A successful result, a missing entry, and a permanent failure do not present a meaningless Retry action.
 
 Before the first online lookup, the user sees an explicit privacy disclosure and chooses whether to continue.
 
@@ -637,11 +657,23 @@ For every automatic result, the user can:
 - accept
 - choose an alternative meaning
 - edit
-- retry
+- retry only when the explicit lookup outcome is recoverable
 - switch to manual
 - skip for now
+- mark as known after confirmation
+- exclude the exact identity with **Do not learn** after confirmation
 
 Automatic preparation must never require typing when a usable result was found.
+
+Preparation disposition semantics are transactional:
+
+- **Mark as known** stores the minimal PermanentlyKnown marker, creates no learning cards, removes obsolete occurrence/context/frequency data, updates cleanup eligibility, and advances one candidate.
+- **Do not learn** stores the minimal exact `Ignored` marker, creates no learning cards, excludes no related identity, removes obsolete preparation data, and advances one candidate.
+- **Skip for now** completes only the current batch candidate, leaves the word Unknown and Unprepared for later batches, and cannot cycle within the same session.
+
+The next active candidate is selected with a bounded ordered query. Accepting an already loaded result performs no lexical request. At most one following lexical result is prefetched; the prefetch is deduplicated, cancellable, and consumed only for its matching candidate.
+
+The meaning chooser is an accessible bounded dialog/listbox rather than a native single-line select. Closed previews are limited to two visual lines and about 160 characters; alternative previews use about 240 characters with an accessible full-text expansion. Preview shortening never mutates persisted text. The picker constrains every child to the viewport, wraps unbroken text, respects safe areas, closes on Escape or Android Back, and restores focus to its invoking control.
 
 ---
 
@@ -674,6 +706,8 @@ A prepared learning item stores at least:
 - source language
 - explanation language
 - displayed term
+- encountered surface form when it differs from the learning term
+- explicit grammatical relationship when lemma resolution occurred
 - token kind
 - acronym expansion, nullable
 - selected translation, nullable
@@ -681,6 +715,7 @@ A prepared learning item stores at least:
 - optional dictionary example
 - up to three context snapshots
 - source attribution
+- source project, page title, and revision ID
 - prepared timestamp
 
 For acronyms, answer order is:
@@ -690,6 +725,8 @@ For acronyms, answer order is:
 3. definition
 
 A prepared item must survive application restart.
+
+Normal preparation and learning cards show source metadata through a collapsed **Source details / Quelldetails** control. Expansion retains the provider/project, page title and supported link, revision ID, attribution, and license reference. Learning uses the compact form of the same control.
 
 ---
 
@@ -707,6 +744,8 @@ Default setting:
 One vocabulary identity counts as one new vocabulary item even when it generates two cards.
 
 Each direction has independent scheduling state.
+
+Context navigation belongs directly below the displayed context sentence for both directions; it is not placed after the complete answer and rating area.
 
 ### 20.1 Term to meaning
 
@@ -857,6 +896,8 @@ This action requires confirmation and explains that:
 
 The application may suggest this action after both card directions have reached long review intervals, but it must not activate it automatically.
 
+When a learning session completes and Unknown/Unprepared vocabulary remains, the summary reports the exact remaining count and offers **Prepare next words**, **Later**, and **Change daily limit**. It never forces navigation to preparation.
+
 When one vocabulary identity becomes PermanentlyKnown:
 
 - delete all of its active learning cards
@@ -915,10 +956,11 @@ All cleanup operations are transactional and idempotent.
 Primary user navigation order:
 
 1. Learn
-2. Import Text
-3. Settings
+2. Prepare Words
+3. Import Text
+4. Settings
 
-Review and preparation are workflow routes, not permanent primary-navigation destinations.
+Review remains an internal blocking workflow route. Prepare Words is a stateful primary destination: it is enabled for an active preparation or Unknown/Unprepared backlog, labelled **Continue preparation** while active, disabled with an explanation when empty, and blocked by active vocabulary review.
 
 The workflow router evaluates the following priority:
 
@@ -950,6 +992,7 @@ Use transactions for:
 - undo
 - discard
 - preparation acceptance
+- preparation Mark as known and Do not learn cleanup
 - learning-session creation
 - every rating
 - permanent-known cleanup
@@ -971,11 +1014,14 @@ Requirements:
 - direct diagnostic routes unavailable in Release
 - no production database browser
 - readable explanations for documents, sessions, sentence spans, candidates, occurrences, lexical cache, preparation, cards, and schedules
+- monotonic preparation timing measurements for validation, the database transaction, prepared-meaning save, learning-card creation, session update, next-candidate query, context loading, UI transition, and network work
 - raw IDs hidden by default
 - database path copy action
 - diagnostic report copy action
 - no user secrets
 - no API tokens because normal Wikimedia lookup uses no user API key
+
+Preparation timing is DEBUG-only and bounded in memory. It must not expose diagnostics in Release. The UI delays its transition spinner until the wait is perceptible, and double submissions are rejected by both the component state and serialized service operations. The Release performance target remains a manually measured cached/preloaded Accept-to-next median of at most 300 ms; automated tests and Debug measurements do not prove that target.
 
 ---
 

@@ -707,6 +707,26 @@ public sealed class TextReviewServiceTests
                 "INSERT INTO AppSettings (SettingKey, SettingValue) VALUES (?, ?)",
                 "theme_preference",
                 "2");
+            await connection.CreateTableAsync<LegacyMeaningEntity>();
+            var legacyMeaning = new LegacyMeaningEntity
+            {
+                WordId = 42,
+                DisplayTerm = "systems",
+                Definition = "Legacy definition"
+            };
+            await connection.InsertAsync(legacyMeaning);
+            await connection.CreateTableAsync<LegacyWordOccurrenceEntity>();
+            var legacyOccurrence = new LegacyWordOccurrenceEntity
+            {
+                WordId = 42,
+                DocumentId = document.Id,
+                SentenceSpanId = 7,
+                StartPosition = 3,
+                Length = 7,
+                SurfaceForm = "systems",
+                Order = 1
+            };
+            await connection.InsertAsync(legacyOccurrence);
 
             await DatabaseSchema.InitializeAsync(connection);
 
@@ -715,10 +735,17 @@ public sealed class TextReviewServiceTests
                 "SELECT SettingValue FROM AppSettings WHERE SettingKey = ?",
                 "theme_preference");
             var version = await connection.ExecuteScalarAsync<int>("PRAGMA user_version");
+            var migratedMeaning = await connection.FindAsync<MeaningEntity>(legacyMeaning.Id);
+            var migratedOccurrence = await connection.FindAsync<WordOccurrenceEntity>(legacyOccurrence.Id);
 
             Assert.AreEqual("Unchanged", preservedDocument!.Content);
             Assert.AreEqual("2", preservedSetting);
             Assert.AreEqual(DatabaseSchema.CurrentVersion, version);
+            Assert.AreEqual("systems", migratedMeaning!.DisplayTerm);
+            Assert.AreEqual(string.Empty, migratedMeaning.EncounteredSurfaceForm);
+            Assert.AreEqual(string.Empty, migratedMeaning.GrammaticalRelationship);
+            Assert.AreEqual("systems", migratedOccurrence!.SurfaceForm);
+            Assert.AreEqual(TechnicalTokenFamily.None, migratedOccurrence.TechnicalFamily);
         }
         finally
         {
@@ -733,6 +760,40 @@ public sealed class TextReviewServiceTests
         {
             await _service.DecideAsync(candidate.WordId, statusSelector(candidate));
         }
+    }
+
+    [Table("Meanings")]
+    private sealed class LegacyMeaningEntity
+    {
+        [PrimaryKey, AutoIncrement]
+        public int Id { get; set; }
+
+        public int WordId { get; set; }
+
+        public string DisplayTerm { get; set; } = string.Empty;
+
+        public string Definition { get; set; } = string.Empty;
+    }
+
+    [Table("WordOccurrences")]
+    private sealed class LegacyWordOccurrenceEntity
+    {
+        [PrimaryKey, AutoIncrement]
+        public int Id { get; set; }
+
+        public int WordId { get; set; }
+
+        public int DocumentId { get; set; }
+
+        public int SentenceSpanId { get; set; }
+
+        public int StartPosition { get; set; }
+
+        public int Length { get; set; }
+
+        public string SurfaceForm { get; set; } = string.Empty;
+
+        public int Order { get; set; }
     }
 
     private Task<Dictionary<string, WordEntity>> GetWordsByCanonicalTermAsync() =>

@@ -224,9 +224,15 @@ public sealed class LocalizationResourceTests
     [
         "Common_Continue",
         "Common_Later",
+        "Common_TryAgain",
+        "Common_Confirm",
+        "Common_ShowFullText",
         "Navigation_LearnUnavailable",
         "Navigation_ImportBlockedByReview",
+        "Navigation_PrepareBlockedByReview",
+        "Navigation_PrepareUnavailable",
         "Home_ContinuePreparation",
+        "Settings_PreparationLimitHelp",
         "Settings_ReturnToReview",
         "Settings_CardDirection",
         "Settings_CardDirectionTermToMeaning",
@@ -278,6 +284,26 @@ public sealed class LocalizationResourceTests
         "Prepare_RateLimited",
         "Prepare_Offline",
         "Prepare_NoResult",
+        "Prepare_InText",
+        "Prepare_Saving",
+        "Prepare_OtherActions",
+        "Prepare_MarkKnown",
+        "Prepare_MarkKnownConfirmation",
+        "Prepare_DoNotLearn",
+        "Prepare_DoNotLearnConfirmation",
+        "Prepare_TransientFailure",
+        "Prepare_ParseFailure",
+        "Prepare_PermanentFailure",
+        "Prepare_NotFound",
+        "Review_Details",
+        "Review_Saving",
+        "Source_Details",
+        "Source_Provider",
+        "Source_Project",
+        "Source_PageTitle",
+        "Source_Revision",
+        "Source_Attribution",
+        "Source_License",
         "Learn_Loading",
         "Learn_LoadError",
         "Learn_Progress",
@@ -342,7 +368,23 @@ public sealed class LocalizationResourceTests
         "Diagnostics_ActiveContexts",
         "Diagnostics_Eligible",
         "Diagnostics_Yes",
-        "Diagnostics_No"
+        "Diagnostics_No",
+        "Diagnostics_PreparationTiming",
+        "Diagnostics_PreparationTimingDescription",
+        "Diagnostics_Sequence",
+        "Diagnostics_Operation",
+        "Diagnostics_Phase",
+        "Diagnostics_DurationMilliseconds",
+        "Diagnostics_CandidateId",
+        "Diagnostics_TimingPhase_Validation",
+        "Diagnostics_TimingPhase_DatabaseTransaction",
+        "Diagnostics_TimingPhase_PreparedMeaningSave",
+        "Diagnostics_TimingPhase_LearningCardCreation",
+        "Diagnostics_TimingPhase_SessionUpdate",
+        "Diagnostics_TimingPhase_NextCandidateQuery",
+        "Diagnostics_TimingPhase_ContextLoading",
+        "Diagnostics_TimingPhase_UiTransition",
+        "Diagnostics_TimingPhase_NetworkWork"
     ];
 
     [TestMethod]
@@ -412,6 +454,28 @@ public sealed class LocalizationResourceTests
         Assert.AreEqual("Dauerhaft als bekannt markieren", german["Learn_MarkPermanentlyKnown"]);
         Assert.AreEqual("Online-Abfrage starten", german["Prepare_StartOnlineLookup"]);
         Assert.AreEqual("Manuell vorbereiten", german["Prepare_Manual"]);
+    }
+
+    [TestMethod]
+    public void Resources_DailyLimitAndPostLearningRecommendationMatchSpecification()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+
+        Assert.AreEqual("New words per day", english["Settings_PreparationLimit"]);
+        Assert.AreEqual("Neue Wörter pro Tag", german["Settings_PreparationLimit"]);
+        Assert.AreEqual(
+            "Limits new learning words per day so preparation and study remain manageable. Due reviews do not count.",
+            english["Settings_PreparationLimitHelp"]);
+        Assert.AreEqual(
+            "Begrenzt neue Lernwörter pro Tag, damit Vorbereitung und Lernen überschaubar bleiben. Fällige Wiederholungen zählen nicht dazu.",
+            german["Settings_PreparationLimitHelp"]);
+        Assert.AreEqual(
+            "All current reviews are complete. {0} unknown words are waiting for preparation.",
+            english["Learn_MoreUnknownWaiting"]);
+        Assert.AreEqual(
+            "Alle aktuellen Wiederholungen sind abgeschlossen. {0} unbekannte Wörter warten auf die Vorbereitung.",
+            german["Learn_MoreUnknownWaiting"]);
     }
 
     private static Dictionary<string, string> LoadResources(string fileName)

@@ -7,7 +7,6 @@
 <PageTitle>@Localizer["Home_Title"]</PageTitle>
 
 <section class="home-hero">
-    <p class="eyebrow">@Localizer["App_Name"]</p>
     <h1>@Localizer["Home_Title"]</h1>
     <p class="subtitle">@Localizer["Home_Subtitle"]</p>
 </section>
@@ -66,6 +65,22 @@
             <small>@Localizer["Navigation_LearnUnavailable"]</small>
         </div>
     }
+    @if (_workflow.CanPrepare)
+    {
+        <a class="action-card" href="prepare-words">
+            @Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
+            <span aria-hidden="true">→</span>
+        </a>
+    }
+    else
+    {
+        <div class="action-card blocked"
+             aria-disabled="true"
+             title="@(Localizer[_workflow.HasActiveReview ? "Navigation_PrepareBlockedByReview" : "Navigation_PrepareUnavailable"])">
+            <span class="action-card-label">@Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]</span>
+            <small>@Localizer[_workflow.HasActiveReview ? "Navigation_PrepareBlockedByReview" : "Navigation_PrepareUnavailable"]</small>
+        </div>
+    }
     @if (_workflow.CanImport)
     {
         <a class="action-card" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
@@ -76,13 +91,6 @@
             <span class="action-card-label">@Localizer["Navigation_ImportText"]</span>
             <small>@Localizer["Navigation_ImportBlockedByReview"]</small>
         </div>
-    }
-    @if (_workflow.PrimaryAction is WorkflowPrimaryAction.ContinuePreparation or WorkflowPrimaryAction.PrepareWords)
-    {
-        <a class="action-card" href="prepare-words">
-            @Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
-            <span aria-hidden="true">→</span>
-        </a>
     }
     <a class="action-card" href="settings">@Localizer["Navigation_Settings"]<span aria-hidden="true">→</span></a>
 </section>

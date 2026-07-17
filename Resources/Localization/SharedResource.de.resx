@@ -121,7 +121,7 @@
     <value>Darstellung auf {0} geändert.</value>
   </data>
   <data name="Settings_PreparationLimit" xml:space="preserve">
-    <value>Wörter pro Vorbereitung</value>
+    <value>Neue Wörter pro Tag</value>
   </data>
   <data name="Settings_ResetData" xml:space="preserve">
     <value>Alle Anwendungsdaten zurücksetzen</value>
@@ -139,7 +139,7 @@
     <value>Daten zurücksetzen</value>
   </data>
   <data name="Settings_PreparationLimitSaved" xml:space="preserve">
-    <value>Wörter pro Vorbereitung gespeichert: {0}.</value>
+    <value>Tageslimit für neue Wörter gespeichert: {0}.</value>
   </data>
   <data name="Settings_ResetSuccess" xml:space="preserve">
     <value>Alle lokalen Anwendungsdaten wurden zurückgesetzt.</value>
@@ -715,7 +715,7 @@
     <value>Du hast {0} neue Wörter vorbereitet. Lerne diese Wörter zuerst oder ändere das Limit in den Einstellungen.</value>
   </data>
   <data name="Prepare_ChangeLimit" xml:space="preserve">
-    <value>Limit ändern</value>
+    <value>Tageslimit ändern</value>
   </data>
   <data name="Prepare_StartLearning" xml:space="preserve">
     <value>Lernen starten</value>
@@ -808,10 +808,10 @@
     <value>Nächste fällige Karte: {0}</value>
   </data>
   <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
-    <value>Alle aktuellen Wiederholungen sind abgeschlossen. Weitere unbekannte Wörter warten auf die Vorbereitung.</value>
+    <value>Alle aktuellen Wiederholungen sind abgeschlossen. {0} unbekannte Wörter warten auf die Vorbereitung.</value>
   </data>
   <data name="Learn_PrepareNextWords" xml:space="preserve">
-    <value>Nächste häufige Wörter vorbereiten</value>
+    <value>Nächste Wörter vorbereiten</value>
   </data>
   <data name="Learn_NothingDue" xml:space="preserve">
     <value>Aktuell sind keine weiteren Wörter fällig.</value>
@@ -1013,5 +1013,131 @@
   </data>
   <data name="Analysis_InvariantsPassed" xml:space="preserve">
     <value>Alle Koordinateninvarianten wurden erfüllt.</value>
+  </data>
+  <data name="Common_TryAgain" xml:space="preserve">
+    <value>Erneut versuchen</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Bestätigen</value>
+  </data>
+  <data name="Common_ShowFullText" xml:space="preserve">
+    <value>Vollständigen Text anzeigen</value>
+  </data>
+  <data name="Navigation_PrepareBlockedByReview" xml:space="preserve">
+    <value>Schließe zuerst die aktive Wortschatzprüfung ab oder verwirf sie.</value>
+  </data>
+  <data name="Navigation_PrepareUnavailable" xml:space="preserve">
+    <value>Es warten keine unbekannten, unvorbereiteten Wörter.</value>
+  </data>
+  <data name="Settings_PreparationLimitHelp" xml:space="preserve">
+    <value>Begrenzt neue Lernwörter pro Tag, damit Vorbereitung und Lernen überschaubar bleiben. Fällige Wiederholungen zählen nicht dazu.</value>
+  </data>
+  <data name="Review_Details" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="Review_Saving" xml:space="preserve">
+    <value>Entscheidung wird gespeichert…</value>
+  </data>
+  <data name="Prepare_InText" xml:space="preserve">
+    <value>Im Text: {0}</value>
+  </data>
+  <data name="Prepare_Saving" xml:space="preserve">
+    <value>Wird gespeichert…</value>
+  </data>
+  <data name="Prepare_OtherActions" xml:space="preserve">
+    <value>Weitere Vorbereitungsaktionen</value>
+  </data>
+  <data name="Prepare_MarkKnown" xml:space="preserve">
+    <value>Als bekannt markieren</value>
+  </data>
+  <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
+    <value>Dieses Wort wird dauerhaft als bekannt gespeichert. Es werden keine Lernkarten erstellt; veraltete Vorbereitungs-, Kontext- und Häufigkeitsdaten werden entfernt.</value>
+  </data>
+  <data name="Prepare_DoNotLearn" xml:space="preserve">
+    <value>Nicht lernen</value>
+  </data>
+  <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
+    <value>Nur diese genaue Wortschatzidentität wird von künftiger Prüfung und Vorbereitung ausgeschlossen. Verwandte Wörter und Formen werden nicht ausgeschlossen, und es werden keine Lernkarten erstellt.</value>
+  </data>
+  <data name="Prepare_TransientFailure" xml:space="preserve">
+    <value>Der Wörterbuchdienst ist vorübergehend nicht erreichbar. Gespeicherte Ergebnisse bleiben verfügbar.</value>
+  </data>
+  <data name="Prepare_ParseFailure" xml:space="preserve">
+    <value>Das geladene Wörterbuchergebnis konnte nicht gelesen werden. Du kannst es erneut versuchen.</value>
+  </data>
+  <data name="Prepare_PermanentFailure" xml:space="preserve">
+    <value>Der Wörterbuchdienst kann diese Anfrage nicht ausführen.</value>
+  </data>
+  <data name="Prepare_NotFound" xml:space="preserve">
+    <value>Es wurde kein passender Wörterbucheintrag gefunden.</value>
+  </data>
+  <data name="Source_Details" xml:space="preserve">
+    <value>Quelldetails</value>
+  </data>
+  <data name="Source_Provider" xml:space="preserve">
+    <value>Anbieter</value>
+  </data>
+  <data name="Source_Project" xml:space="preserve">
+    <value>Wiktionary-/Wikimedia-Projekt</value>
+  </data>
+  <data name="Source_PageTitle" xml:space="preserve">
+    <value>Seitentitel</value>
+  </data>
+  <data name="Source_Revision" xml:space="preserve">
+    <value>Versions-ID</value>
+  </data>
+  <data name="Source_Attribution" xml:space="preserve">
+    <value>Namensnennung</value>
+  </data>
+  <data name="Source_License" xml:space="preserve">
+    <value>Lizenzhinweis</value>
+  </data>
+  <data name="Diagnostics_PreparationTiming" xml:space="preserve">
+    <value>Zeitmessung der Vorbereitung</value>
+  </data>
+  <data name="Diagnostics_PreparationTimingDescription" xml:space="preserve">
+    <value>Monotone DEBUG-Messungen für Vorbereitungsübergänge. Netzwerkarbeit wird getrennt von lokalen Übergangsphasen erfasst.</value>
+  </data>
+  <data name="Diagnostics_Sequence" xml:space="preserve">
+    <value>Reihenfolge</value>
+  </data>
+  <data name="Diagnostics_Operation" xml:space="preserve">
+    <value>Vorgang</value>
+  </data>
+  <data name="Diagnostics_Phase" xml:space="preserve">
+    <value>Phase</value>
+  </data>
+  <data name="Diagnostics_DurationMilliseconds" xml:space="preserve">
+    <value>Dauer (ms)</value>
+  </data>
+  <data name="Diagnostics_CandidateId" xml:space="preserve">
+    <value>Kandidaten-ID</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_Validation" xml:space="preserve">
+    <value>Validierung</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_DatabaseTransaction" xml:space="preserve">
+    <value>Datenbanktransaktion</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_PreparedMeaningSave" xml:space="preserve">
+    <value>Speichern der vorbereiteten Bedeutung</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_LearningCardCreation" xml:space="preserve">
+    <value>Erstellen der Lernkarten</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_SessionUpdate" xml:space="preserve">
+    <value>Aktualisieren der Sitzung</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NextCandidateQuery" xml:space="preserve">
+    <value>Abfrage des nächsten Kandidaten</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_ContextLoading" xml:space="preserve">
+    <value>Laden der Kontexte</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_UiTransition" xml:space="preserve">
+    <value>UI-Übergang</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NetworkWork" xml:space="preserve">
+    <value>Netzwerkarbeit</value>
   </data>
 </root>

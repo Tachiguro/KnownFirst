@@ -126,6 +126,14 @@ Examples that remain one token:
 - `SHA-256`
 - `CVE-2026-12345`
 
+Explicit conservative technical families are resolved during analysis:
+
+- a valid `CVE-YYYY-NNNN...` occurrence maps to canonical learning identity `CVE` with `TokenKind.Acronym`; the occurrence retains the complete surface form, year, identifier, and exact coordinates
+- `SHA-1`, `SHA-224`, `SHA-256`, `SHA-384`, and `SHA-512` map to canonical learning identity `SHA` with `TokenKind.Acronym`; each occurrence retains its variant and exact coordinates
+
+Several valid SHA variants therefore share one review identity. The complete CVE instance does not create a separate learning card by default. These are closed pattern families, not generic suffix rules: `IPv6` and `OAuth2` remain unchanged.
+The explicitly recognized bare acronyms `CVE` and `SHA` share those same family identities.
+
 Preserve Unicode letters, combining marks, German umlauts, and `ß`.
 
 Exclude with explicit reasons:
@@ -144,6 +152,8 @@ Example reason codes:
 - `IncludedUnicodeWord`
 - `IncludedAcronymPattern`
 - `IncludedTechnicalTokenPattern`
+- `IncludedCveFamilyPattern`
+- `IncludedShaFamilyPattern`
 - `ExcludedUrl`
 - `ExcludedEmailAddress`
 - `ExcludedStandaloneNumber`
@@ -177,7 +187,9 @@ Do not use broad stemming. Do not merge merely by suffix removal:
 - `protect` and `protection`
 - `network` and `networking`
 
-Provider-confirmed lemma resolution is a later lexical-enrichment step.
+Provider-confirmed lemma resolution is a later lexical-enrichment step. It follows only explicit plural, third-person singular, past tense, past participle, present participle, comparative, or superlative relations naming a base lemma. The base is looked up through the existing cache/provider chain with a visited set and fixed redirect-depth limit. The prepared item stores the base learning term, encountered surface form, and relationship while its context stays unchanged.
+
+This does not weaken the no-stemming rule. `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without explicit provider evidence.
 
 ## Encountered forms
 
@@ -217,6 +229,7 @@ Every occurrence stores:
 - length
 - exact surface form or verifiable reference
 - occurrence order
+- explicit technical family and CVE year/identifier or SHA variant when applicable
 
 Occurrence count equals actual appearances. Context deduplication never reduces occurrence count.
 
@@ -425,6 +438,9 @@ Candidate identity:
 - Information/information/INFORMATION displays once
 - IT/it and US/us remain separate
 - no broad stemming
+- CVE identifiers map to `CVE`
+- supported SHA variants map to `SHA`
+- `IPv6` and `OAuth2` remain unchanged
 
 Contexts:
 
@@ -440,6 +456,7 @@ Diagnostics:
 - sentence boundary has a reason
 - included/excluded token has a reason
 - grouping has a reason
+- each CVE/SHA extraction has a human-readable family reason
 - duplicate rejection has a reason
 - DEBUG-only UI unavailable in Release where practical
 

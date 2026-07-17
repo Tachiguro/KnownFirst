@@ -33,7 +33,10 @@ public sealed record LearningCardView(
     int AcceptedOccurrenceCount,
     bool AnswerRevealed,
     int CompletedCards,
-    int TotalCards);
+    int TotalCards,
+    string? EncounteredSurfaceForm = null,
+    string? GrammaticalRelationship = null,
+    long? SourceRevisionId = null);
 
 public sealed record LearningSessionSummary(
     int SessionId,

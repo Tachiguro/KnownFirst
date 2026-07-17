@@ -254,7 +254,7 @@ public sealed class LearningService(
 
                 NormalizePreparationSessions(connection, affectedPreparationSessionIds, clock.UtcNow);
                 NormalizeLearningSessions(connection, affectedLearningSessionIds, clock.UtcNow);
-                CleanupEligibleDocuments(connection);
+                DocumentCleanupOperations.CleanupEligibleDocuments(connection);
                 return true;
             });
         }
@@ -269,7 +269,7 @@ public sealed class LearningService(
         await _operationGate.WaitAsync();
         try
         {
-            return await database.RunInTransactionAsync(CleanupEligibleDocuments);
+            return await database.RunInTransactionAsync(DocumentCleanupOperations.CleanupEligibleDocuments);
         }
         finally
         {
@@ -416,7 +416,14 @@ public sealed class LearningService(
             word.TotalOccurrenceCount,
             queueItem.AnswerRevealed,
             session.CompletedCards,
-            session.TotalCards);
+            session.TotalCards,
+            string.IsNullOrWhiteSpace(meaning.EncounteredSurfaceForm)
+                ? null
+                : meaning.EncounteredSurfaceForm,
+            string.IsNullOrWhiteSpace(meaning.GrammaticalRelationship)
+                ? null
+                : meaning.GrammaticalRelationship,
+            meaning.SourceRevisionId);
     }
 
     private static async Task<LearningSessionSummary> CreateSummaryAsync(
@@ -644,7 +651,10 @@ public sealed class LearningService(
 
             session.TotalItems = candidates.Count;
             session.CompletedItems = candidates.Count(candidate =>
-                candidate.Status is PreparationCandidateStatus.Prepared or PreparationCandidateStatus.Skipped);
+                candidate.Status is PreparationCandidateStatus.Prepared
+                    or PreparationCandidateStatus.Skipped
+                    or PreparationCandidateStatus.MarkedKnown
+                    or PreparationCandidateStatus.Excluded);
             session.UpdatedAtUtc = now;
             var isComplete = session.CompletedItems == session.TotalItems;
             session.Status = isComplete
@@ -653,55 +663,6 @@ public sealed class LearningService(
             session.CompletedAtUtc = isComplete ? session.CompletedAtUtc ?? now : null;
             connection.Update(session);
         }
-    }
-
-    private static int CleanupEligibleDocuments(SQLiteConnection connection)
-    {
-        var deletedCount = 0;
-        foreach (var document in connection.Table<DocumentEntity>().ToList())
-        {
-            var hasActiveReview = connection.Table<ReviewSessionEntity>()
-                .Any(session => session.DocumentId == document.Id
-                    && session.Status == ReviewSessionStatus.Active);
-            var hasOccurrences = connection.Table<WordOccurrenceEntity>()
-                .Any(occurrence => occurrence.DocumentId == document.Id);
-            var hasActiveSnapshots = connection.Table<ContextSnapshotEntity>()
-                .Where(snapshot => snapshot.SourceDocumentId == document.Id)
-                .ToList()
-                .Any(snapshot =>
-                {
-                    var word = connection.Find<WordEntity>(snapshot.WordId);
-                    return word is not null && word.Status != WordStatus.Known;
-                });
-            if (hasActiveReview || hasOccurrences || hasActiveSnapshots)
-            {
-                continue;
-            }
-
-            connection.Execute("DELETE FROM ContextSnapshots WHERE SourceDocumentId = ?", document.Id);
-            connection.Execute("DELETE FROM SentenceSpans WHERE DocumentId = ?", document.Id);
-            foreach (var session in connection.Table<ReviewSessionEntity>()
-                         .Where(item => item.DocumentId == document.Id)
-                         .ToList())
-            {
-                connection.Execute("DELETE FROM ReviewCandidates WHERE SessionId = ?", session.Id);
-                connection.Delete(session);
-            }
-
-            connection.Delete(document);
-            deletedCount++;
-        }
-
-        foreach (var sentence in connection.Table<SentenceSpanEntity>().ToList())
-        {
-            if (!connection.Table<WordOccurrenceEntity>()
-                .Any(occurrence => occurrence.SentenceSpanId == sentence.Id))
-            {
-                connection.Delete(sentence);
-            }
-        }
-
-        return deletedCount;
     }
 
     private static void IncrementRating(LearningSessionEntity session, ReviewRating rating)

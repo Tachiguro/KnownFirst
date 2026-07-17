@@ -299,6 +299,108 @@ public sealed class WiktionaryProviderTests
         Assert.AreEqual("Information Technology", result.AcronymExpansion);
     }
 
+    [TestMethod]
+    [DataRow("systems", "system", "plural of system")]
+    [DataRow("risks", "risk", "plural of risk")]
+    [DataRow("identifies", "identify", "third-person singular simple present indicative of identify")]
+    public async Task ProviderChain_ExplicitFormRelationResolvesToBaseLemma(
+        string encounteredForm,
+        string baseLemma,
+        string relationDefinition)
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-lemma");
+        await database.InitializeAsync();
+        var provider = new RoutingDictionaryProvider(request => SuccessResult(request) with
+        {
+            Meanings =
+            [
+                new LexicalMeaning(
+                    request.Term == encounteredForm ? "relation" : "base",
+                    request.Term == encounteredForm ? "form" : "noun",
+                    request.Term == encounteredForm ? relationDefinition : $"Definition of {baseLemma}",
+                    null,
+                    null,
+                    [])
+            ]
+        });
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database),
+            provider);
+
+        var result = await service.EnrichAsync(
+            Request(encounteredForm, "en", "en"),
+            $"The text contains {encounteredForm}.",
+            $"The text contains {encounteredForm}.");
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.AreEqual(baseLemma, result.DisplayTerm);
+        Assert.AreEqual($"Definition of {baseLemma}", result.Meanings.Single().Definition);
+        Assert.AreEqual(encounteredForm, result.EncounteredSurfaceForm);
+        Assert.Contains(baseLemma, result.GrammaticalRelationship!);
+        CollectionAssert.AreEqual(new[] { encounteredForm, baseLemma }, provider.RequestedTerms.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ProviderChain_RedirectLoopReturnsPermanentFailure()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-lemma-loop");
+        await database.InitializeAsync();
+        var provider = new RoutingDictionaryProvider(request => SuccessResult(request) with
+        {
+            Meanings =
+            [
+                new LexicalMeaning(
+                    request.Term,
+                    "form",
+                    request.Term == "systems" ? "plural of system" : "plural of systems",
+                    null,
+                    null,
+                    [])
+            ]
+        });
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database),
+            provider);
+
+        var result = await service.EnrichAsync(
+            Request("systems", "en", "en"),
+            "systems",
+            "systems");
+
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("lemma-redirect-loop", result.ErrorCode);
+        Assert.HasCount(2, provider.RequestedTerms);
+    }
+
+    [TestMethod]
+    public async Task ProviderChain_RiskyRemainsSeparateWithoutExplicitRelation()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-no-stemming");
+        await database.InitializeAsync();
+        var provider = new RoutingDictionaryProvider(request => SuccessResult(request) with
+        {
+            Meanings = [new LexicalMeaning("risky", "adjective", "Involving risk.", null, null, [])]
+        });
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database),
+            provider);
+
+        var result = await service.EnrichAsync(
+            Request("risky", "en", "en"),
+            "risky",
+            "risky");
+
+        Assert.AreEqual("risky", result.DisplayTerm);
+        Assert.IsNull(result.EncounteredSurfaceForm);
+        CollectionAssert.AreEqual(new[] { "risky" }, provider.RequestedTerms.ToArray());
+    }
+
     private static WiktionaryLookupProvider CreateProvider(
         Func<HttpRequestMessage, HttpResponseMessage> handler,
         IAsyncDelay? delay = null) => CreateProvider(
@@ -384,6 +486,24 @@ public sealed class WiktionaryProviderTests
         {
             CallCount++;
             return Task.FromResult(result);
+        }
+    }
+
+    private sealed class RoutingDictionaryProvider(
+        Func<LexicalLookupRequest, LexicalResult> resultFactory) : IDictionaryLookupProvider
+    {
+        public List<string> RequestedTerms { get; } = [];
+
+        public string ProviderName => WiktionaryLookupProvider.Name;
+
+        public int ProviderSchemaVersion => WiktionaryLookupProvider.SchemaVersion;
+
+        public Task<LexicalResult> LookupAsync(
+            LexicalLookupRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            RequestedTerms.Add(request.Term);
+            return Task.FromResult(resultFactory(request));
         }
     }
 }

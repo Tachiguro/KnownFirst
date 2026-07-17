@@ -11,6 +11,8 @@ public static class AnalysisReasonCodes
     public const string IncludedAcronymPattern = nameof(IncludedAcronymPattern);
     public const string IncludedAbbreviationPattern = nameof(IncludedAbbreviationPattern);
     public const string IncludedTechnicalTokenPattern = nameof(IncludedTechnicalTokenPattern);
+    public const string IncludedCveFamilyPattern = nameof(IncludedCveFamilyPattern);
+    public const string IncludedShaFamilyPattern = nameof(IncludedShaFamilyPattern);
     public const string ExcludedUrl = nameof(ExcludedUrl);
     public const string ExcludedEmailAddress = nameof(ExcludedEmailAddress);
     public const string ExcludedStandaloneNumber = nameof(ExcludedStandaloneNumber);
@@ -21,6 +23,7 @@ public static class AnalysisReasonCodes
     public const string OrdinaryWordCaseGrouping = nameof(OrdinaryWordCaseGrouping);
     public const string RepeatedIdentity = nameof(RepeatedIdentity);
     public const string FirstIdentityOccurrence = nameof(FirstIdentityOccurrence);
+    public const string TechnicalFamilyGrouping = nameof(TechnicalFamilyGrouping);
 
     public const string SelectedFirstUniqueContext = nameof(SelectedFirstUniqueContext);
     public const string SelectedUniqueContext = nameof(SelectedUniqueContext);

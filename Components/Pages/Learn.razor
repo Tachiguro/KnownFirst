@@ -32,7 +32,10 @@
                 <h2 class="learning-term">@_card.Term</h2>
                 @if (CurrentContext is not null)
                 {
-                    <ContextView Context="CurrentContext" HideTarget="false" />
+                    <div class="learning-context-block">
+                        <ContextView Context="CurrentContext" HideTarget="false" />
+                        @ContextNavigation
+                    </div>
                 }
 
                 @if (!_card.AnswerRevealed)
@@ -57,7 +60,10 @@
                 </section>
                 @if (CurrentContext is not null)
                 {
-                    <ContextView Context="CurrentContext" HideTarget="true" />
+                    <div class="learning-context-block">
+                        <ContextView Context="CurrentContext" HideTarget="true" />
+                        @ContextNavigation
+                    </div>
                 }
 
                 @if (_spellingResult is null)
@@ -94,15 +100,6 @@
                         <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="ContinueAfterIncorrectAsync">@Localizer["Common_Continue"]</button>
                     }
                 }
-            }
-
-            @if (_card.Contexts.Count > 1)
-            {
-                <div class="context-navigation">
-                    <button type="button" class="button button-secondary" disabled="@(_contextIndex == 0 || _isBusy)" @onclick="PreviousContext">@Localizer["Review_PreviousContext"]</button>
-                    <span>@Localizer["Review_ContextPosition", _contextIndex + 1, _card.Contexts.Count]</span>
-                    <button type="button" class="button button-secondary" disabled="@(_contextIndex == _card.Contexts.Count - 1 || _isBusy)" @onclick="NextContext">@Localizer["Review_NextContext"]</button>
-                </div>
             }
 
             @if (!_showPermanentKnownConfirmation)
@@ -144,7 +141,7 @@
             }
             @if (_summary.RemainingUnpreparedCount > 0)
             {
-                <p>@Localizer["Learn_MoreUnknownWaiting"]</p>
+                <p>@Localizer["Learn_MoreUnknownWaiting", _summary.RemainingUnpreparedCount]</p>
                 <div class="button-row">
                     <a class="button button-primary" href="prepare-words">@Localizer["Learn_PrepareNextWords"]</a>
                     <a class="button button-secondary" href="">@Localizer["Common_Later"]</a>
@@ -340,4 +337,15 @@
 
     private void ShowPermanentKnownConfirmation() => _showPermanentKnownConfirmation = true;
     private void CancelPermanentKnown() => _showPermanentKnownConfirmation = false;
+
+    private RenderFragment ContextNavigation => @<text>
+        @if (_card is not null && _card.Contexts.Count > 1)
+        {
+            <div class="context-navigation">
+                <button type="button" class="button button-secondary" disabled="@(_contextIndex == 0 || _isBusy)" @onclick="PreviousContext">@Localizer["Review_PreviousContext"]</button>
+                <span>@Localizer["Review_ContextPosition", _contextIndex + 1, _card.Contexts.Count]</span>
+                <button type="button" class="button button-secondary" disabled="@(_contextIndex == _card.Contexts.Count - 1 || _isBusy)" @onclick="NextContext">@Localizer["Review_NextContext"]</button>
+            </div>
+        }
+    </text>;
 }

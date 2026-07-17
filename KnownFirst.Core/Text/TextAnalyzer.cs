@@ -9,9 +9,11 @@ public sealed partial class TextAnalyzer
     private static readonly HashSet<string> KnownAcronyms = new(StringComparer.Ordinal)
     {
         "AI",
+        "CVE",
         "HTML",
         "IP",
         "IT",
+        "SHA",
         "US"
     };
 
@@ -48,7 +50,7 @@ public sealed partial class TextAnalyzer
 
                 return new VocabularyCandidate(
                     first.Identity,
-                    first.SurfaceForm,
+                    first.CanonicalTerm ?? first.SurfaceForm,
                     first.Kind,
                     surfaceForms,
                     orderedOccurrences);
@@ -251,8 +253,10 @@ public sealed partial class TextAnalyzer
                 continue;
             }
 
-            var kind = Classify(surfaceForm, hasDigit, hasHyphen, hasInternalPeriod);
-            var identity = CreateIdentity(surfaceForm, kind);
+            var technicalFamily = TechnicalTokenFamilyPolicy.Resolve(surfaceForm);
+            var kind = technicalFamily?.TokenKind
+                ?? Classify(surfaceForm, hasDigit, hasHyphen, hasInternalPeriod);
+            var identity = technicalFamily?.Identity ?? CreateIdentity(surfaceForm, kind);
 
             while (sentenceIndex < sentences.Count && tokenStart >= sentences[sentenceIndex].EndPosition)
             {
@@ -272,7 +276,12 @@ public sealed partial class TextAnalyzer
                     tokenStart,
                     tokenEnd - tokenStart,
                     occurrences.Count,
-                    containingSentenceOrder.Value));
+                    containingSentenceOrder.Value,
+                    technicalFamily?.CanonicalTerm,
+                    technicalFamily?.Family ?? TechnicalTokenFamily.None,
+                    technicalFamily?.InstanceYear,
+                    technicalFamily?.InstanceIdentifier,
+                    technicalFamily?.Variant));
             }
 
             decisions.Add(new TokenAnalysisDecision(
@@ -282,8 +291,8 @@ public sealed partial class TextAnalyzer
                 EncounteredFormPolicy.CreateComparisonKey(kind, surfaceForm),
                 kind,
                 true,
-                GetInclusionReasonCode(kind),
-                GetInclusionExplanation(kind),
+                technicalFamily?.ReasonCode ?? GetInclusionReasonCode(kind),
+                technicalFamily?.Explanation ?? GetInclusionExplanation(kind),
                 containingSentenceOrder));
             index = tokenEnd;
         }
@@ -331,7 +340,13 @@ public sealed partial class TextAnalyzer
         string reasonCode;
         string explanation;
 
-        if (candidate.Kind == TokenKind.Word && formsAfter.Count < formsBefore.Length)
+        if (candidate.Occurrences.Any(occurrence =>
+                occurrence.TechnicalFamily != TechnicalTokenFamily.None))
+        {
+            reasonCode = AnalysisReasonCodes.TechnicalFamilyGrouping;
+            explanation = $"Grouped explicit technical forms with the canonical `{candidate.CanonicalTerm}` acronym identity.";
+        }
+        else if (candidate.Kind == TokenKind.Word && formsAfter.Count < formsBefore.Length)
         {
             reasonCode = AnalysisReasonCodes.OrdinaryWordCaseGrouping;
             explanation = "Grouped because ordinary words differ only by capitalization.";

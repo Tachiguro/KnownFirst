@@ -111,7 +111,16 @@ public sealed class TextReviewService(
                 occurrence.StartPosition,
                 occurrence.Length,
                 occurrence.Order,
-                sentence.Order);
+                sentence.Order,
+                word.CanonicalTerm,
+                occurrence.TechnicalFamily,
+                occurrence.TechnicalInstanceYear,
+                string.IsNullOrWhiteSpace(occurrence.TechnicalInstanceIdentifier)
+                    ? null
+                    : occurrence.TechnicalInstanceIdentifier,
+                string.IsNullOrWhiteSpace(occurrence.TechnicalVariant)
+                    ? null
+                    : occurrence.TechnicalVariant);
         }).ToArray();
         var contexts = ContextSelectionPolicy.Select(
                 document.Content,
@@ -407,7 +416,13 @@ public sealed class TextReviewService(
                 meaning.SourceProject,
                 meaning.SourcePageTitle,
                 meaning.ConfirmedByUser,
-                meaning.PreparedAt)).ToArray(),
+                meaning.PreparedAt,
+                string.IsNullOrWhiteSpace(meaning.EncounteredSurfaceForm)
+                    ? null
+                    : meaning.EncounteredSurfaceForm,
+                string.IsNullOrWhiteSpace(meaning.GrammaticalRelationship)
+                    ? null
+                    : meaning.GrammaticalRelationship)).ToArray(),
             learningCards.Select(card => new DiagnosticsLearningCard(
                 card.Id,
                 card.WordId,
@@ -917,6 +932,10 @@ public sealed class TextReviewService(
                 StartPosition = occurrence.StartPosition,
                 Length = occurrence.Length,
                 SurfaceForm = occurrence.SurfaceForm,
+                TechnicalFamily = occurrence.TechnicalFamily,
+                TechnicalInstanceYear = occurrence.TechnicalInstanceYear,
+                TechnicalInstanceIdentifier = occurrence.TechnicalInstanceIdentifier ?? string.Empty,
+                TechnicalVariant = occurrence.TechnicalVariant ?? string.Empty,
                 Order = occurrence.Order
             });
         }

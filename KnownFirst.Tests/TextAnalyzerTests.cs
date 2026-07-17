@@ -79,8 +79,59 @@ public sealed class TextAnalyzerTests
         CollectionAssert.AreEqual(
             new[] { "OAuth2", "IPv6", "SHA-256", "CVE-2026-12345" },
             surfaces);
-        Assert.IsTrue(_analyzer.Analyze(content).Candidates.All(
-            candidate => candidate.Kind == TokenKind.TechnicalTerm));
+        var candidates = _analyzer.Analyze(content).Candidates;
+        Assert.AreEqual(TokenKind.TechnicalTerm, candidates.Single(candidate => candidate.CanonicalTerm == "OAuth2").Kind);
+        Assert.AreEqual(TokenKind.TechnicalTerm, candidates.Single(candidate => candidate.CanonicalTerm == "IPv6").Kind);
+        Assert.AreEqual(TokenKind.Acronym, candidates.Single(candidate => candidate.CanonicalTerm == "SHA").Kind);
+        Assert.AreEqual(TokenKind.Acronym, candidates.Single(candidate => candidate.CanonicalTerm == "CVE").Kind);
+    }
+
+    [TestMethod]
+    public void Analyze_ExplicitCveAndShaFamiliesShareCanonicalAcronymIdentities()
+    {
+        const string content = "CVE CVE-2026-12345 SHA SHA-1 SHA-256 SHA-512 IPv6 OAuth2.";
+
+        var result = _analyzer.Analyze(content);
+        var cve = result.Candidates.Single(candidate => candidate.Identity == "A:CVE");
+        var sha = result.Candidates.Single(candidate => candidate.Identity == "A:SHA");
+
+        Assert.AreEqual("CVE", cve.CanonicalTerm);
+        Assert.AreEqual(TokenKind.Acronym, cve.Kind);
+        var cveInstance = cve.Occurrences.Single(occurrence =>
+            occurrence.TechnicalFamily == TechnicalTokenFamily.Cve);
+        Assert.HasCount(2, cve.Occurrences);
+        Assert.AreEqual(2026, cveInstance.TechnicalInstanceYear);
+        Assert.AreEqual("12345", cveInstance.TechnicalInstanceIdentifier);
+        Assert.AreEqual("SHA", sha.CanonicalTerm);
+        CollectionAssert.AreEqual(
+            new[] { "1", "256", "512" },
+            sha.Occurrences
+                .Where(occurrence => occurrence.TechnicalFamily == TechnicalTokenFamily.Sha)
+                .Select(occurrence => occurrence.TechnicalVariant)
+                .ToArray());
+        Assert.IsTrue(result.Candidates.Any(candidate => candidate.Identity == "T:IPv6"));
+        Assert.IsTrue(result.Candidates.Any(candidate => candidate.Identity == "T:OAuth2"));
+        Assert.IsFalse(result.Candidates.Any(candidate => candidate.Identity is "A:IPv" or "A:OAuth"));
+
+        foreach (var occurrence in cve.Occurrences.Concat(sha.Occurrences))
+        {
+            Assert.AreEqual(
+                occurrence.SurfaceForm,
+                content.Substring(occurrence.StartPosition, occurrence.Length));
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_TechnicalFamilyDiagnosticsAreHumanReadable()
+    {
+        var diagnostics = _analyzer.Analyze("CVE-2026-12345 and SHA-256.").Diagnostics!;
+
+        Assert.IsTrue(diagnostics.TokenDecisions.Any(decision =>
+            decision.ReasonCode == AnalysisReasonCodes.IncludedCveFamilyPattern
+            && decision.Explanation.Contains("CVE", StringComparison.Ordinal)));
+        Assert.IsTrue(diagnostics.TokenDecisions.Any(decision =>
+            decision.ReasonCode == AnalysisReasonCodes.IncludedShaFamilyPattern
+            && decision.Explanation.Contains("SHA", StringComparison.Ordinal)));
     }
 
     [TestMethod]

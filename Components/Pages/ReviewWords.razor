@@ -33,20 +33,23 @@
             <p class="candidate-label">@Localizer["Review_Candidate"]</p>
             <h2>@_candidate.Candidate</h2>
 
-            <dl class="candidate-details">
-                <div>
-                    <dt>@Localizer["Review_TokenKind"]</dt>
-                    <dd>@GetTokenKindName(_candidate.TokenKind)</dd>
-                </div>
-                <div>
-                    <dt>@Localizer["Review_EncounteredForms"]</dt>
-                    <dd>@string.Join(", ", _candidate.SurfaceForms)</dd>
-                </div>
-                <div>
-                    <dt>@Localizer["Review_OccurrenceCount"]</dt>
-                    <dd>@_candidate.OccurrenceCount</dd>
-                </div>
-            </dl>
+            <details class="candidate-details-panel">
+                <summary>@Localizer["Review_Details"]</summary>
+                <dl class="candidate-details">
+                    <div>
+                        <dt>@Localizer["Review_TokenKind"]</dt>
+                        <dd>@GetTokenKindName(_candidate.TokenKind)</dd>
+                    </div>
+                    <div>
+                        <dt>@Localizer["Review_EncounteredForms"]</dt>
+                        <dd>@string.Join(", ", _candidate.SurfaceForms)</dd>
+                    </div>
+                    <div>
+                        <dt>@Localizer["Review_OccurrenceCount"]</dt>
+                        <dd>@_candidate.OccurrenceCount</dd>
+                    </div>
+                </dl>
+            </details>
 
             @if (IsDebugBuild)
             {
@@ -85,21 +88,23 @@
                 </section>
             }
 
-            <h3>@Localizer["Review_Question"]</h3>
-            <div class="decision-grid">
-                <button type="button" class="button button-primary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.Known)">
-                    @Localizer["Review_Known"]
+            <section class="review-action-bar" aria-label="@Localizer["Review_Question"]">
+                <p class="review-saving-state" role="status" aria-live="polite">@(_isSaving ? Localizer["Review_Saving"] : "\u00a0")</p>
+                <div class="decision-grid">
+                    <button type="button" class="button button-primary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.Known)">
+                        @Localizer["Review_Known"]
+                    </button>
+                    <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
+                        @Localizer["Review_Unknown"]
+                    </button>
+                </div>
+                <button type="button"
+                        class="undo-button"
+                        disabled="@(!_candidate.CanUndo || _isSaving)"
+                        @onclick="UndoAsync">
+                    @Localizer["Review_Undo"]
                 </button>
-                <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
-                    @Localizer["Review_Unknown"]
-                </button>
-            </div>
-            <button type="button"
-                    class="undo-button"
-                    disabled="@(!_candidate.CanUndo || _isSaving)"
-                    @onclick="UndoAsync">
-                @Localizer["Review_Undo"]
-            </button>
+            </section>
 
             @if (_decisionFailed)
             {

@@ -26,17 +26,17 @@ The workflow must be understandable without technical database knowledge.
 Primary navigation order:
 
 1. **Learn / Lernen**
-2. **Import Text / Text importieren**
-3. **Settings / Einstellungen**
+2. **Prepare Words / Wörter vorbereiten**
+3. **Import Text / Text importieren**
+4. **Settings / Einstellungen**
 
 The application may retain a Home dashboard, but the principal action priority remains Learn first.
 
 Do not show these as permanent primary-navigation items:
 
 - Review Words
-- Prepare Words
 
-They remain internal workflow routes.
+Review remains an internal workflow route. Prepare Words is always represented in the ordered navigation but is stateful: it is enabled for an active preparation or Unknown/Unprepared backlog, labelled **Continue preparation / Vorbereitung fortsetzen** while active, disabled with a concise reason when empty, and blocked by active vocabulary review.
 
 ### 2.1 Learn availability
 
@@ -307,6 +307,14 @@ Undo restores:
 - session progress
 - related temporary state
 
+### 6.4 Narrow/mobile review layout
+
+Use the mobile app bar as the single page title and hide duplicate page headings and prominent Back-to-home controls. Home shows the KnownFirst name once in its hero.
+
+Keep progress, candidate, one highlighted context, context navigation, Known, and Unknown prominent. Put token kind, encountered forms, and occurrence count in a collapsed Details section; DEBUG Analysis details remains separate.
+
+Known and Unknown remain side by side in a stable two-column fixed action bar above the bottom safe area. Reserve a concise saving-status line, disable both actions while saving, keep Undo reachable, and add enough page padding that content is never hidden. Discard unfinished import remains at the bottom of normal page flow.
+
 ---
 
 ## 7. Review completion
@@ -361,7 +369,7 @@ German:
 
 > Wörter vorbereiten
 
-Preparation is a batch workflow, not a permanent primary-navigation page.
+Preparation remains a resumable batch workflow even though its stateful entry is visible in primary navigation.
 
 Select the next batch in this order:
 
@@ -445,8 +453,11 @@ For every selected vocabulary item:
 2. check the local lexical cache
 3. query the relevant Wiktionary provider when needed
 4. parse structured meanings
-5. rank possible meanings
-6. show the best result for confirmation
+5. follow an explicit provider relation to a base lemma through the same cache/provider chain when supported
+6. rank possible meanings
+7. show the best result for confirmation
+
+Supported relations are explicit plural, third-person singular, past tense, past participle, present participle, comparative, and superlative forms. Store the canonical learning term, encountered surface form, and grammatical relationship while keeping the original context unchanged. Use a visited set and fixed redirect-depth limit. Never infer a lemma with broad stemming: `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without provider evidence.
 
 Progress example:
 
@@ -469,15 +480,17 @@ Display:
 - selected translation
 - selected definition
 - alternative meanings
-- source
+- a collapsed Source details / Quelldetails control retaining project, page/link, revision, attribution, and license metadata
 
 Actions:
 
 - Accept and continue / Übernehmen und weiter
 - Choose another meaning / Andere Bedeutung wählen
 - Edit / Bearbeiten
-- Retry / Erneut versuchen
+- Try again / Erneut versuchen only for a recoverable lookup outcome
 - Manual entry / Manuell eingeben
+- Mark as known / Als bekannt markieren
+- Do not learn / Nicht lernen
 - Skip for now / Später
 - Cancel preparation / Vorbereitung beenden
 
@@ -495,6 +508,8 @@ German:
 
 The user chooses an alternative or accepts the suggested result.
 
+Use a bounded accessible dialog/listbox or mobile sheet, not a native single-line select. The closed value is at most two visual lines and approximately 160 characters. Alternative previews are approximately 240 characters and offer accessible full-text expansion. Full selected text remains in the definition card and persistence is never truncated. All children use bounded widths, wrapping, and `min-width: 0`; long unbroken values wrap anywhere. Escape and Android Back close the picker, focus returns to its invoking button, and safe areas are respected.
+
 ### 11.2 No result
 
 English:
@@ -507,13 +522,26 @@ German:
 
 Actions:
 
-- Retry
 - Manual entry
+- Mark as known
+- Do not learn
 - Skip for now
 
 Do not fabricate an answer.
 
 A failure for one word does not block the remaining batch.
+
+### 11.3 Lookup outcomes and retry
+
+The explicit outcomes are `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Try again is shown only for offline/timeout, HTTP 429, transient HTTP 5xx, and temporary parse/download failures. It is not shown for Success, NotFound, or PermanentFailure. Do not show another-source actions until another provider actually exists.
+
+### 11.4 Preparation dispositions and transition performance
+
+- **Mark as known** requires confirmation, stores the minimal PermanentlyKnown marker, creates no cards, removes obsolete preparation/context/frequency data transactionally, updates document-cleanup eligibility, and advances exactly once.
+- **Do not learn** requires a scope explanation, stores a minimal exact exclusion marker that is not Known, creates no cards, excludes no related identity, and advances exactly once.
+- **Skip for now** removes the candidate only from the current batch, leaves it Unknown and Unprepared for future batches, and cannot repeat within the same session even when every item is skipped.
+
+Accepting a loaded result performs no network request. Query only the current/next required state, prefetch at most one matching next lexical result with cancellation and deduplication, reject double submission, and delay the spinner until the transition is perceptible. DEBUG diagnostics measure validation, database transaction, prepared-meaning save, card creation, session update, next-candidate query, context loading, UI transition, and network work with a monotonic timer.
 
 ---
 
@@ -556,7 +584,7 @@ German:
 Actions:
 
 - Start learning / Lernen starten
-- Change limit / Limit ändern
+- Change daily limit / Tageslimit ändern
 - Return Home / Zur Startseite
 
 The displayed number uses the configured limit.
@@ -611,6 +639,8 @@ Back:
 4. optional dictionary example
 5. source
 
+Context Previous/position/Next controls appear directly below the context sentence, not below the complete answer and rating area. Source metadata uses the compact collapsed Source details control.
+
 Ratings:
 
 - Again / Nochmal
@@ -632,6 +662,8 @@ Front:
 - optional context with the target hidden
 - editable answer field
 - Check answer
+
+Context navigation, when present, also appears directly below this context sentence.
 
 The expected response is:
 
@@ -784,17 +816,19 @@ Message:
 
 English:
 
-> All current reviews are complete. More unknown words are waiting for preparation.
+> All current reviews are complete. {count} unknown words are waiting for preparation.
 
 German:
 
-> Alle aktuellen Wiederholungen sind abgeschlossen. Weitere unbekannte Wörter warten auf die Vorbereitung.
+> Alle aktuellen Wiederholungen sind abgeschlossen. {count} unbekannte Wörter warten auf die Vorbereitung.
 
 Actions:
 
-- Prepare next frequent words
-- Later
-- Change limit
+- Prepare next words / Nächste Wörter vorbereiten
+- Later / Später
+- Change daily limit / Tageslimit ändern
+
+Do not force navigation after the learning summary.
 
 ### 19.2 Nothing else is open
 
@@ -869,7 +903,7 @@ Required settings:
 - Light
 - Dark
 
-### New vocabulary per preparation batch
+### New words per day / Neue Wörter pro Tag
 
 - 5
 - 10
@@ -879,6 +913,8 @@ Required settings:
 
 Default: 10  
 Maximum: 50
+
+Help text explains that the setting limits new learning words so preparation and study remain manageable and that due reviews do not count.
 
 ### Card direction
 

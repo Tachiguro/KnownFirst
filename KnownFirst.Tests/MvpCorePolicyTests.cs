@@ -23,16 +23,63 @@ public sealed class MvpCorePolicyTests
     }
 
     [TestMethod]
-    public void PrimaryNavigation_LearnIsFirstAndReviewAndPrepareAreAbsent()
+    public void PrimaryNavigation_UsesLearnPrepareImportSettingsOrder()
     {
         CollectionAssert.AreEqual(
             new[]
             {
                 PrimaryNavigationAction.Learn,
+                PrimaryNavigationAction.PrepareWords,
                 PrimaryNavigationAction.ImportText,
                 PrimaryNavigationAction.Settings
             },
             PrimaryNavigationPolicy.Actions.ToArray());
+    }
+
+    [TestMethod]
+    public void MeaningPreview_LongTextIsBoundedWithoutChangingStoredText()
+    {
+        var stored = new string('x', 400);
+
+        var closed = MeaningPreviewPolicy.CreateClosedPreview(stored);
+        var alternative = MeaningPreviewPolicy.CreateAlternativePreview(stored);
+
+        Assert.AreEqual(161, closed.Length);
+        Assert.AreEqual(241, alternative.Length);
+        Assert.AreEqual(400, stored.Length);
+        Assert.IsTrue(MeaningPreviewPolicy.IsAlternativeTruncated(stored));
+    }
+
+    [TestMethod]
+    public void ProviderFormRelations_ResolveOnlyExplicitSupportedRelations()
+    {
+        Assert.AreEqual("system", ProviderFormRelationPolicy.Resolve("plural of system")!.BaseLemma);
+        Assert.AreEqual("risk", ProviderFormRelationPolicy.Resolve("plural form of risk")!.BaseLemma);
+        Assert.AreEqual(
+            "identify",
+            ProviderFormRelationPolicy.Resolve("third-person singular simple present indicative of identify")!.BaseLemma);
+        Assert.AreEqual("protect", ProviderFormRelationPolicy.Resolve("past participle of protect")!.BaseLemma);
+        Assert.AreEqual("large", ProviderFormRelationPolicy.Resolve("comparative of large")!.BaseLemma);
+        Assert.IsNull(ProviderFormRelationPolicy.Resolve("having the qualities of risk"));
+    }
+
+    [TestMethod]
+    public void LookupOutcome_RetryIsLimitedToRecoverableFailures()
+    {
+        Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.TransientFailure));
+        Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.ParseFailure));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.Success));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.NotFound));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.PermanentFailure));
+    }
+
+    [TestMethod]
+    public void Workflow_PrepareIsEnabledForBacklogOrActivePreparationAndBlockedByReview()
+    {
+        Assert.IsTrue(new WorkflowSnapshot(false, false, false, 0, 0, 1, WorkflowPrimaryAction.PrepareWords).CanPrepare);
+        Assert.IsTrue(new WorkflowSnapshot(false, true, false, 0, 0, 0, WorkflowPrimaryAction.ContinuePreparation).CanPrepare);
+        Assert.IsFalse(new WorkflowSnapshot(false, false, false, 0, 0, 0, WorkflowPrimaryAction.ImportText).CanPrepare);
+        Assert.IsFalse(new WorkflowSnapshot(true, true, false, 0, 0, 1, WorkflowPrimaryAction.ContinueReview).CanPrepare);
     }
 
     [TestMethod]

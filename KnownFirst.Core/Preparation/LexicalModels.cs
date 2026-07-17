@@ -6,10 +6,14 @@ public enum LexicalLookupStatus
 {
     Success = 0,
     NotFound = 1,
-    Unavailable = 2,
-    RateLimited = 3,
-    MalformedResponse = 4,
-    TimedOut = 5
+    TransientFailure = 2,
+    PermanentFailure = 3,
+    ParseFailure = 4,
+
+    Unavailable = TransientFailure,
+    RateLimited = TransientFailure,
+    MalformedResponse = ParseFailure,
+    TimedOut = TransientFailure
 }
 
 public sealed record LexicalLookupRequest(
@@ -43,7 +47,10 @@ public sealed record LexicalResult(
     string Attribution,
     DateTime LookupAtUtc,
     bool IsFromCache = false,
-    string? ErrorCode = null)
+    string? ErrorCode = null,
+    string? EncounteredSurfaceForm = null,
+    string? GrammaticalRelationship = null,
+    int RedirectDepth = 0)
 {
     public bool HasUsableData => Status == LexicalLookupStatus.Success
         && (!string.IsNullOrWhiteSpace(AcronymExpansion)

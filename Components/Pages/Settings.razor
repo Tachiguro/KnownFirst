@@ -89,8 +89,10 @@
         <h2 id="preparation-limit-title">
             <label for="preparation-limit">@Localizer["Settings_PreparationLimit"]</label>
         </h2>
+        <p id="preparation-limit-help" class="setting-help">@Localizer["Settings_PreparationLimitHelp"]</p>
         <div class="field-group">
             <select id="preparation-limit"
+                    aria-describedby="preparation-limit-help"
                     @bind="_selectedPreparationLimit"
                     @bind:after="SavePreparationLimit">
                 @foreach (var limit in AppSettings.SupportedPreparationLimits)

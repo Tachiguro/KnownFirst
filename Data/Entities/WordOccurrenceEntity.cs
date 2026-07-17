@@ -1,4 +1,5 @@
 using SQLite;
+using KnownFirst.Core.Text;
 
 namespace KnownFirst.Data.Entities;
 
@@ -22,6 +23,14 @@ public sealed class WordOccurrenceEntity
     public int Length { get; set; }
 
     public string SurfaceForm { get; set; } = string.Empty;
+
+    public TechnicalTokenFamily TechnicalFamily { get; set; }
+
+    public int? TechnicalInstanceYear { get; set; }
+
+    public string TechnicalInstanceIdentifier { get; set; } = string.Empty;
+
+    public string TechnicalVariant { get; set; } = string.Empty;
 
     [Indexed("IX_WordOccurrences_Sentence_Order", 2)]
     public int Order { get; set; }

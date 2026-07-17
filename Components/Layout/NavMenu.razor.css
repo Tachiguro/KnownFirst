@@ -59,8 +59,15 @@
 }
 
 .nav-list .nav-link-disabled {
+    flex-wrap: wrap;
     cursor: not-allowed;
     opacity: 0.55;
+}
+
+.nav-list .nav-link-disabled small {
+    width: 100%;
+    font-size: 0.72rem;
+    font-weight: 500;
 }
 
 .developer-attribution {

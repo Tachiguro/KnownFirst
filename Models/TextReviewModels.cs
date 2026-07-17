@@ -171,7 +171,9 @@ public sealed record DiagnosticsPreparedMeaning(
     string SourceProject,
     string SourcePageTitle,
     bool ConfirmedByUser,
-    DateTime PreparedAt);
+    DateTime PreparedAt,
+    string? EncounteredSurfaceForm = null,
+    string? GrammaticalRelationship = null);
 
 public sealed record DiagnosticsLearningCard(
     int Id,

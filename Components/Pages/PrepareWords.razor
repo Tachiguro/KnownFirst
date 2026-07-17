@@ -1,9 +1,11 @@
 @page "/prepare-words"
 @inject IPreparationService PreparationService
 @inject IAppSettingsService AppSettings
+@inject INavigationHistoryService NavigationHistory
 @inject NavigationManager Navigation
+@inject IJSRuntime JavaScript
 @inject ILogger<PrepareWords> Logger
-@implements IDisposable
+@implements IAsyncDisposable
 
 <PageTitle>@Localizer["Navigation_PrepareWords"]</PageTitle>
 
@@ -70,7 +72,11 @@
                 <progress value="@(_item.Position - 1)" max="@_item.TotalItems"></progress>
             </div>
             <p class="eyebrow">@Localizer["Prepare_Candidate"]</p>
-            <h2>@_item.Term</h2>
+            <h2>@_item.LearningTerm</h2>
+            @if (_item.EncounteredSurfaceForm is { } encounteredSurfaceForm)
+            {
+                <p class="encountered-form">@Localizer["Prepare_InText", encounteredSurfaceForm]</p>
+            }
             <dl class="preparation-details">
                 <div><dt>@Localizer["Review_TokenKind"]</dt><dd>@GetTokenKindName(_item.TokenKind)</dd></div>
                 <div><dt>@Localizer["Review_OccurrenceCount"]</dt><dd>@_item.AcceptedOccurrenceCount</dd></div>
@@ -94,16 +100,24 @@
 
             @if (_isLookingUp)
             {
-                <p class="loading-message" role="status">@Localizer["Prepare_LookingUp"]</p>
+                <p class="loading-message preparation-transition-status" role="status">
+                    @if (_showTransitionSpinner)
+                    {
+                        <span class="transition-spinner" aria-hidden="true"></span>
+                    }
+                    <span>@Localizer["Prepare_LookingUp"]</span>
+                </p>
             }
             else if (_item.Status == PreparationCandidateStatus.Failed)
             {
                 <div class="inline-message inline-message-error" role="alert">
                     <p>@GetLookupFailureMessage()</p>
                     <div class="button-row">
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="RetryAsync">@Localizer["Common_Retry"]</button>
+                        @if (CanRetryLookup)
+                        {
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="RetryAsync">@Localizer["Common_TryAgain"]</button>
+                        }
                         <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableManualEntry">@Localizer["Prepare_ManualEntry"]</button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="SkipAsync">@Localizer["Prepare_SkipForNow"]</button>
                     </div>
                 </div>
             }
@@ -122,7 +136,6 @@
                 }
                 <div class="button-row">
                     <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_SaveAndContinue"]</button>
-                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="SkipAsync">@Localizer["Prepare_SkipForNow"]</button>
                     @if (_item.Result?.HasUsableData == true)
                     {
                         <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditing">@Localizer["Common_Cancel"]</button>
@@ -140,40 +153,61 @@
                     {
                         <div><h3>@Localizer["Prepare_Translation"]</h3><p>@_translation</p></div>
                     }
-                    <div><h3>@Localizer["Prepare_Definition"]</h3><p>@_definition</p></div>
+                    <div><h3>@Localizer["Prepare_Definition"]</h3><p class="full-definition">@_definition</p></div>
                     @if (_item.Result.Meanings.Count > 1)
                     {
                         <p>@Localizer["Prepare_SeveralMeanings"]</p>
-                        @if (_showAlternatives)
-                        {
-                            <select @bind="_selectedMeaningIndex" @bind:after="SelectMeaningAsync">
-                                @for (var index = 0; index < _item.Result.Meanings.Count; index++)
-                                {
-                                    <option value="@index">@_item.Result.Meanings[index].Definition</option>
-                                }
-                            </select>
-                        }
+                        <button type="button"
+                                class="meaning-picker-trigger"
+                                aria-haspopup="dialog"
+                                aria-expanded="@_isMeaningPickerOpen"
+                                @ref="_meaningPickerButton"
+                                disabled="@_isBusy"
+                                @onclick="OpenMeaningPickerAsync">
+                            <span>@MeaningPreviewPolicy.CreateClosedPreview(_definition)</span>
+                        </button>
                     }
-                    <p class="source-attribution">@Localizer["Prepare_Source", _item.Result.SourceProject, _item.Result.PageTitle]</p>
-                    @if (!string.IsNullOrWhiteSpace(_item.Result.Attribution))
-                    {
-                        <small class="source-attribution">@_item.Result.Attribution</small>
-                    }
+                    <SourceDetails ProviderName="@_item.Result.ProviderName"
+                                   SourceProject="@_item.Result.SourceProject"
+                                   PageTitle="@_item.Result.PageTitle"
+                                   RevisionId="@_item.Result.RevisionId"
+                                   Attribution="@_item.Result.Attribution" />
                 </section>
                 <div class="button-row">
-                    <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_AcceptAndContinue"]</button>
-                    @if (_item.Result.Meanings.Count > 1)
-                    {
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="ToggleAlternatives">@Localizer["Prepare_ChooseAnotherMeaning"]</button>
-                    }
+                    <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="AcceptAsync">
+                        @if (_showTransitionSpinner)
+                        {
+                            <span class="transition-spinner" aria-hidden="true"></span>
+                            <span>@Localizer["Prepare_Saving"]</span>
+                        }
+                        else
+                        {
+                            <span>@Localizer["Prepare_AcceptAndContinue"]</span>
+                        }
+                    </button>
                     <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableEditing">@Localizer["Prepare_Edit"]</button>
-                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="RetryAsync">@Localizer["Common_Retry"]</button>
-                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableManualEntry">@Localizer["Prepare_ManualEntry"]</button>
-                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="SkipAsync">@Localizer["Prepare_SkipForNow"]</button>
                 </div>
             }
 
-            <button type="button" class="button button-secondary cancel-preparation" @onclick="CancelPreparation">@Localizer["Prepare_CancelPreparation"]</button>
+            <div class="preparation-disposition-actions" aria-label="@Localizer["Prepare_OtherActions"]">
+                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="ShowMarkKnownConfirmation">@Localizer["Prepare_MarkKnown"]</button>
+                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="ShowExcludeConfirmation">@Localizer["Prepare_DoNotLearn"]</button>
+                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="SkipAsync">@Localizer["Prepare_SkipForNow"]</button>
+            </div>
+
+            @if (_confirmationAction is not null)
+            {
+                <section class="preparation-confirmation" role="alertdialog" aria-labelledby="preparation-confirmation-title">
+                    <h3 id="preparation-confirmation-title">@Localizer[_confirmationAction == PreparationCompletionAction.MarkKnown ? "Prepare_MarkKnown" : "Prepare_DoNotLearn"]</h3>
+                    <p>@Localizer[_confirmationAction == PreparationCompletionAction.MarkKnown ? "Prepare_MarkKnownConfirmation" : "Prepare_DoNotLearnConfirmation"]</p>
+                    <div class="button-row">
+                        <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="ConfirmDispositionAsync">@Localizer["Common_Confirm"]</button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelDisposition">@Localizer["Common_Cancel"]</button>
+                    </div>
+                </section>
+            }
+
+            <button type="button" class="button button-secondary cancel-preparation" disabled="@_isBusy" @onclick="CancelPreparation">@Localizer["Prepare_CancelPreparation"]</button>
             @if (_saveFailed)
             {
                 <p class="inline-message inline-message-error" role="alert">@Localizer["Prepare_SaveError"]</p>
@@ -197,6 +231,47 @@
     }
 </section>
 
+@if (_isMeaningPickerOpen && _item?.Result is { Meanings.Count: > 1 } result)
+{
+    <div class="meaning-picker-backdrop" @onclick="CloseMeaningPickerAsync">
+        <section class="meaning-picker"
+                 role="dialog"
+                 aria-modal="true"
+                 aria-labelledby="meaning-picker-title"
+                 tabindex="-1"
+                 @ref="_meaningPickerDialog"
+                 @onkeydown="HandleMeaningPickerKeyDown"
+                 @onclick:stopPropagation="true">
+            <header>
+                <h2 id="meaning-picker-title">@Localizer["Prepare_ChooseAnotherMeaning"]</h2>
+                <button type="button" class="button button-secondary" @onclick="CloseMeaningPickerAsync">@Localizer["Common_Close"]</button>
+            </header>
+            <ul class="meaning-options" role="listbox" aria-labelledby="meaning-picker-title">
+                @for (var index = 0; index < result.Meanings.Count; index++)
+                {
+                    var meaningIndex = index;
+                    var meaning = result.Meanings[index];
+                    <li role="none" class="meaning-option @(_selectedMeaningIndex == meaningIndex ? "selected" : null)">
+                        <button type="button"
+                                role="option"
+                                aria-selected="@(_selectedMeaningIndex == meaningIndex)"
+                                @onclick="() => SelectMeaningAsync(meaningIndex)">
+                            @MeaningPreviewPolicy.CreateAlternativePreview(meaning.Definition)
+                        </button>
+                        @if (MeaningPreviewPolicy.IsAlternativeTruncated(meaning.Definition))
+                        {
+                            <details>
+                                <summary>@Localizer["Common_ShowFullText"]</summary>
+                                <p>@meaning.Definition</p>
+                            </details>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
+    </div>
+}
+
 @code {
     private PreparationOverview _overview = new(0, 0, 0, null, 0, 0, null, 0);
     private PreparationItem? _item;
@@ -206,10 +281,11 @@
     private bool _loadFailed;
     private bool _saveFailed;
     private bool _showPrivacyDisclosure;
-    private bool _showAlternatives;
     private bool _showEditor;
     private bool _definitionMissing;
     private bool _batchCompleted;
+    private bool _isMeaningPickerOpen;
+    private bool _showTransitionSpinner;
     private int _contextIndex;
     private int _selectedMeaningIndex;
     private string _acronymExpansion = string.Empty;
@@ -218,10 +294,18 @@
     private string _additionalNote = string.Empty;
     private string _aliases = string.Empty;
     private CancellationTokenSource? _lookupCancellation;
+    private CancellationTokenSource? _transitionSpinnerCancellation;
+    private IDisposable? _meaningPickerBackRegistration;
+    private ElementReference _meaningPickerButton;
+    private ElementReference _meaningPickerDialog;
+    private PreparationCompletionAction? _confirmationAction;
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
         ? null
         : _item.Contexts[_contextIndex];
+
+    private bool CanRetryLookup => _item?.Result is { } result
+        && LexicalLookupOutcomePolicy.CanRetry(result.Status);
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -334,7 +418,7 @@
 
     private async Task RetryAsync()
     {
-        if (_isBusy)
+        if (_isBusy || !CanRetryLookup)
         {
             return;
         }
@@ -356,15 +440,50 @@
         }
     }
 
-    private async Task SelectMeaningAsync()
+    private async Task OpenMeaningPickerAsync()
     {
-        if (_item?.Result is null)
+        if (_isBusy || _isMeaningPickerOpen)
         {
             return;
         }
 
-        await PreparationService.SelectMeaningAsync(_item.CandidateId, _selectedMeaningIndex);
-        ApplyMeaning(_item.Result.Meanings[_selectedMeaningIndex]);
+        _isMeaningPickerOpen = true;
+        _meaningPickerBackRegistration = NavigationHistory.RegisterDismissibleOverlay(
+            () => _ = InvokeAsync(() => CloseMeaningPickerAsync()));
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _meaningPickerDialog);
+    }
+
+    private async Task CloseMeaningPickerAsync()
+    {
+        if (!_isMeaningPickerOpen)
+        {
+            return;
+        }
+
+        _meaningPickerBackRegistration?.Dispose();
+        _meaningPickerBackRegistration = null;
+        _isMeaningPickerOpen = false;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _meaningPickerButton);
+    }
+
+    private Task HandleMeaningPickerKeyDown(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+            ? CloseMeaningPickerAsync()
+            : Task.CompletedTask;
+
+    private async Task SelectMeaningAsync(int meaningIndex)
+    {
+        if (_item?.Result is null || _isBusy)
+        {
+            return;
+        }
+
+        _selectedMeaningIndex = meaningIndex;
+        await PreparationService.SelectMeaningAsync(_item.CandidateId, meaningIndex);
+        ApplyMeaning(_item.Result.Meanings[meaningIndex]);
+        await CloseMeaningPickerAsync();
     }
 
     private async Task AcceptAsync()
@@ -380,8 +499,11 @@
             return;
         }
 
+        var acceptedCandidateId = _item.CandidateId;
+        var transitionStarted = System.Diagnostics.Stopwatch.StartNew();
         _isBusy = true;
         _saveFailed = false;
+        StartDelayedTransitionSpinner();
         try
         {
             var result = _item.Result;
@@ -402,9 +524,15 @@
                     result?.SourceProject ?? string.Empty,
                     result?.PageTitle ?? string.Empty,
                     result?.RevisionId,
-                    result?.Attribution ?? string.Empty),
+                    result?.Attribution ?? string.Empty,
+                    _item.EncounteredSurfaceForm,
+                    result?.GrammaticalRelationship,
+                    result?.DisplayTerm ?? _item.Term),
                 AppSettings.CardDirection);
             await MoveNextAsync();
+#if DEBUG
+            PreparationService.RecordUiTransition(acceptedCandidateId, transitionStarted.Elapsed);
+#endif
         }
         catch (Exception exception)
         {
@@ -413,6 +541,7 @@
         }
         finally
         {
+            StopTransitionSpinner();
             _isBusy = false;
         }
     }
@@ -425,10 +554,51 @@
         }
 
         _isBusy = true;
+        _saveFailed = false;
         try
         {
             await PreparationService.SkipAsync(_item.CandidateId);
             await MoveNextAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The preparation item could not be skipped.");
+            _saveFailed = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task ConfirmDispositionAsync()
+    {
+        if (_item is null || _isBusy || _confirmationAction is null)
+        {
+            return;
+        }
+
+        var action = _confirmationAction.Value;
+        _isBusy = true;
+        _saveFailed = false;
+        try
+        {
+            if (action == PreparationCompletionAction.MarkKnown)
+            {
+                await PreparationService.MarkKnownAsync(_item.CandidateId);
+            }
+            else
+            {
+                await PreparationService.ExcludeAsync(_item.CandidateId);
+            }
+
+            _confirmationAction = null;
+            await MoveNextAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The preparation disposition could not be saved.");
+            _saveFailed = true;
         }
         finally
         {
@@ -438,25 +608,30 @@
 
     private async Task MoveNextAsync()
     {
-        _item = await PreparationService.GetCurrentAsync();
-        _overview = await PreparationService.GetOverviewAsync();
+        var method = _item?.Method;
         _contextIndex = 0;
-        InitializeFields();
-        if (_item is null)
-        {
-            _batchCompleted = true;
-        }
-        else if (_item.Method == PreparationMethod.AutomaticOnline)
+        if (method == PreparationMethod.AutomaticOnline)
         {
             await LookupAsync();
+        }
+        else
+        {
+            _item = await PreparationService.GetCurrentAsync();
+            InitializeFields();
+        }
+
+        if (_item is null)
+        {
+            _overview = await PreparationService.GetOverviewAsync();
+            _batchCompleted = true;
         }
     }
 
     private void InitializeFields()
     {
         _showEditor = _item?.Method == PreparationMethod.Manual;
-        _showAlternatives = false;
         _definitionMissing = false;
+        _confirmationAction = null;
         _selectedMeaningIndex = _item?.SelectedMeaningIndex ?? 0;
         _acronymExpansion = _item?.Result?.AcronymExpansion ?? string.Empty;
         _translation = string.Empty;
@@ -478,9 +653,10 @@
 
     private string GetLookupFailureMessage() => _item?.Result?.Status switch
     {
-        LexicalLookupStatus.RateLimited => Localizer["Prepare_RateLimited"],
-        LexicalLookupStatus.TimedOut or LexicalLookupStatus.Unavailable => Localizer["Prepare_Offline"],
-        _ => Localizer["Prepare_NoResult"]
+        LexicalLookupStatus.TransientFailure => Localizer["Prepare_TransientFailure"],
+        LexicalLookupStatus.ParseFailure => Localizer["Prepare_ParseFailure"],
+        LexicalLookupStatus.PermanentFailure => Localizer["Prepare_PermanentFailure"],
+        _ => Localizer["Prepare_NotFound"]
     };
 
     private string GetTokenKindName(TokenKind kind) => kind switch
@@ -491,13 +667,12 @@
         _ => Localizer["TokenKind_Word"]
     };
 
-    private void ToggleAlternatives() => _showAlternatives = !_showAlternatives;
     private void EnableEditing() => _showEditor = true;
 
     private void EnableManualEntry()
     {
         _showEditor = true;
-        if (_item?.Result is null)
+        if (_item?.Result?.HasUsableData != true)
         {
             _definition = string.Empty;
         }
@@ -509,6 +684,14 @@
         InitializeFields();
     }
 
+    private void ShowMarkKnownConfirmation() =>
+        _confirmationAction = PreparationCompletionAction.MarkKnown;
+
+    private void ShowExcludeConfirmation() =>
+        _confirmationAction = PreparationCompletionAction.Exclude;
+
+    private void CancelDisposition() => _confirmationAction = null;
+
     private void PreviousContext() => _contextIndex = Math.Max(0, _contextIndex - 1);
 
     private void NextContext()
@@ -519,19 +702,62 @@
         }
     }
 
+    private void StartDelayedTransitionSpinner()
+    {
+        StopTransitionSpinner();
+        var cancellation = new CancellationTokenSource();
+        _transitionSpinnerCancellation = cancellation;
+        _ = ShowTransitionSpinnerAfterDelayAsync(cancellation);
+    }
+
+    private async Task ShowTransitionSpinnerAfterDelayAsync(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(150), cancellation.Token);
+            if (ReferenceEquals(_transitionSpinnerCancellation, cancellation) && _isBusy)
+            {
+                _showTransitionSpinner = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void StopTransitionSpinner()
+    {
+        _transitionSpinnerCancellation?.Cancel();
+        _transitionSpinnerCancellation?.Dispose();
+        _transitionSpinnerCancellation = null;
+        _showTransitionSpinner = false;
+    }
+
     private void CancelDisclosure() => _showPrivacyDisclosure = false;
-    private void CancelPreparation()
+
+    private async Task CancelPreparation()
     {
         _lookupCancellation?.Cancel();
+        await PreparationService.CancelPrefetchAsync();
         Navigation.NavigateTo(string.Empty);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        _meaningPickerBackRegistration?.Dispose();
         _lookupCancellation?.Cancel();
         _lookupCancellation?.Dispose();
         _lookupCancellation = null;
+        StopTransitionSpinner();
+        await PreparationService.CancelPrefetchAsync();
     }
 
     private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private enum PreparationCompletionAction
+    {
+        MarkKnown,
+        Exclude
+    }
 }

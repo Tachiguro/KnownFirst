@@ -23,6 +23,11 @@ public partial class MainPage : ContentPage
 
     protected override bool OnBackButtonPressed()
     {
+        if (_navigationHistory.TryDismissOverlay())
+        {
+            return true;
+        }
+
         if (_navigationHistory.IsHome)
         {
             return base.OnBackButtonPressed();

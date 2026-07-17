@@ -6,9 +6,12 @@ public sealed class LexicalEnrichmentService(
     AcronymExpansionDetector acronymDetector,
     MeaningRanker meaningRanker,
     ILexicalCacheRepository cache,
-    IDictionaryLookupProvider provider) : ILexicalEnrichmentService
+    IDictionaryLookupProvider provider,
+    ILexicalDiagnosticLog? diagnosticLog = null) : ILexicalEnrichmentService
 {
     public const int MaximumLemmaRedirectDepth = 3;
+    private readonly ILexicalDiagnosticLog _diagnosticLog =
+        diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
 
     public async Task<LexicalResult> EnrichAsync(
         LexicalLookupRequest request,
@@ -17,7 +20,9 @@ public sealed class LexicalEnrichmentService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        _diagnosticLog.Write(Event(request, "enrichment.start"));
         var displayedSurfaceForm = request.DisplayedSurfaceForm;
+        _diagnosticLog.Write(Event(request, "enrichment.acronym-detection.start"));
         var detectionKind = request.TokenKind == KnownFirst.Core.Text.TokenKind.Word
             && AcronymExpansionDetector.IsAcronymCandidate(displayedSurfaceForm)
                 ? KnownFirst.Core.Text.TokenKind.Acronym
@@ -26,19 +31,24 @@ public sealed class LexicalEnrichmentService(
             originalDocumentContent,
             displayedSurfaceForm,
             detectionKind);
+        _diagnosticLog.Write(Event(request, "enrichment.acronym-detection.complete"));
 
         var originalTerm = displayedSurfaceForm;
         var currentRequest = request;
+        _diagnosticLog.Write(Event(request, "enrichment.lemma-normalization.start"));
         var visitedLemmas = new HashSet<string>(StringComparer.Ordinal)
         {
             NormalizeLemma(request.CanonicalLookupTerm)
         };
+        _diagnosticLog.Write(Event(request, "enrichment.lemma-normalization.complete"));
         ProviderFormRelation? initialRelation = null;
         var redirectDepth = 0;
 
         while (true)
         {
+            _diagnosticLog.Write(Event(currentRequest, "enrichment.lookup.start"));
             var result = await LookupOneAsync(currentRequest, cancellationToken);
+            _diagnosticLog.Write(Event(currentRequest, "enrichment.lookup.complete"));
             if (result.Status != LexicalLookupStatus.Success)
             {
                 return ApplyRelationMetadata(result, originalTerm, initialRelation, redirectDepth);
@@ -56,6 +66,7 @@ public sealed class LexicalEnrichmentService(
                 .ToArray();
             if (directMeanings.Length > 0)
             {
+                _diagnosticLog.Write(Event(currentRequest, "enrichment.ranking.start"));
                 var ranked = RankAndApplyExpansion(
                     result with
                     {
@@ -66,6 +77,7 @@ public sealed class LexicalEnrichmentService(
                     },
                     importedExpansion,
                     representativeContext);
+                _diagnosticLog.Write(Event(currentRequest, "enrichment.ranking.complete"));
                 return ApplyRelationMetadata(ranked, originalTerm, initialRelation, redirectDepth);
             }
 
@@ -106,6 +118,7 @@ public sealed class LexicalEnrichmentService(
             }
 
             redirectDepth++;
+            _diagnosticLog.Write(Event(currentRequest, "enrichment.redirect-request.start"));
             currentRequest = new LexicalLookupRequest(
                 request.SourceLanguage,
                 request.LookupMode,
@@ -115,6 +128,7 @@ public sealed class LexicalEnrichmentService(
                 request.Provider,
                 request.DisplayedSurfaceForm,
                 request.VocabularyCanonicalTerm);
+            _diagnosticLog.Write(Event(currentRequest, "enrichment.redirect-request.complete"));
         }
     }
 
@@ -191,6 +205,18 @@ public sealed class LexicalEnrichmentService(
 
     private static string NormalizeLemma(string value) =>
         value.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+
+    private LexicalDiagnosticEvent Event(
+        LexicalLookupRequest request,
+        string phase,
+        string cacheOutcome = "-") => new(
+        phase,
+        request.CanonicalLookupTerm,
+        request.SourceLanguage,
+        request.LookupMode,
+        request.TargetLanguage,
+        provider.ProviderName,
+        CacheOutcome: cacheOutcome);
 
     private LexicalResult AddDiagnostics(
         LexicalResult result,

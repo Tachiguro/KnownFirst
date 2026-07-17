@@ -32,7 +32,7 @@
     <None Include="..\Components\Shared\SourceDetails.razor" Link="Ui\SourceDetails.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Shared\PageHeader.razor.css" Link="Ui\PageHeader.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\Study\PreparationService.cs" Link="Ui\PreparationService.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\scripts\publish-android-beta.ps1" Link="Ui\publish-android-beta.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\scripts\publish-android-test-packages.ps1" Link="Ui\publish-android-test-packages.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

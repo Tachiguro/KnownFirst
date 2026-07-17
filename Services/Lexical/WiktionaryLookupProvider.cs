@@ -21,6 +21,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
     private readonly WiktionaryHtmlParser _parser;
     private readonly IClock _clock;
     private readonly IAsyncDelay _delay;
+    private readonly ILexicalDiagnosticLog _diagnosticLog;
     private readonly TimeSpan _requestTimeout;
     private readonly SemaphoreSlim _concurrencyGate = new(2, 2);
 
@@ -29,13 +30,15 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         WiktionaryHtmlParser parser,
         IClock clock,
         IAsyncDelay delay,
-        TimeSpan? requestTimeout = null)
+        TimeSpan? requestTimeout = null,
+        ILexicalDiagnosticLog? diagnosticLog = null)
     {
         _httpClient = httpClient;
         _parser = parser;
         _clock = clock;
         _delay = delay;
         _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(15);
+        _diagnosticLog = diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
     }
 
     public string ProviderName => Name;
@@ -47,6 +50,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        _diagnosticLog.Write(Event(request, "provider.validation.start"));
         ValidateLanguage(request.SourceLanguage);
         LexicalLookupLanguagePolicy.Validate(
             request.SourceLanguage,
@@ -56,11 +60,24 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         {
             throw new ArgumentException("The request is for a different lexical provider.", nameof(request));
         }
+        _diagnosticLog.Write(Event(request, "provider.validation.complete"));
 
+        _diagnosticLog.Write(Event(request, "provider.concurrency-wait.start"));
         await _concurrencyGate.WaitAsync(cancellationToken);
         try
         {
+            _diagnosticLog.Write(Event(request, "provider.concurrency-wait.complete"));
             return await SendWithRetryAsync(request, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _diagnosticLog.Write(Event(request, "provider.cancelled", httpOutcome: "cancelled"));
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _diagnosticLog.Write(Event(request, "provider.exception", httpOutcome: "exception"), exception);
+            throw;
         }
         finally
         {
@@ -102,6 +119,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         {
             try
             {
+                _diagnosticLog.Write(Event(request, $"http.attempt-{attempt + 1}.start", httpOutcome: "requesting"));
                 using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeoutSource.CancelAfter(_requestTimeout);
                 using var message = new HttpRequestMessage(HttpMethod.Get, CreateRequestUri(request));
@@ -111,6 +129,10 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                     message,
                     HttpCompletionOption.ResponseHeadersRead,
                     timeoutSource.Token);
+                _diagnosticLog.Write(Event(
+                    request,
+                    $"http.attempt-{attempt + 1}.headers",
+                    httpOutcome: $"status-{(int)response.StatusCode}"));
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
@@ -148,22 +170,30 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                 }
 
                 var json = await response.Content.ReadAsStringAsync(timeoutSource.Token);
+                _diagnosticLog.Write(Event(
+                    request,
+                    $"http.attempt-{attempt + 1}.body-complete",
+                    httpOutcome: $"status-{(int)response.StatusCode}"));
                 return ParseResponse(request, json);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
+                _diagnosticLog.Write(Event(request, "http.timeout", httpOutcome: "timeout"));
                 return Failure(request, LexicalLookupStatus.TransientFailure, "timeout");
             }
             catch (HttpRequestException) when (attempt < MaximumAttempts - 1)
             {
+                _diagnosticLog.Write(Event(request, "http.transient-error", httpOutcome: "retrying"));
                 await _delay.DelayAsync(GetBackoff(attempt), cancellationToken);
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException exception)
             {
+                _diagnosticLog.Write(Event(request, "http.failed", httpOutcome: "network-unavailable"), exception);
                 return Failure(request, LexicalLookupStatus.TransientFailure, "network-unavailable");
             }
-            catch (JsonException)
+            catch (JsonException exception)
             {
+                _diagnosticLog.Write(Event(request, "parser.json.failed", parserOutcome: "malformed-json"), exception);
                 return Failure(request, LexicalLookupStatus.ParseFailure, "malformed-json");
             }
         }
@@ -173,8 +203,10 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
 
     private LexicalResult ParseResponse(LexicalLookupRequest request, string json)
     {
+        _diagnosticLog.Write(Event(request, "parser.json.start", parserOutcome: "parsing"));
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
+        _diagnosticLog.Write(Event(request, "parser.json.complete", parserOutcome: "parsed"));
         if (root.TryGetProperty("error", out var error))
         {
             var code = error.TryGetProperty("code", out var codeElement)
@@ -204,7 +236,15 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             return Failure(request, LexicalLookupStatus.ParseFailure, "missing-html");
         }
 
-        var parsedEntry = _parser.ParseEntry(html, request.SourceLanguage, request.ExplanationLanguage);
+        _diagnosticLog.Write(Event(request, "parser.html.start", parserOutcome: "parsing"));
+        var parsedEntry = _parser.ParseEntry(
+            html,
+            request.SourceLanguage,
+            request.ExplanationLanguage,
+            request.CanonicalLookupTerm,
+            request.LookupMode,
+            request.TargetLanguage);
+        _diagnosticLog.Write(Event(request, "parser.html.complete", parserOutcome: "parsed"));
         var meanings = SelectMeanings(parsedEntry.DirectMeanings, request.LookupMode);
         if (meanings.Count == 0 && parsedEntry.FormRelations.Count == 0)
         {
@@ -313,4 +353,18 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             throw new ArgumentException("Only English and German are supported.", nameof(language));
         }
     }
+
+    private static LexicalDiagnosticEvent Event(
+        LexicalLookupRequest request,
+        string phase,
+        string httpOutcome = "-",
+        string parserOutcome = "-") => new(
+        phase,
+        request.CanonicalLookupTerm,
+        request.SourceLanguage,
+        request.LookupMode,
+        request.TargetLanguage,
+        Name,
+        HttpOutcome: httpOutcome,
+        ParserOutcome: parserOutcome);
 }

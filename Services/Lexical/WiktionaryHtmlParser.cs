@@ -12,6 +12,12 @@ public sealed record LexicalEntryParseResult(
 public sealed partial class WiktionaryHtmlParser
 {
     private readonly HtmlParser _parser = new();
+    private readonly ILexicalDiagnosticLog _diagnosticLog;
+
+    public WiktionaryHtmlParser(ILexicalDiagnosticLog? diagnosticLog = null)
+    {
+        _diagnosticLog = diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
+    }
 
     public IReadOnlyList<LexicalMeaning> Parse(
         string html,
@@ -21,21 +27,29 @@ public sealed partial class WiktionaryHtmlParser
     public LexicalEntryParseResult ParseEntry(
         string html,
         string sourceLanguage,
-        string explanationLanguage)
+        string explanationLanguage,
+        string normalizedTerm = "-",
+        LexicalLookupMode lookupMode = LexicalLookupMode.Definition,
+        string? targetLanguage = null)
     {
         if (string.IsNullOrWhiteSpace(html))
         {
             return new LexicalEntryParseResult([], []);
         }
 
+        _diagnosticLog.Write(Event("parser.html.document.start"));
         var document = _parser.ParseDocument(html);
+        _diagnosticLog.Write(Event("parser.html.document.complete"));
+        _diagnosticLog.Write(Event("parser.html.language-heading.start"));
         var heading = document.QuerySelectorAll("h2, h3")
             .FirstOrDefault(candidate => IsLanguageHeading(candidate, sourceLanguage));
+        _diagnosticLog.Write(Event("parser.html.language-heading.complete"));
         if (heading is null)
         {
             return new LexicalEntryParseResult([], []);
         }
 
+        _diagnosticLog.Write(Event("parser.html.section.start"));
         var sectionStart = GetHeadingContainer(heading);
         var headingLevel = GetHeadingLevel(sectionStart);
         var sectionElements = new List<AngleElement>();
@@ -48,18 +62,26 @@ public sealed partial class WiktionaryHtmlParser
 
             sectionElements.Add(element);
         }
+        _diagnosticLog.Write(Event("parser.html.section.complete"));
 
+        _diagnosticLog.Write(Event("parser.html.german-meanings.start"));
         var meanings = ParseGermanMeaningLists(sectionElements);
+        _diagnosticLog.Write(Event("parser.html.german-meanings.complete"));
         if (meanings.Count == 0)
         {
+            _diagnosticLog.Write(Event("parser.html.ordered-meanings.start"));
             meanings = ParseOrderedDefinitionLists(sectionElements);
+            _diagnosticLog.Write(Event("parser.html.ordered-meanings.complete"));
         }
 
+        _diagnosticLog.Write(Event("parser.html.distinct.start"));
         var distinctMeanings = meanings
             .GroupBy(meaning => $"{meaning.Definition}\u001f{meaning.Translation}", StringComparer.Ordinal)
             .Select(group => group.First())
             .Take(20)
             .ToArray();
+        _diagnosticLog.Write(Event("parser.html.distinct.complete"));
+        _diagnosticLog.Write(Event("parser.html.relations.start"));
         var directMeanings = distinctMeanings
             .Where(meaning => ProviderFormRelationPolicy.Resolve(meaning.Definition) is null)
             .ToArray();
@@ -69,7 +91,17 @@ public sealed partial class WiktionaryHtmlParser
             .Cast<ProviderFormRelation>()
             .Distinct()
             .ToArray();
+        _diagnosticLog.Write(Event("parser.html.relations.complete"));
         return new LexicalEntryParseResult(directMeanings, formRelations);
+
+        LexicalDiagnosticEvent Event(string phase) => new(
+            phase,
+            normalizedTerm,
+            sourceLanguage,
+            lookupMode,
+            targetLanguage,
+            WiktionaryLookupProvider.Name,
+            ParserOutcome: "parsing");
     }
 
     private static List<LexicalMeaning> ParseGermanMeaningLists(
@@ -194,7 +226,7 @@ public sealed partial class WiktionaryHtmlParser
         element.TagName is "OL" or "UL" or "DL"
         || element.Matches(
             ".translation, .translation-item, [data-translation], .example, [data-example], .h-usage-example, .e-example, .ux, .usage-label, .label, [data-label]")
-        || element.TagName == "SUP" && element.ClassList.Contains("reference");
+        || element.TagName == "SUP" && HasClass(element, "reference");
 
     private static IReadOnlyList<AngleElement> GetDirectItems(
         AngleElement element,
@@ -261,7 +293,7 @@ public sealed partial class WiktionaryHtmlParser
     }
 
     private static AngleElement GetHeadingContainer(AngleElement heading) =>
-        heading.ParentElement is { } parent && parent.ClassList.Contains("mw-heading")
+        heading.ParentElement is { } parent && HasClass(parent, "mw-heading")
             ? parent
             : heading;
 
@@ -272,9 +304,31 @@ public sealed partial class WiktionaryHtmlParser
             return element;
         }
 
-        return element.ClassList.Contains("mw-heading")
+        return HasClass(element, "mw-heading")
             ? element.Children.FirstOrDefault(IsRawHeading)
             : null;
+    }
+
+    private static bool HasClass(AngleElement element, string className)
+    {
+        var classAttribute = element.GetAttribute("class");
+        if (string.IsNullOrWhiteSpace(classAttribute))
+        {
+            return false;
+        }
+
+        var tokens = classAttribute.Split(
+            [' ', '\t', '\r', '\n', '\f'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        for (var index = 0; index < tokens.Length; index++)
+        {
+            if (string.Equals(tokens[index], className, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsLanguageHeading(AngleElement heading, string sourceLanguage)

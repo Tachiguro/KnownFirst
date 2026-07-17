@@ -7,6 +7,7 @@
 @inject ILogger<Settings> Logger
 @inject IJSRuntime JsRuntime
 @inject ITextReviewService TextReviewService
+@inject KnownFirst.Services.Lexical.ILexicalDiagnosticLog LexicalDiagnosticLog
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
 
@@ -162,6 +163,33 @@
         }
     </section>
 
+    @if (DiagnosticsEnabled)
+    {
+        <section class="settings-card" aria-labelledby="lexical-diagnostics-title">
+            <h2 id="lexical-diagnostics-title">@Localizer["Diagnostics_LexicalLogTitle"]</h2>
+            <p>@Localizer["Diagnostics_LexicalLogDescription"]</p>
+            <div class="support-actions">
+                <button type="button" class="button button-secondary" disabled="@_isChangingDiagnostics" @onclick="CopyLexicalDiagnosticReportAsync">
+                    @Localizer["Diagnostics_CopyDiagnosticReport"]
+                </button>
+                <button type="button" class="button button-secondary" disabled="@_isChangingDiagnostics" @onclick="ExportLexicalDiagnosticLogAsync">
+                    @Localizer["Diagnostics_ExportDiagnosticLog"]
+                </button>
+                <button type="button" class="button button-secondary" disabled="@_isChangingDiagnostics" @onclick="ClearLexicalDiagnosticLogAsync">
+                    @Localizer["Diagnostics_ClearDiagnosticLog"]
+                </button>
+            </div>
+            @if (_diagnosticMessageKey is not null)
+            {
+                <p class="setting-feedback @(_diagnosticActionFailed ? "setting-feedback-error" : "setting-feedback-success")"
+                   role="status"
+                   aria-live="polite">
+                    @Localizer[_diagnosticMessageKey]
+                </p>
+            }
+        </section>
+    }
+
     <section class="settings-card" aria-labelledby="help-and-support-title">
         <h2 id="help-and-support-title">@Localizer["Settings_HelpAndSupport"]</h2>
         <div class="support-actions">
@@ -255,6 +283,9 @@
     private bool _resetSucceeded;
     private bool _resetFailed;
     private bool _showFeaturePlaceholder;
+    private bool _isChangingDiagnostics;
+    private bool _diagnosticActionFailed;
+    private string? _diagnosticMessageKey;
     private bool _revealResetConfirmation;
     private bool _returnFocusToResetButton;
     private ElementReference _resetButton;
@@ -388,9 +419,74 @@
         _onlineConsentRevoked = true;
     }
 
+    private async Task CopyLexicalDiagnosticReportAsync()
+    {
+        await RunDiagnosticActionAsync(async () =>
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(
+                LexicalDiagnosticLog.ReadReport());
+            _diagnosticMessageKey = "Diagnostics_DiagnosticReportCopied";
+        });
+    }
+
+    private async Task ExportLexicalDiagnosticLogAsync()
+    {
+        await RunDiagnosticActionAsync(async () =>
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(
+                new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest
+                {
+                    Title = Localizer["Diagnostics_ExportDiagnosticLog"],
+                    File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(
+                        LexicalDiagnosticLog.ExportPath)
+                });
+            _diagnosticMessageKey = "Diagnostics_DiagnosticLogExported";
+        });
+    }
+
+    private Task ClearLexicalDiagnosticLogAsync() => RunDiagnosticActionAsync(() =>
+    {
+        LexicalDiagnosticLog.Clear();
+        _diagnosticMessageKey = "Diagnostics_DiagnosticLogCleared";
+        return Task.CompletedTask;
+    });
+
+    private async Task RunDiagnosticActionAsync(Func<Task> action)
+    {
+        _isChangingDiagnostics = true;
+        _diagnosticActionFailed = false;
+        _diagnosticMessageKey = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The lexical diagnostic log action failed.");
+            _diagnosticActionFailed = true;
+            _diagnosticMessageKey = "Diagnostics_DiagnosticLogActionError";
+        }
+        finally
+        {
+            _isChangingDiagnostics = false;
+        }
+    }
+
     private void ShowFeaturePlaceholder() => _showFeaturePlaceholder = true;
 
     private void CloseFeaturePlaceholder() => _showFeaturePlaceholder = false;
+
+    private static bool DiagnosticsEnabled
+    {
+        get
+        {
+#if DEBUG || KNOWNFIRST_DIAGNOSTICS
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
 
     private void ShowResetConfirmation()
     {

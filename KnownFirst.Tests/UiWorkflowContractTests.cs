@@ -269,25 +269,51 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void AndroidBeta_IdentityAndPublishingContractAreStableAndExternalized()
+    public void AndroidBeta_TestPackageIdentitiesAndPublishingContractAreStableAndExternalized()
     {
         var project = LoadUi("KnownFirst.csproj");
-        var script = LoadUi("publish-android-beta.ps1");
+        var script = LoadUi("publish-android-test-packages.ps1");
 
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst</ApplicationId>", project);
-        Assert.Contains("<ApplicationDisplayVersion>0.1.0-beta.2</ApplicationDisplayVersion>", project);
-        Assert.Contains("<ApplicationVersion>2</ApplicationVersion>", project);
-        Assert.Contains("<PackageVersion>0.1.0-beta.2</PackageVersion>", project);
+        Assert.Contains("<ApplicationDisplayVersion>0.1.0-beta.3</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationVersion>3</ApplicationVersion>", project);
+        Assert.Contains("<PackageVersion>0.1.0-beta.3</PackageVersion>", project);
+        Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>", project);
+        Assert.Contains("<ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>", project);
+        Assert.Contains("<ApplicationDisplayVersion>0.1.0-beta.3-diagnostic</ApplicationDisplayVersion>", project);
+        Assert.Contains("<DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>", project);
+        Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>", project);
+        Assert.Contains("<ApplicationTitle>KnownFirst Debug</ApplicationTitle>", project);
+        Assert.Contains("<ApplicationDisplayVersion>0.1.0-beta.3-debug</ApplicationDisplayVersion>", project);
+        Assert.Contains("<AndroidUseFastDeployment>false</AndroidUseFastDeployment>", project);
+        Assert.Contains("<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>", project);
+        Assert.Contains("<RunAOTCompilation>true</RunAOTCompilation>", project);
+        Assert.Contains("<DebugType>full</DebugType>", project);
         Assert.Contains("KnownFirst-Secrets", script);
         Assert.Contains("knownfirst-beta.keystore", script);
         Assert.Contains("env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD", script);
         Assert.Contains("AndroidPackageFormats=apk", script);
+        Assert.Contains("KnownFirst-0.1.0-beta.3-android-release", script);
+        Assert.Contains("KnownFirst-0.1.0-beta.3-android-diagnostic", script);
+        Assert.Contains("KnownFirst-0.1.0-beta.3-android-debug", script);
+        Assert.Contains("dotnet clean", script);
         Assert.Contains("apksigner", script);
         Assert.Contains("Get-FileHash", script);
         Assert.Contains("Compress-Archive", script);
         Assert.Contains("artifacts\\android-beta", script);
         Assert.DoesNotContain("storepass ", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("keypass ", script, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
+    public void LexicalDiagnostics_AreGuardedAndExposeOnlyTheRequestedSettingsActions()
+    {
+        var settings = LoadUi("Settings.razor");
+
+        Assert.Contains("#if DEBUG || KNOWNFIRST_DIAGNOSTICS", settings);
+        Assert.Contains("Diagnostics_CopyDiagnosticReport", settings);
+        Assert.Contains("Diagnostics_ExportDiagnosticLog", settings);
+        Assert.Contains("Diagnostics_ClearDiagnosticLog", settings);
     }
 
     private static string LoadUi(string fileName) => File.ReadAllText(Path.Combine(

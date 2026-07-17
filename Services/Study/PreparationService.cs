@@ -18,7 +18,8 @@ namespace KnownFirst.Services.Study;
 public sealed partial class PreparationService(
     IKnownFirstDatabase database,
     ILexicalEnrichmentService lexicalEnrichment,
-    IClock clock) : IPreparationService
+    IClock clock,
+    ILexicalDiagnosticLog? diagnosticLog = null) : IPreparationService
 {
     private const int MaximumContextSnapshots = 3;
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -27,6 +28,8 @@ public sealed partial class PreparationService(
     };
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly object _prefetchSync = new();
+    private readonly ILexicalDiagnosticLog _diagnosticLog =
+        diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
     private CancellationTokenSource? _prefetchCancellation;
     private Task<PrefetchedLookup?>? _prefetchTask;
     private int? _prefetchOriginCandidateId;
@@ -215,8 +218,11 @@ public sealed partial class PreparationService(
             {
                 var documentContent = await GetDocumentContentAsync(item.WordId);
                 var networkStarted = Stopwatch.GetTimestamp();
+                _diagnosticLog.Write(DiagnosticEvent(item, "preparation.request.start"));
+                var request = CreateLookupRequest(item);
+                _diagnosticLog.Write(DiagnosticEvent(item, "preparation.request.complete"));
                 result = await lexicalEnrichment.EnrichAsync(
-                    CreateLookupRequest(item),
+                    request,
                     documentContent,
                     item.Contexts.FirstOrDefault()?.Text,
                     cancellationToken);
@@ -231,7 +237,9 @@ public sealed partial class PreparationService(
                 var candidate = connection.Find<PreparationCandidateEntity>(item.CandidateId)
                     ?? throw new InvalidOperationException("The preparation candidate no longer exists.");
                 EnsureCurrentCandidate(connection, candidate);
+                _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.start"));
                 candidate.ResultJson = JsonSerializer.Serialize(result, SerializerOptions);
+                _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.complete"));
                 candidate.SelectedMeaningIndex = 0;
                 candidate.Status = result.HasUsableData
                     ? PreparationCandidateStatus.ResultReady
@@ -765,8 +773,11 @@ public sealed partial class PreparationService(
             }
 
             var networkStarted = Stopwatch.GetTimestamp();
+            _diagnosticLog.Write(DiagnosticEvent(source.Item, "prefetch.request.start"));
+            var request = CreateLookupRequest(source.Item);
+            _diagnosticLog.Write(DiagnosticEvent(source.Item, "prefetch.request.complete"));
             var result = await lexicalEnrichment.EnrichAsync(
-                CreateLookupRequest(source.Item),
+                request,
                 source.DocumentContent,
                 source.Item.Contexts.FirstOrDefault()?.Text,
                 cancellationToken);
@@ -1078,6 +1089,16 @@ public sealed partial class PreparationService(
         WiktionaryLookupProvider.Name,
         item.EncounteredSurfaceForm ?? item.Term,
         item.Term);
+
+    private static LexicalDiagnosticEvent DiagnosticEvent(
+        PreparationItem item,
+        string phase) => new(
+        phase,
+        item.Term,
+        item.SourceLanguage,
+        item.LookupMode,
+        item.TargetLanguage,
+        WiktionaryLookupProvider.Name);
 
     private static (LexicalLookupMode Mode, string? TargetLanguage) ResolveLookupSettings(
         DocumentEntity document)

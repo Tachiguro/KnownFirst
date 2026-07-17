@@ -47,6 +47,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<SpellingAnswerComparer>();
         builder.Services.AddSingleton<AcronymExpansionDetector>();
         builder.Services.AddSingleton<MeaningRanker>();
+        builder.Services.AddSingleton<ILexicalDiagnosticLog, LexicalDiagnosticLog>();
         builder.Services.AddSingleton<ILexicalCacheRepository, LexicalCacheRepository>();
         builder.Services.AddSingleton<WiktionaryHtmlParser>();
         builder.Services.AddSingleton<IAsyncDelay, SystemAsyncDelay>();
@@ -60,6 +61,8 @@ public static class MauiProgram
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
+#endif
+#if DEBUG || KNOWNFIRST_DIAGNOSTICS
         builder.Logging.AddDebug();
 #endif
 

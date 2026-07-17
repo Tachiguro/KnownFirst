@@ -1200,4 +1200,31 @@
   <data name="Prepare_DebugProviderOutcome" xml:space="preserve">
     <value>Provider outcome</value>
   </data>
+  <data name="Diagnostics_LexicalLogTitle" xml:space="preserve">
+    <value>Dictionary lookup diagnostics</value>
+  </data>
+  <data name="Diagnostics_LexicalLogDescription" xml:space="preserve">
+    <value>The bounded log contains lookup metadata, phases, and sanitized exceptions. It never contains documents, contexts, definitions, credentials, or HTTP headers.</value>
+  </data>
+  <data name="Diagnostics_CopyDiagnosticReport" xml:space="preserve">
+    <value>Copy diagnostic report</value>
+  </data>
+  <data name="Diagnostics_ExportDiagnosticLog" xml:space="preserve">
+    <value>Export diagnostic log</value>
+  </data>
+  <data name="Diagnostics_ClearDiagnosticLog" xml:space="preserve">
+    <value>Clear diagnostic log</value>
+  </data>
+  <data name="Diagnostics_DiagnosticReportCopied" xml:space="preserve">
+    <value>The diagnostic report was copied.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogExported" xml:space="preserve">
+    <value>The diagnostic log export was opened.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogCleared" xml:space="preserve">
+    <value>The diagnostic log was cleared.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogActionError" xml:space="preserve">
+    <value>The diagnostic log action could not be completed.</value>
+  </data>
 </root>

@@ -553,6 +553,59 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public void Parser_MwHeadingWrapperParsesWithoutUsingTheAngleSharpClassListPath()
+    {
+        const string html = "<div class='mw-heading mw-heading2'><h2 id='English'>English</h2></div>"
+            + "<div class='mw-heading mw-heading3'><h3>Noun</h3></div>"
+            + "<ol><li><span class='definition'>A stable lookup result.</span>"
+            + "<sup class='reference'>[1]</sup></li></ol>";
+
+        var parsed = new WiktionaryHtmlParser().ParseEntry(html, "en", "en");
+
+        Assert.HasCount(1, parsed.DirectMeanings);
+        Assert.AreEqual("A stable lookup result.", parsed.DirectMeanings[0].Definition);
+    }
+
+    [TestMethod]
+    public async Task Lookup_DiagnosticsRecordCacheHttpAndParserPhasesWithoutImportedContent()
+    {
+        const string privateDocument = "Complete private document that must remain local.";
+        const string privateContext = "Example context sentence that must remain local.";
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-diagnostic-phases");
+        await database.InitializeAsync();
+        var diagnostics = new RecordingDiagnosticLog();
+        var provider = new WiktionaryLookupProvider(
+            new HttpClient(new DelegateHandler((_, _) =>
+                Task.FromResult(JsonResponse(LoadFixture("english-entry.json"))))),
+            new WiktionaryHtmlParser(diagnostics),
+            new FakeClock(Now),
+            new RecordingDelay(),
+            TimeSpan.FromSeconds(1),
+            diagnostics);
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database, diagnostics),
+            provider,
+            diagnostics);
+
+        var result = await service.EnrichAsync(
+            Request("network", "en", "en"),
+            privateDocument,
+            privateContext);
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(diagnostics.Events.Any(item => item.CacheOutcome == "miss"));
+        Assert.IsTrue(diagnostics.Events.Any(item => item.HttpOutcome == "status-200"));
+        Assert.IsTrue(diagnostics.Events.Any(item => item.Phase == "parser.html.section.complete"));
+        Assert.IsTrue(diagnostics.Events.All(item => item.NormalizedTerm == "network"));
+        var recorded = string.Join(Environment.NewLine, diagnostics.Events.Select(item => item.ToString()));
+        Assert.DoesNotContain(privateDocument, recorded);
+        Assert.DoesNotContain(privateContext, recorded);
+        Assert.DoesNotContain("A connected group of computers.", recorded);
+    }
+
+    [TestMethod]
     public async Task ProviderChain_DataKeepsDirectSenseWhenFormRelationAlsoExists()
     {
         await using var database = new TemporaryKnownFirstDatabase("knownfirst-data-direct");
@@ -648,6 +701,20 @@ public sealed class WiktionaryProviderTests
             Delays.Add(delay);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class RecordingDiagnosticLog : ILexicalDiagnosticLog
+    {
+        public List<LexicalDiagnosticEvent> Events { get; } = [];
+
+        public string ExportPath => string.Empty;
+
+        public void Write(LexicalDiagnosticEvent diagnosticEvent, Exception? exception = null) =>
+            Events.Add(diagnosticEvent);
+
+        public string ReadReport() => string.Empty;
+
+        public void Clear() => Events.Clear();
     }
 
     private sealed class FakeDictionaryProvider(LexicalResult result) : IDictionaryLookupProvider

@@ -1200,4 +1200,31 @@
   <data name="Prepare_DebugProviderOutcome" xml:space="preserve">
     <value>Anbieterergebnis</value>
   </data>
+  <data name="Diagnostics_LexicalLogTitle" xml:space="preserve">
+    <value>Diagnose der Wörterbuchabfrage</value>
+  </data>
+  <data name="Diagnostics_LexicalLogDescription" xml:space="preserve">
+    <value>Das begrenzte Log enthält Abfragemetadaten, Phasen und bereinigte Ausnahmen. Es enthält niemals Dokumente, Kontexte, Definitionen, Zugangsdaten oder HTTP-Header.</value>
+  </data>
+  <data name="Diagnostics_CopyDiagnosticReport" xml:space="preserve">
+    <value>Diagnosebericht kopieren</value>
+  </data>
+  <data name="Diagnostics_ExportDiagnosticLog" xml:space="preserve">
+    <value>Diagnoselog exportieren</value>
+  </data>
+  <data name="Diagnostics_ClearDiagnosticLog" xml:space="preserve">
+    <value>Diagnoselog löschen</value>
+  </data>
+  <data name="Diagnostics_DiagnosticReportCopied" xml:space="preserve">
+    <value>Der Diagnosebericht wurde kopiert.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogExported" xml:space="preserve">
+    <value>Der Export des Diagnoselogs wurde geöffnet.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogCleared" xml:space="preserve">
+    <value>Das Diagnoselog wurde gelöscht.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogActionError" xml:space="preserve">
+    <value>Die Diagnoselog-Aktion konnte nicht abgeschlossen werden.</value>
+  </data>
 </root>

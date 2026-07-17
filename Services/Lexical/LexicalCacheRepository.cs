@@ -6,36 +6,56 @@ using System.Text.Json.Serialization;
 
 namespace KnownFirst.Services.Lexical;
 
-public sealed class LexicalCacheRepository(IKnownFirstDatabase database) : ILexicalCacheRepository
+public sealed class LexicalCacheRepository(
+    IKnownFirstDatabase database,
+    ILexicalDiagnosticLog? diagnosticLog = null) : ILexicalCacheRepository
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public Task<LexicalResult?> GetAsync(
+    private readonly ILexicalDiagnosticLog _diagnosticLog =
+        diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
+
+    public async Task<LexicalResult?> GetAsync(
         LexicalLookupRequest request,
         string provider,
         int providerSchemaVersion)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var cacheKey = CreateCacheKey(request, provider, providerSchemaVersion);
-        return database.ReadAsync(async connection =>
+        try
         {
-            var entity = await connection.Table<LexicalCacheEntity>()
-                .Where(item => item.CacheKey == cacheKey)
-                .FirstOrDefaultAsync();
-            if (entity is null)
+            _diagnosticLog.Write(Event(request, provider, "cache.key.start"));
+            var cacheKey = CreateCacheKey(request, provider, providerSchemaVersion);
+            _diagnosticLog.Write(Event(request, provider, "cache.key.complete"));
+            _diagnosticLog.Write(Event(request, provider, "cache.read.start"));
+            var result = await database.ReadAsync(async connection =>
             {
-                return null;
-            }
+                var entity = await connection.Table<LexicalCacheEntity>()
+                    .Where(item => item.CacheKey == cacheKey)
+                    .FirstOrDefaultAsync();
+                if (entity is null)
+                {
+                    _diagnosticLog.Write(Event(request, provider, "cache.read.complete", "miss"));
+                    return null;
+                }
 
-            var result = JsonSerializer.Deserialize<LexicalResult>(entity.ResultJson, SerializerOptions);
-            return result is null ? null : result with { IsFromCache = true };
-        });
+                _diagnosticLog.Write(Event(request, provider, "cache.deserialize.start", "hit"));
+                var cachedResult = JsonSerializer.Deserialize<LexicalResult>(entity.ResultJson, SerializerOptions);
+                _diagnosticLog.Write(Event(request, provider, "cache.deserialize.complete", "hit"));
+                return cachedResult is null ? null : cachedResult with { IsFromCache = true };
+            });
+            return result;
+        }
+        catch (Exception exception)
+        {
+            _diagnosticLog.Write(Event(request, provider, "cache.read.exception", "exception"), exception);
+            throw;
+        }
     }
 
-    public Task SaveAsync(
+    public async Task SaveAsync(
         LexicalLookupRequest request,
         LexicalResult result,
         int providerSchemaVersion)
@@ -44,51 +64,66 @@ public sealed class LexicalCacheRepository(IKnownFirstDatabase database) : ILexi
         ArgumentNullException.ThrowIfNull(result);
         if (!result.HasReferenceData)
         {
-            return Task.CompletedTask;
+            _diagnosticLog.Write(Event(request, result.ProviderName, "cache.write.skipped", "not-cacheable"));
+            return;
         }
 
-        var cacheKey = CreateCacheKey(request, result.ProviderName, providerSchemaVersion);
-        return database.RunInTransactionAsync(connection =>
+        try
         {
-            var entity = connection.Table<LexicalCacheEntity>()
-                .FirstOrDefault(item => item.CacheKey == cacheKey);
-            var serializedResult = JsonSerializer.Serialize(result with { IsFromCache = false }, SerializerOptions);
-            if (entity is null)
+            _diagnosticLog.Write(Event(request, result.ProviderName, "cache.write.key.start"));
+            var cacheKey = CreateCacheKey(request, result.ProviderName, providerSchemaVersion);
+            _diagnosticLog.Write(Event(request, result.ProviderName, "cache.write.key.complete"));
+            _diagnosticLog.Write(Event(request, result.ProviderName, "cache.write.start"));
+            await database.RunInTransactionAsync(connection =>
             {
-                entity = new LexicalCacheEntity
+                var entity = connection.Table<LexicalCacheEntity>()
+                    .FirstOrDefault(item => item.CacheKey == cacheKey);
+                _diagnosticLog.Write(Event(request, result.ProviderName, "cache.serialize.start"));
+                var serializedResult = JsonSerializer.Serialize(result with { IsFromCache = false }, SerializerOptions);
+                _diagnosticLog.Write(Event(request, result.ProviderName, "cache.serialize.complete"));
+                if (entity is null)
                 {
-                    CacheKey = cacheKey,
-                    SourceLanguage = request.SourceLanguage,
-                    ExplanationLanguage = request.ExplanationLanguage,
-                    NormalizedLemma = request.NormalizedLemma,
-                    LookupMode = request.LookupMode,
-                    TargetLanguage = request.TargetLanguage ?? string.Empty,
-                    CanonicalLookupTerm = request.CanonicalLookupTerm,
-                    TokenKind = request.TokenKind,
-                    Provider = result.ProviderName,
-                    ProviderSchemaVersion = providerSchemaVersion,
-                    ResultJson = serializedResult,
-                    SourceProject = result.SourceProject,
-                    PageTitle = result.PageTitle,
-                    RevisionId = result.RevisionId,
-                    Attribution = result.Attribution,
-                    FetchedAtUtc = result.LookupAtUtc
-                };
-                connection.Insert(entity);
-            }
-            else if (!string.Equals(entity.ResultJson, serializedResult, StringComparison.Ordinal))
-            {
-                entity.ResultJson = serializedResult;
-                entity.SourceProject = result.SourceProject;
-                entity.PageTitle = result.PageTitle;
-                entity.RevisionId = result.RevisionId;
-                entity.Attribution = result.Attribution;
-                entity.FetchedAtUtc = result.LookupAtUtc;
-                connection.Update(entity);
-            }
+                    entity = new LexicalCacheEntity
+                    {
+                        CacheKey = cacheKey,
+                        SourceLanguage = request.SourceLanguage,
+                        ExplanationLanguage = request.ExplanationLanguage,
+                        NormalizedLemma = request.NormalizedLemma,
+                        LookupMode = request.LookupMode,
+                        TargetLanguage = request.TargetLanguage ?? string.Empty,
+                        CanonicalLookupTerm = request.CanonicalLookupTerm,
+                        TokenKind = request.TokenKind,
+                        Provider = result.ProviderName,
+                        ProviderSchemaVersion = providerSchemaVersion,
+                        ResultJson = serializedResult,
+                        SourceProject = result.SourceProject,
+                        PageTitle = result.PageTitle,
+                        RevisionId = result.RevisionId,
+                        Attribution = result.Attribution,
+                        FetchedAtUtc = result.LookupAtUtc
+                    };
+                    connection.Insert(entity);
+                }
+                else if (!string.Equals(entity.ResultJson, serializedResult, StringComparison.Ordinal))
+                {
+                    entity.ResultJson = serializedResult;
+                    entity.SourceProject = result.SourceProject;
+                    entity.PageTitle = result.PageTitle;
+                    entity.RevisionId = result.RevisionId;
+                    entity.Attribution = result.Attribution;
+                    entity.FetchedAtUtc = result.LookupAtUtc;
+                    connection.Update(entity);
+                }
 
-            return true;
-        });
+                return true;
+            });
+            _diagnosticLog.Write(Event(request, result.ProviderName, "cache.write.complete", "stored"));
+        }
+        catch (Exception exception)
+        {
+            _diagnosticLog.Write(Event(request, result.ProviderName, "cache.write.exception", "exception"), exception);
+            throw;
+        }
     }
 
     public static string CreateCacheKey(
@@ -103,4 +138,17 @@ public sealed class LexicalCacheRepository(IKnownFirstDatabase database) : ILexi
         (int)request.TokenKind,
         provider.ToLowerInvariant(),
         providerSchemaVersion);
+
+    private static LexicalDiagnosticEvent Event(
+        LexicalLookupRequest request,
+        string provider,
+        string phase,
+        string cacheOutcome = "-") => new(
+        phase,
+        request.CanonicalLookupTerm,
+        request.SourceLanguage,
+        request.LookupMode,
+        request.TargetLanguage,
+        provider,
+        CacheOutcome: cacheOutcome);
 }

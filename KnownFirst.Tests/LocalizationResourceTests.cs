@@ -384,7 +384,16 @@ public sealed class LocalizationResourceTests
         "Diagnostics_TimingPhase_NextCandidateQuery",
         "Diagnostics_TimingPhase_ContextLoading",
         "Diagnostics_TimingPhase_UiTransition",
-        "Diagnostics_TimingPhase_NetworkWork"
+        "Diagnostics_TimingPhase_NetworkWork",
+        "Diagnostics_LexicalLogTitle",
+        "Diagnostics_LexicalLogDescription",
+        "Diagnostics_CopyDiagnosticReport",
+        "Diagnostics_ExportDiagnosticLog",
+        "Diagnostics_ClearDiagnosticLog",
+        "Diagnostics_DiagnosticReportCopied",
+        "Diagnostics_DiagnosticLogExported",
+        "Diagnostics_DiagnosticLogCleared",
+        "Diagnostics_DiagnosticLogActionError"
     ];
 
     [TestMethod]

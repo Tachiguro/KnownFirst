@@ -3,6 +3,7 @@
 @inject IThemeService ThemeService
 @inject IJSRuntime JsRuntime
 @inject KnownFirst.Services.Study.IStartupMaintenanceService StartupMaintenance
+@inject ILogger<Routes> Logger
 
 <div class="app-theme-root" data-theme="@ThemeService.EffectiveThemeCssName">
     @if (_isInitializing)
@@ -62,9 +63,11 @@
         {
             await Database.InitializeAsync();
             StartupMaintenance.Start();
+            Logger.LogInformation("Application data initialization completed.");
         }
-        catch
+        catch (Exception exception)
         {
+            Logger.LogCritical(exception, "Application data initialization failed.");
             _initializationFailed = true;
         }
         finally

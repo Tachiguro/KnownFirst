@@ -1,5 +1,8 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
@@ -22,6 +25,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
     private readonly IClock _clock;
     private readonly IAsyncDelay _delay;
     private readonly ILexicalDiagnosticLog _diagnosticLog;
+    private readonly ILogger<WiktionaryLookupProvider> _logger;
     private readonly TimeSpan _requestTimeout;
     private readonly SemaphoreSlim _concurrencyGate = new(2, 2);
 
@@ -31,7 +35,8 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         IClock clock,
         IAsyncDelay delay,
         TimeSpan? requestTimeout = null,
-        ILexicalDiagnosticLog? diagnosticLog = null)
+        ILexicalDiagnosticLog? diagnosticLog = null,
+        ILogger<WiktionaryLookupProvider>? logger = null)
     {
         _httpClient = httpClient;
         _parser = parser;
@@ -39,6 +44,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         _delay = delay;
         _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(15);
         _diagnosticLog = diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
+        _logger = logger ?? NullLogger<WiktionaryLookupProvider>.Instance;
     }
 
     public string ProviderName => Name;
@@ -63,20 +69,45 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         _diagnosticLog.Write(Event(request, "provider.validation.complete"));
 
         _diagnosticLog.Write(Event(request, "provider.concurrency-wait.start"));
+        var lookupStopwatch = Stopwatch.StartNew();
+        _logger.LogDebug(
+            "Dictionary lookup started. Provider = {Provider}, source language = {SourceLanguage}, target language = {TargetLanguage}, lookup mode = {LookupMode}, term length = {TermLength}",
+            Name,
+            request.SourceLanguage,
+            request.TargetLanguage ?? request.SourceLanguage,
+            request.LookupMode,
+            request.CanonicalLookupTerm.Length);
         await _concurrencyGate.WaitAsync(cancellationToken);
         try
         {
             _diagnosticLog.Write(Event(request, "provider.concurrency-wait.complete"));
-            return await SendWithRetryAsync(request, cancellationToken);
+            var result = await SendWithRetryAsync(request, cancellationToken);
+            _logger.LogInformation(
+                "Dictionary lookup completed. Provider = {Provider}, outcome = {LookupStatus}, error code = {ErrorCode}, cache result = {IsFromCache}, duration milliseconds = {DurationMilliseconds}",
+                Name,
+                result.Status,
+                result.ErrorCode ?? "-",
+                result.IsFromCache,
+                lookupStopwatch.ElapsedMilliseconds);
+            return result;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             _diagnosticLog.Write(Event(request, "provider.cancelled", httpOutcome: "cancelled"));
+            _logger.LogInformation(
+                "Dictionary lookup was cancelled. Provider = {Provider}, duration milliseconds = {DurationMilliseconds}",
+                Name,
+                lookupStopwatch.ElapsedMilliseconds);
             throw;
         }
         catch (Exception exception)
         {
             _diagnosticLog.Write(Event(request, "provider.exception", httpOutcome: "exception"), exception);
+            _logger.LogError(
+                exception,
+                "Dictionary lookup failed unexpectedly. Provider = {Provider}, duration milliseconds = {DurationMilliseconds}",
+                Name,
+                lookupStopwatch.ElapsedMilliseconds);
             throw;
         }
         finally
@@ -117,6 +148,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
     {
         for (var attempt = 0; attempt < MaximumAttempts; attempt++)
         {
+            var requestStopwatch = Stopwatch.StartNew();
             try
             {
                 _diagnosticLog.Write(Event(request, $"http.attempt-{attempt + 1}.start", httpOutcome: "requesting"));
@@ -133,6 +165,12 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                     request,
                     $"http.attempt-{attempt + 1}.headers",
                     httpOutcome: $"status-{(int)response.StatusCode}"));
+                _logger.LogInformation(
+                    "External dictionary request received response headers. Provider = {Provider}, attempt = {Attempt}, status code = {StatusCode}, duration milliseconds = {DurationMilliseconds}",
+                    Name,
+                    attempt + 1,
+                    (int)response.StatusCode,
+                    requestStopwatch.ElapsedMilliseconds);
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
@@ -179,16 +217,32 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 _diagnosticLog.Write(Event(request, "http.timeout", httpOutcome: "timeout"));
+                _logger.LogWarning(
+                    "External dictionary request timed out. Provider = {Provider}, attempt = {Attempt}, duration milliseconds = {DurationMilliseconds}",
+                    Name,
+                    attempt + 1,
+                    requestStopwatch.ElapsedMilliseconds);
                 return Failure(request, LexicalLookupStatus.TransientFailure, "timeout");
             }
             catch (HttpRequestException) when (attempt < MaximumAttempts - 1)
             {
                 _diagnosticLog.Write(Event(request, "http.transient-error", httpOutcome: "retrying"));
+                _logger.LogWarning(
+                    "External dictionary request failed transiently and will be retried. Provider = {Provider}, attempt = {Attempt}, duration milliseconds = {DurationMilliseconds}",
+                    Name,
+                    attempt + 1,
+                    requestStopwatch.ElapsedMilliseconds);
                 await _delay.DelayAsync(GetBackoff(attempt), cancellationToken);
             }
             catch (HttpRequestException exception)
             {
                 _diagnosticLog.Write(Event(request, "http.failed", httpOutcome: "network-unavailable"), exception);
+                _logger.LogWarning(
+                    exception,
+                    "External dictionary request failed. Provider = {Provider}, attempt = {Attempt}, duration milliseconds = {DurationMilliseconds}",
+                    Name,
+                    attempt + 1,
+                    requestStopwatch.ElapsedMilliseconds);
                 return Failure(request, LexicalLookupStatus.TransientFailure, "network-unavailable");
             }
             catch (JsonException exception)

@@ -18,6 +18,11 @@ public sealed class AppSettingsService : IAppSettingsService
         PreparationLimit = ReadPreparationLimit();
         CardDirection = ReadCardDirection();
         HasOnlineLookupConsent = Preferences.Default.Get(OnlineLookupConsentPreferenceKey, false);
+        _logger.LogDebug(
+            "Application settings loaded. PreparationLimit = {PreparationLimit}, card direction = {CardDirection}, online lookup consent = {HasOnlineLookupConsent}",
+            PreparationLimit,
+            CardDirection,
+            HasOnlineLookupConsent);
     }
 
     public int PreparationLimit { get; private set; }
@@ -40,6 +45,9 @@ public sealed class AppSettingsService : IAppSettingsService
 
         Preferences.Default.Set(PreparationLimitPreferenceKey, normalizedLimit);
         PreparationLimit = normalizedLimit;
+        _logger.LogInformation(
+            "Preparation limit saved. PreparationLimit = {PreparationLimit}",
+            normalizedLimit);
     }
 
     public void SetCardDirection(CardDirectionPreference preference)
@@ -47,18 +55,21 @@ public sealed class AppSettingsService : IAppSettingsService
         var normalized = CardDirectionPreferencePolicy.Normalize((int)preference);
         Preferences.Default.Set(CardDirectionPreferenceKey, (int)normalized);
         CardDirection = normalized;
+        _logger.LogInformation("Card direction saved. CardDirection = {CardDirection}", normalized);
     }
 
     public void GrantOnlineLookupConsent()
     {
         Preferences.Default.Set(OnlineLookupConsentPreferenceKey, true);
         HasOnlineLookupConsent = true;
+        _logger.LogInformation("Online dictionary lookup consent was granted.");
     }
 
     public void RevokeOnlineLookupConsent()
     {
         Preferences.Default.Remove(OnlineLookupConsentPreferenceKey);
         HasOnlineLookupConsent = false;
+        _logger.LogInformation("Online dictionary lookup consent was revoked.");
     }
 
     public void Reset()
@@ -69,6 +80,7 @@ public sealed class AppSettingsService : IAppSettingsService
         PreparationLimit = DefaultPreparationLimit;
         CardDirection = CardDirectionPreferencePolicy.DefaultPreference;
         HasOnlineLookupConsent = false;
+        _logger.LogInformation("Application settings were reset to defaults.");
     }
 
     private int ReadPreparationLimit()

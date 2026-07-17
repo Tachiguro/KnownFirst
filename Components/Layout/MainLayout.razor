@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject INavigationHistoryService NavigationHistory
+@inject ILogger<MainLayout> Logger
 
 <div class="page">
     <header class="mobile-header">
@@ -80,6 +81,7 @@
     {
         _currentRoute = NormalizeRoute(Navigation.ToBaseRelativePath(absoluteUri));
         NavigationHistory.RecordNavigation(_currentRoute);
+        Logger.LogDebug("Navigation completed. Route = {Route}", _currentRoute);
     }
 
     private static string NormalizeRoute(string relativeRoute)

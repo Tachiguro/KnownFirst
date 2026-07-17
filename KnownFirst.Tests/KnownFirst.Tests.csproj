@@ -18,7 +18,13 @@
     <None Update="Fixtures\Wiktionary\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\ReviewWords.razor" Link="Ui\ReviewWords.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Diagnostics.razor" Link="Ui\Diagnostics.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\LocalizationHost.razor" Link="Ui\LocalizationHost.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Shared\LoggingErrorBoundary.razor" Link="Ui\LoggingErrorBoundary.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\KnownFirst.csproj" Link="Ui\KnownFirst.csproj" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\MauiProgram.cs" Link="Ui\MauiProgram.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\App.xaml.cs" Link="Ui\App.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\MainPage.xaml.cs" Link="Ui\MainPage.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Platforms\Windows\App.xaml.cs" Link="Ui\WindowsApp.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Layout\NavMenu.razor" Link="Ui\NavMenu.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Layout\MainLayout.razor" Link="Ui\MainLayout.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Settings.razor" Link="Ui\Settings.razor" CopyToOutputDirectory="PreserveNewest" />
@@ -60,6 +66,9 @@
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
+    <Compile Include="..\Services\Diagnostics\DiagnosticLogOptions.cs" Link="Production\Services\Diagnostics\DiagnosticLogOptions.cs" />
+    <Compile Include="..\Services\Diagnostics\RollingFileLoggerProvider.cs" Link="Production\Services\Diagnostics\RollingFileLoggerProvider.cs" />
+    <Compile Include="..\Services\Diagnostics\AppDiagnosticsService.cs" Link="Production\Services\Diagnostics\AppDiagnosticsService.cs" />
     <Compile Include="..\Services\Lexical\*.cs" Link="Production\Services\Lexical\%(Filename)%(Extension)" />
     <Compile Include="..\Services\Study\*.cs" Link="Production\Services\Study\%(Filename)%(Extension)" />
   </ItemGroup>

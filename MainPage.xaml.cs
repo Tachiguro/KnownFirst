@@ -1,4 +1,5 @@
 using KnownFirst.Services;
+using KnownFirst.Services.Diagnostics;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.WebView;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,7 @@ public partial class MainPage : ContentPage
     private readonly INavigationHistoryService _navigationHistory;
     private readonly ILogger<MainPage> _logger;
     private bool _isNavigatingBack;
+    private int _startupLogged;
 
     public MainPage(
         INavigationHistoryService navigationHistory,
@@ -19,6 +21,17 @@ public partial class MainPage : ContentPage
         InitializeComponent();
         _navigationHistory = navigationHistory;
         _logger = logger;
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        if (Interlocked.Exchange(ref _startupLogged, 1) == 0)
+        {
+            _logger.LogInformation(
+                DiagnosticEventIds.StartupCompleted,
+                "Application startup completed and the main page is visible.");
+        }
     }
 
     protected override bool OnBackButtonPressed()

@@ -1227,4 +1227,10 @@
   <data name="Diagnostics_DiagnosticLogActionError" xml:space="preserve">
     <value>The diagnostic log action could not be completed.</value>
   </data>
+  <data name="ErrorBoundary_Title" xml:space="preserve">
+    <value>Something went wrong</value>
+  </data>
+  <data name="ErrorBoundary_Message" xml:space="preserve">
+    <value>KnownFirst could not display this page. Navigate to another page or restart the application.</value>
+  </data>
 </root>

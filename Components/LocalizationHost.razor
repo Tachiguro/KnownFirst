@@ -4,7 +4,9 @@
 @inject IJSRuntime JsRuntime
 @inject ILogger<LocalizationHost> Logger
 
-<Routes @key="_rootRenderKey" />
+<LoggingErrorBoundary>
+    <Routes @key="_rootRenderKey" />
+</LoggingErrorBoundary>
 
 @code {
     private int _rootRenderKey;

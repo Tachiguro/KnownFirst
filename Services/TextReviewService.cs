@@ -3,7 +3,10 @@ using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using SQLite;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,7 +15,8 @@ namespace KnownFirst.Services;
 
 public sealed class TextReviewService(
     IKnownFirstDatabase database,
-    TextAnalyzer analyzer) : ITextReviewService
+    TextAnalyzer analyzer,
+    ILogger<TextReviewService>? logger = null) : ITextReviewService
 {
     private static readonly HashSet<string> SupportedLanguages = new(StringComparer.Ordinal)
     {
@@ -21,24 +25,61 @@ public sealed class TextReviewService(
     };
 
     private readonly SemaphoreSlim _operationGate = new(1, 1);
+    private readonly ILogger<TextReviewService> _logger =
+        logger ?? NullLogger<TextReviewService>.Instance;
 
     public async Task<ImportAnalysisResult> ImportAsync(ImportTextRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ValidateImport(request);
+        var stopwatch = Stopwatch.StartNew();
+        _logger.LogDebug(
+            "Text import analysis started. TitleLength = {TitleLength}, content length = {ContentLength}, text language = {TextLanguage}, explanation language = {ExplanationLanguage}, lookup mode = {LookupMode}",
+            request.Title.Length,
+            request.Content.Length,
+            request.TextLanguage,
+            request.ExplanationLanguage,
+            request.LookupMode);
 
-        var analysis = analyzer.Analyze(request.Content, request.TextLanguage);
-        var contentFingerprint = CreateContentFingerprint(request.Content);
-
-        await _operationGate.WaitAsync();
         try
         {
-            return await database.RunInTransactionAsync(connection =>
-                CreateImport(connection, request, analysis, contentFingerprint));
+            ValidateImport(request);
+            var analysis = analyzer.Analyze(request.Content, request.TextLanguage);
+            var contentFingerprint = CreateContentFingerprint(request.Content);
+            _logger.LogDebug(
+                "Text analysis completed. Fingerprint = {ContentFingerprint}, sentence count = {SentenceCount}, candidate count = {CandidateCount}, occurrence count = {OccurrenceCount}, duration milliseconds = {DurationMilliseconds}",
+                contentFingerprint,
+                analysis.Sentences.Count,
+                analysis.Candidates.Count,
+                analysis.OccurrenceCount,
+                stopwatch.ElapsedMilliseconds);
+
+            await _operationGate.WaitAsync();
+            try
+            {
+                var result = await database.RunInTransactionAsync(connection =>
+                    CreateImport(connection, request, analysis, contentFingerprint));
+                _logger.LogInformation(
+                    "Text import transaction completed. Outcome = {ImportOutcome}, document ID = {DocumentId}, session ID = {SessionId}, candidate count = {CandidateCount}, duration milliseconds = {DurationMilliseconds}",
+                    result.Outcome,
+                    result.DocumentId,
+                    result.SessionId,
+                    result.CandidateCount,
+                    stopwatch.ElapsedMilliseconds);
+                return result;
+            }
+            finally
+            {
+                _operationGate.Release();
+            }
         }
-        finally
+        catch (Exception exception)
         {
-            _operationGate.Release();
+            _logger.LogError(
+                exception,
+                "Text import analysis failed. ContentLength = {ContentLength}, duration milliseconds = {DurationMilliseconds}",
+                request.Content.Length,
+                stopwatch.ElapsedMilliseconds);
+            throw;
         }
     }
 
@@ -166,8 +207,14 @@ public sealed class TextReviewService(
         await _operationGate.WaitAsync();
         try
         {
-            return await database.RunInTransactionAsync(connection =>
+            var result = await database.RunInTransactionAsync(connection =>
                 PersistDecision(connection, wordId, status));
+            _logger.LogInformation(
+                "Word review decision persisted. WordId = {WordId}, status = {WordStatus}, review complete = {ReviewComplete}",
+                wordId,
+                status,
+                result.IsComplete);
+            return result;
         }
         finally
         {
@@ -180,7 +227,9 @@ public sealed class TextReviewService(
         await _operationGate.WaitAsync();
         try
         {
-            return await database.RunInTransactionAsync(UndoPreviousDecision);
+            var undone = await database.RunInTransactionAsync(UndoPreviousDecision);
+            _logger.LogInformation("Previous word review decision undo completed. Undone = {Undone}", undone);
+            return undone;
         }
         finally
         {
@@ -198,6 +247,7 @@ public sealed class TextReviewService(
                 DiscardActiveImport(connection);
                 return true;
             });
+            _logger.LogInformation("The active text import was discarded.");
         }
         finally
         {

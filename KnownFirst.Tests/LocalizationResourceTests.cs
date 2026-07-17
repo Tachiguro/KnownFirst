@@ -10,6 +10,8 @@ public sealed class LocalizationResourceTests
         "App_Name",
         "App_Initializing",
         "App_InitializationError",
+        "ErrorBoundary_Title",
+        "ErrorBoundary_Message",
         "Navigation_Home",
         "Navigation_Menu",
         "Navigation_ImportText",

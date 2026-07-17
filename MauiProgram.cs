@@ -4,6 +4,7 @@ using KnownFirst.Core.Text;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Services;
+using KnownFirst.Services.Diagnostics;
 using KnownFirst.Services.Lexical;
 using KnownFirst.Services.Study;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,15 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
+        var diagnosticOptions = DiagnosticLogConfiguration.Create();
+        var fileLoggerProvider = new RollingFileLoggerProvider(diagnosticOptions);
+        var bootstrapLogger = fileLoggerProvider.CreateLogger("KnownFirst.Startup");
+        bootstrapLogger.LogInformation(
+            DiagnosticEventIds.StartupBeginning,
+            "Application startup is beginning. Configuration = {BuildConfiguration}, target = {TargetFramework}",
+            diagnosticOptions.BuildConfiguration,
+            diagnosticOptions.TargetFramework);
+
         builder
             .UseMauiApp<App>()
             .ConfigureFonts(fonts =>
@@ -28,6 +38,9 @@ public static class MauiProgram
 
         builder.Services.AddMauiBlazorWebView();
         builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+        builder.Services.AddSingleton(fileLoggerProvider);
+        builder.Services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
+        builder.Services.AddSingleton<RuntimeExceptionMonitor>();
         builder.Services.AddSingleton<ILanguagePreferenceStore, MauiLanguagePreferenceStore>();
         builder.Services.AddSingleton<IDeviceCultureProvider, SystemDeviceCultureProvider>();
         builder.Services.AddSingleton<IUiCultureContext, SystemUiCultureContext>();
@@ -65,10 +78,30 @@ public static class MauiProgram
 #if DEBUG || KNOWNFIRST_DIAGNOSTICS
         builder.Logging.AddDebug();
 #endif
+        builder.Logging.SetMinimumLevel(diagnosticOptions.MinimumLevel);
+        builder.Logging.AddProvider(fileLoggerProvider);
 
-        var app = builder.Build();
-        app.Services.GetRequiredService<ILanguageSelectionService>().Initialize();
-
-        return app;
+        try
+        {
+            var app = builder.Build();
+            var startupLogger = app.Services
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("KnownFirst.Startup");
+            app.Services.GetRequiredService<RuntimeExceptionMonitor>().Start();
+            app.Services.GetRequiredService<ILanguageSelectionService>().Initialize();
+            startupLogger.LogDebug(
+                "Application services were built and startup services were resolved. Session = {SessionId}",
+                fileLoggerProvider.SessionId);
+            return app;
+        }
+        catch (Exception exception)
+        {
+            bootstrapLogger.LogCritical(
+                DiagnosticEventIds.StartupFailed,
+                exception,
+                "Application startup failed while building or resolving services.");
+            fileLoggerProvider.Flush();
+            throw;
+        }
     }
 }

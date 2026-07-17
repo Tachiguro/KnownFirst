@@ -20,22 +20,22 @@ public sealed class LanguageDiagnostics(ILogger<LanguageDiagnostics> logger) : I
 
     public void LogStartupLanguageResolved(string languageCode)
     {
-        logger.LogDebug("Startup UI language resolved: {LanguageCode}", languageCode);
+        logger.LogInformation("Startup UI language resolved: {LanguageCode}", languageCode);
     }
 
     public void LogManualLanguageRequested(string requestedLanguage)
     {
-        logger.LogDebug("Language change requested: {RequestedLanguage}", requestedLanguage);
+        logger.LogInformation("Language change requested: {RequestedLanguage}", requestedLanguage);
     }
 
     public void LogPreferencePersisted(string languageCode)
     {
-        logger.LogDebug("Language preference persisted and verified: {LanguageCode}", languageCode);
+        logger.LogInformation("Language preference persisted and verified: {LanguageCode}", languageCode);
     }
 
     public void LogCultureApplied(UiCultureState cultureState)
     {
-        logger.LogDebug(
+        logger.LogInformation(
             "Culture applied: CurrentCulture = {CurrentCulture}, CurrentUICulture = {CurrentUiCulture}, DefaultThreadCurrentCulture = {DefaultThreadCurrentCulture}, DefaultThreadCurrentUICulture = {DefaultThreadCurrentUiCulture}",
             cultureState.CurrentCulture,
             cultureState.CurrentUiCulture,

@@ -4,46 +4,28 @@ Skip what you know. Learn what matters.
 
 ## Overview
 
-KnownFirst is a local-first vocabulary learning application designed to extract words from user-provided texts, filter out words the user already knows, and prepare only unknown, relevant words for learning.
+KnownFirst is a local-first vocabulary learning application. It analyzes user-provided texts, lets the user classify newly encountered vocabulary, prepares unknown words with real source contexts, and schedules learning cards.
 
-The project is currently in early MVP development. The application foundation is working, but text analysis and vocabulary-learning features are not implemented yet.
+The current MVP supports:
 
-## Core idea
+- .NET 10 MAUI Blazor Hybrid on Windows and Android
+- responsive navigation and Android safe-area handling
+- English and German UI localization
+- immediate, persisted System, Light, and Dark appearance modes
+- text import with deterministic Unicode-aware analysis and exact source coordinates
+- resumable Known/Unknown vocabulary review with Undo
+- automatic and manual word preparation
+- local Wiktionary lookup with explicit consent and a local SQLite cache
+- recognition and spelling learning cards with deterministic scheduling
+- local SQLite persistence, migrations, transactions, and cleanup
+- persistent structured diagnostics with redaction and bounded retention
+- automated Core, persistence, workflow, localization, and diagnostics tests
 
-The planned workflow is:
-
-1. Import a text.
-2. Analyze its vocabulary.
-3. Mark newly discovered words as known or unknown.
-4. Prepare the highest-priority unknown words.
-5. Learn them using real contexts from imported texts.
-
-## Current development status
-
-The following foundation is currently available:
-
-- .NET 10 MAUI Blazor Hybrid application
-- Windows and Android builds
-- Responsive navigation
-- English and German user interface
-- System, Light, and Dark appearance modes
-- Local SQLite foundation
-- Initial Settings pages
-- Automated unit-test foundation
-
-Text importing, text analysis, word preparation, and learning workflows are still planned work.
-
-## Planned platforms
-
-- Windows
-- Android
-
-Android is the initial release priority.
+The binding product and architecture specifications are [docs/KNOWNFIRST_ARCHITECTURE.md](docs/KNOWNFIRST_ARCHITECTURE.md) and [docs/MVP_WORKFLOW.md](docs/MVP_WORKFLOW.md).
 
 ## Technology stack
 
-- C#
-- .NET 10
+- C# and .NET 10
 - .NET MAUI Blazor Hybrid
 - Razor
 - SQLite
@@ -51,68 +33,90 @@ Android is the initial release priority.
 
 ## Project structure
 
-- `KnownFirst` contains the MAUI Blazor Hybrid application, Razor UI, platform integrations, local data access, and application services.
-- `KnownFirst.Core` contains platform-independent language and Settings policies.
-- `KnownFirst.Tests` contains the MSTest unit and consistency tests for Core behavior and localization resources.
+- `KnownFirst` contains the MAUI application, Razor UI, platform integrations, local data access, and application services.
+- `KnownFirst.Core` contains platform-independent language, text-analysis, preparation, learning, navigation, and Settings policies.
+- `KnownFirst.Tests` contains the automated Core, SQLite, service, localization, UI-contract, and diagnostics tests.
+- `scripts` contains repeatable build, smoke-test, and packaging workflows.
 
 ## Prerequisites
 
 - Visual Studio Community 2026 or a compatible current version
 - .NET 10 SDK
-- .NET MAUI workload
-- Android SDK for Android builds
+- .NET MAUI workloads
+- Android SDK when building Android
 
-## Build and run
+## Windows development workflow
 
-Restore all projects from the repository root:
+Run the complete deterministic Windows verification from the repository root:
 
-```shell
-dotnet restore KnownFirst.slnx
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-test-windows.ps1
 ```
 
-Build the Windows target:
+The script cleans generated project output, performs a plain restore, verifies every expected target in `project.assets.json`, builds the Debug solution and Windows target, runs all tests, launches the actual Windows executable, observes its window and startup-complete log event, keeps it alive for the smoke interval, and closes it.
 
-```shell
-dotnet build KnownFirst.csproj -f net10.0-windows10.0.19041.0
+Individual commands remain available:
+
+```powershell
+dotnet restore ./KnownFirst.csproj --force-evaluate --no-cache
+dotnet build ./KnownFirst.csproj -c Debug -f net10.0-windows10.0.19041.0 --no-restore
+dotnet build ./KnownFirst.slnx -c Debug
+dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj -c Debug
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/verify-build-configurations.ps1
 ```
 
-Build the Android target:
+For interactive development, open `KnownFirst.slnx` in Visual Studio, select Windows Machine, and start debugging.
 
-```shell
-dotnet build KnownFirst.csproj -f net10.0-android
+### Empty Configuration restore safeguard
+
+Visual Studio can supply `Configuration` as an empty global MSBuild property during project evaluation. Global properties are immutable unless a project explicitly treats them as local. Without that declaration, the conditional Debug fallback appeared correct in the project file but could not replace the empty value; NuGet then completed a restore with an empty framework graph, and the next Windows build failed with `NETSDK1005`.
+
+`KnownFirst.csproj` declares `Configuration` in `TreatAsLocalProperty`. The existing conditional fallback can therefore resolve only an empty value to `Debug`, while explicit `Debug`, `Release`, and `BetaDiagnostic` selections remain unchanged. This makes plain command-line restore and Visual Studio design-time restore deterministic after deleting `.vs`, `bin`, and `obj`.
+
+Visual Studio restore also requires standard NuGet properties such as `PackageVersion` to have one value across every target framework in a multi-target project. Debug and BetaDiagnostic package versions are therefore configuration-wide; Android-specific application IDs, titles, and visible versions remain scoped to Android. This prevents Visual Studio from replacing a valid assets file with an empty `NU1105` graph when Windows and Android are evaluated together.
+
+## Other build configurations
+
+Build the persistent diagnostic configuration on Windows:
+
+```powershell
+dotnet restore ./KnownFirst.csproj -p:Configuration=BetaDiagnostic
+dotnet build ./KnownFirst.csproj -c BetaDiagnostic -f net10.0-windows10.0.19041.0 --no-restore
 ```
 
-For interactive development, open `KnownFirst.slnx` in Visual Studio, select the Windows Machine or an Android emulator/device target, and start debugging.
+Build Android without launching an emulator:
 
-## Tests
-
-Run the complete automated test suite from the repository root:
-
-```shell
-dotnet test KnownFirst.Tests/KnownFirst.Tests.csproj
+```powershell
+dotnet build ./KnownFirst.csproj -c Debug -f net10.0-android
 ```
+
+## Diagnostics
+
+Runtime logs are stored outside the repository under the application data directory. On Windows, the location is equivalent to:
+
+```text
+%LOCALAPPDATA%\KnownFirst\Logs
+```
+
+Logs use structured JSON lines, session-specific files, size-based rolling, finite file retention, and age retention. They include build, platform, process, lifecycle, workflow, and exception metadata. Imported text, credentials, authorization headers, secrets, and private keys must not be logged; diagnostics record bounded identifiers, hashes, counts, lengths, outcomes, and timings instead.
 
 ## Privacy direction
 
-KnownFirst is designed as a local-first application:
+KnownFirst is local-first:
 
-- Imported texts remain on the device.
-- Vocabulary data remains on the device.
-- No account is currently required.
-- No analytics or advertising are currently included.
+- Imported texts and learning data remain on the device.
+- No account, analytics, advertising, or mandatory cloud service is required.
+- Optional dictionary requests send only the selected term and required language information directly to Wikimedia after user consent.
+- No document, context sentence, or learning history is sent to the KnownFirst developer.
 
 This direction describes the current architecture and is not a promise of final legal compliance.
 
-## Roadmap
+## Platforms
 
-- Milestone 1: application foundation
-- Milestone 2: text import and known/unknown review
-- Milestone 3: word preparation and basic learning
-- Later: offline dictionaries, spaced repetition, backup, Google Drive synchronization, typing mode, and statistics
+- Windows
+- Android
 
-## Contributing
-
-Contribution guidelines will be expanded later. Issues and pull requests are welcome once the MVP architecture stabilizes.
+Android is the initial release priority; Windows is the primary local development and verification workflow.
 
 ## Author
 

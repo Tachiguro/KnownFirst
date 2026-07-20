@@ -1,20 +1,46 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Settings;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Models;
+using KnownFirst.Services;
 using SQLite;
 using System.Text.Json;
 
 namespace KnownFirst.Services.Study;
 
-public sealed class LearningService(
-    IKnownFirstDatabase database,
-    ISpacedRepetitionScheduler scheduler,
-    SpellingAnswerComparer spellingComparer,
-    IClock clock) : ILearningService
+public sealed class LearningService : ILearningService
 {
+    private readonly IKnownFirstDatabase database;
+    private readonly ISpacedRepetitionScheduler scheduler;
+    private readonly SpellingAnswerComparer spellingComparer;
+    private readonly IClock clock;
+    private readonly IAppSettingsService? appSettings;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
+
+    public LearningService(
+        IKnownFirstDatabase database,
+        ISpacedRepetitionScheduler scheduler,
+        SpellingAnswerComparer spellingComparer,
+        IClock clock)
+        : this(database, scheduler, spellingComparer, clock, null)
+    {
+    }
+
+    public LearningService(
+        IKnownFirstDatabase database,
+        ISpacedRepetitionScheduler scheduler,
+        SpellingAnswerComparer spellingComparer,
+        IClock clock,
+        IAppSettingsService? appSettings)
+    {
+        this.database = database;
+        this.scheduler = scheduler;
+        this.spellingComparer = spellingComparer;
+        this.clock = clock;
+        this.appSettings = appSettings;
+    }
 
     public async Task<LearningLoadResult> GetOrStartAsync()
     {
@@ -44,9 +70,11 @@ public sealed class LearningService(
                 var queueItem = RequireCurrentQueueItem(connection, queueItemId);
                 var card = connection.Find<LearningCardEntity>(queueItem.CardId)
                     ?? throw new InvalidOperationException("The learning card does not exist.");
-                if (card.Direction != CardDirection.TermToMeaning)
+                var word = connection.Find<WordEntity>(card.WordId)
+                    ?? throw new InvalidOperationException("The learning word does not exist.");
+                if (ResolveInteraction(word, card.Direction) != LearningInteractionMode.Reading)
                 {
-                    throw new InvalidOperationException("Only recognition cards reveal an answer directly.");
+                    throw new InvalidOperationException("Only reading-mode cards reveal an answer directly.");
                 }
 
                 queueItem.AnswerRevealed = true;
@@ -72,13 +100,14 @@ public sealed class LearningService(
                 var queueItem = RequireCurrentQueueItem(connection, queueItemId);
                 var card = connection.Find<LearningCardEntity>(queueItem.CardId)
                     ?? throw new InvalidOperationException("The learning card does not exist.");
-                if (card.Direction != CardDirection.MeaningToTerm)
-                {
-                    throw new InvalidOperationException("Only spelling cards accept a typed answer.");
-                }
-
                 var word = connection.Find<WordEntity>(card.WordId)
                     ?? throw new InvalidOperationException("The learning word does not exist.");
+                var interaction = ResolveInteraction(word, card.Direction);
+                if (interaction != LearningInteractionMode.Typing)
+                {
+                    throw new InvalidOperationException("Only typing-mode cards accept a typed answer.");
+                }
+
                 var meaning = connection.Find<MeaningEntity>(card.MeaningId)
                     ?? throw new InvalidOperationException("The prepared meaning does not exist.");
                 var aliases = DeserializeAliases(meaning.AcceptedAliasesJson);
@@ -100,7 +129,9 @@ public sealed class LearningService(
                         connection,
                         queueItem,
                         card,
+                        word,
                         ReviewRating.Again,
+                        interaction,
                         wasTypedAnswer: true,
                         wasCorrect: false);
                     ratingPersisted = true;
@@ -131,12 +162,15 @@ public sealed class LearningService(
                 var queueItem = RequireCurrentQueueItem(connection, queueItemId);
                 var card = connection.Find<LearningCardEntity>(queueItem.CardId)
                     ?? throw new InvalidOperationException("The learning card does not exist.");
-                if (card.Direction == CardDirection.TermToMeaning && !queueItem.AnswerRevealed)
+                var word = connection.Find<WordEntity>(card.WordId)
+                    ?? throw new InvalidOperationException("The learning word does not exist.");
+                var interaction = ResolveInteraction(word, card.Direction);
+                if (interaction == LearningInteractionMode.Reading && !queueItem.AnswerRevealed)
                 {
                     throw new InvalidOperationException("The answer must be revealed before rating.");
                 }
 
-                if (card.Direction == CardDirection.MeaningToTerm)
+                if (interaction == LearningInteractionMode.Typing)
                 {
                     if (!queueItem.SpellingChecked || !queueItem.SpellingCorrect)
                     {
@@ -153,9 +187,11 @@ public sealed class LearningService(
                     connection,
                     queueItem,
                     card,
+                    word,
                     rating,
-                    card.Direction == CardDirection.MeaningToTerm,
-                    wasCorrect: true);
+                    interaction,
+                    interaction == LearningInteractionMode.Typing,
+                    wasCorrect: rating != ReviewRating.Again);
                 return true;
             });
             return await LoadAsync();
@@ -249,6 +285,11 @@ public sealed class LearningService(
                 word.PreparationState = PreparationState.Unprepared;
                 word.TotalOccurrenceCount = 0;
                 word.DocumentCount = 0;
+                word.AutomaticInteractionMode = LearningInteractionMode.Reading;
+                word.ConsecutiveRecallSuccessCount = 0;
+                word.ConsecutiveTypingSuccessCount = 0;
+                word.ConsecutiveTypingFailureCount = 0;
+                word.MasteryReviewExtensionScheduled = false;
                 word.UpdatedAt = clock.UtcNow;
                 connection.Update(word);
 
@@ -369,7 +410,7 @@ public sealed class LearningService(
             completed is null ? null : await CreateSummaryAsync(connection, completed));
     });
 
-    private static async Task<LearningCardView> CreateCardViewAsync(
+    private async Task<LearningCardView> CreateCardViewAsync(
         SQLiteAsyncConnection connection,
         LearningSessionEntity session,
         LearningSessionCardEntity queueItem)
@@ -398,6 +439,7 @@ public sealed class LearningService(
             card.Id,
             word.Id,
             card.Direction,
+            ResolveInteraction(word, card.Direction),
             card.State,
             meaning.DisplayTerm,
             word.TokenKind,
@@ -455,7 +497,9 @@ public sealed class LearningService(
         SQLiteConnection connection,
         LearningSessionCardEntity queueItem,
         LearningCardEntity card,
+        WordEntity word,
         ReviewRating rating,
+        LearningInteractionMode interaction,
         bool wasTypedAnswer,
         bool wasCorrect)
     {
@@ -475,7 +519,43 @@ public sealed class LearningService(
             card.LapseCount,
             card.LastReviewedAtUtc,
             card.LastRating);
-        var next = scheduler.Schedule(currentSchedule, rating, clock.UtcNow);
+        var reviewedAtUtc = clock.UtcNow;
+        var automaticState = ReadAutomaticState(word);
+        var isAutomatic = appSettings?.LearningMode == LearningMode.Automatic;
+        if (isAutomatic)
+        {
+            automaticState = interaction == LearningInteractionMode.Reading
+                ? AutomaticLearningPolicy.RecordRecallAssessment(
+                    automaticState,
+                    rating != ReviewRating.Again)
+                : AutomaticLearningPolicy.RecordTypingAssessment(automaticState, wasCorrect);
+        }
+
+        var isMasteryReview = isAutomatic
+            && AutomaticLearningPolicy.IsMasteryReview(currentSchedule);
+        var masteryAchieved = isMasteryReview
+            && wasTypedAnswer
+            && wasCorrect
+            && AutomaticLearningPolicy.HasTypingMastery(automaticState);
+        var next = scheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
+        if (isMasteryReview
+            && rating != ReviewRating.Again
+            && !masteryAchieved
+            && !automaticState.MasteryReviewExtensionScheduled)
+        {
+            next = next with
+            {
+                DueAtUtc = reviewedAtUtc.AddDays(AutomaticLearningPolicy.MaximumReviewIntervalDays),
+                IntervalDays = AutomaticLearningPolicy.MaximumReviewIntervalDays
+            };
+            automaticState = automaticState with { MasteryReviewExtensionScheduled = true };
+        }
+
+        if (masteryAchieved)
+        {
+            next = next with { State = CardState.Retired };
+        }
+
         card.State = next.State;
         card.DueAtUtc = next.DueAtUtc;
         card.IntervalDays = next.IntervalDays;
@@ -484,7 +564,7 @@ public sealed class LearningService(
         card.LapseCount = next.LapseCount;
         card.LastReviewedAtUtc = next.LastReviewedAtUtc;
         card.LastRating = next.LastRating;
-        card.UpdatedAtUtc = clock.UtcNow;
+        card.UpdatedAtUtc = reviewedAtUtc;
         connection.Update(card);
 
         connection.Insert(new LearningReviewEntity
@@ -494,18 +574,18 @@ public sealed class LearningService(
             Rating = rating,
             WasTypedAnswer = wasTypedAnswer,
             WasCorrect = wasCorrect,
-            ReviewedAtUtc = clock.UtcNow,
+            ReviewedAtUtc = reviewedAtUtc,
             DueAtUtc = next.DueAtUtc,
             IntervalDays = next.IntervalDays,
             EaseFactor = next.EaseFactor
         });
         queueItem.IsCompleted = true;
         queueItem.Rating = rating;
-        queueItem.CompletedAtUtc = clock.UtcNow;
+        queueItem.CompletedAtUtc = reviewedAtUtc;
         connection.Update(queueItem);
 
         session.CompletedCards++;
-        session.UpdatedAtUtc = clock.UtcNow;
+        session.UpdatedAtUtc = reviewedAtUtc;
         IncrementRating(session, rating);
         if (rating == ReviewRating.Again
             && !queueItem.IsAgainRepeat
@@ -530,21 +610,114 @@ public sealed class LearningService(
             session.TotalCards++;
         }
 
+        if (masteryAchieved)
+        {
+            RetireWordCards(connection, session, queueItem, word.Id, reviewedAtUtc);
+        }
+
         var hasRemaining = connection.Table<LearningSessionCardEntity>()
             .Any(item => item.SessionId == session.Id && !item.IsCompleted);
         if (!hasRemaining)
         {
             session.Status = LearningSessionStatus.Completed;
-            session.CompletedAtUtc = clock.UtcNow;
+            session.CompletedAtUtc = reviewedAtUtc;
         }
 
         connection.Update(session);
-        var word = connection.Find<WordEntity>(card.WordId);
-        if (word is not null && word.Status != WordStatus.Known)
+        if (isAutomatic)
+        {
+            ApplyAutomaticState(word, automaticState);
+        }
+
+        if (masteryAchieved)
+        {
+            word.Status = WordStatus.Mastered;
+            word.UpdatedAt = reviewedAtUtc;
+            connection.Update(word);
+        }
+        else if (word.Status != WordStatus.Known)
         {
             word.Status = WordStatus.Learning;
-            word.UpdatedAt = clock.UtcNow;
+            word.UpdatedAt = reviewedAtUtc;
             connection.Update(word);
+        }
+    }
+
+    private LearningInteractionMode ResolveInteraction(WordEntity word, CardDirection direction)
+    {
+        if (appSettings is null)
+        {
+            return direction == CardDirection.MeaningToTerm
+                ? LearningInteractionMode.Typing
+                : LearningInteractionMode.Reading;
+        }
+
+        return AutomaticLearningPolicy.ResolveInteraction(
+            appSettings.LearningMode,
+            ReadAutomaticState(word));
+    }
+
+    private static AutomaticLearningState ReadAutomaticState(WordEntity word) => new(
+        word.AutomaticInteractionMode == LearningInteractionMode.Typing
+            ? LearningInteractionMode.Typing
+            : LearningInteractionMode.Reading,
+        Math.Clamp(
+            word.ConsecutiveRecallSuccessCount,
+            0,
+            AutomaticLearningPolicy.RequiredConsecutiveAssessments),
+        Math.Clamp(
+            word.ConsecutiveTypingSuccessCount,
+            0,
+            AutomaticLearningPolicy.RequiredConsecutiveAssessments),
+        Math.Clamp(
+            word.ConsecutiveTypingFailureCount,
+            0,
+            AutomaticLearningPolicy.RequiredConsecutiveAssessments),
+        word.MasteryReviewExtensionScheduled);
+
+    private static void ApplyAutomaticState(
+        WordEntity word,
+        AutomaticLearningState state)
+    {
+        word.AutomaticInteractionMode = state.InteractionMode;
+        word.ConsecutiveRecallSuccessCount = state.ConsecutiveRecallSuccesses;
+        word.ConsecutiveTypingSuccessCount = state.ConsecutiveTypingSuccesses;
+        word.ConsecutiveTypingFailureCount = state.ConsecutiveTypingFailures;
+        word.MasteryReviewExtensionScheduled = state.MasteryReviewExtensionScheduled;
+    }
+
+    private static void RetireWordCards(
+        SQLiteConnection connection,
+        LearningSessionEntity session,
+        LearningSessionCardEntity completedQueueItem,
+        int wordId,
+        DateTime retiredAtUtc)
+    {
+        var wordCards = connection.Table<LearningCardEntity>()
+            .Where(item => item.WordId == wordId)
+            .ToList();
+        var wordCardIds = wordCards.Select(item => item.Id).ToHashSet();
+        foreach (var wordCard in wordCards)
+        {
+            if (wordCard.State == CardState.Retired)
+            {
+                continue;
+            }
+
+            wordCard.State = CardState.Retired;
+            wordCard.UpdatedAtUtc = retiredAtUtc;
+            connection.Update(wordCard);
+        }
+
+        var redundantQueueItems = connection.Table<LearningSessionCardEntity>()
+            .Where(item => item.SessionId == session.Id && !item.IsCompleted)
+            .ToList()
+            .Where(item => item.Id != completedQueueItem.Id && wordCardIds.Contains(item.CardId))
+            .ToArray();
+        foreach (var redundantQueueItem in redundantQueueItems)
+        {
+            connection.Delete(redundantQueueItem);
+            session.TotalCards--;
         }
     }
 

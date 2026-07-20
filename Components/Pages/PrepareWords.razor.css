@@ -185,10 +185,12 @@
 
 .meaning-picker {
     display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     width: min(42rem, 100%);
     max-width: 100%;
     max-height: calc(100dvh - max(2rem, env(safe-area-inset-top)) - max(2rem, env(safe-area-inset-bottom)));
     min-width: 0;
+    min-height: 0;
     gap: 1rem;
     padding: clamp(1rem, 4vw, 1.5rem);
     border: 1px solid var(--color-border-strong);
@@ -215,7 +217,9 @@
 
 .meaning-options {
     display: grid;
+    max-height: min(62dvh, 32rem);
     min-width: 0;
+    min-height: 0;
     gap: 0.65rem;
     margin: 0;
     padding: 0 0.15rem 0 0;

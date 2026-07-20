@@ -20,15 +20,15 @@
     }
     else if (_card is not null)
     {
-        <article class="learning-card">
+        <article class="learning-card" @onkeydown="HandleLearningKeyDown">
             <div class="learning-progress">
                 <span>@Localizer["Learn_Progress", _card.CompletedCards + 1, _card.TotalCards]</span>
                 <progress value="@_card.CompletedCards" max="@_card.TotalCards"></progress>
             </div>
 
-            @if (_card.Direction == CardDirection.TermToMeaning)
+            @if (_card.InteractionMode == LearningInteractionMode.Reading)
             {
-                <p class="eyebrow">@Localizer["Learn_TermToMeaning"]</p>
+                <p class="eyebrow">@Localizer["Learn_ReadingMode"]</p>
                 <h2 class="learning-term">@_card.Term</h2>
                 @if (CurrentContext is not null)
                 {
@@ -50,7 +50,7 @@
             }
             else
             {
-                <p class="eyebrow">@Localizer["Learn_MeaningToTerm"]</p>
+                <p class="eyebrow">@Localizer["Learn_TypingMode"]</p>
                 <section class="meaning-prompt">
                     @if (!string.IsNullOrWhiteSpace(_card.Translation))
                     {
@@ -79,7 +79,13 @@
                 {
                     <form class="spelling-form" @onsubmit="CheckSpellingAsync" @onsubmit:preventDefault>
                         <label for="spelling-answer">@Localizer["Learn_YourAnswer"]</label>
-                        <input id="spelling-answer" class="text-input" autocomplete="off" disabled="@_isBusy" @bind="_spellingAnswer" @bind:event="oninput" />
+                        <input id="spelling-answer"
+                               class="text-input spelling-input"
+                               autocomplete="off"
+                               placeholder="@CreateSpellingPlaceholder(_card.Term)"
+                               disabled="@_isBusy"
+                               @bind="_spellingAnswer"
+                               @bind:event="oninput" />
                         <button type="submit" class="button button-primary" disabled="@(_isBusy || string.IsNullOrWhiteSpace(_spellingAnswer))">@Localizer["Learn_CheckAnswer"]</button>
                     </form>
                 }
@@ -88,15 +94,27 @@
                     <section class="spelling-result @(_spellingResult.IsCorrect ? "correct" : "incorrect")" role="status">
                         <p>@Localizer[_spellingResult.IsCorrect ? "Learn_SpellingCorrect" : "Learn_SpellingIncorrect"]</p>
                         <dl>
-                            <div><dt>@Localizer["Learn_EnteredAnswer"]</dt><dd>@_spellingResult.EnteredAnswer</dd></div>
+                            <div>
+                                <dt>@Localizer["Learn_EnteredAnswer"]</dt>
+                                <dd class="entered-answer">
+                                    @if (_spellingResult.IsCorrect)
+                                    {
+                                        @_spellingResult.EnteredAnswer
+                                    }
+                                    else
+                                    {
+                                        @foreach (var character in CreateAnswerFeedback(_spellingResult))
+                                        {
+                                            <span class="answer-character @character.CssClass"
+                                                  aria-label="@(character.IsMissing ? Localizer["Learn_MissingLetter"].Value : null)">@character.Display</span>
+                                        }
+                                    }
+                                </dd>
+                            </div>
                             <div><dt>@Localizer["Learn_CorrectAnswer"]</dt><dd>@_spellingResult.CorrectAnswer</dd></div>
                             @if (_spellingResult.MatchedAlias is not null)
                             {
                                 <div><dt>@Localizer["Learn_AcceptedAlias"]</dt><dd>@_spellingResult.MatchedAlias</dd></div>
-                            }
-                            @if (!_spellingResult.IsCorrect)
-                            {
-                                <div><dt>@Localizer["Learn_Difference"]</dt><dd class="difference">@_spellingResult.Difference</dd></div>
                             }
                         </dl>
                     </section>
@@ -106,7 +124,12 @@
                     }
                     else
                     {
-                        <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="ContinueAfterIncorrectAsync">@Localizer["Common_Continue"]</button>
+                        <button type="button"
+                                class="button button-primary"
+                                disabled="@_isBusy"
+                                @ref="_continueButton"
+                                @onkeydown:stopPropagation="true"
+                                @onclick="ContinueAfterIncorrectAsync">@Localizer["Common_Continue"]</button>
                     }
                 }
             }
@@ -188,12 +211,25 @@
     private bool _loadFailed;
     private bool _actionFailed;
     private bool _showPermanentKnownConfirmation;
+    private bool _focusContinueAfterRender;
+    private ElementReference _continueButton;
 
     private LearningContext? CurrentContext => _card is null || _card.Contexts.Count == 0
         ? null
         : _card.Contexts[_contextIndex];
 
     protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusContinueAfterRender)
+        {
+            return;
+        }
+
+        _focusContinueAfterRender = false;
+        await _continueButton.FocusAsync(preventScroll: true);
+    }
 
     private async Task LoadAsync()
     {
@@ -250,6 +286,10 @@
         try
         {
             _spellingResult = await LearningService.CheckSpellingAsync(_card.QueueItemId, _spellingAnswer);
+            if (!_spellingResult.IsCorrect)
+            {
+                _focusContinueAfterRender = true;
+            }
         }
         catch (Exception exception)
         {
@@ -288,10 +328,23 @@
 
     private async Task ContinueAfterIncorrectAsync()
     {
+        if (_card is null
+            || _isBusy
+            || _spellingResult is not { IsCorrect: false, RatingWasPersisted: true })
+        {
+            return;
+        }
+
         _isBusy = true;
+        _actionFailed = false;
         try
         {
             ApplyLoadResult(await LearningService.GetOrStartAsync());
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The learning session could not continue after an incorrect answer.");
+            _actionFailed = true;
         }
         finally
         {
@@ -346,6 +399,75 @@
 
     private void ShowPermanentKnownConfirmation() => _showPermanentKnownConfirmation = true;
     private void CancelPermanentKnown() => _showPermanentKnownConfirmation = false;
+
+    private Task HandleLearningKeyDown(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
+        && !eventArgs.Repeat
+        && _spellingResult is { IsCorrect: false, RatingWasPersisted: true }
+            ? ContinueAfterIncorrectAsync()
+            : Task.CompletedTask;
+
+    private static string CreateSpellingPlaceholder(string term)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var rune in term.EnumerateRunes())
+        {
+            builder.Append(System.Text.Rune.IsLetter(rune) ? '_' : rune.ToString());
+        }
+
+        return builder.ToString();
+    }
+
+    private IReadOnlyList<AnswerCharacterFeedback> CreateAnswerFeedback(
+        SpellingSubmissionResult result)
+    {
+        var entered = GetTextElements(result.EnteredAnswer);
+        var expected = GetTextElements(result.CorrectAnswer);
+        var feedback = new List<AnswerCharacterFeedback>(Math.Max(entered.Count, expected.Count));
+        var comparison = IsCaseSensitiveAnswer()
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
+        for (var index = 0; index < Math.Max(entered.Count, expected.Count); index++)
+        {
+            if (index >= entered.Count)
+            {
+                feedback.Add(new AnswerCharacterFeedback("_", "missing", true));
+                continue;
+            }
+
+            var isCorrect = index < expected.Count
+                && string.Equals(entered[index], expected[index], comparison);
+            feedback.Add(new AnswerCharacterFeedback(
+                entered[index],
+                isCorrect ? "correct" : "incorrect",
+                false));
+        }
+
+        return feedback;
+    }
+
+    private bool IsCaseSensitiveAnswer() => _card is not null
+        && (_card.TokenKind == TokenKind.Acronym
+            || (string.Equals(_card.SourceLanguage, "de", StringComparison.OrdinalIgnoreCase)
+                && _card.Term.Length > 0
+                && char.IsUpper(_card.Term[0])));
+
+    private static IReadOnlyList<string> GetTextElements(string value)
+    {
+        var elements = new List<string>();
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(value);
+        while (enumerator.MoveNext())
+        {
+            elements.Add(enumerator.GetTextElement());
+        }
+
+        return elements;
+    }
+
+    private sealed record AnswerCharacterFeedback(
+        string Display,
+        string CssClass,
+        bool IsMissing);
 
     private RenderFragment ContextNavigation => @<text>
         @if (_card is not null && _card.Contexts.Count > 1)

@@ -10,11 +10,15 @@ public interface IAppSettingsService
 
     CardDirectionPreference CardDirection { get; }
 
+    LearningMode LearningMode { get; }
+
     bool HasOnlineLookupConsent { get; }
 
     void SetPreparationLimit(int preparationLimit);
 
     void SetCardDirection(CardDirectionPreference preference);
+
+    void SetLearningMode(LearningMode mode);
 
     void GrantOnlineLookupConsent();
 

@@ -50,6 +50,13 @@
     gap: 0.75rem;
 }
 
+.spelling-input::placeholder {
+    color: var(--color-muted);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    letter-spacing: 0.08em;
+    opacity: 0.9;
+}
+
 .spelling-result.correct {
     border: 1px solid var(--color-success, #2f855a);
 }
@@ -78,9 +85,24 @@
     font-weight: 800;
 }
 
-.difference {
+.entered-answer {
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.answer-character.correct {
+    color: var(--color-success, #2f855a);
+}
+
+.answer-character.incorrect {
+    color: var(--color-danger, #c53030);
+}
+
+.answer-character.missing {
+    color: var(--color-danger, #c53030);
+    text-decoration: underline;
+    text-decoration-style: dotted;
 }
 
 .permanent-known {

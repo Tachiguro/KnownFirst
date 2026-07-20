@@ -42,14 +42,20 @@
         <div class="language-grid">
             <div class="field-group">
                 <label for="text-language">@Localizer["Import_TextLanguage"]</label>
-                <select id="text-language" disabled="@_isSubmitting" @bind="_textLanguage">
+                <select id="text-language"
+                        disabled="@_isSubmitting"
+                        @bind="_textLanguage"
+                        @bind:after="HandleSourceLanguageChanged">
                     <option value="en">@Localizer["Settings_English"]</option>
                     <option value="de">@Localizer["Settings_German"]</option>
                 </select>
             </div>
             <div class="field-group">
                 <label for="lookup-mode">@Localizer["Import_LookupMode"]</label>
-                <select id="lookup-mode" disabled="@_isSubmitting" @bind="_lookupMode">
+                <select id="lookup-mode"
+                        disabled="@_isSubmitting"
+                        @bind="_lookupMode"
+                        @bind:after="EnsureValidTargetLanguage">
                     <option value="@LexicalLookupMode.Definition">@Localizer["Import_LookupDefinition"]</option>
                     <option value="@LexicalLookupMode.Translation">@Localizer["Import_LookupTranslation"]</option>
                     <option value="@LexicalLookupMode.DefinitionAndTranslation">@Localizer["Import_LookupDefinitionAndTranslation"]</option>
@@ -60,8 +66,10 @@
                 <div class="field-group">
                     <label for="target-language">@Localizer["Import_TargetLanguage"]</label>
                     <select id="target-language" disabled="@_isSubmitting" @bind="_targetLanguage">
-                        <option value="en">@Localizer["Settings_English"]</option>
-                        <option value="de">@Localizer["Settings_German"]</option>
+                        @foreach (var languageCode in ValidTargetLanguages)
+                        {
+                            <option value="@languageCode">@GetLanguageName(languageCode)</option>
+                        }
                     </select>
                     @if (_lookupLanguageInvalid)
                     {
@@ -95,6 +103,8 @@
 </section>
 
 @code {
+    private static readonly string[] SupportedLanguages = ["en", "de"];
+
     private string _title = string.Empty;
     private string _content = string.Empty;
     private string _textLanguage = "en";
@@ -107,6 +117,9 @@
     private bool _submitFailed;
     private string? _preflightMessageKey;
 
+    private IEnumerable<string> ValidTargetLanguages => SupportedLanguages.Where(languageCode =>
+        !string.Equals(languageCode, _textLanguage, StringComparison.OrdinalIgnoreCase));
+
     private async Task SaveAndAnalyzeAsync()
     {
         if (_isSubmitting)
@@ -114,6 +127,7 @@
             return;
         }
 
+        EnsureValidTargetLanguage();
         _titleMissing = string.IsNullOrWhiteSpace(_title);
         _contentMissing = string.IsNullOrWhiteSpace(_content);
         _lookupLanguageInvalid = _lookupMode != LexicalLookupMode.Definition
@@ -159,4 +173,30 @@
             _isSubmitting = false;
         }
     }
+
+    private void HandleSourceLanguageChanged()
+    {
+        EnsureValidTargetLanguage();
+        _lookupLanguageInvalid = false;
+    }
+
+    private void EnsureValidTargetLanguage()
+    {
+        if (_lookupMode == LexicalLookupMode.Definition)
+        {
+            return;
+        }
+
+        var validLanguages = ValidTargetLanguages.ToArray();
+        if (!validLanguages.Contains(_targetLanguage, StringComparer.OrdinalIgnoreCase))
+        {
+            _targetLanguage = validLanguages.First();
+        }
+    }
+
+    private string GetLanguageName(string languageCode) => languageCode switch
+    {
+        "de" => Localizer["Settings_German"],
+        _ => Localizer["Settings_English"]
+    };
 }

@@ -15,6 +15,7 @@ public sealed record LearningCardView(
     int CardId,
     int WordId,
     CardDirection Direction,
+    LearningInteractionMode InteractionMode,
     CardState State,
     string Term,
     TokenKind TokenKind,

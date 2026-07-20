@@ -15,7 +15,8 @@ public sealed class SpellingAnswerComparer
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalAnswer);
 
-        var entered = Normalize(enteredAnswer ?? string.Empty);
+        var enteredRaw = enteredAnswer ?? string.Empty;
+        var entered = Normalize(enteredRaw);
         var canonical = Normalize(canonicalAnswer);
         var aliases = (acceptedAliases ?? [])
             .Select(Normalize)
@@ -28,18 +29,18 @@ public sealed class SpellingAnswerComparer
 
         if (string.Equals(entered, canonical, comparison))
         {
-            return new SpellingComparisonResult(true, entered, canonical, string.Empty, null);
+            return new SpellingComparisonResult(true, enteredRaw, canonical, string.Empty, null);
         }
 
         var matchedAlias = aliases.FirstOrDefault(alias => string.Equals(entered, alias, comparison));
         if (matchedAlias is not null)
         {
-            return new SpellingComparisonResult(true, entered, canonical, string.Empty, matchedAlias);
+            return new SpellingComparisonResult(true, enteredRaw, canonical, string.Empty, matchedAlias);
         }
 
         return new SpellingComparisonResult(
             false,
-            entered,
+            enteredRaw,
             canonical,
             CreateReadableDifference(entered, canonical),
             null);

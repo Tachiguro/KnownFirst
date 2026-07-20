@@ -144,6 +144,37 @@
         }
     </section>
 
+    <section class="settings-card" aria-labelledby="learning-mode-title">
+        <h2 id="learning-mode-title">@Localizer["Settings_LearningMode"]</h2>
+        <p class="setting-help">@Localizer["Settings_LearningModeHelp"]</p>
+        <div class="choice-grid choice-grid-three">
+            <button type="button"
+                    class="choice-button @(_selectedLearningMode == LearningMode.Reading ? "active" : null)"
+                    aria-pressed="@(_selectedLearningMode == LearningMode.Reading)"
+                    @onclick="() => SelectLearningMode(LearningMode.Reading)">
+                @Localizer["Settings_LearningModeReading"]
+            </button>
+            <button type="button"
+                    class="choice-button @(_selectedLearningMode == LearningMode.Typing ? "active" : null)"
+                    aria-pressed="@(_selectedLearningMode == LearningMode.Typing)"
+                    @onclick="() => SelectLearningMode(LearningMode.Typing)">
+                @Localizer["Settings_LearningModeTyping"]
+            </button>
+            <button type="button"
+                    class="choice-button @(_selectedLearningMode == LearningMode.Automatic ? "active" : null)"
+                    aria-pressed="@(_selectedLearningMode == LearningMode.Automatic)"
+                    @onclick="() => SelectLearningMode(LearningMode.Automatic)">
+                @Localizer["Settings_LearningModeAutomatic"]
+            </button>
+        </div>
+        @if (_learningModeSaved)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">
+                @Localizer["Settings_LearningModeSaved"]
+            </p>
+        }
+    </section>
+
     <section class="settings-card" aria-labelledby="online-lookup-title">
         <h2 id="online-lookup-title">@Localizer["Settings_OnlineDictionary"]</h2>
         <p>@Localizer[AppSettings.HasOnlineLookupConsent
@@ -268,6 +299,7 @@
     private ThemePreference _selectedTheme = ThemePreference.System;
     private int _selectedPreparationLimit = AppSettingsService.DefaultPreparationLimit;
     private CardDirectionPreference _selectedCardDirection = CardDirectionPreference.Both;
+    private LearningMode _selectedLearningMode = LearningModePolicy.DefaultMode;
     private string? _languageConfirmation;
     private ThemePreference? _appearanceConfirmation;
     private int? _preparationLimitConfirmation;
@@ -275,6 +307,7 @@
     private bool _appearanceChangeFailed;
     private bool _preparationLimitChangeFailed;
     private bool _cardDirectionSaved;
+    private bool _learningModeSaved;
     private bool _onlineConsentRevoked;
     private bool _hasActiveReview;
     private bool _isChangingLanguage;
@@ -298,6 +331,7 @@
         _selectedTheme = ThemeService.Preference;
         _selectedPreparationLimit = AppSettings.PreparationLimit;
         _selectedCardDirection = AppSettings.CardDirection;
+        _selectedLearningMode = AppSettings.LearningMode;
         _languageConfirmation = SettingsFeedback.ConsumePendingLanguageConfirmation();
         _hasActiveReview = await TextReviewService.GetActiveReviewAsync() is not null;
     }
@@ -411,6 +445,18 @@
         AppSettings.SetCardDirection(preference);
         _selectedCardDirection = AppSettings.CardDirection;
         _cardDirectionSaved = true;
+    }
+
+    private void SelectLearningMode(LearningMode mode)
+    {
+        if (_selectedLearningMode == mode)
+        {
+            return;
+        }
+
+        AppSettings.SetLearningMode(mode);
+        _selectedLearningMode = AppSettings.LearningMode;
+        _learningModeSaved = true;
     }
 
     private void RevokeOnlineConsent()
@@ -529,6 +575,7 @@
             ThemeService.ResetPreference();
             AppSettings.Reset();
             _selectedCardDirection = AppSettings.CardDirection;
+            _selectedLearningMode = AppSettings.LearningMode;
             LanguageSelection.ResetToDeviceLanguage();
             _showResetConfirmation = false;
             _resetSucceeded = true;

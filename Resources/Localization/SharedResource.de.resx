@@ -594,6 +594,24 @@
   <data name="Settings_CardDirectionSaved" xml:space="preserve">
     <value>Kartenrichtungen gespeichert.</value>
   </data>
+  <data name="Settings_LearningMode" xml:space="preserve">
+    <value>Lernmodus</value>
+  </data>
+  <data name="Settings_LearningModeHelp" xml:space="preserve">
+    <value>Wähle, ob Lernkarten Lesen, Tippen oder einen automatischen Fortschritt pro Wort verwenden.</value>
+  </data>
+  <data name="Settings_LearningModeReading" xml:space="preserve">
+    <value>Lesen</value>
+  </data>
+  <data name="Settings_LearningModeTyping" xml:space="preserve">
+    <value>Tippen</value>
+  </data>
+  <data name="Settings_LearningModeAutomatic" xml:space="preserve">
+    <value>Automatisch</value>
+  </data>
+  <data name="Settings_LearningModeSaved" xml:space="preserve">
+    <value>Lernmodus gespeichert.</value>
+  </data>
   <data name="Settings_OnlineDictionary" xml:space="preserve">
     <value>Online-Wörterbuch</value>
   </data>
@@ -744,6 +762,12 @@
   <data name="Learn_MeaningToTerm" xml:space="preserve">
     <value>Begriff erinnern</value>
   </data>
+  <data name="Learn_ReadingMode" xml:space="preserve">
+    <value>Erinnere dich an die Antwort und zeige sie dann an</value>
+  </data>
+  <data name="Learn_TypingMode" xml:space="preserve">
+    <value>Begriff eingeben</value>
+  </data>
   <data name="Learn_RevealAnswer" xml:space="preserve">
     <value>Antwort anzeigen</value>
   </data>
@@ -757,7 +781,7 @@
     <value>Richtig.</value>
   </data>
   <data name="Learn_SpellingIncorrect" xml:space="preserve">
-    <value>Noch nicht ganz. Sieh dir unten den Unterschied an.</value>
+    <value>Noch nicht ganz. Sieh dir unten deine Antwort an.</value>
   </data>
   <data name="Learn_EnteredAnswer" xml:space="preserve">
     <value>Deine Antwort</value>
@@ -770,6 +794,9 @@
   </data>
   <data name="Learn_Difference" xml:space="preserve">
     <value>Unterschied</value>
+  </data>
+  <data name="Learn_MissingLetter" xml:space="preserve">
+    <value>Fehlender Buchstabe</value>
   </data>
   <data name="Learn_HiddenTarget" xml:space="preserve">
     <value>Ausgeblendeter Zielbegriff</value>

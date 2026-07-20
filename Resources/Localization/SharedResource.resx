@@ -594,6 +594,24 @@
   <data name="Settings_CardDirectionSaved" xml:space="preserve">
     <value>Card directions saved.</value>
   </data>
+  <data name="Settings_LearningMode" xml:space="preserve">
+    <value>Learning mode</value>
+  </data>
+  <data name="Settings_LearningModeHelp" xml:space="preserve">
+    <value>Choose whether learning cards use reading, typing, or automatic progression for each word.</value>
+  </data>
+  <data name="Settings_LearningModeReading" xml:space="preserve">
+    <value>Reading</value>
+  </data>
+  <data name="Settings_LearningModeTyping" xml:space="preserve">
+    <value>Typing</value>
+  </data>
+  <data name="Settings_LearningModeAutomatic" xml:space="preserve">
+    <value>Automatic</value>
+  </data>
+  <data name="Settings_LearningModeSaved" xml:space="preserve">
+    <value>Learning mode saved.</value>
+  </data>
   <data name="Settings_OnlineDictionary" xml:space="preserve">
     <value>Online dictionary</value>
   </data>
@@ -744,6 +762,12 @@
   <data name="Learn_MeaningToTerm" xml:space="preserve">
     <value>Recall the term</value>
   </data>
+  <data name="Learn_ReadingMode" xml:space="preserve">
+    <value>Recall the answer, then reveal it</value>
+  </data>
+  <data name="Learn_TypingMode" xml:space="preserve">
+    <value>Type the term</value>
+  </data>
   <data name="Learn_RevealAnswer" xml:space="preserve">
     <value>Reveal answer</value>
   </data>
@@ -757,7 +781,7 @@
     <value>Correct.</value>
   </data>
   <data name="Learn_SpellingIncorrect" xml:space="preserve">
-    <value>Not quite. Review the difference below.</value>
+    <value>Not quite. Review your answer below.</value>
   </data>
   <data name="Learn_EnteredAnswer" xml:space="preserve">
     <value>Your answer</value>
@@ -770,6 +794,9 @@
   </data>
   <data name="Learn_Difference" xml:space="preserve">
     <value>Difference</value>
+  </data>
+  <data name="Learn_MissingLetter" xml:space="preserve">
+    <value>Missing letter</value>
   </data>
   <data name="Learn_HiddenTarget" xml:space="preserve">
     <value>Hidden target term</value>

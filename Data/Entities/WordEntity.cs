@@ -1,5 +1,6 @@
 using KnownFirst.Core.Text;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Learning;
 using KnownFirst.Models;
 using SQLite;
 
@@ -30,6 +31,16 @@ public sealed class WordEntity
     public int TotalOccurrenceCount { get; set; }
 
     public int DocumentCount { get; set; }
+
+    public LearningInteractionMode AutomaticInteractionMode { get; set; } = LearningInteractionMode.Reading;
+
+    public int ConsecutiveRecallSuccessCount { get; set; }
+
+    public int ConsecutiveTypingSuccessCount { get; set; }
+
+    public int ConsecutiveTypingFailureCount { get; set; }
+
+    public bool MasteryReviewExtensionScheduled { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

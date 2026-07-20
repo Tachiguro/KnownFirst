@@ -5,7 +5,7 @@ namespace KnownFirst.Data;
 
 public static class DatabaseSchema
 {
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     public static async Task InitializeAsync(SQLiteAsyncConnection connection)
     {

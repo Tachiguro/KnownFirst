@@ -108,7 +108,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
                 "Dictionary lookup failed unexpectedly. Provider = {Provider}, duration milliseconds = {DurationMilliseconds}",
                 Name,
                 lookupStopwatch.ElapsedMilliseconds);
-            throw;
+            return Failure(request, LexicalLookupStatus.PermanentFailure, "provider-error");
         }
         finally
         {

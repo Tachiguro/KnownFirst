@@ -145,16 +145,46 @@ public sealed class LexicalEnrichmentService(
             return AddDiagnostics(cached, request, "cache-hit");
         }
 
-        var online = await provider.LookupAsync(request, cancellationToken);
-        if (online.Status == LexicalLookupStatus.Success)
+        try
         {
-            await cache.SaveAsync(request, online, provider.ProviderSchemaVersion);
-        }
+            var online = await provider.LookupAsync(request, cancellationToken);
+            if (online.Status == LexicalLookupStatus.Success)
+            {
+                await cache.SaveAsync(request, online, provider.ProviderSchemaVersion);
+            }
 
-        var outcome = online.ErrorCode is null
-            ? online.Status.ToString()
-            : $"{online.Status}: {online.ErrorCode}";
-        return AddDiagnostics(online, request, outcome);
+            var outcome = online.ErrorCode is null
+                ? online.Status.ToString()
+                : $"{online.Status}: {online.ErrorCode}";
+            return AddDiagnostics(online, request, outcome);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _diagnosticLog.Write(Event(request, "enrichment.provider-crash"), exception);
+            var failure = new LexicalResult(
+                LexicalLookupStatus.PermanentFailure,
+                request.NormalizedLemma,
+                request.Term,
+                request.TokenKind,
+                request.SourceLanguage,
+                request.ExplanationLanguage,
+                null,
+                [],
+                provider.ProviderName,
+                "unknown",
+                request.Term,
+                0,
+                string.Empty,
+                DateTime.UtcNow)
+            {
+                ErrorCode = "provider-crash"
+            };
+            return AddDiagnostics(failure, request, "PermanentFailure: provider-crash");
+        }
     }
 
     private LexicalResult RankAndApplyExpansion(

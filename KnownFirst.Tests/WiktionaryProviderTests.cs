@@ -85,6 +85,15 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public async Task Lookup_UnexpectedExceptionReturnsPermanentFailure()
+    {
+        var provider = CreateProvider(_ => throw new InvalidOperationException("Fatal crash simulation."));
+        var result = await provider.LookupAsync(Request("network", "en", "en"));
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("provider-error", result.ErrorCode);
+    }
+
+    [TestMethod]
     public async Task Lookup_ExternalCancellationStopsTheRequest()
     {
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

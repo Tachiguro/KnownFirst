@@ -232,6 +232,35 @@ public sealed class StudyWorkflowServiceTests
     }
 
     [TestMethod]
+    public async Task Preparation_UnexpectedLookupExceptionMarksCandidateFailedAndReturnsSafely()
+    {
+        await ImportAllUnknownAsync("crash.");
+        _provider.ResultFactory = request => throw new InvalidOperationException("Fatal provider crash simulation");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 10);
+
+        var failed = await _preparation.LookupCurrentAsync();
+
+        Assert.IsNotNull(failed);
+        Assert.AreEqual("crash", failed.Term, ignoreCase: true);
+        Assert.AreEqual(PreparationCandidateStatus.Failed, failed.Status);
+
+        var state = await _database.ReadAsync(async connection => new
+        {
+            Candidate = await connection.FindAsync<PreparationCandidateEntity>(failed.CandidateId),
+            Word = await connection.FindAsync<WordEntity>(failed.WordId)
+        });
+
+        Assert.AreEqual(PreparationCandidateStatus.Failed, state.Candidate.Status, "Candidate must not remain in Pending status.");
+        Assert.AreEqual(PreparationState.PreparationFailed, state.Word.PreparationState, "Word must not be skipped or marked known automatically.");
+        Assert.IsNotNull(state.Word, "Word must not be deleted.");
+
+        // A later retry should be possible
+        _provider.ResultFactory = SuccessResult;
+        var retry = await _preparation.LookupCurrentAsync();
+        Assert.AreEqual(PreparationCandidateStatus.ResultReady, retry!.Status);
+    }
+
+    [TestMethod]
     public async Task Preparation_MarkKnownCreatesNoCardsAndAdvancesExactlyOnce()
     {
         await ImportAllUnknownAsync("alpha beta.");
@@ -346,6 +375,32 @@ public sealed class StudyWorkflowServiceTests
 
         Assert.IsNotNull(second);
         Assert.AreEqual(2, _provider.CallCount);
+    }
+
+    [TestMethod]
+    public async Task Preparation_PrefetchExceptionIsHandledSafely()
+    {
+        await ImportAllUnknownAsync("alpha beta.");
+        _provider.ResultFactory = request => request.Term.Equals("alpha", StringComparison.OrdinalIgnoreCase)
+            ? SuccessResult(request)
+            : throw new InvalidOperationException("Fatal prefetch crash simulation");
+
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 2);
+        var first = await _preparation.LookupCurrentAsync();
+
+        // Wait long enough for prefetch to fail in the background
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+
+        await _preparation.AcceptAsync(
+            first!.CandidateId,
+            InputFrom(first),
+            CardDirectionPreference.TermToMeaning);
+
+        var second = await _preparation.LookupCurrentAsync();
+
+        Assert.IsNotNull(second);
+        Assert.AreEqual("beta", second.Term, ignoreCase: true);
+        Assert.AreEqual(PreparationCandidateStatus.Failed, second.Status);
     }
 
 #if DEBUG
@@ -1238,7 +1293,7 @@ public sealed class StudyWorkflowServiceTests
     {
         var item = await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
         var card = (await _learning.GetOrStartAsync()).Card!;
-        
+
         await _learning.RevealAnswerAsync(card.QueueItemId);
         await _learning.RateAsync(card.QueueItemId, ReviewRating.Good);
 
@@ -1251,7 +1306,7 @@ public sealed class StudyWorkflowServiceTests
     {
         var item = await PrepareSingleAsync("network.", CardDirectionPreference.MeaningToTerm);
         var card = (await _learning.GetOrStartAsync()).Card!;
-        
+
         await _learning.CheckSpellingAsync(card.QueueItemId, "network");
         await _learning.RateAsync(card.QueueItemId, ReviewRating.Good);
 
@@ -1278,11 +1333,11 @@ public sealed class StudyWorkflowServiceTests
         var card = (await _learning.GetOrStartAsync()).Card!;
         await _learning.RevealAnswerAsync(card.QueueItemId);
         await _learning.RateAsync(card.QueueItemId, ReviewRating.Good);
-        
-        var deletedCount = await _database.RunInTransactionAsync(c => 
+
+        var deletedCount = await _database.RunInTransactionAsync(c =>
             c.Table<LearningSessionCardEntity>().Where(x => x.IsCompleted).Delete()
         );
-        
+
         Assert.IsTrue(deletedCount > 0);
     }
 
@@ -1293,11 +1348,11 @@ public sealed class StudyWorkflowServiceTests
         var card = (await _learning.GetOrStartAsync()).Card!;
         await _learning.RevealAnswerAsync(card.QueueItemId);
         await _learning.RateAsync(card.QueueItemId, ReviewRating.Good);
-        
-        await _database.RunInTransactionAsync(c => 
+
+        await _database.RunInTransactionAsync(c =>
             c.Table<LearningSessionCardEntity>().Where(x => x.IsCompleted).Delete()
         );
-        
+
         var cards = await _database.ReadAsync(c => c.Table<LearningCardEntity>().Where(x => x.WordId == item.WordId).ToListAsync());
         Assert.AreEqual(1, cards.Count);
         Assert.IsNotNull(cards[0].DueAtUtc);
@@ -1308,10 +1363,10 @@ public sealed class StudyWorkflowServiceTests
     {
         var item = await PrepareSingleAsync("network.", CardDirectionPreference.Both);
         var card = (await _learning.GetOrStartAsync()).Card!;
-        
+
         await _learning.RevealAnswerAsync(card.QueueItemId);
         await _learning.RateAsync(card.QueueItemId, ReviewRating.Good);
-        
+
         var wordAfter = await _database.ReadAsync(c => c.FindAsync<WordEntity>(item.WordId));
         Assert.IsNotNull(wordAfter);
         // Just verifying it doesn't throw and runs through.
@@ -1322,13 +1377,13 @@ public sealed class StudyWorkflowServiceTests
     {
         var item = await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
         var word = await _database.ReadAsync(c => c.FindAsync<WordEntity>(item.WordId));
-        
-        await _database.RunInTransactionAsync(c => { 
+
+        await _database.RunInTransactionAsync(c => {
             word.AutomaticInteractionMode = LearningInteractionMode.Typing;
-            c.Update(word); 
-            return 1; 
+            c.Update(word);
+            return 1;
         });
-        
+
         var wordAfter = await _database.ReadAsync(c => c.FindAsync<WordEntity>(item.WordId));
         Assert.AreNotEqual(WordStatus.Known, wordAfter.Status);
     }
@@ -1337,8 +1392,8 @@ public sealed class StudyWorkflowServiceTests
     public async Task AutomaticLearning_OnlyExplicitActionCausesPermanentKnown()
     {
         var item = await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
-        
-        // This assumes LearningService has MarkPermanentlyKnownAsync or similar. 
+
+        // This assumes LearningService has MarkPermanentlyKnownAsync or similar.
         // If it's TextReviewService, let's use that.
         // Wait, the test says "Nur eine explizite und bestätigte Benutzeraktion darf dauerhaftes Bekanntmachen auslösen".
         // I will just assert that standard review doesn't do it.

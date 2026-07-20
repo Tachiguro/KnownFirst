@@ -20,7 +20,8 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
-        var diagnosticOptions = DiagnosticLogConfiguration.Create();
+        var buildIdentity = new BuildIdentityService();
+        var diagnosticOptions = DiagnosticLogConfiguration.Create(buildIdentity);
         var fileLoggerProvider = new RollingFileLoggerProvider(diagnosticOptions);
         var bootstrapLogger = fileLoggerProvider.CreateLogger("KnownFirst.Startup");
         bootstrapLogger.LogInformation(
@@ -38,6 +39,7 @@ public static class MauiProgram
 
         builder.Services.AddMauiBlazorWebView();
         builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+        builder.Services.AddSingleton<IBuildIdentityService>(buildIdentity);
         builder.Services.AddSingleton(fileLoggerProvider);
         builder.Services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
         builder.Services.AddSingleton<RuntimeExceptionMonitor>();

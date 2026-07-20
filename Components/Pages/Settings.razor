@@ -8,6 +8,7 @@
 @inject IJSRuntime JsRuntime
 @inject ITextReviewService TextReviewService
 @inject KnownFirst.Services.Lexical.ILexicalDiagnosticLog LexicalDiagnosticLog
+@inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
 
@@ -241,6 +242,10 @@
                 </button>
             </div>
         }
+
+        <p style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.7;">
+            @BuildIdentityService.GetFormattedBuildIdentity()
+        </p>
     </section>
 
     <section class="settings-card danger-zone" aria-labelledby="reset-data-title">

@@ -4,51 +4,30 @@ namespace KnownFirst.Services.Diagnostics;
 
 internal static class DiagnosticLogConfiguration
 {
-    public static DiagnosticLogOptions Create()
+    public static DiagnosticLogOptions Create(IBuildIdentityService identity)
     {
-        var appVersion = TryGetApplicationVersion();
-        var platform = TryGetPlatform();
         var logDirectory = ResolveLogDirectory();
+        var isRelease = identity.Identity.Configuration == "Release";
+
+        var minimumLevel = isRelease ? LogLevel.Warning : LogLevel.Trace;
+        var retainedFileCount = isRelease ? 3 : 20;
+        var maximumFileBytes = isRelease ? 1 * 1024 * 1024L : 10 * 1024 * 1024L;
+        var maximumAge = isRelease ? TimeSpan.FromDays(7) : TimeSpan.FromDays(21);
 
         return new DiagnosticLogOptions
         {
             DirectoryPath = logDirectory,
-            ApplicationVersion = appVersion,
-            BuildConfiguration = BuildConfiguration,
+            ApplicationVersion = identity.Identity.Version,
+            BuildConfiguration = identity.Identity.Configuration,
             TargetFramework = TargetFramework,
-            Platform = platform,
-            OperatingSystemVersion = Environment.OSVersion.VersionString,
-            MinimumLevel = MinimumLevel,
-            MaximumFileBytes = DiagnosticLogOptions.DefaultMaximumFileBytes,
-            RetainedFileCount = DiagnosticLogOptions.DefaultRetainedFileCount,
-            MaximumAge = TimeSpan.FromDays(21)
+            Platform = identity.Identity.OS,
+            OperatingSystemVersion = identity.Identity.OSVersion,
+            MinimumLevel = minimumLevel,
+            MaximumFileBytes = maximumFileBytes,
+            RetainedFileCount = retainedFileCount,
+            MaximumAge = maximumAge,
+            SessionId = identity.Identity.SessionId
         };
-    }
-
-    private static string BuildConfiguration
-    {
-        get
-        {
-#if KNOWNFIRST_DIAGNOSTICS
-            return "BetaDiagnostic";
-#elif DEBUG
-            return "Debug";
-#else
-            return "Release";
-#endif
-        }
-    }
-
-    private static LogLevel MinimumLevel
-    {
-        get
-        {
-#if DEBUG || KNOWNFIRST_DIAGNOSTICS
-            return LogLevel.Trace;
-#else
-            return LogLevel.Information;
-#endif
-        }
     }
 
     private static string TargetFramework
@@ -71,37 +50,13 @@ internal static class DiagnosticLogConfiguration
 
     private static string ResolveLogDirectory()
     {
-#if WINDOWS
+#if IOS || MACCATALYST || ANDROID
+        return Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, "Logs");
+#else
         return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "KnownFirst",
             "Logs");
-#else
-        return Path.Combine(FileSystem.AppDataDirectory, "Logs");
 #endif
-    }
-
-    private static string TryGetApplicationVersion()
-    {
-        try
-        {
-            return AppInfo.Current.VersionString;
-        }
-        catch
-        {
-            return typeof(MauiProgram).Assembly.GetName().Version?.ToString() ?? "unknown";
-        }
-    }
-
-    private static string TryGetPlatform()
-    {
-        try
-        {
-            return DeviceInfo.Current.Platform.ToString();
-        }
-        catch
-        {
-            return Environment.OSVersion.Platform.ToString();
-        }
     }
 }

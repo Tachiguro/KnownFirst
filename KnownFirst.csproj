@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor" TreatAsLocalProperty="Configuration">
+<Project Sdk="Microsoft.NET.Sdk.Razor" TreatAsLocalProperty="Configuration">
 
     <PropertyGroup>
         <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
@@ -145,5 +145,35 @@
         <None Remove="Components\Pages\Diagnostics.razor" />
         <None Remove="Components\Pages\Diagnostics.razor.css" />
     </ItemGroup>
+
+    <Target Name="InjectGitMetadata" BeforeTargets="GetAssemblyAttributes">
+        <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitCommitHash" />
+        </Exec>
+        <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitShortCommitHash" />
+        </Exec>
+        <Exec Command="git branch --show-current" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitBranchName" />
+        </Exec>
+        <Exec Command="git status --porcelain" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitStatusOutput" />
+        </Exec>
+
+        <PropertyGroup>
+            <GitCommitHash Condition="'$(GitCommitHash)' == '' or $(GitCommitHash.Contains('fatal'))">unknown</GitCommitHash>
+            <GitShortCommitHash Condition="'$(GitShortCommitHash)' == '' or $(GitShortCommitHash.Contains('fatal'))">unknown</GitShortCommitHash>
+            <GitBranchName Condition="'$(GitBranchName)' == '' or $(GitBranchName.Contains('fatal'))">unknown</GitBranchName>
+            <GitIsDirty Condition="'$(GitStatusOutput)' != ''">true</GitIsDirty>
+            <GitIsDirty Condition="'$(GitStatusOutput)' == ''">false</GitIsDirty>
+        </PropertyGroup>
+
+        <ItemGroup>
+            <AssemblyMetadata Include="GitCommitHash" Value="$(GitCommitHash)" />
+            <AssemblyMetadata Include="GitShortCommitHash" Value="$(GitShortCommitHash)" />
+            <AssemblyMetadata Include="GitBranchName" Value="$(GitBranchName)" />
+            <AssemblyMetadata Include="GitIsDirty" Value="$(GitIsDirty)" />
+        </ItemGroup>
+    </Target>
 
 </Project>

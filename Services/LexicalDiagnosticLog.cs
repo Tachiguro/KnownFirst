@@ -1,3 +1,4 @@
+using KnownFirst.Services.Diagnostics;
 using KnownFirst.Services.Lexical;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -6,7 +7,9 @@ using System.Text;
 
 namespace KnownFirst.Services;
 
-public sealed class LexicalDiagnosticLog(ILogger<LexicalDiagnosticLog>? logger = null) : ILexicalDiagnosticLog
+public sealed class LexicalDiagnosticLog(
+    IBuildIdentityService buildIdentity,
+    ILogger<LexicalDiagnosticLog>? logger = null) : ILexicalDiagnosticLog
 {
     public const long MaximumLogBytes = 2 * 1024 * 1024;
 
@@ -33,19 +36,7 @@ public sealed class LexicalDiagnosticLog(ILogger<LexicalDiagnosticLog>? logger =
 
     private static string LogPath => Path.Combine(FileSystem.AppDataDirectory, "Logs", LogFileName);
 
-    private static string BuildType
-    {
-        get
-        {
-#if KNOWNFIRST_DIAGNOSTICS
-            return "BetaDiagnostic";
-#elif DEBUG
-            return "Debug";
-#else
-            return "Release";
-#endif
-        }
-    }
+    private string BuildType => buildIdentity.Identity.Configuration;
 
     public void Write(LexicalDiagnosticEvent diagnosticEvent, Exception? exception = null)
     {
@@ -114,8 +105,8 @@ public sealed class LexicalDiagnosticLog(ILogger<LexicalDiagnosticLog>? logger =
             var builder = new StringBuilder();
             builder.AppendLine("KnownFirst lexical lookup diagnostic report");
             builder.Append("GeneratedUtc=").AppendLine(DateTime.UtcNow.ToString("O"));
-            builder.Append("BuildType=").AppendLine(BuildType);
-            builder.Append("AppVersion=").AppendLine(Sanitize(AppInfo.Current.VersionString, MaximumFieldLength));
+            builder.AppendLine();
+            builder.AppendLine(buildIdentity.FormatHeader());
             builder.AppendLine("Content=lookup metadata and term hashes only; terms, documents, contexts, definitions, credentials, and HTTP headers are excluded");
             builder.AppendLine();
             builder.Append(File.ReadAllText(LogPath, Utf8WithoutBom));
@@ -134,12 +125,12 @@ public sealed class LexicalDiagnosticLog(ILogger<LexicalDiagnosticLog>? logger =
         }
     }
 
-    private static string FormatEvent(LexicalDiagnosticEvent diagnosticEvent, Exception? exception)
+    private string FormatEvent(LexicalDiagnosticEvent diagnosticEvent, Exception? exception)
     {
         var builder = new StringBuilder(1024);
         AppendField(builder, "timestampUtc", DateTime.UtcNow.ToString("O"));
         AppendField(builder, "buildType", BuildType);
-        AppendField(builder, "appVersion", AppInfo.Current.VersionString);
+        AppendField(builder, "appVersion", buildIdentity.Identity.Version);
         AppendField(builder, "phase", diagnosticEvent.Phase);
         AppendField(builder, "termLength", diagnosticEvent.NormalizedTerm.Length.ToString());
         AppendField(builder, "termHash", CreateTermHash(diagnosticEvent.NormalizedTerm));

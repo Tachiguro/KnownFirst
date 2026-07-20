@@ -1,6 +1,7 @@
 @page "/diagnostics"
 @inject ITextReviewService TextReviewService
 @inject IPreparationService PreparationService
+@inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
 @inject ILogger<Diagnostics> Logger
 
 <PageTitle>@Localizer["Diagnostics_Title"]</PageTitle>
@@ -694,7 +695,7 @@
     }
 
     private Task CopyReportAsync() => CopyAsync(
-        _snapshot is null ? null : DiagnosticsReportFormatter.Format(_snapshot),
+        _snapshot is null ? null : BuildIdentityService.FormatHeader() + Environment.NewLine + DiagnosticsReportFormatter.Format(_snapshot),
         "Diagnostics_ReportCopied");
 
     private Task CopyDatabasePathAsync() => CopyAsync(
@@ -702,7 +703,7 @@
         "Diagnostics_DatabasePathCopied");
 
     private Task CopyAnalysisReportAsync() => CopyAsync(
-        _analysisReport is null ? null : WordAnalysisReportFormatter.Format(_analysisReport),
+        _analysisReport is null ? null : BuildIdentityService.FormatHeader() + Environment.NewLine + WordAnalysisReportFormatter.Format(_analysisReport),
         "Analysis_ReportCopied");
 
     private async Task CopyAsync(string? value, string successMessageKey)

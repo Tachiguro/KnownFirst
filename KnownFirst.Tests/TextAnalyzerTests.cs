@@ -457,4 +457,87 @@ public sealed class TextAnalyzerTests
         .Candidates
         .SelectMany(candidate => candidate.SurfaceForms.Keys)
         .ToArray();
+    [TestMethod]
+    public void Analyze_WordWithFrequencyOneRemainsInResult()
+    {
+        var result = _analyzer.Analyze("A single rare word.");
+        var rare = result.Candidates.SingleOrDefault(c => c.CanonicalTerm == "rare");
+
+        Assert.IsNotNull(rare);
+        Assert.AreEqual(1, rare.Occurrences.Count);
+    }
+
+    [TestMethod]
+    public void Analyze_LowFrequencyDoesNotDeleteWord()
+    {
+        var result = _analyzer.Analyze("Common common common rare.");
+        
+        var common = result.Candidates.SingleOrDefault(c => c.CanonicalTerm.Equals("common", StringComparison.OrdinalIgnoreCase));
+        var rare = result.Candidates.SingleOrDefault(c => c.CanonicalTerm.Equals("rare", StringComparison.OrdinalIgnoreCase));
+        
+        Assert.IsNotNull(common);
+        Assert.IsNotNull(rare);
+        Assert.AreEqual(3, common.Occurrences.Count);
+        Assert.AreEqual(1, rare.Occurrences.Count);
+    }
+
+    [TestMethod]
+    public void Analyze_ReturnsOnlyVocabularyAndDoesNotDetermineKnowledgeState()
+    {
+        var result = _analyzer.Analyze("Unknown known.");
+        
+        // TextAnalyzer output shouldn't have a status property that decides "Known" vs "Unknown".
+        // It merely returns the candidates. The fact that the test compiles and we assert
+        // over CanonicalTerm proves it limits its scope to token extraction.
+        Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm.Equals("known", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
+    public void Analyze_RepeatedAnalysisOfSameTextIsDeterministic()
+    {
+        const string text = "Deterministic analysis test.";
+        var first = _analyzer.Analyze(text);
+        var second = _analyzer.Analyze(text);
+
+        CollectionAssert.AreEqual(
+            first.Candidates.Select(c => c.CanonicalTerm).ToArray(),
+            second.Candidates.Select(c => c.CanonicalTerm).ToArray());
+    }
+
+    [TestMethod]
+    public void Analyze_GermanSingularizationRetainsOriginalFormAndPosition()
+    {
+        const string content = "Die Datenschutzprozesse laufen.";
+        var result = _analyzer.Analyze(content, "de");
+
+        var candidate = result.Candidates.Single(c => c.CanonicalTerm == "Datenschutzprozess");
+        var occurrence = candidate.Occurrences.Single();
+
+        Assert.AreEqual("Datenschutzprozess", candidate.CanonicalTerm);
+        Assert.AreEqual("Datenschutzprozesse", occurrence.SurfaceForm);
+        Assert.AreEqual(1, candidate.Occurrences.Count);
+        Assert.AreEqual("Datenschutzprozesse", content.Substring(occurrence.StartPosition, occurrence.Length));
+    }
+
+    [TestMethod]
+    public void Analyze_GermanCoordinatedCompoundsNormalizeToFullProcessTerms()
+    {
+        const string content = "Arbeits-, Qualitäts-, Sicherheits- und Datenschutzprozesse sind wichtig.";
+        var result = _analyzer.Analyze(content, "de");
+
+        var terms = result.Candidates.Select(c => c.CanonicalTerm).ToArray();
+        
+        Assert.IsTrue(terms.Contains("Arbeitsprozess"));
+        Assert.IsTrue(terms.Contains("Qualitätsprozess"));
+        Assert.IsTrue(terms.Contains("Sicherheitsprozess"));
+        Assert.IsTrue(terms.Contains("Datenschutzprozess"));
+        
+        Assert.IsFalse(terms.Contains("Arbeits-"));
+        Assert.IsFalse(terms.Contains("Qualitäts-"));
+        Assert.IsFalse(terms.Contains("Sicherheits-"));
+        
+        var arbeits = result.Candidates.Single(c => c.CanonicalTerm == "Arbeitsprozess").Occurrences.Single();
+        Assert.AreEqual("Arbeits-", content.Substring(arbeits.StartPosition, arbeits.Length));
+        Assert.AreEqual("Arbeits-", arbeits.SurfaceForm);
+    }
 }

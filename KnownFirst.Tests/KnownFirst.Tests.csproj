@@ -66,6 +66,7 @@
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
+    <Compile Include="..\Services\IAppSettingsService.cs" Link="Production\Services\IAppSettingsService.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticLogOptions.cs" Link="Production\Services\Diagnostics\DiagnosticLogOptions.cs" />
     <Compile Include="..\Services\Diagnostics\RollingFileLoggerProvider.cs" Link="Production\Services\Diagnostics\RollingFileLoggerProvider.cs" />
     <Compile Include="..\Services\Diagnostics\AppDiagnosticsService.cs" Link="Production\Services\Diagnostics\AppDiagnosticsService.cs" />

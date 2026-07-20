@@ -191,6 +191,23 @@ Provider-confirmed lemma resolution is a later lexical-enrichment step. It follo
 
 This does not weaken the no-stemming rule. `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without explicit provider evidence.
 
+### German coordinated compounds
+
+For hyphenated process coordinations like:
+
+```text
+Arbeits-, Qualitäts-, Sicherheits- und Datenschutzprozesse
+```
+
+The canonical vocabulary identities are normalized to their full forms:
+
+- `Arbeitsprozess`
+- `Qualitätsprozess`
+- `Sicherheitsprozess`
+- `Datenschutzprozess`
+
+Crucially, the **original surface forms and coordinates** remain unchanged and fully traceable. For example, the `TokenOccurrence` for the first token retains `SurfaceForm = "Arbeits-"` (including the hyphen) and points to its exact original length, ensuring the original text invariant is strictly preserved.
+
 ## Encountered forms
 
 Encountered forms show genuinely distinct variants, not case duplicates.

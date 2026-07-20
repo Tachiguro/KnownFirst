@@ -1,4 +1,4 @@
-namespace KnownFirst.Tests;
+﻿namespace KnownFirst.Tests;
 
 [TestClass]
 public sealed class UiWorkflowContractTests
@@ -57,7 +57,7 @@ public sealed class UiWorkflowContractTests
     public void Learning_AnswerIsConditionalAndNoSkipActionExists()
     {
         var markup = LoadUi("Learn.razor");
-        var hiddenCondition = markup.IndexOf("if (!_card.AnswerRevealed)", StringComparison.Ordinal);
+        var hiddenCondition = markup.IndexOf("if (_card.AnswerRevealed)", StringComparison.Ordinal);
         var answer = markup.IndexOf("<AnswerView", StringComparison.Ordinal);
 
         Assert.IsGreaterThanOrEqualTo(0, hiddenCondition);
@@ -108,7 +108,7 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("focusElement", markup);
         Assert.Contains("max-width: 100%", styles);
         Assert.Contains("min-width: 0", styles);
-        Assert.Contains("overflow-wrap: anywhere", styles);
+        Assert.Contains("overflow-wrap: break-word;", styles);
         Assert.Contains("-webkit-line-clamp: 2", styles);
         Assert.Contains("env(safe-area-inset-bottom)", styles);
     }
@@ -127,7 +127,27 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("PreparationService.SkipAsync", markup);
         Assert.Contains("if (CanRetryLookup)", markup);
         Assert.Contains("LexicalLookupOutcomePolicy.CanRetry", markup);
+        Assert.Contains("CanRetry(result.Status, result.ErrorCode)", markup);
         Assert.DoesNotContain("Search another source", markup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
+    public void Preparation_MapsLexicalErrorCodesToLocalizedUserMessages()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("missing-page", markup);
+        Assert.Contains("definition-not-found", markup);
+        Assert.Contains("translation-not-found", markup);
+        Assert.Contains("language-section-not-found", markup);
+        Assert.Contains("network-unavailable", markup);
+        Assert.Contains("malformed-json", markup);
+        Assert.Contains("Prepare_DictionaryEntryNotFound", markup);
+        Assert.Contains("Prepare_DefinitionNotFound", markup);
+        Assert.Contains("Prepare_TranslationNotFound", markup);
+        Assert.Contains("Prepare_LanguageSectionNotFound", markup);
+        Assert.Contains("Prepare_NetworkFailure", markup);
+        Assert.Contains("Prepare_ResponseParseFailure", markup);
     }
 
     [TestMethod]
@@ -187,10 +207,8 @@ public sealed class UiWorkflowContractTests
         Assert.DoesNotContain("<details class=\"candidate-details-panel\" open", markup);
         Assert.Contains("review-action-bar", markup);
         Assert.Contains("Review_Saving", markup);
-        Assert.Contains("position: fixed", styles);
-        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", styles);
+                Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", styles);
         Assert.Contains("env(safe-area-inset-bottom)", styles);
-        Assert.Contains("padding-bottom", styles);
     }
 
     [TestMethod]

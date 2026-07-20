@@ -31,39 +31,13 @@ namespace KnownFirst.Tests
         }
 
         [TestMethod]
-        public void Release_ShouldUseAppIconRelease()
+        public void Project_ShouldUseAppIcon()
         {
-            var releaseIcon = _csproj.Descendants("ItemGroup")
-                .Where(e => (string)e.Attribute("Condition") == "'$(Configuration)' == 'Release'")
-                .Descendants("MauiIcon")
+            var icon = _csproj.Descendants("MauiIcon")
                 .FirstOrDefault();
             
-            Assert.IsNotNull(releaseIcon);
-            Assert.AreEqual(@"Resources\AppIcon\appicon_release.png", (string)releaseIcon.Attribute("Include"));
-        }
-
-        [TestMethod]
-        public void Debug_ShouldUseAppIconDebug()
-        {
-            var debugIcon = _csproj.Descendants("ItemGroup")
-                .Where(e => (string)e.Attribute("Condition") == "'$(Configuration)' == 'Debug'")
-                .Descendants("MauiIcon")
-                .FirstOrDefault();
-            
-            Assert.IsNotNull(debugIcon);
-            Assert.AreEqual(@"Resources\AppIcon\appicon_debug.png", (string)debugIcon.Attribute("Include"));
-        }
-
-        [TestMethod]
-        public void Diagnostic_ShouldUseAppIconDiagnostic()
-        {
-            var diaIcon = _csproj.Descendants("ItemGroup")
-                .Where(e => (string)e.Attribute("Condition") == "'$(Configuration)' == 'BetaDiagnostic'")
-                .Descendants("MauiIcon")
-                .FirstOrDefault();
-            
-            Assert.IsNotNull(diaIcon);
-            Assert.AreEqual(@"Resources\AppIcon\appicon_diagnostic.png", (string)diaIcon.Attribute("Include"));
+            Assert.IsNotNull(icon, "MauiIcon element is missing.");
+            Assert.AreEqual(@"Resources\AppIcon\appicon.png", (string)icon.Attribute("Include"));
         }
 
         [TestMethod]

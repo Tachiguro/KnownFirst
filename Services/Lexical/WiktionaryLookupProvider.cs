@@ -13,7 +13,7 @@ namespace KnownFirst.Services.Lexical;
 public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
 {
     public const string Name = "Wiktionary";
-    public const int SchemaVersion = 3;
+    public const int SchemaVersion = 4;
     public const string UserAgent =
         "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only dictionary lookup)";
     public const string AttributionText =
@@ -116,14 +116,16 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         }
     }
 
+    private static string GetProjectHost(string sourceLanguage) =>
+        string.Equals(sourceLanguage, "de", StringComparison.OrdinalIgnoreCase)
+            ? "de.wiktionary.org"
+            : "en.wiktionary.org";
+
     public static Uri CreateRequestUri(LexicalLookupRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var resultLanguage = request.TargetLanguage ?? request.SourceLanguage;
-        ValidateLanguage(resultLanguage);
-        var host = resultLanguage.Equals("de", StringComparison.OrdinalIgnoreCase)
-            ? "de.wiktionary.org"
-            : "en.wiktionary.org";
+        ValidateLanguage(request.SourceLanguage);
+        var host = GetProjectHost(request.SourceLanguage);
         var query = string.Join('&',
             "action=parse",
             "format=json",
@@ -131,7 +133,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             "prop=text%7Crevid",
             "redirects=1",
             "disabletoc=1",
-            $"uselang={Uri.EscapeDataString(resultLanguage.ToLowerInvariant())}",
+            $"uselang={Uri.EscapeDataString(request.SourceLanguage.ToLowerInvariant())}",
             $"page={Uri.EscapeDataString(request.CanonicalLookupTerm)}");
         return new UriBuilder(Uri.UriSchemeHttps, host)
         {
@@ -266,12 +268,13 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             var code = error.TryGetProperty("code", out var codeElement)
                 ? codeElement.GetString() ?? "api-error"
                 : "api-error";
+            var isMissingPage = code.Contains("missing", StringComparison.OrdinalIgnoreCase);
             return Failure(
                 request,
-                code.Contains("missing", StringComparison.OrdinalIgnoreCase)
+                isMissingPage
                     ? LexicalLookupStatus.NotFound
                     : LexicalLookupStatus.PermanentFailure,
-                code);
+                isMissingPage ? "missing-page" : code);
         }
 
         if (!root.TryGetProperty("parse", out var parsed)
@@ -282,7 +285,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
 
         var html = textElement.ValueKind == JsonValueKind.String
             ? textElement.GetString()
-            : textElement.TryGetProperty("*", out var legacyText)
+            : textElement.ValueKind == JsonValueKind.Object && textElement.TryGetProperty("*", out var legacyText)
                 ? legacyText.GetString()
                 : null;
         if (string.IsNullOrWhiteSpace(html))
@@ -300,9 +303,17 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             request.TargetLanguage);
         _diagnosticLog.Write(Event(request, "parser.html.complete", parserOutcome: "parsed"));
         var meanings = SelectMeanings(parsedEntry.DirectMeanings, request.LookupMode);
-        if (meanings.Count == 0 && parsedEntry.FormRelations.Count == 0)
+        if (!parsedEntry.LanguageSectionFound)
         {
             return Failure(request, LexicalLookupStatus.NotFound, "language-section-not-found");
+        }
+
+        if (meanings.Count == 0 && parsedEntry.FormRelations.Count == 0)
+        {
+            return Failure(
+                request,
+                LexicalLookupStatus.NotFound,
+                LexicalResultInvariantPolicy.GetMissingDataErrorCode(request.LookupMode));
         }
 
         var pageTitle = parsed.TryGetProperty("title", out var titleElement)
@@ -312,9 +323,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
             && revisionElement.TryGetInt64(out var parsedRevision)
                 ? parsedRevision
                 : null;
-        var project = request.ExplanationLanguage.Equals("de", StringComparison.OrdinalIgnoreCase)
-            ? "de.wiktionary.org"
-            : "en.wiktionary.org";
+        var project = GetProjectHost(request.SourceLanguage);
         return new LexicalResult(
             LexicalLookupStatus.Success,
             request.NormalizedLemma,

@@ -43,7 +43,9 @@ public sealed class DeterministicSentenceSegmenter : ISentenceSegmenter
                 }
             }
 
-            if (sentenceEnd < content.Length && !char.IsWhiteSpace(content[sentenceEnd]))
+            var isLineBreak = terminator is '\n' or '\r';
+
+            if (!isLineBreak && sentenceEnd < content.Length && !char.IsWhiteSpace(content[sentenceEnd]))
             {
                 index++;
                 continue;
@@ -136,6 +138,8 @@ public sealed class DeterministicSentenceSegmenter : ISentenceSegmenter
             '.' => "period",
             '!' => "exclamation mark",
             '?' => "question mark",
+            '\r' => "carriage return",
+            '\n' => "line feed",
             _ => "sentence terminator"
         };
 
@@ -145,6 +149,13 @@ public sealed class DeterministicSentenceSegmenter : ISentenceSegmenter
             return (
                 AnalysisReasonCodes.SentenceBoundaryTerminatorCitation,
                 $"Boundary created after a {terminatorName} followed by citation `{citations}`.");
+        }
+
+        if (terminator is '\n' or '\r')
+        {
+            return (
+                AnalysisReasonCodes.SentenceBoundaryTerminatorLineBreak,
+                $"Boundary created at {terminatorName}.");
         }
 
         return sentenceEnd >= content.Length
@@ -180,7 +191,7 @@ public sealed class DeterministicSentenceSegmenter : ISentenceSegmenter
         }
     }
 
-    private static bool IsSentenceTerminator(char value) => value is '.' or '!' or '?';
+    private static bool IsSentenceTerminator(char value) => value is '.' or '!' or '?' or '\n' or '\r';
 
     private static bool IsClosingPunctuation(char value) => value is
         '"' or

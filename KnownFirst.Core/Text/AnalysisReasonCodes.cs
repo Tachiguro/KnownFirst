@@ -3,6 +3,7 @@ namespace KnownFirst.Core.Text;
 public static class AnalysisReasonCodes
 {
     public const string SentenceBoundaryTerminatorWhitespace = nameof(SentenceBoundaryTerminatorWhitespace);
+    public const string SentenceBoundaryTerminatorLineBreak = nameof(SentenceBoundaryTerminatorLineBreak);
     public const string SentenceBoundaryTerminatorCitation = nameof(SentenceBoundaryTerminatorCitation);
     public const string SentenceBoundaryTerminatorEnd = nameof(SentenceBoundaryTerminatorEnd);
     public const string SentenceBoundaryFinalRemainder = nameof(SentenceBoundaryFinalRemainder);

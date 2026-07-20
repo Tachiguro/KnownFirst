@@ -80,4 +80,11 @@ select:focus-visible {
     .import-card > .button {
         width: 100%;
     }
+
+    .text-area {
+        min-height: 9rem;
+        height: 14rem;
+        max-height: 35dvh;
+    }
+}
 }

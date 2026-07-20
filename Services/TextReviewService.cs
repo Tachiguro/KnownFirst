@@ -559,13 +559,15 @@ public sealed class TextReviewService(
         }
 
         var duplicateDocument = connection.Table<DocumentEntity>()
-            .Where(document => document.ContentFingerprint == contentFingerprint)
+            .Where(document => document.ContentFingerprint == contentFingerprint
+                && document.TextLanguage == request.TextLanguage)
             .ToList()
             .Any(document => string.Equals(document.Content, request.Content, StringComparison.Ordinal));
         if (!duplicateDocument)
         {
             duplicateDocument = connection.Table<DocumentEntity>()
-                .Where(document => document.ContentFingerprint == null || document.ContentFingerprint == string.Empty)
+                .Where(document => document.TextLanguage == request.TextLanguage
+                    && (document.ContentFingerprint == null || document.ContentFingerprint == string.Empty))
                 .ToList()
                 .Any(document => string.Equals(document.Content, request.Content, StringComparison.Ordinal));
         }

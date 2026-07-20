@@ -1,4 +1,4 @@
-@page "/prepare-words"
+﻿@page "/prepare-words"
 @inject IPreparationService PreparationService
 @inject IAppSettingsService AppSettings
 @inject INavigationHistoryService NavigationHistory
@@ -9,7 +9,9 @@
 
 <PageTitle>@Localizer["Navigation_PrepareWords"]</PageTitle>
 
-<section class="preparation-page">
+<KnownFirst.Components.Shared.KeyboardShortcutHandler OnKeyDown="HandleKeyDown" />
+<section class="workflow-layout">
+    <div class="workflow-scroll-area">
     <PageHeader Title="@(Localizer["Navigation_PrepareWords"])" />
 
     @if (_isLoading)
@@ -143,22 +145,19 @@
             else if (_showEditor || _item.Method == PreparationMethod.Manual)
             {
                 <div class="editor-grid">
-                    <label>@Localizer["Prepare_CanonicalTerm"]<input class="text-input" readonly value="@_item.LearningTerm" /></label>
-                    <label>@Localizer["Prepare_EncounteredForm"]<input class="text-input" readonly value="@(_item.EncounteredSurfaceForm ?? _item.Term)" /></label>
-                    <label>@Localizer["Prepare_AcronymExpansion"]<input class="text-input" @bind="_acronymExpansion" /></label>
-                    <label>@Localizer["Prepare_Translation"]<input class="text-input" @bind="_translation" /></label>
+                    <label>@Localizer["Prepare_CanonicalTerm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@_item.LearningTerm" /></label>
+                    <label>@Localizer["Prepare_EncounteredForm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@(_item.EncounteredSurfaceForm ?? _item.Term)" /></label>
+                    <label>@Localizer["Prepare_AcronymExpansion"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_acronymExpansion" /></label>
+                    <label>@Localizer["Prepare_Translation"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_translation" /></label>
                     <label>@Localizer["Prepare_Definition"]<textarea class="text-area" rows="4" @bind="_definition"></textarea></label>
                     <label>@Localizer["Prepare_AdditionalNote"]<textarea class="text-area" rows="2" @bind="_additionalNote"></textarea></label>
-                    <label>@Localizer["Prepare_AcceptedAliases"]<input class="text-input" @bind="_aliases" /></label>
+                    <label>@Localizer["Prepare_AcceptedAliases"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_aliases" /></label>
                 </div>
                 @if (_usefulAnswerMissing)
                 {
                     <p class="field-error" role="alert">@Localizer["Prepare_UsefulAnswerRequired"]</p>
                 }
-                <div class="button-row">
-                    <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_SaveAndContinue"]</button>
-                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditing">@Localizer["Common_Cancel"]</button>
-                </div>
+
             }
             else if (_item.Result?.HasUsableData == true)
             {
@@ -194,20 +193,7 @@
                                    RevisionId="@_item.Result.RevisionId"
                                    Attribution="@_item.Result.Attribution" />
                 </section>
-                <div class="button-row">
-                    <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="AcceptAsync">
-                        @if (_showTransitionSpinner)
-                        {
-                            <span class="transition-spinner" aria-hidden="true"></span>
-                            <span>@Localizer["Prepare_Saving"]</span>
-                        }
-                        else
-                        {
-                            <span>@Localizer["Prepare_AcceptAndContinue"]</span>
-                        }
-                    </button>
-                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableEditing">@Localizer["Prepare_Edit"]</button>
-                </div>
+
             }
 
             <div class="preparation-disposition-actions" aria-label="@Localizer["Prepare_OtherActions"]">
@@ -228,19 +214,22 @@
                 </section>
             }
 
-            @if (_cancelConfirmationVisible)
-            {
-                <section class="preparation-confirmation" role="alertdialog" aria-labelledby="cancel-preparation-title">
-                    <h3 id="cancel-preparation-title">@Localizer["Prepare_CancelPreparation"]</h3>
-                    <p>@Localizer["Prepare_CancelPreparationConfirmation"]</p>
-                    <div class="button-row">
-                        <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="ConfirmCancelPreparationAsync">@Localizer["Common_Confirm"]</button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelCancelPreparation">@Localizer["Common_Cancel"]</button>
+            <section class="preparation-cancel-section" @ref="_cancelConfirmationRef">
+                @if (!_cancelConfirmationVisible)
+                {
+                    <button type="button" class="button button-secondary cancel-preparation" disabled="@_isBusy" @onclick="RequestCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
+                }
+                else
+                {
+                    <div class="destructive-confirmation">
+                        <p>@Localizer["Prepare_CancelPreparationConfirmation"]</p>
+                        <div class="button-row">
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelCancelPreparation">@Localizer["Common_Cancel"]</button>
+                            <button type="button" class="button button-danger" disabled="@_isBusy" @onclick="ConfirmCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
+                        </div>
                     </div>
-                </section>
-            }
-
-            <button type="button" class="button button-secondary cancel-preparation" disabled="@_isBusy" @onclick="RequestCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
+                }
+            </section>
             @if (_saveFailed)
             {
                 <p class="inline-message inline-message-error" role="alert">@Localizer["Prepare_SaveError"]</p>
@@ -261,6 +250,39 @@
                 <a class="button button-secondary" href="">@Localizer["Navigation_BackToHome"]</a>
             </div>
         </section>
+    }
+    </div>
+
+    @if (_item is not null)
+    {
+        <div class="workflow-action-bar">
+            <section class="preparation-action-bar">
+                @if (_showEditor || _item.Method == PreparationMethod.Manual)
+                {
+                    <div class="button-row">
+                        <button type="button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_SaveAndContinue"]</button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditing">@Localizer["Common_Cancel"]</button>
+                    </div>
+                }
+                else if (_item.Result?.HasUsableData == true)
+                {
+                    <div class="button-row">
+                        <button type="button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">
+                            @if (_showTransitionSpinner)
+                            {
+                                <span class="transition-spinner" aria-hidden="true"></span>
+                                <span>@Localizer["Prepare_Saving"]</span>
+                            }
+                            else
+                            {
+                                <span>@Localizer["Prepare_AcceptAndContinue"]</span>
+                            }
+                        </button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableEditing">@Localizer["Prepare_Edit"]</button>
+                    </div>
+                }
+            </section>
+        </div>
     }
 </section>
 
@@ -333,6 +355,7 @@
     private ElementReference _meaningPickerButton;
     private ElementReference _meaningPickerDialog;
     private ElementReference _candidateHeading;
+    private ElementReference _cancelConfirmationRef;
     private PreparationCompletionAction? _confirmationAction;
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
@@ -340,7 +363,7 @@
         : _item.Contexts[_contextIndex];
 
     private bool CanRetryLookup => _item?.Result is { } result
-        && LexicalLookupOutcomePolicy.CanRetry(result.Status);
+        && LexicalLookupOutcomePolicy.CanRetry(result.Status, result.ErrorCode);
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -695,13 +718,30 @@
         _definition = meaning.Definition;
     }
 
-    private string GetLookupFailureMessage() => _item?.Result?.Status switch
+    private string GetLookupFailureMessage()
     {
-        LexicalLookupStatus.TransientFailure => Localizer["Prepare_TransientFailure"],
-        LexicalLookupStatus.ParseFailure => Localizer["Prepare_ParseFailure"],
-        LexicalLookupStatus.PermanentFailure => Localizer["Prepare_PermanentFailure"],
-        _ => Localizer["Prepare_NotFound"]
-    };
+        var result = _item?.Result;
+        return result?.ErrorCode switch
+        {
+            "missing-page" => Localizer["Prepare_DictionaryEntryNotFound"],
+            "definition-not-found" or "no-suitable-direct-sense" =>
+                Localizer["Prepare_DefinitionNotFound"],
+            "translation-not-found" => Localizer["Prepare_TranslationNotFound"],
+            "language-section-not-found" => Localizer["Prepare_LanguageSectionNotFound"],
+            "network-unavailable" or "timeout" or "transient-server-error" =>
+                Localizer["Prepare_NetworkFailure"],
+            "rate-limited" => Localizer["Prepare_RateLimited"],
+            "malformed-json" or "missing-parse-payload" or "missing-html" =>
+                Localizer["Prepare_ResponseParseFailure"],
+            _ => result?.Status switch
+            {
+                LexicalLookupStatus.TransientFailure => Localizer["Prepare_TransientFailure"],
+                LexicalLookupStatus.ParseFailure => Localizer["Prepare_ParseFailure"],
+                LexicalLookupStatus.PermanentFailure => Localizer["Prepare_PermanentFailure"],
+                _ => Localizer["Prepare_NotFound"]
+            }
+        };
+    }
 
     private string GetTokenKindName(TokenKind kind) => kind switch
     {
@@ -790,6 +830,11 @@
         if (_overview.ActiveCompletedItems > 0 || (_item?.Position ?? 1) > 1)
         {
             _cancelConfirmationVisible = true;
+            _ = InvokeAsync(async () =>
+            {
+                await Task.Yield();
+                await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _cancelConfirmationRef);
+            });
             return;
         }
 
@@ -852,6 +897,39 @@
             return false;
 #endif
         }
+    }
+
+    private Task HandleInputKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal))
+        {
+            return AcceptAsync();
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task HandleKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if ((string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal) || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal))
+            && _cancelConfirmationVisible)
+        {
+            CancelCancelPreparation();
+            return Task.CompletedTask;
+        }
+
+        if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
+            && !_isBusy
+            && _item is not null
+            && !_cancelConfirmationVisible
+            && !_isMeaningPickerOpen
+            && _confirmationAction is null)
+        {
+            if (_showEditor || _item.Method == PreparationMethod.Manual || _item.Result?.HasUsableData == true)
+            {
+                return AcceptAsync();
+            }
+        }
+        return Task.CompletedTask;
     }
 
     private enum PreparationCompletionAction

@@ -3,155 +3,176 @@
 @inject NavigationManager Navigation
 @inject ILogger<ReviewWords> Logger
 @inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
+@inject IJSRuntime JavaScript
 
 <PageTitle>@Localizer["Navigation_ReviewWords"]</PageTitle>
 
-<section class="review-page">
-    <PageHeader Title="@(Localizer["Navigation_ReviewWords"])" />
+<KnownFirst.Components.Shared.KeyboardShortcutHandler OnKeyDown="HandleKeyDown" />
 
-    @if (_isLoading)
-    {
-        <p class="loading-message" role="status">@Localizer["Review_Loading"]</p>
-    }
-    else if (_loadFailed)
-    {
-        <div class="inline-message inline-message-error" role="alert">
-            <span>@Localizer["Review_LoadError"]</span>
-            <button type="button" class="button button-secondary" @onclick="LoadAsync">
-                @Localizer["Common_Retry"]
-            </button>
-        </div>
-    }
-    else if (_candidate is not null)
-    {
-        <article class="review-card">
-            <div class="review-progress" aria-label="@Localizer["Review_ProgressLabel"]">
-                <span>@Localizer["Review_Progress", _candidate.ReviewedCount + 1, _candidate.TotalCandidates]</span>
-                <progress value="@_candidate.ReviewedCount" max="@_candidate.TotalCandidates"></progress>
-            </div>
+<section class="workflow-layout">
+    <div class="workflow-scroll-area">
+        <PageHeader Title="@(Localizer["Navigation_ReviewWords"])" />
 
-            <p class="candidate-label">@Localizer["Review_Candidate"]</p>
-            <h2>@_candidate.Candidate</h2>
-
-            <details class="candidate-details-panel">
-                <summary>@Localizer["Review_Details"]</summary>
-                <dl class="candidate-details">
-                    <div>
-                        <dt>@Localizer["Review_TokenKind"]</dt>
-                        <dd>@GetTokenKindName(_candidate.TokenKind)</dd>
-                    </div>
-                    <div>
-                        <dt>@Localizer["Review_EncounteredForms"]</dt>
-                        <dd>@string.Join(", ", _candidate.SurfaceForms)</dd>
-                    </div>
-                    <div>
-                        <dt>@Localizer["Review_OccurrenceCount"]</dt>
-                        <dd>@_candidate.OccurrenceCount</dd>
-                    </div>
-                </dl>
-            </details>
-
-            @if (IsDebugBuild)
-            {
-                <button type="button"
-                        class="button button-secondary"
-                        disabled="@_isSaving"
-                        @onclick="OpenAnalysisDetails">
-                    @Localizer["Analysis_Details"]
+        @if (_isLoading)
+        {
+            <p class="loading-message" role="status">@Localizer["Review_Loading"]</p>
+        }
+        else if (_loadFailed)
+        {
+            <div class="inline-message inline-message-error" role="alert">
+                <span>@Localizer["Review_LoadError"]</span>
+                <button type="button" class="button button-secondary" @onclick="LoadAsync">
+                    @Localizer["Common_Retry"]
                 </button>
-            }
+            </div>
+        }
+        else if (_candidate is not null)
+        {
+            <article class="review-card">
+                <div class="review-progress" aria-label="@Localizer["Review_ProgressLabel"]">
+                    <span>@Localizer["Review_Progress", _candidate.ReviewedCount + 1, _candidate.TotalCandidates]</span>
+                    <progress value="@_candidate.ReviewedCount" max="@_candidate.TotalCandidates"></progress>
+                </div>
 
-            @if (_candidate.Contexts.Count > 1)
-            {
-                <p class="context-notice">@Localizer["Review_MultipleContextsNotice"]</p>
-            }
+                <p class="candidate-label">@Localizer["Review_Candidate"]</p>
+                <h2>@_candidate.Candidate</h2>
 
-            @if (CurrentContext is not null)
-            {
-                <section class="context-card" aria-label="@Localizer["Review_Context"]">
-                    <p class="context-text"><span>@CurrentContext.BeforeTarget</span><mark>@CurrentContext.Target</mark><span>@CurrentContext.AfterTarget</span></p>
-                    <div class="context-navigation">
-                        <button type="button"
-                                class="button button-secondary"
-                                disabled="@(_contextIndex == 0 || _isSaving)"
-                                @onclick="ShowPreviousContext">
-                            @Localizer["Review_PreviousContext"]
-                        </button>
-                        <span>@Localizer["Review_ContextPosition", _contextIndex + 1, _candidate.Contexts.Count]</span>
-                        <button type="button"
-                                class="button button-secondary"
-                                disabled="@(_contextIndex >= _candidate.Contexts.Count - 1 || _isSaving)"
-                                @onclick="ShowNextContext">
-                            @Localizer["Review_NextContext"]
-                        </button>
+                <details class="candidate-details-panel">
+                    <summary>@Localizer["Review_Details"]</summary>
+                    <dl class="candidate-details">
+                        <div>
+                            <dt>@Localizer["Review_TokenKind"]</dt>
+                            <dd>@GetTokenKindName(_candidate.TokenKind)</dd>
+                        </div>
+                        <div>
+                            <dt>@Localizer["Review_EncounteredForms"]</dt>
+                            <dd>@string.Join(", ", _candidate.SurfaceForms)</dd>
+                        </div>
+                        <div>
+                            <dt>@Localizer["Review_OccurrenceCount"]</dt>
+                            <dd>@_candidate.OccurrenceCount</dd>
+                        </div>
+                    </dl>
+                </details>
+
+                @if (IsDebugBuild)
+                {
+                    <button type="button"
+                            class="button button-secondary"
+                            disabled="@_isSaving"
+                            @onclick="OpenAnalysisDetails">
+                        @Localizer["Analysis_Details"]
+                    </button>
+                }
+
+                @if (_candidate.Contexts.Count > 1)
+                {
+                    <p class="context-notice">@Localizer["Review_MultipleContextsNotice"]</p>
+                }
+
+                @if (CurrentContext is not null)
+                {
+                    <section class="context-card" aria-label="@Localizer["Review_Context"]">
+                        <p class="context-text"><span>@CurrentContext.BeforeTarget</span><mark>@CurrentContext.Target</mark><span>@CurrentContext.AfterTarget</span></p>
+                        <div class="context-navigation">
+                            <button type="button"
+                                    class="button button-secondary"
+                                    disabled="@(_contextIndex == 0 || _isSaving)"
+                                    @onclick="ShowPreviousContext">
+                                @Localizer["Review_PreviousContext"]
+                            </button>
+                            <span>@Localizer["Review_ContextPosition", _contextIndex + 1, _candidate.Contexts.Count]</span>
+                            <button type="button"
+                                    class="button button-secondary"
+                                    disabled="@(_contextIndex >= _candidate.Contexts.Count - 1 || _isSaving)"
+                                    @onclick="ShowNextContext">
+                                @Localizer["Review_NextContext"]
+                            </button>
+                        </div>
+                    </section>
+                }
+
+                @if (_decisionFailed)
+                {
+                    <p class="inline-message inline-message-error" role="alert">@Localizer["Review_DecisionError"]</p>
+                }
+            </article>
+
+            <section class="discard-import-section" @ref="_discardConfirmationRef">
+                @if (!_showDiscardConfirmation)
+                {
+                    <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="ShowDiscardConfirmationAsync">
+                        @Localizer["Review_Discard"]
+                    </button>
+                }
+                else
+                {
+                    <div class="destructive-confirmation">
+                        <p>@Localizer["Review_DiscardMessage"]</p>
+                        <div class="button-row">
+                            <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="CancelDiscard">
+                                @Localizer["Common_Cancel"]
+                            </button>
+                            <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="DiscardAsync">
+                                @Localizer["Review_DiscardConfirm"]
+                            </button>
+                        </div>
                     </div>
-                </section>
-            }
+                }
+            </section>
+        }
+        else if (_completedSummary is not null)
+        {
+            <section class="completion-card" role="status">
+                <h2>@Localizer["Review_CompleteTitle"]</h2>
+                <p>@Localizer["Review_CompleteDescription", _completedSummary.DocumentTitle]</p>
+                <dl class="completion-summary">
+                    <div><dt>@Localizer["Review_Known"]</dt><dd>@_completedSummary.KnownCount</dd></div>
+                    <div><dt>@Localizer["Review_Unknown"]</dt><dd>@_completedSummary.UnknownCount</dd></div>
+                </dl>
+                <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
+            </section>
+        }
+        else
+        {
+            <section class="placeholder-card">
+                <p>@Localizer["Review_NoActive"]</p>
+                <a class="button button-primary" href="import-text">@Localizer["Review_StartImport"]</a>
+            </section>
+        }
+    </div>
 
+    @if (_candidate is not null)
+    {
+        <div class="workflow-action-bar">
             <section class="review-action-bar" aria-label="@Localizer["Review_Question"]">
                 <p class="review-saving-state" role="status" aria-live="polite">@(_isSaving ? Localizer["Review_Saving"] : "\u00a0")</p>
                 <div class="decision-grid">
-                    <button type="button" class="button button-primary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.Known)">
+                    <button type="button"
+                            class="button button-primary"
+                            disabled="@_isSaving"
+                            aria-keyshortcuts="Enter"
+                            title="@Localizer["Review_Known"] (Enter)"
+                            @onclick="() => DecideAsync(WordStatus.Known)">
                         @Localizer["Review_Known"]
                     </button>
-                    <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
+                    <button type="button"
+                            class="button button-secondary"
+                            disabled="@_isSaving"
+                            @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
                         @Localizer["Review_Unknown"]
                     </button>
                 </div>
-                <button type="button"
-                        class="undo-button"
-                        disabled="@(!_candidate.CanUndo || _isSaving)"
-                        @onclick="UndoAsync">
-                    @Localizer["Review_Undo"]
-                </button>
-            </section>
-
-            @if (_decisionFailed)
-            {
-                <p class="inline-message inline-message-error" role="alert">@Localizer["Review_DecisionError"]</p>
-            }
-        </article>
-
-        <section class="discard-card">
-            <h2>@Localizer["Review_DiscardTitle"]</h2>
-            @if (!_showDiscardConfirmation)
-            {
-                <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="ShowDiscardConfirmation">
-                    @Localizer["Review_DiscardAction"]
-                </button>
-            }
-            else
-            {
-                <p>@Localizer["Review_DiscardMessage"]</p>
-                <div class="button-row">
-                    <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="CancelDiscard">
-                        @Localizer["Common_Cancel"]
-                    </button>
-                    <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="DiscardAsync">
-                        @Localizer["Review_DiscardConfirm"]
+                <div class="undo-container">
+                    <button type="button"
+                            class="undo-button"
+                            disabled="@(!_candidate.CanUndo || _isSaving)"
+                            @onclick="UndoAsync">
+                        @Localizer["Review_Undo"]
                     </button>
                 </div>
-            }
-        </section>
-    }
-    else if (_completedSummary is not null)
-    {
-        <section class="completion-card" role="status">
-            <h2>@Localizer["Review_CompleteTitle"]</h2>
-            <p>@Localizer["Review_CompleteDescription", _completedSummary.DocumentTitle]</p>
-            <dl class="completion-summary">
-                <div><dt>@Localizer["Review_Known"]</dt><dd>@_completedSummary.KnownCount</dd></div>
-                <div><dt>@Localizer["Review_Unknown"]</dt><dd>@_completedSummary.UnknownCount</dd></div>
-            </dl>
-            <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
-        </section>
-    }
-    else
-    {
-        <section class="placeholder-card">
-            <p>@Localizer["Review_NoActive"]</p>
-            <a class="button button-primary" href="import-text">@Localizer["Review_StartImport"]</a>
-        </section>
+            </section>
+        </div>
     }
 </section>
 
@@ -164,6 +185,7 @@
     private bool _loadFailed;
     private bool _decisionFailed;
     private bool _showDiscardConfirmation;
+    private ElementReference _discardConfirmationRef;
 
     private static bool IsDebugBuild
     {
@@ -302,7 +324,12 @@
         _ => Localizer["TokenKind_Word"]
     };
 
-    private void ShowDiscardConfirmation() => _showDiscardConfirmation = true;
+    private async Task ShowDiscardConfirmationAsync()
+    {
+        _showDiscardConfirmation = true;
+        await Task.Yield();
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _discardConfirmationRef);
+    }
 
     private void CancelDiscard() => _showDiscardConfirmation = false;
 
@@ -328,5 +355,24 @@
         {
             _isSaving = false;
         }
+    }
+
+    private Task HandleKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if ((string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal) || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal))
+            && _showDiscardConfirmation)
+        {
+            CancelDiscard();
+            return Task.CompletedTask;
+        }
+
+        if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
+            && !_isSaving
+            && _candidate is not null
+            && !_showDiscardConfirmation)
+        {
+            return DecideAsync(WordStatus.Known);
+        }
+        return Task.CompletedTask;
     }
 }

@@ -3,8 +3,13 @@
 @inject ITextReviewService TextReviewService
 @inject ILogger<Home> Logger
 @inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
+@inject IJSRuntime JavaScript
+@inject NavigationManager Navigation
 
 <PageTitle>@Localizer["Home_Title"]</PageTitle>
+
+<KnownFirst.Components.Shared.KeyboardShortcutHandler OnKeyDown="HandleKeyDown" />
+<section class="home-page">
 
 <section class="home-hero">
     <h1>@Localizer["Home_Title"]</h1>
@@ -21,10 +26,10 @@
             <strong>@Localizer["Home_ReviewProgress", _activeReview.ReviewedCount, _activeReview.TotalCandidates]</strong>
         </div>
         <div class="continue-review-actions">
-            <a class="button button-primary" href="review-words">@Localizer["Home_ContinueReviewAction"]</a>
+            <a class="button button-primary" href="review-words" @onkeydown:stopPropagation="true">@Localizer["Home_ContinueReviewAction"]</a>
             @if (!_showDiscardConfirmation)
             {
-                <button type="button" class="button button-danger" disabled="@_isDiscarding" @onclick="ShowDiscardConfirmation">
+                <button type="button" class="button button-danger" disabled="@_isDiscarding" @onkeydown:stopPropagation="true" @onclick="ShowDiscardConfirmation">
                     @Localizer["Review_DiscardAction"]
                 </button>
             }
@@ -36,10 +41,10 @@
                 <h3 id="home-discard-title">@Localizer["Review_DiscardTitle"]</h3>
                 <p>@Localizer["Review_DiscardMessage"]</p>
                 <div class="continue-review-actions">
-                    <button type="button" class="button button-secondary" disabled="@_isDiscarding" @onclick="CancelDiscard">
+                    <button type="button" class="button button-secondary" disabled="@_isDiscarding" @onkeydown:stopPropagation="true" @onclick="CancelDiscard">
                         @Localizer["Common_Cancel"]
                     </button>
-                    <button type="button" class="button button-danger" disabled="@_isDiscarding" @onclick="DiscardAsync">
+                    <button type="button" class="button button-danger" disabled="@_isDiscarding" @onkeydown:stopPropagation="true" @onclick="DiscardAsync">
                         @Localizer["Review_DiscardConfirm"]
                     </button>
                 </div>
@@ -103,7 +108,7 @@ else if (_loadFailed)
 {
     <div class="inline-message inline-message-error" role="alert">
         <span>@Localizer["Home_DashboardError"]</span>
-        <button class="button button-secondary" @onclick="LoadStatisticsAsync">@Localizer["Common_Retry"]</button>
+        <button class="button button-secondary" @onkeydown:stopPropagation="true" @onclick="LoadStatisticsAsync">@Localizer["Common_Retry"]</button>
     </div>
 }
 else
@@ -131,6 +136,7 @@ else
         </article>
     </section>
 }
+</section>
 
 @code {
     private DashboardStatistics _statistics = DashboardStatistics.Empty;
@@ -152,6 +158,8 @@ else
     private bool IsReviewBlocked => _activeReview is not null;
 
     protected override Task OnInitializedAsync() => LoadStatisticsAsync();
+
+
 
     private async Task LoadStatisticsAsync()
     {
@@ -206,6 +214,16 @@ else
         finally
         {
             _isDiscarding = false;
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
+            && _activeReview is not null
+            && !_showDiscardConfirmation)
+        {
+            Navigation.NavigateTo("review-words");
         }
     }
 }

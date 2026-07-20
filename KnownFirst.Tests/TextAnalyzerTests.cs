@@ -449,6 +449,110 @@ public sealed class TextAnalyzerTests
         }
     }
 
+    [TestMethod]
+    public void SentenceSegmenter_LineBreakLfEndsContext()
+    {
+        const string content = "First line\nSecond line";
+        CollectionAssert.AreEqual(new[] { "First line", "Second line" }, SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_LineBreakCrlfEndsContext()
+    {
+        const string content = "First line\r\nSecond line";
+        CollectionAssert.AreEqual(new[] { "First line", "Second line" }, SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_LineBreakCrEndsContext()
+    {
+        const string content = "First line\rSecond line";
+        CollectionAssert.AreEqual(new[] { "First line", "Second line" }, SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_MultipleEmptyLinesDoNotCreateEmptyContexts()
+    {
+        const string content = "First line\n\n\nSecond line";
+        CollectionAssert.AreEqual(new[] { "First line", "Second line" }, SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_TableOfContentsLinesAreNotMerged()
+    {
+        const string content = "Inhaltsverzeichnis\n1 Einführung\n2 Sicherheitsgrundlagen\nDieses Kapitel beschreibt die Grundlagen.\nDanach folgt ein weiterer Satz.";
+        CollectionAssert.AreEqual(
+            new[] { "Inhaltsverzeichnis", "1 Einführung", "2 Sicherheitsgrundlagen", "Dieses Kapitel beschreibt die Grundlagen.", "Danach folgt ein weiterer Satz." },
+            SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_HeadingWithoutPunctuationEndsAtLineBreak()
+    {
+        const string content = "Chapter 1\nIt begins here.";
+        CollectionAssert.AreEqual(new[] { "Chapter 1", "It begins here." }, SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void SentenceSegmenter_PunctuationAndLineBreakDoNotCreateDuplicateEmptyContexts()
+    {
+        const string content = "First.\nSecond.";
+        CollectionAssert.AreEqual(new[] { "First.", "Second." }, SentenceTexts(content));
+    }
+
+    [TestMethod]
+    public void Analyze_WordsOnBothSidesOfLineBreakGetCorrectContext()
+    {
+        const string content = "First word\nSecond word";
+        var result = _analyzer.Analyze(content);
+        var first = result.Candidates.Single(c => c.CanonicalTerm == "First").Occurrences.Single();
+        var second = result.Candidates.Single(c => c.CanonicalTerm == "Second").Occurrences.Single();
+        Assert.AreEqual(0, first.SentenceOrder);
+        Assert.AreEqual(1, second.SentenceOrder);
+    }
+
+    [TestMethod]
+    public void Analyze_Utf16PositionsPointToUnchangedSourceText()
+    {
+        const string content = "Grüße\nWelt";
+        var result = _analyzer.Analyze(content);
+        var gruesse = result.Candidates.Single(c => c.CanonicalTerm == "Grüße").Occurrences.Single();
+        var welt = result.Candidates.Single(c => c.CanonicalTerm == "Welt").Occurrences.Single();
+        Assert.AreEqual("Grüße", content.Substring(gruesse.StartPosition, gruesse.Length));
+        Assert.AreEqual("Welt", content.Substring(welt.StartPosition, welt.Length));
+    }
+
+    [TestMethod]
+    public void Analyze_GermanUmlautsRemainCorrectWithLineBreaks()
+    {
+        const string content = "Äpfel\nÖl\nÜbermut";
+        var result = _analyzer.Analyze(content, "de");
+        var terms = result.Candidates.Select(c => c.CanonicalTerm).ToArray();
+        CollectionAssert.Contains(terms, "Äpfel");
+        CollectionAssert.Contains(terms, "Öl");
+        CollectionAssert.Contains(terms, "Übermut");
+    }
+
+    [TestMethod]
+    public void Analyze_VeryLongMultilineTextDoesNotCreateSingleHugeContext()
+    {
+        var content = string.Join("\n", Enumerable.Range(0, 100).Select(i => $"Line {i} without punctuation"));
+        var result = _analyzer.Analyze(content);
+        Assert.AreEqual(100, result.Sentences.Count);
+        Assert.IsTrue(result.Sentences.All(s => s.Length < 100));
+    }
+
+    [TestMethod]
+    public void Analyze_WordsAreNotDeletedOrMarkedAsKnownByLineBreaks()
+    {
+        const string content = "word1\nword2\nword3";
+        var result = _analyzer.Analyze(content);
+        Assert.AreEqual(3, result.Candidates.Count);
+        Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm == "word1"));
+        Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm == "word2"));
+        Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm == "word3"));
+    }
+
     private string[] SentenceTexts(string content) => _analyzer.ExtractSentenceSpans(content)
         .Select(span => content.Substring(span.StartPosition, span.Length))
         .ToArray();

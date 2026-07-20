@@ -1,10 +1,13 @@
-@page "/learn"
+﻿@page "/learn"
 @inject ILearningService LearningService
 @inject ILogger<Learn> Logger
+@inject IJSRuntime JsRuntime
 
 <PageTitle>@Localizer["Navigation_Learn"]</PageTitle>
 
-<section class="learning-page">
+<KnownFirst.Components.Shared.KeyboardShortcutHandler OnKeyDown="HandleLearningKeyDown" />
+<section class="workflow-layout">
+    <div class="workflow-scroll-area">
     <PageHeader Title="@(Localizer["Navigation_Learn"])" />
 
     @if (_isLoading)
@@ -20,7 +23,7 @@
     }
     else if (_card is not null)
     {
-        <article class="learning-card" @onkeydown="HandleLearningKeyDown">
+        <article class="learning-card">
             <div class="learning-progress">
                 <span>@Localizer["Learn_Progress", _card.CompletedCards + 1, _card.TotalCards]</span>
                 <progress value="@_card.CompletedCards" max="@_card.TotalCards"></progress>
@@ -38,14 +41,9 @@
                     </div>
                 }
 
-                @if (!_card.AnswerRevealed)
-                {
-                    <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="RevealAsync">@Localizer["Learn_RevealAnswer"]</button>
-                }
-                else
+                @if (_card.AnswerRevealed)
                 {
                     <AnswerView Card="_card" />
-                    <RatingButtons OnRate="RateAsync" Disabled="_isBusy" IncludeAgain="true" />
                 }
             }
             else
@@ -77,7 +75,7 @@
 
                 @if (_spellingResult is null)
                 {
-                    <form class="spelling-form" @onsubmit="CheckSpellingAsync" @onsubmit:preventDefault>
+                    <form class="spelling-form" id="spelling-form-main" @onsubmit="CheckSpellingAsync" @onsubmit:preventDefault>
                         <label for="spelling-answer">@Localizer["Learn_YourAnswer"]</label>
                         <input id="spelling-answer"
                                class="text-input spelling-input"
@@ -86,7 +84,6 @@
                                disabled="@_isBusy"
                                @bind="_spellingAnswer"
                                @bind:event="oninput" />
-                        <button type="submit" class="button button-primary" disabled="@(_isBusy || string.IsNullOrWhiteSpace(_spellingAnswer))">@Localizer["Learn_CheckAnswer"]</button>
                     </form>
                 }
                 else
@@ -118,37 +115,25 @@
                             }
                         </dl>
                     </section>
-                    @if (_spellingResult.IsCorrect)
-                    {
-                        <RatingButtons OnRate="RateAsync" Disabled="_isBusy" IncludeAgain="false" />
-                    }
-                    else
-                    {
-                        <button type="button"
-                                class="button button-primary"
-                                disabled="@_isBusy"
-                                @ref="_continueButton"
-                                @onkeydown:stopPropagation="true"
-                                @onclick="ContinueAfterIncorrectAsync">@Localizer["Common_Continue"]</button>
-                    }
                 }
             }
 
-            @if (!_showPermanentKnownConfirmation)
-            {
-                <button type="button" class="button button-danger permanent-known" disabled="@_isBusy" @onclick="ShowPermanentKnownConfirmation">@Localizer["Learn_MarkPermanentlyKnown"]</button>
-            }
-            else
-            {
-                <section class="permanent-confirmation" role="alertdialog" aria-labelledby="permanent-known-title">
-                    <h3 id="permanent-known-title">@Localizer["Learn_MarkPermanentlyKnown"]</h3>
-                    <p>@Localizer["Learn_PermanentKnownConfirmation"]</p>
-                    <div class="button-row">
-                        <button type="button" class="button button-danger" disabled="@_isBusy" @onclick="ConfirmPermanentKnownAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelPermanentKnown">@Localizer["Common_Cancel"]</button>
+            <section class="permanent-known-section" @ref="_permanentKnownConfirmationRef">
+                @if (!_showPermanentKnownConfirmation)
+                {
+                    <button type="button" class="button button-danger permanent-known" disabled="@_isBusy" @onclick="ShowPermanentKnownConfirmationAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
+                }
+                else
+                {
+                    <div class="destructive-confirmation">
+                        <p>@Localizer["Learn_PermanentKnownConfirmation"]</p>
+                        <div class="button-row">
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelPermanentKnown">@Localizer["Common_Cancel"]</button>
+                            <button type="button" class="button button-danger" disabled="@_isBusy" @onclick="ConfirmPermanentKnownAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
+                        </div>
                     </div>
-                </section>
-            }
+                }
+            </section>
 
             @if (_actionFailed)
             {
@@ -198,6 +183,48 @@
             <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
         </section>
     }
+    </div>
+
+    @if (_card is not null)
+    {
+        <div class="workflow-action-bar">
+            <section class="learn-action-bar">
+                @if (_card.InteractionMode == LearningInteractionMode.Reading)
+                {
+                    @if (!_card.AnswerRevealed)
+                    {
+                        <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="RevealAsync" aria-keyshortcuts="Enter Space" title="@Localizer["Learn_RevealAnswer"] (Enter/Space)">@Localizer["Learn_RevealAnswer"]</button>
+                    }
+                    else
+                    {
+                        <RatingButtons OnRate="RateAsync" Disabled="_isBusy" IncludeAgain="true" />
+                    }
+                }
+                else
+                {
+                    @if (_spellingResult is null)
+                    {
+                        <button type="submit" form="spelling-form-main" class="button button-primary" disabled="@(_isBusy || string.IsNullOrWhiteSpace(_spellingAnswer))">@Localizer["Learn_CheckAnswer"]</button>
+                    }
+                    else
+                    {
+                        @if (_spellingResult.IsCorrect)
+                        {
+                            <RatingButtons OnRate="RateAsync" Disabled="_isBusy" IncludeAgain="false" />
+                        }
+                        else
+                        {
+                            <button type="button"
+                                    class="button button-primary"
+                                    disabled="@_isBusy"
+                                    @ref="_continueButton"
+                                    @onclick="ContinueAfterIncorrectAsync" aria-keyshortcuts="Enter" title="@Localizer["Common_Continue"] (Enter)">@Localizer["Common_Continue"]</button>
+                        }
+                    }
+                }
+            </section>
+        </div>
+    }
 </section>
 
 @code {
@@ -213,6 +240,7 @@
     private bool _showPermanentKnownConfirmation;
     private bool _focusContinueAfterRender;
     private ElementReference _continueButton;
+    private ElementReference _permanentKnownConfirmationRef;
 
     private LearningContext? CurrentContext => _card is null || _card.Contexts.Count == 0
         ? null
@@ -397,15 +425,40 @@
         }
     }
 
-    private void ShowPermanentKnownConfirmation() => _showPermanentKnownConfirmation = true;
+        private async Task ShowPermanentKnownConfirmationAsync()
+    {
+        _showPermanentKnownConfirmation = true;
+        await Task.Yield();
+        await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _permanentKnownConfirmationRef);
+    }
     private void CancelPermanentKnown() => _showPermanentKnownConfirmation = false;
 
-    private Task HandleLearningKeyDown(KeyboardEventArgs eventArgs) =>
-        string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
-        && !eventArgs.Repeat
-        && _spellingResult is { IsCorrect: false, RatingWasPersisted: true }
-            ? ContinueAfterIncorrectAsync()
-            : Task.CompletedTask;
+    private Task HandleLearningKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if ((string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal) || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal))
+            && _showPermanentKnownConfirmation)
+        {
+            CancelPermanentKnown();
+            return Task.CompletedTask;
+        }
+
+        if ((string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal) || string.Equals(eventArgs.Key, " ", StringComparison.Ordinal))
+            && !eventArgs.Repeat
+            && !_showPermanentKnownConfirmation
+            && !_isBusy
+            && _card is not null)
+        {
+            if (_card.InteractionMode == LearningInteractionMode.Reading && !_card.AnswerRevealed)
+            {
+                return RevealAsync();
+            }
+            if (_card.InteractionMode == LearningInteractionMode.Typing && _spellingResult is { IsCorrect: false, RatingWasPersisted: true } && string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal))
+            {
+                return ContinueAfterIncorrectAsync();
+            }
+        }
+        return Task.CompletedTask;
+    }
 
     private static string CreateSpellingPlaceholder(string term)
     {

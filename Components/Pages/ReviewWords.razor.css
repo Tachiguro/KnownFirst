@@ -1,12 +1,5 @@
-.review-page {
-    width: min(100%, 54rem);
-    min-width: 0;
-    margin: 0 auto;
-}
-
-.review-card,
-.completion-card,
-.discard-card {
+﻿.review-card,
+.completion-card {
     padding: clamp(1.2rem, 4vw, 2rem);
     border: 1px solid var(--color-border);
     border-radius: 1.1rem;
@@ -16,7 +9,7 @@
 
 .review-card h2 {
     margin: 0.25rem 0 1.25rem;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-size: clamp(2rem, 7vw, 3.5rem);
 }
 
@@ -86,7 +79,7 @@ dt {
 
 dd {
     margin: 0.35rem 0 0;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-weight: 750;
 }
 
@@ -105,7 +98,7 @@ dd {
 
 .context-text {
     margin: 0;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-size: 1.08rem;
     line-height: 1.7;
     white-space: pre-wrap;
@@ -128,6 +121,10 @@ dd {
     text-align: center;
 }
 
+.context-navigation .button {
+    min-width: 0;
+}
+
 .context-navigation .button:last-child {
     justify-self: end;
 }
@@ -139,8 +136,12 @@ dd {
 }
 
 .review-action-bar {
-    min-width: 0;
-    margin-top: 1.25rem;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    padding: clamp(0.75rem, 3vw, 1.25rem);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 0.9rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
 }
 
 .review-saving-state {
@@ -152,8 +153,13 @@ dd {
     text-align: center;
 }
 
+.undo-container {
+    min-height: 1.5rem;
+    margin-top: clamp(0.5rem, 2vw, 1rem);
+    text-align: center;
+}
+
 .undo-button {
-    margin-top: 1rem;
     padding: 0;
     border: 0;
     background: transparent;
@@ -169,13 +175,20 @@ dd {
     cursor: default;
 }
 
-.discard-card {
-    margin-top: 1rem;
-    border-color: var(--color-danger-border);
+.discard-import-section {
+    margin-top: 1.5rem;
 }
 
-.discard-card h2,
-.completion-card h2 {
+.destructive-confirmation {
+    padding: clamp(1.2rem, 4vw, 2rem);
+    border: 1px solid var(--color-danger-border);
+    border-radius: 1.1rem;
+    background: var(--color-danger-surface);
+    color: var(--color-danger);
+    box-shadow: var(--shadow-card);
+}
+
+.destructive-confirmation p {
     margin-top: 0;
 }
 
@@ -208,34 +221,19 @@ dd {
         width: 100%;
     }
 
-    .review-page {
-        padding-bottom: calc(11.5rem + env(safe-area-inset-bottom));
-    }
-
-    .review-card {
-        padding: 1rem;
-    }
-
-    .review-action-bar {
-        position: fixed;
-        z-index: 900;
-        right: max(0.75rem, env(safe-area-inset-right));
-        bottom: max(0.75rem, env(safe-area-inset-bottom));
-        left: max(0.75rem, env(safe-area-inset-left));
-        margin: 0;
-        padding: 0.65rem;
-        border: 1px solid var(--color-border-strong);
-        border-radius: 0.9rem;
-        background: var(--color-surface);
-        box-shadow: var(--shadow-card);
-    }
-
     .review-action-bar .button {
         width: 100%;
     }
+}
 
-    .review-action-bar .undo-button {
-        display: block;
-        margin: 0.55rem auto 0;
+@media (max-width: 320px) {
+    .context-navigation {
+        grid-template-columns: 1fr;
+    }
+    .context-navigation .button:last-child {
+        justify-self: stretch;
+    }
+    .decision-grid {
+        grid-template-columns: 1fr;
     }
 }

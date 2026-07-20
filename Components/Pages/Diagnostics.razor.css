@@ -1,4 +1,4 @@
-.diagnostics-page {
+﻿.diagnostics-page {
     width: min(100%, 82rem);
     margin: 0 auto;
 }
@@ -22,7 +22,7 @@
 }
 
 .diagnostic-value {
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-family: ui-monospace, Consolas, monospace;
 }
 
@@ -87,7 +87,7 @@
 .preview-cell {
     min-width: 18rem;
     max-width: 34rem;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .preview-cell mark {
@@ -122,7 +122,7 @@
 .analysis-exact-text {
     min-width: 18rem;
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 #analysis-details details {

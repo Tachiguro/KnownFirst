@@ -1090,13 +1090,31 @@
     <value>Der Wörterbuchdienst ist vorübergehend nicht erreichbar. Gespeicherte Ergebnisse bleiben verfügbar.</value>
   </data>
   <data name="Prepare_ParseFailure" xml:space="preserve">
-    <value>Das geladene Wörterbuchergebnis konnte nicht gelesen werden. Du kannst es erneut versuchen.</value>
+    <value>Das geladene Wörterbuchergebnis konnte nicht gelesen werden.</value>
   </data>
   <data name="Prepare_PermanentFailure" xml:space="preserve">
     <value>Der Wörterbuchdienst kann diese Anfrage nicht ausführen.</value>
   </data>
   <data name="Prepare_NotFound" xml:space="preserve">
     <value>Es wurde kein passender Wörterbucheintrag gefunden.</value>
+  </data>
+  <data name="Prepare_DictionaryEntryNotFound" xml:space="preserve">
+    <value>Für dieses Wort wurde kein Wörterbucheintrag gefunden.</value>
+  </data>
+  <data name="Prepare_DefinitionNotFound" xml:space="preserve">
+    <value>Für dieses Wort wurde keine Definition gefunden.</value>
+  </data>
+  <data name="Prepare_TranslationNotFound" xml:space="preserve">
+    <value>Für diese Sprachrichtung wurde keine Übersetzung gefunden.</value>
+  </data>
+  <data name="Prepare_LanguageSectionNotFound" xml:space="preserve">
+    <value>Der passende Sprachabschnitt wurde im Wörterbucheintrag nicht gefunden.</value>
+  </data>
+  <data name="Prepare_NetworkFailure" xml:space="preserve">
+    <value>Ein Netzwerkfehler hat die Wörterbuchabfrage verhindert. Bitte versuche es erneut.</value>
+  </data>
+  <data name="Prepare_ResponseParseFailure" xml:space="preserve">
+    <value>Die Wörterbuchantwort konnte nicht verarbeitet werden.</value>
   </data>
   <data name="Source_Details" xml:space="preserve">
     <value>Quelldetails</value>

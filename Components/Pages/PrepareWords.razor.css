@@ -1,12 +1,4 @@
-.preparation-page {
-    display: grid;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    gap: 1rem;
-}
-
-.preparation-card {
+﻿.preparation-card {
     display: grid;
     width: 100%;
     max-width: 100%;
@@ -17,7 +9,7 @@
     border-radius: 1rem;
     background: var(--color-surface);
     box-shadow: var(--shadow-card);
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .preparation-card > *,
@@ -29,7 +21,7 @@
 
 .preparation-card h2,
 .preparation-card p {
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .method-grid {
@@ -49,7 +41,7 @@
     background: var(--color-surface-muted);
     color: var(--color-text);
     text-align: left;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .method-card.recommended {
@@ -57,7 +49,6 @@
 }
 
 .review-progress,
-.context-navigation,
 .button-row,
 .preparation-disposition-actions {
     display: flex;
@@ -65,6 +56,24 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem;
+}
+
+
+.context-navigation {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.context-navigation .button {
+    min-width: 0;
+}
+
+.context-navigation .button:last-child {
+    justify-self: end;
 }
 
 .review-progress progress {
@@ -95,7 +104,7 @@
 
 .preparation-details dd {
     margin: 0.2rem 0 0;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-weight: 700;
 }
 
@@ -112,7 +121,7 @@
 .context-card p,
 .lexical-result p {
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .context-card mark {
@@ -143,7 +152,7 @@
 }
 
 .full-definition {
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .meaning-picker-trigger {
@@ -164,7 +173,7 @@
     display: -webkit-box;
     max-width: 100%;
     overflow: hidden;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
@@ -211,7 +220,7 @@
 .meaning-picker h2 {
     min-width: 0;
     margin: 0;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-size: 1.25rem;
 }
 
@@ -252,7 +261,7 @@
     cursor: pointer;
     text-align: left;
     white-space: normal;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .meaning-option details {
@@ -269,7 +278,7 @@
 .meaning-option details p {
     margin-bottom: 0;
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .preparation-confirmation {
@@ -329,4 +338,30 @@
     .meaning-picker {
         border-radius: 1rem 1rem 0 0;
     }
+}
+
+
+.preparation-action-bar {
+    padding: clamp(0.75rem, 3vw, 1.25rem);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 0.9rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.preparation-cancel-section {
+    margin-top: 1.5rem;
+}
+
+.destructive-confirmation {
+    padding: clamp(1.2rem, 4vw, 2rem);
+    border: 1px solid var(--color-danger-border);
+    border-radius: 1.1rem;
+    background: var(--color-danger-surface);
+    color: var(--color-danger);
+    box-shadow: var(--shadow-card);
+}
+
+.destructive-confirmation p {
+    margin-top: 0;
 }

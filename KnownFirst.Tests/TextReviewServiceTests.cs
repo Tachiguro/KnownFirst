@@ -98,6 +98,46 @@ public sealed class TextReviewServiceTests
     }
 
     [TestMethod]
+    public async Task ImportAsync_SameTextInDifferentSourceLanguagesCreatesDistinctVocabulary()
+    {
+        const string content = "Gift die Kind Note.";
+        var english = await _service.ImportAsync(new ImportTextRequest(
+            "English meanings",
+            content,
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+        await CompleteReviewAsync(_ => WordStatus.UnknownBacklog);
+
+        var german = await _service.ImportAsync(new ImportTextRequest(
+            "German meanings",
+            content,
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+
+        var stored = await _database.ReadAsync(async connection => new
+        {
+            Documents = await connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToListAsync(),
+            Words = await connection.Table<WordEntity>().OrderBy(item => item.Id).ToListAsync()
+        });
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, english.Outcome);
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, german.Outcome);
+        Assert.HasCount(2, stored.Documents);
+        Assert.IsTrue(stored.Documents.Any(document => document.TextLanguage == "en"));
+        Assert.IsTrue(stored.Documents.Any(document => document.TextLanguage == "de"));
+        foreach (var normalizedTerm in new[] { "W:gift", "W:die", "W:kind", "W:note" })
+        {
+            var matches = stored.Words.Where(word => word.NormalizedTerm == normalizedTerm).ToArray();
+            Assert.HasCount(2, matches);
+            CollectionAssert.AreEquivalent(
+                new[] { "en", "de" },
+                matches.Select(word => word.Language).ToArray());
+        }
+    }
+
+    [TestMethod]
     public async Task ImportAsync_RequiredCorpusStoresUniqueCandidatesAndEveryOccurrence()
     {
         const string content = "IT protects smart systems. It protects smart networks. Smart systems use OAuth2.";
@@ -292,7 +332,7 @@ public sealed class TextReviewServiceTests
     [TestMethod]
     public async Task GetCurrentCandidateAsync_ContextDedupNormalizesLineEndingsAndWhitespaceButRetainsFirstExactSentence()
     {
-        const string content = "Target  line\r\nwraps. Target line wraps.";
+        const string content = "Target  line\twraps. Target line wraps.";
         await _service.ImportAsync(CreateRequest(content));
 
         var candidate = await _service.GetCurrentCandidateAsync()
@@ -301,7 +341,7 @@ public sealed class TextReviewServiceTests
         Assert.AreEqual(2, candidate.OccurrenceCount);
         Assert.HasCount(1, candidate.Contexts);
         Assert.AreEqual(
-            "Target  line\r\nwraps.",
+            "Target  line\twraps.",
             candidate.Contexts[0].BeforeTarget
             + candidate.Contexts[0].Target
             + candidate.Contexts[0].AfterTarget);

@@ -225,11 +225,81 @@ public sealed record LexicalResult(
     LexicalLookupMode? LookupMode = null,
     string? TargetLanguage = null)
 {
-    public bool HasUsableData => Status == LexicalLookupStatus.Success
-        && (!string.IsNullOrWhiteSpace(AcronymExpansion)
-            || Meanings.Any(meaning => !string.IsNullOrWhiteSpace(meaning.Definition)
-                || !string.IsNullOrWhiteSpace(meaning.Translation)));
+    public bool HasUsableData => LexicalResultInvariantPolicy.HasUsableData(this, LookupMode);
 
-    public bool HasReferenceData => Status == LexicalLookupStatus.Success
-        && (HasUsableData || FormRelations is { Count: > 0 });
+    public bool HasReferenceData => LexicalResultInvariantPolicy.HasReferenceData(this, LookupMode);
+}
+
+public static class LexicalResultInvariantPolicy
+{
+    public static bool HasUsableData(
+        LexicalResult result,
+        LexicalLookupMode? lookupMode = null)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.Status != LexicalLookupStatus.Success)
+        {
+            return false;
+        }
+
+        var effectiveMode = lookupMode ?? result.LookupMode;
+        return effectiveMode switch
+        {
+            LexicalLookupMode.Definition => result.Meanings.Any(meaning =>
+                !string.IsNullOrWhiteSpace(meaning.Definition)),
+            LexicalLookupMode.Translation => result.Meanings.Any(meaning =>
+                !string.IsNullOrWhiteSpace(meaning.Translation)),
+            LexicalLookupMode.DefinitionAndTranslation => result.Meanings.Any(meaning =>
+                !string.IsNullOrWhiteSpace(meaning.Definition)
+                || !string.IsNullOrWhiteSpace(meaning.Translation)),
+            null => !string.IsNullOrWhiteSpace(result.AcronymExpansion)
+                || result.Meanings.Any(meaning =>
+                    !string.IsNullOrWhiteSpace(meaning.Definition)
+                    || !string.IsNullOrWhiteSpace(meaning.Translation)),
+            _ => false
+        };
+    }
+
+    public static bool HasReferenceData(
+        LexicalResult result,
+        LexicalLookupMode? lookupMode = null)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return result.Status == LexicalLookupStatus.Success
+            && (HasUsableData(result, lookupMode)
+                || result.FormRelations is { Count: > 0 }
+                || result.Meanings.Any(meaning =>
+                    !string.IsNullOrWhiteSpace(meaning.Definition)
+                    && ProviderFormRelationPolicy.Resolve(meaning.Definition) is not null));
+    }
+
+    public static LexicalResult Enforce(
+        LexicalLookupRequest request,
+        LexicalResult result)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.Status != LexicalLookupStatus.Success
+            || HasReferenceData(result, request.LookupMode))
+        {
+            return result;
+        }
+
+        return result with
+        {
+            Status = LexicalLookupStatus.NotFound,
+            Meanings = [],
+            ErrorCode = GetMissingDataErrorCode(request.LookupMode),
+            LookupMode = request.LookupMode,
+            TargetLanguage = request.TargetLanguage
+        };
+    }
+
+    public static string GetMissingDataErrorCode(LexicalLookupMode lookupMode) => lookupMode switch
+    {
+        LexicalLookupMode.Translation => "translation-not-found",
+        LexicalLookupMode.Definition => "definition-not-found",
+        LexicalLookupMode.DefinitionAndTranslation => "definition-not-found",
+        _ => throw new ArgumentOutOfRangeException(nameof(lookupMode))
+    };
 }

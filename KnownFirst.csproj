@@ -107,24 +107,14 @@
         <DefaultItemExcludes>$(DefaultItemExcludes);Components\Pages\Diagnostics.razor;Components\Pages\Diagnostics.razor.css</DefaultItemExcludes>
     </PropertyGroup>
 
-    <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon_release.png" />
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
-        <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon_debug.png" />
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(Configuration)' == 'BetaDiagnostic'">
-        <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon_diagnostic.png" />
+        <MauiIcon Include="Resources\AppIcon\appicon.png" />
     </ItemGroup>
 
     <ItemGroup>
         <!-- Splash Screen -->
-        <MauiSplashScreen Include="Resources\AppIcon\appicon_release.png" Color="#14274f" />
+        <MauiSplashScreen Include="Resources\AppIcon\appicon.png" Color="#14274f" />
 
         <!-- Images -->
         <MauiImage Include="Resources\Images\*" />

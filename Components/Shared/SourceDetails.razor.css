@@ -1,4 +1,4 @@
-.source-details {
+﻿.source-details {
     min-width: 0;
     color: var(--color-muted);
     font-size: 0.9rem;
@@ -32,7 +32,7 @@
 
 .source-details dd {
     margin: 0.15rem 0 0;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
 .source-details.compact {

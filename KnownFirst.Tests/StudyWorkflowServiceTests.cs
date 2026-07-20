@@ -8,6 +8,7 @@ using KnownFirst.Services;
 using KnownFirst.Services.Lexical;
 using KnownFirst.Services.Study;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace KnownFirst.Tests;
@@ -365,7 +366,7 @@ public sealed class StudyWorkflowServiceTests
         await ImportAllUnknownAsync("alpha beta.");
         await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 2);
         var first = await _preparation.LookupCurrentAsync();
-        await WaitForAsync(() => _provider.CallCount >= 2);
+        await _provider.WaitForCallCountAsync(2);
 
         await _preparation.AcceptAsync(
             first!.CandidateId,
@@ -388,8 +389,7 @@ public sealed class StudyWorkflowServiceTests
         await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 2);
         var first = await _preparation.LookupCurrentAsync();
 
-        // Wait long enough for prefetch to fail in the background
-        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        await _provider.WaitForCallCountAsync(2);
 
         await _preparation.AcceptAsync(
             first!.CandidateId,
@@ -401,6 +401,168 @@ public sealed class StudyWorkflowServiceTests
         Assert.IsNotNull(second);
         Assert.AreEqual("beta", second.Term, ignoreCase: true);
         Assert.AreEqual(PreparationCandidateStatus.Failed, second.Status);
+    }
+
+    [TestMethod]
+    public async Task Preparation_MixedLanguageBatchRetainsEveryCandidateLanguageAndDirection()
+    {
+        const string content = "Gift die Kind Note.";
+        await ImportAllUnknownAsync(new ImportTextRequest(
+            "English ambiguous words",
+            content,
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+        await ImportAllUnknownAsync(new ImportTextRequest(
+            "German ambiguous words",
+            content,
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 10);
+        var items = new List<PreparationItem>();
+        while (await _preparation.GetCurrentAsync() is { } item)
+        {
+            items.Add(item);
+            await _preparation.SkipAsync(item.CandidateId);
+        }
+
+        Assert.HasCount(8, items);
+        Assert.AreEqual(4, items.Count(item => item.SourceLanguage == "en"));
+        Assert.AreEqual(4, items.Count(item => item.SourceLanguage == "de"));
+        Assert.IsTrue(items.Where(item => item.SourceLanguage == "en").All(item =>
+            item.LookupMode == LexicalLookupMode.Translation && item.TargetLanguage == "de"));
+        Assert.IsTrue(items.Where(item => item.SourceLanguage == "de").All(item =>
+            item.LookupMode == LexicalLookupMode.Translation && item.TargetLanguage == "en"));
+        foreach (var term in new[] { "gift", "die", "kind", "note" })
+        {
+            Assert.AreEqual(2, items.Count(item => item.Term.Equals(term, StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    [TestMethod]
+    public async Task Preparation_LookupPrefetchAcceptanceAndCardsRetainCandidateLanguages()
+    {
+        await ImportAllUnknownAsync(new ImportTextRequest(
+            "English gift",
+            "gift.",
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+        await ImportAllUnknownAsync(new ImportTextRequest(
+            "German Gift",
+            "Gift.",
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+        _provider.MeaningsFactory = request =>
+        [
+            new LexicalMeaning(
+                $"{request.SourceLanguage}-{request.TargetLanguage}",
+                "noun",
+                string.Empty,
+                request.TargetLanguage == "de" ? "Geschenk" : "poison",
+                null,
+                [])
+        ];
+
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 2);
+        var first = await _preparation.LookupCurrentAsync();
+        await _provider.WaitForCallCountAsync(2);
+
+        Assert.IsNotNull(first);
+        Assert.AreEqual("en", first.SourceLanguage);
+        Assert.AreEqual("de", first.TargetLanguage);
+        Assert.AreEqual("en", _provider.Requests[0].SourceLanguage);
+        Assert.AreEqual("de", _provider.Requests[0].TargetLanguage);
+        Assert.AreEqual("de", _provider.Requests[1].SourceLanguage);
+        Assert.AreEqual("en", _provider.Requests[1].TargetLanguage);
+
+        await _preparation.AcceptAsync(
+            first.CandidateId,
+            InputFrom(first),
+            CardDirectionPreference.TermToMeaning);
+        var second = await _preparation.LookupCurrentAsync();
+
+        Assert.IsNotNull(second);
+        Assert.AreEqual(2, _provider.CallCount);
+        Assert.AreEqual("de", second.SourceLanguage);
+        Assert.AreEqual("en", second.TargetLanguage);
+        await _preparation.AcceptAsync(
+            second.CandidateId,
+            InputFrom(second),
+            CardDirectionPreference.TermToMeaning);
+
+        var stored = await _database.ReadAsync(async connection => new
+        {
+            Words = await connection.Table<WordEntity>().OrderBy(word => word.Id).ToListAsync(),
+            Meanings = await connection.Table<MeaningEntity>().OrderBy(meaning => meaning.Id).ToListAsync(),
+            Cards = await connection.Table<LearningCardEntity>().OrderBy(card => card.Id).ToListAsync()
+        });
+        foreach (var meaning in stored.Meanings)
+        {
+            var word = stored.Words.Single(item => item.Id == meaning.WordId);
+            Assert.AreEqual(word.Language, meaning.SourceLanguage);
+            Assert.AreEqual(word.Language == "en" ? "de" : "en", meaning.ExplanationLanguage);
+            Assert.IsTrue(stored.Cards.Any(card =>
+                card.WordId == word.Id && card.MeaningId == meaning.Id));
+        }
+    }
+
+    [TestMethod]
+    public async Task Preparation_RetryRetainsGermanCandidateLanguageAndDirection()
+    {
+        await ImportAllUnknownAsync(new ImportTextRequest(
+            "German retry",
+            "Sicherheit.",
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+        _provider.ResultFactory = request => _provider.CallCount == 1
+            ? FailureResult(request)
+            : SuccessResult(request);
+
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 1);
+        var failed = await _preparation.LookupCurrentAsync();
+        var retried = await _preparation.LookupCurrentAsync();
+
+        Assert.AreEqual(PreparationCandidateStatus.Failed, failed!.Status);
+        Assert.AreEqual(PreparationCandidateStatus.ResultReady, retried!.Status);
+        Assert.HasCount(2, _provider.Requests);
+        Assert.IsTrue(_provider.Requests.All(request => request.SourceLanguage == "de"));
+        Assert.IsTrue(_provider.Requests.All(request => request.TargetLanguage == "en"));
+        Assert.IsTrue(_provider.Requests.All(request => request.LookupMode == LexicalLookupMode.Translation));
+    }
+
+    [TestMethod]
+    public async Task Preparation_MissingTranslationCandidateCanBeLookedUpAgain()
+    {
+        await ImportAllUnknownAsync(new ImportTextRequest(
+            "English translation retry",
+            "security.",
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+        _provider.ResultFactory = request => _provider.CallCount == 1
+            ? SuccessResult(request) with
+            {
+                Status = LexicalLookupStatus.NotFound,
+                Meanings = [],
+                ErrorCode = "translation-not-found"
+            }
+            : SuccessResult(request);
+
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 1);
+        var missing = await _preparation.LookupCurrentAsync();
+        var found = await _preparation.LookupCurrentAsync();
+
+        Assert.AreEqual(PreparationCandidateStatus.Failed, missing!.Status);
+        Assert.AreEqual("translation-not-found", missing.LastErrorCode);
+        Assert.AreEqual(PreparationCandidateStatus.ResultReady, found!.Status);
+        Assert.HasCount(2, _provider.Requests);
+        Assert.IsTrue(_provider.Requests.All(request => request.SourceLanguage == "en"));
+        Assert.IsTrue(_provider.Requests.All(request => request.TargetLanguage == "de"));
     }
 
 #if DEBUG
@@ -1051,9 +1213,11 @@ public sealed class StudyWorkflowServiceTests
         return item;
     }
 
-    private async Task ImportAllUnknownAsync(string content)
+    private Task ImportAllUnknownAsync(string content) => ImportAllUnknownAsync(Request(content));
+
+    private async Task ImportAllUnknownAsync(ImportTextRequest request)
     {
-        var result = await _review.ImportAsync(Request(content));
+        var result = await _review.ImportAsync(request);
         Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
         while (await _review.GetCurrentCandidateAsync() is { } candidate)
         {
@@ -1194,7 +1358,9 @@ public sealed class StudyWorkflowServiceTests
         request.Term,
         123,
         "Fixture attribution",
-        _clock.UtcNow);
+        _clock.UtcNow,
+        LookupMode: request.LookupMode,
+        TargetLanguage: request.TargetLanguage);
 
     private LexicalResult FailureResult(LexicalLookupRequest request) => new(
         LexicalLookupStatus.Unavailable,
@@ -1211,24 +1377,32 @@ public sealed class StudyWorkflowServiceTests
         null,
         "Fixture attribution",
         _clock.UtcNow,
-        ErrorCode: "offline");
+        ErrorCode: "offline",
+        LookupMode: request.LookupMode,
+        TargetLanguage: request.TargetLanguage);
 
     private sealed class MutableDictionaryProvider(FakeClock clock) : IDictionaryLookupProvider
     {
         private int _callCount;
+        private readonly ConcurrentQueue<LexicalLookupRequest> _requests = new();
+        private readonly SemaphoreSlim _requestSignal = new(0);
 
         public Func<LexicalLookupRequest, IReadOnlyList<LexicalMeaning>> MeaningsFactory { get; set; } = request =>
         [new LexicalMeaning(
             "primary",
             "noun",
             $"Definition for {request.Term.ToLowerInvariant()}",
-            request.ExplanationLanguage == "de" ? $"\u00DCbersetzung {request.Term}" : null,
+            request.LookupMode == LexicalLookupMode.Definition
+                ? null
+                : $"Translation {request.Term}",
             null,
             [])];
 
         public Func<LexicalLookupRequest, LexicalResult>? ResultFactory { get; set; }
 
         public int CallCount => Volatile.Read(ref _callCount);
+
+        public IReadOnlyList<LexicalLookupRequest> Requests => _requests.ToArray();
 
         public LexicalLookupRequest? LastRequest { get; private set; }
 
@@ -1240,8 +1414,10 @@ public sealed class StudyWorkflowServiceTests
             LexicalLookupRequest request,
             CancellationToken cancellationToken = default)
         {
+            _requests.Enqueue(request);
             Interlocked.Increment(ref _callCount);
             LastRequest = request;
+            _requestSignal.Release();
             var result = ResultFactory?.Invoke(request) ?? new LexicalResult(
                 LexicalLookupStatus.Success,
                 request.NormalizedLemma,
@@ -1256,17 +1432,21 @@ public sealed class StudyWorkflowServiceTests
                 request.Term,
                 123,
                 "Fixture attribution",
-                clock.UtcNow);
+                clock.UtcNow,
+                LookupMode: request.LookupMode,
+                TargetLanguage: request.TargetLanguage);
             return Task.FromResult(result);
         }
-    }
 
-    private static async Task WaitForAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (!condition())
+        public async Task WaitForCallCountAsync(int expectedCount)
         {
-            await Task.Delay(10, timeout.Token);
+            while (CallCount < expectedCount)
+            {
+                if (!await _requestSignal.WaitAsync(TimeSpan.FromSeconds(2)))
+                {
+                    throw new TimeoutException($"The provider did not receive {expectedCount} requests.");
+                }
+            }
         }
     }
 

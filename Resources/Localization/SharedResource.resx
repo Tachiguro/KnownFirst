@@ -1090,13 +1090,31 @@
     <value>The dictionary service is temporarily unavailable. Cached results remain available.</value>
   </data>
   <data name="Prepare_ParseFailure" xml:space="preserve">
-    <value>The downloaded dictionary result could not be read. You can try again.</value>
+    <value>The downloaded dictionary result could not be read.</value>
   </data>
   <data name="Prepare_PermanentFailure" xml:space="preserve">
     <value>The dictionary service cannot complete this request.</value>
   </data>
   <data name="Prepare_NotFound" xml:space="preserve">
     <value>No suitable dictionary result was found.</value>
+  </data>
+  <data name="Prepare_DictionaryEntryNotFound" xml:space="preserve">
+    <value>No dictionary entry was found for this word.</value>
+  </data>
+  <data name="Prepare_DefinitionNotFound" xml:space="preserve">
+    <value>No definition was found for this word.</value>
+  </data>
+  <data name="Prepare_TranslationNotFound" xml:space="preserve">
+    <value>No translation was found for this language direction.</value>
+  </data>
+  <data name="Prepare_LanguageSectionNotFound" xml:space="preserve">
+    <value>The matching language section was not found in the dictionary entry.</value>
+  </data>
+  <data name="Prepare_NetworkFailure" xml:space="preserve">
+    <value>A network error prevented the dictionary lookup. Please try again.</value>
+  </data>
+  <data name="Prepare_ResponseParseFailure" xml:space="preserve">
+    <value>The dictionary response could not be processed.</value>
   </data>
   <data name="Source_Details" xml:space="preserve">
     <value>Source details</value>

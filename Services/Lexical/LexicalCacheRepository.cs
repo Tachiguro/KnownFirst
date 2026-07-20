@@ -44,7 +44,15 @@ public sealed class LexicalCacheRepository(
                 _diagnosticLog.Write(Event(request, provider, "cache.deserialize.start", "hit"));
                 var cachedResult = JsonSerializer.Deserialize<LexicalResult>(entity.ResultJson, SerializerOptions);
                 _diagnosticLog.Write(Event(request, provider, "cache.deserialize.complete", "hit"));
-                return cachedResult is null ? null : cachedResult with { IsFromCache = true };
+                return cachedResult is null
+                    || !LexicalResultInvariantPolicy.HasReferenceData(cachedResult, request.LookupMode)
+                        ? null
+                        : cachedResult with
+                        {
+                            IsFromCache = true,
+                            LookupMode = request.LookupMode,
+                            TargetLanguage = request.TargetLanguage
+                        };
             });
             return result;
         }
@@ -62,7 +70,7 @@ public sealed class LexicalCacheRepository(
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(result);
-        if (!result.HasReferenceData)
+        if (!LexicalResultInvariantPolicy.HasReferenceData(result, request.LookupMode))
         {
             _diagnosticLog.Write(Event(request, result.ProviderName, "cache.write.skipped", "not-cacheable"));
             return;

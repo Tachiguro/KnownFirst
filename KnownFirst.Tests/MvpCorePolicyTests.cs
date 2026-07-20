@@ -65,6 +65,24 @@ public sealed class MvpCorePolicyTests
     }
 
     [TestMethod]
+    [DataRow("Nominativ Plural des Substantivs Haus", "Haus", GrammaticalRelationKind.Plural)]
+    [DataRow("3. Person Singular Präsens Indikativ Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.ThirdPersonSingular)]
+    [DataRow("Präteritum Indikativ Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.PastTense)]
+    [DataRow("Partizip II des Verbs laufen", "laufen", GrammaticalRelationKind.PastParticiple)]
+    [DataRow("Komparativ des Adjektivs sicher", "sicher", GrammaticalRelationKind.Comparative)]
+    public void ProviderFormRelations_ResolveExplicitGermanRelations(
+        string providerText,
+        string expectedLemma,
+        GrammaticalRelationKind expectedKind)
+    {
+        var relation = ProviderFormRelationPolicy.Resolve(providerText);
+
+        Assert.IsNotNull(relation);
+        Assert.AreEqual(expectedLemma, relation.BaseLemma);
+        Assert.AreEqual(expectedKind, relation.Kind);
+    }
+
+    [TestMethod]
     public void LookupOutcome_RetryIsLimitedToRecoverableFailures()
     {
         Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.TransientFailure));
@@ -72,6 +90,12 @@ public sealed class MvpCorePolicyTests
         Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.Success));
         Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.NotFound));
         Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.PermanentFailure));
+        Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(
+            LexicalLookupStatus.NotFound,
+            "translation-not-found"));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(
+            LexicalLookupStatus.NotFound,
+            "definition-not-found"));
     }
 
     [TestMethod]

@@ -251,29 +251,22 @@
     <section class="settings-card danger-zone" aria-labelledby="reset-data-title">
         <h2 id="reset-data-title">@Localizer["Settings_ResetData"]</h2>
         <p>@Localizer["Settings_ResetDescription"]</p>
-        <button type="button"
-                class="button button-danger"
-                @ref="_resetButton"
-                @onclick="ShowResetConfirmation">
-            @Localizer["Settings_ResetData"]
-        </button>
-
-        @if (_resetSucceeded)
+        @if (!_showResetConfirmation)
         {
-            <p class="inline-message inline-message-success" role="status" aria-live="polite">
-                @Localizer["Settings_ResetSuccess"]
-            </p>
+            <button type="button"
+                    class="button button-danger"
+                    @ref="_resetButton"
+                    @onclick="ShowResetConfirmation">
+                @Localizer["Settings_ResetData"]
+            </button>
         }
-
-        @if (_showResetConfirmation)
+        else
         {
-            <section class="reset-confirmation"
-                     role="alertdialog"
-                     aria-labelledby="reset-confirmation-title"
-                     aria-describedby="reset-confirmation-message"
-                     @ref="_resetConfirmation"
-                     @onkeydown="HandleResetDialogKeyDown">
-                <h2 id="reset-confirmation-title">@Localizer["Settings_ResetConfirmTitle"]</h2>
+            <div class="destructive-confirmation"
+                 role="alertdialog"
+                 aria-labelledby="reset-confirmation-message"
+                 @ref="_resetConfirmation"
+                 @onkeydown="HandleResetDialogKeyDown">
                 <p id="reset-confirmation-message">@Localizer["Settings_ResetConfirmMessage"]</p>
                 <div class="button-row">
                     <button type="button"
@@ -294,7 +287,14 @@
                 {
                     <p class="inline-message inline-message-error" role="alert">@Localizer["Settings_ResetError"]</p>
                 }
-            </section>
+            </div>
+        }
+
+        @if (_resetSucceeded)
+        {
+            <p class="inline-message inline-message-success" role="status" aria-live="polite">
+                @Localizer["Settings_ResetSuccess"]
+            </p>
         }
     </section>
 </section>

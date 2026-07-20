@@ -147,7 +147,9 @@ public sealed class LexicalEnrichmentService(
 
         try
         {
-            var online = await provider.LookupAsync(request, cancellationToken);
+            var online = LexicalResultInvariantPolicy.Enforce(
+                request,
+                await provider.LookupAsync(request, cancellationToken));
             if (online.Status == LexicalLookupStatus.Success)
             {
                 await cache.SaveAsync(request, online, provider.ProviderSchemaVersion);

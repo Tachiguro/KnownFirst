@@ -46,7 +46,7 @@ public sealed class WiktionaryProviderTests
         var result = await provider.LookupAsync(Request("network", "en", "de"));
 
         Assert.AreEqual("Netzwerk", result.Meanings[0].Translation);
-        Assert.AreEqual("de.wiktionary.org", result.SourceProject);
+        Assert.AreEqual("en.wiktionary.org", result.SourceProject);
     }
 
     [TestMethod]
@@ -57,7 +57,7 @@ public sealed class WiktionaryProviderTests
         var result = await provider.LookupAsync(Request("Netzwerk", "de", "en"));
 
         Assert.AreEqual("network", result.Meanings[0].Translation);
-        Assert.AreEqual("en.wiktionary.org", result.SourceProject);
+        Assert.AreEqual("de.wiktionary.org", result.SourceProject);
     }
 
     [TestMethod]
@@ -74,6 +74,7 @@ public sealed class WiktionaryProviderTests
         var provider = CreateProvider(_ => JsonResponse("{ not-json"));
         var result = await provider.LookupAsync(Request("network", "en", "en"));
         Assert.AreEqual(LexicalLookupStatus.MalformedResponse, result.Status);
+        Assert.AreEqual("malformed-json", result.ErrorCode);
     }
 
     [TestMethod]
@@ -82,6 +83,7 @@ public sealed class WiktionaryProviderTests
         var provider = CreateProvider(_ => throw new TaskCanceledException());
         var result = await provider.LookupAsync(Request("network", "en", "en"));
         Assert.AreEqual(LexicalLookupStatus.TimedOut, result.Status);
+        Assert.AreEqual("timeout", result.ErrorCode);
     }
 
     [TestMethod]
@@ -158,8 +160,26 @@ public sealed class WiktionaryProviderTests
         var result = await provider.LookupAsync(Request("network", "en", "en"));
 
         Assert.AreEqual(LexicalLookupStatus.Unavailable, result.Status);
+        Assert.AreEqual("transient-server-error", result.ErrorCode);
         Assert.AreEqual(3, attempts);
         Assert.HasCount(2, delay.Delays);
+    }
+
+    [TestMethod]
+    public async Task Lookup_RateLimitStopsAfterThreeAttemptsWithSpecificCode()
+    {
+        var attempts = 0;
+        var provider = CreateProvider(_ =>
+        {
+            attempts++;
+            return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        });
+
+        var result = await provider.LookupAsync(Request("network", "en", "en"));
+
+        Assert.AreEqual(LexicalLookupStatus.TransientFailure, result.Status);
+        Assert.AreEqual("rate-limited", result.ErrorCode);
+        Assert.AreEqual(3, attempts);
     }
 
     [TestMethod]
@@ -203,9 +223,9 @@ public sealed class WiktionaryProviderTests
         await provider.LookupAsync(Request("network security", "en", "de"));
 
         var uri = captured!.RequestUri!.AbsoluteUri;
-        Assert.Contains("de.wiktionary.org/w/api.php", uri);
+        Assert.Contains("en.wiktionary.org/w/api.php", uri);
         Assert.Contains("page=network%20security", uri);
-        Assert.Contains("uselang=de", uri);
+        Assert.Contains("uselang=en", uri);
         Assert.Contains("action=parse", uri);
         Assert.Contains("prop=text%7Crevid", uri);
         Assert.IsFalse(uri.Contains("Complete private document", StringComparison.Ordinal));
@@ -641,6 +661,624 @@ public sealed class WiktionaryProviderTests
         CollectionAssert.AreEqual(new[] { "data" }, provider.RequestedTerms.ToArray());
     }
 
+    [TestMethod]
+    [DataRow("en", LexicalLookupMode.Definition, null, "en.wiktionary.org", "uselang=en")]
+    [DataRow("en", LexicalLookupMode.Translation, "de", "en.wiktionary.org", "uselang=en")]
+    [DataRow("de", LexicalLookupMode.Definition, null, "de.wiktionary.org", "uselang=de")]
+    [DataRow("de", LexicalLookupMode.Translation, "en", "de.wiktionary.org", "uselang=de")]
+    public void RequestUri_RoutesBySourceLanguageOnly(
+        string sourceLanguage,
+        LexicalLookupMode lookupMode,
+        string? targetLanguage,
+        string expectedHost,
+        string expectedUiLanguage)
+    {
+        var request = Request("term", sourceLanguage, lookupMode, targetLanguage);
+
+        var uri = WiktionaryLookupProvider.CreateRequestUri(request);
+
+        Assert.AreEqual(expectedHost, uri.Host);
+        Assert.Contains(expectedUiLanguage, uri.Query);
+    }
+
+    [TestMethod]
+    [DataRow("house", "english-house.json", "A building used as a home.")]
+    [DataRow("run", "english-run.json", "To move swiftly on foot.")]
+    [DataRow("security", "english-security.json", "Relating to protection & safety.")]
+    [DataRow("café", "english-cafe.json", "A café serving tea & piñata-shaped pastries.")]
+    public async Task Lookup_EnglishDefinitionsCoverNounVerbAdjectiveAndEntities(
+        string term,
+        string fixture,
+        string expectedDefinition)
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture(fixture)));
+
+        var result = await provider.LookupAsync(Request(
+            term,
+            "en",
+            LexicalLookupMode.Definition,
+            null));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Definition == expectedDefinition));
+        Assert.IsTrue(result.Meanings.All(meaning => !string.IsNullOrWhiteSpace(meaning.Definition)));
+        Assert.IsTrue(result.Meanings.All(meaning => meaning.Translation is null));
+    }
+
+    [TestMethod]
+    public async Task Lookup_EnglishDefinitionsPreserveMultipleMeaningsAndPartsOfSpeech()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-security.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "security",
+            "en",
+            LexicalLookupMode.Definition,
+            null));
+
+        Assert.IsGreaterThanOrEqualTo(3, result.Meanings.Count);
+        CollectionAssert.Contains(result.Meanings.Select(meaning => meaning.PartOfSpeech).ToArray(), "Noun");
+        CollectionAssert.Contains(result.Meanings.Select(meaning => meaning.PartOfSpeech).ToArray(), "Adjective");
+        Assert.IsFalse(result.Meanings.Any(meaning => meaning.Definition.Contains("wrong section", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    [DataRow("systems", "english-systems-form.json", "system", GrammaticalRelationKind.Plural)]
+    [DataRow("protects", "english-protects-form.json", "protect", GrammaticalRelationKind.ThirdPersonSingular)]
+    public async Task Lookup_EnglishFormFixturesReturnExplicitBaseRelations(
+        string term,
+        string fixture,
+        string expectedLemma,
+        GrammaticalRelationKind expectedKind)
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture(fixture)));
+
+        var result = await provider.LookupAsync(Request(
+            term,
+            "en",
+            LexicalLookupMode.Definition,
+            null));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsFalse(result.HasUsableData);
+        Assert.IsTrue(result.HasReferenceData);
+        Assert.HasCount(1, result.FormRelations!);
+        Assert.AreEqual(expectedLemma, result.FormRelations![0].BaseLemma);
+        Assert.AreEqual(expectedKind, result.FormRelations[0].Kind);
+    }
+
+    [TestMethod]
+    [DataRow("house", "english-house.json", "Haus")]
+    [DataRow("run", "english-run.json", "laufen")]
+    [DataRow("security", "english-security.json", "Sicherheit")]
+    public async Task Lookup_EnglishToGermanReturnsTargetTranslations(
+        string term,
+        string fixture,
+        string expectedTranslation)
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture(fixture)));
+
+        var result = await provider.LookupAsync(Request(
+            term,
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == expectedTranslation));
+        Assert.IsTrue(result.Meanings.All(meaning => string.IsNullOrWhiteSpace(meaning.Definition)));
+        Assert.IsTrue(result.Meanings.All(meaning => !string.IsNullOrWhiteSpace(meaning.Translation)));
+        Assert.AreEqual("en.wiktionary.org", result.SourceProject);
+    }
+
+    [TestMethod]
+    public async Task Lookup_EnglishToGermanKeepsTranslationOrderAcrossTablesAndLanguages()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-house.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "house",
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+
+        CollectionAssert.AreEqual(
+            new[] { "Haus", "Gebäude", "Heim" },
+            result.Meanings.Select(meaning => meaning.Translation).ToArray());
+        Assert.IsFalse(result.Meanings.Any(meaning => meaning.Translation is "maison" or "casa"));
+    }
+
+    [TestMethod]
+    public async Task Lookup_TranslationTemplateLanguageCodeIsRecognized()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-security.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "security",
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == "Sicherheits-"));
+    }
+
+    [TestMethod]
+    [DataRow("Haus", "german-haus.json", "Gebäude, das Menschen als Wohnung dient.")]
+    [DataRow("laufen", "german-laufen.json", "sich mit schnellen Schritten fortbewegen")]
+    [DataRow("sicher", "german-sicher.json", "frei von Gefahr")]
+    [DataRow("Sicherheit", "german-sicherheit.json", "Zustand, in dem keine Gefahr besteht")]
+    [DataRow("Straße", "german-strasse.json", "befestigter Verkehrsweg für Fahrzeuge & Menschen")]
+    [DataRow("Größe", "german-groesse.json", "räumliche Ausdehnung eines Gegenstands")]
+    [DataRow("Informationssicherheit", "german-compound.json", "Schutz von Informationen vor unbefugtem Zugriff")]
+    public async Task Lookup_GermanDefinitionsCoverTypicalStructuresAndUnicode(
+        string term,
+        string fixture,
+        string expectedDefinition)
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture(fixture)));
+
+        var result = await provider.LookupAsync(Request(
+            term,
+            "de",
+            LexicalLookupMode.Definition,
+            null));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Definition == expectedDefinition));
+        Assert.IsTrue(result.Meanings.All(meaning => !string.IsNullOrWhiteSpace(meaning.Definition)));
+        Assert.AreEqual("de.wiktionary.org", result.SourceProject);
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanDefinitionsPreserveMultipleMeaningsAndPartsOfSpeech()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-sicher.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "sicher",
+            "de",
+            LexicalLookupMode.Definition,
+            null));
+
+        Assert.IsGreaterThanOrEqualTo(2, result.Meanings.Count);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.PartOfSpeech == "Adjektiv"));
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.PartOfSpeech == "Adverb"));
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanDefinitionsPreserveMeaningOrder()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-sicherheit.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "Sicherheit",
+            "de",
+            LexicalLookupMode.Definition,
+            null));
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "Zustand, in dem keine Gefahr besteht",
+                "Schutz vor einem Risiko",
+                "feste Gewissheit"
+            },
+            result.Meanings.Select(meaning => meaning.Definition).ToArray());
+    }
+
+    [TestMethod]
+    [DataRow("Haus", "german-haus.json", "house")]
+    [DataRow("laufen", "german-laufen.json", "run")]
+    [DataRow("Sicherheit", "german-sicherheit.json", "security")]
+    public async Task Lookup_GermanToEnglishReturnsTargetTranslations(
+        string term,
+        string fixture,
+        string expectedTranslation)
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture(fixture)));
+
+        var result = await provider.LookupAsync(Request(
+            term,
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == expectedTranslation));
+        Assert.IsTrue(result.Meanings.All(meaning => !string.IsNullOrWhiteSpace(meaning.Translation)));
+        Assert.AreEqual("de.wiktionary.org", result.SourceProject);
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanToEnglishKeepsTranslationOrderAcrossTablesAndLanguages()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-haus.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "Haus",
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+
+        CollectionAssert.AreEqual(
+            new[] { "house", "building", "home" },
+            result.Meanings.Select(meaning => meaning.Translation).ToArray());
+        Assert.IsFalse(result.Meanings.Any(meaning => meaning.Translation == "maison"));
+    }
+
+    [TestMethod]
+    public async Task Lookup_MissingTargetTranslationReturnsSpecificNotFound()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-no-translation.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "untranslated",
+            "en",
+            LexicalLookupMode.Translation,
+            "de"));
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("translation-not-found", result.ErrorCode);
+        Assert.IsFalse(result.HasUsableData);
+    }
+
+    [TestMethod]
+    public async Task Lookup_MissingEnglishTranslationReturnsSpecificNotFound()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-sicher.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "sicher",
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("translation-not-found", result.ErrorCode);
+        Assert.IsFalse(result.HasUsableData);
+    }
+
+    [TestMethod]
+    public async Task Lookup_MissingDefinitionReturnsSpecificNotFound()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-no-meanings.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "ohne-bedeutung",
+            "de",
+            LexicalLookupMode.Definition,
+            null));
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("definition-not-found", result.ErrorCode);
+        Assert.IsFalse(result.HasUsableData);
+    }
+
+    [TestMethod]
+    public async Task Lookup_MissingSourceLanguageSectionReturnsSpecificNotFound()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("language-section-missing.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "foreign-only",
+            "en",
+            LexicalLookupMode.Definition,
+            null));
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("language-section-not-found", result.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task Lookup_DefinitionAndTranslationReturnsBothWhenAvailable()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-house.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "house",
+            "en",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "de"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning =>
+            !string.IsNullOrWhiteSpace(meaning.Definition)
+            && !string.IsNullOrWhiteSpace(meaning.Translation)));
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanDefinitionAndEnglishTranslationReturnTogether()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-haus.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "Haus",
+            "de",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "en"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning =>
+            !string.IsNullOrWhiteSpace(meaning.Definition)
+            && !string.IsNullOrWhiteSpace(meaning.Translation)));
+    }
+
+    [TestMethod]
+    public async Task Lookup_DefinitionAndTranslationKeepsDefinitionWhenTranslationIsMissing()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-no-translation.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "untranslated",
+            "en",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "de"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => !string.IsNullOrWhiteSpace(meaning.Definition)));
+    }
+
+    [TestMethod]
+    public async Task Lookup_DefinitionAndTranslationKeepsTranslationWhenDefinitionIsMissing()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-translation-only.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "translation-only",
+            "en",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "de"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == "Begriff"));
+    }
+
+    [TestMethod]
+    public async Task Lookup_DefinitionAndTranslationNeverReturnsEmptySuccess()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-empty-section.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "empty-entry",
+            "en",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "de"));
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("definition-not-found", result.ErrorCode);
+        Assert.IsFalse(result.HasUsableData);
+    }
+
+    [TestMethod]
+    public async Task Lookup_NormalizesMediaWikiMissingPageCode()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("missing-page.json")));
+
+        var result = await provider.LookupAsync(Request("missing", "en", "en"));
+
+        Assert.AreEqual("missing-page", result.ErrorCode);
+    }
+
+    [TestMethod]
+    [DataRow("{}", "missing-parse-payload")]
+    [DataRow("{\"parse\":{\"title\":\"empty\"}}", "missing-parse-payload")]
+    [DataRow("{\"parse\":{\"title\":\"empty\",\"text\":\"\"}}", "missing-html")]
+    [DataRow("{\"parse\":{\"title\":\"empty\",\"text\":null}}", "missing-html")]
+    public async Task Lookup_ParseEnvelopeFailuresUseSpecificCodes(string json, string expectedErrorCode)
+    {
+        var provider = CreateProvider(_ => JsonResponse(json));
+
+        var result = await provider.LookupAsync(Request("empty", "en", "en"));
+
+        Assert.AreEqual(LexicalLookupStatus.ParseFailure, result.Status);
+        Assert.AreEqual(expectedErrorCode, result.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task ProviderChain_GermanFormRedirectPreservesLanguagesModeAndCacheIdentity()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-german-form");
+        await database.InitializeAsync();
+        var requestedUris = new List<Uri>();
+        var provider = CreateProvider(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            return JsonResponse(LoadFixture(
+                request.RequestUri!.Query.Contains("page=H%C3%A4user", StringComparison.Ordinal)
+                    ? "german-form.json"
+                    : "german-haus.json"));
+        });
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database),
+            provider);
+        var request = Request("Häuser", "de", LexicalLookupMode.Translation, "en");
+
+        var result = await service.EnrichAsync(request, "Häuser", "Häuser");
+        var cachedEntries = await database.ReadAsync(connection =>
+            connection.Table<LexicalCacheEntity>().OrderBy(entry => entry.Id).ToListAsync());
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.AreEqual("Haus", result.DisplayTerm);
+        Assert.AreEqual("house", result.Meanings[0].Translation);
+        Assert.AreEqual("de", result.SourceLanguage);
+        Assert.AreEqual("en", result.TargetLanguage);
+        Assert.AreEqual(LexicalLookupMode.Translation, result.LookupMode);
+        Assert.AreEqual("Häuser", result.EncounteredSurfaceForm);
+        Assert.Contains("Haus", result.GrammaticalRelationship!);
+        Assert.IsTrue(requestedUris.All(uri => uri.Host == "de.wiktionary.org"));
+        Assert.HasCount(2, cachedEntries);
+        CollectionAssert.AreEqual(
+            new[] { "Häuser", "Haus" },
+            cachedEntries.Select(entry => entry.CanonicalLookupTerm).ToArray());
+    }
+
+    [TestMethod]
+    public async Task ProviderChain_RedirectDepthExceededPreservesRequestLanguages()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-lemma-depth");
+        await database.InitializeAsync();
+        var provider = new RoutingDictionaryProvider(request => SuccessResult(request) with
+        {
+            Meanings =
+            [
+                new LexicalMeaning(
+                    request.Term,
+                    "form",
+                    $"plural of {(char)(request.Term[0] + 1)}",
+                    null,
+                    null,
+                    [])
+            ]
+        });
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database),
+            provider);
+
+        var result = await service.EnrichAsync(
+            Request("a", "en", LexicalLookupMode.Translation, "de"),
+            "a",
+            "a");
+
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("lemma-redirect-depth-exceeded", result.ErrorCode);
+        Assert.IsTrue(provider.Requests.All(request => request.SourceLanguage == "en"));
+        Assert.IsTrue(provider.Requests.All(request => request.TargetLanguage == "de"));
+        Assert.IsTrue(provider.Requests.All(request => request.LookupMode == LexicalLookupMode.Translation));
+    }
+
+    [TestMethod]
+    public void CacheKey_SeparatesEveryLexicalLanguageDirectionAndMode()
+    {
+        LexicalLookupRequest[] requests =
+        [
+            Request("house", "en", LexicalLookupMode.Definition, null),
+            Request("house", "en", LexicalLookupMode.Translation, "de"),
+            Request("Haus", "de", LexicalLookupMode.Definition, null),
+            Request("Haus", "de", LexicalLookupMode.Translation, "en")
+        ];
+
+        var keys = requests.Select(request => LexicalCacheRepository.CreateCacheKey(
+            request,
+            WiktionaryLookupProvider.Name,
+            WiktionaryLookupProvider.SchemaVersion)).ToArray();
+
+        Assert.AreEqual(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [TestMethod]
+    public void CacheKey_SeparatesEnglishGiftFromGermanGift()
+    {
+        var english = Request("gift", "en", LexicalLookupMode.Translation, "de");
+        var german = Request("Gift", "de", LexicalLookupMode.Translation, "en");
+
+        var englishKey = LexicalCacheRepository.CreateCacheKey(
+            english,
+            WiktionaryLookupProvider.Name,
+            WiktionaryLookupProvider.SchemaVersion);
+        var germanKey = LexicalCacheRepository.CreateCacheKey(
+            german,
+            WiktionaryLookupProvider.Name,
+            WiktionaryLookupProvider.SchemaVersion);
+
+        Assert.AreNotEqual(englishKey, germanKey);
+    }
+
+    [TestMethod]
+    public async Task Cache_HitRequiresExactSourceTargetAndMode()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-language-cache");
+        await database.InitializeAsync();
+        var cache = new LexicalCacheRepository(database);
+        var storedRequest = Request("house", "en", LexicalLookupMode.Translation, "de");
+        await cache.SaveAsync(
+            storedRequest,
+            SuccessResult(storedRequest),
+            WiktionaryLookupProvider.SchemaVersion);
+
+        var exact = await cache.GetAsync(
+            storedRequest,
+            WiktionaryLookupProvider.Name,
+            WiktionaryLookupProvider.SchemaVersion);
+        var definition = await cache.GetAsync(
+            Request("house", "en", LexicalLookupMode.Definition, null),
+            WiktionaryLookupProvider.Name,
+            WiktionaryLookupProvider.SchemaVersion);
+        var otherSource = await cache.GetAsync(
+            Request("house", "de", LexicalLookupMode.Translation, "en"),
+            WiktionaryLookupProvider.Name,
+            WiktionaryLookupProvider.SchemaVersion);
+
+        Assert.IsNotNull(exact);
+        Assert.IsNull(definition);
+        Assert.IsNull(otherSource);
+    }
+
+    [TestMethod]
+    public async Task Cache_FailureIsNotStoredAsEmptySuccess()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-failure-cache");
+        await database.InitializeAsync();
+        var cache = new LexicalCacheRepository(database);
+        var request = Request("missing", "en", LexicalLookupMode.Translation, "de");
+        var failure = SuccessResult(request) with
+        {
+            Status = LexicalLookupStatus.NotFound,
+            Meanings = [],
+            ErrorCode = "translation-not-found"
+        };
+
+        await cache.SaveAsync(request, failure, WiktionaryLookupProvider.SchemaVersion);
+        var count = await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().CountAsync());
+
+        Assert.AreEqual(0, count);
+        Assert.IsFalse(failure.HasUsableData);
+    }
+
+    [TestMethod]
+    public async Task ProviderChain_InvalidTranslationSuccessBecomesSpecificNotFoundAndIsNotCached()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-invalid-provider-result");
+        await database.InitializeAsync();
+        var request = Request("house", "en", LexicalLookupMode.Translation, "de");
+        var invalid = SuccessResult(request) with
+        {
+            Meanings =
+            [
+                new LexicalMeaning(
+                    "invalid",
+                    "noun",
+                    "A definition without the requested translation.",
+                    null,
+                    null,
+                    [])
+            ]
+        };
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new LexicalCacheRepository(database),
+            new FakeDictionaryProvider(invalid));
+
+        var result = await service.EnrichAsync(request, "house", "house");
+        var cacheCount = await database.ReadAsync(connection =>
+            connection.Table<LexicalCacheEntity>().CountAsync());
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("translation-not-found", result.ErrorCode);
+        Assert.IsFalse(result.HasUsableData);
+        Assert.AreEqual(0, cacheCount);
+    }
+
+    [TestMethod]
+    public void ProviderSchemaVersion_ChangesWhenHostAndParserSemanticsChange()
+    {
+        Assert.AreEqual(4, WiktionaryLookupProvider.SchemaVersion);
+    }
+
     private static WiktionaryLookupProvider CreateProvider(
         Func<HttpRequestMessage, HttpResponseMessage> handler,
         IAsyncDelay? delay = null) => CreateProvider(
@@ -659,12 +1297,29 @@ public sealed class WiktionaryProviderTests
     private static LexicalLookupRequest Request(
         string term,
         string sourceLanguage,
-        string explanationLanguage) => new(
+        string explanationLanguage) => Request(
         term,
-        term.ToLowerInvariant(),
-        TokenKind.Word,
         sourceLanguage,
-        explanationLanguage);
+        string.Equals(sourceLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
+            ? LexicalLookupMode.Definition
+            : LexicalLookupMode.DefinitionAndTranslation,
+        string.Equals(sourceLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : explanationLanguage);
+
+    private static LexicalLookupRequest Request(
+        string term,
+        string sourceLanguage,
+        LexicalLookupMode lookupMode,
+        string? targetLanguage) => new(
+        sourceLanguage,
+        lookupMode,
+        targetLanguage,
+        term,
+        TokenKind.Word,
+        WiktionaryLookupProvider.Name,
+        term,
+        term);
 
     private static LexicalResult SuccessResult(LexicalLookupRequest request) => new(
         LexicalLookupStatus.Success,
@@ -680,7 +1335,9 @@ public sealed class WiktionaryProviderTests
         request.Term,
         42,
         WiktionaryLookupProvider.AttributionText,
-        Now);
+        Now,
+        LookupMode: request.LookupMode,
+        TargetLanguage: request.TargetLanguage);
 
     private static HttpResponseMessage JsonResponse(string json) => new(HttpStatusCode.OK)
     {
@@ -748,6 +1405,8 @@ public sealed class WiktionaryProviderTests
     {
         public List<string> RequestedTerms { get; } = [];
 
+        public List<LexicalLookupRequest> Requests { get; } = [];
+
         public string ProviderName => WiktionaryLookupProvider.Name;
 
         public int ProviderSchemaVersion => WiktionaryLookupProvider.SchemaVersion;
@@ -757,6 +1416,7 @@ public sealed class WiktionaryProviderTests
             CancellationToken cancellationToken = default)
         {
             RequestedTerms.Add(request.Term);
+            Requests.Add(request);
             return Task.FromResult(resultFactory(request));
         }
     }

@@ -51,7 +51,15 @@ public static partial class ProviderFormRelationPolicy
             ?? Match(value, PastParticiplePattern(), GrammaticalRelationKind.PastParticiple, "past participle of")
             ?? Match(value, PresentParticiplePattern(), GrammaticalRelationKind.PresentParticiple, "present participle of")
             ?? Match(value, ComparativePattern(), GrammaticalRelationKind.Comparative, "comparative of")
-            ?? Match(value, SuperlativePattern(), GrammaticalRelationKind.Superlative, "superlative of");
+            ?? Match(value, SuperlativePattern(), GrammaticalRelationKind.Superlative, "superlative of")
+            ?? Match(value, GermanPluralPattern(), GrammaticalRelationKind.Plural, "plural of")
+            ?? Match(value, GermanSingularPattern(), GrammaticalRelationKind.Singular, "singular of")
+            ?? Match(value, GermanThirdPersonPattern(), GrammaticalRelationKind.ThirdPersonSingular, "third-person singular of")
+            ?? Match(value, GermanPastTensePattern(), GrammaticalRelationKind.PastTense, "past tense of")
+            ?? Match(value, GermanPastParticiplePattern(), GrammaticalRelationKind.PastParticiple, "past participle of")
+            ?? Match(value, GermanPresentParticiplePattern(), GrammaticalRelationKind.PresentParticiple, "present participle of")
+            ?? Match(value, GermanComparativePattern(), GrammaticalRelationKind.Comparative, "comparative of")
+            ?? Match(value, GermanSuperlativePattern(), GrammaticalRelationKind.Superlative, "superlative of");
     }
 
     private static ProviderFormRelation? Match(
@@ -94,4 +102,28 @@ public static partial class ProviderFormRelationPolicy
 
     [GeneratedRegex(@"^(?:the\s+)?superlative(?:\s+form)?\s+of\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SuperlativePattern();
+
+    [GeneratedRegex(@"^(?:(?:nominativ|genitiv|dativ|akkusativ)\s+)?plural\s+des\s+(?:substantivs|nomens)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanPluralPattern();
+
+    [GeneratedRegex(@"^(?:(?:nominativ|genitiv|dativ|akkusativ)\s+)?singular\s+des\s+(?:substantivs|nomens)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanSingularPattern();
+
+    [GeneratedRegex(@"^(?:\d+\.|erste|zweite|dritte)\s+person\s+singular(?:\s+[\p{L}\p{M}-]+){0,5}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanThirdPersonPattern();
+
+    [GeneratedRegex(@"^(?:präteritum|imperfekt)(?:\s+[\p{L}\p{M}-]+){0,4}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanPastTensePattern();
+
+    [GeneratedRegex(@"^(?:partizip\s+(?:ii|2)|partizip\s+perfekt)(?:\s+[\p{L}\p{M}-]+){0,4}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanPastParticiplePattern();
+
+    [GeneratedRegex(@"^(?:partizip\s+(?:i|1)|partizip\s+präsens)(?:\s+[\p{L}\p{M}-]+){0,4}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanPresentParticiplePattern();
+
+    [GeneratedRegex(@"^komparativ(?:form)?\s+(?:(?:des\s+adjektivs|von)\s+)?" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanComparativePattern();
+
+    [GeneratedRegex(@"^superlativ(?:form)?\s+(?:(?:des\s+adjektivs|von)\s+)?" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GermanSuperlativePattern();
 }

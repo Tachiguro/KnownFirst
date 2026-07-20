@@ -35,7 +35,11 @@ public sealed partial class TextAnalyzer
 
         var sentences = ExtractSentenceSpans(content);
         var extraction = ExtractOccurrences(content, sentences, sourceLanguage);
-        var candidates = extraction.Occurrences
+        var normalizedOccurrences = GermanVocabularyNormalizer.Normalize(
+            content,
+            sourceLanguage,
+            extraction.Occurrences);
+        var candidates = normalizedOccurrences
             .GroupBy(occurrence => occurrence.Identity, StringComparer.Ordinal)
             .Select(group =>
             {
@@ -58,7 +62,7 @@ public sealed partial class TextAnalyzer
             .OrderBy(candidate => candidate.Occurrences[0].Order)
             .ToArray();
 
-        var result = new TextAnalysisResult(sentences, candidates, extraction.Occurrences.Count);
+        var result = new TextAnalysisResult(sentences, candidates, normalizedOccurrences.Count);
 
 #if DEBUG
         var candidateGroups = candidates.Select(CreateCandidateGroupingAnalysis).ToArray();

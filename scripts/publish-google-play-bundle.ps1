@@ -48,8 +48,8 @@ if ([string]::IsNullOrWhiteSpace($javaHome)) {
     throw "An Android-compatible Java installation with jarsigner was not found."
 }
 
-$artifactRoot = Join-Path $projectRoot "artifacts\google-play-internal"
-$bundleName = "KnownFirst-0.1.0-beta.3-code3.aab"
+$artifactRoot = Join-Path $projectRoot "artifacts\android-google-play"
+$bundleName = "KnownFirst-1.0.0-beta.5-code5.aab"
 $bundlePath = Join-Path $artifactRoot $bundleName
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 if (Test-Path -LiteralPath $bundlePath) {
@@ -76,6 +76,7 @@ try {
         $projectPath,
         "-f", "net10.0-android",
         "-c", "Release",
+        "-m:1",
         "-p:AndroidPackageFormats=aab",
         "-p:AndroidKeyStore=true",
         "-p:AndroidSigningKeyStore=$KeystorePath",

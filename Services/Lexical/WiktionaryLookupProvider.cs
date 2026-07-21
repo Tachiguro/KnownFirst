@@ -13,7 +13,7 @@ namespace KnownFirst.Services.Lexical;
 public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
 {
     public const string Name = "Wiktionary";
-    public const int SchemaVersion = 4;
+    public const int SchemaVersion = 6;
     public const string UserAgent =
         "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only dictionary lookup)";
     public const string AttributionText =

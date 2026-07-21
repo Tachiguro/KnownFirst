@@ -596,6 +596,31 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public void Parser_DefinitionSanitizationExcludesNonContentAndKeepsExampleSeparate()
+    {
+        const string html = "<h2 id='English'>English</h2><h3>Noun</h3><ol><li>"
+            + "<span class='definition-wrapper'>"
+            + "<style>.mw-parser-output .defdate{font-size:smaller}</style>"
+            + "A genuine definition.</span>"
+            + "<span class='defdate'>[from 9th c.]</span>"
+            + "<span class='usage-label'>computing</span>"
+            + "<span class='example'>A dictionary example.</span>"
+            + "<script>window.navigationText = 'script content';</script>"
+            + "<noscript>noscript content</noscript>"
+            + "<nav>navigation content</nav>"
+            + "<aside class='maintenance-box'>maintenance content</aside>"
+            + "</li></ol>";
+
+        var parsed = new WiktionaryHtmlParser().ParseEntry(html, "en", "en");
+
+        var meaning = parsed.DirectMeanings.Single();
+        Assert.AreEqual("A genuine definition.", meaning.Definition);
+        Assert.AreEqual("A dictionary example.", meaning.Example);
+        Assert.AreEqual("Noun", meaning.PartOfSpeech);
+        CollectionAssert.AreEqual(new[] { "computing" }, meaning.UsageLabels.ToArray());
+    }
+
+    [TestMethod]
     public async Task Lookup_DiagnosticsRecordCacheHttpAndParserPhasesWithoutImportedContent()
     {
         const string privateDocument = "Complete private document that must remain local.";
@@ -1276,7 +1301,7 @@ public sealed class WiktionaryProviderTests
     [TestMethod]
     public void ProviderSchemaVersion_ChangesWhenHostAndParserSemanticsChange()
     {
-        Assert.AreEqual(4, WiktionaryLookupProvider.SchemaVersion);
+        Assert.AreEqual(6, WiktionaryLookupProvider.SchemaVersion);
     }
 
     private static WiktionaryLookupProvider CreateProvider(

@@ -429,7 +429,9 @@ public sealed partial class WiktionaryHtmlParser
         var exampleNode = item.QuerySelector(
             ".example, [data-example], .h-usage-example, .e-example, .ux");
         var definition = RemoveSenseMarker(Clean(
-            definitionNode?.TextContent ?? ExtractPrimaryText(item)));
+            definitionNode is null
+                ? ExtractDefinitionText(item)
+                : ExtractDefinitionText(definitionNode)));
         var translation = CleanNullable(translationNode?.TextContent);
         var example = CleanNullable(exampleNode?.TextContent);
         if (string.IsNullOrWhiteSpace(definition) && string.IsNullOrWhiteSpace(translation))
@@ -452,15 +454,31 @@ public sealed partial class WiktionaryHtmlParser
             labels));
     }
 
-    private static string ExtractPrimaryText(AngleElement item) => string.Concat(
-        item.ChildNodes
-            .Where(node => node is not AngleElement child || !IsExcludedDefinitionChild(child))
-            .Select(node => node.TextContent));
+    private static string ExtractDefinitionText(AngleElement element) => string.Concat(
+        element.ChildNodes.Select(ExtractDefinitionNodeText));
+
+    private static string ExtractDefinitionNodeText(AngleSharp.Dom.INode node)
+    {
+        if (node is not AngleElement element)
+        {
+            return node.TextContent;
+        }
+
+        return IsExcludedDefinitionChild(element)
+            ? string.Empty
+            : ExtractDefinitionText(element);
+    }
 
     private static bool IsExcludedDefinitionChild(AngleElement element) =>
-        element.TagName is "OL" or "UL" or "DL"
+        element.TagName is "OL" or "UL" or "DL" or "STYLE" or "SCRIPT" or "NOSCRIPT" or "TEMPLATE" or "NAV"
         || element.Matches(
-            ".translation, .translation-item, [data-translation], .example, [data-example], .h-usage-example, .e-example, .ux, .usage-label, .label, [data-label]")
+            ".translation, .translation-item, [data-translation], "
+            + ".example, [data-example], .h-usage-example, .e-example, .ux, "
+            + ".usage-label, .label, [data-label], .defdate, [data-definition-date], "
+            + ".etymology, [data-etymology], .mw-editsection, .citation, .noprint, "
+            + ".maintenance-box, .metadata, .ambox, .tmbox, .navbox, .catlinks, "
+            + ".sistersitebox, .inflection-table, .NavFrame, .NavContent, .toc, "
+            + "[hidden], [aria-hidden='true'], [role='navigation']")
         || element.TagName == "SUP" && HasClass(element, "reference");
 
     private static IReadOnlyList<AngleElement> GetDirectItems(

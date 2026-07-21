@@ -123,6 +123,30 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Preparation_MeaningSelectionUpdatesTheResultWhileClosingPreservesIt()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var closeStart = markup.IndexOf("private async Task CloseMeaningPickerAsync()", StringComparison.Ordinal);
+        var closeEnd = markup.IndexOf("private Task HandleMeaningPickerKeyDown", closeStart, StringComparison.Ordinal);
+        var selectStart = markup.IndexOf("private async Task SelectMeaningAsync(int meaningIndex)", StringComparison.Ordinal);
+        var selectEnd = markup.IndexOf("private async Task AcceptAsync()", selectStart, StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, closeStart);
+        Assert.IsGreaterThan(closeStart, closeEnd);
+        Assert.IsGreaterThanOrEqualTo(0, selectStart);
+        Assert.IsGreaterThan(selectStart, selectEnd);
+
+        var closeMethod = markup[closeStart..closeEnd];
+        var selectMethod = markup[selectStart..selectEnd];
+        Assert.DoesNotContain("ApplyMeaning", closeMethod);
+        Assert.DoesNotContain("SelectMeaningAsync", closeMethod);
+        Assert.Contains("_selectedMeaningIndex = meaningIndex", selectMethod);
+        Assert.Contains("PreparationService.SelectMeaningAsync", selectMethod);
+        Assert.Contains("ApplyMeaning(_item.Result.Meanings[meaningIndex])", selectMethod);
+        Assert.Contains("CloseMeaningPickerAsync", selectMethod);
+    }
+
+    [TestMethod]
     public void Preparation_ActionsRequireConfirmationAndRetryIsConditional()
     {
         var markup = LoadUi("PrepareWords.razor");

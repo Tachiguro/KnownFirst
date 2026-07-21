@@ -73,26 +73,26 @@ $packages = @(
     [pscustomobject]@{
         Configuration = "Release"
         Kind = "release"
-        BaseName = "KnownFirst-1.0.0-beta.5-android-release"
+        BaseName = "KnownFirst-1.0.0-beta.6-android-release"
         Title = "KnownFirst"
         PackageId = "com.tachiguro.knownfirst"
-        Version = "1.0.0-beta.5"
+        Version = "1.0.0-beta.6"
     },
     [pscustomobject]@{
         Configuration = "BetaDiagnostic"
         Kind = "diagnostic"
-        BaseName = "KnownFirst-1.0.0-beta.5-android-diagnostic"
+        BaseName = "KnownFirst-1.0.0-beta.6-android-diagnostic"
         Title = "KnownFirst Diagnostic"
         PackageId = "com.tachiguro.knownfirst.diagnostic"
-        Version = "1.0.0-beta.5-diagnostic"
+        Version = "1.0.0-beta.6-diagnostic"
     },
     [pscustomobject]@{
         Configuration = "Debug"
         Kind = "debug"
-        BaseName = "KnownFirst-1.0.0-beta.5-android-debug"
+        BaseName = "KnownFirst-1.0.0-beta.6-android-debug"
         Title = "KnownFirst Debug"
         PackageId = "com.tachiguro.knownfirst.debug"
-        Version = "1.0.0-beta.5-debug"
+        Version = "1.0.0-beta.6-debug"
     }
 )
 

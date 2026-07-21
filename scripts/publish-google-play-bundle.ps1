@@ -49,7 +49,7 @@ if ([string]::IsNullOrWhiteSpace($javaHome)) {
 }
 
 $artifactRoot = Join-Path $projectRoot "artifacts\android-google-play"
-$bundleName = "KnownFirst-1.0.0-beta.5-code5.aab"
+$bundleName = "KnownFirst-1.0.0-beta.6-code6.aab"
 $bundlePath = Join-Path $artifactRoot $bundleName
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 if (Test-Path -LiteralPath $bundlePath) {

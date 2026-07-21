@@ -49,8 +49,9 @@ public sealed class BuildIdentityService : IBuildIdentityService
 
         var suffix = Identity.IsDirty ? " \u00B7 DIRTY" : string.Empty;
         var configName = Identity.Configuration == "BetaDiagnostic" ? "Diagnostic" : "Debug";
+        var productPrefix = Identity.Product.EndsWith(configName) ? Identity.Product : $"{Identity.Product} {configName}";
         
-        return $"{Identity.Product} {configName} {Identity.Version} \u00B7 Build {Identity.BuildNumber} \u00B7 Commit {Identity.ShortCommitHash}{suffix}";
+        return $"{productPrefix} {Identity.Version} \u00B7 Build {Identity.BuildNumber} \u00B7 Commit {Identity.ShortCommitHash}{suffix}";
     }
 
     private static BuildIdentity CreateIdentity()

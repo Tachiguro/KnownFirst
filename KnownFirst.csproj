@@ -39,9 +39,9 @@
         <ApplicationId>com.tachiguro.knownfirst</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>1.0.0-beta.5</ApplicationDisplayVersion>
-        <ApplicationVersion>5</ApplicationVersion>
-        <PackageVersion>1.0.0-beta.5</PackageVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.6</ApplicationDisplayVersion>
+        <ApplicationVersion>6</ApplicationVersion>
+        <PackageVersion>1.0.0-beta.6</PackageVersion>
 
         <ApplicationDisplayVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">1.0.0</ApplicationDisplayVersion>
 
@@ -65,20 +65,20 @@
 
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic'">
         <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
-        <PackageVersion>1.0.0-beta.5-diagnostic</PackageVersion>
+        <PackageVersion>1.0.0-beta.6-diagnostic</PackageVersion>
         <DebugSymbols>true</DebugSymbols>
         <DebugType>portable</DebugType>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-        <PackageVersion>1.0.0-beta.5-debug</PackageVersion>
+        <PackageVersion>1.0.0-beta.6-debug</PackageVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>
-        <ApplicationDisplayVersion>1.0.0-beta.5-diagnostic</ApplicationDisplayVersion>
-        <ApplicationVersion>5</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.6-diagnostic</ApplicationDisplayVersion>
+        <ApplicationVersion>6</ApplicationVersion>
         <Optimize>true</Optimize>
         <PublishTrimmed>true</PublishTrimmed>
         <RunAOTCompilation>true</RunAOTCompilation>
@@ -91,8 +91,8 @@
     <PropertyGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Debug</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>
-        <ApplicationDisplayVersion>1.0.0-beta.5-debug</ApplicationDisplayVersion>
-        <ApplicationVersion>5</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.6-debug</ApplicationDisplayVersion>
+        <ApplicationVersion>6</ApplicationVersion>
         <Optimize>false</Optimize>
         <PublishTrimmed>false</PublishTrimmed>
         <RunAOTCompilation>false</RunAOTCompilation>

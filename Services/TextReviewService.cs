@@ -532,7 +532,9 @@ public sealed class TextReviewService(
 
         try
         {
-            var result = JsonSerializer.Deserialize<LexicalResult>(resultJson);
+            var result = JsonSerializer.Deserialize(
+                resultJson,
+                LexicalJsonSerializerContext.Default.LexicalResult);
             return result?.Meanings
                 .Select(meaning => string.IsNullOrWhiteSpace(meaning.Translation)
                     ? meaning.Definition

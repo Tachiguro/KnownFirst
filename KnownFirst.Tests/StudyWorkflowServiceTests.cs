@@ -10,6 +10,7 @@ using KnownFirst.Services.Study;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace KnownFirst.Tests;
 
@@ -159,6 +160,31 @@ public sealed class StudyWorkflowServiceTests
             connection.Table<MeaningEntity>().Where(candidate => candidate.WordId == item.WordId).FirstAsync());
         Assert.IsTrue(meaning.ConfirmedByUser);
         Assert.AreEqual("Definition for network", meaning.Definition);
+    }
+
+    [TestMethod]
+    public async Task Preparation_OnlineResultPersistenceRoundTripsWithoutJsonReflectionFallback()
+    {
+        Assert.IsFalse(JsonSerializer.IsReflectionEnabledByDefault);
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 1);
+
+        var lookedUp = await _preparation.LookupCurrentAsync();
+        var reloaded = await _preparation.GetCurrentAsync();
+        var request = _provider.LastRequest
+            ?? throw new AssertFailedException("The dictionary provider was not called.");
+        var cached = await new LexicalCacheRepository(_database).GetAsync(
+            request,
+            _provider.ProviderName,
+            _provider.ProviderSchemaVersion);
+
+        Assert.IsNotNull(lookedUp);
+        Assert.AreEqual(PreparationCandidateStatus.ResultReady, lookedUp.Status);
+        Assert.IsNotNull(reloaded?.Result);
+        Assert.AreEqual("Definition for network", reloaded.Result.Meanings.Single().Definition);
+        Assert.IsNotNull(cached);
+        Assert.IsTrue(cached.IsFromCache);
+        Assert.AreEqual("Definition for network", cached.Meanings.Single().Definition);
     }
 
     [TestMethod]
@@ -956,6 +982,27 @@ public sealed class StudyWorkflowServiceTests
 
         Assert.AreEqual(1, overview.PreparedNewItemCount);
         Assert.AreEqual(2, cardCount);
+    }
+
+    [TestMethod]
+    public async Task Preparation_AliasPersistenceFeedsLearningWithoutJsonReflectionFallback()
+    {
+        Assert.IsFalse(JsonSerializer.IsReflectionEnabledByDefault);
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync()
+            ?? throw new AssertFailedException("The preparation item was not created.");
+        await _preparation.AcceptAsync(
+            item.CandidateId,
+            ManualInput(item.Term) with { AcceptedAliases = ["net", "réseau"] },
+            CardDirectionPreference.MeaningToTerm);
+
+        var card = (await _learning.GetOrStartAsync()).Card
+            ?? throw new AssertFailedException("The learning card was not created.");
+        var result = await _learning.CheckSpellingAsync(card.QueueItemId, "réseau");
+
+        Assert.IsTrue(result.IsCorrect);
+        Assert.AreEqual("réseau", result.MatchedAlias);
     }
 
     [TestMethod]

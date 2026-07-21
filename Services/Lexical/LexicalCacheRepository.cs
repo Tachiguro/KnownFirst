@@ -2,7 +2,6 @@ using KnownFirst.Core.Preparation;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace KnownFirst.Services.Lexical;
 
@@ -10,11 +9,6 @@ public sealed class LexicalCacheRepository(
     IKnownFirstDatabase database,
     ILexicalDiagnosticLog? diagnosticLog = null) : ILexicalCacheRepository
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
-
     private readonly ILexicalDiagnosticLog _diagnosticLog =
         diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
 
@@ -42,7 +36,9 @@ public sealed class LexicalCacheRepository(
                 }
 
                 _diagnosticLog.Write(Event(request, provider, "cache.deserialize.start", "hit"));
-                var cachedResult = JsonSerializer.Deserialize<LexicalResult>(entity.ResultJson, SerializerOptions);
+                var cachedResult = JsonSerializer.Deserialize(
+                    entity.ResultJson,
+                    LexicalJsonSerializerContext.Default.LexicalResult);
                 _diagnosticLog.Write(Event(request, provider, "cache.deserialize.complete", "hit"));
                 return cachedResult is null
                     || !LexicalResultInvariantPolicy.HasReferenceData(cachedResult, request.LookupMode)
@@ -87,7 +83,9 @@ public sealed class LexicalCacheRepository(
                 var entity = connection.Table<LexicalCacheEntity>()
                     .FirstOrDefault(item => item.CacheKey == cacheKey);
                 _diagnosticLog.Write(Event(request, result.ProviderName, "cache.serialize.start"));
-                var serializedResult = JsonSerializer.Serialize(result with { IsFromCache = false }, SerializerOptions);
+                var serializedResult = JsonSerializer.Serialize(
+                    result with { IsFromCache = false },
+                    LexicalJsonSerializerContext.Default.LexicalResult);
                 _diagnosticLog.Write(Event(request, result.ProviderName, "cache.serialize.complete"));
                 if (entity is null)
                 {

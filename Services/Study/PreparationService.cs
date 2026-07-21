@@ -10,7 +10,6 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace KnownFirst.Services.Study;
@@ -22,10 +21,6 @@ public sealed partial class PreparationService(
     ILexicalDiagnosticLog? diagnosticLog = null) : IPreparationService
 {
     private const int MaximumContextSnapshots = 3;
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        Converters = { new JsonStringEnumConverter() }
-    };
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly object _prefetchSync = new();
     private readonly ILexicalDiagnosticLog _diagnosticLog =
@@ -244,7 +239,9 @@ public sealed partial class PreparationService(
                     ?? throw new InvalidOperationException("The preparation candidate no longer exists.");
                 EnsureCurrentCandidate(connection, candidate);
                 _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.start"));
-                candidate.ResultJson = JsonSerializer.Serialize(result, SerializerOptions);
+                candidate.ResultJson = JsonSerializer.Serialize(
+                    result,
+                    LexicalJsonSerializerContext.Default.LexicalResult);
                 _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.complete"));
                 candidate.SelectedMeaningIndex = 0;
                 candidate.Status = result.HasUsableData
@@ -382,7 +379,9 @@ public sealed partial class PreparationService(
                     Definition = input.Definition.Trim(),
                     DictionaryExample = input.DictionaryExample?.Trim() ?? string.Empty,
                     AdditionalNote = input.AdditionalNote?.Trim() ?? string.Empty,
-                    AcceptedAliasesJson = JsonSerializer.Serialize(aliases),
+                    AcceptedAliasesJson = JsonSerializer.Serialize(
+                        aliases,
+                        LexicalJsonSerializerContext.Default.StringArray),
                     TranslationOrDefinition = !string.IsNullOrWhiteSpace(input.Translation)
                         ? input.Translation.Trim()
                         : !string.IsNullOrWhiteSpace(input.Definition)
@@ -1029,7 +1028,9 @@ public sealed partial class PreparationService(
     private static LexicalResult? DeserializeResult(string resultJson) =>
         string.IsNullOrWhiteSpace(resultJson)
             ? null
-            : JsonSerializer.Deserialize<LexicalResult>(resultJson, SerializerOptions);
+            : JsonSerializer.Deserialize(
+                resultJson,
+                LexicalJsonSerializerContext.Default.LexicalResult);
 
     private static async Task<PreparationCandidateEntity?> FindCurrentCandidateAsync(
         SQLiteAsyncConnection connection,

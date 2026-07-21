@@ -136,10 +136,19 @@ public sealed class LexicalEnrichmentService(
         LexicalLookupRequest request,
         CancellationToken cancellationToken)
     {
-        var cached = await cache.GetAsync(
-            request,
-            provider.ProviderName,
-            provider.ProviderSchemaVersion);
+        LexicalResult? cached = null;
+        try
+        {
+            cached = await cache.GetAsync(
+                request,
+                provider.ProviderName,
+                provider.ProviderSchemaVersion);
+        }
+        catch (Exception exception)
+        {
+            _diagnosticLog.Write(Event(request, "enrichment.cache-read-failed", "read-failed"), exception);
+        }
+
         if (cached is not null)
         {
             return AddDiagnostics(cached, request, "cache-hit");
@@ -152,7 +161,16 @@ public sealed class LexicalEnrichmentService(
                 await provider.LookupAsync(request, cancellationToken));
             if (online.Status == LexicalLookupStatus.Success)
             {
-                await cache.SaveAsync(request, online, provider.ProviderSchemaVersion);
+                try
+                {
+                    await cache.SaveAsync(request, online, provider.ProviderSchemaVersion);
+                }
+                catch (Exception exception)
+                {
+                    _diagnosticLog.Write(
+                        Event(request, "enrichment.cache-write-failed", "write-failed"),
+                        exception);
+                }
             }
 
             var outcome = online.ErrorCode is null

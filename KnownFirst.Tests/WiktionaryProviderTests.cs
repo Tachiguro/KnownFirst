@@ -309,6 +309,46 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public async Task ProviderChain_CacheReadFailureFallsBackToProvider()
+    {
+        var request = Request("network", "en", "de");
+        var provider = new FakeDictionaryProvider(SuccessResult(request));
+        var diagnostics = new RecordingDiagnosticLog();
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new ThrowingCacheRepository(throwOnRead: true, throwOnWrite: false),
+            provider,
+            diagnostics);
+
+        var result = await service.EnrichAsync(request, "network", "network");
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.AreEqual(1, provider.CallCount);
+        Assert.IsTrue(diagnostics.Events.Any(item => item.Phase == "enrichment.cache-read-failed"));
+    }
+
+    [TestMethod]
+    public async Task ProviderChain_CacheWriteFailurePreservesOnlineResult()
+    {
+        var request = Request("network", "en", "de");
+        var provider = new FakeDictionaryProvider(SuccessResult(request));
+        var diagnostics = new RecordingDiagnosticLog();
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            new ThrowingCacheRepository(throwOnRead: false, throwOnWrite: true),
+            provider,
+            diagnostics);
+
+        var result = await service.EnrichAsync(request, "network", "network");
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.AreEqual(1, provider.CallCount);
+        Assert.IsTrue(diagnostics.Events.Any(item => item.Phase == "enrichment.cache-write-failed"));
+    }
+
+    [TestMethod]
     public async Task ProviderChain_ImportedExpansionOutranksExternalExpansion()
     {
         await using var database = new TemporaryKnownFirstDatabase("knownfirst-acronym-chain");
@@ -1444,5 +1484,24 @@ public sealed class WiktionaryProviderTests
             Requests.Add(request);
             return Task.FromResult(resultFactory(request));
         }
+    }
+
+    private sealed class ThrowingCacheRepository(
+        bool throwOnRead,
+        bool throwOnWrite) : ILexicalCacheRepository
+    {
+        public Task<LexicalResult?> GetAsync(
+            LexicalLookupRequest request,
+            string provider,
+            int providerSchemaVersion) => throwOnRead
+                ? throw new InvalidOperationException("Controlled cache read failure.")
+                : Task.FromResult<LexicalResult?>(null);
+
+        public Task SaveAsync(
+            LexicalLookupRequest request,
+            LexicalResult result,
+            int providerSchemaVersion) => throwOnWrite
+                ? throw new InvalidOperationException("Controlled cache write failure.")
+                : Task.CompletedTask;
     }
 }

@@ -218,6 +218,25 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Preparation_LookupBoundaryNormalizesUnexpectedFailureAndStopsAfterDisposal()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var lookupStart = markup.IndexOf("private async Task LookupAsync()", StringComparison.Ordinal);
+        var lookupEnd = markup.IndexOf("private async Task RetryAsync()", lookupStart, StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, lookupStart);
+        Assert.IsGreaterThan(lookupStart, lookupEnd);
+        var lookupMethod = markup[lookupStart..lookupEnd];
+        Assert.Contains("catch (Exception exception)", lookupMethod);
+        Assert.Contains("CreateLookupFailure(item)", lookupMethod);
+        Assert.Contains("finally", lookupMethod);
+        Assert.Contains("_isLookingUp = false", lookupMethod);
+        Assert.Contains("if (!_isDisposed)", lookupMethod);
+        Assert.Contains("_isDisposed = true", markup);
+        Assert.Contains("_lookupCancellation?.Cancel()", markup);
+    }
+
+    [TestMethod]
     public void Preparation_ManualEntryActionOpensUsableEditorAndSavesThroughService()
     {
         var markup = LoadUi("PrepareWords.razor");
@@ -535,16 +554,16 @@ public sealed class UiWorkflowContractTests
         var script = LoadUi("publish-android-test-packages.ps1");
 
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst</ApplicationId>", project);
-        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.6</ApplicationDisplayVersion>", project);
-        Assert.Contains("<ApplicationVersion>6</ApplicationVersion>", project);
-        Assert.Contains("<PackageVersion>1.0.0-beta.6</PackageVersion>", project);
+        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.7</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationVersion>7</ApplicationVersion>", project);
+        Assert.Contains("<PackageVersion>1.0.0-beta.7</PackageVersion>", project);
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>", project);
         Assert.Contains("<ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>", project);
-        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.6-diagnostic</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.7-diagnostic</ApplicationDisplayVersion>", project);
         Assert.Contains("<DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>", project);
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>", project);
         Assert.Contains("<ApplicationTitle>KnownFirst Debug</ApplicationTitle>", project);
-        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.6-debug</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.7-debug</ApplicationDisplayVersion>", project);
         Assert.Contains("<AndroidUseFastDeployment>false</AndroidUseFastDeployment>", project);
         Assert.Contains("<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>", project);
         Assert.Contains("<RunAOTCompilation>true</RunAOTCompilation>", project);

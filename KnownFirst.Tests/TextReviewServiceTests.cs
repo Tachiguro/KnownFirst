@@ -7,6 +7,7 @@ using KnownFirst.Models;
 using KnownFirst.Services;
 using SQLite;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace KnownFirst.Tests;
 
@@ -926,7 +927,11 @@ public sealed class TextReviewServiceTests
             Sessions = await connection.Table<ReviewSessionEntity>().OrderBy(item => item.Id).ToListAsync(),
             ReviewCandidates = await connection.Table<ReviewCandidateEntity>().OrderBy(item => item.Id).ToListAsync()
         };
-        return JsonSerializer.Serialize(state);
+        // This test-only snapshot remains reflection-based; production JSON is source-generated.
+        return JsonSerializer.Serialize(state, new JsonSerializerOptions
+        {
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+        });
     });
 
     private static ImportTextRequest CreateRequest(string content) => new(

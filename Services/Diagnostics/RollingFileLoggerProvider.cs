@@ -17,7 +17,8 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
     private const int MaximumExceptionDepth = 8;
 
     private static readonly UTF8Encoding Utf8WithoutBom = new(false);
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly DiagnosticsJsonSerializerContext SerializerContext = new(
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
     private static readonly Regex SensitiveAssignmentPattern = new(
         "(?i)\\b(password|passwd|secret|token|access[_-]?token|refresh[_-]?token|api[_-]?key)\\b\\s*[:=]\\s*(?:\"[^\"]*\"|'[^']*'|[^\\s,;]+)",
         RegexOptions.CultureInvariant,
@@ -164,7 +165,9 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
                 SanitizeText(message, MaximumMessageLength),
                 properties,
                 CreateException(exception, 0));
-            var serialized = JsonSerializer.Serialize(entry, SerializerOptions);
+            var serialized = JsonSerializer.Serialize(
+                entry,
+                SerializerContext.DiagnosticLogEntry);
             var serializedBytes = Utf8WithoutBom.GetByteCount(serialized) + Environment.NewLine.Length;
 
             lock (_sync)
@@ -461,29 +464,4 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
         {
         }
     }
-
-    private sealed record DiagnosticLogEntry(
-        DateTimeOffset Timestamp,
-        string Level,
-        string? Category,
-        DiagnosticEvent EventId,
-        string ApplicationVersion,
-        string BuildConfiguration,
-        string TargetFramework,
-        string Platform,
-        string OperatingSystemVersion,
-        int ProcessId,
-        int ThreadId,
-        string SessionId,
-        string? Message,
-        IReadOnlyDictionary<string, string?> Properties,
-        DiagnosticException? Exception);
-
-    private sealed record DiagnosticEvent(int Id, string? Name);
-
-    private sealed record DiagnosticException(
-        string Type,
-        string? Message,
-        string? StackTrace,
-        DiagnosticException? InnerException);
 }

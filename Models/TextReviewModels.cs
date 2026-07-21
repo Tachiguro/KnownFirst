@@ -1,8 +1,8 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
+using KnownFirst.Services.Diagnostics;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace KnownFirst.Models;
 
@@ -258,15 +258,17 @@ public sealed record ReviewDiagnosticsSnapshot(
 
 public static class DiagnosticsReportFormatter
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
+    private static readonly DiagnosticsJsonSerializerContext SerializerContext = new(
+        new JsonSerializerOptions(DiagnosticsJsonSerializerContext.Default.Options)
+        {
+            WriteIndented = true
+        });
 
     public static string Format(ReviewDiagnosticsSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return JsonSerializer.Serialize(snapshot, SerializerOptions);
+        return JsonSerializer.Serialize(
+            snapshot,
+            SerializerContext.ReviewDiagnosticsSnapshot);
     }
 }

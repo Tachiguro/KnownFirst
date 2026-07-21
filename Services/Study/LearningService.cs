@@ -875,7 +875,9 @@ public sealed class LearningService : ILearningService
         {
             return string.IsNullOrWhiteSpace(json)
                 ? []
-                : JsonSerializer.Deserialize<string[]>(json) ?? [];
+                : JsonSerializer.Deserialize(
+                    json,
+                    LexicalJsonSerializerContext.Default.StringArray) ?? [];
         }
         catch (JsonException)
         {

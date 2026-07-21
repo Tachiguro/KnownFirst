@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
 
   <ItemGroup>
@@ -77,6 +78,7 @@
     <Compile Include="..\Services\IAppSettingsService.cs" Link="Production\Services\IAppSettingsService.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticLogOptions.cs" Link="Production\Services\Diagnostics\DiagnosticLogOptions.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticLogConfiguration.cs" Link="Production\Services\Diagnostics\DiagnosticLogConfiguration.cs" />
+    <Compile Include="..\Services\Diagnostics\DiagnosticsJsonSerializerContext.cs" Link="Production\Services\Diagnostics\DiagnosticsJsonSerializerContext.cs" />
     <Compile Include="..\Services\Diagnostics\RollingFileLoggerProvider.cs" Link="Production\Services\Diagnostics\RollingFileLoggerProvider.cs" />
     <Compile Include="..\Services\Diagnostics\AppDiagnosticsService.cs" Link="Production\Services\Diagnostics\AppDiagnosticsService.cs" />
     <Compile Include="..\Services\Diagnostics\BuildIdentity.cs" Link="Production\Services\Diagnostics\BuildIdentity.cs" />

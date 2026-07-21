@@ -5,6 +5,7 @@ using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
 using KnownFirst.Core.Workflow;
 using KnownFirst.Models;
+using System.Text.Json;
 
 namespace KnownFirst.Tests;
 
@@ -147,6 +148,111 @@ public sealed class MvpCorePolicyTests
         Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(
             LexicalLookupStatus.NotFound,
             "definition-not-found"));
+    }
+
+    [TestMethod]
+    public void LexicalJsonSerializerContext_RoundTripsUnicodeNullsAndFormRelations()
+    {
+        var expected = new LexicalResult(
+            LexicalLookupStatus.Success,
+            "häuser",
+            "Häuser",
+            TokenKind.Word,
+            "de",
+            "de",
+            null,
+            [new LexicalMeaning(
+                "bedeutung-1",
+                "Substantiv",
+                "Mehrere Gebäude – groß und bewohnt.",
+                null,
+                null,
+                ["regional", "übertragen"])],
+            "Wiktionary",
+            "de.wiktionary.org",
+            "Häuser",
+            123,
+            "Wiktionary attribution",
+            Now,
+            FormRelations:
+            [new ProviderFormRelation(
+                GrammaticalRelationKind.Plural,
+                "Haus",
+                "plural of")],
+            Diagnostics: new LexicalLookupDiagnostics(
+                "Häuser",
+                "Häuser",
+                "häuser",
+                "de",
+                LexicalLookupMode.Definition,
+                null,
+                "cache-key",
+                "provider-request",
+                "Success"),
+            LookupMode: LexicalLookupMode.Definition);
+
+        var json = JsonSerializer.Serialize(
+            expected,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+        var actual = JsonSerializer.Deserialize(
+            json,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+
+        Assert.Contains("\"Status\":\"Success\"", json);
+        Assert.IsNotNull(actual);
+        Assert.AreEqual(expected.DisplayTerm, actual.DisplayTerm);
+        var expectedMeaning = expected.Meanings.Single();
+        var actualMeaning = actual.Meanings.Single();
+        Assert.AreEqual(expectedMeaning.MeaningId, actualMeaning.MeaningId);
+        Assert.AreEqual(expectedMeaning.PartOfSpeech, actualMeaning.PartOfSpeech);
+        Assert.AreEqual(expectedMeaning.Definition, actualMeaning.Definition);
+        CollectionAssert.AreEqual(
+            expectedMeaning.UsageLabels.ToArray(),
+            actualMeaning.UsageLabels.ToArray());
+        Assert.AreEqual(expected.FormRelations!.Single(), actual.FormRelations!.Single());
+        Assert.IsNull(actual.TargetLanguage);
+        Assert.IsNull(actual.Meanings.Single().Translation);
+        Assert.IsNull(actual.Meanings.Single().Example);
+    }
+
+    [TestMethod]
+    public void LexicalJsonSerializerContext_RoundTripsEmptyCollectionsAndAliases()
+    {
+        var emptyResult = new LexicalResult(
+            LexicalLookupStatus.NotFound,
+            "missing",
+            "missing",
+            TokenKind.Word,
+            "en",
+            "en",
+            null,
+            [],
+            "Wiktionary",
+            "en.wiktionary.org",
+            "missing",
+            null,
+            string.Empty,
+            Now,
+            FormRelations: []);
+        string[] aliases = ["Netzwerk", "réseau", "网络"];
+
+        var resultJson = JsonSerializer.Serialize(
+            emptyResult,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+        var aliasJson = JsonSerializer.Serialize(
+            aliases,
+            LexicalJsonSerializerContext.Default.StringArray);
+        var resultRoundTrip = JsonSerializer.Deserialize(
+            resultJson,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+        var aliasRoundTrip = JsonSerializer.Deserialize(
+            aliasJson,
+            LexicalJsonSerializerContext.Default.StringArray);
+
+        Assert.IsNotNull(resultRoundTrip);
+        Assert.IsEmpty(resultRoundTrip.Meanings);
+        Assert.IsEmpty(resultRoundTrip.FormRelations!);
+        CollectionAssert.AreEqual(aliases, aliasRoundTrip);
     }
 
     [TestMethod]

@@ -4,8 +4,8 @@
 }
 
 .settings-card {
-    margin-top: 1rem;
-    padding: clamp(1.2rem, 4vw, 2rem);
+    margin-top: var(--space-4);
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-border);
     border-radius: 1.1rem;
     background: var(--color-surface);
@@ -13,14 +13,14 @@
 }
 
 .settings-card h2 {
-    margin: 0 0 1rem;
+    margin: 0 0 var(--space-4);
     word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-size: 1.2rem;
 }
 
 .choice-grid {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .choice-grid-two {
@@ -34,7 +34,7 @@
 .choice-button {
     min-width: 0;
     min-height: 3.5rem;
-    padding: 0.75rem;
+    padding: var(--space-3);
     word-break: normal; overflow-wrap: break-word; hyphens: auto;
     border: 1px solid var(--color-input-border);
     border-radius: 0.8rem;
@@ -58,11 +58,11 @@
 
 .field-group {
     display: grid;
-    gap: 0.5rem;
+    gap: var(--space-2);
 }
 
 .setting-help {
-    margin: -0.35rem 0 1rem;
+    margin: calc(-1 * var(--space-2)) 0 var(--space-4);
     color: var(--color-muted);
     line-height: 1.5;
 }
@@ -74,7 +74,7 @@
 .field-group select {
     width: 100%;
     min-height: 3.25rem;
-    padding: 0.7rem 2.5rem 0.7rem 0.85rem;
+    padding: var(--space-3) var(--space-8) var(--space-3) var(--space-4);
     border: 1px solid var(--color-input-border);
     border-radius: 0.7rem;
     background: var(--color-input-background);
@@ -92,12 +92,12 @@
 .button-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .setting-feedback {
-    margin: 1rem 0 0;
-    padding: 0.8rem 0.9rem;
+    margin: var(--space-4) 0 0;
+    padding: var(--space-3) var(--space-4);
     border: 1px solid;
     border-radius: 0.75rem;
     line-height: 1.4;
@@ -118,7 +118,7 @@
 .support-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .feature-placeholder {
@@ -126,9 +126,9 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    margin-top: 1rem;
-    padding: 1rem;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding: var(--space-4);
     border: 1px solid var(--color-border);
     border-radius: 0.8rem;
     background: var(--color-surface-muted);
@@ -160,7 +160,7 @@
 
 
 .destructive-confirmation {
-    padding: clamp(1.2rem, 4vw, 2rem);
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-danger-border);
     border-radius: 1.1rem;
     background: var(--color-danger-surface);

@@ -1,7 +1,7 @@
 ﻿.learning-card {
     display: grid;
-    gap: 1.15rem;
-    padding: clamp(1rem, 4vw, 1.8rem);
+    gap: var(--space-4);
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-border);
     border-radius: 1rem;
     background: var(--color-surface);
@@ -13,7 +13,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 
@@ -21,8 +21,8 @@
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    gap: 0.75rem;
-    margin-top: 1rem;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
     text-align: center;
 }
 
@@ -37,7 +37,7 @@
 .learning-context-block {
     display: grid;
     min-width: 0;
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .learning-progress progress {
@@ -52,14 +52,14 @@
 .meaning-prompt,
 .spelling-result,
 .permanent-confirmation {
-    padding: 1rem;
+    padding: var(--space-4);
     border-radius: 0.8rem;
     background: var(--color-surface-muted);
 }
 
 .spelling-form {
     display: grid;
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .spelling-input::placeholder {
@@ -82,7 +82,7 @@
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .spelling-result dt,
@@ -123,7 +123,7 @@
 
 
 .learn-action-bar {
-    padding: clamp(0.75rem, 3vw, 1.25rem);
+    padding: clamp(var(--space-3), 3vw, var(--space-4));
     border: 1px solid var(--color-border-strong);
     border-radius: 0.9rem;
     background: var(--color-surface);
@@ -135,11 +135,11 @@
 }
 
 .permanent-known-section {
-    margin-top: 1.5rem;
+    margin-top: var(--space-6);
 }
 
 .destructive-confirmation {
-    padding: clamp(1.2rem, 4vw, 2rem);
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-danger-border);
     border-radius: 1.1rem;
     background: var(--color-danger-surface);
@@ -149,4 +149,29 @@
 
 .destructive-confirmation p {
     margin-top: 0;
+}
+
+@media (max-width: 620px) {
+    .context-navigation {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .context-navigation span {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    .context-navigation .button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 320px) {
+    .context-navigation {
+        grid-template-columns: 1fr;
+    }
+
+    .context-navigation .button:last-child {
+        justify-self: stretch;
+    }
 }

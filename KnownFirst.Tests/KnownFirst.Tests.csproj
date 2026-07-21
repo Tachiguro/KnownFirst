@@ -27,6 +27,8 @@
     <None Include="..\Platforms\Windows\App.xaml.cs" Link="Ui\WindowsApp.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Layout\NavMenu.razor" Link="Ui\NavMenu.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Layout\MainLayout.razor" Link="Ui\MainLayout.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Layout\MainLayout.razor.css" Link="Ui\MainLayout.razor.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Layout\NavMenu.razor.css" Link="Ui\NavMenu.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Settings.razor" Link="Ui\Settings.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Learn.razor" Link="Ui\Learn.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\PrepareWords.razor" Link="Ui\PrepareWords.razor" CopyToOutputDirectory="PreserveNewest" />
@@ -34,9 +36,12 @@
     <None Include="..\Components\Pages\ReviewWords.razor.css" Link="Ui\ReviewWords.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Home.razor" Link="Ui\Home.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\ImportText.razor" Link="Ui\ImportText.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\ImportText.razor.css" Link="Ui\ImportText.razor.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\Learn.razor.css" Link="Ui\Learn.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Shared\AnswerView.razor" Link="Ui\AnswerView.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Shared\SourceDetails.razor" Link="Ui\SourceDetails.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Shared\PageHeader.razor.css" Link="Ui\PageHeader.razor.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\app.css" Link="Ui\app.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\Study\PreparationService.cs" Link="Ui\PreparationService.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\scripts\publish-android-test-packages.ps1" Link="Ui\publish-android-test-packages.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

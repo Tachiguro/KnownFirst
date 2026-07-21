@@ -278,13 +278,15 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("ReviewWords.razor");
         var styles = LoadUi("ReviewWords.razor.css");
+        var appStyles = LoadUi("app.css");
 
         Assert.Contains("<details class=\"candidate-details-panel\">", markup);
         Assert.DoesNotContain("<details class=\"candidate-details-panel\" open", markup);
         Assert.Contains("review-action-bar", markup);
         Assert.Contains("Review_Saving", markup);
-                Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", styles);
-        Assert.Contains("env(safe-area-inset-bottom)", styles);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", styles);
+        Assert.Contains("env(safe-area-inset-bottom)", appStyles);
+        Assert.DoesNotContain("env(safe-area-inset-bottom)", styles);
     }
 
     [TestMethod]
@@ -299,6 +301,93 @@ public sealed class UiWorkflowContractTests
         Assert.DoesNotContain("Localizer[\"App_Name\"]", home);
         Assert.AreEqual(1, CountOccurrences(home, "<h1>@Localizer[\"Home_Title\"]</h1>"));
         Assert.Contains("\"\" => string.Empty", layout);
+    }
+
+    [TestMethod]
+    public void Layout_UsesSharedSpacingScaleAndBoundedPageMargins()
+    {
+        var styles = LoadUi("app.css");
+
+        Assert.Contains("--space-1: 0.25rem", styles);
+        Assert.Contains("--space-2: 0.5rem", styles);
+        Assert.Contains("--space-3: 0.75rem", styles);
+        Assert.Contains("--space-4: 1rem", styles);
+        Assert.Contains("--space-6: 1.5rem", styles);
+        Assert.Contains("--space-8: 2rem", styles);
+        Assert.Contains("--space-12: 3rem", styles);
+        Assert.DoesNotContain("clamp(1rem, 6vw, 5rem)", styles);
+        Assert.DoesNotContain("4.5rem", styles);
+    }
+
+    [TestMethod]
+    public void Layout_OwnsTheViewportAndWorkflowsUseAvailableShellHeight()
+    {
+        var layoutStyles = LoadUi("MainLayout.razor.css");
+        var appStyles = LoadUi("app.css");
+
+        Assert.Contains("height: 100dvh", layoutStyles);
+        Assert.Contains("overflow: hidden", layoutStyles);
+        Assert.Contains("min-height: 0", layoutStyles);
+        Assert.Contains("overflow-y: auto", layoutStyles);
+        Assert.Contains("flex: 1 1 auto", appStyles);
+        Assert.DoesNotContain("100dvh - 6.5rem", appStyles);
+        Assert.DoesNotContain("100dvh - 5rem", appStyles);
+    }
+
+    [TestMethod]
+    public void MobileMenu_IsDismissibleOverlayAndLocksOnlyBackgroundContent()
+    {
+        var layout = LoadUi("MainLayout.razor");
+        var styles = LoadUi("MainLayout.razor.css");
+
+        Assert.Contains("navigation-backdrop", layout);
+        Assert.Contains("RegisterDismissibleOverlay", layout);
+        Assert.Contains("KeyboardEventArgs", layout);
+        Assert.Contains("Escape", layout);
+        Assert.Contains("inert=", layout);
+        Assert.Contains("position: fixed", styles);
+        Assert.Contains(".page.menu-open main", styles);
+        Assert.Contains(".navigation-backdrop", styles);
+    }
+
+    [TestMethod]
+    public void AppScrollAreas_HideChromeWithoutChangingTextareaBehavior()
+    {
+        var styles = LoadUi("app.css");
+
+        Assert.Contains(".content,", styles);
+        Assert.Contains(".workflow-scroll-area,", styles);
+        Assert.Contains(".nav-scrollable", styles);
+        Assert.Contains("scrollbar-width: none", styles);
+        Assert.Contains("::-webkit-scrollbar", styles);
+        Assert.DoesNotContain("textarea::-webkit-scrollbar", styles);
+        Assert.DoesNotContain("*::-webkit-scrollbar", styles);
+    }
+
+    [TestMethod]
+    public void ResponsiveWorkflows_KeepKeyboardScrollingAndNarrowContextActions()
+    {
+        var review = LoadUi("ReviewWords.razor");
+        var preparation = LoadUi("PrepareWords.razor");
+        var learning = LoadUi("Learn.razor");
+        var learningStyles = LoadUi("Learn.razor.css");
+
+        Assert.Contains("class=\"workflow-scroll-area\" tabindex=\"0\"", review);
+        Assert.Contains("class=\"workflow-scroll-area\" tabindex=\"0\"", preparation);
+        Assert.Contains("class=\"workflow-scroll-area\" tabindex=\"0\"", learning);
+        Assert.Contains("@media (max-width: 620px)", learningStyles);
+        Assert.Contains("grid-template-columns: 1fr 1fr", learningStyles);
+        Assert.Contains("@media (max-width: 320px)", learningStyles);
+    }
+
+    [TestMethod]
+    public void ImportText_StylesAreBalancedAndTextareaRemainsBounded()
+    {
+        var styles = LoadUi("ImportText.razor.css");
+
+        Assert.AreEqual(CountOccurrences(styles, "{"), CountOccurrences(styles, "}"));
+        Assert.Contains("overflow-y: auto", styles);
+        Assert.Contains("max-height:", styles);
     }
 
     [TestMethod]

@@ -1,9 +1,9 @@
 .home-hero {
-    padding: clamp(1rem, 4vw, 2.75rem) 0 1.5rem;
+    padding: clamp(var(--space-4), 4vw, var(--space-12)) 0 var(--space-6);
 }
 
 .eyebrow {
-    margin: 0 0 0.45rem;
+    margin: 0 0 var(--space-2);
     color: var(--color-primary);
     font-size: 0.85rem;
     font-weight: 800;
@@ -20,7 +20,7 @@ h1 {
 
 .subtitle {
     max-width: 42rem;
-    margin: 1rem 0 0;
+    margin: var(--space-4) 0 0;
     color: var(--color-muted);
     font-size: clamp(1.05rem, 3vw, 1.35rem);
     line-height: 1.5;
@@ -29,17 +29,17 @@ h1 {
 .action-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-    gap: 0.85rem;
-    margin: 1rem 0 2rem;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 var(--space-8);
 }
 
 .continue-review-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 1.25rem;
-    margin: 0 0 1.5rem;
-    padding: clamp(1.2rem, 4vw, 1.8rem);
+    gap: var(--space-6);
+    margin: 0 0 var(--space-6);
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 2px solid var(--color-primary);
     border-radius: 1rem;
     background: var(--color-primary-soft);
@@ -53,7 +53,7 @@ h1 {
 }
 
 .continue-review-card h2 {
-    margin-bottom: 0.6rem;
+    margin-bottom: var(--space-2);
 }
 
 .continue-review-card strong {
@@ -63,12 +63,12 @@ h1 {
 .continue-review-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .home-discard-confirmation {
     grid-column: 1 / -1;
-    padding-top: 1rem;
+    padding-top: var(--space-4);
     border-top: 1px solid var(--color-border-strong);
 }
 
@@ -77,8 +77,8 @@ h1 {
     min-height: 5rem;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1.15rem 1.25rem;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-6);
     border: 1px solid var(--color-border);
     border-radius: 1rem;
     background: var(--color-surface);
@@ -120,7 +120,7 @@ h1 {
 .statistics-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .statistic-card {
@@ -128,7 +128,7 @@ h1 {
     min-height: 8.5rem;
     flex-direction: column;
     justify-content: space-between;
-    padding: 1.15rem;
+    padding: var(--space-4);
     border: 1px solid var(--color-border);
     border-radius: 1rem;
     background: var(--color-surface-muted);

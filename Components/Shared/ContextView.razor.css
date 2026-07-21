@@ -1,5 +1,5 @@
 .learning-context {
-    padding: 1rem;
+    padding: var(--space-4);
     border-radius: 0.8rem;
     background: var(--color-surface-muted);
     line-height: 1.65;

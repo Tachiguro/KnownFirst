@@ -1,7 +1,7 @@
 .rating-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
-    gap: 0.75rem;
+    gap: var(--space-3);
 }
 
 .rating-again {

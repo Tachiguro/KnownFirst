@@ -3,6 +3,13 @@
     color-scheme: light;
     font-family: "Open Sans", "Segoe UI", sans-serif;
     font-synthesis: none;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
     --color-background: #f4f7f5;
     --color-surface: #ffffff;
     --color-surface-elevated: #ffffff;
@@ -81,12 +88,13 @@ body {
     margin: 0;
     height: 100%;
     min-height: 100%;
-    overflow-x: hidden;
+    overflow: hidden;
     background: var(--color-background);
     color: var(--color-text);
 }
 
 #app {
+    height: 100%;
     min-height: 100%;
 }
 
@@ -111,8 +119,9 @@ h1:focus {
 
 .app-theme-root {
     min-width: 0;
+    height: 100%;
     min-height: 100%;
-    overflow-x: hidden;
+    overflow: hidden;
     background: var(--color-background);
     color: var(--color-text);
     transition: background-color 120ms ease, color 120ms ease;
@@ -123,8 +132,8 @@ h1:focus {
     min-height: 3rem;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.15rem;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
     border: 1px solid transparent;
     border-radius: 0.75rem;
     cursor: pointer;
@@ -185,8 +194,8 @@ a:focus-visible {
     display: grid;
     min-height: 100%;
     place-content: center;
-    gap: 1rem;
-    padding: 2rem;
+    gap: var(--space-4);
+    padding: var(--space-8);
     text-align: center;
 }
 
@@ -199,9 +208,9 @@ a:focus-visible {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
-    margin: 1rem 0 0;
-    padding: 0.9rem 1rem;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 0;
+    padding: var(--space-3) var(--space-4);
     border-radius: 0.75rem;
 }
 
@@ -223,8 +232,8 @@ a:focus-visible {
 
 .placeholder-card {
     max-width: 44rem;
-    margin: clamp(1rem, 6vw, 5rem) auto;
-    padding: clamp(1.5rem, 5vw, 3rem);
+    margin: clamp(var(--space-4), 6vw, var(--space-12)) auto;
+    padding: clamp(var(--space-6), 5vw, var(--space-12));
     border: 1px solid var(--color-border);
     border-radius: 1.25rem;
     background: var(--color-surface);
@@ -276,37 +285,54 @@ a:focus-visible {
 
 .workflow-layout {
     display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
     flex-direction: column;
-    /* Height on mobile: 100dvh minus header (4rem) and padding (2 * 1.25rem) = 6.5rem */
-    height: calc(100dvh - 6.5rem);
-    margin: -1.25rem; /* Negate the .content padding so it stretches fully */
+    margin: calc(-1 * var(--space-4));
+    overflow: hidden;
 }
 
 .workflow-scroll-area {
-    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
     overflow-y: auto;
-    padding: 1.25rem;
+    overscroll-behavior: contain;
+    padding: var(--space-4);
 }
 
 .workflow-action-bar {
     flex: 0 0 auto;
-    padding: 1.25rem;
-    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    padding: var(--space-4);
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    background: var(--color-background);
+}
+
+.content,
+.workflow-scroll-area,
+.nav-scrollable {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.content::-webkit-scrollbar,
+.workflow-scroll-area::-webkit-scrollbar,
+.nav-scrollable::-webkit-scrollbar {
+    display: none;
 }
 
 @media (min-width: 800px) {
     .workflow-layout {
-        /* Desktop: .content padding is 2.5rem top/bottom, clamp(2rem, 5vw, 4.5rem) left/right */
-        height: calc(100dvh - 5rem);
-        margin: -2.5rem calc(-1 * clamp(2rem, 5vw, 4.5rem));
+        margin: calc(-1 * var(--space-8)) calc(-1 * clamp(var(--space-8), 5vw, var(--space-12)));
     }
 
     .workflow-scroll-area {
-        padding: 2.5rem clamp(2rem, 5vw, 4.5rem);
+        padding: var(--space-8) clamp(var(--space-8), 5vw, var(--space-12));
     }
 
     .workflow-action-bar {
-        padding: 1.25rem clamp(2rem, 5vw, 4.5rem);
-        padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+        padding: var(--space-4) clamp(var(--space-8), 5vw, var(--space-12));
+        padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
     }
 }

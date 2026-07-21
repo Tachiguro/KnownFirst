@@ -1216,7 +1216,7 @@
     <value>Cancel this batch? Accepted items remain prepared; unresolved and skipped items return to the preparation backlog.</value>
   </data>
   <data name="Prepare_DebugLookupDetails" xml:space="preserve">
-    <value>DEBUG lookup details</value>
+    <value>Lookup details</value>
   </data>
   <data name="Prepare_DebugDisplayedSurface" xml:space="preserve">
     <value>Displayed surface form</value>
@@ -1271,6 +1271,42 @@
   </data>
   <data name="Diagnostics_DiagnosticLogActionError" xml:space="preserve">
     <value>The diagnostic log action could not be completed.</value>
+  </data>
+  <data name="Diagnostics_DebugLabel" xml:space="preserve">
+    <value>DEBUG</value>
+  </data>
+  <data name="Diagnostics_DebugLearningTools" xml:space="preserve">
+    <value>Learning test tools</value>
+  </data>
+  <data name="Diagnostics_DebugLearningDescription" xml:space="preserve">
+    <value>The artificial clock exists only in this debug process. These controls do not change the device clock, stored due dates, or production intervals.</value>
+  </data>
+  <data name="Diagnostics_DebugCurrentTime" xml:space="preserve">
+    <value>Artificial UTC time</value>
+  </data>
+  <data name="Diagnostics_DebugTimeOffset" xml:space="preserve">
+    <value>Offset from device UTC</value>
+  </data>
+  <data name="Diagnostics_DebugMakeAllCardsDue" xml:space="preserve">
+    <value>Make all scheduled cards due</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceMinute" xml:space="preserve">
+    <value>Time +1 minute</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceHour" xml:space="preserve">
+    <value>Time +1 hour</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceDay" xml:space="preserve">
+    <value>Time +1 day</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceFourDays" xml:space="preserve">
+    <value>Time +4 days</value>
+  </data>
+  <data name="Diagnostics_DebugResetTime" xml:space="preserve">
+    <value>Reset debug time</value>
+  </data>
+  <data name="Diagnostics_DebugTimeUpdated" xml:space="preserve">
+    <value>Artificial time updated.</value>
   </data>
   <data name="ErrorBoundary_Title" xml:space="preserve">
     <value>Something went wrong</value>

@@ -135,8 +135,8 @@
                         && _item.Result?.Status == LexicalLookupStatus.NotFound
                         && _item.Result.Diagnostics is { } diagnostics)
                     {
-                        <details class="lookup-diagnostics">
-                            <summary>@Localizer["Prepare_DebugLookupDetails"]</summary>
+                        <details class="lookup-diagnostics debug-tools">
+                            <summary><span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span> @Localizer["Prepare_DebugLookupDetails"]</summary>
                             <dl>
                                 <div><dt>@Localizer["Prepare_DebugDisplayedSurface"]</dt><dd>@diagnostics.DisplayedSurfaceForm</dd></div>
                                 <div><dt>@Localizer["Prepare_DebugCanonicalTerm"]</dt><dd>@diagnostics.VocabularyCanonicalTerm</dd></div>

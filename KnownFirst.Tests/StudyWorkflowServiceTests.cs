@@ -88,6 +88,46 @@ public sealed class StudyWorkflowServiceTests
     }
 
     [TestMethod]
+    public void DebugLearningClock_AdvancesAndResetsArtificialTime()
+    {
+        var timeProvider = new FixedTimeProvider(Now);
+        var debugClock = new DebugLearningClock(timeProvider);
+
+        debugClock.Advance(TimeSpan.FromMinutes(1));
+        debugClock.AdvanceUntil(Now.AddHours(1));
+        debugClock.AdvanceUntil(Now.AddMinutes(30));
+
+        Assert.AreEqual(Now, timeProvider.GetUtcNow().UtcDateTime);
+        Assert.AreEqual(Now.AddHours(1), debugClock.UtcNow);
+        Assert.AreEqual(TimeSpan.FromHours(1), debugClock.Offset);
+
+        debugClock.Reset();
+
+        Assert.AreEqual(Now, debugClock.UtcNow);
+        Assert.AreEqual(TimeSpan.Zero, debugClock.Offset);
+    }
+
+    [TestMethod]
+    public async Task DebugLearningClock_AdvanceMakesFutureCardDueWithoutChangingStoredSchedule()
+    {
+        var storedDueAtUtc = Now.AddHours(1);
+        var debugClock = new DebugLearningClock(new FixedTimeProvider(Now));
+        var workflow = new WorkflowStateService(_database, debugClock);
+        await SeedDueCardAsync(storedDueAtUtc);
+
+        var before = await workflow.GetSnapshotAsync();
+        debugClock.Advance(TimeSpan.FromHours(1));
+        var after = await workflow.GetSnapshotAsync();
+        var persistedCard = await _database.ReadAsync(connection =>
+            connection.Table<LearningCardEntity>().FirstAsync());
+
+        Assert.AreEqual(0, before.DueCardCount);
+        Assert.AreEqual(1, after.DueCardCount);
+        Assert.AreEqual(WorkflowPrimaryAction.LearnDueCards, after.PrimaryAction);
+        Assert.AreEqual(storedDueAtUtc, persistedCard.DueAtUtc);
+    }
+
+    [TestMethod]
     public async Task Preparation_ExistingLearningCardsDoNotPreventLaterBacklog()
     {
         await ImportAllUnknownAsync("existing.");
@@ -1294,7 +1334,7 @@ public sealed class StudyWorkflowServiceTests
         return true;
     });
 
-    private Task SeedDueCardAsync() => _database.RunInTransactionAsync(connection =>
+    private Task SeedDueCardAsync(DateTime? dueAtUtc = null) => _database.RunInTransactionAsync(connection =>
     {
         var word = new WordEntity
         {
@@ -1326,7 +1366,7 @@ public sealed class StudyWorkflowServiceTests
             MeaningId = meaning.Id,
             Direction = CardDirection.TermToMeaning,
             State = CardState.Review,
-            DueAtUtc = Now.AddMinutes(-1),
+            DueAtUtc = dueAtUtc ?? Now.AddMinutes(-1),
             IntervalDays = 3,
             EaseFactor = 2.5,
             CreatedAtUtc = Now,

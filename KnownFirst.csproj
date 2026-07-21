@@ -143,6 +143,7 @@
     <ItemGroup Condition="'$(Configuration)' != 'Debug'">
         <Content Remove="Components\Pages\Diagnostics.razor" />
         <Content Remove="Components\Pages\Diagnostics.razor.css" />
+        <Compile Remove="Services\Study\DebugLearningClock.cs" />
         <RazorComponent Remove="Components\Pages\Diagnostics.razor" />
         <None Remove="Components\Pages\Diagnostics.razor" />
         <None Remove="Components\Pages\Diagnostics.razor.css" />

@@ -21,6 +21,56 @@
     margin-top: 0;
 }
 
+.diagnostic-section.debug-tools {
+    border-color: var(--color-debug-border);
+    background: var(--color-debug-surface);
+    color: var(--color-debug-text);
+}
+
+.diagnostic-section.debug-tools h2,
+.diagnostic-section.debug-tools h3,
+.diagnostic-section.debug-tools p,
+.diagnostic-section.debug-tools dt,
+.diagnostic-section.debug-tools dd {
+    color: var(--color-debug-text);
+}
+
+.debug-time-status {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: var(--space-3);
+    margin: var(--space-4) 0;
+}
+
+.debug-time-status div {
+    min-width: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-debug-border);
+    border-radius: 0.65rem;
+    background: rgba(255, 255, 255, 0.42);
+}
+
+.debug-time-status dt {
+    font-weight: 800;
+}
+
+.debug-time-status dd {
+    margin: var(--space-1) 0 0;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, Consolas, monospace;
+}
+
+.debug-time-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.debug-time-feedback {
+    font-weight: 800;
+}
+
 .diagnostic-value {
     word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-family: ui-monospace, Consolas, monospace;
@@ -140,7 +190,8 @@
 }
 
 @media (max-width: 620px) {
-    .diagnostic-actions .button {
+    .diagnostic-actions .button,
+    .debug-time-actions .button {
         width: 100%;
     }
 }

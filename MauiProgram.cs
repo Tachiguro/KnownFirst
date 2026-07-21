@@ -57,7 +57,13 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISentenceSegmenter, DeterministicSentenceSegmenter>();
         builder.Services.AddSingleton<TextAnalyzer>();
         builder.Services.AddSingleton<ITextReviewService, TextReviewService>();
+#if DEBUG
+        builder.Services.AddSingleton<DebugLearningClock>(_ => new(TimeProvider.System));
+        builder.Services.AddSingleton<IClock>(services =>
+            services.GetRequiredService<DebugLearningClock>());
+#else
         builder.Services.AddSingleton<IClock, SystemClock>();
+#endif
         builder.Services.AddSingleton<ISpacedRepetitionScheduler, SimpleSpacedRepetitionScheduler>();
         builder.Services.AddSingleton<SpellingAnswerComparer>();
         builder.Services.AddSingleton<AcronymExpansionDetector>();

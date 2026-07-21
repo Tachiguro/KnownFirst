@@ -57,12 +57,15 @@
 
                 @if (IsDebugBuild)
                 {
-                    <button type="button"
-                            class="button button-secondary"
-                            disabled="@_isSaving"
-                            @onclick="OpenAnalysisDetails">
-                        @Localizer["Analysis_Details"]
-                    </button>
+                    <section class="review-debug-tools debug-tools" aria-label="@(Localizer["Diagnostics_DebugLabel"])">
+                        <button type="button"
+                                class="button button-debug"
+                                disabled="@_isSaving"
+                                @onclick="OpenAnalysisDetails">
+                            <span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span>
+                            @Localizer["Analysis_Details"]
+                        </button>
+                    </section>
                 }
 
                 @if (_candidate.Contexts.Count > 1)

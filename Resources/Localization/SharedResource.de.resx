@@ -1216,7 +1216,7 @@
     <value>Diesen Durchgang abbrechen? Übernommene Einträge bleiben vorbereitet; ungelöste und übersprungene Einträge kehren in den Vorbereitungsrückstand zurück.</value>
   </data>
   <data name="Prepare_DebugLookupDetails" xml:space="preserve">
-    <value>DEBUG-Abfragedetails</value>
+    <value>Abfragedetails</value>
   </data>
   <data name="Prepare_DebugDisplayedSurface" xml:space="preserve">
     <value>Angezeigte Oberflächenform</value>
@@ -1271,6 +1271,42 @@
   </data>
   <data name="Diagnostics_DiagnosticLogActionError" xml:space="preserve">
     <value>Die Diagnoselog-Aktion konnte nicht abgeschlossen werden.</value>
+  </data>
+  <data name="Diagnostics_DebugLabel" xml:space="preserve">
+    <value>DEBUG</value>
+  </data>
+  <data name="Diagnostics_DebugLearningTools" xml:space="preserve">
+    <value>Lernzeit-Testwerkzeuge</value>
+  </data>
+  <data name="Diagnostics_DebugLearningDescription" xml:space="preserve">
+    <value>Die künstliche Uhr existiert nur in diesem Debug-Prozess. Diese Steuerelemente ändern weder die Geräteuhr noch gespeicherte Fälligkeiten oder Produktionsintervalle.</value>
+  </data>
+  <data name="Diagnostics_DebugCurrentTime" xml:space="preserve">
+    <value>Künstliche UTC-Zeit</value>
+  </data>
+  <data name="Diagnostics_DebugTimeOffset" xml:space="preserve">
+    <value>Abweichung von der Geräte-UTC-Zeit</value>
+  </data>
+  <data name="Diagnostics_DebugMakeAllCardsDue" xml:space="preserve">
+    <value>Alle geplanten Karten fällig machen</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceMinute" xml:space="preserve">
+    <value>Zeit +1 Minute</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceHour" xml:space="preserve">
+    <value>Zeit +1 Stunde</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceDay" xml:space="preserve">
+    <value>Zeit +1 Tag</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceFourDays" xml:space="preserve">
+    <value>Zeit +4 Tage</value>
+  </data>
+  <data name="Diagnostics_DebugResetTime" xml:space="preserve">
+    <value>Debug-Zeit zurücksetzen</value>
+  </data>
+  <data name="Diagnostics_DebugTimeUpdated" xml:space="preserve">
+    <value>Die künstliche Zeit wurde aktualisiert.</value>
   </data>
   <data name="ErrorBoundary_Title" xml:space="preserve">
     <value>Ein Fehler ist aufgetreten</value>

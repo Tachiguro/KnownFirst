@@ -576,6 +576,40 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("Diagnostics_ClearDiagnosticLog", settings);
     }
 
+    [TestMethod]
+    public void DebugLearningTools_AreClearlyMarkedAndExcludedFromRelease()
+    {
+        var diagnostics = LoadUi("Diagnostics.razor");
+        var settings = LoadUi("Settings.razor");
+        var preparation = LoadUi("PrepareWords.razor");
+        var review = LoadUi("ReviewWords.razor");
+        var navigation = LoadUi("NavMenu.razor");
+        var styles = LoadUi("app.css");
+        var project = LoadUi("KnownFirst.csproj");
+        var startup = LoadUi("MauiProgram.cs");
+
+        Assert.Contains("@inject DebugLearningClock DebugLearningClock", diagnostics);
+        Assert.Contains("Diagnostics_DebugLearningTools", diagnostics);
+        Assert.Contains("AdvanceDebugTime", diagnostics);
+        Assert.Contains("MakeAllCardsDue", diagnostics);
+        Assert.Contains("ResetDebugTime", diagnostics);
+        Assert.Contains("class=\"debug-label\"", diagnostics);
+        Assert.Contains("class=\"button button-debug\"", diagnostics);
+        Assert.Contains("settings-card debug-tools", settings);
+        Assert.Contains("lookup-diagnostics debug-tools", preparation);
+        Assert.Contains("review-debug-tools debug-tools", review);
+        Assert.Contains("class=\"button button-debug\"", review);
+        Assert.Contains("nav-link debug-nav-link", navigation);
+        Assert.Contains("Diagnostics_DebugLabel", navigation);
+        Assert.Contains(".button-debug", styles);
+        Assert.Contains("--color-debug-text", styles);
+        Assert.Contains("#if DEBUG", startup);
+        Assert.Contains("AddSingleton<DebugLearningClock>", startup);
+        Assert.Contains("AddSingleton<IClock, SystemClock>", startup);
+        Assert.Contains("<Compile Remove=\"Services\\Study\\DebugLearningClock.cs\" />", project);
+        Assert.Contains("Condition=\"'$(Configuration)' != 'Debug'\"", project);
+    }
+
     private static string LoadUi(string fileName) => File.ReadAllText(Path.Combine(
         AppContext.BaseDirectory,
         "Ui",

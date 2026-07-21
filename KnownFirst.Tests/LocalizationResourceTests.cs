@@ -401,7 +401,19 @@ public sealed class LocalizationResourceTests
         "Diagnostics_DiagnosticReportCopied",
         "Diagnostics_DiagnosticLogExported",
         "Diagnostics_DiagnosticLogCleared",
-        "Diagnostics_DiagnosticLogActionError"
+        "Diagnostics_DiagnosticLogActionError",
+        "Diagnostics_DebugLabel",
+        "Diagnostics_DebugLearningTools",
+        "Diagnostics_DebugLearningDescription",
+        "Diagnostics_DebugCurrentTime",
+        "Diagnostics_DebugTimeOffset",
+        "Diagnostics_DebugMakeAllCardsDue",
+        "Diagnostics_DebugAdvanceMinute",
+        "Diagnostics_DebugAdvanceHour",
+        "Diagnostics_DebugAdvanceDay",
+        "Diagnostics_DebugAdvanceFourDays",
+        "Diagnostics_DebugResetTime",
+        "Diagnostics_DebugTimeUpdated"
     ];
 
     [TestMethod]

@@ -11,6 +11,13 @@ internal sealed class FakeClock(DateTime utcNow) : IClock
     public void Advance(TimeSpan duration) => UtcNow = UtcNow.Add(duration);
 }
 
+internal sealed class FixedTimeProvider(DateTime utcNow) : TimeProvider
+{
+    private readonly DateTimeOffset _utcNow = new(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc));
+
+    public override DateTimeOffset GetUtcNow() => _utcNow;
+}
+
 internal sealed class TemporaryKnownFirstDatabase : IKnownFirstDatabase, IAsyncDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);

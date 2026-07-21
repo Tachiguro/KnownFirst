@@ -58,6 +58,25 @@
     color: var(--color-navigation-active-text);
 }
 
+.nav-list ::deep .nav-link.debug-nav-link,
+.nav-list ::deep .nav-link.debug-nav-link:hover,
+.nav-list ::deep .nav-link.debug-nav-link.active {
+    gap: var(--space-2);
+    border: 1px solid var(--color-debug-border);
+    background: var(--color-debug);
+    color: var(--color-debug-text);
+}
+
+.nav-list ::deep .nav-link.debug-nav-link:hover,
+.nav-list ::deep .nav-link.debug-nav-link.active {
+    background: var(--color-debug-hover);
+}
+
+.nav-list ::deep .nav-link.debug-nav-link .debug-label {
+    border-color: var(--color-debug-text);
+    background: transparent;
+}
+
 .nav-list .nav-link-disabled {
     flex-wrap: wrap;
     cursor: not-allowed;

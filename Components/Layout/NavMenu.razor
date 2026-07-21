@@ -58,7 +58,8 @@
             </NavLink>
             @if (IsDebugBuild)
             {
-                <NavLink class="nav-link" href="diagnostics" @onclick="NotifyNavigationAsync">
+                <NavLink class="nav-link debug-nav-link" href="diagnostics" @onclick="NotifyNavigationAsync">
+                    <span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span>
                     @Localizer["Navigation_Diagnostics"]
                 </NavLink>
             }

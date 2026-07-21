@@ -34,6 +34,11 @@
     --color-danger-contrast: #ffffff;
     --color-danger-surface: #fff3f2;
     --color-danger-border: #e2b5b1;
+    --color-debug: #f4bd4f;
+    --color-debug-hover: #e5a92f;
+    --color-debug-surface: #fff1bd;
+    --color-debug-border: #a96b00;
+    --color-debug-text: #2d1b00;
     --color-navigation-background: #123f31;
     --color-navigation-text: #dbe9e3;
     --color-navigation-hover: rgba(255, 255, 255, 0.1);
@@ -72,6 +77,11 @@
     --color-danger-contrast: #260e0d;
     --color-danger-surface: #3a2121;
     --color-danger-border: #74423f;
+    --color-debug: #f4bd4f;
+    --color-debug-hover: #ffd06f;
+    --color-debug-surface: #e8b94f;
+    --color-debug-border: #ffd87d;
+    --color-debug-text: #211400;
     --color-navigation-background: #0d2b22;
     --color-navigation-text: #d4e4dc;
     --color-navigation-hover: rgba(255, 255, 255, 0.09);
@@ -179,6 +189,31 @@ a:focus-visible {
 
 .button-secondary:hover {
     border-color: var(--color-border-strong);
+}
+
+.button-debug {
+    border-color: var(--color-debug-border);
+    background: var(--color-debug);
+    color: var(--color-debug-text);
+}
+
+.button-debug:hover {
+    background: var(--color-debug-hover);
+    color: var(--color-debug-text);
+}
+
+.debug-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.16rem 0.42rem;
+    border: 1px solid var(--color-debug-border);
+    border-radius: 0.35rem;
+    background: var(--color-debug);
+    color: var(--color-debug-text);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
 }
 
 .button-danger {

@@ -197,17 +197,17 @@
 
     @if (DiagnosticsEnabled)
     {
-        <section class="settings-card" aria-labelledby="lexical-diagnostics-title">
-            <h2 id="lexical-diagnostics-title">@Localizer["Diagnostics_LexicalLogTitle"]</h2>
+        <section class="settings-card debug-tools" aria-labelledby="lexical-diagnostics-title">
+            <h2 id="lexical-diagnostics-title"><span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span> @Localizer["Diagnostics_LexicalLogTitle"]</h2>
             <p>@Localizer["Diagnostics_LexicalLogDescription"]</p>
             <div class="support-actions">
-                <button type="button" class="button button-secondary" disabled="@_isChangingDiagnostics" @onclick="CopyLexicalDiagnosticReportAsync">
+                <button type="button" class="button button-debug" disabled="@_isChangingDiagnostics" @onclick="CopyLexicalDiagnosticReportAsync">
                     @Localizer["Diagnostics_CopyDiagnosticReport"]
                 </button>
-                <button type="button" class="button button-secondary" disabled="@_isChangingDiagnostics" @onclick="ExportLexicalDiagnosticLogAsync">
+                <button type="button" class="button button-debug" disabled="@_isChangingDiagnostics" @onclick="ExportLexicalDiagnosticLogAsync">
                     @Localizer["Diagnostics_ExportDiagnosticLog"]
                 </button>
-                <button type="button" class="button button-secondary" disabled="@_isChangingDiagnostics" @onclick="ClearLexicalDiagnosticLogAsync">
+                <button type="button" class="button button-debug" disabled="@_isChangingDiagnostics" @onclick="ClearLexicalDiagnosticLogAsync">
                     @Localizer["Diagnostics_ClearDiagnosticLog"]
                 </button>
             </div>

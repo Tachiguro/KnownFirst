@@ -157,3 +157,14 @@
         width: 100%;
     }
 }
+
+.settings-card.debug-tools {
+    border-color: var(--color-debug-border);
+    background: var(--color-debug-surface);
+    color: var(--color-debug-text);
+}
+
+.settings-card.debug-tools h2,
+.settings-card.debug-tools p {
+    color: var(--color-debug-text);
+}

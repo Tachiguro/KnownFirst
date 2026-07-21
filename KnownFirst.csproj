@@ -39,11 +39,11 @@
         <ApplicationId>com.tachiguro.knownfirst</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>0.1.0-beta.3</ApplicationDisplayVersion>
-        <ApplicationVersion>3</ApplicationVersion>
-        <PackageVersion>0.1.0-beta.3</PackageVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.5</ApplicationDisplayVersion>
+        <ApplicationVersion>5</ApplicationVersion>
+        <PackageVersion>1.0.0-beta.5</PackageVersion>
 
-        <ApplicationDisplayVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">0.1.0</ApplicationDisplayVersion>
+        <ApplicationDisplayVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">1.0.0</ApplicationDisplayVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>
@@ -65,20 +65,20 @@
 
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic'">
         <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
-        <PackageVersion>0.1.0-beta.3-diagnostic</PackageVersion>
+        <PackageVersion>1.0.0-beta.5-diagnostic</PackageVersion>
         <DebugSymbols>true</DebugSymbols>
         <DebugType>portable</DebugType>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-        <PackageVersion>0.1.0-beta.3-debug</PackageVersion>
+        <PackageVersion>1.0.0-beta.5-debug</PackageVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>
-        <ApplicationDisplayVersion>0.1.0-beta.3-diagnostic</ApplicationDisplayVersion>
-        <ApplicationVersion>3</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.5-diagnostic</ApplicationDisplayVersion>
+        <ApplicationVersion>5</ApplicationVersion>
         <Optimize>true</Optimize>
         <PublishTrimmed>true</PublishTrimmed>
         <RunAOTCompilation>true</RunAOTCompilation>
@@ -91,8 +91,8 @@
     <PropertyGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Debug</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>
-        <ApplicationDisplayVersion>0.1.0-beta.3-debug</ApplicationDisplayVersion>
-        <ApplicationVersion>3</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.5-debug</ApplicationDisplayVersion>
+        <ApplicationVersion>5</ApplicationVersion>
         <Optimize>false</Optimize>
         <PublishTrimmed>false</PublishTrimmed>
         <RunAOTCompilation>false</RunAOTCompilation>

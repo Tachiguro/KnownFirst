@@ -293,6 +293,21 @@ a:focus-visible {
     overflow: hidden;
 }
 
+.destructive-confirmation {
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
+    border: 1px solid var(--color-danger-border);
+    border-radius: 1.1rem;
+    background: var(--color-danger-surface);
+    box-shadow: var(--shadow-card);
+    color: var(--color-danger);
+    scroll-margin-block: var(--space-4);
+}
+
+.destructive-confirmation h3:first-child,
+.destructive-confirmation p:first-child {
+    margin-top: 0;
+}
+
 .workflow-scroll-area {
     min-width: 0;
     min-height: 0;

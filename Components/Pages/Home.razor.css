@@ -68,8 +68,6 @@ h1 {
 
 .home-discard-confirmation {
     grid-column: 1 / -1;
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--color-border-strong);
 }
 
 .action-card {

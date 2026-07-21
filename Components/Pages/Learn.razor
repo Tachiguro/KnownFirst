@@ -118,18 +118,23 @@
                 }
             }
 
-            <section class="permanent-known-section" @ref="_permanentKnownConfirmationRef">
+            <section class="permanent-known-section">
                 @if (!_showPermanentKnownConfirmation)
                 {
-                    <button type="button" class="button button-danger permanent-known" disabled="@_isBusy" @onclick="ShowPermanentKnownConfirmationAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
+                    <button type="button" class="button button-danger permanent-known" disabled="@_isBusy" @ref="_permanentKnownButtonRef" @onclick="ShowPermanentKnownConfirmationAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
                 }
                 else
                 {
-                    <div class="destructive-confirmation">
+                    <div class="destructive-confirmation"
+                         role="alertdialog"
+                         aria-labelledby="permanent-known-confirmation-title"
+                         @ref="_permanentKnownConfirmationRef"
+                         @onkeydown="HandlePermanentKnownDialogKeyDown">
+                        <h3 id="permanent-known-confirmation-title">@Localizer["Learn_MarkPermanentlyKnown"]</h3>
                         <p>@Localizer["Learn_PermanentKnownConfirmation"]</p>
                         <div class="button-row">
-                            <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelPermanentKnown">@Localizer["Common_Cancel"]</button>
-                            <button type="button" class="button button-danger" disabled="@_isBusy" @onclick="ConfirmPermanentKnownAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_permanentKnownCancelButtonRef" @onclick="CancelPermanentKnownAsync">@Localizer["Common_Cancel"]</button>
+                            <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isBusy" @onclick="ConfirmPermanentKnownAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
                         </div>
                     </div>
                 }
@@ -185,7 +190,7 @@
     }
     </div>
 
-    @if (_card is not null)
+    @if (_card is not null && !_showPermanentKnownConfirmation)
     {
         <div class="workflow-action-bar">
             <section class="learn-action-bar">
@@ -240,7 +245,9 @@
     private bool _showPermanentKnownConfirmation;
     private bool _focusContinueAfterRender;
     private ElementReference _continueButton;
+    private ElementReference _permanentKnownButtonRef;
     private ElementReference _permanentKnownConfirmationRef;
+    private ElementReference _permanentKnownCancelButtonRef;
 
     private LearningContext? CurrentContext => _card is null || _card.Contexts.Count == 0
         ? null
@@ -425,21 +432,29 @@
         }
     }
 
-        private async Task ShowPermanentKnownConfirmationAsync()
+    private async Task ShowPermanentKnownConfirmationAsync()
     {
         _showPermanentKnownConfirmation = true;
-        await Task.Yield();
+        await InvokeAsync(StateHasChanged);
         await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _permanentKnownConfirmationRef);
+        await JsRuntime.InvokeVoidAsync("knownFirst.focusElement", _permanentKnownCancelButtonRef);
     }
-    private void CancelPermanentKnown() => _showPermanentKnownConfirmation = false;
+
+    private async Task CancelPermanentKnownAsync()
+    {
+        _showPermanentKnownConfirmation = false;
+        await InvokeAsync(StateHasChanged);
+        await JsRuntime.InvokeVoidAsync("knownFirst.focusElement", _permanentKnownButtonRef);
+    }
+
+    private Task HandlePermanentKnownDialogKeyDown(KeyboardEventArgs eventArgs) =>
+        IsEscape(eventArgs) ? CancelPermanentKnownAsync() : Task.CompletedTask;
 
     private Task HandleLearningKeyDown(KeyboardEventArgs eventArgs)
     {
-        if ((string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal) || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal))
-            && _showPermanentKnownConfirmation)
+        if (IsEscape(eventArgs) && _showPermanentKnownConfirmation)
         {
-            CancelPermanentKnown();
-            return Task.CompletedTask;
+            return CancelPermanentKnownAsync();
         }
 
         if ((string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal) || string.Equals(eventArgs.Key, " ", StringComparison.Ordinal))
@@ -459,6 +474,10 @@
         }
         return Task.CompletedTask;
     }
+
+    private static bool IsEscape(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+        || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal);
 
     private static string CreateSpellingPlaceholder(string term)
     {

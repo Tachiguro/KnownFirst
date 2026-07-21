@@ -157,17 +157,3 @@
         width: 100%;
     }
 }
-
-
-.destructive-confirmation {
-    padding: clamp(var(--space-4), 4vw, var(--space-8));
-    border: 1px solid var(--color-danger-border);
-    border-radius: 1.1rem;
-    background: var(--color-danger-surface);
-    color: var(--color-danger);
-    box-shadow: var(--shadow-card);
-}
-
-.destructive-confirmation p {
-    margin-top: 0;
-}

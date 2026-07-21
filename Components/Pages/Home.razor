@@ -25,26 +25,30 @@
             <p>@Localizer["Home_ContinueReviewDescription", _activeReview.DocumentTitle]</p>
             <strong>@Localizer["Home_ReviewProgress", _activeReview.ReviewedCount, _activeReview.TotalCandidates]</strong>
         </div>
-        <div class="continue-review-actions">
-            <a class="button button-primary" href="review-words" @onkeydown:stopPropagation="true">@Localizer["Home_ContinueReviewAction"]</a>
-            @if (!_showDiscardConfirmation)
-            {
-                <button type="button" class="button button-danger" disabled="@_isDiscarding" @onkeydown:stopPropagation="true" @onclick="ShowDiscardConfirmation">
+        @if (!_showDiscardConfirmation)
+        {
+            <div class="continue-review-actions">
+                <a class="button button-primary" href="review-words" @onkeydown:stopPropagation="true">@Localizer["Home_ContinueReviewAction"]</a>
+                <button type="button" class="button button-danger" disabled="@_isDiscarding" @ref="_discardButtonRef" @onkeydown:stopPropagation="true" @onclick="ShowDiscardConfirmationAsync">
                     @Localizer["Review_DiscardAction"]
                 </button>
-            }
-        </div>
+            </div>
+        }
 
         @if (_showDiscardConfirmation)
         {
-            <div class="home-discard-confirmation" role="alertdialog" aria-labelledby="home-discard-title">
+            <div class="destructive-confirmation home-discard-confirmation"
+                 role="alertdialog"
+                 aria-labelledby="home-discard-title"
+                 @ref="_discardConfirmationRef"
+                 @onkeydown="HandleDiscardDialogKeyDown">
                 <h3 id="home-discard-title">@Localizer["Review_DiscardTitle"]</h3>
                 <p>@Localizer["Review_DiscardMessage"]</p>
                 <div class="continue-review-actions">
-                    <button type="button" class="button button-secondary" disabled="@_isDiscarding" @onkeydown:stopPropagation="true" @onclick="CancelDiscard">
+                    <button type="button" class="button button-secondary" disabled="@_isDiscarding" @ref="_discardCancelButtonRef" @onclick="CancelDiscardAsync">
                         @Localizer["Common_Cancel"]
                     </button>
-                    <button type="button" class="button button-danger" disabled="@_isDiscarding" @onkeydown:stopPropagation="true" @onclick="DiscardAsync">
+                    <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isDiscarding" @onclick="DiscardAsync">
                         @Localizer["Review_DiscardConfirm"]
                     </button>
                 </div>
@@ -154,6 +158,9 @@ else
     private bool _showDiscardConfirmation;
     private bool _isDiscarding;
     private bool _discardFailed;
+    private ElementReference _discardButtonRef;
+    private ElementReference _discardConfirmationRef;
+    private ElementReference _discardCancelButtonRef;
 
     private bool IsReviewBlocked => _activeReview is not null;
 
@@ -183,13 +190,24 @@ else
         }
     }
 
-    private void ShowDiscardConfirmation()
+    private async Task ShowDiscardConfirmationAsync()
     {
         _discardFailed = false;
         _showDiscardConfirmation = true;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _discardConfirmationRef);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _discardCancelButtonRef);
     }
 
-    private void CancelDiscard() => _showDiscardConfirmation = false;
+    private async Task CancelDiscardAsync()
+    {
+        _showDiscardConfirmation = false;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _discardButtonRef);
+    }
+
+    private Task HandleDiscardDialogKeyDown(KeyboardEventArgs eventArgs) =>
+        IsEscape(eventArgs) ? CancelDiscardAsync() : Task.CompletedTask;
 
     private async Task DiscardAsync()
     {
@@ -217,13 +235,24 @@ else
         }
     }
 
-    private void HandleKeyDown(KeyboardEventArgs eventArgs)
+    private Task HandleKeyDown(KeyboardEventArgs eventArgs)
     {
+        if (IsEscape(eventArgs) && _showDiscardConfirmation)
+        {
+            return CancelDiscardAsync();
+        }
+
         if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
             && _activeReview is not null
             && !_showDiscardConfirmation)
         {
             Navigation.NavigateTo("review-words");
         }
+
+        return Task.CompletedTask;
     }
+
+    private static bool IsEscape(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+        || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal);
 }

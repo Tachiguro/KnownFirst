@@ -122,14 +122,14 @@
             }
             else if (_item.Status == PreparationCandidateStatus.Failed && !_showEditor)
             {
-                <div class="inline-message inline-message-error" role="alert">
+                <div class="inline-message inline-message-error" role="alert" @ref="_lookupFailureRef">
                     <p>@GetLookupFailureMessage()</p>
                     <div class="button-row">
                         @if (CanRetryLookup)
                         {
-                            <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="RetryAsync">@Localizer["Common_TryAgain"]</button>
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_retryButtonRef" @onclick="RetryAsync">@Localizer["Common_TryAgain"]</button>
                         }
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableManualEntry">@Localizer["Prepare_ManualEntry"]</button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_manualEntryButtonRef" @onclick="EnableManualEntryAsync">@Localizer["Prepare_ManualEntry"]</button>
                     </div>
                     @if (IsDebugBuild
                         && _item.Result?.Status == LexicalLookupStatus.NotFound
@@ -154,7 +154,7 @@
             }
             else if (_showEditor || _item.Method == PreparationMethod.Manual)
             {
-                <div class="editor-grid">
+                <div class="editor-grid" @ref="_editorRef">
                     <label>@Localizer["Prepare_CanonicalTerm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@_item.LearningTerm" /></label>
                     <label>@Localizer["Prepare_EncounteredForm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@(_item.EncounteredSurfaceForm ?? _item.Term)" /></label>
                     <label>
@@ -236,40 +236,54 @@
 
             }
 
-            <div class="preparation-disposition-actions" aria-label="@Localizer["Prepare_OtherActions"]">
-                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="ShowMarkKnownConfirmation">@Localizer["Prepare_MarkKnown"]</button>
-                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="ShowExcludeConfirmation">@Localizer["Prepare_DoNotLearn"]</button>
-                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="SkipAsync">@Localizer["Prepare_SkipForNow"]</button>
-            </div>
-
-            @if (_confirmationAction is not null)
+            @if (_confirmationAction is null && !_cancelConfirmationVisible)
             {
-                <section class="preparation-confirmation" role="alertdialog" aria-labelledby="preparation-confirmation-title">
+                <div class="preparation-disposition-actions" aria-label="@Localizer["Prepare_OtherActions"]">
+                    <button type="button" class="button button-danger" disabled="@_isBusy" @ref="_markKnownButtonRef" @onclick="ShowMarkKnownConfirmation">@Localizer["Prepare_MarkKnown"]</button>
+                    <button type="button" class="button button-danger" disabled="@_isBusy" @ref="_excludeButtonRef" @onclick="ShowExcludeConfirmation">@Localizer["Prepare_DoNotLearn"]</button>
+                    <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="SkipAsync">@Localizer["Prepare_SkipForNow"]</button>
+                </div>
+            }
+            else if (_confirmationAction is not null)
+            {
+                <section class="destructive-confirmation preparation-confirmation"
+                         role="alertdialog"
+                         aria-labelledby="preparation-confirmation-title"
+                         @ref="_dispositionConfirmationRef"
+                         @onkeydown="HandleDispositionKeyDown">
                     <h3 id="preparation-confirmation-title">@Localizer[_confirmationAction == PreparationCompletionAction.MarkKnown ? "Prepare_MarkKnown" : "Prepare_DoNotLearn"]</h3>
                     <p>@Localizer[_confirmationAction == PreparationCompletionAction.MarkKnown ? "Prepare_MarkKnownConfirmation" : "Prepare_DoNotLearnConfirmation"]</p>
                     <div class="button-row">
-                        <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="ConfirmDispositionAsync">@Localizer["Common_Confirm"]</button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelDisposition">@Localizer["Common_Cancel"]</button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_dispositionCancelButtonRef" @onclick="CancelDispositionAsync">@Localizer["Common_Cancel"]</button>
+                        <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isBusy" @onclick="ConfirmDispositionAsync">@Localizer["Common_Confirm"]</button>
                     </div>
                 </section>
             }
 
-            <section class="preparation-cancel-section" @ref="_cancelConfirmationRef">
-                @if (!_cancelConfirmationVisible)
-                {
-                    <button type="button" class="button button-secondary cancel-preparation" disabled="@_isBusy" @onclick="RequestCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
-                }
-                else
-                {
-                    <div class="destructive-confirmation">
-                        <p>@Localizer["Prepare_CancelPreparationConfirmation"]</p>
-                        <div class="button-row">
-                            <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelCancelPreparation">@Localizer["Common_Cancel"]</button>
-                            <button type="button" class="button button-danger" disabled="@_isBusy" @onclick="ConfirmCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
+            @if (_confirmationAction is null)
+            {
+                <section class="preparation-cancel-section">
+                    @if (!_cancelConfirmationVisible)
+                    {
+                        <button type="button" class="button button-danger cancel-preparation" disabled="@_isBusy" @ref="_cancelPreparationTriggerRef" @onclick="RequestCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
+                    }
+                    else
+                    {
+                        <div class="destructive-confirmation"
+                             role="alertdialog"
+                             aria-labelledby="cancel-preparation-confirmation-title"
+                             @ref="_cancelConfirmationRef"
+                             @onkeydown="HandleCancelPreparationDialogKeyDown">
+                            <h3 id="cancel-preparation-confirmation-title">@Localizer["Prepare_CancelPreparation"]</h3>
+                            <p>@Localizer["Prepare_CancelPreparationConfirmation"]</p>
+                            <div class="button-row">
+                                <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_cancelPreparationButtonRef" @onclick="CancelCancelPreparationAsync">@Localizer["Common_Cancel"]</button>
+                                <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isBusy" @onclick="ConfirmCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
+                            </div>
                         </div>
-                    </div>
-                }
-            </section>
+                    }
+                </section>
+            }
             @if (_saveFailed)
             {
                 <p class="inline-message inline-message-error" role="alert">@Localizer["Prepare_SaveError"]</p>
@@ -293,7 +307,7 @@
     }
     </div>
 
-    @if (_item is not null)
+    @if (_item is not null && _confirmationAction is null && !_cancelConfirmationVisible)
     {
         <div class="workflow-action-bar">
             <section class="preparation-action-bar">
@@ -301,7 +315,7 @@
                 {
                     <div class="button-row">
                         <button type="button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_SaveAndContinue"]</button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditing">@Localizer["Common_Cancel"]</button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditingAsync">@Localizer["Common_Cancel"]</button>
                     </div>
                 }
                 else if (_item.Result?.HasUsableData == true)
@@ -318,7 +332,7 @@
                                 <span>@Localizer["Prepare_AcceptAndContinue"]</span>
                             }
                         </button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="EnableEditing">@Localizer["Prepare_Edit"]</button>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_editButtonRef" @onclick="EnableEditingAsync">@Localizer["Prepare_Edit"]</button>
                     </div>
                 }
             </section>
@@ -386,6 +400,8 @@
     private bool _showTransitionSpinner;
     private bool _cancelConfirmationVisible;
     private bool _startingAutomatic;
+    private bool _revealLookupFailure;
+    private bool _editorOpenedFromLookupFailure;
     private int _contextIndex;
     private int _selectedMeaningIndex;
     private string _acronymExpansion = string.Empty;
@@ -399,7 +415,18 @@
     private ElementReference _meaningPickerButton;
     private ElementReference _meaningPickerDialog;
     private ElementReference _candidateHeading;
+    private ElementReference _lookupFailureRef;
+    private ElementReference _retryButtonRef;
+    private ElementReference _manualEntryButtonRef;
+    private ElementReference _editorRef;
+    private ElementReference _editButtonRef;
+    private ElementReference _markKnownButtonRef;
+    private ElementReference _excludeButtonRef;
+    private ElementReference _dispositionConfirmationRef;
+    private ElementReference _dispositionCancelButtonRef;
+    private ElementReference _cancelPreparationTriggerRef;
     private ElementReference _cancelConfirmationRef;
+    private ElementReference _cancelPreparationButtonRef;
     private ElementReference _acronymExpansionInput;
     private ElementReference _translationInput;
     private ElementReference _definitionInput;
@@ -434,6 +461,17 @@
             _definition = value;
             ClearUsefulAnswerValidationIfCorrected();
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_revealLookupFailure || _isBusy || _isLookingUp || _isLoading)
+        {
+            return;
+        }
+
+        _revealLookupFailure = false;
+        await RevealLookupFailureAsync();
     }
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
@@ -555,6 +593,7 @@
             {
                 _lookupCancellation = null;
                 _isLookingUp = false;
+                _revealLookupFailure = _item?.Status == PreparationCandidateStatus.Failed;
             }
 
             cancellation.Dispose();
@@ -783,6 +822,8 @@
     private void InitializeFields()
     {
         _showEditor = _item?.Method == PreparationMethod.Manual;
+        _editorOpenedFromLookupFailure = false;
+        _revealLookupFailure = false;
         _usefulAnswerMissing = false;
         _confirmationAction = null;
         _cancelConfirmationVisible = false;
@@ -864,30 +905,88 @@
         _ => Localizer["TokenKind_Word"]
     };
 
-    private void EnableEditing() => _showEditor = true;
-
-    private void EnableManualEntry()
+    private async Task EnableEditingAsync()
     {
+        _editorOpenedFromLookupFailure = false;
+        _showEditor = true;
+        await RevealEditorAsync();
+    }
+
+    private async Task EnableManualEntryAsync()
+    {
+        _editorOpenedFromLookupFailure = true;
         _showEditor = true;
         if (_item?.Result?.HasUsableData != true)
         {
             _definition = string.Empty;
         }
+
+        await RevealEditorAsync();
     }
 
-    private void CancelEditing()
+    private async Task CancelEditingAsync()
     {
-        _showEditor = false;
+        var openedFromLookupFailure = _editorOpenedFromLookupFailure;
         InitializeFields();
+        await InvokeAsync(StateHasChanged);
+
+        if (_item?.Method == PreparationMethod.Manual)
+        {
+            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetUsefulAnswerFocusTarget());
+            return;
+        }
+
+        await JavaScript.InvokeVoidAsync(
+            "knownFirst.focusElement",
+            openedFromLookupFailure ? _manualEntryButtonRef : _editButtonRef);
     }
 
-    private void ShowMarkKnownConfirmation() =>
-        _confirmationAction = PreparationCompletionAction.MarkKnown;
+    private Task ShowMarkKnownConfirmation() =>
+        ShowDispositionConfirmationAsync(PreparationCompletionAction.MarkKnown);
 
-    private void ShowExcludeConfirmation() =>
-        _confirmationAction = PreparationCompletionAction.Exclude;
+    private Task ShowExcludeConfirmation() =>
+        ShowDispositionConfirmationAsync(PreparationCompletionAction.Exclude);
 
-    private void CancelDisposition() => _confirmationAction = null;
+    private async Task ShowDispositionConfirmationAsync(PreparationCompletionAction action)
+    {
+        _confirmationAction = action;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _dispositionConfirmationRef);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _dispositionCancelButtonRef);
+    }
+
+    private async Task CancelDispositionAsync()
+    {
+        var action = _confirmationAction;
+        _confirmationAction = null;
+        await InvokeAsync(StateHasChanged);
+
+        if (action is not null)
+        {
+            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetDispositionTrigger(action.Value));
+        }
+    }
+
+    private ElementReference GetDispositionTrigger(PreparationCompletionAction action) =>
+        action == PreparationCompletionAction.MarkKnown ? _markKnownButtonRef : _excludeButtonRef;
+
+    private Task HandleDispositionKeyDown(KeyboardEventArgs eventArgs) =>
+        IsEscape(eventArgs) ? CancelDispositionAsync() : Task.CompletedTask;
+
+    private async Task RevealEditorAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _editorRef);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetUsefulAnswerFocusTarget());
+    }
+
+    private async Task RevealLookupFailureAsync()
+    {
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _lookupFailureRef);
+        await JavaScript.InvokeVoidAsync(
+            "knownFirst.focusElement",
+            CanRetryLookup ? _retryButtonRef : _manualEntryButtonRef);
+    }
 
     private void PreviousContext() => _contextIndex = Math.Max(0, _contextIndex - 1);
 
@@ -943,11 +1042,9 @@
         if (_overview.ActiveCompletedItems > 0 || (_item?.Position ?? 1) > 1)
         {
             _cancelConfirmationVisible = true;
-            _ = InvokeAsync(async () =>
-            {
-                await Task.Yield();
-                await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _cancelConfirmationRef);
-            });
+            await InvokeAsync(StateHasChanged);
+            await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _cancelConfirmationRef);
+            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _cancelPreparationButtonRef);
             return;
         }
 
@@ -984,7 +1081,15 @@
         }
     }
 
-    private void CancelCancelPreparation() => _cancelConfirmationVisible = false;
+    private async Task CancelCancelPreparationAsync()
+    {
+        _cancelConfirmationVisible = false;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _cancelPreparationTriggerRef);
+    }
+
+    private Task HandleCancelPreparationDialogKeyDown(KeyboardEventArgs eventArgs) =>
+        IsEscape(eventArgs) ? CancelCancelPreparationAsync() : Task.CompletedTask;
 
     private void CancelPreparation() => Navigation.NavigateTo(string.Empty);
 
@@ -1023,11 +1128,14 @@
 
     private Task HandleKeyDown(KeyboardEventArgs eventArgs)
     {
-        if ((string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal) || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal))
-            && _cancelConfirmationVisible)
+        if (IsEscape(eventArgs) && _confirmationAction is not null)
         {
-            CancelCancelPreparation();
-            return Task.CompletedTask;
+            return CancelDispositionAsync();
+        }
+
+        if (IsEscape(eventArgs) && _cancelConfirmationVisible)
+        {
+            return CancelCancelPreparationAsync();
         }
 
         if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
@@ -1044,6 +1152,10 @@
         }
         return Task.CompletedTask;
     }
+
+    private static bool IsEscape(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+        || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal);
 
     private enum PreparationCompletionAction
     {

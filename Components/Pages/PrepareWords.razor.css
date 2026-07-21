@@ -110,8 +110,7 @@
 
 .context-card,
 .lexical-result,
-.privacy-disclosure,
-.preparation-confirmation {
+.privacy-disclosure {
     min-width: 0;
     padding: var(--space-4);
     border-radius: 0.8rem;
@@ -297,14 +296,6 @@
     word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
-.preparation-confirmation {
-    border: 1px solid var(--color-border-strong);
-}
-
-.preparation-confirmation h3 {
-    margin-top: 0;
-}
-
 .transition-spinner {
     width: 1rem;
     height: 1rem;
@@ -367,17 +358,4 @@
 
 .preparation-cancel-section {
     margin-top: var(--space-6);
-}
-
-.destructive-confirmation {
-    padding: clamp(var(--space-4), 4vw, var(--space-8));
-    border: 1px solid var(--color-danger-border);
-    border-radius: 1.1rem;
-    background: var(--color-danger-surface);
-    color: var(--color-danger);
-    box-shadow: var(--shadow-card);
-}
-
-.destructive-confirmation p {
-    margin-top: 0;
 }

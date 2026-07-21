@@ -58,3 +58,11 @@ window.knownFirst = {
         }
     }
 };
+
+document.addEventListener("keydown", event => {
+    if (event.key === "Enter"
+        && event.target instanceof Element
+        && event.target.closest("[data-destructive-confirm]")) {
+        event.preventDefault();
+    }
+});

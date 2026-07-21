@@ -222,7 +222,7 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("PrepareWords.razor");
 
-        Assert.Contains("@onclick=\"EnableManualEntry\"", markup);
+        Assert.Contains("@onclick=\"EnableManualEntryAsync\"", markup);
         Assert.Contains("PreparationCandidateStatus.Failed && !_showEditor", markup);
         Assert.Contains("Prepare_CanonicalTerm", markup);
         Assert.Contains("Prepare_EncounteredForm", markup);
@@ -271,6 +271,83 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("PreparationSessionStatus.Cancelled", service);
         Assert.Contains("PreparationCandidateStatus.Cancelled", service);
         Assert.Contains("PreparationState.Unprepared", service);
+    }
+
+    [TestMethod]
+    public void DestructiveConfirmations_HideTriggersAndUseNeutralThenDangerActions()
+    {
+        var home = LoadUi("Home.razor");
+        var review = LoadUi("ReviewWords.razor");
+        var preparation = LoadUi("PrepareWords.razor");
+        var learning = LoadUi("Learn.razor");
+        var settings = LoadUi("Settings.razor");
+
+        Assert.Contains("if (_confirmationAction is null)", preparation);
+        Assert.Contains("class=\"destructive-confirmation preparation-confirmation\"", preparation);
+        Assert.Contains("button button-danger cancel-preparation", preparation);
+        Assert.Contains("button button-secondary", home);
+        Assert.Contains("button button-secondary", review);
+        Assert.Contains("button button-secondary", learning);
+        Assert.Contains("button button-secondary", settings);
+        Assert.Contains("_candidate is not null && !_showDiscardConfirmation", review);
+        Assert.Contains("_card is not null && !_showPermanentKnownConfirmation", learning);
+        Assert.Contains("_item is not null && _confirmationAction is null && !_cancelConfirmationVisible", preparation);
+        Assert.Contains("_confirmationAction is null && !_cancelConfirmationVisible", preparation);
+        Assert.Contains("data-destructive-confirm", home);
+        Assert.Contains("data-destructive-confirm", review);
+        Assert.AreEqual(2, CountOccurrences(preparation, "data-destructive-confirm"));
+        Assert.Contains("data-destructive-confirm", learning);
+        Assert.Contains("data-destructive-confirm", settings);
+    }
+
+    [TestMethod]
+    public void DestructiveConfirmations_RevealFocusCancelHandleEscapeAndRestoreTriggerFocus()
+    {
+        var home = LoadUi("Home.razor");
+        var review = LoadUi("ReviewWords.razor");
+        var preparation = LoadUi("PrepareWords.razor");
+        var learning = LoadUi("Learn.razor");
+        var settings = LoadUi("Settings.razor");
+
+        AssertConfirmationNavigation(home, "_discardConfirmationRef", "_discardCancelButtonRef", "_discardButtonRef");
+        AssertConfirmationNavigation(review, "_discardConfirmationRef", "_discardCancelButtonRef", "_discardButtonRef");
+        AssertConfirmationNavigation(learning, "_permanentKnownConfirmationRef", "_permanentKnownCancelButtonRef", "_permanentKnownButtonRef");
+        AssertConfirmationNavigation(settings, "_resetConfirmation", "_cancelResetButton", "_resetButton");
+        AssertConfirmationNavigation(preparation, "_cancelConfirmationRef", "_cancelPreparationButtonRef", "_cancelPreparationTriggerRef");
+        Assert.Contains("_dispositionConfirmationRef", preparation);
+        Assert.Contains("_dispositionCancelButtonRef", preparation);
+        Assert.Contains("HandleDispositionKeyDown", preparation);
+        Assert.Contains("GetDispositionTrigger", preparation);
+    }
+
+    [TestMethod]
+    public void Preparation_RevealsRetryAndManualEditorWithUsefulFocusTargets()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("@ref=\"_lookupFailureRef\"", markup);
+        Assert.Contains("@ref=\"_retryButtonRef\"", markup);
+        Assert.Contains("@ref=\"_manualEntryButtonRef\"", markup);
+        Assert.Contains("@ref=\"_editorRef\"", markup);
+        Assert.Contains("RevealLookupFailureAsync", markup);
+        Assert.Contains("RevealEditorAsync", markup);
+        Assert.Contains("knownFirst.revealElement", markup);
+        Assert.Contains("knownFirst.focusElement", markup);
+        Assert.Contains("GetUsefulAnswerFocusTarget", markup);
+    }
+
+    [TestMethod]
+    public void JavaScriptInterop_RevealsOnlyWhenNeededFocusesWithoutScrollingAndBlocksDestructiveEnter()
+    {
+        var script = LoadUi("knownfirst.js");
+
+        Assert.Contains("getBoundingClientRect()", script);
+        Assert.Contains("bounds.top >= 0 && bounds.bottom <= viewportHeight", script);
+        Assert.Contains("scrollIntoView({ behavior: \"smooth\", block: \"nearest\" })", script);
+        Assert.Contains("focus({ preventScroll: true })", script);
+        Assert.Contains("event.key === \"Enter\"", script);
+        Assert.Contains("closest(\"[data-destructive-confirm]\")", script);
+        Assert.Contains("event.preventDefault()", script);
     }
 
     [TestMethod]
@@ -515,5 +592,21 @@ public sealed class UiWorkflowContractTests
         }
 
         return count;
+    }
+
+    private static void AssertConfirmationNavigation(
+        string markup,
+        string confirmationReference,
+        string cancelReference,
+        string triggerReference)
+    {
+        Assert.Contains(confirmationReference, markup);
+        Assert.Contains(cancelReference, markup);
+        Assert.Contains(triggerReference, markup);
+        Assert.Contains("knownFirst.revealElement", markup);
+        Assert.IsTrue(
+            markup.Contains("knownFirst.focusElement", StringComparison.Ordinal)
+            || markup.Contains("FocusAsync", StringComparison.Ordinal));
+        Assert.Contains("Escape", markup);
     }
 }

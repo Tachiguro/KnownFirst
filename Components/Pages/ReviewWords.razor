@@ -98,22 +98,27 @@
                 }
             </article>
 
-            <section class="discard-import-section" @ref="_discardConfirmationRef">
+            <section class="discard-import-section">
                 @if (!_showDiscardConfirmation)
                 {
-                    <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="ShowDiscardConfirmationAsync">
+                    <button type="button" class="button button-danger" disabled="@_isSaving" @ref="_discardButtonRef" @onclick="ShowDiscardConfirmationAsync">
                         @Localizer["Review_Discard"]
                     </button>
                 }
                 else
                 {
-                    <div class="destructive-confirmation">
+                    <div class="destructive-confirmation"
+                         role="alertdialog"
+                         aria-labelledby="review-discard-confirmation-title"
+                         @ref="_discardConfirmationRef"
+                         @onkeydown="HandleDiscardDialogKeyDown">
+                        <h3 id="review-discard-confirmation-title">@Localizer["Review_DiscardTitle"]</h3>
                         <p>@Localizer["Review_DiscardMessage"]</p>
                         <div class="button-row">
-                            <button type="button" class="button button-secondary" disabled="@_isSaving" @onclick="CancelDiscard">
+                            <button type="button" class="button button-secondary" disabled="@_isSaving" @ref="_discardCancelButtonRef" @onclick="CancelDiscardAsync">
                                 @Localizer["Common_Cancel"]
                             </button>
-                            <button type="button" class="button button-danger" disabled="@_isSaving" @onclick="DiscardAsync">
+                            <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isSaving" @onclick="DiscardAsync">
                                 @Localizer["Review_DiscardConfirm"]
                             </button>
                         </div>
@@ -142,7 +147,7 @@
         }
     </div>
 
-    @if (_candidate is not null)
+    @if (_candidate is not null && !_showDiscardConfirmation)
     {
         <div class="workflow-action-bar">
             <section class="review-action-bar" aria-label="@Localizer["Review_Question"]">
@@ -185,7 +190,9 @@
     private bool _loadFailed;
     private bool _decisionFailed;
     private bool _showDiscardConfirmation;
+    private ElementReference _discardButtonRef;
     private ElementReference _discardConfirmationRef;
+    private ElementReference _discardCancelButtonRef;
 
     private static bool IsDebugBuild
     {
@@ -326,11 +333,20 @@
     private async Task ShowDiscardConfirmationAsync()
     {
         _showDiscardConfirmation = true;
-        await Task.Yield();
+        await InvokeAsync(StateHasChanged);
         await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _discardConfirmationRef);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _discardCancelButtonRef);
     }
 
-    private void CancelDiscard() => _showDiscardConfirmation = false;
+    private async Task CancelDiscardAsync()
+    {
+        _showDiscardConfirmation = false;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _discardButtonRef);
+    }
+
+    private Task HandleDiscardDialogKeyDown(KeyboardEventArgs eventArgs) =>
+        IsEscape(eventArgs) ? CancelDiscardAsync() : Task.CompletedTask;
 
     private async Task DiscardAsync()
     {
@@ -358,11 +374,9 @@
 
     private Task HandleKeyDown(KeyboardEventArgs eventArgs)
     {
-        if ((string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal) || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal))
-            && _showDiscardConfirmation)
+        if (IsEscape(eventArgs) && _showDiscardConfirmation)
         {
-            CancelDiscard();
-            return Task.CompletedTask;
+            return CancelDiscardAsync();
         }
 
         if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
@@ -374,4 +388,8 @@
         }
         return Task.CompletedTask;
     }
+
+    private static bool IsEscape(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+        || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal);
 }

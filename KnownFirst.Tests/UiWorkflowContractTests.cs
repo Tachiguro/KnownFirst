@@ -610,9 +610,101 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("Condition=\"'$(Configuration)' != 'Debug'\"", project);
     }
 
+    [TestMethod]
+    public void GuiTestMatrix_DefinesEveryRequiredViewportStateCheckAndScenario()
+    {
+        var matrix = LoadDocument("GUI_TEST_MATRIX.md");
+        var viewports = new[]
+        {
+            "1440 × 900",
+            "1280 × 900",
+            "960 × 900",
+            "600 × 900",
+            "480 × 900",
+            "412 × 915",
+            "360 × 800",
+            "320 × 700"
+        };
+        var states = new[]
+        {
+            "Home",
+            "Text Import — Empty",
+            "Text Import — Long Text",
+            "Vocabulary Review",
+            "Preparation — Mode Selection",
+            "Preparation — Online Loading",
+            "Preparation — Automatic Result",
+            "Preparation — Manual Editing",
+            "Preparation — Choose Another Meaning",
+            "Preparation — Finish",
+            "Learning — Answer Hidden",
+            "Learning — Answer Visible",
+            "Learning — Source Details Expanded",
+            "Settings",
+            "Settings — Reset Confirmation",
+            "Diagnostics",
+            "Burger Menu — Open",
+            "Burger Menu — Closed"
+        };
+        var checks = new[]
+        {
+            "Setup",
+            "Action",
+            "Expected visible state",
+            "Overlap check",
+            "Spacing check",
+            "Scroll check",
+            "Focus check",
+            "Screenshot",
+            "Android retest"
+        };
+        var scenarios = new[]
+        {
+            "A. House — English definition",
+            "B. Tree — English to German",
+            "C. Haus — German definition",
+            "D. Baum — German to English",
+            "E. Existing learning cards plus a new import",
+            "F. The same text in English and German",
+            "G. Invented word",
+            "H. Missing online consent",
+            "I. Cache hit and cache miss",
+            "J. Close and reopen the app"
+        };
+
+        foreach (var viewport in viewports)
+        {
+            Assert.Contains(viewport, matrix);
+        }
+
+        foreach (var state in states)
+        {
+            Assert.Contains(state, matrix);
+        }
+
+        foreach (var check in checks)
+        {
+            Assert.Contains(check, matrix);
+        }
+
+        foreach (var scenario in scenarios)
+        {
+            Assert.Contains(scenario, matrix);
+        }
+
+        Assert.Contains("Run every state at every required viewport", matrix);
+        Assert.Contains("Never confirm an automated full-data reset", matrix);
+        Assert.Contains("outside the repository", matrix);
+    }
+
     private static string LoadUi(string fileName) => File.ReadAllText(Path.Combine(
         AppContext.BaseDirectory,
         "Ui",
+        fileName));
+
+    private static string LoadDocument(string fileName) => File.ReadAllText(Path.Combine(
+        AppContext.BaseDirectory,
+        "Docs",
         fileName));
 
     private static int CountOccurrences(string value, string search)

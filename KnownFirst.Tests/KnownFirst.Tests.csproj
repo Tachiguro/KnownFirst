@@ -23,6 +23,7 @@
     <None Include="..\KnownFirst.csproj" Link="Ui\KnownFirst.csproj" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\MauiProgram.cs" Link="Ui\MauiProgram.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\Study\DebugLearningClock.cs" Link="Ui\DebugLearningClock.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\docs\GUI_TEST_MATRIX.md" Link="Docs\GUI_TEST_MATRIX.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\App.xaml.cs" Link="Ui\App.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\MainPage.xaml.cs" Link="Ui\MainPage.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Platforms\Windows\App.xaml.cs" Link="Ui\WindowsApp.xaml.cs" CopyToOutputDirectory="PreserveNewest" />

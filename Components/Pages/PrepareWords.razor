@@ -1,4 +1,4 @@
-﻿@page "/prepare-words"
+@page "/prepare-words"
 @inject IPreparationService PreparationService
 @inject IAppSettingsService AppSettings
 @inject INavigationHistoryService NavigationHistory
@@ -52,8 +52,18 @@
                 <p>@Localizer["Prepare_BatchDescription", Math.Min(_overview.UnpreparedCount, AppSettings.PreparationLimit)]</p>
                 <div class="method-grid">
                     <button type="button" class="method-card recommended" disabled="@_isBusy" @onclick="StartAutomaticAsync">
-                        <strong>@Localizer["Prepare_AutomaticOnline"]</strong>
-                        <span>@Localizer["Prepare_AutomaticRecommended"]</span>
+                        @if (_startingAutomatic)
+                        {
+                            <span class="preparation-transition-status">
+                                <span class="transition-spinner" aria-hidden="true"></span>
+                                <strong>@Localizer["Prepare_LoadingDictionaryData"]</strong>
+                            </span>
+                        }
+                        else
+                        {
+                            <strong>@Localizer["Prepare_AutomaticOnline"]</strong>
+                            <span>@Localizer["Prepare_AutomaticRecommended"]</span>
+                        }
                     </button>
                     <button type="button" class="method-card" disabled="@_isBusy" @onclick="StartManualAsync">
                         <strong>@Localizer["Prepare_MethodManual"]</strong>
@@ -184,7 +194,7 @@
                                 @ref="_meaningPickerButton"
                                 disabled="@_isBusy"
                                 @onclick="OpenMeaningPickerAsync">
-                            <span>@MeaningPreviewPolicy.CreateClosedPreview(_definition)</span>
+                            <span>@MeaningPreviewPolicy.CreateClosedPreview(MeaningPreviewPolicy.GetPrimaryTextForMode(_definition, _translation, _item.Result.LookupMode))</span>
                         </button>
                     }
                     <SourceDetails ProviderName="@_item.Result.ProviderName"
@@ -302,22 +312,25 @@
                 <button type="button" class="button button-secondary" @onclick="CloseMeaningPickerAsync">@Localizer["Common_Close"]</button>
             </header>
             <ul class="meaning-options" role="listbox" aria-labelledby="meaning-picker-title">
-                @for (var index = 0; index < result.Meanings.Count; index++)
+                @foreach (var selectableMeaning in MeaningPreviewPolicy.GetSelectableMeanings(result.Meanings, result.LookupMode))
                 {
-                    var meaningIndex = index;
-                    var meaning = result.Meanings[index];
+                    var meaningIndex = selectableMeaning.OriginalIndex;
                     <li role="none" class="meaning-option @(_selectedMeaningIndex == meaningIndex ? "selected" : null)">
                         <button type="button"
                                 role="option"
                                 aria-selected="@(_selectedMeaningIndex == meaningIndex)"
                                 @onclick="() => SelectMeaningAsync(meaningIndex)">
-                            @MeaningPreviewPolicy.CreateAlternativePreview(meaning.Definition)
+                            @if (!string.IsNullOrWhiteSpace(selectableMeaning.SecondaryText))
+                            {
+                                <small class="meaning-secondary">@selectableMeaning.SecondaryText</small>
+                            }
+                            <span class="meaning-primary">@selectableMeaning.PrimaryText</span>
                         </button>
-                        @if (MeaningPreviewPolicy.IsAlternativeTruncated(meaning.Definition))
+                        @if (selectableMeaning.IsTruncated)
                         {
                             <details>
                                 <summary>@Localizer["Common_ShowFullText"]</summary>
-                                <p>@meaning.Definition</p>
+                                <p>@selectableMeaning.FullText</p>
                             </details>
                         }
                     </li>
@@ -342,6 +355,7 @@
     private bool _isMeaningPickerOpen;
     private bool _showTransitionSpinner;
     private bool _cancelConfirmationVisible;
+    private bool _startingAutomatic;
     private int _contextIndex;
     private int _selectedMeaningIndex;
     private string _acronymExpansion = string.Empty;
@@ -400,7 +414,15 @@
             return;
         }
 
-        await StartAsync(PreparationMethod.AutomaticOnline);
+        _startingAutomatic = true;
+        try
+        {
+            await StartAsync(PreparationMethod.AutomaticOnline);
+        }
+        finally
+        {
+            _startingAutomatic = false;
+        }
     }
 
     private async Task ConfirmOnlineLookupAsync()

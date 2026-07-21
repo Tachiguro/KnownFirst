@@ -51,6 +51,57 @@ public sealed class MvpCorePolicyTests
     }
 
     [TestMethod]
+    public void MeaningPreview_DefinitionModeReturnsDefinition()
+    {
+        var primaryText = MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "ein Gebäude", LexicalLookupMode.Definition);
+        Assert.AreEqual("A building", primaryText);
+    }
+
+    [TestMethod]
+    public void MeaningPreview_TranslationModeReturnsTranslation()
+    {
+        var primaryText = MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "ein Gebäude", LexicalLookupMode.Translation);
+        Assert.AreEqual("ein Gebäude", primaryText);
+    }
+
+    [TestMethod]
+    public void MeaningPreview_CombinedModeReturnsCombination()
+    {
+        var primaryText = MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "ein Gebäude", LexicalLookupMode.DefinitionAndTranslation);
+        Assert.AreEqual("A building (ein Gebäude)", primaryText);
+    }
+
+    [TestMethod]
+    public void MeaningPreview_FallbackOmitsEmptyFieldsGracefully()
+    {
+        Assert.AreEqual("A building", MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "", LexicalLookupMode.DefinitionAndTranslation));
+        Assert.AreEqual("ein Gebäude", MeaningPreviewPolicy.GetPrimaryTextForMode("", "ein Gebäude", LexicalLookupMode.DefinitionAndTranslation));
+        Assert.AreEqual("A building", MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "", LexicalLookupMode.Translation));
+        Assert.AreEqual("ein Gebäude", MeaningPreviewPolicy.GetPrimaryTextForMode("", "ein Gebäude", LexicalLookupMode.Definition));
+    }
+
+    [TestMethod]
+    public void MeaningPreview_SelectableMeaningsFiltersAndDeduplicates()
+    {
+        var meanings = new[]
+        {
+            new LexicalMeaning("1", "noun", "A building", "ein Gebäude", null, []),
+            new LexicalMeaning("2", "noun", "A building", "ein Gebäude", null, []),
+            new LexicalMeaning("3", null, "", "", null, []),
+            new LexicalMeaning("4", "verb", "To house", "unterbringen", null, ["transitive"])
+        };
+
+        var result = MeaningPreviewPolicy.GetSelectableMeanings(meanings, LexicalLookupMode.DefinitionAndTranslation);
+
+        Assert.HasCount(2, result);
+        Assert.AreEqual("A building (ein Gebäude)", result[0].PrimaryText);
+        Assert.AreEqual("noun", result[0].SecondaryText);
+        
+        Assert.AreEqual("To house (unterbringen)", result[1].PrimaryText);
+        Assert.AreEqual("verb · transitive", result[1].SecondaryText);
+    }
+
+    [TestMethod]
     public void ProviderFormRelations_ResolveOnlyExplicitSupportedRelations()
     {
         Assert.AreEqual("system", ProviderFormRelationPolicy.Resolve("plural of system")!.BaseLemma);

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -703,7 +703,7 @@
     <value>Enter a definition before continuing.</value>
   </data>
   <data name="Prepare_SaveAndContinue" xml:space="preserve">
-    <value>Save and continue</value>
+    <value>Apply</value>
   </data>
   <data name="Prepare_SeveralMeanings" xml:space="preserve">
     <value>Several meanings may fit this context.</value>
@@ -712,7 +712,7 @@
     <value>Source: {0}, “{1}”</value>
   </data>
   <data name="Prepare_AcceptAndContinue" xml:space="preserve">
-    <value>Accept and continue</value>
+    <value>Apply</value>
   </data>
   <data name="Prepare_ChooseAnotherMeaning" xml:space="preserve">
     <value>Choose another meaning</value>
@@ -1277,5 +1277,8 @@
   </data>
   <data name="ErrorBoundary_Message" xml:space="preserve">
     <value>KnownFirst could not display this page. Navigate to another page or restart the application.</value>
+  </data>
+  <data name="Prepare_LoadingDictionaryData" xml:space="preserve">
+    <value>Loading dictionary data…</value>
   </data>
 </root>

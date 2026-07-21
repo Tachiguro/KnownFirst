@@ -1,4 +1,4 @@
-﻿.preparation-card {
+.preparation-card {
     display: grid;
     width: 100%;
     max-width: 100%;
@@ -235,6 +235,12 @@
     list-style: none;
     overflow-y: auto;
     overscroll-behavior: contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.meaning-options::-webkit-scrollbar {
+    display: none;
 }
 
 .meaning-option {

@@ -248,8 +248,7 @@
                 _completedSummary = result.Summary;
                 if (result.Summary?.UnknownCount > 0)
                 {
-                    var workflow = await WorkflowState.GetSnapshotAsync();
-                    Navigation.NavigateTo(workflow.CanLearn ? string.Empty : "prepare-words");
+                    Navigation.NavigateTo("prepare-words");
                 }
             }
             else

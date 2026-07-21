@@ -1,4 +1,4 @@
-﻿namespace KnownFirst.Tests;
+namespace KnownFirst.Tests;
 
 [TestClass]
 public sealed class UiWorkflowContractTests
@@ -10,6 +10,15 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("WordStatus.Known", markup);
         Assert.Contains("WordStatus.UnknownBacklog", markup);
         Assert.IsFalse(markup.Contains("WordStatus.Ignored", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void VocabularyReview_NavigatesToPreparationIfUnknownWordsExistRegardlessOfStudyState()
+    {
+        var markup = LoadUi("ReviewWords.razor");
+        Assert.Contains("Navigation.NavigateTo(\"prepare-words\")", markup);
+        Assert.DoesNotContain("Navigation.NavigateTo(workflow.CanLearn ? string.Empty : \"prepare-words\")", markup);
+        Assert.DoesNotContain("WorkflowState.GetSnapshotAsync()", markup);
     }
 
     [TestMethod]
@@ -101,8 +110,8 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("role=\"dialog\"", markup);
         Assert.Contains("role=\"listbox\"", markup);
         Assert.Contains("MeaningPreviewPolicy.CreateClosedPreview", markup);
-        Assert.Contains("MeaningPreviewPolicy.CreateAlternativePreview", markup);
-        Assert.Contains("MeaningPreviewPolicy.IsAlternativeTruncated", markup);
+        Assert.Contains("MeaningPreviewPolicy.GetSelectableMeanings", markup);
+        Assert.Contains("selectableMeaning.IsTruncated", markup);
         Assert.Contains("Escape", markup);
         Assert.Contains("RegisterDismissibleOverlay", markup);
         Assert.Contains("focusElement", markup);

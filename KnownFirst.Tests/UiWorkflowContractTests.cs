@@ -198,6 +198,26 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Preparation_LoadingStateIsImmediateAndIndependentOfCacheDuration()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var lookupStart = markup.IndexOf("private async Task LookupAsync()", StringComparison.Ordinal);
+        var lookupEnd = markup.IndexOf("private async Task RetryAsync()", lookupStart, StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, lookupStart);
+        Assert.IsGreaterThan(lookupStart, lookupEnd);
+        var lookupMethod = markup[lookupStart..lookupEnd];
+        Assert.Contains("_isLookingUp = true", lookupMethod);
+        Assert.Contains("await InvokeAsync(StateHasChanged)", lookupMethod);
+        Assert.Contains("PreparationService.LookupCurrentAsync", lookupMethod);
+        Assert.IsLessThan(
+            lookupMethod.IndexOf("PreparationService.LookupCurrentAsync", StringComparison.Ordinal),
+            lookupMethod.IndexOf("await InvokeAsync(StateHasChanged)", StringComparison.Ordinal));
+        Assert.Contains("<span class=\"transition-spinner\" aria-hidden=\"true\"></span>", markup);
+        Assert.Contains("if (_item is { Method: PreparationMethod.AutomaticOnline, Status: PreparationCandidateStatus.Pending })", markup);
+    }
+
+    [TestMethod]
     public void Preparation_ManualEntryActionOpensUsableEditorAndSavesThroughService()
     {
         var markup = LoadUi("PrepareWords.razor");
@@ -213,6 +233,29 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("await MoveNextAsync()", markup);
         Assert.Contains("knownFirst.revealElement", markup);
         Assert.Contains("knownFirst.focusElement", markup);
+    }
+
+    [TestMethod]
+    public void Preparation_UsefulAnswerValidationIsAdjacentRevealedFocusedAndClearsOnCorrection()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var definition = markup.IndexOf("Prepare_Definition", StringComparison.Ordinal);
+        var validation = markup.IndexOf("id=\"prepare-useful-answer-error\"", StringComparison.Ordinal);
+        var additionalNote = markup.IndexOf("Prepare_AdditionalNote", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, definition);
+        Assert.IsGreaterThan(definition, validation);
+        Assert.IsGreaterThan(validation, additionalNote);
+        Assert.Contains("@ref=\"_usefulAnswerError\"", markup);
+        Assert.Contains("aria-invalid=\"@_usefulAnswerMissing\"", markup);
+        Assert.Contains("ShowUsefulAnswerValidationAsync", markup);
+        Assert.Contains("knownFirst.revealElement\", _usefulAnswerError", markup);
+        Assert.Contains("GetUsefulAnswerFocusTarget", markup);
+        Assert.Contains("knownFirst.focusElement\", GetUsefulAnswerFocusTarget()", markup);
+        Assert.Contains("ClearUsefulAnswerValidationIfCorrected", markup);
+        Assert.Contains("@bind=\"AcronymExpansionInput\"", markup);
+        Assert.Contains("@bind=\"TranslationInput\"", markup);
+        Assert.Contains("@bind=\"DefinitionInput\"", markup);
     }
 
     [TestMethod]

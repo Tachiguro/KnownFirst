@@ -197,6 +197,12 @@ public sealed partial class PreparationService(
                 return null;
             }
 
+            if (item.Status == PreparationCandidateStatus.ResultReady
+                && item.Result?.HasUsableData == true)
+            {
+                return item;
+            }
+
             await database.RunInTransactionAsync(connection =>
             {
                 var candidate = connection.Find<PreparationCandidateEntity>(item.CandidateId)

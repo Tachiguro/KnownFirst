@@ -88,6 +88,22 @@ public sealed class StudyWorkflowServiceTests
     }
 
     [TestMethod]
+    public async Task Preparation_ExistingLearningCardsDoNotPreventLaterBacklog()
+    {
+        await ImportAllUnknownAsync("existing.");
+        await PrepareExistingBacklogAsync(CardDirectionPreference.TermToMeaning);
+        await ImportAllUnknownAsync("later.");
+
+        var overview = await _preparation.GetOverviewAsync();
+        await _preparation.StartAsync(PreparationMethod.Manual, 10);
+        var current = await _preparation.GetCurrentAsync();
+
+        Assert.AreEqual(1, overview.PreparedNewItemCount);
+        Assert.AreEqual(1, overview.UnpreparedCount);
+        Assert.AreEqual("later", current!.Term, ignoreCase: true);
+    }
+
+    [TestMethod]
     public async Task Preparation_AutomaticResultCanBeAcceptedWithoutTyping()
     {
         await ImportAllUnknownAsync("network.");
@@ -358,6 +374,23 @@ public sealed class StudyWorkflowServiceTests
             CardDirectionPreference.TermToMeaning);
 
         Assert.AreEqual(callsBeforeAccept, _provider.CallCount);
+    }
+
+    [TestMethod]
+    public async Task Preparation_ConcurrentLookupRequestsReuseTheReadyResult()
+    {
+        await ImportAllUnknownAsync("network.");
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 1);
+
+        var lookups = await Task.WhenAll(
+            _preparation.LookupCurrentAsync(),
+            _preparation.LookupCurrentAsync());
+        var candidate = await _database.ReadAsync(connection =>
+            connection.Table<PreparationCandidateEntity>().FirstAsync());
+
+        Assert.IsTrue(lookups.All(item => item?.Status == PreparationCandidateStatus.ResultReady));
+        Assert.AreEqual(1, _provider.CallCount);
+        Assert.AreEqual(1, candidate.LookupAttemptCount);
     }
 
     [TestMethod]

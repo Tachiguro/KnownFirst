@@ -16,7 +16,10 @@
 
     @if (_isLoading)
     {
-        <p class="loading-message" role="status">@Localizer["Prepare_Loading"]</p>
+        <p class="loading-message preparation-transition-status" role="status">
+            <span class="transition-spinner" aria-hidden="true"></span>
+            <span>@Localizer["Prepare_Loading"]</span>
+        </p>
     }
     else if (_loadFailed)
     {
@@ -113,10 +116,7 @@
             @if (_isLookingUp)
             {
                 <p class="loading-message preparation-transition-status" role="status">
-                    @if (_showTransitionSpinner)
-                    {
-                        <span class="transition-spinner" aria-hidden="true"></span>
-                    }
+                    <span class="transition-spinner" aria-hidden="true"></span>
                     <span>@Localizer["Prepare_LookingUp"]</span>
                 </p>
             }
@@ -157,16 +157,46 @@
                 <div class="editor-grid">
                     <label>@Localizer["Prepare_CanonicalTerm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@_item.LearningTerm" /></label>
                     <label>@Localizer["Prepare_EncounteredForm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@(_item.EncounteredSurfaceForm ?? _item.Term)" /></label>
-                    <label>@Localizer["Prepare_AcronymExpansion"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_acronymExpansion" /></label>
-                    <label>@Localizer["Prepare_Translation"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_translation" /></label>
-                    <label>@Localizer["Prepare_Definition"]<textarea class="text-area" rows="4" @bind="_definition"></textarea></label>
+                    <label>
+                        @Localizer["Prepare_AcronymExpansion"]
+                        <input class="text-input"
+                               @ref="_acronymExpansionInput"
+                               @bind="AcronymExpansionInput"
+                               @bind:event="oninput"
+                               @onkeydown="HandleInputKeyDown"
+                               aria-invalid="@_usefulAnswerMissing"
+                               aria-describedby="@(_usefulAnswerMissing ? "prepare-useful-answer-error" : null)" />
+                    </label>
+                    <label>
+                        @Localizer["Prepare_Translation"]
+                        <input class="text-input"
+                               @ref="_translationInput"
+                               @bind="TranslationInput"
+                               @bind:event="oninput"
+                               @onkeydown="HandleInputKeyDown"
+                               aria-invalid="@_usefulAnswerMissing"
+                               aria-describedby="@(_usefulAnswerMissing ? "prepare-useful-answer-error" : null)" />
+                    </label>
+                    <label>
+                        @Localizer["Prepare_Definition"]
+                        <textarea class="text-area"
+                                  rows="4"
+                                  @ref="_definitionInput"
+                                  @bind="DefinitionInput"
+                                  @bind:event="oninput"
+                                  aria-invalid="@_usefulAnswerMissing"
+                                  aria-describedby="@(_usefulAnswerMissing ? "prepare-useful-answer-error" : null)"></textarea>
+                    </label>
+                    @if (_usefulAnswerMissing)
+                    {
+                        <p id="prepare-useful-answer-error"
+                           class="field-error"
+                           role="alert"
+                           @ref="_usefulAnswerError">@Localizer["Prepare_UsefulAnswerRequired"]</p>
+                    }
                     <label>@Localizer["Prepare_AdditionalNote"]<textarea class="text-area" rows="2" @bind="_additionalNote"></textarea></label>
                     <label>@Localizer["Prepare_AcceptedAliases"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_aliases" /></label>
                 </div>
-                @if (_usefulAnswerMissing)
-                {
-                    <p class="field-error" role="alert">@Localizer["Prepare_UsefulAnswerRequired"]</p>
-                }
 
             }
             else if (_item.Result?.HasUsableData == true)
@@ -370,7 +400,41 @@
     private ElementReference _meaningPickerDialog;
     private ElementReference _candidateHeading;
     private ElementReference _cancelConfirmationRef;
+    private ElementReference _acronymExpansionInput;
+    private ElementReference _translationInput;
+    private ElementReference _definitionInput;
+    private ElementReference _usefulAnswerError;
     private PreparationCompletionAction? _confirmationAction;
+
+    private string AcronymExpansionInput
+    {
+        get => _acronymExpansion;
+        set
+        {
+            _acronymExpansion = value;
+            ClearUsefulAnswerValidationIfCorrected();
+        }
+    }
+
+    private string TranslationInput
+    {
+        get => _translation;
+        set
+        {
+            _translation = value;
+            ClearUsefulAnswerValidationIfCorrected();
+        }
+    }
+
+    private string DefinitionInput
+    {
+        get => _definition;
+        set
+        {
+            _definition = value;
+            ClearUsefulAnswerValidationIfCorrected();
+        }
+    }
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
         ? null
@@ -476,6 +540,7 @@
         var cancellation = new CancellationTokenSource();
         _lookupCancellation = cancellation;
         _isLookingUp = true;
+        await InvokeAsync(StateHasChanged);
         try
         {
             _item = await PreparationService.LookupCurrentAsync(cancellation.Token);
@@ -489,10 +554,10 @@
             if (ReferenceEquals(_lookupCancellation, cancellation))
             {
                 _lookupCancellation = null;
+                _isLookingUp = false;
             }
 
             cancellation.Dispose();
-            _isLookingUp = false;
         }
     }
 
@@ -573,13 +638,13 @@
             return;
         }
 
-        _usefulAnswerMissing = string.IsNullOrWhiteSpace(_acronymExpansion)
-            && string.IsNullOrWhiteSpace(_translation)
-            && string.IsNullOrWhiteSpace(_definition);
-        if (_usefulAnswerMissing)
+        if (!HasUsefulAnswer())
         {
+            await ShowUsefulAnswerValidationAsync();
             return;
         }
+
+        _usefulAnswerMissing = false;
 
         var acceptedCandidateId = _item.CandidateId;
         var transitionStarted = System.Diagnostics.Stopwatch.StartNew();
@@ -738,6 +803,32 @@
     {
         _translation = meaning.Translation ?? string.Empty;
         _definition = meaning.Definition;
+    }
+
+    private bool HasUsefulAnswer() => !string.IsNullOrWhiteSpace(_acronymExpansion)
+        || !string.IsNullOrWhiteSpace(_translation)
+        || !string.IsNullOrWhiteSpace(_definition);
+
+    private async Task ShowUsefulAnswerValidationAsync()
+    {
+        _usefulAnswerMissing = true;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _usefulAnswerError);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetUsefulAnswerFocusTarget());
+    }
+
+    private ElementReference GetUsefulAnswerFocusTarget() => _item?.TokenKind is TokenKind.Acronym or TokenKind.Abbreviation
+        ? _acronymExpansionInput
+        : _item?.LookupMode == LexicalLookupMode.Translation
+            ? _translationInput
+            : _definitionInput;
+
+    private void ClearUsefulAnswerValidationIfCorrected()
+    {
+        if (_usefulAnswerMissing && HasUsefulAnswer())
+        {
+            _usefulAnswerMissing = false;
+        }
     }
 
     private string GetLookupFailureMessage()

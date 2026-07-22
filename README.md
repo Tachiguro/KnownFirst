@@ -15,13 +15,30 @@ The current MVP supports:
 - text import with deterministic Unicode-aware analysis and exact source coordinates
 - resumable Known/Unknown vocabulary review with Undo
 - automatic and manual word preparation
-- local Wiktionary lookup with explicit consent and a local SQLite cache
+- optional online Wiktionary lookup with explicit consent and a local SQLite cache
 - recognition and spelling learning cards with deterministic scheduling
 - local SQLite persistence, migrations, transactions, and cleanup
 - persistent structured diagnostics with redaction and bounded retention
 - automated Core, persistence, workflow, localization, and diagnostics tests
 
 The binding product and architecture specifications are [docs/KNOWNFIRST_ARCHITECTURE.md](docs/KNOWNFIRST_ARCHITECTURE.md) and [docs/MVP_WORKFLOW.md](docs/MVP_WORKFLOW.md).
+
+## Documentation
+
+Start with [AGENTS.md](AGENTS.md). It defines the required reading order,
+repository rules, verification expectations, and Definition of Done.
+
+- [Project state](docs/PROJECT_STATE.md) records the verified current release,
+  capabilities, tests, database status, and limitations.
+- [Roadmap](docs/ROADMAP.md) records the prioritized next milestones.
+- [Changelog](CHANGELOG.md) records user-visible release changes.
+- [Database contract](docs/DATABASE_CONTRACT.md) defines persisted-data and
+  migration rules.
+- [Architecture](docs/KNOWNFIRST_ARCHITECTURE.md), [MVP workflow](docs/MVP_WORKFLOW.md),
+  and [word analysis](docs/WORD_ANALYSIS.md) are binding specifications.
+- [Decision records](docs/decisions/README.md), [release notes](docs/releases/1.0.0-beta.8.md),
+  and [handoffs](docs/handoffs/2026-07-22-beta-8-release.md) preserve rationale
+  and release evidence.
 
 ## Technology stack
 

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-22 14:50:00 +02:00
+2026-07-22 16:00:00 +02:00
 
 ## Repository
 
@@ -13,17 +13,17 @@
 
 ## Stable baseline
 
-- Stable master baseline: `8dafcea161350432da47d97bfb5ac1397f5d3f5e`
+- Stable master baseline: `9434f99b64f82718d4b0b0fa4dbaf607a4536aa6`
 - App version: `1.0.0-beta.8` (code 8)
 - Database schema: SQLite `PRAGMA user_version` 7
-- Supported/release-validated platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain in the project but are not release-validated.
+- Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
 - Solution: `KnownFirst.slnx`
 - Google Play: Beta 8 is retained locally and the current channel is internal testing.
 
 ## Current branch
 
-- Branch: `docs/current-work-and-index`
-- Base: `8dafcea161350432da47d97bfb5ac1397f5d3f5e`
+- Branch: `build/remove-apple-targets`
+- Base: `9434f99b64f82718d4b0b0fa4dbaf607a4536aa6`
 - Always verify the current tip with `git rev-parse HEAD`; this handoff does not embed a self-referential immutable HEAD value.
 
 ## Completed recently
@@ -35,10 +35,10 @@
 
 ## Active task
 
-- Documentation index, current-work handoff, debug-artifact policy, and
-  consolidation audit are complete on this branch.
-- Three documentation commits are present; link, UTF-8, scope, and diff checks
-  passed. No build or test was run because this package is documentation-only.
+- Apple platform removal is implemented on this branch. Build-configuration
+  and icon checks passed; focused tests passed 7/7; the complete suite passed
+  418/418; Windows Debug and Android Debug/Release builds passed with zero
+  warnings and zero errors. Details and hashes are in the dated handoff.
 
 ## Paused work
 
@@ -48,9 +48,7 @@
 ## Planned sequence
 
 1. Finish documentation and handoff structure.
-2. Remove iOS and Mac Catalyst on a separate feature branch.
-3. Fully validate Windows Debug and Android Debug/Release targets.
-4. Implement a Wikipedia fallback behind Wiktionary.
+2. Implement a Wikipedia fallback behind Wiktionary.
 5. Decide required persistence and migration changes.
 6. Re-check the backup format against the final provider model.
 7. Resume Backup/Restore Phase 3.
@@ -65,7 +63,8 @@
 - Frequency prioritizes words but never deletes them; frequency-one words remain.
 - Known words apply across texts; tests use synthetic data and temporary SQLite databases only.
 - AOT and trimming remain enabled; no reflection fallback is permitted.
-- Apple support is not removed yet and must be handled in its own branch.
+- Apple support is intentionally absent from the active project targets; no
+  Apple build or device validation is part of this repository.
 - Wikipedia fallback is not implemented; Backup/Restore is not user-available.
 - `CURRENT_WORK.md` must be updated after every work package.
 - Release AABs are local ignored evidence and are not Git-versioned.
@@ -87,11 +86,9 @@
 
 ## Next exact action
 
-After this documentation branch is reviewed and pushed, create a normal feature branch in
-the same folder and remove iOS and Mac Catalyst completely from project,
-platform code, build configuration, tests, and documentation. Then validate
-Windows Debug and Android Debug/Release. Do not mix Wikipedia or backup work
-into that platform-removal branch.
+Implement the Wikipedia fallback behind Wiktionary on a separate feature branch
+and audit the provider and persistence model before changing either contract.
+Backup/Restore Phase 3 remains paused.
 
 ## New-chat handoff
 

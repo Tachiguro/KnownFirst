@@ -107,8 +107,11 @@ Assert-True ($configurations -contains 'Release') 'Release configuration is miss
 Assert-True ($configurations -contains 'BetaDiagnostic') 'BetaDiagnostic configuration is missing from KnownFirst.csproj.'
 
 $targetFrameworks = ($knownFirstProps.TargetFrameworks -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+Assert-True ($targetFrameworks.Count -eq 2) ("KnownFirst.csproj must expose exactly two app target frameworks. Got: {0}" -f ($targetFrameworks -join ', '))
 Assert-True ($targetFrameworks -contains 'net10.0-android') 'net10.0-android is missing from KnownFirst.csproj TargetFrameworks.'
 Assert-True ($targetFrameworks -contains 'net10.0-windows10.0.19041.0') 'net10.0-windows10.0.19041.0 is missing from KnownFirst.csproj TargetFrameworks.'
+Assert-True ($targetFrameworks -notcontains 'net10.0-ios') 'iOS must not remain an active target framework.'
+Assert-True ($targetFrameworks -notcontains 'net10.0-maccatalyst') 'Mac Catalyst must not remain an active target framework.'
 
 $defaultEvaluation = Invoke-MsbuildProperties `
 	-ProjectPath $mainProjectPath `

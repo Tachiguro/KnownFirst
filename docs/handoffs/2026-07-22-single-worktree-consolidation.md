@@ -31,3 +31,8 @@ On a separate feature branch, remove iOS and Mac Catalyst from the project,
 platform code, build configuration, tests, and documentation. Validate Windows
 Debug and Android Debug/Release afterward. Wikipedia fallback and backup work
 remain separate follow-up packages.
+# Historical handoff
+
+This handoff records the pre-platform-cleanup consolidation state. References
+to iOS and Mac Catalyst below describe the work that was still planned at that
+time; the active project now deliberately excludes those targets.

@@ -36,10 +36,6 @@ internal static class DiagnosticLogConfiguration
         {
 #if ANDROID
             return "net10.0-android";
-#elif IOS
-            return "net10.0-ios";
-#elif MACCATALYST
-            return "net10.0-maccatalyst";
 #elif WINDOWS
             return "net10.0-windows10.0.19041.0";
 #else
@@ -50,7 +46,7 @@ internal static class DiagnosticLogConfiguration
 
     private static string ResolveLogDirectory()
     {
-#if IOS || MACCATALYST || ANDROID
+#if ANDROID
         return Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, "Logs");
 #else
         return Path.Combine(

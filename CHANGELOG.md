@@ -10,6 +10,10 @@ No user-visible application changes are recorded.
 
 ### Internal
 
+- Removed the unsupported iOS and Mac Catalyst application targets, platform
+  folders, Apple-only diagnostics branches, and local Apple launch settings.
+- Android and Windows are now the only active application target platforms.
+
 - Added immutable version-1 backup data contracts, explicit external enum
   mappings, centralized format limits, and privacy-safe stable error codes.
 - Added strict source-generated JSON metadata and typed UTF-8 codecs for the
@@ -42,8 +46,9 @@ No user-visible application changes are recorded.
 - Cloud synchronization is not implemented.
 - A dictionary cache miss requires a network connection and explicit Wikimedia
   lookup consent.
-- iOS and Mac Catalyst targets exist in the project file but are not supported
-  or release-validated product platforms.
+- iOS and Mac Catalyst are intentionally not supported product platforms; their
+  targets and platform folders were removed in the current platform-cleanup
+  branch.
 - The direct-install Android test-package script still uses legacy Beta 6
   artifact labels and must not be used to claim a Beta 8 package.
 

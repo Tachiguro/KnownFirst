@@ -135,8 +135,6 @@ try {
     $restoredFrameworks = @($assets.project.frameworks.PSObject.Properties.Name)
     $expectedFrameworks = @(
         'net10.0-android',
-        'net10.0-ios',
-        'net10.0-maccatalyst',
         $windowsFramework)
     $missingFrameworks = @($expectedFrameworks | Where-Object { $restoredFrameworks -notcontains $_ })
     if ($missingFrameworks.Count -gt 0) {

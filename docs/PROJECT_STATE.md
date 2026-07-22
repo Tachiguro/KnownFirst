@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-22
-**State source:** `master` at `8dafcea161350432da47d97bfb5ac1397f5d3f5e`
-**Next product milestone:** platform-target cleanup on a dedicated feature branch
+**State source:** `build/remove-apple-targets` after platform-target validation
+**Next product milestone:** Wikipedia fallback provider and persistence audit
 
 This document is the authoritative snapshot of verified current state. Update
 it when a milestone is completed or when a release, schema, supported platform,
@@ -33,9 +33,8 @@ commit.
   version is API 24.
 - **Windows:** primary local development and automated/manual verification
   platform.
-
-The project file also evaluates iOS and Mac Catalyst targets, but those targets
-are not currently claimed as supported or release-validated platforms.
+- **iOS:** deliberately removed from the project and not supported.
+- **Mac Catalyst:** deliberately removed from the project and not supported.
 
 ## Production capabilities
 
@@ -139,7 +138,8 @@ been implemented.
   not implemented.
 - Offline dictionary packages and FSRS are deferred.
 - Online lookup needs explicit consent and network access on cache misses.
-- iOS and Mac Catalyst are not release-validated.
+- Apple platform targets and platform folders were deliberately removed; Apple
+  builds and device validation are outside the supported product scope.
 - The direct-install Android test-package script contains legacy Beta 6
   filenames and installation metadata and is not a valid Beta 8 release path.
 - Complete visual acceptance remains manual; the checked-in matrices are test
@@ -163,8 +163,8 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 - The documentation branch is recording the single-worktree consolidation and
   canonical handoff structure.
 - The only registered worktree is `C:\Dev\KnownFirst`.
-- The next technical branch will remove iOS and Mac Catalyst; no platform
-  removal has happened yet.
+- The platform-target cleanup is complete on `build/remove-apple-targets` and
+  leaves Android and Windows as the only active app targets.
 
 See the dated
 [branch and worktree inventory](maintenance/branch-and-worktree-inventory.md)
@@ -172,6 +172,6 @@ for the complete snapshot.
 
 ## Next milestone
 
-The next smallest technical package is removal of iOS and Mac Catalyst on its
-own feature branch, followed by Windows and Android validation. Wikipedia
-fallback and Backup/Restore Phase 3 remain planned and are not user-available.
+The next smallest technical package is a Wikipedia fallback behind Wiktionary
+on a separate feature branch, preceded by a provider and persistence model
+audit. Backup/Restore Phase 3 remains paused and is not user-available.

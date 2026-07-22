@@ -8,6 +8,17 @@ and uses the application's prerelease version identifiers.
 
 No user-visible application changes are recorded.
 
+### Internal
+
+- Added immutable version-1 backup data contracts, explicit external enum
+  mappings, centralized format limits, and privacy-safe stable error codes.
+- Added strict source-generated JSON metadata and typed UTF-8 codecs for the
+  future `manifest.json` and `data.json` payloads without reflection fallback.
+- Hardened database initialization so an unsupported future schema is rejected
+  before any table, cache, or version mutation.
+- ZIP/archive creation, database snapshotting, usable backup, restore, file
+  selection, and backup/restore UI remain unimplemented and unreachable.
+
 ## [1.0.0-beta.8] - 2026-07-22
 
 ### Added

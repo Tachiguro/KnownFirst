@@ -1,6 +1,8 @@
 # Backup and restore v1 implementation plan
 
-**Status:** Proposed phased plan; implementation has not begun
+**Status:** Implementation in progress; Phases 1 and 2 plus the prerequisite
+future-schema refusal guard are complete. Phases 3 through 7, the remainder of
+Phase 8, and Phases 9 and 10 have not begun.
 **Depends on:** [database audit](../architecture/database-audit.md) and
 [backup format v1](../architecture/backup-format-v1.md)
 **Current internal schema:** 7
@@ -36,7 +38,16 @@ with a test proving `user_version > CurrentVersion` causes no table, cache, or
 version change. The remaining migration-runner and fixture expansion can stay
 in Phase 8, but this critical guard cannot.
 
+**Foundation checkpoint (2026-07-22):** The external models, enum mappings,
+central limits/error contracts, generated JSON context/codec, and future-schema
+refusal guard are implemented. Focused tests (26/26), the complete test suite
+(415/415), Windows Debug, Android Debug, and Android Release all pass. No ZIP,
+snapshot, backup, validation, preview, restore, platform, or UI service is
+implemented or reachable.
+
 ## Phase 1: backup data models
+
+**Implementation status:** Complete and verified on 2026-07-22.
 
 ### Intended files and interfaces
 
@@ -101,6 +112,8 @@ strict for unknown values; no database/file operation is reachable.
   external contract.
 
 ## Phase 2: source-generated JSON context
+
+**Implementation status:** Complete and verified on 2026-07-22.
 
 ### Intended files and interfaces
 
@@ -561,6 +574,11 @@ recover the exact original semantic graph.
 
 ## Phase 8: migration hardening and compatibility fixtures
 
+**Implementation status:** The prerequisite future-schema refusal guard and its
+temporary-SQLite regression tests are complete. The ordered migration runner,
+historical/canonical fixtures, supported-source-range decision, and remaining
+Phase-8 work are pending.
+
 ### Intended files and interfaces
 
 - Refactor `Data/DatabaseSchema.cs` to read the existing version first, reject a
@@ -800,7 +818,8 @@ Backup and restore v1 is not complete until all of the following are true:
 - the UI, if included in that later work package, accurately describes v1 scope
   and has recorded platform validation.
 
-The next smallest implementation work package after plan approval is Phase 1
-only: external models, strict enum/scalar contracts, centralized limits/errors,
-and model-contract tests. It performs no JSON/file/database operation and does
-not add UI.
+The next smallest implementation work package is Phase 3: a read-only logical
+snapshot and bounded backup creation. It is not part of the completed foundation
+package and requires separate authorization. Phase 4 must still reopen writer
+output through the strict archive reader before backup creation can be exposed;
+restore and UI remain later, separately gated phases.

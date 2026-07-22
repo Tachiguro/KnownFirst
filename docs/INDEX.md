@@ -22,6 +22,7 @@ release, or handoff documents.
 - [UI/UX acceptance](UI_UX_ACCEPTANCE.md)
 - [Database audit](architecture/database-audit.md)
 - [Backup format v1](architecture/backup-format-v1.md)
+- [Wikipedia JSON API client](architecture/wikipedia-json-client.md)
 
 ## Feature and delivery material
 

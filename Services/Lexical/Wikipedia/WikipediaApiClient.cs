@@ -11,12 +11,18 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly IClock _clock;
+    private readonly TimeSpan _requestTimeout;
     private const string UserAgent = "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only Wikipedia lookup)";
 
-    public WikipediaApiClient(HttpClient httpClient, IClock? clock = null)
+    public WikipediaApiClient(HttpClient httpClient, IClock? clock = null, TimeSpan? requestTimeout = null)
     {
         _httpClient = httpClient;
         _clock = clock ?? new SystemClock();
+        _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(15);
+        if (_requestTimeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout), "Request timeout must be greater than zero.");
+        }
     }
 
     public async Task<WikipediaArticleResult> GetArticleAsync(
@@ -24,7 +30,7 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
         CancellationToken cancellationToken = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(TimeSpan.FromSeconds(15));
+        cts.CancelAfter(_requestTimeout);
         
         var queryParams = new List<string>
         {
@@ -123,7 +129,7 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
             catch (OperationCanceledException)
             {
                 if (cancellationToken.IsCancellationRequested) throw;
-                return CreateFailure(request, WikipediaArticleStatus.TimedOut, "timeout-parsing");
+                return CreateFailure(request, WikipediaArticleStatus.TimedOut, "timeout");
             }
             catch (JsonException)
             {
@@ -141,9 +147,12 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
 
             if (apiResponse.Error != null)
             {
-                // check for maxlag or similar transient errors
-                // We'll treat all api errors as permanent for now unless we know it's transient
-                var code = apiResponse.Error.Code?.ToLowerInvariant();
+                var code = NormalizeApiErrorCode(apiResponse.Error.Code);
+                if (code is null)
+                {
+                    return CreateFailure(request, WikipediaArticleStatus.PermanentFailure, "api-error-unknown");
+                }
+
                 if (code == "ratelimited" || code == "ratelimit")
                 {
                     return CreateFailure(request, WikipediaArticleStatus.RateLimited, "rate-limited");
@@ -171,6 +180,11 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
             if (page.Missing == true)
             {
                 return CreateFailure(request, WikipediaArticleStatus.NotFound, "page-missing");
+            }
+
+            if (string.IsNullOrWhiteSpace(page.Title))
+            {
+                return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "missing-page-title");
             }
 
             // Normalization & Redirects
@@ -227,11 +241,11 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
                 }
             }
 
-            if (page.Title != null && !string.Equals(page.Title, canonicalTitle, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(page.Title, canonicalTitle, StringComparison.OrdinalIgnoreCase))
             {
                 return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "redirect-final-mismatch");
             }
-            canonicalTitle = page.Title ?? canonicalTitle;
+            canonicalTitle = page.Title;
 
             if (page.PageProps?.Disambiguation != null)
             {
@@ -328,6 +342,16 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
         var noNewlines = WhitespaceRegex().Replace(extract, " ");
         // trim leading/trailing
         return noNewlines.Trim();
+    }
+
+    private static string? NormalizeApiErrorCode(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        return code.Trim().ToLowerInvariant();
     }
 
     [GeneratedRegex(@"\s+")]

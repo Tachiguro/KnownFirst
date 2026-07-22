@@ -1,0 +1,13 @@
+{
+  "query": {
+    "pages": [
+      {
+        "pageid": 1201,
+        "ns": 0,
+        "lastrevid": 2201,
+        "canonicalurl": "https://en.wikipedia.org/wiki/Title_Missing",
+        "extract": "This extract must not be used without a page title."
+      }
+    ]
+  }
+}

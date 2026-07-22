@@ -15,3 +15,19 @@ Die HTML-Struktur von Wikipedia-Artikeln ändert sich häufig und ist extrem kom
 3. **Deterministische Tests:** Die Testabdeckung wird ausschließlich durch lokale JSON-Fixtures erzeugt, welche die Struktur der echten Wikipedia-API abbilden. Es gibt keine Live-Netzwerktests.
 4. **Fehlerbehandlung:** HTTP-Fehler, Timeouts und Rate-Limits (HTTP 429) werden im Client abgefangen und auf das interne Enum `WikipediaArticleStatus` gemappt, damit aufrufende Schichten providerunabhängige Entscheidungen treffen können. Timeouts sind rein intern, Aufrufer-Cancellation wird weitergereicht. Es gibt keine automatischen Retrys im Client, sondern Retry-After-Header-Informationen werden (sofern vorhanden) im Resultat zurückgegeben.
 5. **Daten und Grenzen:** Es wird exakt ein Request abgesetzt. Keine Suche, keine Zweitanfrage. Disambiguationsseiten werden als solche gemeldet, ihr Text wird nicht als Definition genutzt. Ein `TargetTitleCandidate` aus den Langlinks ist explizit keine automatisch bestätigte Übersetzung. Das Datenbankschema bleibt Version 7. Weder UI, noch Cache, noch Persistenz oder Wiktionary-Fallback sind Teil dieses Pakets. Es gibt keinen `WikipediaLookupProvider`.
+
+## Verified boundaries
+
+- The client sends exactly one MediaWiki Action API request per lookup.
+- The Search module (`list=search`) is not used.
+- JSON DTOs are deserialized with source-generated
+  `WikipediaJsonSerializerContext` metadata.
+- Redirect chains are resolved from the single API response and keep the first
+  redirect source as `RedirectedFrom`.
+- `Retry-After` supports both delta seconds and absolute HTTP-date values.
+- Disambiguation pages return `Disambiguation` without usable extract content.
+- `TargetTitleCandidate` is not a translation.
+- No `WikipediaLookupProvider` is implemented or registered.
+- No Wiktionary fallback, UI, cache integration, backup change, database
+  migration, or device validation is part of this branch.
+- The database schema remains version 7.

@@ -1,15 +1,14 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.Reflection;
-using System.IO;
-using KnownFirst.Services.Lexical.Wikipedia;
 using KnownFirst.Services.Lexical;
+using KnownFirst.Services.Lexical.Wikipedia;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace KnownFirst.Tests;
 
 [TestClass]
 public class WikipediaArchitectureTests
 {
-    private static readonly string SolutionDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+    private static readonly string RepositoryDir = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "KnownFirst"));
 
     [TestMethod]
     public void Architecture_WikipediaApiClient_DoesNotImplementILexicalLookupProvider()
@@ -21,51 +20,78 @@ public class WikipediaArchitectureTests
     public void Architecture_WikipediaLookupProvider_DoesNotExist()
     {
         var type = typeof(WikipediaApiClient).Assembly.GetType("KnownFirst.Services.Lexical.Wikipedia.WikipediaLookupProvider");
+
         Assert.IsNull(type);
+    }
+
+    [TestMethod]
+    public void Architecture_WikipediaProductionFiles_DoNotUseForbiddenApis()
+    {
+        var wikipediaDir = Path.Combine(RepositoryDir, "Services", "Lexical", "Wikipedia");
+        var texts = Directory.EnumerateFiles(wikipediaDir, "*.cs", SearchOption.AllDirectories)
+            .Select(path => (Path: path, Text: File.ReadAllText(path)))
+            .ToArray();
+
+        Assert.AreNotEqual(0, texts.Length);
+        AssertForbidden(texts, "AngleSharp");
+        AssertForbidden(texts, "QuerySelector");
+        AssertForbidden(texts, "JsonDocument");
+        AssertForbidden(texts, "JsonNode");
+        AssertForbidden(texts, "dynamic");
+        AssertForbidden(texts, "list=search");
+        AssertForbidden(texts, "http://");
+    }
+
+    [TestMethod]
+    public void Architecture_WikipediaDeserialization_UsesSourceGeneratedContext()
+    {
+        var text = File.ReadAllText(Path.Combine(RepositoryDir, "Services", "Lexical", "Wikipedia", "WikipediaApiClient.cs"));
+
+        StringAssert.Contains(
+            text,
+            "JsonSerializer.DeserializeAsync(stream, WikipediaJsonSerializerContext.Default.WikipediaApiResponse, cts.Token)");
+    }
+
+    [TestMethod]
+    public void Architecture_MauiProgram_DoesNotRegisterWikipediaProvider()
+    {
+        var text = File.ReadAllText(Path.Combine(RepositoryDir, "MauiProgram.cs"));
+
+        Assert.IsFalse(text.Contains("Wikipedia", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("IWikipediaApiClient", StringComparison.Ordinal));
     }
 
     [TestMethod]
     public void Architecture_LexicalLookupProviderResolver_DoesNotContainWikipedia()
     {
-        var text = File.ReadAllText(Path.Combine(SolutionDir, "KnownFirst", "Services", "Lexical", "LexicalLookupProviderResolver.cs"));
-        Assert.IsFalse(text.Contains("Wikipedia"));
+        var text = File.ReadAllText(Path.Combine(RepositoryDir, "Services", "Lexical", "LexicalLookupProviderResolver.cs"));
+
+        Assert.IsFalse(text.Contains("Wikipedia", StringComparison.Ordinal));
     }
 
     [TestMethod]
     public void Architecture_LexicalEnrichmentService_NotChangedForFallback()
     {
-        var text = File.ReadAllText(Path.Combine(SolutionDir, "KnownFirst", "Services", "Lexical", "LexicalEnrichmentService.cs"));
-        Assert.IsFalse(text.Contains("Wikipedia"));
-    }
+        var text = File.ReadAllText(Path.Combine(RepositoryDir, "Services", "Lexical", "LexicalEnrichmentService.cs"));
 
-    [TestMethod]
-    public void Architecture_NoAngleSharpInWikipedia()
-    {
-        var csproj = File.ReadAllText(Path.Combine(SolutionDir, "KnownFirst", "KnownFirst.csproj"));
-        // AngleSharp is not in Wikipedia
-        var text = File.ReadAllText(Path.Combine(SolutionDir, "KnownFirst", "Services", "Lexical", "Wikipedia", "WikipediaApiClient.cs"));
-        Assert.IsFalse(text.Contains("AngleSharp"));
-    }
-
-    [TestMethod]
-    public void Architecture_NoJsonDocumentOrNode()
-    {
-        var text = File.ReadAllText(Path.Combine(SolutionDir, "KnownFirst", "Services", "Lexical", "Wikipedia", "WikipediaApiClient.cs"));
-        Assert.IsFalse(text.Contains("JsonDocument"));
-        Assert.IsFalse(text.Contains("JsonNode"));
-    }
-
-    [TestMethod]
-    public void Architecture_NoReflectionDeserialization()
-    {
-        var text = File.ReadAllText(Path.Combine(SolutionDir, "KnownFirst", "Services", "Lexical", "Wikipedia", "WikipediaApiClient.cs"));
-        Assert.IsTrue(text.Contains("WikipediaJsonSerializerContext.Default"));
+        Assert.IsFalse(text.Contains("Wikipedia", StringComparison.Ordinal));
     }
 
     [TestMethod]
     public void Architecture_SchemaVersionIs7()
     {
-        var text = File.ReadAllText(Path.Combine(SolutionDir, "KnownFirst", "Data", "DatabaseSchema.cs"));
-        Assert.IsTrue(text.Contains("public const int CurrentVersion = 7;"));
+        var text = File.ReadAllText(Path.Combine(RepositoryDir, "Data", "DatabaseSchema.cs"));
+
+        Assert.IsTrue(text.Contains("public const int CurrentVersion = 7;", StringComparison.Ordinal));
+    }
+
+    private static void AssertForbidden(IEnumerable<(string Path, string Text)> files, string forbidden)
+    {
+        foreach (var file in files)
+        {
+            Assert.IsFalse(
+                file.Text.Contains(forbidden, StringComparison.Ordinal),
+                $"{forbidden} must not appear in {file.Path}.");
+        }
     }
 }

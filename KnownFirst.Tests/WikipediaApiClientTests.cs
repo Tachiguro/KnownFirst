@@ -11,9 +11,11 @@ public class WikipediaApiClientTests
     private class FakeHttpMessageHandler : HttpMessageHandler
     {
         public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? SendAsyncFunc { get; set; }
+        public int RequestCount { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            RequestCount++;
             if (SendAsyncFunc != null)
             {
                 return SendAsyncFunc(request, cancellationToken);
@@ -45,10 +47,18 @@ public class WikipediaApiClientTests
         var result = await client.GetArticleAsync(request);
 
         Assert.AreEqual(WikipediaArticleStatus.Success, result.Status);
+        Assert.AreEqual("Exact Title", result.RequestedTitle);
         Assert.AreEqual("Exact Title", result.CanonicalTitle);
         Assert.AreEqual("A synthetic security system collects and evaluates event records.", result.Extract);
+        Assert.AreEqual("en", result.SourceLanguage);
+        Assert.AreEqual("en.wikipedia.org", result.SourceProject);
         Assert.AreEqual(1001, result.PageId);
+        Assert.AreEqual(2001, result.RevisionId);
+        Assert.AreEqual("https://en.wikipedia.org/wiki/Exact_Title", result.CanonicalUrl);
         Assert.IsFalse(result.IsRedirect);
+        Assert.AreEqual("Wikipedia contributors; text available under the Creative Commons Attribution-ShareAlike license.", result.Attribution);
+        Assert.IsNull(result.ErrorCode);
+        Assert.IsNull(result.RetryAfter);
     }
 
     [TestMethod]
@@ -114,6 +124,13 @@ public class WikipediaApiClientTests
         var result = await client.GetArticleAsync(request);
 
         Assert.AreEqual(WikipediaArticleStatus.Disambiguation, result.Status);
+        Assert.AreEqual("", result.Extract);
+        Assert.AreEqual("disambiguation", result.ErrorCode);
+        Assert.AreEqual("Disambiguation Page", result.CanonicalTitle);
+        Assert.AreEqual("en", result.SourceLanguage);
+        Assert.AreEqual("en.wikipedia.org", result.SourceProject);
+        Assert.AreEqual(1004, result.PageId);
+        Assert.AreEqual(2004, result.RevisionId);
     }
 
     [TestMethod]
@@ -193,6 +210,41 @@ public class WikipediaApiClientTests
         var result = await client.GetArticleAsync(request);
 
         Assert.AreEqual(WikipediaArticleStatus.PermanentFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_ApiErrorWithoutCode_ReturnsPermanentUnknownApiError()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("api-error-without-code.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any Title");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("api-error-unknown", result.ErrorCode);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(result.ErrorCode));
+        Assert.AreNotEqual("api-", result.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_PageWithoutTitle_ReturnsParseFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("missing-page-title.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Title Missing");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+        Assert.AreEqual("missing-page-title", result.ErrorCode);
+        Assert.AreEqual("", result.Extract);
     }
 
     [TestMethod]
@@ -357,7 +409,9 @@ public class WikipediaApiClientTests
 
         Assert.AreEqual(WikipediaArticleStatus.Success, result.Status);
         Assert.IsTrue(result.IsRedirect);
+        Assert.AreEqual("A", result.RedirectedFrom);
         Assert.AreEqual("C", result.CanonicalTitle);
+        Assert.AreEqual(1, handler.RequestCount);
     }
 
     [TestMethod]
@@ -593,6 +647,60 @@ public class WikipediaApiClientTests
         var result = await client.GetArticleAsync(request);
 
         Assert.AreEqual(WikipediaArticleStatus.TransientFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_SuccessWithLanglink_SendsExactlyOneRequest()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("langlink-present.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Source Title", "de");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.Success, result.Status);
+        Assert.AreEqual(1, handler.RequestCount);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_InternalTimeout_ReturnsTimedOut()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = async (req, ct) =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                throw new InvalidOperationException("Unreachable after timeout cancellation.");
+            }
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler), requestTimeout: TimeSpan.FromMilliseconds(20));
+        var request = new WikipediaArticleRequest("en", "Any");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.TimedOut, result.Status);
+        Assert.AreEqual("timeout", result.ErrorCode);
+        Assert.AreEqual(1, handler.RequestCount);
+    }
+
+    [TestMethod]
+    public void WikipediaApiClient_NonPositiveRequestTimeout_Throws()
+    {
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+            () => new WikipediaApiClient(new HttpClient(new FakeHttpMessageHandler()), requestTimeout: TimeSpan.Zero));
+    }
+
+    [TestMethod]
+    public void WikipediaArticleResultContract_DoesNotExposeTranslation()
+    {
+        var members = typeof(WikipediaArticleResult)
+            .GetMembers(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
+            .Where(member => member.MemberType is System.Reflection.MemberTypes.Property or System.Reflection.MemberTypes.Field);
+
+        Assert.IsFalse(members.Any(member => string.Equals(member.Name, "Translation", StringComparison.OrdinalIgnoreCase)));
     }
 
     [TestMethod]

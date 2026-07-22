@@ -1,3 +1,13 @@
+# Historical automatic dictionary and learning implementation prompt
+
+> **Status:** Completed historical work package. This file preserves the
+> original implementation scope and is not an instruction for current agents.
+> Start with [../AGENTS.md](../AGENTS.md),
+> [PROJECT_STATE.md](PROJECT_STATE.md), and [ROADMAP.md](ROADMAP.md). Backup,
+> export, and synchronization remain unimplemented.
+
+The original prompt follows unchanged.
+
 Read completely before making changes:
 
 - AGENTS.md

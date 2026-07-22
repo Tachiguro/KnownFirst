@@ -54,8 +54,8 @@ public sealed class LexicalLookupProviderResolverTests
     [TestMethod]
     public void TryResolve_ReturnsNullForUnknownProvider()
     {
-        var resolver = new LexicalLookupProviderResolver([new FakeProvider("Wiktionary", 1)]);
-        Assert.IsNull(resolver.TryResolve("Wikipedia"));
+        var resolver = new LexicalLookupProviderResolver([new FakeProvider("Wiktionary", 1), new FakeProvider("Wikipedia", 1)]);
+        Assert.IsNull(resolver.TryResolve("UnknownProvider"));
     }
 
     [TestMethod]
@@ -68,8 +68,24 @@ public sealed class LexicalLookupProviderResolverTests
     [TestMethod]
     public void Resolve_ThrowsForUnknownProvider()
     {
-        var resolver = new LexicalLookupProviderResolver([new FakeProvider("Wiktionary", 1)]);
-        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => resolver.Resolve("Wikipedia"));
+        var resolver = new LexicalLookupProviderResolver([new FakeProvider("Wiktionary", 1), new FakeProvider("Wikipedia", 1)]);
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => resolver.Resolve("UnknownProvider"));
         Assert.IsTrue(ex.Message.Contains("not registered"));
+    }
+
+    [TestMethod]
+    public void Resolve_ResolvesWikipedia()
+    {
+        var expected = new FakeProvider("Wikipedia", 1);
+        var resolver = new LexicalLookupProviderResolver([new FakeProvider("Wiktionary", 1), expected]);
+        Assert.AreSame(expected, resolver.Resolve("Wikipedia"));
+    }
+
+    [TestMethod]
+    public void Resolve_ResolvesWiktionary()
+    {
+        var expected = new FakeProvider("Wiktionary", 1);
+        var resolver = new LexicalLookupProviderResolver([expected, new FakeProvider("Wikipedia", 1)]);
+        Assert.AreSame(expected, resolver.Resolve("Wiktionary"));
     }
 }

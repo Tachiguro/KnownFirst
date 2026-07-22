@@ -73,10 +73,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<WiktionaryHtmlParser>();
         builder.Services.AddSingleton<IAsyncDelay, SystemAsyncDelay>();
         builder.Services.AddSingleton(new HttpClient());
-        builder.Services.AddSingleton<WiktionaryLookupProvider>();
-        builder.Services.AddSingleton<IDictionaryLookupProvider>(provider => provider.GetRequiredService<WiktionaryLookupProvider>());
-        builder.Services.AddSingleton<ILexicalLookupProvider>(provider => provider.GetRequiredService<WiktionaryLookupProvider>());
-        builder.Services.AddSingleton<ILexicalLookupProviderResolver, LexicalLookupProviderResolver>();
+        builder.Services.AddLexicalProviders();
+        
         builder.Services.AddSingleton<ILexicalEnrichmentService, LexicalEnrichmentService>();
         builder.Services.AddSingleton<IPreparationService, PreparationService>();
         builder.Services.AddSingleton<ILearningService, LearningService>();

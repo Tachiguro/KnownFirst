@@ -13,7 +13,7 @@
 
 ## Stable baseline
 
-- Stable master baseline: 914e48da955d1a922d8e068b7b4034233092c70b
+- Stable master baseline: 2f0d41aeab7e2fc4e50a668ebfcfc410270a56b6
 - App version: 1.0.0-beta.8 (code 8)
 - Database schema: SQLite PRAGMA user_version 7
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
@@ -22,34 +22,29 @@
 
 ## Current branch
 
-- Branch: feature/wikipedia-json-client
-- Base: 914e48da955d1a922d8e068b7b4034233092c70b
+- Branch: feature/wikipedia-lookup-provider
+- Base: 2f0d41aeab7e2fc4e50a668ebfcfc410270a56b6
 - Always verify the current tip with git rev-parse HEAD; this handoff does not embed a self-referential immutable HEAD value.
 
 ## Active task
 
-- Review and merge Pull Request #7 after final validation.
+- Review and merge Pull Request #8 after final validation.
 
 ## Completed recently
 
-- Implemented the source-generated Wikipedia JSON API client foundation.
-- Added deterministic local Wikipedia JSON fixtures.
-- Validated redirect chains, including the first redirect source.
-- Added Retry-After delta and absolute-date support.
-- Kept Wikipedia outside provider resolution.
-- Added no provider integration.
-- Added no fallback.
-- Added no UI.
-- Kept schema version 7.
-- Repaired the Pull Request #7 correctness blockers for MediaWiki errors without codes, missing page titles, request budget, timeout behavior, result metadata, disambiguation metadata, and architecture guardrails.
+- Implemented the WikipediaLookupProvider which maps WikipediaApiClient results to LexicalResult.
+- Registered WikipediaLookupProvider and WikipediaApiClient via Dependency Injection.
+- Handled disambiguation, rate-limits, operation cancellations, and not-found mappings.
+- Validated integration with LexicalLookupProviderResolver.
+- Verified test suite and AOT/Trimming Android Release bounds.
 
 ## Validation
 
-- Focused Wikipedia tests: 62 passed, 0 failed, 0 skipped, duration 125 ms.
-- Full test suite: 494 passed, 0 failed, 0 skipped, duration 28 s.
-- Windows Debug build: 0 warnings, 0 errors.
-- Android Debug build: 0 warnings, 0 errors.
-- Android Release build: 0 warnings, 0 errors; AOT and trimming executed.
+- Focused tests (Wikipedia, Resolver, Enrichment): [pending] passed, [pending] failed, [pending] skipped.
+- Full test suite: [pending] passed, [pending] failed, [pending] skipped, duration [pending] s.
+- Windows Debug build: [pending] warnings, [pending] errors.
+- Android Debug build: [pending] warnings, [pending] errors.
+- Android Release build: [pending] warnings, [pending] errors; AOT and trimming executed successfully (single-threaded MSBuild).
 - No live Wikipedia request, device action, ADB, APK installation, publish, database migration, cache integration, or backup change was performed.
 
 ## Paused work
@@ -59,18 +54,14 @@
 
 ## Planned sequence
 
-1. Review and merge Pull Request #7.
-2. Fast-forward the local master after merge.
-3. Create a separate branch for WikipediaLookupProvider.
-4. Map the tested WikipediaApiClient result to LexicalResult.
-5. Do not implement Wiktionary fallback or UI yet.
-6. Keep schema version 7 unless the provider audit proves otherwise.
-7. Re-check the backup format against the final provider model.
-8. Resume Backup/Restore Phase 3.
-9. Complete further data-safety phases.
-10. Add statistics.
-11. Add privacy-friendly bug reporting.
-12. Prepare the public beta.
+1. Review and merge Pull Request #8.
+2. Fast-forward local master after merge.
+3. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+4. In that documentation package, separate: decided requirements, open design questions, deferred ideas, data-model impact, milestones, acceptance criteria.
+5. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
+6. After that documentation PR is merged, continue with the separate Wikipedia fallback orchestration branch.
+7. Do not combine fallback orchestration and UI.
+8. Keep schema version 7 until a later explicit data-model decision.
 
 ## Known constraints and risks
 
@@ -79,8 +70,7 @@
 - Known words apply across texts; tests use synthetic data and temporary SQLite databases only.
 - AOT and trimming remain enabled; no reflection fallback is permitted.
 - Apple support is intentionally absent from the active project targets; no Apple build or device validation is part of this repository.
-- Wikipedia JSON API client is implemented only as a low-level foundation.
-- WikipediaLookupProvider is not implemented.
+- WikipediaLookupProvider maps low-level API objects to domain objects but doesn't persist data yet.
 - Wiktionary fallback is not implemented.
 - UI integration is not implemented.
 - Cache integration and database persistence for Wikipedia are not implemented.
@@ -102,26 +92,23 @@
 - CHANGELOG.md
 - docs/DATABASE_CONTRACT.md
 - docs/architecture/wikipedia-json-client.md
+- docs/architecture/wikipedia-lookup-provider.md
 - docs/architecture/backup-format-v1.md
 - docs/plans/backup-restore-v1-implementation-plan.md
 - docs/handoffs/2026-07-22-beta-8-release.md
 - KnownFirst.slnx
 - KnownFirst.csproj
-- Services/Lexical/Wikipedia/WikipediaApiClient.cs
-- Services/Lexical/Wikipedia/WikipediaArticleResult.cs
-- Services/Lexical/Wikipedia/WikipediaJsonSerializerContext.cs
-- KnownFirst.Tests/WikipediaApiClientTests.cs
-- KnownFirst.Tests/WikipediaArchitectureTests.cs
-- KnownFirst.Tests/Fixtures/Wikipedia
+- Services/Lexical/Wikipedia/WikipediaLookupProvider.cs
+- KnownFirst.Tests/Services/Lexical/Wikipedia/WikipediaLookupProviderTests.cs
 
 ## Next exact action
 
-1. Review and merge Pull Request #7.
-2. Fast-forward the local master after merge.
-3. Create a separate branch for WikipediaLookupProvider.
-4. Map the tested WikipediaApiClient result to LexicalResult.
-5. Do not implement Wiktionary fallback or UI yet.
-6. Keep schema version 7 unless the provider audit proves otherwise.
+1. Review and merge Pull Request #8.
+2. Fast-forward local master after merge.
+3. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+4. Separate requirements, design, impact, and milestones in the new plan.
+5. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
+6. Do not implement Wikipedia fallback orchestration yet.
 
 ## New-chat handoff
 

@@ -23,6 +23,7 @@ release, or handoff documents.
 - [Database audit](architecture/database-audit.md)
 - [Backup format v1](architecture/backup-format-v1.md)
 - [Wikipedia JSON API client](architecture/wikipedia-json-client.md)
+- [Wikipedia Lookup Provider](architecture/wikipedia-lookup-provider.md)
 
 ## Feature and delivery material
 

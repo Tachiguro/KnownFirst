@@ -17,15 +17,16 @@ exists. Verified implementation state belongs in
 
 | Priority | Milestone | Status | Required outcome |
 | ---: | --- | --- | --- |
-| 1 | Data Safety v1 | Planned | Define threat model, data boundaries, compatibility guarantees, failure behavior, and acceptance criteria without yet claiming backup implementation. |
-| 2 | Database and migration audit | Planned | Inventory schema/version transitions, destructive operations, integrity checks, and upgrade fixtures; close contract gaps before backup work. |
-| 3 | Versioned backup and restore | Planned | Implement a documented, versioned, integrity-checked local format with safe validation and transactional restore. |
-| 4 | Backup/restore UI | Planned | Add understandable local user flows, confirmations, progress, error recovery, and accessibility around the verified service layer. |
-| 5 | Learning events for statistics | Planned | Define and persist privacy-preserving learning events without changing scheduling truth or duplicating review history. |
-| 6 | Statistics dashboard | Planned | Present useful local metrics derived from the accepted event contract. |
-| 7 | Privacy-friendly bug reporting | Planned | Produce explicit user-reviewed diagnostic exports with redaction and no automatic upload. |
-| 8 | Public-beta preparation | Planned | Complete release criteria, privacy review, platform validation, support material, and operational readiness. |
-| 9 | Size and build-artifact optimization | Planned | Measure and reduce output size without weakening AOT, trimming, signing, or reproducibility. |
+| 1 | Documentation and handoff structure | In progress | Maintain canonical entry points and an auditable single-worktree handoff. |
+| 2 | Remove Apple targets | Planned | Remove iOS and Mac Catalyst from project, platform code, build configuration, tests, and docs on a dedicated branch. |
+| 3 | Windows/Android validation | Planned | Validate Windows Debug and Android Debug/Release after platform cleanup. |
+| 4 | Wikipedia fallback | Planned | Add a consented fallback behind Wiktionary without changing provider boundaries prematurely. |
+| 5 | Persistence and migration decision | Planned | Decide and document schema implications of the final provider model. |
+| 6 | Re-check backup model | Planned | Verify the backup contract against the final provider and persistence model. |
+| 7 | Backup/Restore continuation | Planned | Resume Phase 3 only after the preceding gates are complete. |
+| 8 | Statistics | Planned | Define and present privacy-preserving learning metrics. |
+| 9 | Privacy-friendly bug reporting | Planned | Produce explicit user-reviewed redacted diagnostic exports. |
+| 10 | Public-beta preparation | Planned | Complete release, privacy, platform, support, and operational readiness. |
 
 Data Safety v1 and the database audit are gates for versioned backup and
 restore. The UI follows the service and compatibility contract; it must not
@@ -33,10 +34,10 @@ define the format implicitly.
 
 ## In progress
 
-- Project governance and documentation structure on
-  `feature/project-governance-and-docs`.
+- Canonical documentation and handoff structure on
+  `docs/current-work-and-index`.
 
-No backup or restore implementation is in progress.
+No Wikipedia fallback or backup/restore implementation is in progress.
 
 ## Completed
 
@@ -61,3 +62,7 @@ No backup or restore implementation is in progress.
 
 Deferred items require a future explicit milestone and must not be introduced
 speculatively while executing the prioritized sequence.
+
+Longer-term checks and releases include Linux feasibility or alternative-host
+architecture validation, Microsoft Store publication, and public Google Play
+publication.

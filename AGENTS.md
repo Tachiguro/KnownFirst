@@ -12,12 +12,12 @@ practice. Use the name **KnownFirst** exclusively.
 Before changing anything, read these sources completely in this order:
 
 1. `AGENTS.md`
-2. `docs/PROJECT_STATE.md`
-3. `docs/ROADMAP.md`
-4. `CHANGELOG.md`
-5. the relevant architecture documents
-6. the relevant accepted ADRs in `docs/decisions/`
-7. the newest applicable report in `docs/handoffs/`
+2. `docs/INDEX.md`
+3. `docs/CURRENT_WORK.md`
+4. `docs/PROJECT_STATE.md`
+5. `docs/ROADMAP.md`
+6. `CHANGELOG.md`
+7. the relevant architecture, plan, decision, test, release, and handoff documents
 
 The binding architecture documents are:
 
@@ -52,8 +52,10 @@ documents before implementation.
 ## Repository, branch, and worktree rules
 
 - Never implement directly on `master`.
-- Use one purpose-specific branch and an isolated Git worktree for each work
-  package.
+- `C:\Dev\KnownFirst` is the only normal working folder.
+- Do not create a worktree without explicit user approval; do not create
+  repository copies.
+- Only one writing agent may operate at a time.
 - Inspect branch, HEAD, status, diff, untracked files, and registered worktrees
   before editing.
 - Treat every other worktree and every pre-existing local change as protected.
@@ -108,6 +110,13 @@ documents before implementation.
 
 Update documentation in the same work package as the behavior it describes.
 Do not turn plans into claims of implemented functionality.
+
+Before every change, verify branch, HEAD, status, and registered worktrees.
+Before ending every work package, update `docs/CURRENT_WORK.md` with tests,
+builds, risks, and the next exact step. Create a dated handoff when a milestone
+is complete. A task is not complete while `CURRENT_WORK.md` is stale. Store
+diagnostic artifacts only according to
+`docs/development/DEBUG_ARTIFACT_POLICY.md`.
 
 ## Commits and pull requests
 

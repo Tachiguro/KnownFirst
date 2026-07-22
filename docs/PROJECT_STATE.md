@@ -1,8 +1,9 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-22
-**State source:** `origin/master` after pull request 1
-**Next product milestone:** Data Safety v1
+**State source:** `origin/master` at `30558b04e73fefadf22c4b9a61f49b1f14c4503d`
+plus this branch's documentation-only Data Safety v1 analysis
+**Next product milestone:** Data Safety v1 (analysis in progress)
 
 This document is the authoritative snapshot of verified current state. Update
 it when a milestone is completed or when a release, schema, supported platform,
@@ -111,8 +112,10 @@ details.
 - Beta 8 introduced no schema change relative to Beta 7.
 
 The complete persisted-data rules are in
-[DATABASE_CONTRACT.md](DATABASE_CONTRACT.md). No versioned backup, restore, or
-export format exists yet.
+[DATABASE_CONTRACT.md](DATABASE_CONTRACT.md). Data Safety v1 now has a
+source-only database audit, proposed external backup-format contract, and
+phased implementation plan. No backup, restore, export service, or UI has been
+implemented.
 
 ## Known limitations
 
@@ -143,8 +146,8 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 
 ## Active development
 
-- `feature/project-governance-and-docs`: active documentation-governance
-  work; no product behavior changes.
+- `feature/backup-restore-v1`: documentation-only Data Safety v1 analysis;
+  implementation has not begun.
 - `hotfix/beta-8-online-lookup-crash`: branch tip is merged, but its attached
   worktree contains protected uncommitted parser/test work and must not be
   cleaned or removed.
@@ -157,6 +160,15 @@ for the complete snapshot.
 
 ## Next milestone
 
-Data Safety v1 is next. It must begin with explicit requirements and a
-database/migration audit before any backup format or restore behavior is
-implemented. This documentation branch does not implement backup or restore.
+Data Safety v1 is in analysis. The audit found two critical design gates: an
+older application does not currently reject a future database schema, and a
+naive replacement restore could erase all personal learning data. Other high
+risks include implicit/non-atomic migrations, no SQLite foreign-key integrity
+checks, incomplete migration fixtures, hostile ZIP/resource limits, and the
+Android AOT requirement for source-generated backup JSON.
+
+The next step is to review and accept the proposed v1 data boundary, format,
+limits, compatibility behavior, safety-backup rule, and transactional
+`ReplaceAll` contract. Only then should implementation begin with external
+backup DTOs and reflection-disabled JSON tests; no database mutation or UI is
+part of that first implementation phase.

@@ -1,9 +1,10 @@
-@inherits LayoutComponentBase
+﻿@inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject INavigationHistoryService NavigationHistory
+@inject ILogger<MainLayout> Logger
 
-<div class="page">
+<div class="page @(_isMenuOpen ? "menu-open" : null)" @onkeydown="HandleKeyDown">
     <header class="mobile-header">
         <button type="button"
                 class="menu-toggle"
@@ -16,15 +17,26 @@
             <span aria-hidden="true"></span>
             <span aria-hidden="true"></span>
         </button>
-        <span class="mobile-page-title">@CurrentPageTitle</span>
+        @if (!string.IsNullOrEmpty(CurrentPageTitle))
+        {
+            <span class="mobile-page-title">@CurrentPageTitle</span>
+        }
     </header>
+
+    @if (_isMenuOpen)
+    {
+        <button type="button"
+                class="navigation-backdrop"
+                aria-label="@MenuButtonLabel"
+                @onclick="CloseMenu"></button>
+    }
 
     <aside id="primary-navigation" class="sidebar @(_isMenuOpen ? "open" : null)">
         <NavMenu OnNavigate="CloseMenu" />
     </aside>
 
-    <main>
-        <article class="content">
+    <main inert="@(_isMenuOpen ? "inert" : null)">
+        <article class="content" tabindex="0">
             @Body
         </article>
     </main>
@@ -32,6 +44,7 @@
 
 @code {
     private bool _isMenuOpen;
+    private IDisposable? _menuBackRegistration;
     private string _currentRoute = string.Empty;
 
     private string MenuButtonLabel => Localizer[_isMenuOpen
@@ -40,13 +53,14 @@
 
     private string CurrentPageTitle => _currentRoute.ToLowerInvariant() switch
     {
-        "" => Localizer["Home_Title"],
+        "" => string.Empty,
         "import-text" => Localizer["Navigation_ImportText"],
         "review-words" => Localizer["Navigation_ReviewWords"],
         "prepare-words" => Localizer["Navigation_PrepareWords"],
         "learn" => Localizer["Navigation_Learn"],
         "dictionary" => Localizer["Navigation_Dictionary"],
         "settings" => Localizer["Navigation_Settings"],
+        "diagnostics" => Localizer["Diagnostics_Title"],
         _ => Localizer["NotFound_Title"]
     };
 
@@ -59,16 +73,49 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        _menuBackRegistration?.Dispose();
     }
 
-    private void ToggleMenu() => _isMenuOpen = !_isMenuOpen;
+    private void ToggleMenu()
+    {
+        if (_isMenuOpen)
+        {
+            CloseMenu();
+            return;
+        }
 
-    private void CloseMenu() => _isMenuOpen = false;
+        _isMenuOpen = true;
+        _menuBackRegistration = NavigationHistory.RegisterDismissibleOverlay(
+            DismissMenuFromBackNavigation);
+    }
+
+    private void CloseMenu()
+    {
+        _menuBackRegistration?.Dispose();
+        _menuBackRegistration = null;
+        _isMenuOpen = false;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (_isMenuOpen
+            && (string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+                || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal)))
+        {
+            CloseMenu();
+        }
+    }
+
+    private void DismissMenuFromBackNavigation() => _ = InvokeAsync(() =>
+    {
+        CloseMenu();
+        StateHasChanged();
+    });
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs eventArgs)
     {
         RecordCurrentRoute(eventArgs.Location);
-        _isMenuOpen = false;
+        CloseMenu();
         _ = InvokeAsync(StateHasChanged);
     }
 
@@ -76,6 +123,7 @@
     {
         _currentRoute = NormalizeRoute(Navigation.ToBaseRelativePath(absoluteUri));
         NavigationHistory.RecordNavigation(_currentRoute);
+        Logger.LogDebug("Navigation completed. Route = {Route}", _currentRoute);
     }
 
     private static string NormalizeRoute(string relativeRoute)

@@ -1,0 +1,72 @@
+@inject ITextReviewService TextReviewService
+@inject NavigationManager Navigation
+@inject ILogger<GuardedRouteView> Logger
+
+@if (_isChecking)
+{
+    <div class="app-status" role="status">@Localizer["ReviewGate_Checking"]</div>
+}
+else if (_checkFailed)
+{
+    <div class="app-status app-status-error" role="alert">
+        <p>@Localizer["ReviewGate_Error"]</p>
+        <button type="button" class="button button-primary" @onclick="CheckRouteAsync">
+            @Localizer["Common_Retry"]
+        </button>
+    </div>
+}
+else if (!_isRedirecting)
+{
+    <RouteView RouteData="RouteData" DefaultLayout="DefaultLayout" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public RouteData RouteData { get; set; } = null!;
+
+    [Parameter]
+    public Type? DefaultLayout { get; set; }
+
+    private bool _isChecking = true;
+    private bool _isRedirecting;
+    private bool _checkFailed;
+    private Type? _checkedPageType;
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (_checkedPageType == RouteData.PageType && !_checkFailed)
+        {
+            return Task.CompletedTask;
+        }
+
+        _checkedPageType = RouteData.PageType;
+        return CheckRouteAsync();
+    }
+
+    private async Task CheckRouteAsync()
+    {
+        _isChecking = true;
+        _isRedirecting = false;
+        _checkFailed = false;
+
+        try
+        {
+            var activeReview = await TextReviewService.GetActiveReviewAsync();
+            var route = Navigation.ToBaseRelativePath(Navigation.Uri);
+            if (ReviewRoutePolicy.IsBlocked(route, activeReview is not null))
+            {
+                _isRedirecting = true;
+                Navigation.NavigateTo("review-words", replace: true);
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The active review route guard could not be evaluated.");
+            _checkFailed = true;
+        }
+        finally
+        {
+            _isChecking = false;
+        }
+    }
+}

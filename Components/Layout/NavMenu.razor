@@ -1,31 +1,68 @@
+﻿@implements IDisposable
+@inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
+@inject NavigationManager Navigation
+@inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
+
 <div class="nav-shell">
     <div class="nav-header">
-        <a class="brand" href="" @onclick="NotifyNavigationAsync">@Localizer["App_Name"]</a>
+        <a class="brand" href="@HomeRoute" @onclick="NotifyNavigationAsync">@Localizer["App_Name"]</a>
     </div>
 
     <div class="nav-scrollable">
         <nav class="nav-list" aria-label="@(Localizer["Navigation_Menu"])">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_Home"]
-            </NavLink>
-            <NavLink class="nav-link" href="import-text" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_ImportText"]
-            </NavLink>
-            <NavLink class="nav-link" href="review-words" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_ReviewWords"]
-            </NavLink>
-            <NavLink class="nav-link" href="prepare-words" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_PrepareWords"]
-            </NavLink>
-            <NavLink class="nav-link" href="learn" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_Learn"]
-            </NavLink>
-            <NavLink class="nav-link" href="dictionary" @onclick="NotifyNavigationAsync">
-                @Localizer["Navigation_Dictionary"]
-            </NavLink>
+            @if (_workflow?.CanLearn == true)
+            {
+                <NavLink class="nav-link" href="learn" @onclick="NotifyNavigationAsync">
+                    @Localizer["Navigation_Learn"]
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link nav-link-disabled"
+                      aria-disabled="true"
+                      title="@(Localizer["Navigation_LearnUnavailable"])">
+                    @Localizer["Navigation_Learn"]
+                </span>
+            }
+            @if (_workflow?.CanPrepare == true)
+            {
+                <NavLink class="nav-link" href="prepare-words" @onclick="NotifyNavigationAsync">
+                    @Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link nav-link-disabled"
+                      aria-disabled="true"
+                      title="@PrepareUnavailableReason">
+                    @Localizer[_workflow?.HasActivePreparation == true ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
+                    <small>@PrepareUnavailableReason</small>
+                </span>
+            }
+            @if (_workflow?.CanImport != false)
+            {
+                <NavLink class="nav-link" href="import-text" @onclick="NotifyNavigationAsync">
+                    @Localizer["Navigation_ImportText"]
+                </NavLink>
+            }
+            else
+            {
+                <span class="nav-link nav-link-disabled"
+                      aria-disabled="true"
+                      title="@(Localizer["Navigation_ImportBlockedByReview"])">
+                    @Localizer["Navigation_ImportText"]
+                </span>
+            }
             <NavLink class="nav-link" href="settings" @onclick="NotifyNavigationAsync">
                 @Localizer["Navigation_Settings"]
             </NavLink>
+            @if (IsDebugBuild)
+            {
+                <NavLink class="nav-link debug-nav-link" href="diagnostics" @onclick="NotifyNavigationAsync">
+                    <span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span>
+                    @Localizer["Navigation_Diagnostics"]
+                </NavLink>
+            }
         </nav>
     </div>
 
@@ -35,11 +72,65 @@
              alt="@(Localizer["Footer_TachiguroLogoAlt"])"
              class="developer-sign" />
     </div>
+    <div class="build-identity">
+        @BuildIdentityService.GetFormattedBuildIdentity()
+    </div>
 </div>
 
 @code {
     [Parameter]
     public EventCallback OnNavigate { get; set; }
+
+    private static bool IsDebugBuild
+    {
+        get
+        {
+#if DEBUG
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
+
+    private WorkflowSnapshot? _workflow;
+
+    private string HomeRoute => _workflow?.HasActiveReview == true ? "review-words" : string.Empty;
+
+    private string PrepareUnavailableReason => Localizer[
+        _workflow?.HasActiveReview == true
+            ? "Navigation_PrepareBlockedByReview"
+            : "Navigation_PrepareUnavailable"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        await LoadWorkflowAsync();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs eventArgs) =>
+        _ = InvokeAsync(async () =>
+        {
+            await LoadWorkflowAsync();
+            StateHasChanged();
+        });
+
+    private async Task LoadWorkflowAsync()
+    {
+        try
+        {
+            _workflow = await WorkflowState.GetSnapshotAsync();
+        }
+        catch
+        {
+            _workflow = null;
+        }
+    }
 
     private Task NotifyNavigationAsync() => OnNavigate.InvokeAsync();
 }

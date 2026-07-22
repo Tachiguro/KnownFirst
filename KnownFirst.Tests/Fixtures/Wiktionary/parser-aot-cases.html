@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body>
+    <div class="mw-parser-output">
+        <h2 id="English"><span class="mw-headline" id="English">English</span></h2>
+        <h3><span class="mw-headline" id="Noun">Noun</span></h3>
+        <ol>
+            <!-- Case 1: li ohne Definition-Marker -->
+            <li id="case-1">
+                Just some plain text definition.
+            </li>
+
+            <!-- Case 2: class="definition" -->
+            <li id="case-2">
+                <span class="definition">Definition class content.</span>
+            </li>
+
+            <!-- Case 3: data-definition -->
+            <li id="case-3">
+                <span data-definition="true">Data definition content.</span>
+            </li>
+
+            <!-- Case 4: data-definition vor class="definition" -->
+            <li id="case-4">
+                <span data-definition="true">First data definition.</span>
+                <span class="definition">Second class definition.</span>
+            </li>
+
+            <!-- Case 5: class="definition" vor data-definition -->
+            <li id="case-5">
+                <span class="definition">First class definition.</span>
+                <span data-definition="true">Second data definition.</span>
+            </li>
+
+            <!-- Cases 6-13: Translations and Examples -->
+            <li id="case-6-13">
+                <span class="definition">Def.</span>
+                <span class="translation">Trans 6</span>
+                <span class="translation-item">Trans 7</span>
+                <span data-translation="true">Trans 8</span>
+                <span class="example">Example 9</span>
+                <span data-example="true">Example 10</span>
+                <span class="h-usage-example">Example 11</span>
+                <span class="e-example">Example 12</span>
+                <span class="ux">Example 13</span>
+            </li>
+
+            <!-- Cases 14-20: Labels -->
+            <li id="case-14-20">
+                <span class="definition">Def 14.</span>
+                <span class="usage-label">Label 14</span>
+                <span class="label">Label 15</span>
+                <span data-label="true">Label 16</span>
+                <span class="ib-content">Label 17</span>
+                <span class="qualifier-content">Label 18</span>
+                <span class="usage-label">Label 14</span> <!-- Case 19: duplicate -->
+                <span class="usage-label">Label 20</span> <!-- Case 20: different -->
+            </li>
+
+            <!-- Cases 21-24: Excluded children -->
+            <li id="case-21-24">
+                <span class="definition">
+                    Def content.
+                    <span class="translation">Excluded trans.</span>
+                    <span class="example">Excluded ex.</span>
+                    <span class="usage-label">Excluded label.</span>
+                    <nav role="navigation">Excluded nav.</nav>
+                    <span class="metadata">Excluded meta.</span>
+                    <sup class="reference">Excluded sup.</sup>
+                    <ol><li>Excluded nested ol.</li></ol>
+                    <ul><li>Excluded nested ul.</li></ul>
+                    <dl><dd>Excluded nested dl.</dd></dl>
+                </span>
+            </li>
+
+            <!-- Case 25: verschachtelte li -->
+            <li id="case-25">
+                <span class="definition">Outer def.</span>
+                <ol>
+                    <li><span class="definition">Inner def 1.</span></li>
+                    <li><span class="definition">Inner def 2.</span></li>
+                </ol>
+            </li>
+        </ol>
+    </div>
+</body>
+</html>

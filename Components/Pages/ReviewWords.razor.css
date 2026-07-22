@@ -1,0 +1,235 @@
+﻿.review-card,
+.completion-card {
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
+    border: 1px solid var(--color-border);
+    border-radius: 1.1rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.review-card h2 {
+    margin: var(--space-1) 0 var(--space-6);
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
+    font-size: clamp(2rem, 7vw, 3.5rem);
+}
+
+.review-card h3 {
+    margin: var(--space-6) 0 var(--space-3);
+    font-size: 1.15rem;
+}
+
+.review-progress {
+    display: grid;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+    color: var(--color-muted);
+    font-weight: 700;
+}
+
+.review-progress progress {
+    width: 100%;
+    height: 0.65rem;
+    accent-color: var(--color-primary);
+}
+
+.candidate-label {
+    margin: 0;
+    color: var(--color-primary);
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.candidate-details,
+.completion-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin: 0;
+}
+
+.candidate-details-panel {
+    min-width: 0;
+}
+
+.candidate-details-panel summary {
+    width: fit-content;
+    cursor: pointer;
+    color: var(--color-primary);
+    font-weight: 750;
+}
+
+.candidate-details-panel[open] summary {
+    margin-bottom: 0.75rem;
+}
+
+.candidate-details div,
+.completion-summary div {
+    padding: var(--space-4);
+    border-radius: 0.75rem;
+    background: var(--color-surface-muted);
+}
+
+dt {
+    color: var(--color-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+dd {
+    margin: var(--space-1) 0 0;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
+    font-weight: 750;
+}
+
+.context-notice {
+    margin: var(--space-6) 0 0;
+    color: var(--color-muted);
+}
+
+.review-debug-tools {
+    width: fit-content;
+    max-width: 100%;
+    margin-top: var(--space-4);
+    padding: var(--space-2);
+    border: 1px solid var(--color-debug-border);
+    border-radius: 0.8rem;
+    background: var(--color-debug-surface);
+}
+
+.context-card {
+    margin-top: var(--space-4);
+    padding: clamp(var(--space-4), 4vw, var(--space-6));
+    border: 1px solid var(--color-border-strong);
+    border-radius: 0.9rem;
+    background: var(--color-surface-elevated);
+}
+
+.context-text {
+    margin: 0;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
+    font-size: 1.08rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+}
+
+.context-text mark {
+    padding: 0.1rem 0.2rem;
+    border-radius: 0.25rem;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    font-weight: 800;
+}
+
+.context-navigation {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    text-align: center;
+}
+
+.context-navigation .button {
+    min-width: 0;
+}
+
+.context-navigation .button:last-child {
+    justify-self: end;
+}
+
+.decision-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.review-action-bar {
+    padding: clamp(var(--space-3), 3vw, var(--space-4));
+    border: 1px solid var(--color-border-strong);
+    border-radius: 0.9rem;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+}
+
+.review-saving-state {
+    min-height: 1.25rem;
+    margin: 0 0 0.4rem;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.undo-container {
+    min-height: 1.5rem;
+    margin-top: clamp(var(--space-2), 2vw, var(--space-4));
+    text-align: center;
+}
+
+.undo-button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-primary);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+.undo-button:disabled {
+    color: var(--color-disabled);
+    cursor: default;
+}
+
+.discard-import-section {
+    margin-top: var(--space-6);
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.completion-card .button {
+    margin-top: var(--space-6);
+}
+
+@media (max-width: 620px) {
+    .candidate-details,
+    .completion-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .context-navigation {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .context-navigation span {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    .context-navigation .button {
+        width: 100%;
+    }
+
+    .review-action-bar .button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 320px) {
+    .context-navigation {
+        grid-template-columns: 1fr;
+    }
+    .context-navigation .button:last-child {
+        justify-self: stretch;
+    }
+    .decision-grid {
+        grid-template-columns: 1fr;
+    }
+}

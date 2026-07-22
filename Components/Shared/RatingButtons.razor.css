@@ -1,0 +1,11 @@
+.rating-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: var(--space-3);
+}
+
+.rating-again {
+    border-color: var(--color-danger, #c53030);
+    background: transparent;
+    color: var(--color-danger, #c53030);
+}

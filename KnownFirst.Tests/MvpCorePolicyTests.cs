@@ -1,0 +1,681 @@
+using KnownFirst.Core.Learning;
+using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Review;
+using KnownFirst.Core.Settings;
+using KnownFirst.Core.Text;
+using KnownFirst.Core.Workflow;
+using KnownFirst.Models;
+using System.Text.Json;
+
+namespace KnownFirst.Tests;
+
+[TestClass]
+public sealed class MvpCorePolicyTests
+{
+    private static readonly DateTime Now = new(2026, 7, 16, 12, 0, 0, DateTimeKind.Utc);
+    private readonly SimpleSpacedRepetitionScheduler _scheduler = new();
+
+    [TestMethod]
+    public void ReviewActions_OfferKnownUnknownAndUndoButNotIgnore()
+    {
+        CollectionAssert.AreEqual(
+            new[] { ReviewAction.Known, ReviewAction.Unknown, ReviewAction.UndoPreviousDecision },
+            ReviewActionPolicy.VisibleActions.ToArray());
+    }
+
+    [TestMethod]
+    public void PrimaryNavigation_UsesLearnPrepareImportSettingsOrder()
+    {
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                PrimaryNavigationAction.Learn,
+                PrimaryNavigationAction.PrepareWords,
+                PrimaryNavigationAction.ImportText,
+                PrimaryNavigationAction.Settings
+            },
+            PrimaryNavigationPolicy.Actions.ToArray());
+    }
+
+    [TestMethod]
+    public void MeaningPreview_LongTextIsBoundedWithoutChangingStoredText()
+    {
+        var stored = new string('x', 400);
+
+        var closed = MeaningPreviewPolicy.CreateClosedPreview(stored);
+        var alternative = MeaningPreviewPolicy.CreateAlternativePreview(stored);
+
+        Assert.AreEqual(161, closed.Length);
+        Assert.AreEqual(241, alternative.Length);
+        Assert.AreEqual(400, stored.Length);
+        Assert.IsTrue(MeaningPreviewPolicy.IsAlternativeTruncated(stored));
+    }
+
+    [TestMethod]
+    public void MeaningPreview_DefinitionModeReturnsDefinition()
+    {
+        var primaryText = MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "ein Gebäude", LexicalLookupMode.Definition);
+        Assert.AreEqual("A building", primaryText);
+    }
+
+    [TestMethod]
+    public void MeaningPreview_TranslationModeReturnsTranslation()
+    {
+        var primaryText = MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "ein Gebäude", LexicalLookupMode.Translation);
+        Assert.AreEqual("ein Gebäude", primaryText);
+    }
+
+    [TestMethod]
+    public void MeaningPreview_CombinedModeReturnsCombination()
+    {
+        var primaryText = MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "ein Gebäude", LexicalLookupMode.DefinitionAndTranslation);
+        Assert.AreEqual("A building (ein Gebäude)", primaryText);
+    }
+
+    [TestMethod]
+    public void MeaningPreview_FallbackOmitsEmptyFieldsGracefully()
+    {
+        Assert.AreEqual("A building", MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "", LexicalLookupMode.DefinitionAndTranslation));
+        Assert.AreEqual("ein Gebäude", MeaningPreviewPolicy.GetPrimaryTextForMode("", "ein Gebäude", LexicalLookupMode.DefinitionAndTranslation));
+        Assert.AreEqual("A building", MeaningPreviewPolicy.GetPrimaryTextForMode("A building", "", LexicalLookupMode.Translation));
+        Assert.AreEqual("ein Gebäude", MeaningPreviewPolicy.GetPrimaryTextForMode("", "ein Gebäude", LexicalLookupMode.Definition));
+    }
+
+    [TestMethod]
+    public void MeaningPreview_SelectableMeaningsFiltersAndDeduplicates()
+    {
+        var meanings = new[]
+        {
+            new LexicalMeaning("1", "noun", "A building", "ein Gebäude", null, []),
+            new LexicalMeaning("2", "noun", "A building", "ein Gebäude", null, []),
+            new LexicalMeaning("3", null, "", "", null, []),
+            new LexicalMeaning("4", "verb", "To house", "unterbringen", null, ["transitive"])
+        };
+
+        var result = MeaningPreviewPolicy.GetSelectableMeanings(meanings, LexicalLookupMode.DefinitionAndTranslation);
+
+        Assert.HasCount(2, result);
+        Assert.AreEqual("A building (ein Gebäude)", result[0].PrimaryText);
+        Assert.AreEqual("noun", result[0].SecondaryText);
+        
+        Assert.AreEqual("To house (unterbringen)", result[1].PrimaryText);
+        Assert.AreEqual("verb · transitive", result[1].SecondaryText);
+    }
+
+    [TestMethod]
+    public void ProviderFormRelations_ResolveOnlyExplicitSupportedRelations()
+    {
+        Assert.AreEqual("system", ProviderFormRelationPolicy.Resolve("plural of system")!.BaseLemma);
+        Assert.AreEqual("risk", ProviderFormRelationPolicy.Resolve("plural form of risk")!.BaseLemma);
+        Assert.AreEqual("data", ProviderFormRelationPolicy.Resolve("singular of data")!.BaseLemma);
+        Assert.AreEqual(
+            "identify",
+            ProviderFormRelationPolicy.Resolve("third-person singular simple present indicative of identify")!.BaseLemma);
+        Assert.AreEqual("protect", ProviderFormRelationPolicy.Resolve("past participle of protect")!.BaseLemma);
+        Assert.AreEqual("large", ProviderFormRelationPolicy.Resolve("comparative of large")!.BaseLemma);
+        Assert.IsNull(ProviderFormRelationPolicy.Resolve("having the qualities of risk"));
+    }
+
+    [TestMethod]
+    [DataRow("Nominativ Plural des Substantivs Haus", "Haus", GrammaticalRelationKind.Plural)]
+    [DataRow("3. Person Singular Präsens Indikativ Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.ThirdPersonSingular)]
+    [DataRow("Präteritum Indikativ Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.PastTense)]
+    [DataRow("Partizip II des Verbs laufen", "laufen", GrammaticalRelationKind.PastParticiple)]
+    [DataRow("Komparativ des Adjektivs sicher", "sicher", GrammaticalRelationKind.Comparative)]
+    public void ProviderFormRelations_ResolveExplicitGermanRelations(
+        string providerText,
+        string expectedLemma,
+        GrammaticalRelationKind expectedKind)
+    {
+        var relation = ProviderFormRelationPolicy.Resolve(providerText);
+
+        Assert.IsNotNull(relation);
+        Assert.AreEqual(expectedLemma, relation.BaseLemma);
+        Assert.AreEqual(expectedKind, relation.Kind);
+    }
+
+    [TestMethod]
+    public void LookupOutcome_RetryIsLimitedToRecoverableFailures()
+    {
+        Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.TransientFailure));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.ParseFailure));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.Success));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.NotFound));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(LexicalLookupStatus.PermanentFailure));
+        Assert.IsTrue(LexicalLookupOutcomePolicy.CanRetry(
+            LexicalLookupStatus.NotFound,
+            "translation-not-found"));
+        Assert.IsFalse(LexicalLookupOutcomePolicy.CanRetry(
+            LexicalLookupStatus.NotFound,
+            "definition-not-found"));
+    }
+
+    [TestMethod]
+    public void LexicalJsonSerializerContext_RoundTripsUnicodeNullsAndFormRelations()
+    {
+        var expected = new LexicalResult(
+            LexicalLookupStatus.Success,
+            "häuser",
+            "Häuser",
+            TokenKind.Word,
+            "de",
+            "de",
+            null,
+            [new LexicalMeaning(
+                "bedeutung-1",
+                "Substantiv",
+                "Mehrere Gebäude – groß und bewohnt.",
+                null,
+                null,
+                ["regional", "übertragen"])],
+            "Wiktionary",
+            "de.wiktionary.org",
+            "Häuser",
+            123,
+            "Wiktionary attribution",
+            Now,
+            FormRelations:
+            [new ProviderFormRelation(
+                GrammaticalRelationKind.Plural,
+                "Haus",
+                "plural of")],
+            Diagnostics: new LexicalLookupDiagnostics(
+                "Häuser",
+                "Häuser",
+                "häuser",
+                "de",
+                LexicalLookupMode.Definition,
+                null,
+                "cache-key",
+                "provider-request",
+                "Success"),
+            LookupMode: LexicalLookupMode.Definition);
+
+        var json = JsonSerializer.Serialize(
+            expected,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+        var actual = JsonSerializer.Deserialize(
+            json,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+
+        Assert.Contains("\"Status\":\"Success\"", json);
+        Assert.IsNotNull(actual);
+        Assert.AreEqual(expected.DisplayTerm, actual.DisplayTerm);
+        var expectedMeaning = expected.Meanings.Single();
+        var actualMeaning = actual.Meanings.Single();
+        Assert.AreEqual(expectedMeaning.MeaningId, actualMeaning.MeaningId);
+        Assert.AreEqual(expectedMeaning.PartOfSpeech, actualMeaning.PartOfSpeech);
+        Assert.AreEqual(expectedMeaning.Definition, actualMeaning.Definition);
+        CollectionAssert.AreEqual(
+            expectedMeaning.UsageLabels.ToArray(),
+            actualMeaning.UsageLabels.ToArray());
+        Assert.AreEqual(expected.FormRelations!.Single(), actual.FormRelations!.Single());
+        Assert.IsNull(actual.TargetLanguage);
+        Assert.IsNull(actual.Meanings.Single().Translation);
+        Assert.IsNull(actual.Meanings.Single().Example);
+    }
+
+    [TestMethod]
+    public void LexicalJsonSerializerContext_RoundTripsEmptyCollectionsAndAliases()
+    {
+        var emptyResult = new LexicalResult(
+            LexicalLookupStatus.NotFound,
+            "missing",
+            "missing",
+            TokenKind.Word,
+            "en",
+            "en",
+            null,
+            [],
+            "Wiktionary",
+            "en.wiktionary.org",
+            "missing",
+            null,
+            string.Empty,
+            Now,
+            FormRelations: []);
+        string[] aliases = ["Netzwerk", "réseau", "网络"];
+
+        var resultJson = JsonSerializer.Serialize(
+            emptyResult,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+        var aliasJson = JsonSerializer.Serialize(
+            aliases,
+            LexicalJsonSerializerContext.Default.StringArray);
+        var resultRoundTrip = JsonSerializer.Deserialize(
+            resultJson,
+            LexicalJsonSerializerContext.Default.LexicalResult);
+        var aliasRoundTrip = JsonSerializer.Deserialize(
+            aliasJson,
+            LexicalJsonSerializerContext.Default.StringArray);
+
+        Assert.IsNotNull(resultRoundTrip);
+        Assert.IsEmpty(resultRoundTrip.Meanings);
+        Assert.IsEmpty(resultRoundTrip.FormRelations!);
+        CollectionAssert.AreEqual(aliases, aliasRoundTrip);
+    }
+
+    [TestMethod]
+    [DataRow("Contact", "contact")]
+    [DataRow("Information", "information")]
+    [DataRow("NETWORK", "network")]
+    public void LexicalLookupTerm_OrdinaryEnglishWordsUseLowercase(
+        string encounteredTerm,
+        string expectedLookupTerm)
+    {
+        var request = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            encounteredTerm,
+            TokenKind.Word,
+            "Wiktionary",
+            encounteredTerm,
+            encounteredTerm);
+
+        Assert.AreEqual(expectedLookupTerm, request.CanonicalLookupTerm);
+        Assert.AreEqual(encounteredTerm, request.DisplayedSurfaceForm);
+        Assert.AreEqual(encounteredTerm, request.VocabularyCanonicalTerm);
+    }
+
+    [TestMethod]
+    [DataRow("IT", TokenKind.Acronym)]
+    [DataRow("US", TokenKind.Acronym)]
+    [DataRow("NETWORK", TokenKind.TechnicalTerm)]
+    public void LexicalLookupTerm_CaseSensitiveTokenKindsKeepCase(string term, TokenKind tokenKind)
+    {
+        var request = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            term,
+            tokenKind,
+            "Wiktionary");
+
+        Assert.AreEqual(term, request.CanonicalLookupTerm);
+    }
+
+    [TestMethod]
+    public void LexicalLookupLanguages_ValidateModeAndTargetLanguage()
+    {
+        _ = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            "network",
+            TokenKind.Word,
+            "Wiktionary");
+        _ = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Translation,
+            "de",
+            "network",
+            TokenKind.Word,
+            "Wiktionary");
+
+        Assert.Throws<ArgumentException>(() => new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            "de",
+            "network",
+            TokenKind.Word,
+            "Wiktionary"));
+        Assert.Throws<ArgumentException>(() => new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Translation,
+            null,
+            "network",
+            TokenKind.Word,
+            "Wiktionary"));
+        Assert.Throws<ArgumentException>(() => new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "en",
+            "network",
+            TokenKind.Word,
+            "Wiktionary"));
+    }
+
+    [TestMethod]
+    public void Workflow_PrepareIsEnabledForBacklogOrActivePreparationAndBlockedByReview()
+    {
+        Assert.IsTrue(new WorkflowSnapshot(false, false, false, 0, 0, 1, WorkflowPrimaryAction.PrepareWords).CanPrepare);
+        Assert.IsTrue(new WorkflowSnapshot(false, true, false, 0, 0, 0, WorkflowPrimaryAction.ContinuePreparation).CanPrepare);
+        Assert.IsFalse(new WorkflowSnapshot(false, false, false, 0, 0, 0, WorkflowPrimaryAction.ImportText).CanPrepare);
+        Assert.IsFalse(new WorkflowSnapshot(true, true, false, 0, 0, 1, WorkflowPrimaryAction.ContinueReview).CanPrepare);
+    }
+
+    [TestMethod]
+    public void ActiveReview_BlocksImportPrepareAndLearnButNotSettings()
+    {
+        Assert.IsTrue(ReviewRoutePolicy.IsBlocked("import-text", true));
+        Assert.IsTrue(ReviewRoutePolicy.IsBlocked("prepare-words", true));
+        Assert.IsTrue(ReviewRoutePolicy.IsBlocked("learn", true));
+        Assert.IsFalse(ReviewRoutePolicy.IsBlocked("settings", true));
+        Assert.IsFalse(ReviewRoutePolicy.IsBlocked("review-words", true));
+    }
+
+    [TestMethod]
+    public void LearnEnablement_DependsOnActiveDueOrPreparedCardsAndIsSuppressedByReview()
+    {
+        Assert.IsFalse(Workflow(false, false, 0, 0).CanLearn);
+        Assert.IsTrue(Workflow(false, true, 0, 0).CanLearn);
+        Assert.IsTrue(Workflow(false, false, 1, 0).CanLearn);
+        Assert.IsTrue(Workflow(false, false, 0, 1).CanLearn);
+        Assert.IsFalse(Workflow(true, true, 1, 1).CanLearn);
+    }
+
+    [TestMethod]
+    public void PreparationLimitPolicy_AcceptsThirtyAndKeepsFiftyAsMaximum()
+    {
+        Assert.AreEqual(30, PreparationLimitPolicy.Normalize(30));
+        CollectionAssert.AreEqual(new[] { 5, 10, 20, 30, 50 }, PreparationLimitPolicy.SupportedLimits.ToArray());
+    }
+
+    [TestMethod]
+    public void CardDirectionPreference_DefaultsToBothDirections()
+    {
+        Assert.AreEqual(CardDirectionPreference.Both, CardDirectionPreferencePolicy.Normalize(-1));
+        CollectionAssert.AreEqual(
+            new[] { CardDirection.TermToMeaning, CardDirection.MeaningToTerm },
+            CardDirectionPreferencePolicy.GetDirections(CardDirectionPreference.Both).ToArray());
+    }
+
+    [TestMethod]
+    public void Acronym_LongFormThenAcronym_IsDetected()
+    {
+        var detector = new AcronymExpansionDetector();
+        Assert.AreEqual(
+            "Information Technology",
+            detector.FindExpansion("Information Technology (IT) protects data.", "IT", TokenKind.Acronym));
+    }
+
+    [TestMethod]
+    public void Acronym_AcronymThenLongForm_IsDetected()
+    {
+        var detector = new AcronymExpansionDetector();
+        Assert.AreEqual(
+            "Information Technology",
+            detector.FindExpansion("IT (Information Technology) protects data.", "IT", TokenKind.Acronym));
+    }
+
+    [TestMethod]
+    public void Acronym_MultiFactorAuthentication_IsDetected()
+    {
+        var detector = new AcronymExpansionDetector();
+        Assert.AreEqual(
+            "Multi-Factor Authentication",
+            detector.FindExpansion(
+                "Multi-Factor Authentication (MFA) reduces risk.",
+                "MFA",
+                TokenKind.Acronym));
+    }
+
+    [TestMethod]
+    public void Acronym_OrdinaryUppercaseWordIsNotBlindlyConfirmed()
+    {
+        var detector = new AcronymExpansionDetector();
+        Assert.IsNull(detector.FindExpansion("SECURITY protects data.", "SECURITY", TokenKind.Acronym));
+        Assert.IsNull(detector.FindExpansion("Information Technology (IT).", "IT", TokenKind.Word));
+    }
+
+    [TestMethod]
+    public void MeaningRanking_UsesTokenKindThenContextOverlapThenProviderOrder()
+    {
+        var ranker = new MeaningRanker();
+        var ordinary = new LexicalMeaning(
+            "ordinary",
+            "noun",
+            "Authentication risk is reduced.",
+            null,
+            null,
+            []);
+        var acronym = new LexicalMeaning(
+            "acronym",
+            "initialism",
+            "A security abbreviation.",
+            null,
+            null,
+            []);
+
+        var acronymRanking = ranker.Rank(
+            [ordinary, acronym],
+            TokenKind.Acronym,
+            "Authentication risk is reduced.");
+        var wordRanking = ranker.Rank(
+            [ordinary, ordinary with { MeaningId = "provider-second" }],
+            TokenKind.Word,
+            "Authentication risk is reduced.");
+
+        Assert.AreEqual("acronym", acronymRanking[0].MeaningId);
+        Assert.AreEqual("ordinary", wordRanking[0].MeaningId);
+    }
+
+    [TestMethod]
+    public void PreparationSelection_UsesFrequencyFirstSeenAndAlphabeticalTieBreakers()
+    {
+        var candidates = new[]
+        {
+            Candidate(1, "zeta", 2, Now.AddMinutes(1)),
+            Candidate(2, "beta", 4, Now.AddMinutes(2)),
+            Candidate(3, "alpha", 4, Now.AddMinutes(2)),
+            Candidate(4, "first", 4, Now)
+        };
+
+        var selected = PreparationSelectionPolicy.Select(candidates, 10);
+
+        CollectionAssert.AreEqual(new[] { 4, 3, 2, 1 }, selected.Select(item => item.WordId).ToArray());
+    }
+
+    [TestMethod]
+    public void PreparationSelection_ExcludesAnythingExceptResolvedUnknownUnpreparedItems()
+    {
+        var candidates = new[]
+        {
+            Candidate(1, "included", 1, Now),
+            Candidate(2, "known", 5, Now) with { IsUnknown = false },
+            Candidate(3, "prepared", 5, Now) with { State = PreparationState.Prepared },
+            Candidate(4, "unresolved", 5, Now) with { ReviewIsResolved = false },
+            Candidate(5, "duplicate", 5, Now) with { HasPreparedItem = true }
+        };
+
+        var selected = PreparationSelectionPolicy.Select(candidates, 10);
+
+        Assert.HasCount(1, selected);
+        Assert.AreEqual(1, selected[0].WordId);
+    }
+
+    [TestMethod]
+    public void PreparationSelection_UsesConfiguredLimit()
+    {
+        var selected = PreparationSelectionPolicy.Select(
+            Enumerable.Range(1, 20).Select(index => Candidate(index, $"word-{index}", index, Now)),
+            5);
+
+        Assert.HasCount(5, selected);
+    }
+
+    [TestMethod]
+    public void PreparationSelection_HardMaximumIsFifty()
+    {
+        var selected = PreparationSelectionPolicy.Select(
+            Enumerable.Range(1, 75).Select(index => Candidate(index, $"word-{index}", index, Now)),
+            75);
+
+        Assert.HasCount(50, selected);
+    }
+
+    [TestMethod]
+    public void Spelling_ExactAnswerIsAccepted()
+    {
+        var result = new SpellingAnswerComparer().Compare("network", "network", [], TokenKind.Word, "en");
+        Assert.IsTrue(result.IsCorrect);
+    }
+
+    [TestMethod]
+    public void Spelling_AcceptedAliasIsAccepted()
+    {
+        var result = new SpellingAnswerComparer().Compare("net", "network", ["net"], TokenKind.Word, "en");
+        Assert.IsTrue(result.IsCorrect);
+        Assert.AreEqual("net", result.MatchedAlias);
+    }
+
+    [TestMethod]
+    public void Spelling_UnicodeNormalizationIsApplied()
+    {
+        var result = new SpellingAnswerComparer().Compare("Cafe\u0301", "Caf\u00E9", [], TokenKind.Word, "en");
+        Assert.IsTrue(result.IsCorrect);
+    }
+
+    [TestMethod]
+    public void Spelling_WrongAnswerHasReadableCharacterDifference()
+    {
+        var result = new SpellingAnswerComparer().Compare("netwark", "network", [], TokenKind.Word, "en");
+        Assert.IsFalse(result.IsCorrect);
+        Assert.Contains("a", result.Difference);
+        Assert.Contains("o", result.Difference);
+    }
+
+    [TestMethod]
+    public void Spelling_AcronymCaseErrorIsRejected()
+    {
+        var result = new SpellingAnswerComparer().Compare("mfa", "MFA", [], TokenKind.Acronym, "en");
+        Assert.IsFalse(result.IsCorrect);
+    }
+
+    [TestMethod]
+    public void Spelling_GermanNounCapitalizationErrorIsRejected()
+    {
+        var result = new SpellingAnswerComparer().Compare("netzwerk", "Netzwerk", [], TokenKind.Word, "de");
+        Assert.IsFalse(result.IsCorrect);
+    }
+
+    [TestMethod]
+    public void Scheduler_NewAgain_IsTenMinutes()
+    {
+        var result = ScheduleNew(ReviewRating.Again);
+        Assert.AreEqual(CardState.Learning, result.State);
+        Assert.AreEqual(Now.AddMinutes(10), result.DueAtUtc);
+    }
+
+    [TestMethod]
+    public void Scheduler_NewHard_IsOneDay()
+    {
+        var result = ScheduleNew(ReviewRating.Hard);
+        Assert.AreEqual(1, result.IntervalDays);
+        Assert.AreEqual(Now.AddDays(1), result.DueAtUtc);
+    }
+
+    [TestMethod]
+    public void Scheduler_NewGood_IsThreeDays()
+    {
+        var result = ScheduleNew(ReviewRating.Good);
+        Assert.AreEqual(3, result.IntervalDays);
+        Assert.AreEqual(Now.AddDays(3), result.DueAtUtc);
+    }
+
+    [TestMethod]
+    public void Scheduler_NewEasy_IsSevenDays()
+    {
+        var result = ScheduleNew(ReviewRating.Easy);
+        Assert.AreEqual(7, result.IntervalDays);
+        Assert.AreEqual(Now.AddDays(7), result.DueAtUtc);
+    }
+
+    [TestMethod]
+    public void Scheduler_ReviewAgain_EntersRelearningAndLowersEase()
+    {
+        var result = _scheduler.Schedule(ReviewSchedule(10, 2.5), ReviewRating.Again, Now);
+        Assert.AreEqual(CardState.Relearning, result.State);
+        Assert.AreEqual(2.3, result.EaseFactor, 0.0001);
+        Assert.AreEqual(1, result.LapseCount);
+        Assert.AreEqual(Now.AddMinutes(10), result.DueAtUtc);
+    }
+
+    [TestMethod]
+    public void Scheduler_ReviewHardFormulaIsDeterministic()
+    {
+        var result = _scheduler.Schedule(ReviewSchedule(10, 2.5), ReviewRating.Hard, Now);
+        Assert.AreEqual(12, result.IntervalDays);
+        Assert.AreEqual(2.35, result.EaseFactor, 0.0001);
+    }
+
+    [TestMethod]
+    public void Scheduler_ReviewGoodFormulaIsDeterministic()
+    {
+        var result = _scheduler.Schedule(ReviewSchedule(10, 2.5), ReviewRating.Good, Now);
+        Assert.AreEqual(25, result.IntervalDays);
+    }
+
+    [TestMethod]
+    public void Scheduler_ReviewEasyFormulaIsDeterministic()
+    {
+        var result = _scheduler.Schedule(ReviewSchedule(10, 2.5), ReviewRating.Easy, Now);
+        Assert.AreEqual(34, result.IntervalDays);
+        Assert.AreEqual(2.65, result.EaseFactor, 0.0001);
+    }
+
+    [TestMethod]
+    public void Scheduler_MinimumEaseIsOnePointThree()
+    {
+        var hard = _scheduler.Schedule(ReviewSchedule(10, 1.35), ReviewRating.Hard, Now);
+        var again = _scheduler.Schedule(ReviewSchedule(10, 1.35), ReviewRating.Again, Now);
+        Assert.AreEqual(1.3, hard.EaseFactor, 0.0001);
+        Assert.AreEqual(1.3, again.EaseFactor, 0.0001);
+    }
+
+    [TestMethod]
+    public void Scheduler_IntervalsContinueBeyondSevenAndFourteenDays()
+    {
+        var result = _scheduler.Schedule(ReviewSchedule(10, 2.5), ReviewRating.Good, Now);
+        Assert.IsGreaterThan(14, result.IntervalDays);
+        Assert.AreEqual(CardState.Review, result.State);
+    }
+
+    [TestMethod]
+    public void Scheduler_NoFixedIntervalMarksPermanentlyKnown()
+    {
+        var result = _scheduler.Schedule(ReviewSchedule(365, 2.5), ReviewRating.Easy, Now);
+        Assert.AreEqual(CardState.Review, result.State);
+    }
+
+    private CardSchedule ScheduleNew(ReviewRating rating) =>
+        _scheduler.Schedule(CardSchedule.New(Now), rating, Now);
+
+    private static CardSchedule ReviewSchedule(int intervalDays, double easeFactor) => new(
+        CardState.Review,
+        Now,
+        intervalDays,
+        easeFactor,
+        3,
+        0,
+        Now.AddDays(-intervalDays),
+        ReviewRating.Good);
+
+    private static PreparationSelectionCandidate Candidate(
+        int wordId,
+        string term,
+        int frequency,
+        DateTime firstSeen) => new(
+        wordId,
+        term,
+        frequency,
+        firstSeen,
+        true,
+        PreparationState.Unprepared,
+        true,
+        false);
+
+    private static WorkflowSnapshot Workflow(
+        bool activeReview,
+        bool activeLearning,
+        int dueCards,
+        int preparedItems) => new(
+        activeReview,
+        false,
+        activeLearning,
+        dueCards,
+        preparedItems,
+        0,
+        WorkflowPrimaryAction.ImportText);
+}

@@ -1,8 +1,202 @@
 @page "/import-text"
+@inject ITextReviewService TextReviewService
+@inject NavigationManager Navigation
+@inject ILogger<ImportText> Logger
 
 <PageTitle>@Localizer["Navigation_ImportText"]</PageTitle>
 
-<section class="placeholder-card">
+<section class="import-page">
     <PageHeader Title="@(Localizer["Navigation_ImportText"])" />
-    <p>@Localizer["Placeholder_Message"]</p>
+
+    <form class="import-card" @onsubmit="SaveAndAnalyzeAsync" @onsubmit:preventDefault>
+        <div class="field-group">
+            <label for="document-title">@Localizer["Import_DocumentTitle"]</label>
+            <input id="document-title"
+                   class="text-input"
+                   maxlength="200"
+                   disabled="@_isSubmitting"
+                   @bind="_title"
+                   @bind:event="oninput"
+                   placeholder="@Localizer["Import_TitlePlaceholder"]" />
+            @if (_titleMissing)
+            {
+                <span class="field-error" role="alert">@Localizer["Import_TitleRequired"]</span>
+            }
+        </div>
+
+        <div class="field-group">
+            <label for="document-content">@Localizer["Import_Text"]</label>
+            <textarea id="document-content"
+                      class="text-area"
+                      rows="14"
+                      disabled="@_isSubmitting"
+                      @bind="_content"
+                      @bind:event="oninput"
+                      placeholder="@Localizer["Import_TextPlaceholder"]"></textarea>
+            @if (_contentMissing)
+            {
+                <span class="field-error" role="alert">@Localizer["Import_TextRequired"]</span>
+            }
+        </div>
+
+        <div class="language-grid">
+            <div class="field-group">
+                <label for="text-language">@Localizer["Import_TextLanguage"]</label>
+                <select id="text-language"
+                        disabled="@_isSubmitting"
+                        @bind="_textLanguage"
+                        @bind:after="HandleSourceLanguageChanged">
+                    <option value="en">@Localizer["Settings_English"]</option>
+                    <option value="de">@Localizer["Settings_German"]</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label for="lookup-mode">@Localizer["Import_LookupMode"]</label>
+                <select id="lookup-mode"
+                        disabled="@_isSubmitting"
+                        @bind="_lookupMode"
+                        @bind:after="EnsureValidTargetLanguage">
+                    <option value="@LexicalLookupMode.Definition">@Localizer["Import_LookupDefinition"]</option>
+                    <option value="@LexicalLookupMode.Translation">@Localizer["Import_LookupTranslation"]</option>
+                    <option value="@LexicalLookupMode.DefinitionAndTranslation">@Localizer["Import_LookupDefinitionAndTranslation"]</option>
+                </select>
+            </div>
+            @if (_lookupMode != LexicalLookupMode.Definition)
+            {
+                <div class="field-group">
+                    <label for="target-language">@Localizer["Import_TargetLanguage"]</label>
+                    <select id="target-language" disabled="@_isSubmitting" @bind="_targetLanguage">
+                        @foreach (var languageCode in ValidTargetLanguages)
+                        {
+                            <option value="@languageCode">@GetLanguageName(languageCode)</option>
+                        }
+                    </select>
+                    @if (_lookupLanguageInvalid)
+                    {
+                        <span class="field-error" role="alert">@Localizer["Import_TargetLanguageMustDiffer"]</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <button type="submit" class="button button-primary" disabled="@_isSubmitting">
+            @(_isSubmitting ? Localizer["Import_Analyzing"] : Localizer["Import_SaveAndAnalyze"])
+        </button>
+
+        @if (_isSubmitting)
+        {
+            <p class="analysis-progress" role="status" aria-live="polite">
+                @Localizer["Import_AnalyzingProgress"]
+            </p>
+        }
+        else if (_preflightMessageKey is not null)
+        {
+            <p class="inline-message inline-message-success" role="status" aria-live="polite">
+                @Localizer[_preflightMessageKey]
+            </p>
+        }
+        else if (_submitFailed)
+        {
+            <p class="inline-message inline-message-error" role="alert">@Localizer["Import_Error"]</p>
+        }
+    </form>
 </section>
+
+@code {
+    private static readonly string[] SupportedLanguages = ["en", "de"];
+
+    private string _title = string.Empty;
+    private string _content = string.Empty;
+    private string _textLanguage = "en";
+    private LexicalLookupMode _lookupMode = LexicalLookupMode.Definition;
+    private string _targetLanguage = "de";
+    private bool _titleMissing;
+    private bool _contentMissing;
+    private bool _lookupLanguageInvalid;
+    private bool _isSubmitting;
+    private bool _submitFailed;
+    private string? _preflightMessageKey;
+
+    private IEnumerable<string> ValidTargetLanguages => SupportedLanguages.Where(languageCode =>
+        !string.Equals(languageCode, _textLanguage, StringComparison.OrdinalIgnoreCase));
+
+    private async Task SaveAndAnalyzeAsync()
+    {
+        if (_isSubmitting)
+        {
+            return;
+        }
+
+        EnsureValidTargetLanguage();
+        _titleMissing = string.IsNullOrWhiteSpace(_title);
+        _contentMissing = string.IsNullOrWhiteSpace(_content);
+        _lookupLanguageInvalid = _lookupMode != LexicalLookupMode.Definition
+            && string.Equals(_textLanguage, _targetLanguage, StringComparison.OrdinalIgnoreCase);
+        _submitFailed = false;
+        _preflightMessageKey = null;
+        if (_titleMissing || _contentMissing || _lookupLanguageInvalid)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        try
+        {
+            var result = await TextReviewService.ImportAsync(new ImportTextRequest(
+                _title,
+                _content,
+                _textLanguage,
+                _lookupMode,
+                _lookupMode == LexicalLookupMode.Definition ? null : _targetLanguage));
+            if (result.IsAccepted)
+            {
+                Navigation.NavigateTo("review-words");
+            }
+            else
+            {
+                _preflightMessageKey = result.Outcome == ImportAnalysisOutcome.ExactDuplicate
+                    ? "Import_ExactDuplicate"
+                    : "Import_NoNewVocabulary";
+            }
+        }
+        catch (ActiveReviewExistsException)
+        {
+            Navigation.NavigateTo("review-words", replace: true);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The pasted text could not be saved and analyzed.");
+            _submitFailed = true;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void HandleSourceLanguageChanged()
+    {
+        EnsureValidTargetLanguage();
+        _lookupLanguageInvalid = false;
+    }
+
+    private void EnsureValidTargetLanguage()
+    {
+        if (_lookupMode == LexicalLookupMode.Definition)
+        {
+            return;
+        }
+
+        var validLanguages = ValidTargetLanguages.ToArray();
+        if (!validLanguages.Contains(_targetLanguage, StringComparer.OrdinalIgnoreCase))
+        {
+            _targetLanguage = validLanguages.First();
+        }
+    }
+
+    private string GetLanguageName(string languageCode) => languageCode switch
+    {
+        "de" => Localizer["Settings_German"],
+        _ => Localizer["Settings_English"]
+    };
+}

@@ -1,7 +1,7 @@
 <header class="page-header">
     <h1>@Title</h1>
     <a class="back-to-home"
-       href=""
+       href="@BackHref"
        aria-label="@(Localizer["Navigation_BackToHome"])"
        title="@(Localizer["Navigation_BackToHome"])">
         <span aria-hidden="true">&#8592;</span>
@@ -12,4 +12,7 @@
 @code {
     [Parameter, EditorRequired]
     public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string BackHref { get; set; } = string.Empty;
 }

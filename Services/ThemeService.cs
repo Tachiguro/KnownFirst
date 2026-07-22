@@ -34,6 +34,10 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
 
         ApplyNativeTheme();
         EffectiveTheme = ResolveEffectiveTheme(_application.RequestedTheme);
+        logger.LogInformation(
+            "Theme initialized. Preference = {ThemePreference}, effective theme = {EffectiveTheme}",
+            Preference,
+            EffectiveTheme);
     }
 
     public bool SetPreference(ThemePreference preference)
@@ -57,6 +61,10 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
         Preference = normalizedPreference;
         ApplyNativeTheme();
         UpdateEffectiveTheme(ResolveEffectiveTheme(_application!.RequestedTheme), notify: true);
+        logger.LogInformation(
+            "Theme preference changed. Preference = {ThemePreference}, effective theme = {EffectiveTheme}",
+            Preference,
+            EffectiveTheme);
         return true;
     }
 
@@ -77,6 +85,11 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
         {
             ThemeChanged?.Invoke(this, EventArgs.Empty);
         }
+
+        logger.LogInformation(
+            "Theme preference reset. Preference = {ThemePreference}, effective theme = {EffectiveTheme}",
+            Preference,
+            EffectiveTheme);
     }
 
     public void Dispose()
@@ -132,6 +145,9 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
         }
 
         UpdateEffectiveTheme(ResolveEffectiveTheme(eventArgs.RequestedTheme), notify: true);
+        logger.LogInformation(
+            "System theme changed. EffectiveTheme = {EffectiveTheme}",
+            EffectiveTheme);
     }
 
     private void UpdateEffectiveTheme(ThemePreference effectiveTheme, bool notify)

@@ -121,7 +121,7 @@
     <value>Appearance changed to {0}.</value>
   </data>
   <data name="Settings_PreparationLimit" xml:space="preserve">
-    <value>Words per preparation</value>
+    <value>New words per day</value>
   </data>
   <data name="Settings_ResetData" xml:space="preserve">
     <value>Reset all application data</value>
@@ -139,7 +139,7 @@
     <value>Reset data</value>
   </data>
   <data name="Settings_PreparationLimitSaved" xml:space="preserve">
-    <value>Words per preparation saved: {0}.</value>
+    <value>New-word daily limit saved: {0}.</value>
   </data>
   <data name="Settings_ResetSuccess" xml:space="preserve">
     <value>All local application data was reset.</value>
@@ -188,5 +188,1133 @@
   </data>
   <data name="Common_Close" xml:space="preserve">
     <value>Close</value>
+  </data>
+  <data name="Navigation_Diagnostics" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="ReviewGate_Checking" xml:space="preserve">
+    <value>Checking the active review…</value>
+  </data>
+  <data name="ReviewGate_Error" xml:space="preserve">
+    <value>KnownFirst could not check whether a review is active.</value>
+  </data>
+  <data name="Home_ReviewInProgress" xml:space="preserve">
+    <value>Review in progress</value>
+  </data>
+  <data name="Home_ContinueReviewTitle" xml:space="preserve">
+    <value>Continue review</value>
+  </data>
+  <data name="Home_ContinueReviewDescription" xml:space="preserve">
+    <value>Finish reviewing “{0}” before importing or learning another text.</value>
+  </data>
+  <data name="Home_ReviewProgress" xml:space="preserve">
+    <value>{0} of {1} candidates reviewed</value>
+  </data>
+  <data name="Home_ContinueReviewAction" xml:space="preserve">
+    <value>Continue review</value>
+  </data>
+  <data name="Import_DocumentTitle" xml:space="preserve">
+    <value>Document title</value>
+  </data>
+  <data name="Import_TitlePlaceholder" xml:space="preserve">
+    <value>Give this text a title</value>
+  </data>
+  <data name="Import_Text" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="Import_TextPlaceholder" xml:space="preserve">
+    <value>Paste English or German text here</value>
+  </data>
+  <data name="Import_TextLanguage" xml:space="preserve">
+    <value>Text language</value>
+  </data>
+  <data name="Import_ExplanationLanguage" xml:space="preserve">
+    <value>Explanation language</value>
+  </data>
+  <data name="Import_SaveAndAnalyze" xml:space="preserve">
+    <value>Save and analyze</value>
+  </data>
+  <data name="Import_Analyzing" xml:space="preserve">
+    <value>Analyzing…</value>
+  </data>
+  <data name="Import_AnalyzingProgress" xml:space="preserve">
+    <value>The text is being analyzed before any permanent changes are made.</value>
+  </data>
+  <data name="Import_TitleRequired" xml:space="preserve">
+    <value>Enter a document title.</value>
+  </data>
+  <data name="Import_TextRequired" xml:space="preserve">
+    <value>Paste text to analyze.</value>
+  </data>
+  <data name="Import_Error" xml:space="preserve">
+    <value>The text could not be saved and analyzed.</value>
+  </data>
+  <data name="Import_ExactDuplicate" xml:space="preserve">
+    <value>This text was already imported. It was not saved again.</value>
+  </data>
+  <data name="Import_NoNewVocabulary" xml:space="preserve">
+    <value>No new vocabulary was found. The text was not saved and no statistics were changed.</value>
+  </data>
+  <data name="Review_Loading" xml:space="preserve">
+    <value>Loading the review…</value>
+  </data>
+  <data name="Review_LoadError" xml:space="preserve">
+    <value>The active review could not be loaded.</value>
+  </data>
+  <data name="Review_NoActive" xml:space="preserve">
+    <value>There is no unfinished word review.</value>
+  </data>
+  <data name="Review_StartImport" xml:space="preserve">
+    <value>Import a text</value>
+  </data>
+  <data name="Review_ProgressLabel" xml:space="preserve">
+    <value>Review progress</value>
+  </data>
+  <data name="Review_Progress" xml:space="preserve">
+    <value>{0} / {1}</value>
+  </data>
+  <data name="Review_Candidate" xml:space="preserve">
+    <value>Candidate</value>
+  </data>
+  <data name="Review_TokenKind" xml:space="preserve">
+    <value>Token kind</value>
+  </data>
+  <data name="Review_EncounteredForms" xml:space="preserve">
+    <value>Encountered forms</value>
+  </data>
+  <data name="Review_OccurrenceCount" xml:space="preserve">
+    <value>Occurrences</value>
+  </data>
+  <data name="Review_MultipleContextsNotice" xml:space="preserve">
+    <value>This word appears in multiple contexts. Review the examples before deciding.</value>
+  </data>
+  <data name="Review_Context" xml:space="preserve">
+    <value>Original context</value>
+  </data>
+  <data name="Review_PreviousContext" xml:space="preserve">
+    <value>Previous context</value>
+  </data>
+  <data name="Review_NextContext" xml:space="preserve">
+    <value>Next context</value>
+  </data>
+  <data name="Review_ContextPosition" xml:space="preserve">
+    <value>Context {0} of {1}</value>
+  </data>
+  <data name="Review_Question" xml:space="preserve">
+    <value>Do you already know this word or acronym?</value>
+  </data>
+  <data name="Review_Known" xml:space="preserve">
+    <value>Known</value>
+  </data>
+  <data name="Review_Unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="Review_Ignore" xml:space="preserve">
+    <value>Ignore</value>
+  </data>
+  <data name="Review_Undo" xml:space="preserve">
+    <value>Undo previous decision</value>
+  </data>
+  <data name="Review_DecisionError" xml:space="preserve">
+    <value>The decision could not be saved. Try again.</value>
+  </data>
+  <data name="Review_CompleteTitle" xml:space="preserve">
+    <value>Review complete</value>
+  </data>
+  <data name="Review_CompleteDescription" xml:space="preserve">
+    <value>Every candidate from “{0}” has been classified.</value>
+  </data>
+  <data name="Review_DiscardTitle" xml:space="preserve">
+    <value>Discard unfinished import</value>
+  </data>
+  <data name="Review_DiscardAction" xml:space="preserve">
+    <value>Discard import</value>
+  </data>
+  <data name="Review_DiscardMessage" xml:space="preserve">
+    <value>This removes the unfinished document and only the review data created for it. This action cannot be undone.</value>
+  </data>
+  <data name="Review_DiscardConfirm" xml:space="preserve">
+    <value>Discard unfinished import</value>
+  </data>
+  <data name="Review_DiscardError" xml:space="preserve">
+    <value>The unfinished import could not be discarded.</value>
+  </data>
+  <data name="TokenKind_Word" xml:space="preserve">
+    <value>Word</value>
+  </data>
+  <data name="TokenKind_Acronym" xml:space="preserve">
+    <value>Acronym</value>
+  </data>
+  <data name="TokenKind_Abbreviation" xml:space="preserve">
+    <value>Abbreviation</value>
+  </data>
+  <data name="TokenKind_TechnicalTerm" xml:space="preserve">
+    <value>Technical term</value>
+  </data>
+  <data name="Learn_NextMilestone" xml:space="preserve">
+    <value>Word learning will be implemented in the next milestone.</value>
+  </data>
+  <data name="Prepare_NextMilestone" xml:space="preserve">
+    <value>Word preparation will be implemented in the next milestone.</value>
+  </data>
+  <data name="Diagnostics_Title" xml:space="preserve">
+    <value>DEBUG diagnostics</value>
+  </data>
+  <data name="Diagnostics_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Diagnostics_Loading" xml:space="preserve">
+    <value>Loading diagnostics…</value>
+  </data>
+  <data name="Diagnostics_Error" xml:space="preserve">
+    <value>The diagnostics data could not be loaded.</value>
+  </data>
+  <data name="Diagnostics_Database" xml:space="preserve">
+    <value>Database and active session</value>
+  </data>
+  <data name="Diagnostics_ActiveSession" xml:space="preserve">
+    <value>Active: {0} — {1} of {2} reviewed</value>
+  </data>
+  <data name="Diagnostics_NoActiveSession" xml:space="preserve">
+    <value>No active review session.</value>
+  </data>
+  <data name="Diagnostics_Documents" xml:space="preserve">
+    <value>Documents</value>
+  </data>
+  <data name="Diagnostics_Characters" xml:space="preserve">
+    <value>Characters</value>
+  </data>
+  <data name="Diagnostics_Occurrences" xml:space="preserve">
+    <value>Extracted occurrences</value>
+  </data>
+  <data name="Diagnostics_Sentences" xml:space="preserve">
+    <value>Sentence spans</value>
+  </data>
+  <data name="Diagnostics_Candidates" xml:space="preserve">
+    <value>Candidates</value>
+  </data>
+  <data name="Diagnostics_StoredOccurrences" xml:space="preserve">
+    <value>Stored occurrence offsets</value>
+  </data>
+  <data name="Diagnostics_DocumentId" xml:space="preserve">
+    <value>document</value>
+  </data>
+  <data name="Diagnostics_WordId" xml:space="preserve">
+    <value>word</value>
+  </data>
+  <data name="Diagnostics_SentenceId" xml:space="preserve">
+    <value>sentence</value>
+  </data>
+  <data name="Diagnostics_Start" xml:space="preserve">
+    <value>start</value>
+  </data>
+  <data name="Diagnostics_Length" xml:space="preserve">
+    <value>length</value>
+  </data>
+  <data name="Diagnostics_Order" xml:space="preserve">
+    <value>order</value>
+  </data>
+  <data name="Diagnostics_Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Diagnostics_ExplanationTitle" xml:space="preserve">
+    <value>How to read these diagnostics</value>
+  </data>
+  <data name="Diagnostics_ExplanationIntro" xml:space="preserve">
+    <value>These records show how an accepted text moves from its unchanged source into vocabulary review.</value>
+  </data>
+  <data name="Diagnostics_TermDocument" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="Diagnostics_TermDocumentDescription" xml:space="preserve">
+    <value>The unchanged imported source text and its metadata.</value>
+  </data>
+  <data name="Diagnostics_TermSession" xml:space="preserve">
+    <value>Review session</value>
+  </data>
+  <data name="Diagnostics_TermSessionDescription" xml:space="preserve">
+    <value>The review queue for one accepted document, including progress and completion state.</value>
+  </data>
+  <data name="Diagnostics_TermSentenceSpan" xml:space="preserve">
+    <value>Sentence span</value>
+  </data>
+  <data name="Diagnostics_TermSentenceSpanDescription" xml:space="preserve">
+    <value>A start and length that locate one sentence inside the unchanged document.</value>
+  </data>
+  <data name="Diagnostics_TermCandidate" xml:space="preserve">
+    <value>Candidate</value>
+  </data>
+  <data name="Diagnostics_TermCandidateDescription" xml:space="preserve">
+    <value>One unique vocabulary identity reviewed once, even when it appears several times.</value>
+  </data>
+  <data name="Diagnostics_TermOccurrence" xml:space="preserve">
+    <value>Occurrence</value>
+  </data>
+  <data name="Diagnostics_TermOccurrenceDescription" xml:space="preserve">
+    <value>One actual appearance of a candidate at an exact position in the document.</value>
+  </data>
+  <data name="Diagnostics_TermStartDescription" xml:space="preserve">
+    <value>The zero-based .NET string offset where a sentence or occurrence begins.</value>
+  </data>
+  <data name="Diagnostics_TermLengthDescription" xml:space="preserve">
+    <value>The number of .NET UTF-16 characters in the sentence or matched surface form.</value>
+  </data>
+  <data name="Diagnostics_TermOrderDescription" xml:space="preserve">
+    <value>The deterministic sequence in which a sentence or occurrence appeared.</value>
+  </data>
+  <data name="Diagnostics_TermStatusDescription" xml:space="preserve">
+    <value>The current review or session state stored in the database.</value>
+  </data>
+  <data name="Diagnostics_CopyReport" xml:space="preserve">
+    <value>Copy diagnostics report</value>
+  </data>
+  <data name="Diagnostics_CopyDatabasePath" xml:space="preserve">
+    <value>Copy database path</value>
+  </data>
+  <data name="Diagnostics_ReportCopied" xml:space="preserve">
+    <value>The diagnostics report was copied.</value>
+  </data>
+  <data name="Diagnostics_DatabasePathCopied" xml:space="preserve">
+    <value>The database path was copied.</value>
+  </data>
+  <data name="Diagnostics_CopyError" xml:space="preserve">
+    <value>The diagnostics text could not be copied.</value>
+  </data>
+  <data name="Diagnostics_TitleColumn" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="Diagnostics_SourceLanguage" xml:space="preserve">
+    <value>Source language</value>
+  </data>
+  <data name="Diagnostics_SentenceCount" xml:space="preserve">
+    <value>Sentences</value>
+  </data>
+  <data name="Diagnostics_ImportDate" xml:space="preserve">
+    <value>Import date</value>
+  </data>
+  <data name="Diagnostics_ReviewStatus" xml:space="preserve">
+    <value>Review status</value>
+  </data>
+  <data name="Diagnostics_DocumentTitle" xml:space="preserve">
+    <value>Document title</value>
+  </data>
+  <data name="Diagnostics_Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="Diagnostics_CandidateText" xml:space="preserve">
+    <value>Candidate text</value>
+  </data>
+  <data name="Diagnostics_Storage" xml:space="preserve">
+    <value>Storage</value>
+  </data>
+  <data name="Diagnostics_Temporary" xml:space="preserve">
+    <value>Temporary</value>
+  </data>
+  <data name="Diagnostics_Retained" xml:space="preserve">
+    <value>Retained</value>
+  </data>
+  <data name="Diagnostics_Sessions" xml:space="preserve">
+    <value>Review sessions</value>
+  </data>
+  <data name="Diagnostics_State" xml:space="preserve">
+    <value>State</value>
+  </data>
+  <data name="Diagnostics_Reviewed" xml:space="preserve">
+    <value>Reviewed</value>
+  </data>
+  <data name="Diagnostics_Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="Diagnostics_Remaining" xml:space="preserve">
+    <value>Remaining</value>
+  </data>
+  <data name="Diagnostics_StatusActive" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Diagnostics_StatusCompleted" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="Diagnostics_StatusNoSession" xml:space="preserve">
+    <value>No review session</value>
+  </data>
+  <data name="Diagnostics_NoRows" xml:space="preserve">
+    <value>No records are stored.</value>
+  </data>
+  <data name="Diagnostics_TechnicalDetails" xml:space="preserve">
+    <value>Technical details and raw IDs</value>
+  </data>
+  <data name="Diagnostics_RecordType" xml:space="preserve">
+    <value>Record type</value>
+  </data>
+  <data name="Diagnostics_RelatedIds" xml:space="preserve">
+    <value>Related IDs or identity</value>
+  </data>
+  <data name="WordStatus_Unreviewed" xml:space="preserve">
+    <value>Unreviewed</value>
+  </data>
+  <data name="WordStatus_Prepared" xml:space="preserve">
+    <value>Prepared</value>
+  </data>
+  <data name="WordStatus_Learning" xml:space="preserve">
+    <value>Learning</value>
+  </data>
+  <data name="WordStatus_Mastered" xml:space="preserve">
+    <value>Mastered</value>
+  </data>
+  <data name="Common_Continue" xml:space="preserve">
+    <value>Continue</value>
+  </data>
+  <data name="Common_Later" xml:space="preserve">
+    <value>Later</value>
+  </data>
+  <data name="Navigation_LearnUnavailable" xml:space="preserve">
+    <value>No words are ready to learn yet.</value>
+  </data>
+  <data name="Navigation_ImportBlockedByReview" xml:space="preserve">
+    <value>Finish or discard the active vocabulary review first.</value>
+  </data>
+  <data name="Home_ContinuePreparation" xml:space="preserve">
+    <value>Continue preparation</value>
+  </data>
+  <data name="Settings_ReturnToReview" xml:space="preserve">
+    <value>Return to active review</value>
+  </data>
+  <data name="Settings_CardDirection" xml:space="preserve">
+    <value>Card directions</value>
+  </data>
+  <data name="Settings_CardDirectionTermToMeaning" xml:space="preserve">
+    <value>Term to meaning</value>
+  </data>
+  <data name="Settings_CardDirectionMeaningToTerm" xml:space="preserve">
+    <value>Meaning to term</value>
+  </data>
+  <data name="Settings_CardDirectionBoth" xml:space="preserve">
+    <value>Both directions</value>
+  </data>
+  <data name="Settings_CardDirectionSaved" xml:space="preserve">
+    <value>Card directions saved.</value>
+  </data>
+  <data name="Settings_LearningMode" xml:space="preserve">
+    <value>Learning mode</value>
+  </data>
+  <data name="Settings_LearningModeHelp" xml:space="preserve">
+    <value>Choose whether learning cards use reading, typing, or automatic progression for each word.</value>
+  </data>
+  <data name="Settings_LearningModeReading" xml:space="preserve">
+    <value>Reading</value>
+  </data>
+  <data name="Settings_LearningModeTyping" xml:space="preserve">
+    <value>Typing</value>
+  </data>
+  <data name="Settings_LearningModeAutomatic" xml:space="preserve">
+    <value>Automatic</value>
+  </data>
+  <data name="Settings_LearningModeSaved" xml:space="preserve">
+    <value>Learning mode saved.</value>
+  </data>
+  <data name="Settings_OnlineDictionary" xml:space="preserve">
+    <value>Online dictionary</value>
+  </data>
+  <data name="Settings_OnlineConsentGranted" xml:space="preserve">
+    <value>Online dictionary lookup is enabled.</value>
+  </data>
+  <data name="Settings_OnlineConsentNotGranted" xml:space="preserve">
+    <value>Online dictionary lookup has not been enabled.</value>
+  </data>
+  <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
+    <value>Revoke online lookup consent</value>
+  </data>
+  <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
+    <value>Online lookup consent was revoked.</value>
+  </data>
+  <data name="Prepare_Loading" xml:space="preserve">
+    <value>Loading vocabulary preparation…</value>
+  </data>
+  <data name="Prepare_LoadError" xml:space="preserve">
+    <value>Vocabulary preparation could not be loaded.</value>
+  </data>
+  <data name="Prepare_OnlineDisclosureTitle" xml:space="preserve">
+    <value>Online dictionary lookup</value>
+  </data>
+  <data name="Prepare_OnlineDisclosure" xml:space="preserve">
+    <value>KnownFirst does not send your documents, example sentences, learning history, or personal data to the KnownFirst developer. Only the selected term and the selected language information are sent directly to Wikimedia for dictionary lookup. Wikimedia receives normal network information such as your IP address and the KnownFirst User-Agent. Retrieved dictionary content and your personal learning data are stored locally on this device.</value>
+  </data>
+  <data name="Prepare_StartOnlineLookup" xml:space="preserve">
+    <value>Start online lookup</value>
+  </data>
+  <data name="Prepare_NoWordsTitle" xml:space="preserve">
+    <value>No words to prepare</value>
+  </data>
+  <data name="Prepare_NoWords" xml:space="preserve">
+    <value>Review a text and mark unknown vocabulary before preparing learning cards.</value>
+  </data>
+  <data name="Prepare_MethodQuestion" xml:space="preserve">
+    <value>How should these words be prepared?</value>
+  </data>
+  <data name="Prepare_BatchDescription" xml:space="preserve">
+    <value>Up to {0} vocabulary items will be prepared in this batch.</value>
+  </data>
+  <data name="Prepare_AutomaticOnline" xml:space="preserve">
+    <value>Automatic online</value>
+  </data>
+  <data name="Prepare_AutomaticRecommended" xml:space="preserve">
+    <value>Recommended: retrieve and review dictionary suggestions.</value>
+  </data>
+  <data name="Prepare_Manual" xml:space="preserve">
+    <value>Prepare manually</value>
+  </data>
+  <data name="Prepare_MethodManual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="Prepare_ManualDescription" xml:space="preserve">
+    <value>Enter the learning content yourself without an online request.</value>
+  </data>
+  <data name="Prepare_Progress" xml:space="preserve">
+    <value>Preparing vocabulary — {0} of {1}</value>
+  </data>
+  <data name="Prepare_Candidate" xml:space="preserve">
+    <value>Vocabulary item</value>
+  </data>
+  <data name="Prepare_LookingUp" xml:space="preserve">
+    <value>Looking up this term…</value>
+  </data>
+  <data name="Prepare_ManualEntry" xml:space="preserve">
+    <value>Enter manually</value>
+  </data>
+  <data name="Prepare_SkipForNow" xml:space="preserve">
+    <value>Skip for now</value>
+  </data>
+  <data name="Prepare_AcronymExpansion" xml:space="preserve">
+    <value>Acronym expansion</value>
+  </data>
+  <data name="Prepare_Translation" xml:space="preserve">
+    <value>Translation</value>
+  </data>
+  <data name="Prepare_Definition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
+  <data name="Prepare_AdditionalNote" xml:space="preserve">
+    <value>Additional note</value>
+  </data>
+  <data name="Prepare_AcceptedAliases" xml:space="preserve">
+    <value>Accepted spelling aliases (separated by semicolons)</value>
+  </data>
+  <data name="Prepare_DefinitionRequired" xml:space="preserve">
+    <value>Enter a definition before continuing.</value>
+  </data>
+  <data name="Prepare_SaveAndContinue" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Prepare_SeveralMeanings" xml:space="preserve">
+    <value>Several meanings may fit this context.</value>
+  </data>
+  <data name="Prepare_Source" xml:space="preserve">
+    <value>Source: {0}, “{1}”</value>
+  </data>
+  <data name="Prepare_AcceptAndContinue" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Prepare_ChooseAnotherMeaning" xml:space="preserve">
+    <value>Choose another meaning</value>
+  </data>
+  <data name="Prepare_Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Prepare_CancelPreparation" xml:space="preserve">
+    <value>Cancel preparation</value>
+  </data>
+  <data name="Prepare_SaveError" xml:space="preserve">
+    <value>The preparation change could not be saved.</value>
+  </data>
+  <data name="Prepare_BatchCompleteTitle" xml:space="preserve">
+    <value>Preparation complete</value>
+  </data>
+  <data name="Prepare_BatchComplete" xml:space="preserve">
+    <value>You prepared {0} new words. Learn these words before adding more, or change the limit in Settings.</value>
+  </data>
+  <data name="Prepare_ChangeLimit" xml:space="preserve">
+    <value>Change daily limit</value>
+  </data>
+  <data name="Prepare_StartLearning" xml:space="preserve">
+    <value>Start learning</value>
+  </data>
+  <data name="Prepare_RateLimited" xml:space="preserve">
+    <value>The dictionary service asked KnownFirst to wait. Please try again shortly.</value>
+  </data>
+  <data name="Prepare_Offline" xml:space="preserve">
+    <value>The dictionary service is unavailable. Cached results remain available.</value>
+  </data>
+  <data name="Prepare_NoResult" xml:space="preserve">
+    <value>No suitable dictionary result was found.</value>
+  </data>
+  <data name="Learn_Loading" xml:space="preserve">
+    <value>Loading your learning session…</value>
+  </data>
+  <data name="Learn_LoadError" xml:space="preserve">
+    <value>The learning session could not be loaded.</value>
+  </data>
+  <data name="Learn_Progress" xml:space="preserve">
+    <value>Card {0} of {1}</value>
+  </data>
+  <data name="Learn_TermToMeaning" xml:space="preserve">
+    <value>Recall the meaning</value>
+  </data>
+  <data name="Learn_MeaningToTerm" xml:space="preserve">
+    <value>Recall the term</value>
+  </data>
+  <data name="Learn_ReadingMode" xml:space="preserve">
+    <value>Recall the answer, then reveal it</value>
+  </data>
+  <data name="Learn_TypingMode" xml:space="preserve">
+    <value>Type the term</value>
+  </data>
+  <data name="Learn_RevealAnswer" xml:space="preserve">
+    <value>Reveal answer</value>
+  </data>
+  <data name="Learn_YourAnswer" xml:space="preserve">
+    <value>Your answer</value>
+  </data>
+  <data name="Learn_CheckAnswer" xml:space="preserve">
+    <value>Check answer</value>
+  </data>
+  <data name="Learn_SpellingCorrect" xml:space="preserve">
+    <value>Correct.</value>
+  </data>
+  <data name="Learn_SpellingIncorrect" xml:space="preserve">
+    <value>Not quite. Review your answer below.</value>
+  </data>
+  <data name="Learn_EnteredAnswer" xml:space="preserve">
+    <value>Your answer</value>
+  </data>
+  <data name="Learn_CorrectAnswer" xml:space="preserve">
+    <value>Correct answer</value>
+  </data>
+  <data name="Learn_AcceptedAlias" xml:space="preserve">
+    <value>Accepted spelling alias</value>
+  </data>
+  <data name="Learn_Difference" xml:space="preserve">
+    <value>Difference</value>
+  </data>
+  <data name="Learn_MissingLetter" xml:space="preserve">
+    <value>Missing letter</value>
+  </data>
+  <data name="Learn_HiddenTarget" xml:space="preserve">
+    <value>Hidden target term</value>
+  </data>
+  <data name="Learn_DictionaryExample" xml:space="preserve">
+    <value>Dictionary example</value>
+  </data>
+  <data name="Learn_Again" xml:space="preserve">
+    <value>Again</value>
+  </data>
+  <data name="Learn_Hard" xml:space="preserve">
+    <value>Hard</value>
+  </data>
+  <data name="Learn_Good" xml:space="preserve">
+    <value>Good</value>
+  </data>
+  <data name="Learn_Easy" xml:space="preserve">
+    <value>Easy</value>
+  </data>
+  <data name="Learn_MarkPermanentlyKnown" xml:space="preserve">
+    <value>Mark permanently known</value>
+  </data>
+  <data name="Learn_PermanentKnownConfirmation" xml:space="preserve">
+    <value>This permanently removes both card directions, prepared personal content, contexts, schedules, and obsolete review history. Only a minimal known-vocabulary marker remains.</value>
+  </data>
+  <data name="Learn_ActionError" xml:space="preserve">
+    <value>The learning change could not be saved.</value>
+  </data>
+  <data name="Learn_SessionComplete" xml:space="preserve">
+    <value>Learning session complete</value>
+  </data>
+  <data name="Learn_CardsReviewed" xml:space="preserve">
+    <value>Cards reviewed</value>
+  </data>
+  <data name="Learn_NextDue" xml:space="preserve">
+    <value>Next card due: {0}</value>
+  </data>
+  <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
+    <value>All current reviews are complete. {0} unknown words are waiting for preparation.</value>
+  </data>
+  <data name="Learn_PrepareNextWords" xml:space="preserve">
+    <value>Prepare next words</value>
+  </data>
+  <data name="Learn_NothingDue" xml:space="preserve">
+    <value>No more words are due right now.</value>
+  </data>
+  <data name="Learn_NoCardsTitle" xml:space="preserve">
+    <value>No learning cards available</value>
+  </data>
+  <data name="Diagnostics_LexicalCache" xml:space="preserve">
+    <value>Lexical cache</value>
+  </data>
+  <data name="Diagnostics_Lemma" xml:space="preserve">
+    <value>Lemma</value>
+  </data>
+  <data name="Diagnostics_Languages" xml:space="preserve">
+    <value>Languages</value>
+  </data>
+  <data name="Diagnostics_Provider" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="Diagnostics_SourcePage" xml:space="preserve">
+    <value>Source page</value>
+  </data>
+  <data name="Diagnostics_Revision" xml:space="preserve">
+    <value>Revision</value>
+  </data>
+  <data name="Diagnostics_Fetched" xml:space="preserve">
+    <value>Fetched</value>
+  </data>
+  <data name="Diagnostics_Preparation" xml:space="preserve">
+    <value>Vocabulary preparation</value>
+  </data>
+  <data name="Diagnostics_Method" xml:space="preserve">
+    <value>Method</value>
+  </data>
+  <data name="Diagnostics_Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="Diagnostics_SelectedMeaning" xml:space="preserve">
+    <value>Selected meaning</value>
+  </data>
+  <data name="Diagnostics_AvailableMeanings" xml:space="preserve">
+    <value>Available meanings</value>
+  </data>
+  <data name="Diagnostics_LookupAttempts" xml:space="preserve">
+    <value>Lookup attempts</value>
+  </data>
+  <data name="Diagnostics_ErrorCode" xml:space="preserve">
+    <value>Error code</value>
+  </data>
+  <data name="Diagnostics_PreparedMeanings" xml:space="preserve">
+    <value>Prepared items and meanings</value>
+  </data>
+  <data name="Diagnostics_Confirmed" xml:space="preserve">
+    <value>Confirmed</value>
+  </data>
+  <data name="Diagnostics_Learning" xml:space="preserve">
+    <value>Learning and scheduling</value>
+  </data>
+  <data name="Diagnostics_LearningSessions" xml:space="preserve">
+    <value>Learning sessions</value>
+  </data>
+  <data name="Diagnostics_Ratings" xml:space="preserve">
+    <value>Ratings</value>
+  </data>
+  <data name="Diagnostics_LearningCards" xml:space="preserve">
+    <value>Learning cards</value>
+  </data>
+  <data name="Diagnostics_Direction" xml:space="preserve">
+    <value>Direction</value>
+  </data>
+  <data name="Diagnostics_Due" xml:space="preserve">
+    <value>Due</value>
+  </data>
+  <data name="Diagnostics_IntervalDays" xml:space="preserve">
+    <value>Interval (days)</value>
+  </data>
+  <data name="Diagnostics_EaseFactor" xml:space="preserve">
+    <value>Ease factor</value>
+  </data>
+  <data name="Diagnostics_LastRating" xml:space="preserve">
+    <value>Last rating</value>
+  </data>
+  <data name="Diagnostics_LearningReviews" xml:space="preserve">
+    <value>Learning reviews</value>
+  </data>
+  <data name="Diagnostics_Rating" xml:space="preserve">
+    <value>Rating</value>
+  </data>
+  <data name="Diagnostics_ReviewedAt" xml:space="preserve">
+    <value>Reviewed at</value>
+  </data>
+  <data name="Diagnostics_CleanupEligibility" xml:space="preserve">
+    <value>Document cleanup eligibility</value>
+  </data>
+  <data name="Diagnostics_ActiveReview" xml:space="preserve">
+    <value>Active review</value>
+  </data>
+  <data name="Diagnostics_HasOccurrences" xml:space="preserve">
+    <value>Stored occurrences</value>
+  </data>
+  <data name="Diagnostics_ActiveContexts" xml:space="preserve">
+    <value>Active contexts</value>
+  </data>
+  <data name="Diagnostics_Eligible" xml:space="preserve">
+    <value>Eligible</value>
+  </data>
+  <data name="Diagnostics_Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="Diagnostics_No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Analysis_Details" xml:space="preserve">
+    <value>Analysis details</value>
+  </data>
+  <data name="Analysis_CopyReport" xml:space="preserve">
+    <value>Copy analysis report</value>
+  </data>
+  <data name="Analysis_ReportCopied" xml:space="preserve">
+    <value>Analysis report copied.</value>
+  </data>
+  <data name="Analysis_Title" xml:space="preserve">
+    <value>Document analysis</value>
+  </data>
+  <data name="Analysis_DocumentSummary" xml:space="preserve">
+    <value>Document summary</value>
+  </data>
+  <data name="Analysis_IncludedTokens" xml:space="preserve">
+    <value>Included tokens</value>
+  </data>
+  <data name="Analysis_ExcludedDecisions" xml:space="preserve">
+    <value>Excluded decisions</value>
+  </data>
+  <data name="Analysis_Fingerprint" xml:space="preserve">
+    <value>Fingerprint</value>
+  </data>
+  <data name="Analysis_CandidateDetails" xml:space="preserve">
+    <value>Candidate details: {0}</value>
+  </data>
+  <data name="Analysis_FormsBefore" xml:space="preserve">
+    <value>Forms before deduplication</value>
+  </data>
+  <data name="Analysis_FormsAfter" xml:space="preserve">
+    <value>Forms after deduplication</value>
+  </data>
+  <data name="Analysis_SentenceSpans" xml:space="preserve">
+    <value>Sentence spans</value>
+  </data>
+  <data name="Analysis_BoundaryReason" xml:space="preserve">
+    <value>Boundary reason</value>
+  </data>
+  <data name="Analysis_ExactText" xml:space="preserve">
+    <value>Exact text</value>
+  </data>
+  <data name="Analysis_TokenDecisions" xml:space="preserve">
+    <value>Token decisions</value>
+  </data>
+  <data name="Analysis_RawValue" xml:space="preserve">
+    <value>Raw value</value>
+  </data>
+  <data name="Analysis_NormalizedValue" xml:space="preserve">
+    <value>Normalized value</value>
+  </data>
+  <data name="Analysis_Decision" xml:space="preserve">
+    <value>Decision</value>
+  </data>
+  <data name="Analysis_Reason" xml:space="preserve">
+    <value>Reason</value>
+  </data>
+  <data name="Analysis_Included" xml:space="preserve">
+    <value>Included</value>
+  </data>
+  <data name="Analysis_Excluded" xml:space="preserve">
+    <value>Excluded</value>
+  </data>
+  <data name="Analysis_CandidateGrouping" xml:space="preserve">
+    <value>Candidate grouping</value>
+  </data>
+  <data name="Analysis_ContextSelection" xml:space="preserve">
+    <value>Context selection</value>
+  </data>
+  <data name="Analysis_Selected" xml:space="preserve">
+    <value>Selected</value>
+  </data>
+  <data name="Analysis_Rejected" xml:space="preserve">
+    <value>Rejected</value>
+  </data>
+  <data name="Analysis_Target" xml:space="preserve">
+    <value>Target</value>
+  </data>
+  <data name="Analysis_Coordinates" xml:space="preserve">
+    <value>Coordinates</value>
+  </data>
+  <data name="Analysis_RelativeStart" xml:space="preserve">
+    <value>Relative start</value>
+  </data>
+  <data name="Analysis_Invariants" xml:space="preserve">
+    <value>Coordinate invariants</value>
+  </data>
+  <data name="Analysis_InvariantsPassed" xml:space="preserve">
+    <value>All coordinate invariants passed.</value>
+  </data>
+  <data name="Common_TryAgain" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="Common_ShowFullText" xml:space="preserve">
+    <value>Show full text</value>
+  </data>
+  <data name="Navigation_PrepareBlockedByReview" xml:space="preserve">
+    <value>Finish or discard the active vocabulary review first.</value>
+  </data>
+  <data name="Navigation_PrepareUnavailable" xml:space="preserve">
+    <value>No unknown, unprepared words are waiting.</value>
+  </data>
+  <data name="Settings_PreparationLimitHelp" xml:space="preserve">
+    <value>Limits new learning words per day so preparation and study remain manageable. Due reviews do not count.</value>
+  </data>
+  <data name="Review_Details" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="Review_Saving" xml:space="preserve">
+    <value>Saving decision…</value>
+  </data>
+  <data name="Prepare_InText" xml:space="preserve">
+    <value>In the text: {0}</value>
+  </data>
+  <data name="Prepare_Saving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="Prepare_OtherActions" xml:space="preserve">
+    <value>Other preparation actions</value>
+  </data>
+  <data name="Prepare_MarkKnown" xml:space="preserve">
+    <value>Mark as known</value>
+  </data>
+  <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
+    <value>This word will be stored as permanently known. No learning cards will be created, and obsolete preparation, context, and frequency data will be removed.</value>
+  </data>
+  <data name="Prepare_DoNotLearn" xml:space="preserve">
+    <value>Do not learn</value>
+  </data>
+  <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
+    <value>This exact vocabulary identity will be excluded from future review and preparation. Related words and forms will not be excluded, and no learning cards will be created.</value>
+  </data>
+  <data name="Prepare_TransientFailure" xml:space="preserve">
+    <value>The dictionary service is temporarily unavailable. Cached results remain available.</value>
+  </data>
+  <data name="Prepare_ParseFailure" xml:space="preserve">
+    <value>The downloaded dictionary result could not be read.</value>
+  </data>
+  <data name="Prepare_PermanentFailure" xml:space="preserve">
+    <value>The dictionary service cannot complete this request.</value>
+  </data>
+  <data name="Prepare_NotFound" xml:space="preserve">
+    <value>No suitable dictionary result was found.</value>
+  </data>
+  <data name="Prepare_DictionaryEntryNotFound" xml:space="preserve">
+    <value>No dictionary entry was found for this word.</value>
+  </data>
+  <data name="Prepare_DefinitionNotFound" xml:space="preserve">
+    <value>No definition was found for this word.</value>
+  </data>
+  <data name="Prepare_TranslationNotFound" xml:space="preserve">
+    <value>No translation was found for this language direction.</value>
+  </data>
+  <data name="Prepare_LanguageSectionNotFound" xml:space="preserve">
+    <value>The matching language section was not found in the dictionary entry.</value>
+  </data>
+  <data name="Prepare_NetworkFailure" xml:space="preserve">
+    <value>A network error prevented the dictionary lookup. Please try again.</value>
+  </data>
+  <data name="Prepare_ResponseParseFailure" xml:space="preserve">
+    <value>The dictionary response could not be processed.</value>
+  </data>
+  <data name="Source_Details" xml:space="preserve">
+    <value>Source details</value>
+  </data>
+  <data name="Source_Provider" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="Source_Project" xml:space="preserve">
+    <value>Wiktionary/Wikimedia project</value>
+  </data>
+  <data name="Source_PageTitle" xml:space="preserve">
+    <value>Page title</value>
+  </data>
+  <data name="Source_Revision" xml:space="preserve">
+    <value>Revision ID</value>
+  </data>
+  <data name="Source_Attribution" xml:space="preserve">
+    <value>Attribution</value>
+  </data>
+  <data name="Source_License" xml:space="preserve">
+    <value>License reference</value>
+  </data>
+  <data name="Diagnostics_PreparationTiming" xml:space="preserve">
+    <value>Preparation timing</value>
+  </data>
+  <data name="Diagnostics_PreparationTimingDescription" xml:space="preserve">
+    <value>Monotonic DEBUG measurements for preparation transitions. Network work is reported separately from local transition phases.</value>
+  </data>
+  <data name="Diagnostics_Sequence" xml:space="preserve">
+    <value>Sequence</value>
+  </data>
+  <data name="Diagnostics_Operation" xml:space="preserve">
+    <value>Operation</value>
+  </data>
+  <data name="Diagnostics_Phase" xml:space="preserve">
+    <value>Phase</value>
+  </data>
+  <data name="Diagnostics_DurationMilliseconds" xml:space="preserve">
+    <value>Duration (ms)</value>
+  </data>
+  <data name="Diagnostics_CandidateId" xml:space="preserve">
+    <value>Candidate ID</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_Validation" xml:space="preserve">
+    <value>Validation</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_DatabaseTransaction" xml:space="preserve">
+    <value>Database transaction</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_PreparedMeaningSave" xml:space="preserve">
+    <value>Prepared-meaning save</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_LearningCardCreation" xml:space="preserve">
+    <value>Learning-card creation</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_SessionUpdate" xml:space="preserve">
+    <value>Session update</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NextCandidateQuery" xml:space="preserve">
+    <value>Next-candidate query</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_ContextLoading" xml:space="preserve">
+    <value>Context loading</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_UiTransition" xml:space="preserve">
+    <value>UI transition</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NetworkWork" xml:space="preserve">
+    <value>Network work</value>
+  </data>
+  <data name="Import_LookupMode" xml:space="preserve">
+    <value>Dictionary lookup</value>
+  </data>
+  <data name="Import_LookupDefinition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
+  <data name="Import_LookupTranslation" xml:space="preserve">
+    <value>Translation</value>
+  </data>
+  <data name="Import_LookupDefinitionAndTranslation" xml:space="preserve">
+    <value>Definition and translation</value>
+  </data>
+  <data name="Import_TargetLanguage" xml:space="preserve">
+    <value>Translation language</value>
+  </data>
+  <data name="Import_TargetLanguageMustDiffer" xml:space="preserve">
+    <value>The translation language must differ from the text language.</value>
+  </data>
+  <data name="Prepare_CanonicalTerm" xml:space="preserve">
+    <value>Canonical term</value>
+  </data>
+  <data name="Prepare_EncounteredForm" xml:space="preserve">
+    <value>Encountered form</value>
+  </data>
+  <data name="Prepare_UsefulAnswerRequired" xml:space="preserve">
+    <value>Enter an acronym expansion, translation, or definition.</value>
+  </data>
+  <data name="Prepare_CancelPreparationConfirmation" xml:space="preserve">
+    <value>Cancel this batch? Accepted items remain prepared; unresolved and skipped items return to the preparation backlog.</value>
+  </data>
+  <data name="Prepare_DebugLookupDetails" xml:space="preserve">
+    <value>Lookup details</value>
+  </data>
+  <data name="Prepare_DebugDisplayedSurface" xml:space="preserve">
+    <value>Displayed surface form</value>
+  </data>
+  <data name="Prepare_DebugCanonicalTerm" xml:space="preserve">
+    <value>Canonical term</value>
+  </data>
+  <data name="Prepare_DebugLookupTerm" xml:space="preserve">
+    <value>Lookup term</value>
+  </data>
+  <data name="Prepare_DebugSourceLanguage" xml:space="preserve">
+    <value>Source language</value>
+  </data>
+  <data name="Prepare_DebugLookupMode" xml:space="preserve">
+    <value>Lookup mode</value>
+  </data>
+  <data name="Prepare_DebugTargetLanguage" xml:space="preserve">
+    <value>Target language</value>
+  </data>
+  <data name="Prepare_DebugCacheKey" xml:space="preserve">
+    <value>Cache key</value>
+  </data>
+  <data name="Prepare_DebugProviderRequest" xml:space="preserve">
+    <value>Provider request</value>
+  </data>
+  <data name="Prepare_DebugProviderOutcome" xml:space="preserve">
+    <value>Provider outcome</value>
+  </data>
+  <data name="Diagnostics_LexicalLogTitle" xml:space="preserve">
+    <value>Dictionary lookup diagnostics</value>
+  </data>
+  <data name="Diagnostics_LexicalLogDescription" xml:space="preserve">
+    <value>The bounded log contains lookup metadata, phases, and sanitized exceptions. It never contains documents, contexts, definitions, credentials, or HTTP headers.</value>
+  </data>
+  <data name="Diagnostics_CopyDiagnosticReport" xml:space="preserve">
+    <value>Copy diagnostic report</value>
+  </data>
+  <data name="Diagnostics_ExportDiagnosticLog" xml:space="preserve">
+    <value>Export diagnostic log</value>
+  </data>
+  <data name="Diagnostics_ClearDiagnosticLog" xml:space="preserve">
+    <value>Clear diagnostic log</value>
+  </data>
+  <data name="Diagnostics_DiagnosticReportCopied" xml:space="preserve">
+    <value>The diagnostic report was copied.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogExported" xml:space="preserve">
+    <value>The diagnostic log export was opened.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogCleared" xml:space="preserve">
+    <value>The diagnostic log was cleared.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogActionError" xml:space="preserve">
+    <value>The diagnostic log action could not be completed.</value>
+  </data>
+  <data name="Diagnostics_DebugLabel" xml:space="preserve">
+    <value>DEBUG</value>
+  </data>
+  <data name="Diagnostics_DebugLearningTools" xml:space="preserve">
+    <value>Learning test tools</value>
+  </data>
+  <data name="Diagnostics_DebugLearningDescription" xml:space="preserve">
+    <value>The artificial clock exists only in this debug process. These controls do not change the device clock, stored due dates, or production intervals.</value>
+  </data>
+  <data name="Diagnostics_DebugCurrentTime" xml:space="preserve">
+    <value>Artificial UTC time</value>
+  </data>
+  <data name="Diagnostics_DebugTimeOffset" xml:space="preserve">
+    <value>Offset from device UTC</value>
+  </data>
+  <data name="Diagnostics_DebugMakeAllCardsDue" xml:space="preserve">
+    <value>Make all scheduled cards due</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceMinute" xml:space="preserve">
+    <value>Time +1 minute</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceHour" xml:space="preserve">
+    <value>Time +1 hour</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceDay" xml:space="preserve">
+    <value>Time +1 day</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceFourDays" xml:space="preserve">
+    <value>Time +4 days</value>
+  </data>
+  <data name="Diagnostics_DebugResetTime" xml:space="preserve">
+    <value>Reset debug time</value>
+  </data>
+  <data name="Diagnostics_DebugTimeUpdated" xml:space="preserve">
+    <value>Artificial time updated.</value>
+  </data>
+  <data name="ErrorBoundary_Title" xml:space="preserve">
+    <value>Something went wrong</value>
+  </data>
+  <data name="ErrorBoundary_Message" xml:space="preserve">
+    <value>KnownFirst could not display this page. Navigate to another page or restart the application.</value>
+  </data>
+  <data name="Prepare_LoadingDictionaryData" xml:space="preserve">
+    <value>Loading dictionary data…</value>
   </data>
 </root>

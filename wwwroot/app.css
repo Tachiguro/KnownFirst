@@ -1,8 +1,15 @@
-:root,
+﻿:root,
 .app-theme-root[data-theme="light"] {
     color-scheme: light;
     font-family: "Open Sans", "Segoe UI", sans-serif;
     font-synthesis: none;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
     --color-background: #f4f7f5;
     --color-surface: #ffffff;
     --color-surface-elevated: #ffffff;
@@ -27,6 +34,11 @@
     --color-danger-contrast: #ffffff;
     --color-danger-surface: #fff3f2;
     --color-danger-border: #e2b5b1;
+    --color-debug: #f4bd4f;
+    --color-debug-hover: #e5a92f;
+    --color-debug-surface: #fff1bd;
+    --color-debug-border: #a96b00;
+    --color-debug-text: #2d1b00;
     --color-navigation-background: #123f31;
     --color-navigation-text: #dbe9e3;
     --color-navigation-hover: rgba(255, 255, 255, 0.1);
@@ -65,6 +77,11 @@
     --color-danger-contrast: #260e0d;
     --color-danger-surface: #3a2121;
     --color-danger-border: #74423f;
+    --color-debug: #f4bd4f;
+    --color-debug-hover: #ffd06f;
+    --color-debug-surface: #e8b94f;
+    --color-debug-border: #ffd87d;
+    --color-debug-text: #211400;
     --color-navigation-background: #0d2b22;
     --color-navigation-text: #d4e4dc;
     --color-navigation-hover: rgba(255, 255, 255, 0.09);
@@ -81,12 +98,13 @@ body {
     margin: 0;
     height: 100%;
     min-height: 100%;
-    overflow-x: hidden;
+    overflow: hidden;
     background: var(--color-background);
     color: var(--color-text);
 }
 
 #app {
+    height: 100%;
     min-height: 100%;
 }
 
@@ -111,8 +129,9 @@ h1:focus {
 
 .app-theme-root {
     min-width: 0;
+    height: 100%;
     min-height: 100%;
-    overflow-x: hidden;
+    overflow: hidden;
     background: var(--color-background);
     color: var(--color-text);
     transition: background-color 120ms ease, color 120ms ease;
@@ -123,8 +142,8 @@ h1:focus {
     min-height: 3rem;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.15rem;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
     border: 1px solid transparent;
     border-radius: 0.75rem;
     cursor: pointer;
@@ -172,6 +191,31 @@ a:focus-visible {
     border-color: var(--color-border-strong);
 }
 
+.button-debug {
+    border-color: var(--color-debug-border);
+    background: var(--color-debug);
+    color: var(--color-debug-text);
+}
+
+.button-debug:hover {
+    background: var(--color-debug-hover);
+    color: var(--color-debug-text);
+}
+
+.debug-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.16rem 0.42rem;
+    border: 1px solid var(--color-debug-border);
+    border-radius: 0.35rem;
+    background: var(--color-debug);
+    color: var(--color-debug-text);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.2;
+}
+
 .button-danger {
     background: var(--color-danger);
     color: var(--color-danger-contrast);
@@ -185,8 +229,8 @@ a:focus-visible {
     display: grid;
     min-height: 100%;
     place-content: center;
-    gap: 1rem;
-    padding: 2rem;
+    gap: var(--space-4);
+    padding: var(--space-8);
     text-align: center;
 }
 
@@ -199,9 +243,9 @@ a:focus-visible {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
-    margin: 1rem 0 0;
-    padding: 0.9rem 1rem;
+    gap: var(--space-3);
+    margin: var(--space-4) 0 0;
+    padding: var(--space-3) var(--space-4);
     border-radius: 0.75rem;
 }
 
@@ -223,8 +267,8 @@ a:focus-visible {
 
 .placeholder-card {
     max-width: 44rem;
-    margin: clamp(1rem, 6vw, 5rem) auto;
-    padding: clamp(1.5rem, 5vw, 3rem);
+    margin: clamp(var(--space-4), 6vw, var(--space-12)) auto;
+    padding: clamp(var(--space-6), 5vw, var(--space-12));
     border: 1px solid var(--color-border);
     border-radius: 1.25rem;
     background: var(--color-surface);
@@ -233,7 +277,7 @@ a:focus-visible {
 
 .placeholder-card h1 {
     margin: 0;
-    overflow-wrap: anywhere;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-size: clamp(1.8rem, 5vw, 2.6rem);
 }
 
@@ -272,4 +316,73 @@ a:focus-visible {
     font-size: 1.25rem;
     font-weight: 800;
     text-decoration: none;
+}
+
+.workflow-layout {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    margin: calc(-1 * var(--space-4));
+    overflow: hidden;
+}
+
+.destructive-confirmation {
+    padding: clamp(var(--space-4), 4vw, var(--space-8));
+    border: 1px solid var(--color-danger-border);
+    border-radius: 1.1rem;
+    background: var(--color-danger-surface);
+    box-shadow: var(--shadow-card);
+    color: var(--color-danger);
+    scroll-margin-block: var(--space-4);
+}
+
+.destructive-confirmation h3:first-child,
+.destructive-confirmation p:first-child {
+    margin-top: 0;
+}
+
+.workflow-scroll-area {
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-4);
+}
+
+.workflow-action-bar {
+    flex: 0 0 auto;
+    padding: var(--space-4);
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    background: var(--color-background);
+}
+
+.content,
+.workflow-scroll-area,
+.nav-scrollable {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.content::-webkit-scrollbar,
+.workflow-scroll-area::-webkit-scrollbar,
+.nav-scrollable::-webkit-scrollbar {
+    display: none;
+}
+
+@media (min-width: 800px) {
+    .workflow-layout {
+        margin: calc(-1 * var(--space-8)) calc(-1 * clamp(var(--space-8), 5vw, var(--space-12)));
+    }
+
+    .workflow-scroll-area {
+        padding: var(--space-8) clamp(var(--space-8), 5vw, var(--space-12));
+    }
+
+    .workflow-action-bar {
+        padding: var(--space-4) clamp(var(--space-8), 5vw, var(--space-12));
+        padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+    }
 }

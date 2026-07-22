@@ -1,5 +1,7 @@
 using KnownFirst.Services;
+using KnownFirst.Services.Diagnostics;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.WebView;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -10,6 +12,7 @@ public partial class MainPage : ContentPage
     private readonly INavigationHistoryService _navigationHistory;
     private readonly ILogger<MainPage> _logger;
     private bool _isNavigatingBack;
+    private int _startupLogged;
 
     public MainPage(
         INavigationHistoryService navigationHistory,
@@ -20,8 +23,24 @@ public partial class MainPage : ContentPage
         _logger = logger;
     }
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        if (Interlocked.Exchange(ref _startupLogged, 1) == 0)
+        {
+            _logger.LogInformation(
+                DiagnosticEventIds.StartupCompleted,
+                "Application startup completed and the main page is visible.");
+        }
+    }
+
     protected override bool OnBackButtonPressed()
     {
+        if (_navigationHistory.TryDismissOverlay())
+        {
+            return true;
+        }
+
         if (_navigationHistory.IsHome)
         {
             return base.OnBackButtonPressed();
@@ -34,6 +53,28 @@ public partial class MainPage : ContentPage
         }
 
         return true;
+    }
+
+    private static void OnBlazorWebViewInitialized(
+        object? sender,
+        BlazorWebViewInitializedEventArgs eventArgs)
+    {
+#if WINDOWS
+        var webView = eventArgs.WebView;
+        if (webView.CoreWebView2 is not null)
+        {
+            webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            return;
+        }
+
+        webView.CoreWebView2Initialized += (_, _) =>
+        {
+            if (webView.CoreWebView2 is not null)
+            {
+                webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            }
+        };
+#endif
     }
 
     private async Task NavigateBackInBlazorAsync()

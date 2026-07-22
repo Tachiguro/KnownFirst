@@ -20,6 +20,7 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
 
     public async Task InitializeAsync()
     {
+        logger.LogDebug("KnownFirst database initialization was requested.");
         await _databaseGate.WaitAsync();
         try
         {
@@ -43,8 +44,11 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
         await _databaseGate.WaitAsync();
         try
         {
+            logger.LogTrace("KnownFirst database read operation started.");
             await EnsureInitializedAsync();
-            return await operation(_connection!);
+            var result = await operation(_connection!);
+            logger.LogTrace("KnownFirst database read operation completed.");
+            return result;
         }
         catch (Exception exception)
         {
@@ -57,8 +61,34 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
         }
     }
 
+    public async Task<T> RunInTransactionAsync<T>(Func<SQLiteConnection, T> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        await _databaseGate.WaitAsync();
+        try
+        {
+            logger.LogTrace("KnownFirst database transaction started.");
+            await EnsureInitializedAsync();
+            T? result = default;
+            await _connection!.RunInTransactionAsync(connection => result = operation(connection));
+            logger.LogTrace("KnownFirst database transaction committed.");
+            return result!;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "KnownFirst database transaction failed.");
+            throw;
+        }
+        finally
+        {
+            _databaseGate.Release();
+        }
+    }
+
     public async Task ResetAsync()
     {
+        logger.LogInformation("KnownFirst database reset started.");
         await _databaseGate.WaitAsync();
         try
         {
@@ -75,6 +105,7 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
             }
 
             await EnsureInitializedAsync();
+            logger.LogInformation("KnownFirst database reset completed.");
         }
         catch (Exception exception)
         {
@@ -95,12 +126,10 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
         }
 
         _connection ??= new SQLiteAsyncConnection(DatabasePath, DatabaseFlags);
-        await _connection.CreateTableAsync<DocumentEntity>();
-        await _connection.CreateTableAsync<WordEntity>();
-        await _connection.CreateTableAsync<WordFormEntity>();
-        await _connection.CreateTableAsync<WordOccurrenceEntity>();
-        await _connection.CreateTableAsync<MeaningEntity>();
-        await _connection.CreateTableAsync<ReviewStateEntity>();
+        await DatabaseSchema.InitializeAsync(_connection);
         _initialized = true;
+        logger.LogInformation(
+            "KnownFirst database opened and schema initialization completed. SchemaVersion = {SchemaVersion}",
+            DatabaseSchema.CurrentVersion);
     }
 }

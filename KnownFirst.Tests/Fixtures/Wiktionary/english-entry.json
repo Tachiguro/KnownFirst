@@ -1,0 +1,7 @@
+{
+  "parse": {
+    "title": "network",
+    "revid": 123456,
+    "text": "<div class=\"mw-heading mw-heading2\"><h2 id=\"German\">German</h2></div><div class=\"mw-heading mw-heading3\"><h3>Noun</h3></div><ol><li><span class=\"definition\">German wrong section</span></li></ol><div class=\"mw-heading mw-heading2\"><h2 id=\"English\">English</h2></div><div class=\"mw-heading mw-heading3\"><h3>Pronunciation</h3></div><ul><li>Not a definition.</li></ul><div class=\"mw-heading mw-heading3\"><h3>Noun</h3></div><ol><li><span class=\"usage-label\">computing</span><span class=\"definition\">A connected group of computers.</span><span class=\"translation\">Netzwerk</span><span class=\"example\">The network is protected.</span><ol><li><span class=\"definition\">A connected technical subsystem.</span></li></ol></li><li><span class=\"definition\">A group of connected people.</span></li></ol>"
+  }
+}

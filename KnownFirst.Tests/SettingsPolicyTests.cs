@@ -48,6 +48,12 @@ public sealed class SettingsPolicyTests
     }
 
     [TestMethod]
+    public void Normalize_WhenPreparationLimitIsThirty_ReturnsThirty()
+    {
+        Assert.AreEqual(30, PreparationLimitPolicy.Normalize(30));
+    }
+
+    [TestMethod]
     public void Normalize_WhenPreparationLimitIsFifty_ReturnsFifty()
     {
         Assert.AreEqual(50, PreparationLimitPolicy.Normalize(50));

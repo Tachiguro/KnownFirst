@@ -1,21 +1,106 @@
 @page "/"
 @inject IDashboardService DashboardService
+@inject ITextReviewService TextReviewService
 @inject ILogger<Home> Logger
+@inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
+@inject IJSRuntime JavaScript
+@inject NavigationManager Navigation
 
 <PageTitle>@Localizer["Home_Title"]</PageTitle>
 
+<KnownFirst.Components.Shared.KeyboardShortcutHandler OnKeyDown="HandleKeyDown" />
+<section class="home-page">
+
 <section class="home-hero">
-    <p class="eyebrow">@Localizer["App_Name"]</p>
     <h1>@Localizer["Home_Title"]</h1>
     <p class="subtitle">@Localizer["Home_Subtitle"]</p>
 </section>
 
+@if (_activeReview is not null)
+{
+    <section class="continue-review-card" aria-labelledby="continue-review-title">
+        <div>
+            <p class="eyebrow">@Localizer["Home_ReviewInProgress"]</p>
+            <h2 id="continue-review-title">@Localizer["Home_ContinueReviewTitle"]</h2>
+            <p>@Localizer["Home_ContinueReviewDescription", _activeReview.DocumentTitle]</p>
+            <strong>@Localizer["Home_ReviewProgress", _activeReview.ReviewedCount, _activeReview.TotalCandidates]</strong>
+        </div>
+        @if (!_showDiscardConfirmation)
+        {
+            <div class="continue-review-actions">
+                <a class="button button-primary" href="review-words" @onkeydown:stopPropagation="true">@Localizer["Home_ContinueReviewAction"]</a>
+                <button type="button" class="button button-danger" disabled="@_isDiscarding" @ref="_discardButtonRef" @onkeydown:stopPropagation="true" @onclick="ShowDiscardConfirmationAsync">
+                    @Localizer["Review_DiscardAction"]
+                </button>
+            </div>
+        }
+
+        @if (_showDiscardConfirmation)
+        {
+            <div class="destructive-confirmation home-discard-confirmation"
+                 role="alertdialog"
+                 aria-labelledby="home-discard-title"
+                 @ref="_discardConfirmationRef"
+                 @onkeydown="HandleDiscardDialogKeyDown">
+                <h3 id="home-discard-title">@Localizer["Review_DiscardTitle"]</h3>
+                <p>@Localizer["Review_DiscardMessage"]</p>
+                <div class="continue-review-actions">
+                    <button type="button" class="button button-secondary" disabled="@_isDiscarding" @ref="_discardCancelButtonRef" @onclick="CancelDiscardAsync">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isDiscarding" @onclick="DiscardAsync">
+                        @Localizer["Review_DiscardConfirm"]
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (_discardFailed)
+        {
+            <p class="inline-message inline-message-error" role="alert">@Localizer["Review_DiscardError"]</p>
+        }
+    </section>
+}
+
 <section class="action-grid">
-    <a class="action-card" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="review-words">@Localizer["Navigation_ReviewWords"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="prepare-words">@Localizer["Navigation_PrepareWords"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
-    <a class="action-card" href="dictionary">@Localizer["Navigation_Dictionary"]<span aria-hidden="true">→</span></a>
+    @if (_workflow.CanLearn)
+    {
+        <a class="action-card" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
+    }
+    else
+    {
+        <div class="action-card blocked" aria-disabled="true" title="@(Localizer["Navigation_LearnUnavailable"])">
+            <span class="action-card-label">@Localizer["Navigation_Learn"]</span>
+            <small>@Localizer["Navigation_LearnUnavailable"]</small>
+        </div>
+    }
+    @if (_workflow.CanPrepare)
+    {
+        <a class="action-card" href="prepare-words">
+            @Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
+            <span aria-hidden="true">→</span>
+        </a>
+    }
+    else
+    {
+        <div class="action-card blocked"
+             aria-disabled="true"
+             title="@(Localizer[_workflow.HasActiveReview ? "Navigation_PrepareBlockedByReview" : "Navigation_PrepareUnavailable"])">
+            <span class="action-card-label">@Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]</span>
+            <small>@Localizer[_workflow.HasActiveReview ? "Navigation_PrepareBlockedByReview" : "Navigation_PrepareUnavailable"]</small>
+        </div>
+    }
+    @if (_workflow.CanImport)
+    {
+        <a class="action-card" href="import-text">@Localizer["Navigation_ImportText"]<span aria-hidden="true">→</span></a>
+    }
+    else
+    {
+        <div class="action-card blocked" aria-disabled="true" title="@(Localizer["Navigation_ImportBlockedByReview"])">
+            <span class="action-card-label">@Localizer["Navigation_ImportText"]</span>
+            <small>@Localizer["Navigation_ImportBlockedByReview"]</small>
+        </div>
+    }
     <a class="action-card" href="settings">@Localizer["Navigation_Settings"]<span aria-hidden="true">→</span></a>
 </section>
 
@@ -27,7 +112,7 @@ else if (_loadFailed)
 {
     <div class="inline-message inline-message-error" role="alert">
         <span>@Localizer["Home_DashboardError"]</span>
-        <button class="button button-secondary" @onclick="LoadStatisticsAsync">@Localizer["Common_Retry"]</button>
+        <button class="button button-secondary" @onkeydown:stopPropagation="true" @onclick="LoadStatisticsAsync">@Localizer["Common_Retry"]</button>
     </div>
 }
 else
@@ -55,13 +140,33 @@ else
         </article>
     </section>
 }
+</section>
 
 @code {
     private DashboardStatistics _statistics = DashboardStatistics.Empty;
+    private ActiveReviewSummary? _activeReview;
+    private WorkflowSnapshot _workflow = new(
+        false,
+        false,
+        false,
+        0,
+        0,
+        0,
+        WorkflowPrimaryAction.ImportText);
     private bool _isLoading = true;
     private bool _loadFailed;
+    private bool _showDiscardConfirmation;
+    private bool _isDiscarding;
+    private bool _discardFailed;
+    private ElementReference _discardButtonRef;
+    private ElementReference _discardConfirmationRef;
+    private ElementReference _discardCancelButtonRef;
+
+    private bool IsReviewBlocked => _activeReview is not null;
 
     protected override Task OnInitializedAsync() => LoadStatisticsAsync();
+
+
 
     private async Task LoadStatisticsAsync()
     {
@@ -71,6 +176,8 @@ else
         try
         {
             _statistics = await DashboardService.GetStatisticsAsync();
+            _activeReview = await TextReviewService.GetActiveReviewAsync();
+            _workflow = await WorkflowState.GetSnapshotAsync();
         }
         catch (Exception exception)
         {
@@ -82,4 +189,70 @@ else
             _isLoading = false;
         }
     }
+
+    private async Task ShowDiscardConfirmationAsync()
+    {
+        _discardFailed = false;
+        _showDiscardConfirmation = true;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _discardConfirmationRef);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _discardCancelButtonRef);
+    }
+
+    private async Task CancelDiscardAsync()
+    {
+        _showDiscardConfirmation = false;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _discardButtonRef);
+    }
+
+    private Task HandleDiscardDialogKeyDown(KeyboardEventArgs eventArgs) =>
+        IsEscape(eventArgs) ? CancelDiscardAsync() : Task.CompletedTask;
+
+    private async Task DiscardAsync()
+    {
+        if (_isDiscarding)
+        {
+            return;
+        }
+
+        _isDiscarding = true;
+        _discardFailed = false;
+        try
+        {
+            await TextReviewService.DiscardActiveImportAsync();
+            _showDiscardConfirmation = false;
+            await LoadStatisticsAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The unfinished text import could not be discarded from Home.");
+            _discardFailed = true;
+        }
+        finally
+        {
+            _isDiscarding = false;
+        }
+    }
+
+    private Task HandleKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (IsEscape(eventArgs) && _showDiscardConfirmation)
+        {
+            return CancelDiscardAsync();
+        }
+
+        if (string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal)
+            && _activeReview is not null
+            && !_showDiscardConfirmation)
+        {
+            Navigation.NavigateTo("review-words");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static bool IsEscape(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+        || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal);
 }

@@ -6,11 +6,20 @@
 @inject KnownFirst.Data.IKnownFirstDatabase Database
 @inject ILogger<Settings> Logger
 @inject IJSRuntime JsRuntime
+@inject ITextReviewService TextReviewService
+@inject KnownFirst.Services.Lexical.ILexicalDiagnosticLog LexicalDiagnosticLog
+@inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
 
 <section class="settings-page">
-    <PageHeader Title="@(Localizer["Settings_Title"])" />
+    <PageHeader Title="@(Localizer["Settings_Title"])"
+                BackHref="@(_hasActiveReview ? "review-words" : string.Empty)" />
+
+    @if (_hasActiveReview)
+    {
+        <a class="button button-secondary" href="review-words">@Localizer["Settings_ReturnToReview"]</a>
+    }
 
     <section class="settings-card" aria-labelledby="language-setting-title">
         <h2 id="language-setting-title">@Localizer["Settings_UILanguage"]</h2>
@@ -82,8 +91,10 @@
         <h2 id="preparation-limit-title">
             <label for="preparation-limit">@Localizer["Settings_PreparationLimit"]</label>
         </h2>
+        <p id="preparation-limit-help" class="setting-help">@Localizer["Settings_PreparationLimitHelp"]</p>
         <div class="field-group">
             <select id="preparation-limit"
+                    aria-describedby="preparation-limit-help"
                     @bind="_selectedPreparationLimit"
                     @bind:after="SavePreparationLimit">
                 @foreach (var limit in AppSettings.SupportedPreparationLimits)
@@ -103,6 +114,113 @@
             <p class="setting-feedback setting-feedback-error" role="alert">@Localizer["Settings_SaveError"]</p>
         }
     </section>
+
+    <section class="settings-card" aria-labelledby="card-direction-title">
+        <h2 id="card-direction-title">@Localizer["Settings_CardDirection"]</h2>
+        <div class="choice-grid choice-grid-three">
+            <button type="button"
+                    class="choice-button @(_selectedCardDirection == CardDirectionPreference.TermToMeaning ? "active" : null)"
+                    aria-pressed="@(_selectedCardDirection == CardDirectionPreference.TermToMeaning)"
+                    @onclick="() => SelectCardDirection(CardDirectionPreference.TermToMeaning)">
+                @Localizer["Settings_CardDirectionTermToMeaning"]
+            </button>
+            <button type="button"
+                    class="choice-button @(_selectedCardDirection == CardDirectionPreference.MeaningToTerm ? "active" : null)"
+                    aria-pressed="@(_selectedCardDirection == CardDirectionPreference.MeaningToTerm)"
+                    @onclick="() => SelectCardDirection(CardDirectionPreference.MeaningToTerm)">
+                @Localizer["Settings_CardDirectionMeaningToTerm"]
+            </button>
+            <button type="button"
+                    class="choice-button @(_selectedCardDirection == CardDirectionPreference.Both ? "active" : null)"
+                    aria-pressed="@(_selectedCardDirection == CardDirectionPreference.Both)"
+                    @onclick="() => SelectCardDirection(CardDirectionPreference.Both)">
+                @Localizer["Settings_CardDirectionBoth"]
+            </button>
+        </div>
+        @if (_cardDirectionSaved)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">
+                @Localizer["Settings_CardDirectionSaved"]
+            </p>
+        }
+    </section>
+
+    <section class="settings-card" aria-labelledby="learning-mode-title">
+        <h2 id="learning-mode-title">@Localizer["Settings_LearningMode"]</h2>
+        <p class="setting-help">@Localizer["Settings_LearningModeHelp"]</p>
+        <div class="choice-grid choice-grid-three">
+            <button type="button"
+                    class="choice-button @(_selectedLearningMode == LearningMode.Reading ? "active" : null)"
+                    aria-pressed="@(_selectedLearningMode == LearningMode.Reading)"
+                    @onclick="() => SelectLearningMode(LearningMode.Reading)">
+                @Localizer["Settings_LearningModeReading"]
+            </button>
+            <button type="button"
+                    class="choice-button @(_selectedLearningMode == LearningMode.Typing ? "active" : null)"
+                    aria-pressed="@(_selectedLearningMode == LearningMode.Typing)"
+                    @onclick="() => SelectLearningMode(LearningMode.Typing)">
+                @Localizer["Settings_LearningModeTyping"]
+            </button>
+            <button type="button"
+                    class="choice-button @(_selectedLearningMode == LearningMode.Automatic ? "active" : null)"
+                    aria-pressed="@(_selectedLearningMode == LearningMode.Automatic)"
+                    @onclick="() => SelectLearningMode(LearningMode.Automatic)">
+                @Localizer["Settings_LearningModeAutomatic"]
+            </button>
+        </div>
+        @if (_learningModeSaved)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">
+                @Localizer["Settings_LearningModeSaved"]
+            </p>
+        }
+    </section>
+
+    <section class="settings-card" aria-labelledby="online-lookup-title">
+        <h2 id="online-lookup-title">@Localizer["Settings_OnlineDictionary"]</h2>
+        <p>@Localizer[AppSettings.HasOnlineLookupConsent
+            ? "Settings_OnlineConsentGranted"
+            : "Settings_OnlineConsentNotGranted"]</p>
+        @if (AppSettings.HasOnlineLookupConsent)
+        {
+            <button type="button" class="button button-secondary" @onclick="RevokeOnlineConsent">
+                @Localizer["Settings_RevokeOnlineConsent"]
+            </button>
+        }
+        @if (_onlineConsentRevoked)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">
+                @Localizer["Settings_OnlineConsentRevoked"]
+            </p>
+        }
+    </section>
+
+    @if (DiagnosticsEnabled)
+    {
+        <section class="settings-card debug-tools" aria-labelledby="lexical-diagnostics-title">
+            <h2 id="lexical-diagnostics-title"><span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span> @Localizer["Diagnostics_LexicalLogTitle"]</h2>
+            <p>@Localizer["Diagnostics_LexicalLogDescription"]</p>
+            <div class="support-actions">
+                <button type="button" class="button button-debug" disabled="@_isChangingDiagnostics" @onclick="CopyLexicalDiagnosticReportAsync">
+                    @Localizer["Diagnostics_CopyDiagnosticReport"]
+                </button>
+                <button type="button" class="button button-debug" disabled="@_isChangingDiagnostics" @onclick="ExportLexicalDiagnosticLogAsync">
+                    @Localizer["Diagnostics_ExportDiagnosticLog"]
+                </button>
+                <button type="button" class="button button-debug" disabled="@_isChangingDiagnostics" @onclick="ClearLexicalDiagnosticLogAsync">
+                    @Localizer["Diagnostics_ClearDiagnosticLog"]
+                </button>
+            </div>
+            @if (_diagnosticMessageKey is not null)
+            {
+                <p class="setting-feedback @(_diagnosticActionFailed ? "setting-feedback-error" : "setting-feedback-success")"
+                   role="status"
+                   aria-live="polite">
+                    @Localizer[_diagnosticMessageKey]
+                </p>
+            }
+        </section>
+    }
 
     <section class="settings-card" aria-labelledby="help-and-support-title">
         <h2 id="help-and-support-title">@Localizer["Settings_HelpAndSupport"]</h2>
@@ -124,34 +242,31 @@
                 </button>
             </div>
         }
+
+        <p style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.7;">
+            @BuildIdentityService.GetFormattedBuildIdentity()
+        </p>
     </section>
 
     <section class="settings-card danger-zone" aria-labelledby="reset-data-title">
         <h2 id="reset-data-title">@Localizer["Settings_ResetData"]</h2>
         <p>@Localizer["Settings_ResetDescription"]</p>
-        <button type="button"
-                class="button button-danger"
-                @ref="_resetButton"
-                @onclick="ShowResetConfirmation">
-            @Localizer["Settings_ResetData"]
-        </button>
-
-        @if (_resetSucceeded)
+        @if (!_showResetConfirmation)
         {
-            <p class="inline-message inline-message-success" role="status" aria-live="polite">
-                @Localizer["Settings_ResetSuccess"]
-            </p>
+            <button type="button"
+                    class="button button-danger"
+                    @ref="_resetButton"
+                    @onclick="ShowResetConfirmation">
+                @Localizer["Settings_ResetData"]
+            </button>
         }
-
-        @if (_showResetConfirmation)
+        else
         {
-            <section class="reset-confirmation"
-                     role="alertdialog"
-                     aria-labelledby="reset-confirmation-title"
-                     aria-describedby="reset-confirmation-message"
-                     @ref="_resetConfirmation"
-                     @onkeydown="HandleResetDialogKeyDown">
-                <h2 id="reset-confirmation-title">@Localizer["Settings_ResetConfirmTitle"]</h2>
+            <div class="destructive-confirmation"
+                 role="alertdialog"
+                 aria-labelledby="reset-confirmation-message"
+                 @ref="_resetConfirmation"
+                 @onkeydown="HandleResetDialogKeyDown">
                 <p id="reset-confirmation-message">@Localizer["Settings_ResetConfirmMessage"]</p>
                 <div class="button-row">
                     <button type="button"
@@ -163,6 +278,7 @@
                     </button>
                     <button type="button"
                             class="button button-danger"
+                            data-destructive-confirm
                             disabled="@_isResetting"
                             @onclick="ResetDataAsync">
                         @Localizer["Settings_ResetConfirmAction"]
@@ -172,7 +288,14 @@
                 {
                     <p class="inline-message inline-message-error" role="alert">@Localizer["Settings_ResetError"]</p>
                 }
-            </section>
+            </div>
+        }
+
+        @if (_resetSucceeded)
+        {
+            <p class="inline-message inline-message-success" role="status" aria-live="polite">
+                @Localizer["Settings_ResetSuccess"]
+            </p>
         }
     </section>
 </section>
@@ -181,30 +304,42 @@
     private string _selectedUiLanguage = LanguageSelectionService.EnglishLanguageCode;
     private ThemePreference _selectedTheme = ThemePreference.System;
     private int _selectedPreparationLimit = AppSettingsService.DefaultPreparationLimit;
+    private CardDirectionPreference _selectedCardDirection = CardDirectionPreference.Both;
+    private LearningMode _selectedLearningMode = LearningModePolicy.DefaultMode;
     private string? _languageConfirmation;
     private ThemePreference? _appearanceConfirmation;
     private int? _preparationLimitConfirmation;
     private bool _languageChangeFailed;
     private bool _appearanceChangeFailed;
     private bool _preparationLimitChangeFailed;
+    private bool _cardDirectionSaved;
+    private bool _learningModeSaved;
+    private bool _onlineConsentRevoked;
+    private bool _hasActiveReview;
     private bool _isChangingLanguage;
     private bool _showResetConfirmation;
     private bool _isResetting;
     private bool _resetSucceeded;
     private bool _resetFailed;
     private bool _showFeaturePlaceholder;
+    private bool _isChangingDiagnostics;
+    private bool _diagnosticActionFailed;
+    private string? _diagnosticMessageKey;
     private bool _revealResetConfirmation;
     private bool _returnFocusToResetButton;
     private ElementReference _resetButton;
     private ElementReference _resetConfirmation;
     private ElementReference _cancelResetButton;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _selectedUiLanguage = LanguageSelection.CurrentUiLanguage;
         _selectedTheme = ThemeService.Preference;
         _selectedPreparationLimit = AppSettings.PreparationLimit;
+        _selectedCardDirection = AppSettings.CardDirection;
+        _selectedLearningMode = AppSettings.LearningMode;
         _languageConfirmation = SettingsFeedback.ConsumePendingLanguageConfirmation();
+        _hasActiveReview = await TextReviewService.GetActiveReviewAsync() is not null;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -306,9 +441,104 @@
         }
     }
 
+    private void SelectCardDirection(CardDirectionPreference preference)
+    {
+        if (_selectedCardDirection == preference)
+        {
+            return;
+        }
+
+        AppSettings.SetCardDirection(preference);
+        _selectedCardDirection = AppSettings.CardDirection;
+        _cardDirectionSaved = true;
+    }
+
+    private void SelectLearningMode(LearningMode mode)
+    {
+        if (_selectedLearningMode == mode)
+        {
+            return;
+        }
+
+        AppSettings.SetLearningMode(mode);
+        _selectedLearningMode = AppSettings.LearningMode;
+        _learningModeSaved = true;
+    }
+
+    private void RevokeOnlineConsent()
+    {
+        AppSettings.RevokeOnlineLookupConsent();
+        _onlineConsentRevoked = true;
+    }
+
+    private async Task CopyLexicalDiagnosticReportAsync()
+    {
+        await RunDiagnosticActionAsync(async () =>
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(
+                LexicalDiagnosticLog.ReadReport());
+            _diagnosticMessageKey = "Diagnostics_DiagnosticReportCopied";
+        });
+    }
+
+    private async Task ExportLexicalDiagnosticLogAsync()
+    {
+        await RunDiagnosticActionAsync(async () =>
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Share.Default.RequestAsync(
+                new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFileRequest
+                {
+                    Title = Localizer["Diagnostics_ExportDiagnosticLog"],
+                    File = new Microsoft.Maui.ApplicationModel.DataTransfer.ShareFile(
+                        LexicalDiagnosticLog.ExportPath)
+                });
+            _diagnosticMessageKey = "Diagnostics_DiagnosticLogExported";
+        });
+    }
+
+    private Task ClearLexicalDiagnosticLogAsync() => RunDiagnosticActionAsync(() =>
+    {
+        LexicalDiagnosticLog.Clear();
+        _diagnosticMessageKey = "Diagnostics_DiagnosticLogCleared";
+        return Task.CompletedTask;
+    });
+
+    private async Task RunDiagnosticActionAsync(Func<Task> action)
+    {
+        _isChangingDiagnostics = true;
+        _diagnosticActionFailed = false;
+        _diagnosticMessageKey = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The lexical diagnostic log action failed.");
+            _diagnosticActionFailed = true;
+            _diagnosticMessageKey = "Diagnostics_DiagnosticLogActionError";
+        }
+        finally
+        {
+            _isChangingDiagnostics = false;
+        }
+    }
+
     private void ShowFeaturePlaceholder() => _showFeaturePlaceholder = true;
 
     private void CloseFeaturePlaceholder() => _showFeaturePlaceholder = false;
+
+    private static bool DiagnosticsEnabled
+    {
+        get
+        {
+#if DEBUG || KNOWNFIRST_DIAGNOSTICS
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
 
     private void ShowResetConfirmation()
     {
@@ -350,6 +580,8 @@
             Microsoft.Maui.Storage.Preferences.Default.Clear();
             ThemeService.ResetPreference();
             AppSettings.Reset();
+            _selectedCardDirection = AppSettings.CardDirection;
+            _selectedLearningMode = AppSettings.LearningMode;
             LanguageSelection.ResetToDeviceLanguage();
             _showResetConfirmation = false;
             _resetSucceeded = true;

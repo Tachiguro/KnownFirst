@@ -1,0 +1,44 @@
+﻿.source-details {
+    min-width: 0;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+}
+
+.source-details summary {
+    width: fit-content;
+    cursor: pointer;
+    color: var(--color-primary);
+    font-weight: 750;
+}
+
+.source-details dl {
+    display: grid;
+    gap: var(--space-2);
+    margin: var(--space-3) 0 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: 0.65rem;
+    background: var(--color-surface-elevated);
+}
+
+.source-details dl div {
+    min-width: 0;
+}
+
+.source-details dt {
+    font-size: 0.78rem;
+    font-weight: 750;
+}
+
+.source-details dd {
+    margin: var(--space-1) 0 0;
+    word-break: normal; overflow-wrap: break-word; hyphens: auto;
+}
+
+.source-details.compact {
+    font-size: 0.82rem;
+}
+
+.source-details.compact dl {
+    padding: var(--space-2);
+}

@@ -4,7 +4,9 @@ public sealed class NavigationHistoryService : INavigationHistoryService
 {
     private readonly Lock _syncRoot = new();
     private readonly List<string> _routes = [string.Empty];
+    private readonly List<OverlayRegistration> _overlays = [];
     private string? _pendingBackTarget;
+    private long _nextOverlayId;
 
     public bool IsHome
     {
@@ -15,6 +17,37 @@ public sealed class NavigationHistoryService : INavigationHistoryService
                 return _routes.Count == 0 || string.IsNullOrEmpty(_routes[^1]);
             }
         }
+    }
+
+    public IDisposable RegisterDismissibleOverlay(Action dismiss)
+    {
+        ArgumentNullException.ThrowIfNull(dismiss);
+        lock (_syncRoot)
+        {
+            var registration = new OverlayRegistration(this, ++_nextOverlayId, dismiss);
+            _overlays.Add(registration);
+            return registration;
+        }
+    }
+
+    public bool TryDismissOverlay()
+    {
+        Action? dismiss = null;
+        lock (_syncRoot)
+        {
+            if (_overlays.Count == 0)
+            {
+                return false;
+            }
+
+            var registration = _overlays[^1];
+            _overlays.RemoveAt(_overlays.Count - 1);
+            registration.MarkRemoved();
+            dismiss = registration.Dismiss;
+        }
+
+        dismiss();
+        return true;
     }
 
     public void RecordNavigation(string relativeRoute)
@@ -102,5 +135,38 @@ public sealed class NavigationHistoryService : INavigationHistoryService
         }
 
         return route.Trim('/');
+    }
+
+    private void RemoveOverlay(long id)
+    {
+        lock (_syncRoot)
+        {
+            _overlays.RemoveAll(registration => registration.Id == id);
+        }
+    }
+
+    private sealed class OverlayRegistration(
+        NavigationHistoryService owner,
+        long id,
+        Action dismiss) : IDisposable
+    {
+        private bool _removed;
+
+        public long Id { get; } = id;
+
+        public Action Dismiss { get; } = dismiss;
+
+        public void Dispose()
+        {
+            if (_removed)
+            {
+                return;
+            }
+
+            _removed = true;
+            owner.RemoveOverlay(Id);
+        }
+
+        public void MarkRemoved() => _removed = true;
     }
 }

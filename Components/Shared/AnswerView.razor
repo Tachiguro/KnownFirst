@@ -1,0 +1,33 @@
+<section class="learning-answer">
+    @if (!string.IsNullOrWhiteSpace(Card.EncounteredSurfaceForm))
+    {
+        <p class="encountered-form">@Localizer["Prepare_InText", Card.EncounteredSurfaceForm]</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(Card.AcronymExpansion))
+    {
+        <div><h3>@Localizer["Prepare_AcronymExpansion"]</h3><p>@Card.AcronymExpansion</p></div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Card.Translation))
+    {
+        <div><h3>@Localizer["Prepare_Translation"]</h3><p>@Card.Translation</p></div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Card.Definition))
+    {
+        <div><h3>@Localizer["Prepare_Definition"]</h3><p>@Card.Definition</p></div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Card.DictionaryExample))
+    {
+        <div><h3>@Localizer["Learn_DictionaryExample"]</h3><p>@Card.DictionaryExample</p></div>
+    }
+    <SourceDetails ProviderName="@Card.ProviderName"
+                   SourceProject="@Card.SourceProject"
+                   PageTitle="@Card.SourcePageTitle"
+                   RevisionId="@Card.SourceRevisionId"
+                   Attribution="@Card.Attribution"
+                   Compact="true" />
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public LearningCardView Card { get; set; } = null!;
+}

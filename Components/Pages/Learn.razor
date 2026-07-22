@@ -1,8 +1,554 @@
-@page "/learn"
+﻿@page "/learn"
+@inject ILearningService LearningService
+@inject ILogger<Learn> Logger
+@inject IJSRuntime JsRuntime
 
 <PageTitle>@Localizer["Navigation_Learn"]</PageTitle>
 
-<section class="placeholder-card">
+<KnownFirst.Components.Shared.KeyboardShortcutHandler OnKeyDown="HandleLearningKeyDown" />
+<section class="workflow-layout">
+    <div class="workflow-scroll-area" tabindex="0">
     <PageHeader Title="@(Localizer["Navigation_Learn"])" />
-    <p>@Localizer["Placeholder_Message"]</p>
+
+    @if (_isLoading)
+    {
+        <p class="loading-message" role="status">@Localizer["Learn_Loading"]</p>
+    }
+    else if (_loadFailed)
+    {
+        <div class="inline-message inline-message-error" role="alert">
+            <span>@Localizer["Learn_LoadError"]</span>
+            <button type="button" class="button button-secondary" @onclick="LoadAsync">@Localizer["Common_Retry"]</button>
+        </div>
+    }
+    else if (_card is not null)
+    {
+        <article class="learning-card">
+            <div class="learning-progress">
+                <span>@Localizer["Learn_Progress", _card.CompletedCards + 1, _card.TotalCards]</span>
+                <progress value="@_card.CompletedCards" max="@_card.TotalCards"></progress>
+            </div>
+
+            @if (_card.InteractionMode == LearningInteractionMode.Reading)
+            {
+                <p class="eyebrow">@Localizer["Learn_ReadingMode"]</p>
+                <h2 class="learning-term">@_card.Term</h2>
+                @if (CurrentContext is not null)
+                {
+                    <div class="learning-context-block">
+                        <ContextView Context="CurrentContext" HideTarget="false" />
+                        @ContextNavigation
+                    </div>
+                }
+
+                @if (_card.AnswerRevealed)
+                {
+                    <AnswerView Card="_card" />
+                }
+            }
+            else
+            {
+                <p class="eyebrow">@Localizer["Learn_TypingMode"]</p>
+                <section class="meaning-prompt">
+                    @if (!string.IsNullOrWhiteSpace(_card.Translation))
+                    {
+                        <p><strong>@Localizer["Prepare_Translation"]:</strong> @_card.Translation</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_card.Definition))
+                    {
+                        <p><strong>@Localizer["Prepare_Definition"]:</strong> @_card.Definition</p>
+                    }
+                    @if (string.IsNullOrWhiteSpace(_card.Translation)
+                        && string.IsNullOrWhiteSpace(_card.Definition)
+                        && !string.IsNullOrWhiteSpace(_card.AcronymExpansion))
+                    {
+                        <p><strong>@Localizer["Prepare_AcronymExpansion"]:</strong> @_card.AcronymExpansion</p>
+                    }
+                </section>
+                @if (CurrentContext is not null)
+                {
+                    <div class="learning-context-block">
+                        <ContextView Context="CurrentContext" HideTarget="true" />
+                        @ContextNavigation
+                    </div>
+                }
+
+                @if (_spellingResult is null)
+                {
+                    <form class="spelling-form" id="spelling-form-main" @onsubmit="CheckSpellingAsync" @onsubmit:preventDefault>
+                        <label for="spelling-answer">@Localizer["Learn_YourAnswer"]</label>
+                        <input id="spelling-answer"
+                               class="text-input spelling-input"
+                               autocomplete="off"
+                               placeholder="@CreateSpellingPlaceholder(_card.Term)"
+                               disabled="@_isBusy"
+                               @bind="_spellingAnswer"
+                               @bind:event="oninput" />
+                    </form>
+                }
+                else
+                {
+                    <section class="spelling-result @(_spellingResult.IsCorrect ? "correct" : "incorrect")" role="status">
+                        <p>@Localizer[_spellingResult.IsCorrect ? "Learn_SpellingCorrect" : "Learn_SpellingIncorrect"]</p>
+                        <dl>
+                            <div>
+                                <dt>@Localizer["Learn_EnteredAnswer"]</dt>
+                                <dd class="entered-answer">
+                                    @if (_spellingResult.IsCorrect)
+                                    {
+                                        @_spellingResult.EnteredAnswer
+                                    }
+                                    else
+                                    {
+                                        @foreach (var character in CreateAnswerFeedback(_spellingResult))
+                                        {
+                                            <span class="answer-character @character.CssClass"
+                                                  aria-label="@(character.IsMissing ? Localizer["Learn_MissingLetter"].Value : null)">@character.Display</span>
+                                        }
+                                    }
+                                </dd>
+                            </div>
+                            <div><dt>@Localizer["Learn_CorrectAnswer"]</dt><dd>@_spellingResult.CorrectAnswer</dd></div>
+                            @if (_spellingResult.MatchedAlias is not null)
+                            {
+                                <div><dt>@Localizer["Learn_AcceptedAlias"]</dt><dd>@_spellingResult.MatchedAlias</dd></div>
+                            }
+                        </dl>
+                    </section>
+                }
+            }
+
+            <section class="permanent-known-section">
+                @if (!_showPermanentKnownConfirmation)
+                {
+                    <button type="button" class="button button-danger permanent-known" disabled="@_isBusy" @ref="_permanentKnownButtonRef" @onclick="ShowPermanentKnownConfirmationAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
+                }
+                else
+                {
+                    <div class="destructive-confirmation"
+                         role="alertdialog"
+                         aria-labelledby="permanent-known-confirmation-title"
+                         @ref="_permanentKnownConfirmationRef"
+                         @onkeydown="HandlePermanentKnownDialogKeyDown">
+                        <h3 id="permanent-known-confirmation-title">@Localizer["Learn_MarkPermanentlyKnown"]</h3>
+                        <p>@Localizer["Learn_PermanentKnownConfirmation"]</p>
+                        <div class="button-row">
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_permanentKnownCancelButtonRef" @onclick="CancelPermanentKnownAsync">@Localizer["Common_Cancel"]</button>
+                            <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isBusy" @onclick="ConfirmPermanentKnownAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>
+                        </div>
+                    </div>
+                }
+            </section>
+
+            @if (_actionFailed)
+            {
+                <p class="inline-message inline-message-error" role="alert">@Localizer["Learn_ActionError"]</p>
+            }
+        </article>
+    }
+    else if (_summary is not null)
+    {
+        <section class="learning-card session-summary" role="status">
+            <h2>@Localizer["Learn_SessionComplete"]</h2>
+            <dl class="summary-grid">
+                <div><dt>@Localizer["Learn_CardsReviewed"]</dt><dd>@_summary.CardsReviewed</dd></div>
+                <div><dt>@Localizer["Learn_Again"]</dt><dd>@_summary.AgainCount</dd></div>
+                <div><dt>@Localizer["Learn_Hard"]</dt><dd>@_summary.HardCount</dd></div>
+                <div><dt>@Localizer["Learn_Good"]</dt><dd>@_summary.GoodCount</dd></div>
+                <div><dt>@Localizer["Learn_Easy"]</dt><dd>@_summary.EasyCount</dd></div>
+            </dl>
+            @if (_summary.NextDueAtUtc is not null)
+            {
+                <p>@Localizer["Learn_NextDue", _summary.NextDueAtUtc.Value.ToLocalTime().ToString("g") ]</p>
+            }
+            @if (_summary.RemainingUnpreparedCount > 0)
+            {
+                <p>@Localizer["Learn_MoreUnknownWaiting", _summary.RemainingUnpreparedCount]</p>
+                <div class="button-row">
+                    <a class="button button-primary" href="prepare-words">@Localizer["Learn_PrepareNextWords"]</a>
+                    <a class="button button-secondary" href="">@Localizer["Common_Later"]</a>
+                    <a class="button button-secondary" href="settings">@Localizer["Prepare_ChangeLimit"]</a>
+                </div>
+            }
+            else
+            {
+                <p>@Localizer["Learn_NothingDue"]</p>
+                <div class="button-row">
+                    <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
+                    <a class="button button-secondary" href="import-text">@Localizer["Navigation_ImportText"]</a>
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <section class="learning-card">
+            <h2>@Localizer["Learn_NoCardsTitle"]</h2>
+            <p>@Localizer["Navigation_LearnUnavailable"]</p>
+            <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
+        </section>
+    }
+    </div>
+
+    @if (_card is not null && !_showPermanentKnownConfirmation)
+    {
+        <div class="workflow-action-bar">
+            <section class="learn-action-bar">
+                @if (_card.InteractionMode == LearningInteractionMode.Reading)
+                {
+                    @if (!_card.AnswerRevealed)
+                    {
+                        <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="RevealAsync" aria-keyshortcuts="Enter Space" title="@Localizer["Learn_RevealAnswer"] (Enter/Space)">@Localizer["Learn_RevealAnswer"]</button>
+                    }
+                    else
+                    {
+                        <RatingButtons OnRate="RateAsync" Disabled="_isBusy" IncludeAgain="true" />
+                    }
+                }
+                else
+                {
+                    @if (_spellingResult is null)
+                    {
+                        <button type="submit" form="spelling-form-main" class="button button-primary" disabled="@(_isBusy || string.IsNullOrWhiteSpace(_spellingAnswer))">@Localizer["Learn_CheckAnswer"]</button>
+                    }
+                    else
+                    {
+                        @if (_spellingResult.IsCorrect)
+                        {
+                            <RatingButtons OnRate="RateAsync" Disabled="_isBusy" IncludeAgain="false" />
+                        }
+                        else
+                        {
+                            <button type="button"
+                                    class="button button-primary"
+                                    disabled="@_isBusy"
+                                    @ref="_continueButton"
+                                    @onclick="ContinueAfterIncorrectAsync" aria-keyshortcuts="Enter" title="@Localizer["Common_Continue"] (Enter)">@Localizer["Common_Continue"]</button>
+                        }
+                    }
+                }
+            </section>
+        </div>
+    }
 </section>
+
+@code {
+    private LearningCardView? _card;
+    private LearningSessionSummary? _summary;
+    private SpellingSubmissionResult? _spellingResult;
+    private string _spellingAnswer = string.Empty;
+    private int _contextIndex;
+    private bool _isLoading = true;
+    private bool _isBusy;
+    private bool _loadFailed;
+    private bool _actionFailed;
+    private bool _showPermanentKnownConfirmation;
+    private bool _focusContinueAfterRender;
+    private ElementReference _continueButton;
+    private ElementReference _permanentKnownButtonRef;
+    private ElementReference _permanentKnownConfirmationRef;
+    private ElementReference _permanentKnownCancelButtonRef;
+
+    private LearningContext? CurrentContext => _card is null || _card.Contexts.Count == 0
+        ? null
+        : _card.Contexts[_contextIndex];
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusContinueAfterRender)
+        {
+            return;
+        }
+
+        _focusContinueAfterRender = false;
+        await _continueButton.FocusAsync(preventScroll: true);
+    }
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _loadFailed = false;
+        try
+        {
+            ApplyLoadResult(await LearningService.GetOrStartAsync());
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The learning session could not be loaded.");
+            _loadFailed = true;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RevealAsync()
+    {
+        if (_card is null || _isBusy)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        try
+        {
+            await LearningService.RevealAnswerAsync(_card.QueueItemId);
+            _card = _card with { AnswerRevealed = true };
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The learning answer could not be revealed.");
+            _actionFailed = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task CheckSpellingAsync()
+    {
+        if (_card is null || _isBusy || string.IsNullOrWhiteSpace(_spellingAnswer))
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _actionFailed = false;
+        try
+        {
+            _spellingResult = await LearningService.CheckSpellingAsync(_card.QueueItemId, _spellingAnswer);
+            if (!_spellingResult.IsCorrect)
+            {
+                _focusContinueAfterRender = true;
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The spelling answer could not be checked.");
+            _actionFailed = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task RateAsync(ReviewRating rating)
+    {
+        if (_card is null || _isBusy)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _actionFailed = false;
+        try
+        {
+            ApplyLoadResult(await LearningService.RateAsync(_card.QueueItemId, rating));
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The learning rating could not be saved.");
+            _actionFailed = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task ContinueAfterIncorrectAsync()
+    {
+        if (_card is null
+            || _isBusy
+            || _spellingResult is not { IsCorrect: false, RatingWasPersisted: true })
+        {
+            return;
+        }
+
+        _isBusy = true;
+        _actionFailed = false;
+        try
+        {
+            ApplyLoadResult(await LearningService.GetOrStartAsync());
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The learning session could not continue after an incorrect answer.");
+            _actionFailed = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task ConfirmPermanentKnownAsync()
+    {
+        if (_card is null || _isBusy)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        try
+        {
+            await LearningService.MarkPermanentlyKnownAsync(_card.WordId, confirmed: true);
+            _showPermanentKnownConfirmation = false;
+            ApplyLoadResult(await LearningService.GetOrStartAsync());
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The vocabulary item could not be marked permanently known.");
+            _actionFailed = true;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void ApplyLoadResult(LearningLoadResult result)
+    {
+        _card = result.Card;
+        _summary = result.CompletedSummary;
+        _spellingResult = null;
+        _spellingAnswer = string.Empty;
+        _contextIndex = 0;
+        _showPermanentKnownConfirmation = false;
+    }
+
+    private void PreviousContext() => _contextIndex = Math.Max(0, _contextIndex - 1);
+
+    private void NextContext()
+    {
+        if (_card is not null)
+        {
+            _contextIndex = Math.Min(_card.Contexts.Count - 1, _contextIndex + 1);
+        }
+    }
+
+    private async Task ShowPermanentKnownConfirmationAsync()
+    {
+        _showPermanentKnownConfirmation = true;
+        await InvokeAsync(StateHasChanged);
+        await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _permanentKnownConfirmationRef);
+        await JsRuntime.InvokeVoidAsync("knownFirst.focusElement", _permanentKnownCancelButtonRef);
+    }
+
+    private async Task CancelPermanentKnownAsync()
+    {
+        _showPermanentKnownConfirmation = false;
+        await InvokeAsync(StateHasChanged);
+        await JsRuntime.InvokeVoidAsync("knownFirst.focusElement", _permanentKnownButtonRef);
+    }
+
+    private Task HandlePermanentKnownDialogKeyDown(KeyboardEventArgs eventArgs) =>
+        IsEscape(eventArgs) ? CancelPermanentKnownAsync() : Task.CompletedTask;
+
+    private Task HandleLearningKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (IsEscape(eventArgs) && _showPermanentKnownConfirmation)
+        {
+            return CancelPermanentKnownAsync();
+        }
+
+        if ((string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal) || string.Equals(eventArgs.Key, " ", StringComparison.Ordinal))
+            && !eventArgs.Repeat
+            && !_showPermanentKnownConfirmation
+            && !_isBusy
+            && _card is not null)
+        {
+            if (_card.InteractionMode == LearningInteractionMode.Reading && !_card.AnswerRevealed)
+            {
+                return RevealAsync();
+            }
+            if (_card.InteractionMode == LearningInteractionMode.Typing && _spellingResult is { IsCorrect: false, RatingWasPersisted: true } && string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal))
+            {
+                return ContinueAfterIncorrectAsync();
+            }
+        }
+        return Task.CompletedTask;
+    }
+
+    private static bool IsEscape(KeyboardEventArgs eventArgs) =>
+        string.Equals(eventArgs.Key, "Escape", StringComparison.Ordinal)
+        || string.Equals(eventArgs.Key, "Esc", StringComparison.Ordinal);
+
+    private static string CreateSpellingPlaceholder(string term)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var rune in term.EnumerateRunes())
+        {
+            builder.Append(System.Text.Rune.IsLetter(rune) ? '_' : rune.ToString());
+        }
+
+        return builder.ToString();
+    }
+
+    private IReadOnlyList<AnswerCharacterFeedback> CreateAnswerFeedback(
+        SpellingSubmissionResult result)
+    {
+        var entered = GetTextElements(result.EnteredAnswer);
+        var expected = GetTextElements(result.CorrectAnswer);
+        var feedback = new List<AnswerCharacterFeedback>(Math.Max(entered.Count, expected.Count));
+        var comparison = IsCaseSensitiveAnswer()
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
+        for (var index = 0; index < Math.Max(entered.Count, expected.Count); index++)
+        {
+            if (index >= entered.Count)
+            {
+                feedback.Add(new AnswerCharacterFeedback("_", "missing", true));
+                continue;
+            }
+
+            var isCorrect = index < expected.Count
+                && string.Equals(entered[index], expected[index], comparison);
+            feedback.Add(new AnswerCharacterFeedback(
+                entered[index],
+                isCorrect ? "correct" : "incorrect",
+                false));
+        }
+
+        return feedback;
+    }
+
+    private bool IsCaseSensitiveAnswer() => _card is not null
+        && (_card.TokenKind == TokenKind.Acronym
+            || (string.Equals(_card.SourceLanguage, "de", StringComparison.OrdinalIgnoreCase)
+                && _card.Term.Length > 0
+                && char.IsUpper(_card.Term[0])));
+
+    private static IReadOnlyList<string> GetTextElements(string value)
+    {
+        var elements = new List<string>();
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(value);
+        while (enumerator.MoveNext())
+        {
+            elements.Add(enumerator.GetTextElement());
+        }
+
+        return elements;
+    }
+
+    private sealed record AnswerCharacterFeedback(
+        string Display,
+        string CssClass,
+        bool IsMissing);
+
+    private RenderFragment ContextNavigation => @<text>
+        @if (_card is not null && _card.Contexts.Count > 1)
+        {
+            <div class="context-navigation">
+                <button type="button" class="button button-secondary" disabled="@(_contextIndex == 0 || _isBusy)" @onclick="PreviousContext">@Localizer["Review_PreviousContext"]</button>
+                <span>@Localizer["Review_ContextPosition", _contextIndex + 1, _card.Contexts.Count]</span>
+                <button type="button" class="button button-secondary" disabled="@(_contextIndex == _card.Contexts.Count - 1 || _isBusy)" @onclick="NextContext">@Localizer["Review_NextContext"]</button>
+            </div>
+        }
+    </text>;
+}

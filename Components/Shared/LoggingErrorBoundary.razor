@@ -1,0 +1,57 @@
+@inherits ErrorBoundaryBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject ILogger<LoggingErrorBoundary> Logger
+@inject IAppDiagnosticsService Diagnostics
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else if (ErrorContent is not null)
+{
+    @ErrorContent(CurrentException)
+}
+else
+{
+    <div class="app-status app-status-error" role="alert">
+        <h1>@Localizer["ErrorBoundary_Title"]</h1>
+        <p>@Localizer["ErrorBoundary_Message"]</p>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override Task OnErrorAsync(Exception exception)
+    {
+        Logger.LogCritical(
+            DiagnosticEventIds.BlazorUnhandledException,
+            exception,
+            "An unhandled Blazor component exception occurred.");
+        Diagnostics.Flush();
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs eventArgs)
+    {
+        if (CurrentException is null)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            Recover();
+            StateHasChanged();
+        });
+    }
+}

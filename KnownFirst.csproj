@@ -1,6 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor" TreatAsLocalProperty="Configuration">
 
     <PropertyGroup>
+        <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
         <TargetFrameworks>net10.0-android</TargetFrameworks>
         <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
         <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
@@ -20,7 +21,8 @@
         <EnableDefaultCssItems>false</EnableDefaultCssItems>
         <Nullable>enable</Nullable>
         <NeutralLanguage>en</NeutralLanguage>
-        <DefaultItemExcludes>$(DefaultItemExcludes);KnownFirst.Core\**;KnownFirst.Tests\**</DefaultItemExcludes>
+        <Configurations>Debug;Release;BetaDiagnostic</Configurations>
+        <DefaultItemExcludes>$(DefaultItemExcludes);KnownFirst.Core\**;KnownFirst.Tests\**;artifacts\**;temp\**;TestResults\**;.vs\**;**\*.log;**\*.binlog</DefaultItemExcludes>
 
         <!-- Enable XAML source generation for faster build times and improved performance.
              This generates C# code from XAML at compile time instead of runtime inflation.
@@ -34,11 +36,14 @@
         <ApplicationTitle>KnownFirst</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.knownfirst</ApplicationId>
+        <ApplicationId>com.tachiguro.knownfirst</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
-        <ApplicationVersion>1</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.8</ApplicationDisplayVersion>
+        <ApplicationVersion>8</ApplicationVersion>
+        <PackageVersion>1.0.0-beta.8</PackageVersion>
+
+        <ApplicationDisplayVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">1.0.0</ApplicationDisplayVersion>
 
         <!-- To develop, package, and publish an app to the Microsoft Store, see: https://aka.ms/MauiTemplateUnpackaged -->
         <WindowsPackageType>None</WindowsPackageType>
@@ -50,12 +55,67 @@
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+        <Optimize>true</Optimize>
+        <PublishTrimmed>true</PublishTrimmed>
+        <RunAOTCompilation>true</RunAOTCompilation>
+        <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+        <AndroidPackageFormats>apk</AndroidPackageFormats>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic'">
+        <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+        <PackageVersion>1.0.0-beta.7-diagnostic</PackageVersion>
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <PackageVersion>1.0.0-beta.7-debug</PackageVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+        <ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>
+        <ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>
+        <ApplicationDisplayVersion>1.0.0-beta.8-diagnostic</ApplicationDisplayVersion>
+        <ApplicationVersion>8</ApplicationVersion>
+        <Optimize>true</Optimize>
+        <PublishTrimmed>true</PublishTrimmed>
+        <RunAOTCompilation>true</RunAOTCompilation>
+        <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+        <AndroidPackageFormats>apk</AndroidPackageFormats>
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+        <ApplicationTitle>KnownFirst Debug</ApplicationTitle>
+        <ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>
+        <ApplicationDisplayVersion>1.0.0-beta.8-debug</ApplicationDisplayVersion>
+        <ApplicationVersion>8</ApplicationVersion>
+        <Optimize>false</Optimize>
+        <PublishTrimmed>false</PublishTrimmed>
+        <RunAOTCompilation>false</RunAOTCompilation>
+        <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+        <AndroidUseFastDeployment>false</AndroidUseFastDeployment>
+        <AndroidPackageFormats>apk</AndroidPackageFormats>
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>full</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' != 'Debug'">
+        <DefaultItemExcludes>$(DefaultItemExcludes);Components\Pages\Diagnostics.razor;Components\Pages\Diagnostics.razor.css</DefaultItemExcludes>
+    </PropertyGroup>
+
     <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+        <MauiIcon Include="Resources\AppIcon\appicon.png" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'" />
+        <MauiIcon Include="Resources\AppIcon\appicon_windows.png" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
+    </ItemGroup>
 
+    <ItemGroup>
         <!-- Splash Screen -->
-        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+        <MauiSplashScreen Include="Resources\AppIcon\appicon.png" Color="#14274f" />
 
         <!-- Images -->
         <MauiImage Include="Resources\Images\*" />
@@ -69,6 +129,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="AngleSharp" Version="1.5.2" />
         <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.10" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
@@ -79,5 +140,44 @@
     <ItemGroup>
         <ProjectReference Include="KnownFirst.Core\KnownFirst.Core.csproj" />
     </ItemGroup>
+
+    <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+        <Content Remove="Components\Pages\Diagnostics.razor" />
+        <Content Remove="Components\Pages\Diagnostics.razor.css" />
+        <Compile Remove="Services\Study\DebugLearningClock.cs" />
+        <RazorComponent Remove="Components\Pages\Diagnostics.razor" />
+        <None Remove="Components\Pages\Diagnostics.razor" />
+        <None Remove="Components\Pages\Diagnostics.razor.css" />
+    </ItemGroup>
+
+    <Target Name="InjectGitMetadata" BeforeTargets="GetAssemblyAttributes">
+        <Exec Command="git rev-parse HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitCommitHash" />
+        </Exec>
+        <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitShortCommitHash" />
+        </Exec>
+        <Exec Command="git branch --show-current" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitBranchName" />
+        </Exec>
+        <Exec Command="git status --porcelain" ConsoleToMSBuild="true" ContinueOnError="true" StandardOutputImportance="Low" StandardErrorImportance="Low" IgnoreExitCode="true">
+            <Output TaskParameter="ConsoleOutput" PropertyName="GitStatusOutput" />
+        </Exec>
+
+        <PropertyGroup>
+            <GitCommitHash Condition="'$(GitCommitHash)' == '' or $(GitCommitHash.Contains('fatal'))">unknown</GitCommitHash>
+            <GitShortCommitHash Condition="'$(GitShortCommitHash)' == '' or $(GitShortCommitHash.Contains('fatal'))">unknown</GitShortCommitHash>
+            <GitBranchName Condition="'$(GitBranchName)' == '' or $(GitBranchName.Contains('fatal'))">unknown</GitBranchName>
+            <GitIsDirty Condition="'$(GitStatusOutput)' != ''">true</GitIsDirty>
+            <GitIsDirty Condition="'$(GitStatusOutput)' == ''">false</GitIsDirty>
+        </PropertyGroup>
+
+        <ItemGroup>
+            <AssemblyMetadata Include="GitCommitHash" Value="$(GitCommitHash)" />
+            <AssemblyMetadata Include="GitShortCommitHash" Value="$(GitShortCommitHash)" />
+            <AssemblyMetadata Include="GitBranchName" Value="$(GitBranchName)" />
+            <AssemblyMetadata Include="GitIsDirty" Value="$(GitIsDirty)" />
+        </ItemGroup>
+    </Target>
 
 </Project>

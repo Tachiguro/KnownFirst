@@ -1,0 +1,75 @@
+@{
+    var sourceUri = SourceReferencePolicy.CreatePageUri(SourceProject, PageTitle);
+    var licenseReference = SourceReferencePolicy.GetLicenseReference(Attribution);
+}
+
+@if (HasSource)
+{
+<details class="source-details @(Compact ? "compact" : null)">
+    <summary>@Localizer["Source_Details"]</summary>
+    <dl>
+        @if (!string.IsNullOrWhiteSpace(ProviderName))
+        {
+            <div><dt>@Localizer["Source_Provider"]</dt><dd>@ProviderName</dd></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(SourceProject))
+        {
+            <div><dt>@Localizer["Source_Project"]</dt><dd>@SourceProject</dd></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(PageTitle))
+        {
+            <div>
+                <dt>@Localizer["Source_PageTitle"]</dt>
+                <dd>
+                    @if (sourceUri is not null)
+                    {
+                        <a href="@sourceUri" target="_blank" rel="noopener noreferrer">@PageTitle</a>
+                    }
+                    else
+                    {
+                        @PageTitle
+                    }
+                </dd>
+            </div>
+        }
+        @if (RevisionId is not null)
+        {
+            <div><dt>@Localizer["Source_Revision"]</dt><dd>@RevisionId</dd></div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Attribution))
+        {
+            <div><dt>@Localizer["Source_Attribution"]</dt><dd>@Attribution</dd></div>
+        }
+        @if (licenseReference is not null)
+        {
+            <div><dt>@Localizer["Source_License"]</dt><dd>@licenseReference</dd></div>
+        }
+    </dl>
+</details>
+}
+
+@code {
+    [Parameter]
+    public string ProviderName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string SourceProject { get; set; } = string.Empty;
+
+    [Parameter]
+    public string PageTitle { get; set; } = string.Empty;
+
+    [Parameter]
+    public long? RevisionId { get; set; }
+
+    [Parameter]
+    public string Attribution { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Compact { get; set; }
+
+    private bool HasSource => !string.IsNullOrWhiteSpace(ProviderName)
+        || !string.IsNullOrWhiteSpace(SourceProject)
+        || !string.IsNullOrWhiteSpace(PageTitle)
+        || RevisionId is not null
+        || !string.IsNullOrWhiteSpace(Attribution);
+}

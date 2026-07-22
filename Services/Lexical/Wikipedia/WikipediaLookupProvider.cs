@@ -86,7 +86,7 @@ public sealed class WikipediaLookupProvider : ILexicalLookupProvider
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Unexpected error during Wikipedia lookup.");
+            _logger?.LogError("Unexpected error during Wikipedia lookup. ExceptionType: {ExceptionType}", ex.GetType().Name);
             return CreateEmptyResult(request, LexicalLookupStatus.PermanentFailure, "provider-error");
         }
     }
@@ -154,10 +154,10 @@ public sealed class WikipediaLookupProvider : ILexicalLookupProvider
             AcronymExpansion: null,
             Meanings: [],
             ProviderName: ProviderName,
-            SourceProject: "wikipedia.org", // Fallback when API didn't return
-            PageTitle: request.CanonicalLookupTerm,
+            SourceProject: string.Empty,
+            PageTitle: string.Empty,
             RevisionId: null,
-            Attribution: "Wikimedia Foundation",
+            Attribution: string.Empty,
             LookupAtUtc: _clock.UtcNow,
             IsFromCache: false,
             ErrorCode: errorCode,
@@ -185,11 +185,11 @@ public sealed class WikipediaLookupProvider : ILexicalLookupProvider
         _ => LexicalLookupStatus.PermanentFailure
     };
 
-    private static string MapErrorCode(WikipediaArticleStatus status, string? existingErrorCode)
+    private static string? MapErrorCode(WikipediaArticleStatus status, string? existingErrorCode)
     {
         if (status == WikipediaArticleStatus.Success)
         {
-            return null!;
+            return null;
         }
 
         if (status == WikipediaArticleStatus.Disambiguation)

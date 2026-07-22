@@ -173,6 +173,10 @@ public class WikipediaLookupProviderTests
         Assert.AreEqual("translation-not-supported", result.ErrorCode);
         Assert.IsEmpty(result.Meanings);
         Assert.AreEqual(0, _apiClient.CallCount);
+        Assert.AreEqual(string.Empty, result.SourceProject);
+        Assert.AreEqual(string.Empty, result.Attribution);
+        Assert.AreEqual(string.Empty, result.PageTitle);
+        Assert.IsNull(result.RevisionId);
     }
 
     [TestMethod]
@@ -210,6 +214,8 @@ public class WikipediaLookupProviderTests
         Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
         Assert.AreEqual("no-usable-content", result.ErrorCode);
         Assert.IsEmpty(result.Meanings);
+        Assert.AreEqual("en.wikipedia.org", result.SourceProject);
+        Assert.AreEqual("Wikimedia Foundation", result.Attribution);
     }
 
     [TestMethod]
@@ -277,6 +283,8 @@ public class WikipediaLookupProviderTests
         Assert.AreEqual(expectedStatus, result.Status);
         Assert.AreEqual(expectedDefaultErrorCode, result.ErrorCode);
         Assert.IsEmpty(result.Meanings);
+        Assert.AreEqual("en.wikipedia.org", result.SourceProject);
+        Assert.AreEqual("Wikimedia Foundation", result.Attribution);
     }
     
     [TestMethod]
@@ -329,6 +337,8 @@ public class WikipediaLookupProviderTests
         Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
         Assert.AreEqual("provider-error", result.ErrorCode);
         Assert.IsEmpty(result.Meanings);
+        Assert.AreEqual(string.Empty, result.SourceProject);
+        Assert.AreEqual(string.Empty, result.Attribution);
     }
 
     [TestMethod]

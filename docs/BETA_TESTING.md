@@ -1,15 +1,22 @@
 # KnownFirst Android beta and diagnostic testing
 
+> **Reviewed 2026-07-22:** The current release identity is
+> `1.0.0-beta.8` / version code `8`. The direct-install APK helper still
+> contains legacy Beta 6 filenames and installation metadata; it must not be
+> used to claim a Beta 8 artifact until a separate code task corrects it. The
+> verified Beta 8 release is documented in
+> [releases/1.0.0-beta.8.md](releases/1.0.0-beta.8.md).
+
 ## Scope
 
 The Android test packages are directly installable signed APKs for focused manual validation. Automated tests and builds do not prove runtime behavior on a physical device. GUI automation, emulator testing, and broad device testing are outside the package-publish command.
 
 Current identities:
 
-- normal Release: `com.tachiguro.knownfirst`, `0.1.0-beta.3`
-- Release-equivalent diagnostic: `com.tachiguro.knownfirst.diagnostic`, `0.1.0-beta.3-diagnostic`
-- standalone Debug: `com.tachiguro.knownfirst.debug`, `0.1.0-beta.3-debug`
-- application version: `3`
+- normal Release: `com.tachiguro.knownfirst`, `1.0.0-beta.8`
+- Release-equivalent diagnostic: `com.tachiguro.knownfirst.diagnostic`, `1.0.0-beta.8-diagnostic`
+- standalone Debug: `com.tachiguro.knownfirst.debug`, `1.0.0-beta.8-debug`
+- application version: `8`
 - minimum Android version: Android 7.0 (API 24)
 
 The diagnostic package keeps Release optimization, trimming, AOT, and embedded assemblies, while adding symbols and the bounded lexical diagnostic actions. The Debug package embeds assemblies and disables Fast Deployment so that its APK can run without Visual Studio. The three package IDs allow side-by-side installation.
@@ -25,21 +32,35 @@ Never commit either file and never generate a replacement while the existing key
 
 The password may instead be supplied through `KNOWNFIRST_ANDROID_SIGNING_PASSWORD`. The publishing script does not print it.
 
-## One-command publish
+## Publishing workflows
 
-From the repository root run:
+### Google Play AAB
+
+The current parameterized release path is:
 
 ```powershell
-.\scripts\publish-android-test-packages.ps1
+.\scripts\publish-android-google-play.ps1 -VersionCode 8 -DisplayVersion 1.0.0-beta.8
 ```
 
-The script publishes `KnownFirst.csproj` for `net10.0-android` in Release, BetaDiagnostic, and Debug. It signs every APK with the external beta keystore, verifies every signature with Android SDK `apksigner`, and writes an APK, SHA-256 file, and ZIP for each base name:
+It publishes a signed AAB for `net10.0-android` in Release, verifies the
+signature, and writes a SHA-256 sidecar below the ignored `artifacts`
+directory. Run it only for an explicitly authorized release task with the
+existing external signing identity.
 
-- `artifacts/android-beta/KnownFirst-0.1.0-beta.3-android-release.*`
-- `artifacts/android-beta/KnownFirst-0.1.0-beta.3-android-diagnostic.*`
-- `artifacts/android-beta/KnownFirst-0.1.0-beta.3-android-debug.*`
+### Direct-install APK helper
 
-Each ZIP contains only its APK and `INSTALLATION.txt`. The `artifacts` directory and Android package/signing files are ignored by Git. `publish-android-beta.ps1` remains as a compatibility entry point and invokes the same three-package script.
+`publish-android-test-packages.ps1` still publishes Release,
+BetaDiagnostic, and Debug APKs and verifies them with `apksigner`, but its
+artifact names are hard-coded to Beta 6 and its generated installation text
+reports an older version code. `publish-android-beta.ps1` invokes that same
+helper.
+
+Until those values are parameterized and covered by corrected tests:
+
+- do not describe its output as a Beta 8 package;
+- do not distribute its ZIP instructions as current release metadata; and
+- record any explicitly authorized run as a tooling investigation rather than
+  release evidence.
 
 ## Diagnostic log
 
@@ -53,7 +74,9 @@ The bounded log records timestamps, build and app version, lookup phases, the no
 
 ## Manual checks
 
-On an authorized Android device, record results separately for normal Release, diagnostic, and Debug. Verify at least:
+After current, correctly identified packages exist, record results on an
+authorized Android device separately for normal Release, diagnostic, and Debug.
+Verify at least:
 
 1. The APK installs and KnownFirst launches without an immediate crash.
 2. English/German UI switching remains immediate and persists after restart.

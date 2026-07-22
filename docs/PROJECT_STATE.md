@@ -1,10 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-22
-**State source:** `origin/master` at `30558b04e73fefadf22c4b9a61f49b1f14c4503d`
-plus this branch's implemented Data Safety v1 foundations
-**Next product milestone:** Data Safety v1 (foundations implemented; archive and
-restore work pending)
+**State source:** `master` at `8dafcea161350432da47d97bfb5ac1397f5d3f5e`
+**Next product milestone:** platform-target cleanup on a dedicated feature branch
 
 This document is the authoritative snapshot of verified current state. Update
 it when a milestone is completed or when a release, schema, supported platform,
@@ -162,14 +160,11 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 
 ## Active development
 
-- `feature/backup-restore-v1`: Data Safety v1 external models, strict generated
-  JSON codec, and non-destructive future-schema guard are implemented and
-  verified; archive, backup, restore, and UI phases remain pending.
-- `hotfix/beta-8-online-lookup-crash`: branch tip is merged, but its attached
-  worktree contains protected uncommitted parser/test work and must not be
-  cleaned or removed.
-- `hotfix/beta-8-parser-aot-fix-clean`: clean release-source worktree retained
-  pending later owner-approved cleanup.
+- The documentation branch is recording the single-worktree consolidation and
+  canonical handoff structure.
+- The only registered worktree is `C:\Dev\KnownFirst`.
+- The next technical branch will remove iOS and Mac Catalyst; no platform
+  removal has happened yet.
 
 See the dated
 [branch and worktree inventory](maintenance/branch-and-worktree-inventory.md)
@@ -177,15 +172,6 @@ for the complete snapshot.
 
 ## Next milestone
 
-Data Safety v1 foundations are in progress. The v1 data boundary, external DTO
-graph, explicit enum contracts, centralized limits/errors, and strict
-source-generated JSON codec are now implemented. Database initialization also
-rejects an unknown future schema non-destructively before maintenance. The
-remaining high-risk areas include consistent snapshot creation, hostile
-ZIP/resource validation, migration fixtures, mandatory safety backup, and an
-atomic replacement restore.
-
-The next smallest planned package is Phase 3: a read-only logical snapshot and
-bounded backup creation, followed by the separate strict archive-validation
-gate in Phase 4. It requires separate authorization and must not make restore or
-UI reachable early.
+The next smallest technical package is removal of iOS and Mac Catalyst on its
+own feature branch, followed by Windows and Android validation. Wikipedia
+fallback and Backup/Restore Phase 3 remain planned and are not user-available.

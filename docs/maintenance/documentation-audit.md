@@ -18,6 +18,11 @@ Historical branch/worktree inventories remain retained as historical evidence;
 they are not current instructions. No duplicate current-work file, absolute
 removed-worktree link, or `KnownFirst-diagnostics` reference was introduced.
 
+The platform-target follow-up on `build/remove-apple-targets` removed iOS and
+Mac Catalyst from the active project, platform folders, diagnostics branches,
+tests, scripts, and current product documentation. Remaining Apple mentions
+are historical context or explicit statements that Apple support is removed.
+
 ## Audit method
 
 The audit covered every tracked Markdown document, the absent/present top-level
@@ -103,6 +108,7 @@ The repository does not contain:
 - physical-device model and Android version;
 - screenshots or completed GUI-matrix results;
 - a supported backup/restore format; or
-- proof of iOS or Mac Catalyst release validation.
+- proof of Apple support; Apple targets are intentionally removed from the
+  current project and no Apple build or device validation is claimed.
 
 Those gaps are reported as limitations, not filled with assumptions.

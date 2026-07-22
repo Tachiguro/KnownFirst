@@ -134,6 +134,7 @@ This direction describes the current architecture and is not a promise of final 
 - Android
 
 Android is the initial release priority; Windows is the primary local development and verification workflow.
+iOS and Mac Catalyst are intentionally not supported and are not active project targets.
 
 ## Author
 

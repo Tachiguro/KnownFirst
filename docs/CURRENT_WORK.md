@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-22 16:00:00 +02:00
+2026-07-22 17:33:00 +02:00
 
 ## Repository
 
@@ -22,8 +22,8 @@
 
 ## Current branch
 
-- Branch: `build/remove-apple-targets`
-- Base: `9434f99b64f82718d4b0b0fa4dbaf607a4536aa6`
+- Branch: `feature/lexical-provider-routing`
+- Base: `aa71718af31a1a778174727574b02ae5dab546b8`
 - Always verify the current tip with `git rev-parse HEAD`; this handoff does not embed a self-referential immutable HEAD value.
 
 ## Completed recently
@@ -35,10 +35,10 @@
 
 ## Active task
 
-- Apple platform removal is implemented on this branch. Build-configuration
-  and icon checks passed; focused tests passed 7/7; the complete suite passed
-  418/418; Windows Debug and Android Debug/Release builds passed with zero
-  warnings and zero errors. Details and hashes are in the dated handoff.
+- Implement the provider-neutral routing foundation for the later Wikipedia fallback.
+- Currently, only Wiktionary is productively registered. Wikipedia is not implemented,
+  and there is no automatic fallback. Schema version remains 7. Backup/Restore Phase 3
+  remains paused.
 
 ## Paused work
 
@@ -48,8 +48,9 @@
 ## Planned sequence
 
 1. Finish documentation and handoff structure.
-2. Implement a Wikipedia fallback behind Wiktionary.
-5. Decide required persistence and migration changes.
+2. Implement provider-neutral routing foundation (done).
+3. Source-generierten Wikipedia-JSON-API-Client mit lokalen Fixtures implementieren.
+4. Decide required persistence and migration changes.
 6. Re-check the backup format against the final provider model.
 7. Resume Backup/Restore Phase 3.
 8. Complete further data-safety phases.
@@ -86,9 +87,7 @@
 
 ## Next exact action
 
-Implement the Wikipedia fallback behind Wiktionary on a separate feature branch
-and audit the provider and persistence model before changing either contract.
-Backup/Restore Phase 3 remains paused.
+Source-generierten Wikipedia-JSON-API-Client mit lokalen Fixtures implementieren.
 
 ## New-chat handoff
 

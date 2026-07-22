@@ -172,6 +172,5 @@ for the complete snapshot.
 
 ## Next milestone
 
-The next smallest technical package is a Wikipedia fallback behind Wiktionary
-on a separate feature branch, preceded by a provider and persistence model
-audit. Backup/Restore Phase 3 remains paused and is not user-available.
+The next smallest technical package is a Wikipedia JSON API Client with local fixtures on this feature branch.
+Provider-neutral routing has been implemented. Backup/Restore Phase 3 remains paused and is not user-available.

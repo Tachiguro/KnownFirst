@@ -6,9 +6,14 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
-No user-visible application changes are recorded.
-
 ### Internal
+
+- Added provider-neutral routing foundation (`ILexicalLookupProvider` and
+  `ILexicalLookupProviderResolver`) to allow safe resolution of dictionary
+  providers without hardcoded instantiation.
+- Updated `LexicalEnrichmentService` to safely resolve the requested provider
+  and return a permanent failure (`provider-not-registered`) for unknown providers.
+
 
 - Removed the unsupported iOS and Mac Catalyst application targets, platform
   folders, Apple-only diagnostics branches, and local Apple launch settings.

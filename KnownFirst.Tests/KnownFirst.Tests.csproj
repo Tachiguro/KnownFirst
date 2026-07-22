@@ -88,4 +88,7 @@
     <Compile Include="..\Services\Study\*.cs" Link="Production\Services\Study\%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures\Wiktionary\*.html" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

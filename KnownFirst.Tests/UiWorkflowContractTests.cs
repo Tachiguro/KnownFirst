@@ -554,16 +554,16 @@ public sealed class UiWorkflowContractTests
         var script = LoadUi("publish-android-test-packages.ps1");
 
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst</ApplicationId>", project);
-        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.7</ApplicationDisplayVersion>", project);
-        Assert.Contains("<ApplicationVersion>7</ApplicationVersion>", project);
-        Assert.Contains("<PackageVersion>1.0.0-beta.7</PackageVersion>", project);
+        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.8</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationVersion>8</ApplicationVersion>", project);
+        Assert.Contains("<PackageVersion>1.0.0-beta.8</PackageVersion>", project);
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>", project);
         Assert.Contains("<ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>", project);
-        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.7-diagnostic</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.8-diagnostic</ApplicationDisplayVersion>", project);
         Assert.Contains("<DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>", project);
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>", project);
         Assert.Contains("<ApplicationTitle>KnownFirst Debug</ApplicationTitle>", project);
-        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.7-debug</ApplicationDisplayVersion>", project);
+        Assert.Contains("<ApplicationDisplayVersion>1.0.0-beta.8-debug</ApplicationDisplayVersion>", project);
         Assert.Contains("<AndroidUseFastDeployment>false</AndroidUseFastDeployment>", project);
         Assert.Contains("<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>", project);
         Assert.Contains("<RunAOTCompilation>true</RunAOTCompilation>", project);

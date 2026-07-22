@@ -39,9 +39,9 @@
         <ApplicationId>com.tachiguro.knownfirst</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>1.0.0-beta.7</ApplicationDisplayVersion>
-        <ApplicationVersion>7</ApplicationVersion>
-        <PackageVersion>1.0.0-beta.7</PackageVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.8</ApplicationDisplayVersion>
+        <ApplicationVersion>8</ApplicationVersion>
+        <PackageVersion>1.0.0-beta.8</PackageVersion>
 
         <ApplicationDisplayVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">1.0.0</ApplicationDisplayVersion>
 
@@ -77,8 +77,8 @@
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>
-        <ApplicationDisplayVersion>1.0.0-beta.7-diagnostic</ApplicationDisplayVersion>
-        <ApplicationVersion>7</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.8-diagnostic</ApplicationDisplayVersion>
+        <ApplicationVersion>8</ApplicationVersion>
         <Optimize>true</Optimize>
         <PublishTrimmed>true</PublishTrimmed>
         <RunAOTCompilation>true</RunAOTCompilation>
@@ -91,8 +91,8 @@
     <PropertyGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Debug</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>
-        <ApplicationDisplayVersion>1.0.0-beta.7-debug</ApplicationDisplayVersion>
-        <ApplicationVersion>7</ApplicationVersion>
+        <ApplicationDisplayVersion>1.0.0-beta.8-debug</ApplicationDisplayVersion>
+        <ApplicationVersion>8</ApplicationVersion>
         <Optimize>false</Optimize>
         <PublishTrimmed>false</PublishTrimmed>
         <RunAOTCompilation>false</RunAOTCompilation>

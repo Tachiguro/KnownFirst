@@ -420,31 +420,38 @@ public sealed partial class WiktionaryHtmlParser
     }
 
     private static void AddMeaning(
-        ICollection<LexicalMeaning> meanings,
+        List<LexicalMeaning> meanings,
         AngleElement item,
         string? partOfSpeech)
     {
-        var definitionNode = item.QuerySelector(".definition, [data-definition]");
-        var translationNode = item.QuerySelector(".translation, .translation-item, [data-translation]");
-        var exampleNode = item.QuerySelector(
-            ".example, [data-example], .h-usage-example, .e-example, .ux");
+        var definitionNode = FindFirstDescendant(item, element => 
+            HasClass(element, "definition") || element.GetAttribute("data-definition") is not null);
+            
+        var translationNode = FindFirstDescendant(item, element => 
+            HasClass(element, "translation") || HasClass(element, "translation-item") || element.GetAttribute("data-translation") is not null);
+            
+        var exampleNode = FindFirstDescendant(item, element => 
+            HasClass(element, "example") || element.GetAttribute("data-example") is not null || HasClass(element, "h-usage-example") || HasClass(element, "e-example") || HasClass(element, "ux"));
+            
         var definition = RemoveSenseMarker(Clean(
             definitionNode is null
                 ? ExtractDefinitionText(item)
                 : ExtractDefinitionText(definitionNode)));
         var translation = CleanNullable(translationNode?.TextContent);
         var example = CleanNullable(exampleNode?.TextContent);
+
         if (string.IsNullOrWhiteSpace(definition) && string.IsNullOrWhiteSpace(translation))
         {
             return;
         }
 
-        var labels = item.QuerySelectorAll(
-                ".usage-label, .label, [data-label], .ib-content, .qualifier-content")
+        var labels = FindDescendants(item, element => 
+            HasClass(element, "usage-label") || HasClass(element, "label") || element.GetAttribute("data-label") is not null || HasClass(element, "ib-content") || HasClass(element, "qualifier-content"))
             .Select(label => Clean(label.TextContent))
             .Where(label => label.Length > 0)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+
         meanings.Add(new LexicalMeaning(
             $"wiktionary-{meanings.Count + 1}",
             partOfSpeech,
@@ -471,14 +478,38 @@ public sealed partial class WiktionaryHtmlParser
 
     private static bool IsExcludedDefinitionChild(AngleElement element) =>
         element.TagName is "OL" or "UL" or "DL" or "STYLE" or "SCRIPT" or "NOSCRIPT" or "TEMPLATE" or "NAV"
-        || element.Matches(
-            ".translation, .translation-item, [data-translation], "
-            + ".example, [data-example], .h-usage-example, .e-example, .ux, "
-            + ".usage-label, .label, [data-label], .defdate, [data-definition-date], "
-            + ".etymology, [data-etymology], .mw-editsection, .citation, .noprint, "
-            + ".maintenance-box, .metadata, .ambox, .tmbox, .navbox, .catlinks, "
-            + ".sistersitebox, .inflection-table, .NavFrame, .NavContent, .toc, "
-            + "[hidden], [aria-hidden='true'], [role='navigation']")
+        || HasClass(element, "translation")
+        || HasClass(element, "translation-item")
+        || HasClass(element, "example")
+        || HasClass(element, "h-usage-example")
+        || HasClass(element, "e-example")
+        || HasClass(element, "ux")
+        || HasClass(element, "usage-label")
+        || HasClass(element, "label")
+        || HasClass(element, "defdate")
+        || HasClass(element, "etymology")
+        || HasClass(element, "mw-editsection")
+        || HasClass(element, "citation")
+        || HasClass(element, "noprint")
+        || HasClass(element, "maintenance-box")
+        || HasClass(element, "metadata")
+        || HasClass(element, "ambox")
+        || HasClass(element, "tmbox")
+        || HasClass(element, "navbox")
+        || HasClass(element, "catlinks")
+        || HasClass(element, "sistersitebox")
+        || HasClass(element, "inflection-table")
+        || HasClass(element, "NavFrame")
+        || HasClass(element, "NavContent")
+        || HasClass(element, "toc")
+        || element.GetAttribute("data-translation") is not null
+        || element.GetAttribute("data-example") is not null
+        || element.GetAttribute("data-label") is not null
+        || element.GetAttribute("data-definition-date") is not null
+        || element.GetAttribute("data-etymology") is not null
+        || element.GetAttribute("hidden") is not null
+        || string.Equals(element.GetAttribute("aria-hidden"), "true", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(element.GetAttribute("role"), "navigation", StringComparison.OrdinalIgnoreCase)
         || element.TagName == "SUP" && HasClass(element, "reference");
 
     private static IReadOnlyList<AngleElement> GetDirectItems(
@@ -636,6 +667,41 @@ public sealed partial class WiktionaryHtmlParser
     {
         var heading = GetHeadingElement(element);
         return heading is null ? int.MaxValue : heading.TagName[1] - '0';
+    }
+
+        private static AngleElement? FindFirstDescendant(AngleElement root, Func<AngleElement, bool> predicate)
+    {
+        foreach (var child in root.Children)
+        {
+            if (predicate(child))
+            {
+                return child;
+            }
+
+            var result = FindFirstDescendant(child, predicate);
+            if (result is not null)
+            {
+                return result;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<AngleElement> FindDescendants(AngleElement root, Func<AngleElement, bool> predicate)
+    {
+        foreach (var child in root.Children)
+        {
+            if (predicate(child))
+            {
+                yield return child;
+            }
+
+            foreach (var descendant in FindDescendants(child, predicate))
+            {
+                yield return descendant;
+            }
+        }
     }
 
     private static string RemoveSenseMarker(string value) =>

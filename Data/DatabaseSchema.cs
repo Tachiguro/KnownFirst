@@ -11,6 +11,12 @@ public static class DatabaseSchema
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        var existingVersion = await connection.ExecuteScalarAsync<int>("PRAGMA user_version");
+        if (existingVersion > CurrentVersion)
+        {
+            throw new DatabaseSchemaCompatibilityException(existingVersion, CurrentVersion);
+        }
+
         await connection.CreateTableAsync<DocumentEntity>();
         await connection.CreateTableAsync<WordEntity>();
         await connection.CreateTableAsync<WordFormEntity>();

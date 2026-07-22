@@ -181,9 +181,34 @@ public sealed class LexicalEnrichmentService(
 
         try
         {
-            var online = LexicalResultInvariantPolicy.Enforce(
+            var online = await provider.LookupAsync(request, cancellationToken);
+            if (!string.Equals(online.ProviderName, provider.ProviderName, StringComparison.OrdinalIgnoreCase))
+            {
+                _diagnosticLog.Write(Event(request, provider.ProviderName, "enrichment.provider-identity-mismatch"));
+                var failure = new LexicalResult(
+                    LexicalLookupStatus.PermanentFailure,
+                    request.NormalizedLemma,
+                    request.Term,
+                    request.TokenKind,
+                    request.SourceLanguage,
+                    request.ExplanationLanguage,
+                    null,
+                    [],
+                    provider.ProviderName,
+                    "unknown",
+                    request.Term,
+                    0,
+                    string.Empty,
+                    DateTime.UtcNow)
+                {
+                    ErrorCode = "provider-identity-mismatch"
+                };
+                return AddDiagnostics(failure, request, provider, "PermanentFailure: provider-identity-mismatch");
+            }
+
+            online = LexicalResultInvariantPolicy.Enforce(
                 request,
-                await provider.LookupAsync(request, cancellationToken));
+                online);
             if (online.Status == LexicalLookupStatus.Success)
             {
                 try

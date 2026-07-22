@@ -172,5 +172,4 @@ for the complete snapshot.
 
 ## Next milestone
 
-The next smallest technical package is a Wikipedia JSON API Client with local fixtures on this feature branch.
-Provider-neutral routing has been implemented. Backup/Restore Phase 3 remains paused and is not user-available.
+Provider-neutral routing has been implemented. The next smallest technical package is a Wikipedia JSON API Client with local fixtures, which will be implemented on a new feature branch after the routing foundation is merged. Backup/Restore Phase 3 remains paused and is not user-available.

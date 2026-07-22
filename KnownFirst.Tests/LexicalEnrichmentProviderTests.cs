@@ -202,6 +202,77 @@ public sealed class LexicalEnrichmentProviderTests
         Assert.AreEqual("Wikipedia", result.ProviderName);
     }
 
+    [TestMethod]
+    public async Task EnrichAsync_ProviderIdentity_Match_ReturnsSuccess()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("identity_match_db");
+        await database.InitializeAsync();
+        
+        var provider = new TrackingProvider("Wiktionary", 1);
+        var request = new LexicalLookupRequest("en", LexicalLookupMode.Definition, null, "test", TokenKind.Word, "Wiktionary");
+            
+        provider.MockResult = new LexicalResult(LexicalLookupStatus.Success, "test", "test", TokenKind.Word, "en", "en", null, [new LexicalMeaning("1", "noun", "A test", null, null, [])], "Wiktionary", "wiktionary.org", "test", 1, "test", DateTime.UtcNow);
+
+        var resolver = new LexicalLookupProviderResolver([provider]);
+        var cache = new LexicalCacheRepository(database);
+        var service = new LexicalEnrichmentService(new AcronymExpansionDetector(), new MeaningRanker(), cache, resolver);
+
+        var result = await service.EnrichAsync(request, "test", null);
+        
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+    }
+
+    [TestMethod]
+    public async Task EnrichAsync_ProviderIdentity_CaseInsensitiveMatch_ReturnsSuccess()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("identity_case_db");
+        await database.InitializeAsync();
+        
+        var provider = new TrackingProvider("Wiktionary", 1);
+        var request = new LexicalLookupRequest("en", LexicalLookupMode.Definition, null, "test", TokenKind.Word, "Wiktionary");
+            
+        // Provider returns lowercase name
+        provider.MockResult = new LexicalResult(LexicalLookupStatus.Success, "test", "test", TokenKind.Word, "en", "en", null, [new LexicalMeaning("1", "noun", "A test", null, null, [])], "wiktionary", "wiktionary.org", "test", 1, "test", DateTime.UtcNow);
+
+        var resolver = new LexicalLookupProviderResolver([provider]);
+        var cache = new LexicalCacheRepository(database);
+        var service = new LexicalEnrichmentService(new AcronymExpansionDetector(), new MeaningRanker(), cache, resolver);
+
+        var result = await service.EnrichAsync(request, "test", null);
+        
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+    }
+
+    [TestMethod]
+    public async Task EnrichAsync_ProviderIdentity_Mismatch_YieldsPermanentFailure()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("identity_mismatch_db");
+        await database.InitializeAsync();
+        
+        var provider = new TrackingProvider("Wiktionary", 1);
+        var request = new LexicalLookupRequest("en", LexicalLookupMode.Definition, null, "test", TokenKind.Word, "Wiktionary");
+            
+        // Provider returns a DIFFERENT name
+        provider.MockResult = new LexicalResult(LexicalLookupStatus.Success, "test", "test", TokenKind.Word, "en", "en", null, [new LexicalMeaning("1", "noun", "A test", null, null, [])], "Wikipedia", "wikipedia.org", "test", 1, "test", DateTime.UtcNow);
+
+        var resolver = new LexicalLookupProviderResolver([provider]);
+        var cache = new LexicalCacheRepository(database);
+        var service = new LexicalEnrichmentService(new AcronymExpansionDetector(), new MeaningRanker(), cache, resolver);
+
+        var result = await service.EnrichAsync(request, "test", null);
+        
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("provider-identity-mismatch", result.ErrorCode);
+        Assert.AreEqual("Wiktionary", result.ProviderName); // Das Fehlerresultat nennt den tatsächlich aufgelösten Provider
+        
+        // Assert nothing is cached
+        var cached = await cache.GetAsync(request, "Wiktionary", 1);
+        Assert.IsNull(cached);
+        
+        var cachedWrong = await cache.GetAsync(request, "Wikipedia", 1);
+        Assert.IsNull(cachedWrong);
+    }
+
     private sealed class DelegatingProvider(string name, int version, Func<LexicalLookupRequest, Task<LexicalResult>> func) : ILexicalLookupProvider
     {
         public string ProviderName => name;

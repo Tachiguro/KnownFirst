@@ -13,7 +13,7 @@ and uses the application's prerelease version identifiers.
   providers without hardcoded instantiation.
 - Updated `LexicalEnrichmentService` to safely resolve the requested provider
   and return a permanent failure (`provider-not-registered`) for unknown providers.
-
+- Enforced strict provider identity matching to prevent caching misaligned results.
 
 - Removed the unsupported iOS and Mac Catalyst application targets, platform
   folders, Apple-only diagnostics branches, and local Apple launch settings.

@@ -35,10 +35,9 @@
 
 ## Active task
 
-- Implement the provider-neutral routing foundation for the later Wikipedia fallback.
-- Currently, only Wiktionary is productively registered. Wikipedia is not implemented,
-  and there is no automatic fallback. Schema version remains 7. Backup/Restore Phase 3
-  remains paused.
+- Completed the provider-neutral routing foundation (ILexicalLookupProvider and ILexicalLookupProviderResolver).
+- Enforced strict provider identity validation to prevent caching misaligned results.
+- Passed validation: 432 automated tests green, Windows Debug green, Android Debug green, Android Release green.
 
 ## Paused work
 
@@ -47,10 +46,11 @@
 
 ## Planned sequence
 
-1. Finish documentation and handoff structure.
-2. Implement provider-neutral routing foundation (done).
-3. Source-generierten Wikipedia-JSON-API-Client mit lokalen Fixtures implementieren.
-4. Decide required persistence and migration changes.
+1. Review and merge the current `feature/lexical-provider-routing` branch into `master`.
+2. Fast-forward synchronize the local `master` branch.
+3. Create a new branch for the source-generated Wikipedia JSON API client with local fixtures.
+4. Do not mix any fallback logic or UI workflows with the API client implementation.
+5. Decide required persistence and migration changes.
 6. Re-check the backup format against the final provider model.
 7. Resume Backup/Restore Phase 3.
 8. Complete further data-safety phases.
@@ -87,11 +87,12 @@
 
 ## Next exact action
 
-Source-generierten Wikipedia-JSON-API-Client mit lokalen Fixtures implementieren.
+1. Review this routing branch and merge it into `master`.
+2. Fast-forward synchronize the local `master`.
+3. Create a new branch for the source-generated Wikipedia JSON API client with local fixtures.
+4. Do not mix any fallback or UI workflow with the API client yet.
+5. Backup/Restore Phase 3 remains paused.
 
 ## New-chat handoff
 
-“Lies AGENTS.md, docs/INDEX.md und docs/CURRENT_WORK.md vollständig. Halte dich
-anschließend an die dort definierte Lesereihenfolge. Verifiziere Branch, HEAD,
-Git-Status und registrierte Worktrees. Fahre danach ausschließlich mit der
-unter ‚Next exact action‘ beschriebenen Aufgabe fort.”
+“Read AGENTS.md, docs/INDEX.md and docs/CURRENT_WORK.md completely. Follow the reading order defined there. Verify the branch, HEAD, Git status, and registered worktrees. Then proceed exclusively with the task described under 'Next exact action'.”

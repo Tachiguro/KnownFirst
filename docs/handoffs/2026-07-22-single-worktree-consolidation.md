@@ -1,6 +1,6 @@
 # Single-worktree consolidation handoff
 
-**Date:** 2026-07-22  
+**Date:** 2026-07-22
 **Baseline:** `master` at `8dafcea161350432da47d97bfb5ac1397f5d3f5e`
 
 ## Outcome

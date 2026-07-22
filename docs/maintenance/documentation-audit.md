@@ -4,6 +4,20 @@
 **Source baseline:** `origin/master` at
 `956e71895cf141805c8c24f7d32691075d439730`
 
+## Follow-up audit: canonical handoff and consolidation
+
+The follow-up audit on 2026-07-22 verified `master` at
+`8dafcea161350432da47d97bfb5ac1397f5d3f5e`, one registered worktree at
+`C:\Dev\KnownFirst`, and a clean status before the documentation branch.
+`docs/INDEX.md`, `docs/CURRENT_WORK.md`, and
+`docs/development/DEBUG_ARTIFACT_POLICY.md` are now the canonical navigation,
+handoff, and disposable-diagnostics documents. The single-worktree cleanup is
+recorded in the dated handoff under `docs/handoffs/`.
+
+Historical branch/worktree inventories remain retained as historical evidence;
+they are not current instructions. No duplicate current-work file, absolute
+removed-worktree link, or `KnownFirst-diagnostics` reference was introduced.
+
 ## Audit method
 
 The audit covered every tracked Markdown document, the absent/present top-level

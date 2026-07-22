@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-22 14:46:16 +02:00
+2026-07-22 14:50:00 +02:00
 
 ## Repository
 
@@ -35,9 +35,10 @@
 
 ## Active task
 
-- Complete the canonical documentation index and current-work handoff.
-- Establish the disposable debug-artifact policy.
-- Record and audit the single-worktree consolidation.
+- Documentation index, current-work handoff, debug-artifact policy, and
+  consolidation audit are complete on this branch.
+- Three documentation commits are present; link, UTF-8, scope, and diff checks
+  passed. No build or test was run because this package is documentation-only.
 
 ## Paused work
 
@@ -86,7 +87,7 @@
 
 ## Next exact action
 
-After this documentation branch is reviewed, create a normal feature branch in
+After this documentation branch is reviewed and pushed, create a normal feature branch in
 the same folder and remove iOS and Mac Catalyst completely from project,
 platform code, build configuration, tests, and documentation. Then validate
 Windows Debug and Android Debug/Release. Do not mix Wikipedia or backup work

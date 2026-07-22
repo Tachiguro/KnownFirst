@@ -67,6 +67,9 @@
 - Apple support is intentionally absent from the active project targets; no
   Apple build or device validation is part of this repository.
 - Wikipedia fallback is not implemented; Backup/Restore is not user-available.
+- Physical Android device testing is deferred to feature milestones, Beta releases, device-specific bugs, or explicit user requests, and is always a separate work package.
+- Normal development, unit tests, and standard validation builds (Windows Debug, Android Debug, Android Release with AOT/Trimming) do not require a connected smartphone or routine device deployment/ADB execution.
+- No `pm clear`, app uninstallation, or user data reset is permitted without explicit user authorization.
 - `CURRENT_WORK.md` must be updated after every work package.
 - Release AABs are local ignored evidence and are not Git-versioned.
 - Linux is a later feasibility/alternative-host check; Microsoft Store and public Google Play release remain planned.

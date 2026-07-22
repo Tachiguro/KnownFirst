@@ -81,7 +81,7 @@ public sealed class BuildIdentityService : IBuildIdentityService
         
         try
         {
-#if IOS || MACCATALYST || ANDROID || WINDOWS
+#if ANDROID || WINDOWS
             product = Microsoft.Maui.ApplicationModel.AppInfo.Current.Name;
             version = Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString;
             buildNumber = Microsoft.Maui.ApplicationModel.AppInfo.Current.BuildString;
@@ -100,7 +100,7 @@ public sealed class BuildIdentityService : IBuildIdentityService
         
         try
         {
-#if IOS || MACCATALYST || ANDROID || WINDOWS
+#if ANDROID || WINDOWS
             os = Microsoft.Maui.Devices.DeviceInfo.Current.Platform.ToString();
             osVersion = Microsoft.Maui.Devices.DeviceInfo.Current.VersionString;
             device = Microsoft.Maui.Devices.DeviceInfo.Current.Model;

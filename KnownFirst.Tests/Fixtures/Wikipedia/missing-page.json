@@ -1,0 +1,11 @@
+{
+  "query": {
+    "pages": [
+      {
+        "ns": 0,
+        "title": "Missing Title",
+        "missing": true
+      }
+    ]
+  }
+}

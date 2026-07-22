@@ -1,0 +1,17 @@
+{
+  "query": {
+    "pages": [
+      {
+        "pageid": 1004,
+        "ns": 0,
+        "title": "Disambiguation Page",
+        "lastrevid": 2004,
+        "canonicalurl": "https://en.wikipedia.org/wiki/Disambiguation_Page",
+        "extract": "This is a disambiguation page.",
+        "pageprops": {
+          "disambiguation": ""
+        }
+      }
+    ]
+  }
+}

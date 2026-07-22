@@ -1,0 +1,20 @@
+{
+  "query": {
+    "normalized": [
+      {
+        "from": "normalized title",
+        "to": "Normalized Title"
+      }
+    ],
+    "pages": [
+      {
+        "pageid": 1002,
+        "ns": 0,
+        "title": "Normalized Title",
+        "lastrevid": 2002,
+        "canonicalurl": "https://en.wikipedia.org/wiki/Normalized_Title",
+        "extract": "A synthetic security system collects and evaluates event records."
+      }
+    ]
+  }
+}

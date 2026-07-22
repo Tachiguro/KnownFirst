@@ -22,8 +22,39 @@
 
 ## Current branch
 
-- Branch: `feature/lexical-provider-routing`
-- Base: `aa71718af31a1a778174727574b02ae5dab546b8`
+- Branch: `feature/wikipedia-json-client`
+- Base: `914e48da955d1a922d8e068b7b4034233092c70b`
+- Always verify the current tip with `git rev-parse HEAD`; this handoff does not embed a self-referential immutable HEAD value.
+
+## Completed recently
+
+- Removed the additional worktrees and redundant repository copy.
+# KnownFirst Current Work
+
+## Last updated
+
+2026-07-22 17:33:00 +02:00
+
+## Repository
+
+- Repository: https://github.com/Tachiguro/KnownFirst.git
+- Only local project folder: `C:\Dev\KnownFirst`
+- Active rule: use the single folder; create no worktree without explicit user approval.
+- Only one writing agent may operate at a time.
+
+## Stable baseline
+
+- Stable master baseline: `9434f99b64f82718d4b0b0fa4dbaf607a4536aa6`
+- App version: `1.0.0-beta.8` (code 8)
+- Database schema: SQLite `PRAGMA user_version` 7
+- Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
+- Solution: `KnownFirst.slnx`
+- Google Play: Beta 8 is retained locally and the current channel is internal testing.
+
+## Current branch
+
+- Branch: `feature/wikipedia-json-client`
+- Base: `914e48da955d1a922d8e068b7b4034233092c70b`
 - Always verify the current tip with `git rev-parse HEAD`; this handoff does not embed a self-referential immutable HEAD value.
 
 ## Completed recently
@@ -35,9 +66,10 @@
 
 ## Active task
 
-- Completed the provider-neutral routing foundation (ILexicalLookupProvider and ILexicalLookupProviderResolver).
-- Enforced strict provider identity validation to prevent caching misaligned results.
-- Passed validation: 432 automated tests green, Windows Debug green, Android Debug green, Android Release green.
+- Implementiert einen AOT-sicheren, source-generierten Wikipedia JSON API Client.
+- Vollständig lokale synthetische JSON-Fixtures und deterministische Clienttests (450 gesamt).
+- Windows Debug, Android Debug und Android Release (mit AOT und Trimming) erfolgreich gebaut.
+- Backup/Restore Phase 3 ist weiterhin pausiert.
 
 ## Paused work
 
@@ -46,17 +78,18 @@
 
 ## Planned sequence
 
-1. Review and merge the current `feature/lexical-provider-routing` branch into `master`.
+1. Review and merge the current `feature/wikipedia-json-client` branch into `master`.
 2. Fast-forward synchronize the local `master` branch.
-3. Create a new branch for the source-generated Wikipedia JSON API client with local fixtures.
-4. Do not mix any fallback logic or UI workflows with the API client implementation.
-5. Decide required persistence and migration changes.
-6. Re-check the backup format against the final provider model.
-7. Resume Backup/Restore Phase 3.
-8. Complete further data-safety phases.
-9. Add statistics.
-10. Add privacy-friendly bug reporting.
-11. Prepare the public beta.
+3. Create a new branch for the WikipediaLookupProvider.
+4. Abbilden des getesteten WikipediaApiClient in LexicalResult.
+5. Noch keinen Wiktionary-Fallback und keine UI implementieren.
+6. Schema-Version 7 beibehalten.
+7. Re-check the backup format against the final provider model.
+8. Resume Backup/Restore Phase 3.
+9. Complete further data-safety phases.
+10. Add statistics.
+11. Add privacy-friendly bug reporting.
+12. Prepare the public beta.
 
 ## Known constraints and risks
 
@@ -90,11 +123,12 @@
 
 ## Next exact action
 
-1. Review this routing branch and merge it into `master`.
-2. Fast-forward synchronize the local `master`.
-3. Create a new branch for the source-generated Wikipedia JSON API client with local fixtures.
-4. Do not mix any fallback or UI workflow with the API client yet.
-5. Backup/Restore Phase 3 remains paused.
+1. Review and merge the current `feature/wikipedia-json-client` branch into `master`.
+2. Fast-forward synchronize the local `master` after PR merge.
+3. Create a new branch for `WikipediaLookupProvider`.
+4. Abbilden des getesteten `WikipediaApiClient` in `LexicalResult`.
+5. Noch keinen Wiktionary-Fallback und keine UI implementieren.
+6. Schema-Version 7 beibehalten, sofern der Provider-Audit nichts anderes beweist.
 
 ## New-chat handoff
 

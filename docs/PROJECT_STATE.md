@@ -1,8 +1,10 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-22
-**State source:** `origin/master` after pull request 1
-**Next product milestone:** Data Safety v1
+**State source:** `origin/master` at `30558b04e73fefadf22c4b9a61f49b1f14c4503d`
+plus this branch's implemented Data Safety v1 foundations
+**Next product milestone:** Data Safety v1 (foundations implemented; archive and
+restore work pending)
 
 This document is the authoritative snapshot of verified current state. Update
 it when a milestone is completed or when a release, schema, supported platform,
@@ -79,6 +81,14 @@ persistence and migration, review/preparation/learning workflows, localization,
 diagnostics, build identity, UI contracts, and offline Wiktionary fixtures.
 Automated tests do not use live Wikimedia requests.
 
+On 2026-07-22, the Data Safety foundation branch additionally passed 26 focused
+backup-contract/JSON/database-compatibility tests and the complete suite of
+**415 passed, 0 failed, 0 skipped**. A Windows Debug build and serial Android
+Debug and Release builds also completed with 0 warnings and 0 errors, including
+no AOT, trimmer, or source-generator warnings. These checks used only synthetic
+DTOs and temporary SQLite databases; they did not exercise a real backup or
+restore workflow.
+
 ### Release evidence
 
 The verified release handoff records that:
@@ -103,6 +113,9 @@ details.
   snapshots, learning cards, reviews, and resumable sessions.
 - Initialization is forward-oriented and preserves existing rows while adding
   supported tables or columns.
+- Initialization now reads `PRAGMA user_version` first and rejects a version
+  greater than 7 before creating tables, invalidating cache rows, or changing
+  the version marker.
 - One automated migration regression starts with an older `Words` table,
   verifies the existing row is preserved, and verifies defaults for newer
   learning fields.
@@ -111,12 +124,18 @@ details.
 - Beta 8 introduced no schema change relative to Beta 7.
 
 The complete persisted-data rules are in
-[DATABASE_CONTRACT.md](DATABASE_CONTRACT.md). No versioned backup, restore, or
-export format exists yet.
+[DATABASE_CONTRACT.md](DATABASE_CONTRACT.md). Data Safety v1 now has a database
+audit, external backup-format contract, phased implementation plan, immutable
+external data models, strict source-generated JSON metadata/codecs, and the
+future-schema refusal guard. These foundations are internal and are not wired
+to an application workflow. No ZIP reader/writer, database snapshot, backup
+service, validation service, restore preview, restore, file picker, or UI has
+been implemented.
 
 ## Known limitations
 
-- Data Safety v1, versioned backup, restore, and a backup/restore UI are not
+- Data Safety v1 is not complete. Its internal format/JSON foundations exist,
+  but archive creation, usable backup, restore, and backup/restore UI are not
   implemented.
 - Cloud synchronization, accounts, analytics, advertising, and payments are
   not implemented.
@@ -143,8 +162,9 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 
 ## Active development
 
-- `feature/project-governance-and-docs`: active documentation-governance
-  work; no product behavior changes.
+- `feature/backup-restore-v1`: Data Safety v1 external models, strict generated
+  JSON codec, and non-destructive future-schema guard are implemented and
+  verified; archive, backup, restore, and UI phases remain pending.
 - `hotfix/beta-8-online-lookup-crash`: branch tip is merged, but its attached
   worktree contains protected uncommitted parser/test work and must not be
   cleaned or removed.
@@ -157,6 +177,15 @@ for the complete snapshot.
 
 ## Next milestone
 
-Data Safety v1 is next. It must begin with explicit requirements and a
-database/migration audit before any backup format or restore behavior is
-implemented. This documentation branch does not implement backup or restore.
+Data Safety v1 foundations are in progress. The v1 data boundary, external DTO
+graph, explicit enum contracts, centralized limits/errors, and strict
+source-generated JSON codec are now implemented. Database initialization also
+rejects an unknown future schema non-destructively before maintenance. The
+remaining high-risk areas include consistent snapshot creation, hostile
+ZIP/resource validation, migration fixtures, mandatory safety backup, and an
+atomic replacement restore.
+
+The next smallest planned package is Phase 3: a read-only logical snapshot and
+bounded backup creation, followed by the separate strict archive-validation
+gate in Phase 4. It requires separate authorization and must not make restore or
+UI reachable early.

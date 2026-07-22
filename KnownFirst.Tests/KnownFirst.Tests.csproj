@@ -70,6 +70,7 @@
   <ItemGroup>
     <Compile Include="..\Data\IKnownFirstDatabase.cs" Link="Production\Data\IKnownFirstDatabase.cs" />
     <Compile Include="..\Data\DatabaseSchema.cs" Link="Production\Data\DatabaseSchema.cs" />
+    <Compile Include="..\Data\DatabaseSchemaCompatibilityException.cs" Link="Production\Data\DatabaseSchemaCompatibilityException.cs" />
     <Compile Include="..\Data\Entities\*.cs" Link="Production\Data\Entities\%(Filename)%(Extension)" />
     <Compile Include="..\Models\*.cs" Link="Production\Models\%(Filename)%(Extension)" />
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />
@@ -86,6 +87,7 @@
     <Compile Include="..\Services\Diagnostics\BuildIdentityService.cs" Link="Production\Services\Diagnostics\BuildIdentityService.cs" />
     <Compile Include="..\Services\Lexical\*.cs" Link="Production\Services\Lexical\%(Filename)%(Extension)" />
     <Compile Include="..\Services\Study\*.cs" Link="Production\Services\Study\%(Filename)%(Extension)" />
+    <Compile Include="..\Services\DataSafety\*.cs" Link="Production\Services\DataSafety\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

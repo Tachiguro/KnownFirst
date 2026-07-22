@@ -28,7 +28,7 @@
 
 ## Active task
 
-- Review, push and merge Pull Request for feature/wikipedia-lookup-provider.
+- Review and merge Pull Request #8 after final validation.
 
 ## Completed recently
 
@@ -40,11 +40,11 @@
 
 ## Validation
 
-- Focused Wikipedia tests: 62 passed, 0 failed, 0 skipped.
-- Full test suite: 518 passed, 0 failed, 0 skipped, duration ~28 s.
-- Windows Debug build: 0 warnings, 0 errors.
-- Android Debug build: 0 warnings, 0 errors.
-- Android Release build: 0 warnings, 0 errors; AOT and trimming executed successfully (single-threaded MSBuild).
+- Focused tests (Wikipedia, Resolver, Enrichment): [pending] passed, [pending] failed, [pending] skipped.
+- Full test suite: [pending] passed, [pending] failed, [pending] skipped, duration [pending] s.
+- Windows Debug build: [pending] warnings, [pending] errors.
+- Android Debug build: [pending] warnings, [pending] errors.
+- Android Release build: [pending] warnings, [pending] errors; AOT and trimming executed successfully (single-threaded MSBuild).
 - No live Wikipedia request, device action, ADB, APK installation, publish, database migration, cache integration, or backup change was performed.
 
 ## Paused work
@@ -54,16 +54,14 @@
 
 ## Planned sequence
 
-1. Create and merge Pull Request for WikipediaLookupProvider.
-2. Fast-forward the local master after merge.
-3. Prepare Wiktionary fallback integration or UI.
-4. Keep schema version 7 unless the provider audit proves otherwise.
-5. Re-check the backup format against the final provider model.
-6. Resume Backup/Restore Phase 3.
-7. Complete further data-safety phases.
-8. Add statistics.
-9. Add privacy-friendly bug reporting.
-10. Prepare the public beta.
+1. Review and merge Pull Request #8.
+2. Fast-forward local master after merge.
+3. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+4. In that documentation package, separate: decided requirements, open design questions, deferred ideas, data-model impact, milestones, acceptance criteria.
+5. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
+6. After that documentation PR is merged, continue with the separate Wikipedia fallback orchestration branch.
+7. Do not combine fallback orchestration and UI.
+8. Keep schema version 7 until a later explicit data-model decision.
 
 ## Known constraints and risks
 
@@ -94,6 +92,7 @@
 - CHANGELOG.md
 - docs/DATABASE_CONTRACT.md
 - docs/architecture/wikipedia-json-client.md
+- docs/architecture/wikipedia-lookup-provider.md
 - docs/architecture/backup-format-v1.md
 - docs/plans/backup-restore-v1-implementation-plan.md
 - docs/handoffs/2026-07-22-beta-8-release.md
@@ -104,9 +103,12 @@
 
 ## Next exact action
 
-1. Push feature/wikipedia-lookup-provider.
-2. Create and merge Pull Request for WikipediaLookupProvider.
-3. Fast-forward master.
+1. Review and merge Pull Request #8.
+2. Fast-forward local master after merge.
+3. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+4. Separate requirements, design, impact, and milestones in the new plan.
+5. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
+6. Do not implement Wikipedia fallback orchestration yet.
 
 ## New-chat handoff
 

@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-07-22
-**State source:** `build/remove-apple-targets` after platform-target validation
-**Next product milestone:** Wikipedia fallback provider and persistence audit
+**Status date:** 2026-07-23
+**State source:** `feature/wikipedia-lookup-provider`
+**Next product milestone:** Structured vocabulary/PDF import and sense-level learning documentation
 
 This document is the authoritative snapshot of verified current state. Update
 it when a milestone is completed or when a release, schema, supported platform,
@@ -160,11 +160,10 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 
 ## Active development
 
-- The documentation branch is recording the single-worktree consolidation and
-  canonical handoff structure.
-- The only registered worktree is `C:\Dev\KnownFirst`.
-- The platform-target cleanup is complete on `build/remove-apple-targets` and
-  leaves Android and Windows as the only active app targets.
+- The low-level Wikipedia API client and the `WikipediaLookupProvider` are implemented.
+- Provider-neutral routing and resolution limits are tested and strictly enforced.
+- The next step is a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+- Only after that documentation is complete will the Wikipedia fallback orchestration begin.
 
 See the dated
 [branch and worktree inventory](maintenance/branch-and-worktree-inventory.md)
@@ -172,4 +171,6 @@ for the complete snapshot.
 
 ## Next milestone
 
-Provider-neutral routing and the low-level Wikipedia JSON API Client foundation have been implemented. The API client is isolated and not yet registered as a provider. A WikipediaLookupProvider, the Wiktionary fallback orchestration, and UI integration are separate future work packages. Backup/Restore Phase 3 remains paused and is not user-available.
+1. Structured vocabulary/PDF import and sense-level learning documentation.
+2. Wikipedia fallback orchestration.
+3. Fallback UI integration.

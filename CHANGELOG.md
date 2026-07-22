@@ -8,6 +8,7 @@ and uses the application's prerelease version identifiers.
 
 ### Internal
 
+- Implemented `WikipediaLookupProvider` as an explicitly selectable lexical lookup provider. It leverages the Wikipedia JSON API client foundation and maps encyclopedic context into standard domain definitions. It enforces deterministic identity and empty metadata boundaries without generating fabricated dictionary items.
 - Added a low-level, source-generated Wikipedia JSON API client (`IWikipediaApiClient`) as a foundation for a future Fallback provider. This client implements robust text extraction, redirect chains, and rate limiting but is not yet wired to a user workflow or provider resolution.
 - Added provider-neutral routing foundation (`ILexicalLookupProvider` and
   `ILexicalLookupProviderResolver`) to allow safe resolution of dictionary

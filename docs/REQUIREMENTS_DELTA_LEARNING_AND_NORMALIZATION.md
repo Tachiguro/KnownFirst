@@ -1,5 +1,10 @@
 # Delta Review: Learning & Normalization
 
+> **Historical verification record:** The 265-test result below belongs to the
+> learning/normalization review completed at `8a98eb1` on 2026-07-20. It is
+> not the current suite total. The verified project-wide result on 2026-07-22 is
+> recorded in [PROJECT_STATE.md](PROJECT_STATE.md).
+
 ## 1. Test Coverage
 Die folgenden Bereiche wurden mit neuen Regressionstests (Phase 3-6) abgedeckt:
 - **Textanalyse (TextAnalyzerTests)**: Verhalten von Wörtern mit Häufigkeit 1 (Worterhalt), Sicherstellung, dass der Analyzer keine Lernzustände (Knowledge State) vergibt, Determinismus bei wiederholter Analyse.

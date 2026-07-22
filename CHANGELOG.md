@@ -1,0 +1,40 @@
+# Changelog
+
+All notable user-visible changes to KnownFirst are documented in this file.
+The structure follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+and uses the application's prerelease version identifiers.
+
+## [Unreleased]
+
+No user-visible application changes are recorded.
+
+## [1.0.0-beta.8] - 2026-07-22
+
+### Added
+
+- No new user-facing features. Beta 8 is a release-stability update.
+
+### Changed
+
+- No intentional workflow or persisted-data-model changes from Beta 7.
+
+### Fixed
+
+- Fixed the Android Release crash during automatic online vocabulary lookup.
+- Replaced reflection-dependent JSON serialization in the Release AOT path
+  with source-generated serialization metadata.
+- Replaced the AOT-unsafe CSS-selector path in the Wiktionary parser.
+
+### Known limitations
+
+- Versioned backup and restore are not implemented.
+- Cloud synchronization is not implemented.
+- A dictionary cache miss requires a network connection and explicit Wikimedia
+  lookup consent.
+- iOS and Mac Catalyst targets exist in the project file but are not supported
+  or release-validated product platforms.
+- The direct-install Android test-package script still uses legacy Beta 6
+  artifact labels and must not be used to claim a Beta 8 package.
+
+See the [Beta 8 release notes](docs/releases/1.0.0-beta.8.md) for release
+identity and verification evidence.

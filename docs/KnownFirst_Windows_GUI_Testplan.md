@@ -1,5 +1,11 @@
 # KnownFirst – Windows-GUI-Testplan
 
+> **Status (2026-07-22):** Historical Beta 7 manual test plan retained as a
+> regression corpus. The Android Release blocker near the end was resolved in
+> Beta 8 by `f1f1891` and `29aff385`; it is no longer an open project
+> blocker. Current release facts are in
+> [releases/1.0.0-beta.8.md](releases/1.0.0-beta.8.md).
+
 **Zweck:** Die Windows-Debug-Version reproduzierbar prüfen, bevor alle Fehler gesammelt an Codex zurückgegeben werden.
 
 Vor dem Lauf notieren: Branch, Commit, Datum, Windows-Version, App-Sprache, Theme, Vorbereitungslimit, Kartenrichtung und Netzwerkstatus.
@@ -555,7 +561,7 @@ Bei schmalem, normalem und maximiertem Fenster sowie 125/150 % Skalierung prüfe
 
 ---
 
-# Bekannter Android-Release-Blocker
+# Historischer Android-Release-Blocker (in Beta 8 behoben)
 
 ## AND-REL-001 – Release startet nicht
 
@@ -566,7 +572,11 @@ Bei schmalem, normalem und maximiertem Fenster sowie 125/150 % Skalierung prüfe
 3. Nach Retry: `Die aktive Überprüfung wird geprüft...`
 4. Danach derselbe leere Fehlerzustand.
 
-**Schweregrad:** Blocker.
+**Historischer Schweregrad:** Blocker.
+
+**Aktueller Status:** In `1.0.0-beta.8` behoben. Der Ablauf bleibt als
+Regressionstest erhalten und darf bei einem neuen Auftreten wieder als Blocker
+eingestuft werden.
 
 **Soll**
 - Release startet erfolgreich.

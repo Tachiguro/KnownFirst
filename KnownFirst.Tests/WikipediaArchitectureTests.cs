@@ -57,7 +57,7 @@ public class WikipediaArchitectureTests
     [TestMethod]
     public void Architecture_MauiProgram_RegistersWikipediaProvider()
     {
-        var text = File.ReadAllText(Path.Combine(RepositoryDir, "MauiProgram.cs"));
+        var text = File.ReadAllText(Path.Combine(RepositoryDir, "Services", "Lexical", "LexicalServiceCollectionExtensions.cs"));
 
         Assert.IsTrue(text.Contains("WikipediaApiClient", StringComparison.Ordinal));
         Assert.IsTrue(text.Contains("IWikipediaApiClient", StringComparison.Ordinal));

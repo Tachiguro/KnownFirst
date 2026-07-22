@@ -6,10 +6,12 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <NoWarn>$(NoWarn);MSTEST0037;MSTEST0032</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AngleSharp" Version="1.5.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageReference Include="MSTest" Version="4.0.2" />
     <PackageReference Include="sqlite-net-pcl" Version="1.11.285" />
@@ -56,12 +58,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\Resources\Localization\SharedResource.resx"
-          Link="Resources\Localization\SharedResource.resx"
-          CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\Resources\Localization\SharedResource.de.resx"
-          Link="Resources\Localization\SharedResource.de.resx"
-          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Resources\Localization\SharedResource.resx" Link="Resources\Localization\SharedResource.resx" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Resources\Localization\SharedResource.de.resx" Link="Resources\Localization\SharedResource.de.resx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -226,7 +226,7 @@ public class WikipediaApiClientTests
     }
 
     [TestMethod]
-    public async Task GetArticleAsync_Http429_ReturnsRateLimited()
+    public async Task GetArticleAsync_Http429WithDelta_ReturnsRateLimitedWithDelta()
     {
         var handler = new FakeHttpMessageHandler
         {
@@ -244,6 +244,71 @@ public class WikipediaApiClientTests
 
         Assert.AreEqual(WikipediaArticleStatus.RateLimited, result.Status);
         Assert.AreEqual(TimeSpan.FromSeconds(30), result.RetryAfter);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_Http429WithFutureDate_ReturnsRateLimitedWithCalculatedDelta()
+    {
+        var fakeClock = new FakeClock(new DateTime(2026, 01, 01, 12, 0, 0, DateTimeKind.Utc));
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) =>
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(new DateTimeOffset(2026, 01, 01, 12, 0, 30, TimeSpan.Zero));
+                return Task.FromResult(response);
+            }
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler), fakeClock);
+        var request = new WikipediaArticleRequest("en", "Any Title");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.RateLimited, result.Status);
+        Assert.AreEqual(TimeSpan.FromSeconds(30), result.RetryAfter);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_Http429WithPastDate_ReturnsRateLimitedWithZeroDelta()
+    {
+        var fakeClock = new FakeClock(new DateTime(2026, 01, 01, 12, 0, 0, DateTimeKind.Utc));
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) =>
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                // 30 seconds in the past
+                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(new DateTimeOffset(2026, 01, 01, 11, 59, 30, TimeSpan.Zero));
+                return Task.FromResult(response);
+            }
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler), fakeClock);
+        var request = new WikipediaArticleRequest("en", "Any Title");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.RateLimited, result.Status);
+        Assert.AreEqual(TimeSpan.Zero, result.RetryAfter);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_Http429WithoutRetryAfter_ReturnsRateLimitedWithNullDelta()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) =>
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                return Task.FromResult(response);
+            }
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any Title");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.RateLimited, result.Status);
+        Assert.IsNull(result.RetryAfter);
     }
 
     [TestMethod]
@@ -353,5 +418,203 @@ public class WikipediaApiClientTests
         var result = await client.GetArticleAsync(request);
 
         Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_MissingExtract_ReturnsNoUsableContent()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("missing-extract.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.NoUsableContent, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_WrongLanglinkLanguage_IgnoresLanglink()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("wrong-langlink-language.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A", "de");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.Success, result.Status);
+        Assert.IsNull(result.TargetTitleCandidate);
+        Assert.IsNull(result.TargetUrlCandidate);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_WhitespaceNormalization_NormalizesExtract()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("whitespace-normalization.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.Success, result.Status);
+        Assert.AreEqual("Line 1 Line 2 Line 3", result.Extract);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_LongExtract_TruncatesTo1200Chars()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("long-extract.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.Success, result.Status);
+        Assert.AreEqual(1200, result.Extract.Length);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_RedirectDisconnected_ReturnsParseFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("redirect-disconnected.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_RedirectCycle_ReturnsParseFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("redirect-cycle.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_RedirectFinalMismatch_ReturnsParseFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("redirect-final-mismatch.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+    }
+    [DataTestMethod]
+    [DataRow("en", "Space Title", null, "https://en.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=info%7Cextracts%7Cpageprops%7Clanglinks&inprop=url&exintro=1&explaintext=1&exchars=1200&ppprop=disambiguation&titles=Space%20Title")]
+    [DataRow("de", "Title-With-Dash", "en", "https://de.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=info%7Cextracts%7Cpageprops%7Clanglinks&inprop=url&exintro=1&explaintext=1&exchars=1200&ppprop=disambiguation&titles=Title-With-Dash&lllang=en&lllimit=1&llprop=url")]
+    [DataRow("de", "Umlautäöü", null, "https://de.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=info%7Cextracts%7Cpageprops%7Clanglinks&inprop=url&exintro=1&explaintext=1&exchars=1200&ppprop=disambiguation&titles=Umlaut%C3%A4%C3%B6%C3%BC")]
+    [DataRow("en", "漢字", null, "https://en.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=info%7Cextracts%7Cpageprops%7Clanglinks&inprop=url&exintro=1&explaintext=1&exchars=1200&ppprop=disambiguation&titles=%E6%BC%A2%E5%AD%97")]
+    public async Task GetArticleAsync_ConstructsValidRequest(string sourceLanguage, string title, string? targetLanguage, string expectedUrl)
+    {
+        HttpRequestMessage? capturedRequest = null;
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => 
+            {
+                capturedRequest = req;
+                return Task.FromResult(CreateJsonResponse("exact-success.json"));
+            }
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest(sourceLanguage, title, targetLanguage);
+
+        await client.GetArticleAsync(request);
+
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual(HttpMethod.Get, capturedRequest.Method);
+        Assert.AreEqual(expectedUrl, capturedRequest.RequestUri!.AbsoluteUri);
+        Assert.AreEqual("KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only Wikipedia lookup)", capturedRequest.Headers.UserAgent.ToString());
+        Assert.IsTrue(capturedRequest.Headers.Accept.Any(a => a.MediaType == "application/json"));
+    }
+
+    [DataTestMethod]
+    [DataRow(HttpStatusCode.NotFound, WikipediaArticleStatus.NotFound)]
+    [DataRow(HttpStatusCode.RequestTimeout, WikipediaArticleStatus.TransientFailure)]
+    [DataRow(HttpStatusCode.InternalServerError, WikipediaArticleStatus.TransientFailure)]
+    [DataRow(HttpStatusCode.ServiceUnavailable, WikipediaArticleStatus.TransientFailure)]
+    [DataRow(HttpStatusCode.BadRequest, WikipediaArticleStatus.PermanentFailure)]
+    [DataRow(HttpStatusCode.Unauthorized, WikipediaArticleStatus.PermanentFailure)]
+    [DataRow(HttpStatusCode.Forbidden, WikipediaArticleStatus.PermanentFailure)]
+    [DataRow(HttpStatusCode.BadGateway, WikipediaArticleStatus.TransientFailure)]
+    [DataRow(HttpStatusCode.GatewayTimeout, WikipediaArticleStatus.TransientFailure)]
+    public async Task GetArticleAsync_HttpStatusCodes_ReturnExpectedStatus(HttpStatusCode statusCode, WikipediaArticleStatus expectedStatus)
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(new HttpResponseMessage(statusCode))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(expectedStatus, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_HttpRequestException_ReturnsTransientFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => throw new HttpRequestException()
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.TransientFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_Cancellation_ThrowsOperationCanceledException()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => throw new TaskCanceledException()
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any");
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        try
+        {
+            await client.GetArticleAsync(request, cts.Token);
+            Assert.Fail("Expected OperationCanceledException was not thrown.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Success
+        }
     }
 }

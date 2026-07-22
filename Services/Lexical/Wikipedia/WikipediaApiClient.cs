@@ -3,16 +3,20 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using KnownFirst.Core.Learning;
+
 namespace KnownFirst.Services.Lexical.Wikipedia;
 
 public sealed partial class WikipediaApiClient : IWikipediaApiClient
 {
     private readonly HttpClient _httpClient;
+    private readonly IClock _clock;
     private const string UserAgent = "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only Wikipedia lookup)";
 
-    public WikipediaApiClient(HttpClient httpClient)
+    public WikipediaApiClient(HttpClient httpClient, IClock? clock = null)
     {
         _httpClient = httpClient;
+        _clock = clock ?? new SystemClock();
     }
 
     public async Task<WikipediaArticleResult> GetArticleAsync(
@@ -79,7 +83,20 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
         {
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                return CreateFailure(request, WikipediaArticleStatus.RateLimited, "rate-limited", response.Headers.RetryAfter?.Delta);
+                TimeSpan? retryDelta = null;
+                if (response.Headers.RetryAfter != null)
+                {
+                    if (response.Headers.RetryAfter.Delta.HasValue)
+                    {
+                        retryDelta = response.Headers.RetryAfter.Delta.Value;
+                    }
+                    else if (response.Headers.RetryAfter.Date.HasValue)
+                    {
+                        var delta = response.Headers.RetryAfter.Date.Value.UtcDateTime - _clock.UtcNow;
+                        retryDelta = delta > TimeSpan.Zero ? delta : TimeSpan.Zero;
+                    }
+                }
+                return CreateFailure(request, WikipediaArticleStatus.RateLimited, "rate-limited", retryDelta);
             }
 
             if (response.StatusCode == HttpStatusCode.RequestTimeout || ((int)response.StatusCode >= 500 && (int)response.StatusCode <= 599))
@@ -171,19 +188,49 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
 
             var isRedirect = false;
             string? redirectedFrom = null;
+
             if (query.Redirects != null && query.Redirects.Count > 0)
             {
-                foreach (var red in query.Redirects)
+                var redirectsList = query.Redirects.ToList();
+                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                while (true)
                 {
-                    if (string.Equals(red.From, canonicalTitle, StringComparison.OrdinalIgnoreCase) && red.To != null)
+                    var match = redirectsList.FirstOrDefault(r => string.Equals(r.From, canonicalTitle, StringComparison.OrdinalIgnoreCase));
+                    if (match == null)
                     {
-                        redirectedFrom = red.From;
-                        canonicalTitle = red.To;
+                        break;
+                    }
+
+                    if (match.To == null)
+                    {
+                        return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "redirect-missing-to");
+                    }
+
+                    if (!visited.Add(match.From!))
+                    {
+                        return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "redirect-cycle");
+                    }
+
+                    if (!isRedirect)
+                    {
+                        redirectedFrom = match.From;
                         isRedirect = true;
                     }
+
+                    canonicalTitle = match.To;
+                }
+
+                if (visited.Count != query.Redirects.Count)
+                {
+                    return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "redirect-disconnected");
                 }
             }
-            
+
+            if (page.Title != null && !string.Equals(page.Title, canonicalTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "redirect-final-mismatch");
+            }
             canonicalTitle = page.Title ?? canonicalTitle;
 
             if (page.PageProps?.Disambiguation != null)

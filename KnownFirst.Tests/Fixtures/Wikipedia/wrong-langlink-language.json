@@ -1,0 +1,7 @@
+﻿{
+  "query": {
+    "pages": [
+      { "pageid": 1, "title": "A", "extract": "Text.", "langlinks": [{"lang": "es", "title": "ES", "url": "url"}] }
+    ]
+  }
+}

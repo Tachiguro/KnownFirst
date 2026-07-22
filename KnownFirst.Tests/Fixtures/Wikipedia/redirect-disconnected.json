@@ -1,0 +1,11 @@
+﻿{
+  "query": {
+    "redirects": [
+      { "from": "A", "to": "B" },
+      { "from": "C", "to": "D" }
+    ],
+    "pages": [
+      { "pageid": 1, "title": "B", "extract": "Text." }
+    ]
+  }
+}

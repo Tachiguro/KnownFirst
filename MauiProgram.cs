@@ -76,6 +76,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<WiktionaryLookupProvider>();
         builder.Services.AddSingleton<IDictionaryLookupProvider>(provider => provider.GetRequiredService<WiktionaryLookupProvider>());
         builder.Services.AddSingleton<ILexicalLookupProvider>(provider => provider.GetRequiredService<WiktionaryLookupProvider>());
+        
+        builder.Services.AddSingleton<KnownFirst.Services.Lexical.Wikipedia.WikipediaApiClient>();
+        builder.Services.AddSingleton<KnownFirst.Services.Lexical.Wikipedia.IWikipediaApiClient>(provider => provider.GetRequiredService<KnownFirst.Services.Lexical.Wikipedia.WikipediaApiClient>());
+        builder.Services.AddSingleton<KnownFirst.Services.Lexical.Wikipedia.WikipediaLookupProvider>();
+        builder.Services.AddSingleton<ILexicalLookupProvider>(provider => provider.GetRequiredService<KnownFirst.Services.Lexical.Wikipedia.WikipediaLookupProvider>());
+        
         builder.Services.AddSingleton<ILexicalLookupProviderResolver, LexicalLookupProviderResolver>();
         builder.Services.AddSingleton<ILexicalEnrichmentService, LexicalEnrichmentService>();
         builder.Services.AddSingleton<IPreparationService, PreparationService>();

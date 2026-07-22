@@ -17,11 +17,13 @@ public class WikipediaArchitectureTests
     }
 
     [TestMethod]
-    public void Architecture_WikipediaLookupProvider_DoesNotExist()
+    public void Architecture_WikipediaLookupProvider_ExistsAndIsRegistered()
     {
         var type = typeof(WikipediaApiClient).Assembly.GetType("KnownFirst.Services.Lexical.Wikipedia.WikipediaLookupProvider");
-
-        Assert.IsNull(type);
+        Assert.IsNotNull(type);
+        
+        Assert.IsTrue(typeof(ILexicalLookupProvider).IsAssignableFrom(type));
+        Assert.IsFalse(typeof(IDictionaryLookupProvider).IsAssignableFrom(type));
     }
 
     [TestMethod]
@@ -53,12 +55,13 @@ public class WikipediaArchitectureTests
     }
 
     [TestMethod]
-    public void Architecture_MauiProgram_DoesNotRegisterWikipediaProvider()
+    public void Architecture_MauiProgram_RegistersWikipediaProvider()
     {
         var text = File.ReadAllText(Path.Combine(RepositoryDir, "MauiProgram.cs"));
 
-        Assert.IsFalse(text.Contains("Wikipedia", StringComparison.Ordinal));
-        Assert.IsFalse(text.Contains("IWikipediaApiClient", StringComparison.Ordinal));
+        Assert.IsTrue(text.Contains("WikipediaApiClient", StringComparison.Ordinal));
+        Assert.IsTrue(text.Contains("IWikipediaApiClient", StringComparison.Ordinal));
+        Assert.IsTrue(text.Contains("WikipediaLookupProvider", StringComparison.Ordinal));
     }
 
     [TestMethod]

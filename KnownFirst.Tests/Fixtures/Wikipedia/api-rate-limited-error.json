@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "ratelimited",
+    "info": "You have exceeded your rate limit."
+  }
+}

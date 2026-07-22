@@ -278,4 +278,80 @@ public class WikipediaApiClientTests
         var request = new WikipediaArticleRequest("en", " e\u0301 ");
         Assert.AreEqual("\u00E9", request.RequestedTitle);
     }
+    [TestMethod]
+    public async Task GetArticleAsync_RedirectChain_SetsRedirectFlagAndCanonicalTitle()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("redirect-chain.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "A");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.Success, result.Status);
+        Assert.IsTrue(result.IsRedirect);
+        Assert.AreEqual("C", result.CanonicalTitle);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_ApiRateLimitedError_ReturnsRateLimited()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("api-rate-limited-error.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.RateLimited, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_EmptyPages_ReturnsParseFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("empty-pages.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_MultiplePages_ReturnsParseFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("multiple-pages.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+    }
+
+    [TestMethod]
+    public async Task GetArticleAsync_WrongFieldType_ReturnsParseFailure()
+    {
+        var handler = new FakeHttpMessageHandler
+        {
+            SendAsyncFunc = (req, ct) => Task.FromResult(CreateJsonResponse("wrong-field-type.json"))
+        };
+        var client = new WikipediaApiClient(new HttpClient(handler));
+        var request = new WikipediaArticleRequest("en", "Any");
+
+        var result = await client.GetArticleAsync(request);
+
+        Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
+    }
 }

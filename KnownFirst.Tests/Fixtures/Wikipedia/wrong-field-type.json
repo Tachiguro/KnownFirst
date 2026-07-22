@@ -1,0 +1,12 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "pages": [
+      {
+        "pageid": "not-an-integer",
+        "title": "Page 1",
+        "extract": "Content 1"
+      }
+    ]
+  }
+}

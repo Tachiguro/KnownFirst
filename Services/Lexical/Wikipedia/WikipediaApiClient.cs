@@ -127,6 +127,10 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
                 // check for maxlag or similar transient errors
                 // We'll treat all api errors as permanent for now unless we know it's transient
                 var code = apiResponse.Error.Code?.ToLowerInvariant();
+                if (code == "ratelimited" || code == "ratelimit")
+                {
+                    return CreateFailure(request, WikipediaArticleStatus.RateLimited, "rate-limited");
+                }
                 if (code == "maxlag" || code == "internal_api_error")
                 {
                     return CreateFailure(request, WikipediaArticleStatus.TransientFailure, $"api-{code}");
@@ -138,6 +142,11 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
             if (query == null || query.Pages == null || query.Pages.Count == 0)
             {
                 return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "missing-query-payload");
+            }
+
+            if (query.Pages.Count > 1)
+            {
+                return CreateFailure(request, WikipediaArticleStatus.ParseFailure, "multiple-pages");
             }
 
             var page = query.Pages[0];

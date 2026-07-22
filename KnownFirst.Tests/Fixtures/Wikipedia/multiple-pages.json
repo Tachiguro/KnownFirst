@@ -1,0 +1,17 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "pages": [
+      {
+        "pageid": 1,
+        "title": "Page 1",
+        "extract": "Content 1"
+      },
+      {
+        "pageid": 2,
+        "title": "Page 2",
+        "extract": "Content 2"
+      }
+    ]
+  }
+}

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <None Update="Fixtures\Wiktionary\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\Wikipedia\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\ReviewWords.razor" Link="Ui\ReviewWords.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Diagnostics.razor" Link="Ui\Diagnostics.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\LocalizationHost.razor" Link="Ui\LocalizationHost.razor" CopyToOutputDirectory="PreserveNewest" />
@@ -86,6 +87,7 @@
     <Compile Include="..\Services\Diagnostics\IBuildIdentityService.cs" Link="Production\Services\Diagnostics\IBuildIdentityService.cs" />
     <Compile Include="..\Services\Diagnostics\BuildIdentityService.cs" Link="Production\Services\Diagnostics\BuildIdentityService.cs" />
     <Compile Include="..\Services\Lexical\*.cs" Link="Production\Services\Lexical\%(Filename)%(Extension)" />
+    <Compile Include="..\Services\Lexical\Wikipedia\*.cs" Link="Production\Services\Lexical\Wikipedia\%(Filename)%(Extension)" />
     <Compile Include="..\Services\Study\*.cs" Link="Production\Services\Study\%(Filename)%(Extension)" />
     <Compile Include="..\Services\DataSafety\*.cs" Link="Production\Services\DataSafety\%(Filename)%(Extension)" />
   </ItemGroup>

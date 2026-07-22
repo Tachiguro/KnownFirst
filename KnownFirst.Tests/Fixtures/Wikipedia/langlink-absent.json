@@ -1,0 +1,15 @@
+{
+  "query": {
+    "pages": [
+      {
+        "pageid": 1007,
+        "ns": 0,
+        "title": "Source Title No Lang",
+        "lastrevid": 2007,
+        "canonicalurl": "https://en.wikipedia.org/wiki/Source_Title_No_Lang",
+        "extract": "A synthetic security system collects and evaluates event records.",
+        "langlinks": []
+      }
+    ]
+  }
+}

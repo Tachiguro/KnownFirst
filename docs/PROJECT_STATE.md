@@ -172,4 +172,4 @@ for the complete snapshot.
 
 ## Next milestone
 
-Provider-neutral routing has been implemented. The next smallest technical package is a Wikipedia JSON API Client with local fixtures, which will be implemented on a new feature branch after the routing foundation is merged. Backup/Restore Phase 3 remains paused and is not user-available.
+Provider-neutral routing and the low-level Wikipedia JSON API Client foundation have been implemented. The API client is isolated and not yet registered as a provider. A WikipediaLookupProvider, the Wiktionary fallback orchestration, and UI integration are separate future work packages. Backup/Restore Phase 3 remains paused and is not user-available.

@@ -1,0 +1,17 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "redirects": [
+      { "from": "A", "to": "B" },
+      { "from": "B", "to": "C" }
+    ],
+    "pages": [
+      {
+        "pageid": 123,
+        "ns": 0,
+        "title": "C",
+        "extract": "Content of C."
+      }
+    ]
+  }
+}

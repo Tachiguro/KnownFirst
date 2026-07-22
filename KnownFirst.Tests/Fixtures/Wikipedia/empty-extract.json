@@ -1,0 +1,14 @@
+{
+  "query": {
+    "pages": [
+      {
+        "pageid": 1005,
+        "ns": 0,
+        "title": "Empty Extract",
+        "lastrevid": 2005,
+        "canonicalurl": "https://en.wikipedia.org/wiki/Empty_Extract",
+        "extract": "   \n  \t  "
+      }
+    ]
+  }
+}

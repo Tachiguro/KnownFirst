@@ -1,0 +1,7 @@
+﻿{
+  "query": {
+    "pages": [
+      { "pageid": 1, "title": "A", "extract": "  Line 1\n\nLine 2 \t Line 3  " }
+    ]
+  }
+}

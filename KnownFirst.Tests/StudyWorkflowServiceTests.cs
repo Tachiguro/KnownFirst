@@ -1307,7 +1307,7 @@ public sealed class StudyWorkflowServiceTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(_database),
-            provider),
+            new LexicalLookupProviderResolver([provider])),
         _clock);
 
     private LearningService CreateLearningService() => new(
@@ -1473,7 +1473,7 @@ public sealed class StudyWorkflowServiceTests
         request.ExplanationLanguage,
         null,
         _provider.MeaningsFactory(request),
-        "Fake Wiktionary",
+        _provider.ProviderName,
         "en.wiktionary.org",
         request.Term,
         123,
@@ -1491,7 +1491,7 @@ public sealed class StudyWorkflowServiceTests
         request.ExplanationLanguage,
         null,
         [],
-        "Fake Wiktionary",
+        _provider.ProviderName,
         "en.wiktionary.org",
         request.Term,
         null,
@@ -1526,7 +1526,7 @@ public sealed class StudyWorkflowServiceTests
 
         public LexicalLookupRequest? LastRequest { get; private set; }
 
-        public string ProviderName => "Fake Wiktionary";
+        public string ProviderName => WiktionaryLookupProvider.Name;
 
         public int ProviderSchemaVersion => 1;
 

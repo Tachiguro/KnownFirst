@@ -78,8 +78,15 @@ documents before implementation.
 - Do not commit secrets, signing material, private logs, real user content,
   databases, screenshots containing private data, or generated build
   artifacts.
-- Do not use ADB, devices, emulators, GUI automation, Release builds, Android
-  builds, APK/AAB creation, or store uploads unless explicitly requested.
+- Do not use ADB, devices, emulators, GUI automation, APK/AAB creation, or store
+  uploads unless explicitly requested.
+- Normal builds and unit tests do not require a connected physical Android device.
+- Do not perform routine installation, execution, ADB, logcat, `pm clear`, app
+  uninstallation, or data resets on physical Android devices without explicit
+  user authorization.
+- Physical Android device testing is conducted only as a separate work package
+  following a complete user-facing feature, before a new Beta release, for a
+  device-specific bug, or upon explicit user request.
 - A successful build or automated test is not evidence of physical-device or
   visual validation.
 
@@ -88,7 +95,8 @@ documents before implementation.
 - Add or identify a regression test before fixing behavior.
 - Run focused tests while developing and the complete affected automated suite
   before handoff.
-- For normal application changes, run the Windows Debug build after tests.
+- Standard validation requirements remain: Windows Debug build, Android Debug
+  build, and Android Release build with AOT and Trimming.
 - Run Android or Release builds only when the task and affected scope require
   them.
 - Documentation-only changes require link validation, content consistency

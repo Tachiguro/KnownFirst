@@ -343,7 +343,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             cache,
-            provider);
+            new LexicalLookupProviderResolver([provider]));
 
         var result = await service.EnrichAsync(
             request,
@@ -364,7 +364,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new ThrowingCacheRepository(throwOnRead: true, throwOnWrite: false),
-            provider,
+            new LexicalLookupProviderResolver([provider]),
             diagnostics);
 
         var result = await service.EnrichAsync(request, "network", "network");
@@ -384,7 +384,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new ThrowingCacheRepository(throwOnRead: false, throwOnWrite: true),
-            provider,
+            new LexicalLookupProviderResolver([provider]),
             diagnostics);
 
         var result = await service.EnrichAsync(request, "network", "network");
@@ -405,7 +405,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            new FakeDictionaryProvider(external));
+            new LexicalLookupProviderResolver([new FakeDictionaryProvider(external)]));
 
         var result = await service.EnrichAsync(
             request,
@@ -443,7 +443,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            provider);
+            new LexicalLookupProviderResolver([provider]));
 
         var result = await service.EnrichAsync(
             Request(encounteredForm, "en", "en"),
@@ -480,7 +480,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            provider);
+            new LexicalLookupProviderResolver([provider]));
 
         var result = await service.EnrichAsync(
             Request("systems", "en", "en"),
@@ -505,7 +505,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            provider);
+            new LexicalLookupProviderResolver([provider]));
 
         var result = await service.EnrichAsync(
             Request("risky", "en", "en"),
@@ -726,7 +726,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database, diagnostics),
-            provider,
+            new LexicalLookupProviderResolver([provider]),
             diagnostics);
 
         var result = await service.EnrichAsync(
@@ -762,7 +762,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            provider);
+            new LexicalLookupProviderResolver([provider]));
 
         var result = await service.EnrichAsync(Request("data", "en", "en"), "data", "data");
 
@@ -1203,7 +1203,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            provider);
+            new LexicalLookupProviderResolver([provider]));
         var request = Request("Häuser", "de", LexicalLookupMode.Translation, "en");
 
         var result = await service.EnrichAsync(request, "Häuser", "Häuser");
@@ -1247,7 +1247,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            provider);
+            new LexicalLookupProviderResolver([provider]));
 
         var result = await service.EnrichAsync(
             Request("a", "en", LexicalLookupMode.Translation, "de"),
@@ -1372,7 +1372,7 @@ public sealed class WiktionaryProviderTests
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(database),
-            new FakeDictionaryProvider(invalid));
+            new LexicalLookupProviderResolver([new FakeDictionaryProvider(invalid)]));
 
         var result = await service.EnrichAsync(request, "house", "house");
         var cacheCount = await database.ReadAsync(connection =>
@@ -1551,3 +1551,5 @@ public sealed class WiktionaryProviderTests
                 : Task.CompletedTask;
     }
 }
+
+

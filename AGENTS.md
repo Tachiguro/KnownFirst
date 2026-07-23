@@ -9,15 +9,19 @@ practice. Use the name **KnownFirst** exclusively.
 
 ## Required reading order
 
-Before changing anything, read these sources completely in this order:
+This task-based reading policy is an efficiency rule, not permission to ignore applicable contracts or safety constraints.
 
-1. `AGENTS.md`
-2. `docs/INDEX.md`
-3. `docs/CURRENT_WORK.md`
-4. `docs/PROJECT_STATE.md`
-5. `docs/ROADMAP.md`
-6. `CHANGELOG.md`
-7. the relevant architecture, plan, decision, test, release, and handoff documents
+1. Always read the applicable `AGENTS.md` file before making changes.
+2. Read `docs/CURRENT_WORK.md` for implementation work, project-state work, or when the current active package and repository constraints are relevant.
+3. Read only the architecture, contract, code, test, localization, migration, release, or operational files directly relevant to the task.
+4. Follow any more specific nested `AGENTS.md` file that applies to the edited path.
+5. Read `docs/INDEX.md`, `docs/PROJECT_STATE.md`, `docs/ROADMAP.md`, historical handoffs, plans, and broad repository documentation only when:
+   - the task explicitly concerns them;
+   - a milestone or verified global project state changes;
+   - a referenced contract must be checked;
+   - the task is high-risk and requires broader context.
+6. Do not reconstruct the entire repository state for routine isolated work.
+7. Do not repeatedly reread unchanged files during the same work package unless new evidence requires it.
 
 The binding architecture documents are:
 
@@ -30,6 +34,68 @@ The binding architecture documents are:
 Historical prompts and test records are evidence, not current instructions.
 When sources conflict, stop and resolve the contradiction in the authoritative
 documents before implementation.
+
+## Lean delivery workflow
+
+### Vertical delivery
+
+- Use one coherent vertical feature slice per work package.
+- Keep one writing agent and one physical worktree.
+- Prefer one connected implementation run over separate repetitive analysis, implementation, testing, documentation, and cleanup runs.
+- Do not create speculative infrastructure, abstractions, migrations, UI, documentation, or follow-up packages outside the accepted scope.
+- Resolve routine implementation details using repository evidence instead of repeatedly asking for confirmation.
+- Stop and report only when a genuine safety boundary, destructive operation, missing authorization, incompatible repository state, or material product decision prevents safe continuation.
+
+### Acceptance and regression scope
+
+- Before implementation, identify approximately five to eight decisive acceptance or regression test groups for a normal feature package.
+- The number is a risk-based guideline, not a requirement to create artificial tests.
+- Add more only when the feature risk or contract surface justifies them.
+- Do not expand a small package into a repository-wide test initiative.
+
+### Focused implementation loop
+
+- During implementation, run only the focused tests required to develop and stabilize the affected behavior.
+- Prefer the smallest relevant test project, test class, filter, or contract check.
+- Do not repeatedly run the complete suite after every small edit.
+- Do not repeat a successful test or build when the relevant inputs have not changed.
+- If a change after validation can affect a result, rerun only the affected validation unless the final complete validation has not yet occurred.
+
+### Final validation
+
+- For normal code packages, run the complete relevant test suite exactly once against the final stable tree before opening or finalizing the pull request.
+- Run each required platform/configuration build exactly once against the final stable tree.
+- The standard KnownFirst final validation remains:
+  - complete test suite;
+  - Windows Debug build;
+  - Android Debug build with -m:1;
+  - Android Release build with -m:1;
+  - AOT, trimming, and source-generation warnings reviewed.
+- Run additional validation only when:
+  - a required result failed;
+  - relevant inputs changed afterward;
+  - the task is high-risk;
+  - a specific contract requires it.
+- Documentation-only and governance-only packages do not require tests or builds unless they alter executable tooling, build configuration, generated artifacts, or another verifiable technical contract.
+- Never use this lean policy to skip validation that is materially required for the changed code.
+
+### Risk-based escalation
+
+Additional audits, test passes, reviews, or specialized validation are justified for high-risk packages such as:
+
+- database migrations;
+- backup or restore;
+- data-loss risk;
+- security-sensitive behavior;
+- privacy-sensitive behavior;
+- concurrency or synchronization;
+- release and signing;
+- production deployment;
+- difficult AOT or trimming failures;
+- destructive repository or device operations;
+- cross-version persistence compatibility.
+
+Routine isolated changes must not automatically inherit the process burden of these high-risk categories.
 
 ## Product and architecture principles
 
@@ -63,8 +129,18 @@ documents before implementation.
   rewriting, or force-push unless an explicit recovery task authorizes it.
 - Never delete a branch or worktree merely because Git reports it as merged.
   Confirm that its worktree is clean and that no uncommitted work exists.
-- Use `feature/<topic>`, `fix/<topic>`, `hotfix/<topic>`, and
-  `release/<topic>` branch names.
+- Use task-appropriate branch names matching the narrowest prefix for the actual work package:
+  - `feature/<topic>` for product features;
+  - `fix/<topic>` for ordinary fixes;
+  - `hotfix/<topic>` for urgent production fixes;
+  - `release/<topic>` for release work;
+  - `docs/<topic>` for documentation-only or governance-only work;
+  - `test/<topic>` for isolated test-only work;
+  - `build/<topic>` for build-system or tooling work;
+  - `chore/<topic>` for narrowly scoped repository maintenance that does not fit another prefix.
+- Do not disguise product implementation as documentation, test, build, or chore work.
+- Each branch must remain limited to its accepted scope.
+- This branch naming expansion does not authorize direct implementation on `master` or unrelated work.
 - Do not commit, push, merge, tag, or create a pull request unless the active
   task explicitly authorizes that action.
 
@@ -93,38 +169,35 @@ documents before implementation.
 ## Testing and build requirements
 
 - Add or identify a regression test before fixing behavior.
-- Run focused tests while developing and the complete affected automated suite
-  before handoff.
-- Standard validation requirements remain: Windows Debug build, Android Debug
-  build, and Android Release build with AOT and Trimming.
-- Run Android or Release builds only when the task and affected scope require
-  them.
-- Documentation-only changes require link validation, content consistency
-  checks, scope review, and `git diff --check`; an application build may be
-  recorded as not applicable.
+- Use focused tests during implementation.
+- Perform final complete validation exactly once on the stable final tree.
+- Select relevant builds according to the affected targets and established KnownFirst requirements.
+- Do not repeat successful unchanged validation without cause.
+- Diagnose failed validation and rerun it after the fix.
+- Documentation-only governance changes require `git diff --check` but no tests or builds.
+- Device testing is never routine and still requires an explicit package or user request.
+- APK, AAB, publish, signing, deployment, and store work remain separately authorized activities.
+- AOT and trimming requirements remain fully binding.
 - Keep every published commit independently understandable and green.
 
 ## Documentation responsibilities
 
-- Git history records the concrete change.
-- `CHANGELOG.md` records user-visible effects.
-- ADRs record why a durable decision was made.
-- `docs/PROJECT_STATE.md` records the verified current whole-project state.
-- Release notes record one published version and its evidence.
-- Handoffs transfer technical context between sprints and agents.
-- `docs/ROADMAP.md` records future order, not implementation claims.
-- `docs/DATABASE_CONTRACT.md` records every persisted-schema and
-  compatibility change.
+For a normal routine implementation package, update only:
 
-Update documentation in the same work package as the behavior it describes.
-Do not turn plans into claims of implemented functionality.
+- `docs/CURRENT_WORK.md`;
+- `CHANGELOG.md` when behavior visible to users changes;
+- an existing architecture or contract document only when that contract actually changes.
 
-Before every change, verify branch, HEAD, status, and registered worktrees.
-Before ending every work package, update `docs/CURRENT_WORK.md` with tests,
-builds, risks, and the next exact step. Create a dated handoff when a milestone
-is complete. A task is not complete while `CURRENT_WORK.md` is stale. Store
-diagnostic artifacts only according to
-`docs/development/DEBUG_ARTIFACT_POLICY.md`.
+- Do not create a new handoff, audit, plan, roadmap document, architecture document, or status document for a small routine package unless the package materially requires one.
+- Update `docs/PROJECT_STATE.md` only when the verified global project state or product milestone changes.
+- Update `docs/ROADMAP.md` only when milestone status, accepted prioritization, or sequencing materially changes.
+- Create or substantially update a handoff for significant milestones, releases, migrations, backup/restore packages, security-sensitive packages, cross-session operational transfers, or other high-risk work.
+- Keep documentation evidence-based and written after implementation is stable, preferably in one bundled pass.
+- Do not document unverified claims as completed behavior.
+- Do not duplicate the same status across many documents without a concrete maintenance reason.
+- Governance-only edits to `AGENTS.md` do not require `docs/CURRENT_WORK.md` or `CHANGELOG.md` unless the user explicitly requests them.
+
+Before every change, verify branch, HEAD, status, and registered worktrees. Store diagnostic artifacts only according to `docs/development/DEBUG_ARTIFACT_POLICY.md`.
 
 ## Commits and pull requests
 
@@ -141,23 +214,46 @@ diagnostic artifacts only according to
 - Complete the repository pull-request checklist and identify every unverified
   manual or platform-specific claim.
 
+## Review policy
+
+- A normal work package receives one external review after implementation and final validation.
+- At most one targeted correction pass is expected for ordinary review findings.
+- The correction pass should address all actionable findings together.
+- Do not restart a full repository audit after a narrow correction unless the correction changed the relevant architecture or risk surface.
+- Additional reviews or audits require a concrete risk reason.
+- Appropriate reasons include migrations, backup/restore, data-loss risk, security, privacy, concurrency, releases, difficult AOT/trimming issues, or unresolved material findings.
+- Cosmetic wording, already verified unchanged behavior, and duplicated evidence do not justify repeated agent loops.
+- No agent may merge or enable auto-merge; final merge remains a user decision.
+
 ## Definition of Done
 
-A mergeable change is complete only when:
+For a normal code package, completion should require:
 
-- implementation is complete;
-- automated tests exist for affected behavior;
-- all affected tests pass;
-- relevant builds pass, or a documentation-only exception is recorded;
-- user impact is documented in `CHANGELOG.md`;
-- durable architecture decisions are documented in ADRs;
-- database changes are documented in `docs/DATABASE_CONTRACT.md`;
-- `docs/PROJECT_STATE.md` is updated after a milestone;
-- known limitations are documented;
-- commit messages are understandable;
-- no temporary files or generated artifacts are committed;
-- the branch is pushed; and
-- a pull request is created.
+- accepted scope and relevant acceptance criteria satisfied;
+- approximately five to eight decisive test groups identified where appropriate;
+- focused tests passed during implementation;
+- complete relevant tests run once against the final stable tree;
+- required platform/configuration builds run once against the final stable tree;
+- AOT, trimming, and source-generation results reviewed where applicable;
+- only materially affected documentation updated;
+- no unauthorized schema, migration, device, release, privacy, or scope changes;
+- `git diff` checked;
+- clean worktree and index after commit;
+- explicit file staging;
+- branch pushed normally;
+- pull request opened and left unmerged;
+- remaining risks and unverified claims stated accurately.
+
+For documentation-only or governance-only packages, completion should require only:
+
+- requested document changes completed;
+- existing safety and technical contracts preserved;
+- `git diff --check` passed;
+- only intended files changed;
+- clean worktree and index;
+- explicit staging;
+- normal push;
+- pull request opened and left unmerged.
 
 If the active task does not authorize publication, report the push and pull
 request items as intentionally pending rather than exceeding the task.

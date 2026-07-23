@@ -160,10 +160,11 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 
 ## Active development
 
-- The low-level Wikipedia API client and the `WikipediaLookupProvider` are implemented.
+- The low-level Wikipedia API client and `WikipediaLookupProvider` are implemented.
 - Provider-neutral routing and resolution limits are tested and strictly enforced.
-- The next step is a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
-- Only after that documentation is complete will the Wikipedia fallback orchestration begin.
+- The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
+- No implementation, database migration, PDF package, OCR engine, cloud sync, or Linux host code has been added. Schema version remains 7.
+- The next step is to review and merge the planning PR, then proceed with Wikipedia fallback orchestration.
 
 See the dated
 [branch and worktree inventory](maintenance/branch-and-worktree-inventory.md)

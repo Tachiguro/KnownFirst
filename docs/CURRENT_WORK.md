@@ -13,7 +13,7 @@
 
 ## Stable baseline
 
-- Stable master baseline: 573c2ece4e0b0520821f1812e89f03ee3760a568
+- Stable master baseline: 387c8d730829e76b47ed8aa6d672758e9e1611b3
 - App version: 1.0.0-beta.8 (code 8)
 - Database schema: SQLite PRAGMA user_version 7
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
@@ -22,31 +22,28 @@
 
 ## Current branch
 
-- Branch: maintenance/post-pr8-cleanup
-- Base: 573c2ece4e0b0520821f1812e89f03ee3760a568
+- Branch: docs/structured-vocabulary-sense-learning-plan
+- Base: 387c8d730829e76b47ed8aa6d672758e9e1611b3
 - Always verify the current tip with git rev-parse HEAD; this handoff does not embed a self-referential immutable HEAD value.
 
 ## Active task
 
-- Review and merge Pull Request #9 after final validation.
+- Review and merge Pull Request #10 after final documentation validation.
 
 ## Completed recently
 
-- Implemented the WikipediaLookupProvider which maps WikipediaApiClient results to LexicalResult.
-- Registered WikipediaLookupProvider and WikipediaApiClient via Dependency Injection.
-- Handled disambiguation, rate-limits, operation cancellations, and not-found mappings.
-- Validated integration with LexicalLookupProviderResolver.
-- Verified test suite and AOT/Trimming Android Release bounds.
-- Resolved all MSTest analyzers warnings (MSTEST0032, MSTEST0037).
-- Merged Pull Request #8 via `gh` and fast-forwarded local `master`.
+- PR #9 merged (`Maintenance: finalize Wikipedia provider handoff`).
+- Local `master` fast-forwarded to `387c8d730829e76b47ed8aa6d672758e9e1611b3`.
+- Created binding architecture and initiative plan `docs/plans/structured-vocabulary-import-and-sense-learning.md`.
+- No implementation, DB migration, or dependencies added; schema version remains 7.
 
 ## Validation
 
-- Focused tests (Wikipedia, Resolver, Enrichment): 114 passed, 0 failed, 0 skipped.
-- Full test suite: 534 passed, 0 failed, 0 skipped.
-- Windows Debug build: 0 warnings, 0 errors.
-- Android Debug build: 0 warnings, 0 errors.
-- Android Release build: 0 warnings, 0 errors; AOT and trimming executed successfully.
+- Documentation-only change.
+- No tests or builds executed by design.
+- `git diff --check` clean.
+- All relative Markdown links validated.
+- No code, project, database, UI, backup, or localization changes.
 - No live Wikipedia request, device action, ADB, APK installation, publish, database migration, cache integration, or backup change was performed.
 
 ## Paused work
@@ -105,10 +102,15 @@
 
 ## Next exact action
 
-1. Review and merge Pull Request #9.
+1. Review and merge Pull Request #10.
 2. Fast-forward local master after merge.
-3. Create the separate documentation-only branch.
-4. Do not implement PDF import, sense-level learning, fallback, or UI in the cleanup branch.
+3. Create the separate Wikipedia fallback orchestration branch.
+4. Implement fallback only after deterministic Wiktionary NotFound.
+5. Do not fallback after timeout, rate-limit, network error, ParseFailure, PermanentFailure, or cancellation.
+6. Keep manual provider switching as a later UI package.
+7. Conduct a dedicated data-model decision before any sense-level schema change.
+8. Keep Backup/Restore Phase 3 paused until lexical persistence is approved.
+9. Keep schema version 7 until an explicit migration package is approved.
 
 ## New-chat handoff
 

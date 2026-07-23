@@ -134,7 +134,7 @@ KnownFirst is evolving beyond written word tokens to independently recognize, pe
 22. Should scanned (image-only) PDFs be supported in initial scope?
 23. Is OCR part of Phase 1 or a deferred module?
 24. Which PDF parsing library satisfies .NET 10 cross-platform, AOT, trimming, and license constraints?
-25. Which original source data can be stored locally under fair use vs copyright limits?
+25. Which source data may be stored locally, exported, backed up, or synchronized under applicable copyright law, source licenses, and provider terms?
 26. How should low-confidence parse results be highlighted in the preview UI?
 27. How will example sentence attribution be presented on small mobile screens?
 28. What tag or metadata field identifies synthetic/AI-generated examples?

@@ -582,7 +582,7 @@ public class WikipediaApiClientTests
 
         Assert.AreEqual(WikipediaArticleStatus.ParseFailure, result.Status);
     }
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("en", "Space Title", null, "https://en.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=info%7Cextracts%7Cpageprops%7Clanglinks&inprop=url&exintro=1&explaintext=1&exchars=1200&ppprop=disambiguation&titles=Space%20Title")]
     [DataRow("de", "Title-With-Dash", "en", "https://de.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=info%7Cextracts%7Cpageprops%7Clanglinks&inprop=url&exintro=1&explaintext=1&exchars=1200&ppprop=disambiguation&titles=Title-With-Dash&lllang=en&lllimit=1&llprop=url")]
     [DataRow("de", "Umlautäöü", null, "https://de.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&redirects=1&prop=info%7Cextracts%7Cpageprops%7Clanglinks&inprop=url&exintro=1&explaintext=1&exchars=1200&ppprop=disambiguation&titles=Umlaut%C3%A4%C3%B6%C3%BC")]
@@ -610,7 +610,7 @@ public class WikipediaApiClientTests
         Assert.IsTrue(capturedRequest.Headers.Accept.Any(a => a.MediaType == "application/json"));
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow(HttpStatusCode.NotFound, WikipediaArticleStatus.NotFound)]
     [DataRow(HttpStatusCode.RequestTimeout, WikipediaArticleStatus.TransientFailure)]
     [DataRow(HttpStatusCode.InternalServerError, WikipediaArticleStatus.TransientFailure)]

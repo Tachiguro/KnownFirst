@@ -1615,7 +1615,7 @@ public sealed class StudyWorkflowServiceTests
 
         Assert.AreNotEqual(WordStatus.Known, word.Status);
         // The card shouldn't be deleted, just its state changed.
-        Assert.IsTrue(cards.Count > 0);
+        Assert.IsNotEmpty(cards);
         // Spaced repetition should not be ended forever, meaning it shouldn't be Retired if Retired means "forever".
         // The rule says "Ein Mastery-Schwellenwert beendet Spaced Repetition nicht endgültig."
         // We test that it's not permanently known. The exact state might be Retired right now which might fail the test conceptually,
@@ -1638,7 +1638,7 @@ public sealed class StudyWorkflowServiceTests
             c.Table<LearningSessionCardEntity>().Where(x => x.IsCompleted).Delete()
         );
 
-        Assert.IsTrue(deletedCount > 0);
+        Assert.IsGreaterThan(0, deletedCount);
     }
 
     [TestMethod]
@@ -1654,8 +1654,9 @@ public sealed class StudyWorkflowServiceTests
         );
 
         var cards = await _database.ReadAsync(c => c.Table<LearningCardEntity>().Where(x => x.WordId == item.WordId).ToListAsync());
-        Assert.AreEqual(1, cards.Count);
-        Assert.IsNotNull(cards[0].DueAtUtc);
+        Assert.HasCount(1, cards);
+        DateTime? dueUtc = cards[0].DueAtUtc;
+        Assert.IsNotNull(dueUtc);
     }
 
     [TestMethod]

@@ -16,9 +16,9 @@ public class BuildIdentityServiceTests
         var identity = service.Identity;
 
         Assert.IsNotNull(identity.Product);
-        Assert.IsTrue(identity.Product.Length > 0);
+        Assert.AreNotEqual(0, identity.Product.Length);
         Assert.IsNotNull(identity.Version);
-        Assert.IsTrue(identity.Version.Length > 0);
+        Assert.AreNotEqual(0, identity.Version.Length);
         Assert.AreEqual("Debug", identity.Configuration); // Tests are typically built in Debug
         
         // Since test assembly doesn't have the Git attributes, they should fallback
@@ -33,14 +33,14 @@ public class BuildIdentityServiceTests
         var service = new BuildIdentityService();
         var header = service.FormatHeader();
 
-        Assert.IsTrue(header.Contains(service.Identity.Product));
-        Assert.IsTrue(header.Contains(service.Identity.Version));
-        Assert.IsTrue(header.Contains(service.Identity.Configuration));
-        Assert.IsTrue(header.Contains("Commit:"));
-        Assert.IsTrue(header.Contains("Branch:"));
-        Assert.IsTrue(header.Contains("Package:"));
-        Assert.IsTrue(header.Contains("Device:"));
-        Assert.IsTrue(header.Contains("OS:"));
+        Assert.Contains(service.Identity.Product, header);
+        Assert.Contains(service.Identity.Version, header);
+        Assert.Contains(service.Identity.Configuration, header);
+        Assert.Contains("Commit:", header);
+        Assert.Contains("Branch:", header);
+        Assert.Contains("Package:", header);
+        Assert.Contains("Device:", header);
+        Assert.Contains("OS:", header);
     }
 
     [TestMethod]
@@ -74,9 +74,9 @@ public class BuildIdentityServiceTests
         var formatted = service.GetFormattedBuildIdentity();
         
         Assert.AreEqual("KnownFirst 1.0.0 \u00B7 Build 100", formatted);
-        Assert.IsFalse(formatted.Contains("Commit"));
-        Assert.IsFalse(formatted.Contains("Branch"));
-        Assert.IsFalse(formatted.Contains("DIRTY"));
+        Assert.DoesNotContain("Commit", formatted);
+        Assert.DoesNotContain("Branch", formatted);
+        Assert.DoesNotContain("DIRTY", formatted);
     }
 
     [TestMethod]
@@ -87,9 +87,9 @@ public class BuildIdentityServiceTests
         
         var header = service.FormatHeader();
         
-        Assert.IsTrue(header.Contains("Commit: not included"));
-        Assert.IsTrue(header.Contains("Branch: not included"));
-        Assert.IsTrue(header.Contains("Dirty: not included"));
+        Assert.Contains("Commit: not included", header);
+        Assert.Contains("Branch: not included", header);
+        Assert.Contains("Dirty: not included", header);
     }
 
     private static BuildIdentity CreateTestIdentity(string configuration, bool isDirty)

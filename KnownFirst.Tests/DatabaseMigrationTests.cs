@@ -26,7 +26,7 @@ public sealed class DatabaseMigrationTests
             await DatabaseSchema.InitializeAsync(asyncConnection);
 
             var words = await asyncConnection.Table<WordEntity>().ToListAsync();
-            Assert.AreEqual(1, words.Count);
+            Assert.HasCount(1, words);
             var word = words[0];
             Assert.AreEqual("network", word.CanonicalTerm);
             

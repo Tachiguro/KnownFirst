@@ -18,7 +18,7 @@ public sealed class LexicalLookupProviderResolverTests
     {
         var ex = Assert.ThrowsExactly<ArgumentException>(() =>
             new LexicalLookupProviderResolver([new FakeProvider("   ", 1)]));
-        Assert.IsTrue(ex.Message.Contains("valid non-empty name"));
+        StringAssert.Contains(ex.Message, "valid non-empty name");
     }
 
     [TestMethod]
@@ -29,7 +29,7 @@ public sealed class LexicalLookupProviderResolverTests
                 new FakeProvider("Wiktionary", 1),
                 new FakeProvider("wiktionary", 2)
             ]));
-        Assert.IsTrue(ex.Message.Contains("already registered"));
+        StringAssert.Contains(ex.Message, "already registered");
     }
 
     [TestMethod]
@@ -70,7 +70,7 @@ public sealed class LexicalLookupProviderResolverTests
     {
         var resolver = new LexicalLookupProviderResolver([new FakeProvider("Wiktionary", 1), new FakeProvider("Wikipedia", 1)]);
         var ex = Assert.ThrowsExactly<InvalidOperationException>(() => resolver.Resolve("UnknownProvider"));
-        Assert.IsTrue(ex.Message.Contains("not registered"));
+        StringAssert.Contains(ex.Message, "not registered");
     }
 
     [TestMethod]

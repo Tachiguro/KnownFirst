@@ -637,7 +637,7 @@
     <value>Online-Wörterbuchabfrage</value>
   </data>
   <data name="Prepare_OnlineDisclosure" xml:space="preserve">
-    <value>KnownFirst sendet keine Dokumente, Beispielsätze, Lernhistorie oder persönlichen Daten an den Entwickler von KnownFirst. Für die Wörterbuchabfrage werden ausschließlich der ausgewählte Begriff und die gewählten Sprachinformationen direkt an Wikimedia übertragen. Wikimedia erhält dabei übliche Netzwerkdaten wie deine IP-Adresse und den KnownFirst-User-Agent. Abgerufene Wörterbuchinhalte und deine persönlichen Lerndaten werden lokal auf diesem Gerät gespeichert.</value>
+    <value>KnownFirst sendet keine Dokumente, Beispielsätze, Lernhistorie oder persönlichen Daten an den Entwickler von KnownFirst. Erst nach deiner Einwilligung werden der ausgewählte Begriff und die erforderlichen Sprachinformationen an Wikimedia-Dienste übertragen. KnownFirst fragt zuerst Wiktionary nach Wörterbuchinhalten ab; wird dort kein passendes Ergebnis gefunden, kann Wikipedia für eine enzyklopädische Definition angefragt werden. Wikipedia liefert keine Übersetzungen. Bei Netzwerkanfragen werden übliche Verbindungsdaten wie deine IP-Adresse und der KnownFirst-User-Agent übermittelt. Abgerufene Inhalte und deine Lerndaten werden lokal auf diesem Gerät gespeichert.</value>
   </data>
   <data name="Prepare_StartOnlineLookup" xml:space="preserve">
     <value>Online-Abfrage starten</value>

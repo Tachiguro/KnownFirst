@@ -171,10 +171,13 @@ In this package:
 - No migration was introduced for the Wikipedia fallback orchestration or this audit package. The future sense-level persistence and migration decision remains pending.
 - Merged-master validation confirmed a stable build and test suite (552 tests passed, 0 warnings/errors).
 - Physical-device and visual validation remain unverified.
-- Service orchestration is merged and verified.
-- The existing preparation rendering already processes usable Wikipedia results.
-- User-ready gaps remain: source-page link, license representation, disclosure wording, and manual visual validation.
-- No provider-selection UI is required for automatic fallback.
+- Service orchestration and user-readiness attribution package are complete and verified.
+- Trusted Wiktionary (`.wiktionary.org`) and Wikipedia (`.wikipedia.org`) page titles are rendered as HTTPS links, and concrete CC BY-SA 4.0 license links (`https://creativecommons.org/licenses/by-sa/4.0/`) are rendered with `target="_blank"` and `rel="noopener noreferrer"`.
+- English and German privacy disclosures (`Prepare_OnlineDisclosure`) accurately cover Wiktionary-first querying, Wikipedia definition-only fallback after final Wiktionary `NotFound`, network metadata, and local storage.
+- Schema version remains 7; no migration was introduced.
+- Wiktionary remains primary; Wikipedia remains a definition-only fallback after final Wiktionary `NotFound`. Fallback routing and cache behavior were unchanged.
+- No live Wikimedia, device, emulator, ADB, APK/AAB, signing, publishing, deployment, or store work occurred.
+- Physical-device and visual validation remain unverified.
 - The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
 - Sense-level persistence/migration decision remains pending.
 - Backup/Restore remains paused.
@@ -185,10 +188,9 @@ for the complete snapshot.
 
 ## Immediate action
 
-- Review the user-flow audit PR and decide on the bounded implementation package.
+- Perform external review and manual merge decision for the Wikipedia user-readiness PR.
 
 ## Next milestones (Future Work)
 
-1. Wikipedia fallback user-readiness package.
-2. Sense-level learning data-model decision package.
-3. Resume Backup/Restore Phase 3.
+1. Sense-level learning data-model decision package.
+2. Resume Backup/Restore Phase 3.

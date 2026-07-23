@@ -1,6 +1,7 @@
 @{
     var sourceUri = SourceReferencePolicy.CreatePageUri(SourceProject, PageTitle);
     var licenseReference = SourceReferencePolicy.GetLicenseReference(Attribution);
+    var licenseUri = SourceReferencePolicy.GetLicenseUri(Attribution);
 }
 
 @if (HasSource)
@@ -42,7 +43,19 @@
         }
         @if (licenseReference is not null)
         {
-            <div><dt>@Localizer["Source_License"]</dt><dd>@licenseReference</dd></div>
+            <div>
+                <dt>@Localizer["Source_License"]</dt>
+                <dd>
+                    @if (licenseUri is not null)
+                    {
+                        <a href="@licenseUri" target="_blank" rel="noopener noreferrer">@licenseReference</a>
+                    }
+                    else
+                    {
+                        @licenseReference
+                    }
+                </dd>
+            </div>
         }
     </dl>
 </details>

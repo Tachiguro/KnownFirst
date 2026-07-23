@@ -56,7 +56,7 @@ public class WikipediaApiClientTests
         Assert.AreEqual(2001, result.RevisionId);
         Assert.AreEqual("https://en.wikipedia.org/wiki/Exact_Title", result.CanonicalUrl);
         Assert.IsFalse(result.IsRedirect);
-        Assert.AreEqual("Wikipedia contributors; text available under the Creative Commons Attribution-ShareAlike license.", result.Attribution);
+        Assert.AreEqual("Wikipedia contributors; text available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0). Excerpt converted to plain text, normalized, and may be truncated by KnownFirst.", result.Attribution);
         Assert.IsNull(result.ErrorCode);
         Assert.IsNull(result.RetryAfter);
     }

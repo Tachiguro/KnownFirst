@@ -17,7 +17,7 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
     public const string UserAgent =
         "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only dictionary lookup)";
     public const string AttributionText =
-        "Wiktionary contributors; text available under the Creative Commons Attribution-ShareAlike license.";
+        "Wiktionary contributors; text available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).";
 
     private const int MaximumAttempts = 3;
     private readonly HttpClient _httpClient;

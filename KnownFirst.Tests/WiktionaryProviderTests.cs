@@ -1387,8 +1387,9 @@ public sealed class WiktionaryProviderTests
     [TestMethod]
     public void ProviderSchemaVersion_ChangesWhenHostAndParserSemanticsChange()
     {
-        int version = WiktionaryLookupProvider.SchemaVersion;
-        Assert.AreEqual(6, version);
+        var provider = CreateProvider(_ => new HttpResponseMessage());
+        Assert.AreEqual(WiktionaryLookupProvider.SchemaVersion, provider.ProviderSchemaVersion);
+        Assert.AreEqual(6, provider.ProviderSchemaVersion);
     }
 
     private static WiktionaryLookupProvider CreateProvider(

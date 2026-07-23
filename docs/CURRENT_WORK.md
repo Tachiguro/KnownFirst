@@ -22,13 +22,13 @@
 
 ## Current branch
 
-- Branch: master
+- Branch: maintenance/post-pr8-cleanup
 - Base: 573c2ece4e0b0520821f1812e89f03ee3760a568
 - Always verify the current tip with git rev-parse HEAD; this handoff does not embed a self-referential immutable HEAD value.
 
 ## Active task
 
-- Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+- Review and merge Pull Request #9 after final validation.
 
 ## Completed recently
 
@@ -42,11 +42,11 @@
 
 ## Validation
 
-- Focused tests (Wikipedia, Resolver, Enrichment): [passed] passed, [0] failed, [0] skipped.
-- Full test suite: [534] passed, [0] failed, [0] skipped, duration [28] s.
-- Windows Debug build: [0] warnings, [0] errors.
-- Android Debug build: [0] warnings, [0] errors.
-- Android Release build: [0] warnings, [0] errors; AOT and trimming executed successfully (single-threaded MSBuild).
+- Focused tests (Wikipedia, Resolver, Enrichment): 114 passed, 0 failed, 0 skipped.
+- Full test suite: 534 passed, 0 failed, 0 skipped.
+- Windows Debug build: 0 warnings, 0 errors.
+- Android Debug build: 0 warnings, 0 errors.
+- Android Release build: 0 warnings, 0 errors; AOT and trimming executed successfully.
 - No live Wikipedia request, device action, ADB, APK installation, publish, database migration, cache integration, or backup change was performed.
 
 ## Paused work
@@ -56,12 +56,14 @@
 
 ## Planned sequence
 
-1. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
-2. In that documentation package, separate: decided requirements, open design questions, deferred ideas, data-model impact, milestones, acceptance criteria.
-3. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
-4. After that documentation PR is merged, continue with the separate Wikipedia fallback orchestration branch.
-5. Do not combine fallback orchestration and UI.
-6. Keep schema version 7 until a later explicit data-model decision.
+1. Review and merge Pull Request #9.
+2. Fast-forward local master after merge.
+3. Create a documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+4. Create: docs/plans/structured-vocabulary-import-and-sense-learning.md
+5. Separate decided requirements, open design questions, deferred ideas, data-model impact, milestones, and acceptance criteria.
+6. After that documentation PR is merged, create a separate branch for Wikipedia fallback orchestration.
+7. Keep fallback orchestration and UI separate.
+8. Keep schema version 7 until an explicit data-model decision.
 
 ## Known constraints and risks
 
@@ -103,10 +105,10 @@
 
 ## Next exact action
 
-1. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
-2. Separate requirements, design, impact, and milestones in the new plan.
-3. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
-4. Do not implement Wikipedia fallback orchestration yet.
+1. Review and merge Pull Request #9.
+2. Fast-forward local master after merge.
+3. Create the separate documentation-only branch.
+4. Do not implement PDF import, sense-level learning, fallback, or UI in the cleanup branch.
 
 ## New-chat handoff
 

@@ -42,6 +42,7 @@ release, or handoff documents.
 - [Beta 8 release handoff](handoffs/2026-07-22-beta-8-release.md)
 - [Single-worktree consolidation handoff](handoffs/2026-07-22-single-worktree-consolidation.md)
 - [Remove Apple targets handoff](handoffs/2026-07-22-remove-apple-targets.md)
+- [Wikipedia fallback orchestration handoff](handoffs/2026-07-23-wikipedia-fallback-orchestration.md)
 
 ## Maintenance and history
 

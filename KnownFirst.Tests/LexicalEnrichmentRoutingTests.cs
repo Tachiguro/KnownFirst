@@ -1,4 +1,4 @@
-using KnownFirst.Core.Preparation;
+﻿using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Services.Lexical;
 
@@ -413,8 +413,12 @@ public sealed class LexicalEnrichmentRoutingTests
     [TestMethod]
     public async Task Fallback_ResultsInWikipediaCache_NotWiktionaryCache()
     {
-        var db = new TemporaryKnownFirstDatabase(Guid.NewGuid().ToString("N"));
+        await using var db = new TemporaryKnownFirstDatabase(Guid.NewGuid().ToString("N"));
+        await db.InitializeAsync();
         var cache = new LexicalCacheRepository(db);
+
+        var request = CreateRequest("Wiktionary", LexicalLookupMode.DefinitionAndTranslation, "de");
+
         var resolver = new LexicalLookupProviderResolver([
             new TrackingProvider("Wikipedia", LexicalLookupStatus.Success) { ReturnResult = new LexicalResult(
                 LexicalLookupStatus.Success,
@@ -424,20 +428,40 @@ public sealed class LexicalEnrichmentRoutingTests
                 DateTime.UtcNow
             )
             {
-                LookupMode = LexicalLookupMode.Definition,
-                TargetLanguage = "en"
+                LookupMode = LexicalLookupMode.DefinitionAndTranslation,
+                TargetLanguage = "de"
             } },
             new TrackingProvider("Wiktionary", LexicalLookupStatus.NotFound) { ReturnResult = CreateValidResult("Wiktionary", LexicalLookupStatus.NotFound) }
         ]);
         var service = new LexicalEnrichmentService(new AcronymExpansionDetector(), new MeaningRanker(), cache, resolver);
 
-        var request = CreateRequest("Wiktionary", LexicalLookupMode.DefinitionAndTranslation, "de");
-        
         // 1. Initial request triggers fallback and populates cache
         var result1 = await service.EnrichAsync(request, "test", null);
         Assert.AreEqual(LexicalLookupStatus.Success, result1.Status);
         Assert.AreEqual("Wikipedia", result1.ProviderName);
         Assert.IsFalse(result1.IsFromCache);
+
+        var wikipediaProvider = (TrackingProvider)resolver.TryResolve("Wikipedia")!;
+        var wiktionaryProvider = (TrackingProvider)resolver.TryResolve("Wiktionary")!;
+
+        var effectiveFallbackRequest = wikipediaProvider.ReceivedRequests.Single();
+        var wikipediaCacheResult = await cache.GetAsync(effectiveFallbackRequest, "Wikipedia", wikipediaProvider.ProviderSchemaVersion);
+
+        Assert.IsNotNull(wikipediaCacheResult);
+        Assert.AreEqual("Wikipedia", wikipediaCacheResult.ProviderName);
+        Assert.AreEqual("en.wikipedia.org", wikipediaCacheResult.SourceProject);
+        Assert.AreEqual("Test_Page", wikipediaCacheResult.PageTitle);
+        Assert.AreEqual(12345, wikipediaCacheResult.RevisionId);
+        Assert.AreEqual("Wikipedia Contributors", wikipediaCacheResult.Attribution);
+        Assert.AreEqual(LexicalLookupMode.DefinitionAndTranslation, wikipediaCacheResult.LookupMode);
+        Assert.AreEqual("de", wikipediaCacheResult.TargetLanguage);
+
+        var cachedMeaning = wikipediaCacheResult.Meanings.Single();
+        Assert.AreEqual("wiki-meaning-1", cachedMeaning.MeaningId);
+        Assert.IsNull(cachedMeaning.Translation);
+
+        var wiktionaryCacheResult = await cache.GetAsync(request, "Wiktionary", wiktionaryProvider.ProviderSchemaVersion);
+        Assert.IsNull(wiktionaryCacheResult);
 
         // 2. Second request should hit Wikipedia cache
         var result2 = await service.EnrichAsync(request, "test", null);
@@ -445,21 +469,8 @@ public sealed class LexicalEnrichmentRoutingTests
         Assert.AreEqual("Wikipedia", result2.ProviderName);
         Assert.IsTrue(result2.IsFromCache);
 
-        // Assert serialization survival
-        Assert.AreEqual("en.wikipedia.org", result2.SourceProject);
-        Assert.AreEqual("Test_Page", result2.PageTitle);
-        Assert.AreEqual(12345, result2.RevisionId);
-        Assert.AreEqual("Wikipedia Contributors", result2.Attribution);
-        Assert.AreEqual(LexicalLookupMode.DefinitionAndTranslation, result2.LookupMode);
-        Assert.AreEqual("de", result2.TargetLanguage);
-        var meaning = result2.Meanings.Single();
-        Assert.AreEqual("wiki-meaning-1", meaning.MeaningId);
-
-        // Ensure tracking providers were only called once (second time hit cache)
-        var wikipediaProvider = (TrackingProvider)resolver.TryResolve("Wikipedia")!;
-        var wiktionaryProvider = (TrackingProvider)resolver.TryResolve("Wiktionary")!;
-        Assert.AreEqual(1, wikipediaProvider.InvocationCount); // Hit cache instead
-        Assert.AreEqual(2, wiktionaryProvider.InvocationCount); // Evaluated twice, missed cache both times because Wiktionary didn't succeed and Wikipedia was cached under Wikipedia!
+        Assert.AreEqual(1, wikipediaProvider.InvocationCount);
+        Assert.AreEqual(2, wiktionaryProvider.InvocationCount);
     }
 
     [TestMethod]

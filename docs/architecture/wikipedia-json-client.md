@@ -28,6 +28,6 @@ Die HTML-Struktur von Wikipedia-Artikeln ändert sich häufig und ist extrem kom
 - Disambiguation pages return `Disambiguation` without usable extract content.
 - `TargetTitleCandidate` is not a translation.
 - No `WikipediaLookupProvider` is implemented or registered.
-- No Wiktionary fallback, UI, cache integration, backup change, database
+- No Wikipedia fallback behind Wiktionary, UI, cache integration, backup change, database
   migration, or device validation is part of this branch.
 - The database schema remains version 7.

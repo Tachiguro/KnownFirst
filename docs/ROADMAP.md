@@ -36,7 +36,7 @@ define the format implicitly.
 
 ## In progress
 
-- Wikipedia fallback orchestration is complete. Wikipedia fallback UI integration is the next step.
+- Wikipedia fallback behind Wiktionary is implemented on PR #11. Wikipedia fallback UI integration is the next step.
 
 ## Completed
 

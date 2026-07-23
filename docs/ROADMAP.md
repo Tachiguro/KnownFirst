@@ -20,14 +20,14 @@ exists. Verified implementation state belongs in
 | 1 | Documentation and handoff structure | Completed | Maintain canonical entry points and an auditable single-worktree handoff. |
 | 2 | Remove Apple targets | Completed | Remove iOS and Mac Catalyst from project, platform code, build configuration, tests, and docs on a dedicated branch. |
 | 3 | Windows/Android validation | Completed | Validate Windows Debug and Android Debug/Release after platform cleanup. |
-| 4 | Wikipedia fallback | Planned | Add a consented fallback behind Wiktionary without changing provider boundaries prematurely. |
+| 4 | Wikipedia fallback | In progress | Add a consented fallback behind Wiktionary without changing provider boundaries prematurely. |
 | 5 | Persistence and migration decision | Planned | Decide and document schema implications of the final provider model. |
 | 6 | Re-check backup model | Planned | Verify the backup contract against the final provider and persistence model. |
 | 7 | Backup/Restore continuation | Planned | Resume Phase 3 only after the preceding gates are complete. |
 | 8 | Statistics | Planned | Define and present privacy-preserving learning metrics. |
 | 9 | Privacy-friendly bug reporting | Planned | Produce explicit user-reviewed redacted diagnostic exports. |
 | 10 | Public-beta preparation | Planned | Complete release, privacy, platform, support, and operational readiness. |
-| 11 | [Structured vocabulary architecture](plans/structured-vocabulary-import-and-sense-learning.md) | In progress | Documented plan and schema decision for list/PDF import and sense-level learning. |
+| 11 | [Structured vocabulary architecture](plans/structured-vocabulary-import-and-sense-learning.md) | Completed | The structured-vocabulary architecture plan from PR #10 is merged. |
 | 12 | Structured vocabulary implementation | Planned | Multi-phase execution of list/PDF import, sense-level knowledge, sync domain, and Linux host feasibility. |
 
 Data Safety v1 and the database audit are gates for versioned backup and
@@ -36,10 +36,15 @@ define the format implicitly.
 
 ## In progress
 
-- No implementation package is currently in progress after the platform-target
-  cleanup; the next branch is the Wikipedia fallback audit.
+**Wikipedia fallback (Milestone 4)**
+- Implementation and automated validation are present on open PR #11.
+- Completion requires manual review, merge, and verification on master.
 
-No Wikipedia fallback or backup/restore implementation is in progress.
+**Pending decisions & future work**
+- Sense-level data-model decisions remain pending.
+- Structured vocabulary implementation has not started.
+- Provider/fallback UI is a separate future package.
+- Backup/Restore remains paused.
 
 ## Completed
 

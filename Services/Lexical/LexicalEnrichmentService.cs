@@ -20,6 +20,45 @@ public sealed class LexicalEnrichmentService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        var primaryExecution = await ExecuteSingleProviderAsync(request, originalDocumentContent, representativeContext, cancellationToken);
+        var primaryResult = primaryExecution.Result;
+
+        if (primaryResult.Status == LexicalLookupStatus.NotFound
+            && KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.IsEligibleForFallback(request, primaryResult))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            _diagnosticLog.Write(Event(primaryExecution.FinalRequest, "Wikipedia", "enrichment.fallback.start"));
+            var fallbackRequest = KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.CreateFallbackRequest(primaryExecution.FinalRequest);
+            var fallbackExecution = await ExecuteSingleProviderAsync(fallbackRequest, originalDocumentContent, representativeContext, cancellationToken);
+            _diagnosticLog.Write(Event(primaryExecution.FinalRequest, "Wikipedia", "enrichment.fallback.complete"));
+
+            var fallbackResult = fallbackExecution.Result;
+            if (primaryResult.EncounteredSurfaceForm is not null)
+            {
+                fallbackResult = fallbackResult with
+                {
+                    EncounteredSurfaceForm = primaryResult.EncounteredSurfaceForm,
+                    GrammaticalRelationship = primaryResult.GrammaticalRelationship,
+                    RedirectDepth = primaryResult.RedirectDepth
+                };
+            }
+
+            return fallbackResult;
+        }
+
+        return primaryResult;
+    }
+
+    private readonly record struct SingleProviderExecution(LexicalResult Result, LexicalLookupRequest FinalRequest);
+
+    private async Task<SingleProviderExecution> ExecuteSingleProviderAsync(
+        LexicalLookupRequest request,
+        string originalDocumentContent,
+        string? representativeContext,
+        CancellationToken cancellationToken)
+    {
         _diagnosticLog.Write(Event(request, request.Provider, "enrichment.start"));
         var displayedSurfaceForm = request.DisplayedSurfaceForm;
         _diagnosticLog.Write(Event(request, request.Provider, "enrichment.acronym-detection.start"));
@@ -49,9 +88,10 @@ public sealed class LexicalEnrichmentService(
             _diagnosticLog.Write(Event(currentRequest, currentRequest.Provider, "enrichment.lookup.start"));
             var result = await LookupOneAsync(currentRequest, cancellationToken);
             _diagnosticLog.Write(Event(currentRequest, currentRequest.Provider, "enrichment.lookup.complete"));
+
             if (result.Status != LexicalLookupStatus.Success)
             {
-                return ApplyRelationMetadata(result, originalTerm, initialRelation, redirectDepth);
+                return new(ApplyRelationMetadata(result, originalTerm, initialRelation, redirectDepth), currentRequest);
             }
 
             var directMeanings = result.Meanings
@@ -78,13 +118,13 @@ public sealed class LexicalEnrichmentService(
                     importedExpansion,
                     representativeContext);
                 _diagnosticLog.Write(Event(currentRequest, currentRequest.Provider, "enrichment.ranking.complete"));
-                return ApplyRelationMetadata(ranked, originalTerm, initialRelation, redirectDepth);
+                return new(ApplyRelationMetadata(ranked, originalTerm, initialRelation, redirectDepth), currentRequest);
             }
 
             var relation = relations.FirstOrDefault();
             if (relation is null)
             {
-                return ApplyRelationMetadata(
+                return new(ApplyRelationMetadata(
                     result with
                     {
                         Status = LexicalLookupStatus.NotFound,
@@ -92,29 +132,29 @@ public sealed class LexicalEnrichmentService(
                     },
                     originalTerm,
                     initialRelation,
-                    redirectDepth);
+                    redirectDepth), currentRequest);
             }
 
             initialRelation ??= relation;
             if (redirectDepth >= MaximumLemmaRedirectDepth)
             {
-                return CreateRedirectFailure(
+                return new(CreateRedirectFailure(
                     result,
                     originalTerm,
                     initialRelation,
                     redirectDepth,
-                    "lemma-redirect-depth-exceeded");
+                    "lemma-redirect-depth-exceeded"), currentRequest);
             }
 
             var normalizedLemma = NormalizeLemma(relation.BaseLemma);
             if (!visitedLemmas.Add(normalizedLemma))
             {
-                return CreateRedirectFailure(
+                return new(CreateRedirectFailure(
                     result,
                     originalTerm,
                     initialRelation,
                     redirectDepth,
-                    "lemma-redirect-loop");
+                    "lemma-redirect-loop"), currentRequest);
             }
 
             redirectDepth++;

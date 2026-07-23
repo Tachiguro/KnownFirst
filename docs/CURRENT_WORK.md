@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-23 01:55:20 +02:00
+2026-07-23
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Stable baseline
 
-- Stable master baseline: 387c8d730829e76b47ed8aa6d672758e9e1611b3
+- Stable master baseline: 639618ade38f3a252705085433c1cf6d36598806
 - App version: 1.0.0-beta.8 (code 8)
 - Database schema: SQLite PRAGMA user_version 7
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
@@ -22,29 +22,55 @@
 
 ## Current branch
 
-- Branch: docs/structured-vocabulary-sense-learning-plan
-- Base: 387c8d730829e76b47ed8aa6d672758e9e1611b3
-- Always verify the current tip with git rev-parse HEAD; this handoff does not embed a self-referential immutable HEAD value.
+- Branch: feature/wikipedia-fallback-orchestration
+- Base: 639618ade38f3a252705085433c1cf6d36598806
+- Current branch head is intentionally not embedded because editing this document changes the commit SHA. Verify the current tip with `git rev-parse HEAD` and the PR head on GitHub.
+- Pull Request #11 URL: https://github.com/Tachiguro/KnownFirst/pull/11
+- PR state: open and unmerged
+- Confirmation: PR #11 is not part of master.
+- GitHub has no repository status checks for this head, so evidence is strictly local.
 
 ## Active task
 
-- Review and merge Pull Request #10 after final documentation validation.
+- Finalize Wikipedia fallback orchestration pull request.
 
 ## Completed recently
 
-- PR #9 merged (`Maintenance: finalize Wikipedia provider handoff`).
-- Local `master` fast-forwarded to `387c8d730829e76b47ed8aa6d672758e9e1611b3`.
 - Created binding architecture and initiative plan `docs/plans/structured-vocabulary-import-and-sense-learning.md`.
-- No implementation, DB migration, or dependencies added; schema version remains 7.
+- Wikipedia fallback behind Wiktionary is implemented on PR #11.
+- Added comprehensive regression tests for routing and preservation of relations.
+- Strengthened cache isolation tests for fallback orchestration.
+
+## Process notes
+
+- A process note: `git add .` was mistakenly used in earlier passes and must not be repeated. Stage every file explicitly.
+
+## Exact implementation boundaries
+
+- Wikipedia fallback behind primary Wiktionary
+- Cache isolation strictly implemented
+- Schema version 7, no migration
+- No provider-selection UI
+- No Backup/Restore continuation
+- No PDF/list import
+- No synchronization
+- No live Wikimedia tests
+- No device, emulator, ADB, or logcat work
+- No APK/AAB creation
+- No publish, signing, deployment, or store work
 
 ## Validation
 
-- Documentation-only change.
-- No tests or builds executed by design.
-- `git diff --check` clean.
-- All relative Markdown links validated.
-- No code, project, database, UI, backup, or localization changes.
-- No live Wikipedia request, device action, ADB, APK installation, publish, database migration, cache integration, or backup change was performed.
+- Focused tests (Fallback, EnrichAsync, Cache): 35 passed, 0 failed, 0 skipped.
+- Complete test suite: 552 passed, 0 failed, 0 skipped.
+- Windows Debug warnings and errors: 0 warnings, 0 errors.
+- Android Debug warnings and errors: 0 warnings, 0 errors.
+- Android Release warnings and errors: 0 warnings, 0 errors.
+- AOT warnings: 0
+- Trimming warnings: 0
+- Source-generation warnings: 0
+- git diff --check result: 0 whitespace errors
+- Markdown-link validation: passed
 
 ## Paused work
 
@@ -53,14 +79,10 @@
 
 ## Planned sequence
 
-1. Review and merge Pull Request #9.
+1. Finalize PR #11 for Wikipedia fallback orchestration.
 2. Fast-forward local master after merge.
-3. Create a documentation-only branch for structured vocabulary/PDF import and sense-level learning.
-4. Create: docs/plans/structured-vocabulary-import-and-sense-learning.md
-5. Separate decided requirements, open design questions, deferred ideas, data-model impact, milestones, and acceptance criteria.
-6. After that documentation PR is merged, create a separate branch for Wikipedia fallback orchestration.
-7. Keep fallback orchestration and UI separate.
-8. Keep schema version 7 until an explicit data-model decision.
+3. Keep fallback orchestration and UI separate.
+4. Keep schema version 7 until an explicit data-model decision.
 
 ## Known constraints and risks
 
@@ -69,11 +91,10 @@
 - Known words apply across texts; tests use synthetic data and temporary SQLite databases only.
 - AOT and trimming remain enabled; no reflection fallback is permitted.
 - Apple support is intentionally absent from the active project targets; no Apple build or device validation is part of this repository.
-- WikipediaLookupProvider maps low-level API objects to domain objects but doesn't persist data yet.
-- Wiktionary fallback is not implemented.
+- Provider output is stored in the existing lexical cache; no new durable sense-level/provider-specific application data model or UI persistence was introduced.
 - UI integration is not implemented.
-- Cache integration and database persistence for Wikipedia are not implemented.
 - Backup/Restore is not user-available.
+- Physical-device and visual validation are unverified.
 - Physical Android device testing is deferred to feature milestones, Beta releases, device-specific bugs, or explicit user requests, and is always a separate work package.
 - Normal development, unit tests, and standard validation builds (Windows Debug, Android Debug, Android Release with AOT/Trimming) do not require a connected smartphone or routine device deployment/ADB execution.
 - No pm clear, app uninstallation, or user data reset is permitted without explicit user authorization.
@@ -95,22 +116,19 @@
 - docs/architecture/backup-format-v1.md
 - docs/plans/backup-restore-v1-implementation-plan.md
 - docs/handoffs/2026-07-22-beta-8-release.md
+- docs/handoffs/2026-07-23-wikipedia-fallback-orchestration.md
 - KnownFirst.slnx
 - KnownFirst.csproj
 - Services/Lexical/Wikipedia/WikipediaLookupProvider.cs
-- KnownFirst.Tests/Services/Lexical/Wikipedia/WikipediaLookupProviderTests.cs
+- Services/Lexical/LexicalEnrichmentService.cs
+- KnownFirst.Tests/LexicalEnrichmentRoutingTests.cs
+- KnownFirst.Tests/StudyWorkflowServiceTests.cs
 
 ## Next exact action
 
-1. Review and merge Pull Request #10.
-2. Fast-forward local master after merge.
-3. Create the separate Wikipedia fallback orchestration branch.
-4. Implement fallback only after deterministic Wiktionary NotFound.
-5. Do not fallback after timeout, rate-limit, network error, ParseFailure, PermanentFailure, or cancellation.
-6. Keep manual provider switching as a later UI package.
-7. Conduct a dedicated data-model decision before any sense-level schema change.
-8. Keep Backup/Restore Phase 3 paused until lexical persistence is approved.
-9. Keep schema version 7 until an explicit migration package is approved.
+1. Review Pull Request #11.
+2. Merge it manually only after explicit user approval.
+3. After merge, fast-forward local master in a separate controlled step.
 
 ## New-chat handoff
 

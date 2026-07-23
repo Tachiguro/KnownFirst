@@ -11,23 +11,38 @@ Die HTML-Struktur von Wikipedia-Artikeln ändert sich häufig und ist extrem kom
 
 ## Implementierungsdetails
 1. **Source Generation:** Die Deserialisierung der JSON-Antworten erfolgt ausschließlich über `System.Text.Json` mit Source Generation (`JsonSourceGenerationOptions`), um AOT-Kompatibilität und Trimming-Sicherheit für Android-Release-Builds zu gewährleisten. Reflektion ist vollständig verboten.
-2. **Provider Identität:** Der Wikipedia-Client ist vorerst unabhängig vom bestehenden `ILexicalLookupProvider`. Er implementiert `IWikipediaApiClient` für die direkte Kommunikation. Die providerneutrale Integration in den `LexicalLookupProviderResolver` erfolgt in einem späteren Arbeitspaket.
-3. **Deterministische Tests:** Die Testabdeckung wird ausschließlich durch lokale JSON-Fixtures erzeugt, welche die Struktur der echten Wikipedia-API abbilden. Es gibt keine Live-Netzwerktests.
-4. **Fehlerbehandlung:** HTTP-Fehler, Timeouts und Rate-Limits (HTTP 429) werden im Client abgefangen und auf das interne Enum `WikipediaArticleStatus` gemappt, damit aufrufende Schichten providerunabhängige Entscheidungen treffen können. Timeouts sind rein intern, Aufrufer-Cancellation wird weitergereicht. Es gibt keine automatischen Retrys im Client, sondern Retry-After-Header-Informationen werden (sofern vorhanden) im Resultat zurückgegeben.
-5. **Daten und Grenzen:** Es wird exakt ein Request abgesetzt. Keine Suche, keine Zweitanfrage. Disambiguationsseiten werden als solche gemeldet, ihr Text wird nicht als Definition genutzt. Ein `TargetTitleCandidate` aus den Langlinks ist explizit keine automatisch bestätigte Übersetzung. Das Datenbankschema bleibt Version 7. Weder UI, noch Cache, noch Persistenz oder Wiktionary-Fallback sind Teil dieses Pakets. Es gibt keinen `WikipediaLookupProvider`.
+2. **Deterministische Tests:** Die Testabdeckung wird ausschließlich durch lokale JSON-Fixtures erzeugt, welche die Struktur der echten Wikipedia-API abbilden. Es gibt keine Live-Netzwerktests.
+3. **Fehlerbehandlung:** HTTP-Fehler, Timeouts und Rate-Limits (HTTP 429) werden im Client abgefangen und gemappt. HTTP Timeouts und vorübergehende HTTP-Fehler werden auf einen `TransientFailure` Result-Status abgebildet, während permanente HTTP-Fehler oder JSON Parse-Fehler auf ihre spezifischen Result-Stati abgebildet werden (anstatt Exceptions zu werfen). Eine durch einen internen Client-Timeout ausgelöste Cancellation (`OperationCanceledException`) wird sicher gefangen und als vorübergehender Fehler (`TransientFailure`) auf Provider-Ebene abgebildet, um eine geleakte Exception zu vermeiden. Aufrufer-Cancellation wird normal weitergereicht. Es gibt keine automatischen Retrys im Client, sondern Retry-After-Header-Informationen werden im Resultat zurückgegeben.
+
+### Original client package boundary
+
+When the low-level client package was introduced:
+- it implemented only `IWikipediaApiClient`;
+- no provider, cache orchestration, or fallback was included in that original package;
+- these statements describe historical scope only.
+
+### Current verified architecture
+
+On open PR #11:
+- `WikipediaLookupProvider` implements `ILexicalLookupProvider`;
+- it is registered through `LexicalLookupProviderResolver`;
+- `LexicalEnrichmentService` may create exactly one Wikipedia fallback request after a complete final Wiktionary `NotFound`;
+- `Definition` and `DefinitionAndTranslation` are eligible;
+- `Translation`-only is not eligible;
+- operational failures and cancellation do not trigger fallback;
+- `LexicalCacheRepository` stores results using provider-specific identity and schema version;
+- no UI or migration is included;
+- `PRAGMA user_version` remains 7;
+- PR #11 is open and unmerged, so this is not yet stable master behavior.
 
 ## Verified boundaries
 
 - The client sends exactly one MediaWiki Action API request per lookup.
 - The Search module (`list=search`) is not used.
-- JSON DTOs are deserialized with source-generated
-  `WikipediaJsonSerializerContext` metadata.
-- Redirect chains are resolved from the single API response and keep the first
-  redirect source as `RedirectedFrom`.
+- JSON DTOs are deserialized with source-generated `WikipediaJsonSerializerContext` metadata.
+- Redirect chains are resolved from the single API response and keep the first redirect source as `RedirectedFrom`.
 - `Retry-After` supports both delta seconds and absolute HTTP-date values.
 - Disambiguation pages return `Disambiguation` without usable extract content.
 - `TargetTitleCandidate` is not a translation.
-- No `WikipediaLookupProvider` is implemented or registered.
-- No Wiktionary fallback, UI, cache integration, backup change, database
-  migration, or device validation is part of this branch.
-- The database schema remains version 7.
+- `MediaWiki Action API JSON` only; no HTML parser is used.
+- Caller cancellation propagation is fully implemented.

@@ -63,6 +63,22 @@ The core architecture correctly places the Wikipedia fallback behind Wiktionary 
 - **External behavior:** No live Wikimedia requests occurred. No device, emulator, ADB, logcat, APK, AAB, publish, signing, deployment, publication, or store work.
 - **Exclusions:** No UI, Backup/Restore continuation, PDF/list import, or synchronization.
 
+## Post-merge closure
+
+- PR #11 merge timestamp: 2026-07-23T15:39:26Z
+- Feature head: `9aa4ef7bb02166bfbafdf475f4c6fa7731ce1201`
+- Merge commit: `d33cd80633f1ad1c25f76567136c642c419a23af`
+- Local `master` synchronized to `origin/master`.
+- Feature and merge trees are identical.
+- Merged-master test result: 552 passed, 0 failed, 0 skipped.
+- Windows Debug: 0 warnings, 0 errors.
+- Android Debug: 0 warnings, 0 errors.
+- Android Release: 0 warnings, 0 errors.
+- AOT, trimming, and source-generation warnings: 0.
+- See the [Wikipedia fallback user-flow audit](../audits/2026-07-23-wikipedia-fallback-user-flow-audit.md).
+- Remaining user-readiness gaps include source-page link, license representation, and disclosure wording.
+- Physical-device and visual validation unverified.
+
 ## Known Limitations
 
 - Physical-device and visual validation remain unverified.

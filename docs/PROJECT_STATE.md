@@ -168,10 +168,13 @@ In this package:
 - The low-level Wikipedia API client and `WikipediaLookupProvider` are implemented.
 - Provider-neutral routing and resolution limits are tested and strictly enforced.
 - Schema version remains 7.
-- No migration or provider-selection UI exists.
+- No migration is required.
 - Merged-master validation confirmed a stable build and test suite (552 tests passed, 0 warnings/errors).
 - Physical-device and visual validation remain unverified.
-- Service orchestration is complete and ready, but user-flow/UI readiness requires the UI integration package (hyperlink generation).
+- Service orchestration is merged and verified.
+- The existing preparation rendering already processes usable Wikipedia results.
+- User-ready gaps remain: source-page link, license representation, disclosure wording, and manual visual validation.
+- No provider-selection UI is required for automatic fallback.
 - The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
 - Sense-level persistence/migration decision remains pending.
 - Backup/Restore remains paused.

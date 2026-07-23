@@ -26,9 +26,16 @@
 - Base: d33cd80633f1ad1c25f76567136c642c419a23af
 - Local master has been fast-forwarded to origin/master.
 
-## Active task
+## Ongoing task
 
-- Audit the actual user flow without changing code for the merged Wikipedia fallback.
+Completing the post-merge synchronization, canonical-state correction, and user-flow audit for the Wikipedia fallback feature.
+
+## Current state
+
+- The existing preparation UI already renders usable Wikipedia fallback definitions through the merged orchestration.
+- User-ready completion remains blocked by attribution/link, license-reference, disclosure wording, and visual/manual validation gaps identified by the audit.
+- Pull Request [#12](https://github.com/Tachiguro/KnownFirst/pull/12) is open and unmerged on branch `docs/wikipedia-fallback-post-merge-audit`.
+- GitHub has no independent repository checks for this head, so validation evidence is local.
 
 ## Completed recently
 
@@ -75,7 +82,7 @@
 - AOT and trimming remain enabled; no reflection fallback is permitted.
 - Apple support is intentionally absent from the active project targets; no Apple build or device validation is part of this repository.
 - Provider output is stored in the existing lexical cache; no new durable sense-level/provider-specific application data model or UI persistence was introduced.
-- UI integration is not implemented.
+- The existing preparation UI already renders usable Wikipedia fallback definitions through the merged orchestration. User-ready completion remains blocked by attribution/link, license-reference, disclosure wording, and visual/manual validation gaps.
 - Backup/Restore is not user-available.
 - Physical-device and visual validation are unverified.
 - Physical Android device testing is deferred to feature milestones, Beta releases, device-specific bugs, or explicit user requests, and is always a separate work package.

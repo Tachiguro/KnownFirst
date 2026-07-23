@@ -38,7 +38,8 @@ define the format implicitly.
 
 **Wikipedia fallback user-flow audit**
 - Current in-progress package is a strictly bounded user-flow audit to evaluate the merged Wikipedia fallback.
-- Do not automatically declare a UI implementation package required until the audit findings justify it.
+- The audit identifies a proposed bounded user-readiness package, not a generic fallback UI integration.
+- The implementation package is not started. Wait for PR #12 to be reviewed and merged.
 
 **Pending decisions & future work**
 - Sense-level data-model decisions remain planned.

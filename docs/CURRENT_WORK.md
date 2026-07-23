@@ -57,11 +57,12 @@ Establish coherent version identity and governance rules across KnownFirst for B
 
 ## Validation
 
-- Complete automated test suite: 602 passed, 0 failed, 0 skipped.
+- Complete automated test suite: 606 passed, 0 failed, 0 skipped (rerun against committed PR head `35d9fa15c5d4fdf028c94fafac5a03296008e390` before documentation correction).
 - Windows Debug build: 0 warnings, 0 errors.
 - Windows Release build: 0 warnings, 0 errors.
 - Android Debug build (-m:1): 0 warnings, 0 errors.
 - Android Release build (-m:1): 0 warnings, 0 errors, 0 AOT warnings, 0 trimming warnings, 0 source-generation warnings.
+- The four platform builds require regeneration after the correction commit so their embedded Git metadata identifies the clean final PR head.
 
 ## Paused work
 

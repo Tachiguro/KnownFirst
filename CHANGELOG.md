@@ -8,6 +8,7 @@ and uses the application's prerelease version identifiers.
 
 ### Changed
 
+- Aligned source-controlled application identity to `1.0.0-beta.9` / build `9` across Windows and Android Debug, Diagnostic, and Release configurations, and established binding repository versioning governance.
 - Wiktionary remains the primary lexical provider. Wikipedia is attempted once only after deterministic final Wiktionary `NotFound`.
 - Only `Definition` and `DefinitionAndTranslation` are eligible for fallback; `Translation`-only is not eligible.
 - `Timeout`, rate limit, network/transient failure, `ParseFailure`, `PermanentFailure`, and caller cancellation do not trigger fallback.

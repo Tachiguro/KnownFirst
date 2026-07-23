@@ -76,8 +76,19 @@ documents before implementation.
   - relevant inputs changed afterward;
   - the task is high-risk;
   - a specific contract requires it.
-- Documentation-only and governance-only packages do not require tests or builds unless they alter executable tooling, build configuration, generated artifacts, or another verifiable technical contract.
 - Never use this lean policy to skip validation that is materially required for the changed code.
+
+### Post-merge build outputs
+
+- After a complete user-facing feature or milestone has been reviewed, merged, and synchronized to local master, the next assistant response must provide one bounded prompt to create fresh current-master outputs for:
+  - Windows Debug;
+  - Windows Release;
+  - Android Debug;
+  - Android Release;
+  - signed Google Play AAB.
+- The prompt must use the current synchronized merged HEAD and source-controlled product identity, not an older tag, stale branch, or stale version.
+- Historical tags may be used only to reconstruct an explicitly missing previous retained release artifact.
+- AAB creation remains explicitly authorized work; store upload is never automatic.
 
 ### Risk-based escalation
 

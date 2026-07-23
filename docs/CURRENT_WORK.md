@@ -39,7 +39,7 @@
 
 ## Validation
 
-- Tested with `dotnet test .\KnownFirst.Tests\KnownFirst.Tests.csproj -c Debug --nologo` yielding 545 passed tests.
+- Tested with `dotnet test .\KnownFirst.Tests\KnownFirst.Tests.csproj -c Debug --nologo` yielding 552 passed tests.
 - Re-verified fallback correctly surfaces relational surface forms and redirect depth.
 
 ## Paused work
@@ -96,8 +96,7 @@
 
 ## Next exact action
 
-1. Commit and push Wikipedia fallback orchestration branch.
-2. Update PR #11 body and await user review.
+1. Fast-forward local master after PR #11 merge.
 
 ## New-chat handoff
 

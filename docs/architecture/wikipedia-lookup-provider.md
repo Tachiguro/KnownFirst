@@ -44,7 +44,9 @@ The `WikipediaLookupProvider` is a concrete implementation of `ILexicalLookupPro
 ## Execution Constraints
 
 - **Dependency Injection**: The provider is explicitly registered as an `ILexicalLookupProvider` singleton via standard DI mechanisms without reflection or assembly scanning, guaranteeing AOT and trimming safety.
-- **Routing**: The provider is queried only when the incoming request explicitly specifies `Provider = "Wikipedia"`.
+- **Routing**: The provider can be reached through:
+  - an explicit `Wikipedia` request; or
+  - one internally created fallback request after the complete `Wiktionary` execution returns deterministic `NotFound`.
 - **Fallback Orchestration**: The provider orchestration explicitly chains requests in a schema-neutral manner. If a `Wiktionary` lookup yields `NotFound` and meets eligibility conditions (e.g., `Definition` or `DefinitionAndTranslation` mode), the orchestration attempts a single `Wikipedia` fallback using the final effective term. The returned result maintains `ProviderName = "Wikipedia"` to ensure cache isolation and accurate provenance.
 - **Cache**: Caching relies on the existing `LexicalCacheRepository`. The provider name is embedded in cache keys to ensure isolation.
 - **UI & Flow**: No UI or database migrations are included in this foundational provider implementation. The database schema version remains `7`.

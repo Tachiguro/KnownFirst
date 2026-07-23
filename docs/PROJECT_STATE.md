@@ -163,7 +163,7 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 - The low-level Wikipedia API client and `WikipediaLookupProvider` are implemented.
 - Provider-neutral routing and resolution limits are tested and strictly enforced.
 - The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
-- Schema-neutral Wikipedia fallback orchestration is implemented and verified at the `LexicalEnrichmentService` and `PreparationService` levels.
+- Schema-neutral Wikipedia fallback orchestration is completed and verified at the `LexicalEnrichmentService` and `PreparationService` levels.
 - No database migration, PDF package, OCR engine, cloud sync, or Linux host code has been added. Schema version remains 7.
 
 See the dated

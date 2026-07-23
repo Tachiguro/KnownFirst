@@ -12,8 +12,9 @@ The system must allow a graceful fallback to Wikipedia when a primary dictionary
 
 1. **Architecture Refactoring**: Refactored `LexicalEnrichmentService.EnrichAsync` to cleanly orchestrate fallback outside the single-provider execution loop. This avoids complicated routing cycles.
 2. **Metadata Propagation**: Ensured that redirect depth and relation metadata are safely carried over to the fallback result.
-3. **Tracking Provider & Tests**: Added robust tests (`LexicalEnrichmentRoutingTests.cs` and `StudyWorkflowServiceTests.cs`) that verify metadata persistence, lack of identity cycle crashes, and proper orchestrator limits using a `TrackingProvider` and `MutableDictionaryProvider`.
-4. **Project State Documentation**: Updated `docs/PROJECT_STATE.md`, `docs/CURRENT_WORK.md`, `docs/ROADMAP.md`, and `CHANGELOG.md`.
+3. **Tracking Provider & Tests**: Added robust tests (`LexicalEnrichmentRoutingTests.cs` and `StudyWorkflowServiceTests.cs`) that verify metadata persistence, lack of identity cycle crashes, and proper orchestrator limits using a `TrackingProvider` and `MutableWikipediaProvider`.
+4. **Resilience & Constraints**: Implemented and verified explicit handling for caller cancellation before fallback, explicit handling for distinct primary operational failures (timeout, parse failure, rate limit), and cache isolation between `Wikipedia` and `Wiktionary` identities.
+5. **Project State Documentation**: Updated `docs/PROJECT_STATE.md`, `docs/CURRENT_WORK.md`, `docs/ROADMAP.md`, and `CHANGELOG.md`.
 
 ## Known Limitations
 

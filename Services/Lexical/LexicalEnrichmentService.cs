@@ -27,6 +27,8 @@ public sealed class LexicalEnrichmentService(
         if (primaryResult.Status == LexicalLookupStatus.NotFound
             && KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.IsEligibleForFallback(request, primaryResult))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             _diagnosticLog.Write(Event(primaryExecution.FinalRequest, "Wikipedia", "enrichment.fallback.start"));
             var fallbackRequest = KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.CreateFallbackRequest(primaryExecution.FinalRequest);
             var fallbackExecution = await ExecuteSingleProviderAsync(fallbackRequest, originalDocumentContent, representativeContext, cancellationToken);

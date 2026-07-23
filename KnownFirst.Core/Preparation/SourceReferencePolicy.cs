@@ -56,6 +56,12 @@ public static class SourceReferencePolicy
         return new Uri($"https://{host.ToLowerInvariant()}/wiki/{escapedTitle}");
     }
 
+    private const string LegacyWiktionaryAttribution =
+        "Wiktionary contributors; text available under the Creative Commons Attribution-ShareAlike license.";
+
+    private const string LegacyWikipediaAttribution =
+        "Wikipedia contributors; text available under the Creative Commons Attribution-ShareAlike license.";
+
     public static string? GetLicenseReference(string attribution)
     {
         if (string.IsNullOrWhiteSpace(attribution))
@@ -63,7 +69,7 @@ public static class SourceReferencePolicy
             return null;
         }
 
-        return IsCreativeCommonsShareAlike(attribution)
+        return IsCcBySa40(attribution)
             ? CreativeCommonsShareAlikeName
             : null;
     }
@@ -75,14 +81,20 @@ public static class SourceReferencePolicy
             return null;
         }
 
-        return IsCreativeCommonsShareAlike(attribution)
+        return IsCcBySa40(attribution)
             ? CreativeCommonsShareAlikeUri
             : null;
     }
 
-    private static bool IsCreativeCommonsShareAlike(string attribution)
+    private static bool IsCcBySa40(string attribution)
     {
-        return attribution.Contains("Creative Commons Attribution-ShareAlike", StringComparison.OrdinalIgnoreCase)
-            || attribution.Contains("CC BY-SA", StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(attribution, LegacyWiktionaryAttribution, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(attribution, LegacyWikipediaAttribution, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return attribution.Contains("Creative Commons Attribution-ShareAlike 4.0", StringComparison.OrdinalIgnoreCase)
+            || attribution.Contains("CC BY-SA 4.0", StringComparison.OrdinalIgnoreCase);
     }
 }

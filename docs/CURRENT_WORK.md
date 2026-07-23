@@ -27,12 +27,14 @@
 
 ## Ongoing task
 
-Implement the bounded Wikipedia fallback user-readiness package for KnownFirst as one coherent vertical slice.
+Perform targeted review-correction pass for Wikipedia fallback user-readiness package for KnownFirst.
 
 ## Current state
 
 - Completed Wikipedia fallback user-readiness attribution, link generation, license representation, and English/German privacy disclosures.
-- `SourceReferencePolicy` now safely validates trusted Wiktionary (`.wiktionary.org`) and Wikipedia (`.wikipedia.org`) language-project hosts, rejecting unauthorized, missing-subdomain, or malformed hosts.
+- `SourceReferencePolicy` safely validates trusted Wiktionary (`.wiktionary.org`) and Wikipedia (`.wikipedia.org`) language-project hosts, rejecting unauthorized, missing-subdomain, or malformed hosts.
+- `SourceReferencePolicy` license recognition resolves to CC BY-SA 4.0 only for explicit CC BY-SA 4.0 attributions and exact legacy KnownFirst attribution strings, rejecting 3.0, 2.5, bare CC BY-SA, and ambiguous text.
+- `WiktionaryLookupProvider` attribution text explicitly identifies CC BY-SA 4.0.
 - `SourceDetails.razor` renders page links and concrete CC BY-SA 4.0 license links (`https://creativecommons.org/licenses/by-sa/4.0/`) with `target="_blank"` and `rel="noopener noreferrer"`.
 - `WikipediaApiClient` attribution string explicitly identifies CC BY-SA 4.0 and includes plain text, normalization, and truncation notices.
 - `Prepare_OnlineDisclosure` in English and German accurately covers Wiktionary-first querying, Wikipedia definition-only fallback, network metadata, and local storage.
@@ -46,10 +48,11 @@ Implement the bounded Wikipedia fallback user-readiness package for KnownFirst a
 - PR #13 (Lean development workflow governance) merged to master (`f500035`).
 - Synchronized master baseline to `50f86afabaf350b7a3f68f0b14fc9cc9751da349`.
 - Implemented bounded Wikipedia fallback user-readiness vertical slice (`fix/wikipedia-user-readiness`).
+- Performed single targeted review-correction pass for PR #14.
 
 ## Process notes
 
-- Lean delivery workflow from AGENTS.md followed: one writing agent, one worktree, focused tests during development, complete final validation run once against stable tree.
+- Lean delivery workflow from AGENTS.md followed: single review-correction pass performed, explicit file staging used.
 
 ## Exact implementation boundaries
 
@@ -65,7 +68,7 @@ Implement the bounded Wikipedia fallback user-readiness package for KnownFirst a
 
 ## Validation
 
-- Complete automated test suite: 588 passed, 0 failed, 0 skipped.
+- Complete automated test suite: 602 passed, 0 failed, 0 skipped.
 - Windows Debug build: 0 warnings, 0 errors.
 - Android Debug build (-m:1): 0 warnings, 0 errors.
 - Android Release build (-m:1): 0 warnings, 0 errors, 0 AOT warnings, 0 trimming warnings, 0 source-generation warnings.
@@ -77,7 +80,7 @@ Implement the bounded Wikipedia fallback user-readiness package for KnownFirst a
 
 ## Planned sequence
 
-1. Open pull request for `fix/wikipedia-user-readiness`.
+1. Review updated pull request #14 for `fix/wikipedia-user-readiness`.
 2. External review and manual merge decision for the user-readiness package.
 3. Sense-level learning data-model decision package.
 
@@ -100,10 +103,12 @@ Implement the bounded Wikipedia fallback user-readiness package for KnownFirst a
 - AGENTS.md
 - KnownFirst.Core/Preparation/SourceReferencePolicy.cs
 - Components/Shared/SourceDetails.razor
+- Services/Lexical/WiktionaryLookupProvider.cs
 - Services/Lexical/Wikipedia/WikipediaApiClient.cs
 - Resources/Localization/SharedResource.resx
 - Resources/Localization/SharedResource.de.resx
 - KnownFirst.Tests/SourceReferencePolicyTests.cs
+- KnownFirst.Tests/WiktionaryProviderTests.cs
 - KnownFirst.Tests/WikipediaApiClientTests.cs
 - KnownFirst.Tests/LocalizationResourceTests.cs
 - KnownFirst.Tests/UiWorkflowContractTests.cs

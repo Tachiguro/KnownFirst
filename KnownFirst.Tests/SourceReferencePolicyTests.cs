@@ -58,9 +58,14 @@ public sealed class SourceReferencePolicyTests
     }
 
     [TestMethod]
-    [DataRow("Wikipedia contributors; text available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).")]
-    [DataRow("Text is available under the Creative Commons Attribution-ShareAlike License.")]
+    [DataRow("Wikipedia contributors; text available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0). Excerpt converted to plain text, normalized, and may be truncated by KnownFirst.")]
+    [DataRow("Wiktionary contributors; text available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).")]
+    [DataRow("Wikipedia contributors; text available under the Creative Commons Attribution-ShareAlike license.")]
+    [DataRow("Wiktionary contributors; text available under the Creative Commons Attribution-ShareAlike license.")]
     [DataRow("Licensed under CC BY-SA 4.0")]
+    [DataRow("licensed under cc by-sa 4.0")]
+    [DataRow("Creative Commons Attribution-ShareAlike 4.0 International")]
+    [DataRow("text under creative commons attribution-sharealike 4.0")]
     public void GetLicenseReference_RecognizedAttribution_ReturnsCcBySaName(string attribution)
     {
         var name = SourceReferencePolicy.GetLicenseReference(attribution);
@@ -72,6 +77,15 @@ public sealed class SourceReferencePolicyTests
     }
 
     [TestMethod]
+    [DataRow("CC BY-SA 3.0")]
+    [DataRow("Licensed under CC BY-SA 3.0")]
+    [DataRow("Creative Commons Attribution-ShareAlike 3.0 Unported")]
+    [DataRow("Text is available under Creative Commons Attribution-ShareAlike 3.0")]
+    [DataRow("CC BY-SA 2.5")]
+    [DataRow("Licensed under CC BY-SA 2.5")]
+    [DataRow("Text is available under the Creative Commons Attribution-ShareAlike License.")]
+    [DataRow("Licensed under CC BY-SA")]
+    [DataRow("Some text under Attribution-ShareAlike.")]
     [DataRow("Public Domain")]
     [DataRow("MIT License")]
     [DataRow("Copyright 2026 Author")]

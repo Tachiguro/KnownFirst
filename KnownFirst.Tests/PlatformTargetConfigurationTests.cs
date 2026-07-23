@@ -46,7 +46,8 @@ public sealed class PlatformTargetConfigurationTests
         var project = File.ReadAllText(Path.Combine(ProjectRoot, "KnownFirst.csproj"));
 
         StringAssert.Contains(project, "<ApplicationId>com.tachiguro.knownfirst</ApplicationId>");
-        StringAssert.Contains(project, "<ApplicationVersion>8</ApplicationVersion>");
+        StringAssert.Contains(project, "<KnownFirstBuildNumber>9</KnownFirstBuildNumber>");
+        StringAssert.Contains(project, "<ApplicationVersion>$(KnownFirstBuildNumber)</ApplicationVersion>");
         StringAssert.Contains(project, "<PublishTrimmed>true</PublishTrimmed>");
         StringAssert.Contains(project, "<RunAOTCompilation>true</RunAOTCompilation>");
         StringAssert.Contains(project, "<SupportedOSPlatformVersion Condition=\"$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'\">24.0</SupportedOSPlatformVersion>");

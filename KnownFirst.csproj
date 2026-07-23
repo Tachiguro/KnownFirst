@@ -29,10 +29,15 @@
         <!-- App Identifier -->
         <ApplicationId>com.tachiguro.knownfirst</ApplicationId>
 
-        <!-- Versions -->
-        <ApplicationDisplayVersion>1.0.0-beta.8</ApplicationDisplayVersion>
-        <ApplicationVersion>8</ApplicationVersion>
-        <PackageVersion>1.0.0-beta.8</PackageVersion>
+        <!-- Authoritative Product Identity -->
+        <KnownFirstProductName>KnownFirst</KnownFirstProductName>
+        <KnownFirstProductVersion>1.0.0-beta.9</KnownFirstProductVersion>
+        <KnownFirstBuildNumber>9</KnownFirstBuildNumber>
+
+        <ApplicationDisplayVersion>$(KnownFirstProductVersion)</ApplicationDisplayVersion>
+        <ApplicationVersion>$(KnownFirstBuildNumber)</ApplicationVersion>
+        <PackageVersion>$(KnownFirstProductVersion)</PackageVersion>
+        <Version>$(KnownFirstProductVersion)</Version>
 
         <ApplicationDisplayVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">1.0.0</ApplicationDisplayVersion>
 
@@ -54,20 +59,16 @@
 
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic'">
         <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
-        <PackageVersion>1.0.0-beta.7-diagnostic</PackageVersion>
         <DebugSymbols>true</DebugSymbols>
         <DebugType>portable</DebugType>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-        <PackageVersion>1.0.0-beta.7-debug</PackageVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>
-        <ApplicationDisplayVersion>1.0.0-beta.8-diagnostic</ApplicationDisplayVersion>
-        <ApplicationVersion>8</ApplicationVersion>
         <Optimize>true</Optimize>
         <PublishTrimmed>true</PublishTrimmed>
         <RunAOTCompilation>true</RunAOTCompilation>
@@ -80,8 +81,6 @@
     <PropertyGroup Condition="'$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Debug</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>
-        <ApplicationDisplayVersion>1.0.0-beta.8-debug</ApplicationDisplayVersion>
-        <ApplicationVersion>8</ApplicationVersion>
         <Optimize>false</Optimize>
         <PublishTrimmed>false</PublishTrimmed>
         <RunAOTCompilation>false</RunAOTCompilation>
@@ -137,6 +136,12 @@
         <RazorComponent Remove="Components\Pages\Diagnostics.razor" />
         <None Remove="Components\Pages\Diagnostics.razor" />
         <None Remove="Components\Pages\Diagnostics.razor.css" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyMetadata Include="KnownFirstProductName" Value="$(KnownFirstProductName)" />
+        <AssemblyMetadata Include="KnownFirstProductVersion" Value="$(KnownFirstProductVersion)" />
+        <AssemblyMetadata Include="KnownFirstBuildNumber" Value="$(KnownFirstBuildNumber)" />
     </ItemGroup>
 
     <Target Name="InjectGitMetadata" BeforeTargets="GetAssemblyAttributes">

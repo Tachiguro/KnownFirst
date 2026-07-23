@@ -39,13 +39,24 @@ The password may instead be supplied through `KNOWNFIRST_ANDROID_SIGNING_PASSWOR
 The current parameterized release path is:
 
 ```powershell
-.\scripts\publish-android-google-play.ps1 -VersionCode 8 -DisplayVersion 1.0.0-beta.8
+.\scripts\publish-android-google-play.ps1 -VersionCode 9 -DisplayVersion 1.0.0-beta.9
 ```
 
 It publishes a signed AAB for `net10.0-android` in Release, verifies the
 signature, and writes a SHA-256 sidecar below the ignored `artifacts`
 directory. Run it only for an explicitly authorized release task with the
 existing external signing identity.
+
+#### Permanent AAB retention policy
+
+- Retain exactly the two newest verified Google Play Internal Testing AABs and their matching SHA-256 sidecars.
+- These represent the immediately previous release and the current release.
+- Never delete the previous release before the new release is created, signed, independently hashed, and verified.
+- After successful verification of the new release, delete only release AABs older than those two.
+- Temporary generated AABs in `bin` or `obj` are build outputs, not retained release artifacts.
+- Never delete APKs, source code, documentation, signing credentials, or unrelated files.
+- A missing previous release may be regenerated only from its exact release tag and existing signing identity.
+- Regenerated historical artifacts must be explicitly documented and must not be claimed byte-identical to the deleted original.
 
 ### Direct-install APK helper
 

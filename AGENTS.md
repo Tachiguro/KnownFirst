@@ -129,8 +129,18 @@ Routine isolated changes must not automatically inherit the process burden of th
   rewriting, or force-push unless an explicit recovery task authorizes it.
 - Never delete a branch or worktree merely because Git reports it as merged.
   Confirm that its worktree is clean and that no uncommitted work exists.
-- Use `feature/<topic>`, `fix/<topic>`, `hotfix/<topic>`, and
-  `release/<topic>` branch names.
+- Use task-appropriate branch names matching the narrowest prefix for the actual work package:
+  - `feature/<topic>` for product features;
+  - `fix/<topic>` for ordinary fixes;
+  - `hotfix/<topic>` for urgent production fixes;
+  - `release/<topic>` for release work;
+  - `docs/<topic>` for documentation-only or governance-only work;
+  - `test/<topic>` for isolated test-only work;
+  - `build/<topic>` for build-system or tooling work;
+  - `chore/<topic>` for narrowly scoped repository maintenance that does not fit another prefix.
+- Do not disguise product implementation as documentation, test, build, or chore work.
+- Each branch must remain limited to its accepted scope.
+- This branch naming expansion does not authorize direct implementation on `master` or unrelated work.
 - Do not commit, push, merge, tag, or create a pull request unless the active
   task explicitly authorizes that action.
 

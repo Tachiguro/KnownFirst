@@ -43,16 +43,23 @@ PR #11 was successfully merged and the local `master` branch is synchronized wit
 7. **Can Wikipedia ever appear as a fabricated translation in the UI?**
    No. The schema-neutral Wikipedia result does not populate the translation field.
 8. **How does DefinitionAndTranslation behave when Wikipedia returns a definition but no translation?**
-   `PrepareWords.razor` renders the definition and displays an empty input box for the translation, expecting manual entry.
+   - Wikipedia returns a definition and no translation.
+   - The existing DefinitionAndTranslation success contract accepts usable definition OR usable translation.
+   - The result remains successful because the definition is usable.
+   - In the normal successful-result view, PrepareWords.razor displays the definition.
+   - The empty translation value is not rendered. Translation output is rendered only when `_translation` is not empty. Definition output is rendered when `_definition` is not empty.
+   - An empty translation input exists only after the user enters the editor/manual-entry state. Editable translation input belongs to the editor block.
+   - A translation may then be added manually.
+   - Visual behavior remains unverified on a real device.
 9. **Are fallback NotFound, transient, parse, and permanent outcomes presented correctly?**
    Yes, they are mapped securely to generic UI messages in `PrepareWords.razor` `GetLookupFailureMessage()`:
    - `NotFound` -> `Prepare_DictionaryEntryNotFound` or `Prepare_DefinitionNotFound` or `Prepare_TranslationNotFound` or `Prepare_LanguageSectionNotFound`. **Retry**: No.
    - `TransientFailure` -> `Prepare_NetworkFailure` (for "network-unavailable", "timeout", "transient-server-error") or `Prepare_TransientFailure`. **Retry**: Yes.
    - `ParseFailure` -> `Prepare_ResponseParseFailure` or `Prepare_ParseFailure`. **Retry**: No.
    - `PermanentFailure` -> `Prepare_PermanentFailure` (e.g. for unknown provider). **Retry**: No.
-   - `cancellation` -> Swallowed/Handled seamlessly.
-   - Wikipedia fallback failure after primary NotFound -> Bubbly correctly (e.g., transient Wikipedia error renders as `Prepare_NetworkFailure`).
-   *(Visually unverified: physical UI rendering of these messages remains unverified.)*
+   - `cancellation` -> Caller cancellation propagates through the provider and service boundary. It is not converted into a Wikipedia fallback attempt. Component-lifetime, navigation, or disposal cancellation behavior has not been visually or interactively validated.
+   - Wikipedia fallback failure after primary NotFound -> When primary Wiktionary returns final NotFound and the Wikipedia fallback returns TransientFailure, ParseFailure, PermanentFailure, or NotFound, that final Wikipedia result is returned by the orchestrator and mapped by the existing preparation UI. Automated routing tests verify the orchestration status.
+   *(Visually unverified: physical and visual UI rendering remains unverified.)*
 10. **Does cached Wikipedia content reload through the complete UI-facing flow?**
     Yes. `PreparationService.LookupCurrentAsync` calls `LexicalEnrichmentService.EnrichAsync`. `EnrichAsync` executes the fallback, calling `ExecuteSingleProviderAsync` and then `LookupOneAsync`. `LookupOneAsync` correctly checks `LexicalCacheRepository.GetAsync` using the fallback provider name (`Wikipedia`). On cache hit, `LexicalEnrichmentService` returns it. `PreparationService` maps it, and `PrepareWords.razor` renders it smoothly. If the item was already saved to the database (`PreparationItems` table via `AcceptAsync`), it is loaded directly from DB via `PreparationService.GetCurrentAsync` without hitting the lexical cache.
 11. **Is provider-selection UI actually necessary for the automatic fallback?**
@@ -74,7 +81,13 @@ PR #11 was successfully merged and the local `master` branch is synchronized wit
     - Broad Wikimedia project support beyond Wiktionary and Wikipedia.
     - Device and visual validation until the bounded implementation is complete.
 14. **What is the smallest safe implementation package that should follow this audit?**
-    Modify `SourceReferencePolicy.CreatePageUri` to explicitly allowlist `.wiktionary.org` and `.wikipedia.org`. It must require valid DNS hostname syntax, HTTPS only, escaped article title, no arbitrary URL supplied by provider data, and NO general `.wikimedia.org` acceptance without a separate approved use case. Fix license handling and update English and German disclosure strings in `SharedResource.resx` and `SharedResource.de.resx` to mention encyclopedic context, Wikipedia, normal network metadata, and local storage. Add robust tests for `SourceReferencePolicy` and resource localization.
+    The bounded implementation package is proposed but not started. Its minimum likely scope remains:
+    - narrow Wikipedia/Wiktionary source-host allowlist;
+    - source-page hyperlink;
+    - concrete license URI or hyperlink representation;
+    - accurate English and German disclosure wording;
+    - automated attribution, host-rejection, rendering, and localization tests;
+    - deliberate review of whether 1200-character truncation requires a modification notice.
 15. **Which exact production files, localization resources, and tests would that package likely modify?**
     - `KnownFirst.Core/Preparation/SourceReferencePolicy.cs`
     - `Components/Shared/SourceDetails.razor`

@@ -168,7 +168,7 @@ In this package:
 - The low-level Wikipedia API client and `WikipediaLookupProvider` are implemented.
 - Provider-neutral routing and resolution limits are tested and strictly enforced.
 - Schema version remains 7.
-- No migration is required.
+- No migration was introduced for the Wikipedia fallback orchestration or this audit package. The future sense-level persistence and migration decision remains pending.
 - Merged-master validation confirmed a stable build and test suite (552 tests passed, 0 warnings/errors).
 - Physical-device and visual validation remain unverified.
 - Service orchestration is merged and verified.
@@ -189,6 +189,6 @@ for the complete snapshot.
 
 ## Next milestones (Future Work)
 
-1. Wikipedia fallback UI integration.
+1. Wikipedia fallback user-readiness package.
 2. Sense-level learning data-model decision package.
 3. Resume Backup/Restore Phase 3.

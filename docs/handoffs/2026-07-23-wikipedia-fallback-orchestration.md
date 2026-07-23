@@ -3,7 +3,7 @@
 **Date:** 2026-07-23
 **Branch:** `feature/wikipedia-fallback-orchestration`
 **Base:** `639618ade38f3a252705085433c1cf6d36598806`
-**Final branch head after this documentation commit:** `[Pending final commit SHA]`
+**Final branch head is intentionally not embedded because editing this document changes the commit SHA. Verify the current tip with `git rev-parse HEAD` and the PR head on GitHub.**
 **PR #11:** https://github.com/Tachiguro/KnownFirst/pull/11 (Open and unmerged)
 
 ## Scope and Architecture
@@ -31,16 +31,19 @@ The core architecture correctly places the Wikipedia fallback behind Wiktionary 
 - In `LexicalLookupMode.DefinitionAndTranslation`, the `TargetTitleCandidate` from the language link is not saved as a translation.
 
 ## Changed Files
-- `KnownFirst.Tests/LexicalEnrichmentRoutingTests.cs`
-- `KnownFirst.Tests/StudyWorkflowServiceTests.cs`
-- `CHANGELOG.md`
-- `docs/CURRENT_WORK.md`
-- `docs/INDEX.md`
-- `docs/PROJECT_STATE.md`
-- `docs/ROADMAP.md`
-- `docs/architecture/wikipedia-json-client.md`
-- `docs/architecture/wikipedia-lookup-provider.md`
-- `docs/handoffs/2026-07-23-wikipedia-fallback-orchestration.md`
+- CHANGELOG.md
+- KnownFirst.Tests/LexicalEnrichmentRoutingTests.cs
+- KnownFirst.Tests/StudyWorkflowServiceTests.cs
+- KnownFirst.Tests/WikipediaArchitectureTests.cs
+- Services/Lexical/LexicalEnrichmentService.cs
+- Services/Lexical/Wikipedia/WikipediaFallbackPolicy.cs
+- docs/CURRENT_WORK.md
+- docs/INDEX.md
+- docs/PROJECT_STATE.md
+- docs/ROADMAP.md
+- docs/architecture/wikipedia-json-client.md
+- docs/architecture/wikipedia-lookup-provider.md
+- docs/handoffs/2026-07-23-wikipedia-fallback-orchestration.md
 
 ## Validation Results
 

@@ -24,7 +24,7 @@
 
 - Branch: feature/wikipedia-fallback-orchestration
 - Base: 639618ade38f3a252705085433c1cf6d36598806
-- Current branch head after the final documentation commit: `[Pending final commit SHA]`
+- Current branch head is intentionally not embedded because editing this document changes the commit SHA. Verify the current tip with `git rev-parse HEAD` and the PR head on GitHub.
 - Pull Request #11 URL: https://github.com/Tachiguro/KnownFirst/pull/11
 - PR state: open and unmerged
 - Confirmation: PR #11 is not part of master.

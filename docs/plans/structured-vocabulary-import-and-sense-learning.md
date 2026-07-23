@@ -2,11 +2,13 @@
 
 ## Document Status
 
-- **Type**: Binding Architecture & Initiative Plan
+- **Type**: Initiative Requirements & Architecture Proposal
 - **Created**: 2026-07-23
 - **Status**: Draft / Proposal — Pending Data-Model Decision
-- **Target Target Scope**: Structured List/PDF Import, Sense-Level Learning, Sync Preparation, Linux Feasibility
+- **Target Scope**: Structured List/PDF Import, Sense-Level Learning, Sync Preparation, Linux Feasibility
 - **Database Schema Constraint**: Preserves SQLite `PRAGMA user_version = 7` (No schema migration in this package)
+
+**Important Distinction**: The product requirements listed under "Decided Requirements" are binding. The data model options, technical architecture proposals, and milestone sequences are a draft/proposal pending a separate decision. This document authorizes no implementation or database migration.
 
 ---
 
@@ -175,25 +177,56 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 ## 5. Data Model Options
 
 ### Option A: Incremental Extension of `MeaningEntity`
-- **Description**: Retain `WordEntity` and `MeaningEntity`, but lift the single-meaning assumption in `StudyWorkflowService`. Add fields for `PartOfSpeech`, `CEFRLevel`, `SenseKey`, and update `LearningCardEntity` unique index to `(MeaningId, Direction)`.
-- **Pros**: Minimal schema shift from Schema 7; reuses existing table structures.
-- **Cons**: `MeaningEntity` is currently overloaded with both provider raw data and user sense selection.
-- **SRS Impact**: Cards become meaning-addressed.
-- **Sync Impact**: Sync requires tracking `MeaningEntity` mutations.
+1. **Description**: Retain `WordEntity` and `MeaningEntity`, but lift the single-meaning assumption in `StudyWorkflowService`. Add fields for `PartOfSpeech`, `CEFRLevel`, `SenseKey`, and update `LearningCardEntity` unique index to `(MeaningId, Direction)`.
+2. **Advantages**: Minimal schema shift from Schema 7; reuses existing table structures.
+3. **Disadvantages**: `MeaningEntity` is currently overloaded with both provider raw data and user sense selection.
+4. **Migration risk**: Low structural risk, moderate data-backfill risk.
+5. **Learning-card impact**: Cards become meaning-addressed (`MeaningId`).
+6. **Global-word-knowledge impact**: Requires careful decoupling from `WordEntity.Status`.
+7. **Synchronization impact**: Sync requires tracking `MeaningEntity` mutations heavily.
+8. **Backup/Restore impact**: Format v1 must be expanded to handle meaning-addressed cards.
+9. **AOT and serialization impact**: Low (additive schema changes).
+10. **Expected implementation complexity**: Low to moderate.
+11. **Principal unresolved risks**: Semantic overloading of `MeaningEntity` continues to grow.
 
 ### Option B: Dedicated `SenseEntity` alongside `WordEntity` and `MeaningEntity`
-- **Description**: Introduce `SenseEntity` (representing a distinct semantic definition) and treat `MeaningEntity` as raw provider/source lookup data.
-- **Pros**: Clean separation between raw dictionary lookups and curated user senses.
-- **Cons**: Introduces a 3-tier entity hierarchy (`Word` -> `Sense` -> `Meaning/Source`).
-- **SRS Impact**: Cards reference `SenseId`.
+1. **Description**: Introduce `SenseEntity` (representing a distinct semantic definition) and treat `MeaningEntity` as raw provider/source lookup data.
+2. **Advantages**: Clean separation between raw dictionary lookups and curated user senses. Multiple provider sources can be mapped to one curated sense.
+3. **Disadvantages**: Introduces a 3-tier entity hierarchy (`Word` -> `Sense` -> `Meaning/Source`).
+4. **Migration risk**: Moderate structural migration required.
+5. **Learning-card impact**: Cards reference `SenseId`.
+6. **Global-word-knowledge impact**: `WordEntity` retains global written-form knowledge; `SenseEntity` represents curated, user-confirmed meaning.
+7. **Synchronization impact**: `SenseEntity` provides a clean boundary for sync events.
+8. **Backup/Restore impact**: Format v1 needs new domain tables but cleanly separates curated data.
+9. **AOT and serialization impact**: Moderate (new DTOs required).
+10. **Expected implementation complexity**: Moderate.
+11. **Principal unresolved risks**: Backfilling legacy Schema 7 `MeaningEntity` selections into new `SenseEntity` records.
 
 ### Option C: Explicit Lexeme-Sense-Source Domain Model
-- **Description**: Full domain refactoring into `LexemeEntity`, `SenseEntity`, `SenseKnowledgeEntity`, `SourceEntryEntity`, and `LearningCardEntity`.
-- **Pros**: Complete alignment with linguistic standards and multiword expressions.
-- **Cons**: High migration complexity; breaking change for existing persistence layer.
+1. **Description**: Full domain refactoring into `LexemeEntity`, `SenseEntity`, `SenseKnowledgeEntity`, `SourceEntryEntity`, and `LearningCardEntity`.
+2. **Advantages**: Complete alignment with linguistic standards and multiword expressions.
+3. **Disadvantages**: High migration complexity; breaking change for existing persistence layer.
+4. **Migration risk**: Very high.
+5. **Learning-card impact**: Completely decoupled from raw text.
+6. **Global-word-knowledge impact**: Moved to explicit Lexeme level.
+7. **Synchronization impact**: Complex graph sync.
+8. **Backup/Restore impact**: Format v1 would require a complete rewrite.
+9. **AOT and serialization impact**: High.
+10. **Expected implementation complexity**: High.
+11. **Principal unresolved risks**: Threatens local data continuity and delays feature delivery significantly.
 
 ### Provisional Recommendation
-> **Provisional recommendation — requires dedicated data-model decision**: Option A or Option B are preferred over Option C to preserve stability and local data continuity. No schema version upgrade is authorized until a dedicated decision package is approved.
+> **Provisional recommendation — requires dedicated data-model decision**: Option B is preferred.
+> - `WordEntity` can retain global written-form knowledge for now.
+> - `SenseEntity` can represent curated, user-confirmed meaning.
+> - `MeaningEntity` can continue to represent source-specific or prepared meaning and attribution.
+> - Learning cards can long-term target `SenseId`.
+> - Multiple provider sources can be mapped to one curated sense.
+> - This separation is cleaner than further overloading `MeaningEntity` and less disruptive than the full Lexeme-Sense-Source model (Option C).
+>
+> **Fallback**: Option A remains the fallback if the audit proves that a new `SenseEntity` creates disproportionate migration or backup complexity.
+>
+> **Long-term**: Option C remains the long-term reference architecture but is not recommended for the next migration step.
 
 ---
 
@@ -248,31 +281,156 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 
 ## 9. Implementation Milestones
 
-- **M0**: Data-model decision & architecture sign-off (Documentation & Schema proposal).
-- **M1**: Structured CSV/TSV list import engine.
-- **M2**: Import staging preview & interactive correction UI.
-- **M3**: Curriculum & CEFR metadata tagging.
-- **M4**: Multi-meaning & Part-of-Speech domain support.
-- **M5**: Sense-level knowledge tracking.
-- **M6**: Sense-addressed learning cards & example sentence management.
-- **M7**: Single-column text PDF import parser.
-- **M8**: Multi-column & tabular PDF import parser.
-- **M9**: Optional OCR engine integration (Scanned PDFs).
-- **M10**: Sync domain model & export format spec.
-- **M11**: Initial user-chosen sync transport (Cloud File / WebDAV).
-- **M12**: Linux desktop host feasibility study.
+### M0: Data-model decision & architecture sign-off
+- **Goal**: Decide schema implications.
+- **In Scope**: Documentation & Schema proposal.
+- **Out of Scope**: Code implementation.
+- **Dependencies**: PR #10 merged.
+- **Data-model consequences**: Determines path (Option B preferred).
+- **Tests**: None.
+- **Acceptance criteria**: Decision approved.
+- **Risks**: Delays if consensus isn't reached.
+
+### M1: Structured CSV/TSV list import engine
+- **Goal**: Basic structured import.
+- **In Scope**: CSV/TSV parsing.
+- **Out of Scope**: PDF parsing.
+- **Dependencies**: M0.
+- **Data-model consequences**: Source metadata fields.
+- **Tests**: Unit tests for parser.
+- **Acceptance criteria**: Parses term, POS, translation without errors.
+- **Risks**: Encoding issues.
+
+### M2: Import staging preview & interactive correction UI
+- **Goal**: User validation before DB commit.
+- **In Scope**: Preview UI, correction logic.
+- **Out of Scope**: Auto-learning.
+- **Dependencies**: M1.
+- **Data-model consequences**: None.
+- **Tests**: UI tests.
+- **Acceptance criteria**: User can modify or reject low-confidence items.
+- **Risks**: UI complexity.
+
+### M3: Curriculum & CEFR metadata tagging
+- **Goal**: Support standard curriculum tags.
+- **In Scope**: Tagging logic, CEFR levels.
+- **Out of Scope**: Auto-grading users.
+- **Dependencies**: M1.
+- **Data-model consequences**: Add CEFR to entities.
+- **Tests**: Parser tests.
+- **Acceptance criteria**: CEFR metadata preserved and displayed.
+- **Risks**: Conflicting tags.
+
+### M4: Multi-meaning & Part-of-Speech domain support
+- **Goal**: Differentiate homonyms and POS.
+- **In Scope**: POS filtering, multiple senses per word.
+- **Out of Scope**: Advanced grammar checking.
+- **Dependencies**: M0.
+- **Data-model consequences**: `SenseEntity` or `MeaningEntity` extension.
+- **Tests**: Integration tests.
+- **Acceptance criteria**: Identical spelling with different senses, multiple parts of speech.
+- **Risks**: Migration of legacy data.
+
+### M5: Sense-level knowledge tracking
+- **Goal**: Track mastery per sense.
+- **In Scope**: SenseKnowledge state machine.
+- **Out of Scope**: Global word tracking changes.
+- **Dependencies**: M4.
+- **Data-model consequences**: New knowledge table/fields.
+- **Tests**: Workflow tests.
+- **Acceptance criteria**: global word knowledge versus sense knowledge correctly tracked.
+- **Risks**: User confusion.
+
+### M6: Sense-addressed learning cards & example sentence management
+- **Goal**: SRS for specific senses.
+- **In Scope**: Card addressing, example contexts.
+- **Out of Scope**: Audio.
+- **Dependencies**: M5.
+- **Data-model consequences**: `LearningCardEntity` targets `SenseId`.
+- **Tests**: Scheduler tests.
+- **Acceptance criteria**: sense-specific examples appear on cards.
+- **Risks**: Duplicate cards.
+
+### M7: Single-column text PDF import parser
+- **Goal**: Text PDF support.
+- **In Scope**: Single-column text extraction.
+- **Out of Scope**: Scanned PDFs.
+- **Dependencies**: M2.
+- **Data-model consequences**: None.
+- **Tests**: PDF extraction tests.
+- **Acceptance criteria**: text-based PDF import works.
+- **Risks**: Layout artifacts.
+
+### M8: Multi-column & tabular PDF import parser
+- **Goal**: Complex PDF support.
+- **In Scope**: Column/table boundary detection.
+- **Out of Scope**: OCR.
+- **Dependencies**: M7.
+- **Data-model consequences**: None.
+- **Tests**: Layout boundary tests.
+- **Acceptance criteria**: multi-column PDF import works correctly.
+- **Risks**: Parsing failures on edge cases.
+
+### M9: Optional OCR engine integration
+- **Goal**: Support image PDFs.
+- **In Scope**: OCR hook.
+- **Out of Scope**: Bundling heavy OCR models.
+- **Dependencies**: M8.
+- **Data-model consequences**: None.
+- **Tests**: OCR pipeline tests.
+- **Acceptance criteria**: Image to text works.
+- **Risks**: Library licensing/size.
+
+### M10: Sync domain model & export format spec
+- **Goal**: Define sync protocol.
+- **In Scope**: Sync events, conflict rules.
+- **Out of Scope**: Network transport.
+- **Dependencies**: M6.
+- **Data-model consequences**: Tombstones, UUIDs.
+- **Tests**: Conflict resolution tests.
+- **Acceptance criteria**: synchronization readiness verified locally.
+- **Risks**: Clock skew.
+
+### M11: Initial user-chosen sync transport
+- **Goal**: Cloud sync.
+- **In Scope**: File/WebDAV transport.
+- **Out of Scope**: Real-time DB sync.
+- **Dependencies**: M10.
+- **Data-model consequences**: None.
+- **Tests**: Network transport tests.
+- **Acceptance criteria**: Sync between two instances works.
+- **Risks**: Connection drops.
+
+### M12: Linux desktop host feasibility study
+- **Goal**: Evaluate Linux port.
+- **In Scope**: Desktop shell evaluation.
+- **Out of Scope**: Full release.
+- **Dependencies**: None.
+- **Data-model consequences**: None.
+- **Tests**: Build checks.
+- **Acceptance criteria**: Linux feasibility decision documented.
+- **Risks**: UI incompatibility.
 
 ---
 
 ## 10. Acceptance Criteria Checklist
 
-- [ ] **CSV/TSV Import**: Parses term, POS, definition, translation, and CEFR without errors.
-- [ ] **MWE Handling**: Phrases like `"board game"` are preserved as single lexical items.
-- [ ] **POS Filtering**: Abbreviations (`n`, `v`, `adj`) are stored as metadata, not words.
-- [ ] **Homonyms**: Multiple senses for the same term can coexist and be learned independently.
-- [ ] **Preview & Edit**: User can modify or reject low-confidence items before saving.
-- [ ] **Plural Exceptions**: Fixed plurals (`trousers`) are not corrupted by singularization rules.
-- [ ] **Schema Safety**: Database contract remains at `PRAGMA user_version = 7` until explicit migration package.
+- [ ] **CSV/TSV import**: Parses term, POS, translation without errors.
+- [ ] **text-based PDF import**: Extracts text accurately.
+- [ ] **multi-column PDF import**: Detects and respects column boundaries.
+- [ ] **multiword expressions**: Phrases like `"board game"` are preserved as single lexical items.
+- [ ] **multiple parts of speech**: Abbreviations (`n`, `v`, `adj`) are stored as metadata.
+- [ ] **identical spelling with different senses**: Homonyms can coexist and be learned independently.
+- [ ] **global word knowledge versus sense knowledge**: Tracked and displayed distinctly.
+- [ ] **sense-specific examples**: Examples are tied directly to their respective sense.
+- [ ] **CEFR metadata**: Preserved correctly from source files.
+- [ ] **idempotent re-import**: Re-importing a list updates gracefully without duplication.
+- [ ] **preview correction**: User can modify or reject low-confidence items before saving.
+- [ ] **no automatic learning of all translations**: Only user-confirmed meanings become active cards.
+- [ ] **plural exceptions**: Fixed plurals (`trousers`) are not corrupted by singularization rules.
+- [ ] **backup compatibility**: Data safety v1 contracts are maintained.
+- [ ] **synchronization readiness**: Event models and IDs support future sync.
+- [ ] **Linux feasibility decision**: Documented evaluation of Linux host frameworks.
 
 ---
 
@@ -290,6 +448,9 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 
 ## 12. Licensing & Source Attribution
 
-1. **Content Independence**: Import tools are generic utilities. Users bear responsibility for the copyright status of imported files.
-2. **Attribution Preservation**: Imported dictionary definitions and example sentences retain source name, license tag, and attribution string.
-3. **Export Integrity**: Export and sync operations preserve attribution metadata.
+Which source data may be stored, exported, backed up, or synchronized under applicable copyright law, source licenses, and provider terms?
+
+- **Important Notice**: Das Dokument enthält keine Rechtsberatung. / This document contains no legal advice.
+- Lokale Speicherung, Export, Backup und Synchronisierung können unterschiedliche lizenzrechtliche Anforderungen haben. (Local storage, export, backup, and synchronization may have different licensing requirements.)
+- Attribution und Quellenmetadaten müssen erhalten bleiben. (Attribution and source metadata must be preserved.)
+- Proprietäre Listen werden nicht gebündelt. (Proprietary lists will not be bundled.)

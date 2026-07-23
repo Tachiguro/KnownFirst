@@ -102,14 +102,15 @@
 
 ## Next exact action
 
-1. Fast-forward local master after merging this documentation PR.
-2. Review and decide the provisional data-model recommendation before any schema change.
-3. Resume the separate Wikipedia fallback orchestration branch.
-4. Automatic Wikipedia fallback may occur only after deterministic Wiktionary NotFound.
-5. Do not fallback after timeout, rate-limit, network error, ParseFailure, PermanentFailure, or cancellation.
-6. Keep manual provider switching as a later UI package.
-7. Keep Backup/Restore Phase 3 paused until the lexical persistence decision is confirmed.
-8. Keep schema version 7 until an explicit migration work package is approved.
+1. Review and merge Pull Request #10.
+2. Fast-forward local master after merging this documentation PR.
+3. Review and decide the provisional data-model recommendation (Option B) before any schema change.
+4. Resume the separate Wikipedia fallback orchestration branch.
+5. Automatic Wikipedia fallback may occur only after deterministic Wiktionary NotFound.
+6. Do not fallback after timeout, rate-limit, network error, ParseFailure, PermanentFailure, or cancellation.
+7. Keep manual provider switching as a later UI package.
+8. Keep Backup/Restore Phase 3 paused until the lexical persistence decision is confirmed.
+9. Keep schema version 7 until an explicit migration work package is approved.
 
 ## New-chat handoff
 

@@ -13,6 +13,9 @@ and uses the application's prerelease version identifiers.
 - `Timeout`, rate limit, network/transient failure, `ParseFailure`, `PermanentFailure`, and caller cancellation do not trigger fallback.
 - Wikipedia provides definitions or encyclopedic context, not translations.
 - Wikipedia metadata and provider-specific cache identity are preserved.
+- Rendered trusted Wiktionary (`.wiktionary.org`) and Wikipedia (`.wikipedia.org`) source-page titles as HTTPS hyperlinks and recognized Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) licenses as clickable license links (`https://creativecommons.org/licenses/by-sa/4.0/`) with `target="_blank"` and `rel="noopener noreferrer"`.
+- Updated online lookup privacy disclosure (`Prepare_OnlineDisclosure`) in English and German to state that Wiktionary is queried first, Wikipedia is queried only for definitions after a Wiktionary `NotFound`, Wikipedia does not provide translations, standard network metadata is transmitted, and data remains local.
+- Updated Wikipedia result attribution string to explicitly identify CC BY-SA 4.0 and state that excerpts are converted to plain text, normalized, and may be truncated by KnownFirst.
 
 ### Internal
 

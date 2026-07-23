@@ -516,6 +516,18 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void SourceDetails_RendersPageAndLicenseLinksWithTargetBlankAndRelNoopener()
+    {
+        var source = LoadUi("SourceDetails.razor");
+
+        Assert.Contains("SourceReferencePolicy.CreatePageUri", source);
+        Assert.Contains("SourceReferencePolicy.GetLicenseReference", source);
+        Assert.Contains("SourceReferencePolicy.GetLicenseUri", source);
+        Assert.Contains("target=\"_blank\"", source);
+        Assert.Contains("rel=\"noopener noreferrer\"", source);
+    }
+
+    [TestMethod]
     public void AnalysisDiagnostics_AreDebugEntryPointsAndReleaseExcludesTheDiagnosticsPage()
     {
         var review = LoadUi("ReviewWords.razor");

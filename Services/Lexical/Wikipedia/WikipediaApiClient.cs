@@ -298,7 +298,7 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
                 TargetLanguage: request.TargetLanguage,
                 TargetTitleCandidate: targetTitleCandidate,
                 TargetUrlCandidate: targetUrlCandidate,
-                Attribution: "Wikipedia contributors; text available under the Creative Commons Attribution-ShareAlike license.",
+                Attribution: "Wikipedia contributors; text available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0). Excerpt converted to plain text, normalized, and may be truncated by KnownFirst.",
                 ErrorCode: null,
                 RetryAfter: null
             );
@@ -330,7 +330,7 @@ public sealed partial class WikipediaApiClient : IWikipediaApiClient
             TargetLanguage: request.TargetLanguage,
             TargetTitleCandidate: null,
             TargetUrlCandidate: null,
-            Attribution: "Wikipedia contributors; text available under the Creative Commons Attribution-ShareAlike license.",
+            Attribution: "Wikipedia contributors; text available under Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0). Excerpt converted to plain text, normalized, and may be truncated by KnownFirst.",
             ErrorCode: errorCode,
             RetryAfter: retryAfter
         );

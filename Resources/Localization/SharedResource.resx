@@ -637,7 +637,7 @@
     <value>Online dictionary lookup</value>
   </data>
   <data name="Prepare_OnlineDisclosure" xml:space="preserve">
-    <value>KnownFirst does not send your documents, example sentences, learning history, or personal data to the KnownFirst developer. Only the selected term and the selected language information are sent directly to Wikimedia for dictionary lookup. Wikimedia receives normal network information such as your IP address and the KnownFirst User-Agent. Retrieved dictionary content and your personal learning data are stored locally on this device.</value>
+    <value>KnownFirst does not send your documents, example sentences, learning history, or personal data to the KnownFirst developer. Only after consent, the selected term and required language information are sent to Wikimedia services. KnownFirst queries Wiktionary first for dictionary content; if no suitable Wiktionary result is found, Wikipedia may be queried for an encyclopedic definition. Wikipedia does not provide translations. Standard network metadata such as your IP address and the KnownFirst User-Agent are transmitted with requests. Retrieved content and your learning data remain stored locally on this device.</value>
   </data>
   <data name="Prepare_StartOnlineLookup" xml:space="preserve">
     <value>Start online lookup</value>

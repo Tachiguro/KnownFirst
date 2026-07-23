@@ -186,7 +186,7 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 7. **Synchronization impact**: Sync requires tracking `MeaningEntity` mutations heavily.
 8. **Backup/Restore impact**: Format v1 must be expanded to handle meaning-addressed cards.
 9. **AOT and serialization impact**: Low (additive schema changes).
-10. **Expected implementation complexity**: Low to moderate.
+10. **Complexity**: Low to moderate.
 11. **Principal unresolved risks**: Semantic overloading of `MeaningEntity` continues to grow.
 
 ### Option B: Dedicated `SenseEntity` alongside `WordEntity` and `MeaningEntity`
@@ -199,7 +199,7 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 7. **Synchronization impact**: `SenseEntity` provides a clean boundary for sync events.
 8. **Backup/Restore impact**: Format v1 needs new domain tables but cleanly separates curated data.
 9. **AOT and serialization impact**: Moderate (new DTOs required).
-10. **Expected implementation complexity**: Moderate.
+10. **Complexity**: Moderate.
 11. **Principal unresolved risks**: Backfilling legacy Schema 7 `MeaningEntity` selections into new `SenseEntity` records.
 
 ### Option C: Explicit Lexeme-Sense-Source Domain Model
@@ -212,7 +212,7 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 7. **Synchronization impact**: Complex graph sync.
 8. **Backup/Restore impact**: Format v1 would require a complete rewrite.
 9. **AOT and serialization impact**: High.
-10. **Expected implementation complexity**: High.
+10. **Complexity**: High.
 11. **Principal unresolved risks**: Threatens local data continuity and delays feature delivery significantly.
 
 ### Provisional Recommendation
@@ -448,9 +448,10 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 
 ## 12. Licensing & Source Attribution
 
-Which source data may be stored, exported, backed up, or synchronized under applicable copyright law, source licenses, and provider terms?
+Which source data may be stored locally, exported, backed up, or synchronized under applicable copyright law, source licenses, and provider terms?
 
-- **Important Notice**: Das Dokument enthält keine Rechtsberatung. / This document contains no legal advice.
-- Lokale Speicherung, Export, Backup und Synchronisierung können unterschiedliche lizenzrechtliche Anforderungen haben. (Local storage, export, backup, and synchronization may have different licensing requirements.)
-- Attribution und Quellenmetadaten müssen erhalten bleiben. (Attribution and source metadata must be preserved.)
-- Proprietäre Listen werden nicht gebündelt. (Proprietary lists will not be bundled.)
+- This document does not provide legal advice.
+- Local storage, export, backup, and synchronization may be subject to different copyright, license, and provider-term requirements.
+- Attribution and source metadata must be preserved.
+- Proprietary vocabulary lists are not bundled with KnownFirst.
+- The generic importer and the imported user content are separate concerns.

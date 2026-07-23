@@ -28,7 +28,7 @@
 
 ## Active task
 
-- Review and merge the structured vocabulary and sense-learning planning PR.
+- Review and merge Pull Request #10 after final documentation validation.
 
 ## Completed recently
 
@@ -103,14 +103,14 @@
 ## Next exact action
 
 1. Review and merge Pull Request #10.
-2. Fast-forward local master after merging this documentation PR.
-3. Review and decide the provisional data-model recommendation (Option B) before any schema change.
-4. Resume the separate Wikipedia fallback orchestration branch.
-5. Automatic Wikipedia fallback may occur only after deterministic Wiktionary NotFound.
-6. Do not fallback after timeout, rate-limit, network error, ParseFailure, PermanentFailure, or cancellation.
-7. Keep manual provider switching as a later UI package.
-8. Keep Backup/Restore Phase 3 paused until the lexical persistence decision is confirmed.
-9. Keep schema version 7 until an explicit migration work package is approved.
+2. Fast-forward local master after merge.
+3. Create the separate Wikipedia fallback orchestration branch.
+4. Implement fallback only after deterministic Wiktionary NotFound.
+5. Do not fallback after timeout, rate-limit, network error, ParseFailure, PermanentFailure, or cancellation.
+6. Keep manual provider switching as a later UI package.
+7. Conduct a dedicated data-model decision before any sense-level schema change.
+8. Keep Backup/Restore Phase 3 paused until lexical persistence is approved.
+9. Keep schema version 7 until an explicit migration package is approved.
 
 ## New-chat handoff
 

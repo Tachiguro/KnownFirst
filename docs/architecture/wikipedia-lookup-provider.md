@@ -43,12 +43,34 @@ The `WikipediaLookupProvider` is a concrete implementation of `ILexicalLookupPro
 
 ## Execution Constraints
 
-- **Dependency Injection**: The provider is explicitly registered as an `ILexicalLookupProvider` singleton via standard DI mechanisms without reflection or assembly scanning, guaranteeing AOT and trimming safety.
+- **Dependency Injection**: The provider is explicitly registered as an `ILexicalLookupProvider` singleton via standard DI mechanisms without reflection or assembly scanning, guaranteeing AOT, trimming safety, and source-generated JSON compatibility. Privacy-safe diagnostics remain mandatory.
 - **Routing**: The provider can be reached through:
   - an explicit `Wikipedia` request; or
   - one internally created fallback request after the complete `Wiktionary` execution returns deterministic `NotFound`.
-- **Fallback Orchestration**: The provider orchestration explicitly chains requests in a schema-neutral manner. If a `Wiktionary` lookup yields `NotFound` and meets eligibility conditions (e.g., `Definition` or `DefinitionAndTranslation` mode), the orchestration attempts a single `Wikipedia` fallback using the final effective term. The returned result maintains `ProviderName = "Wikipedia"` to ensure cache isolation and accurate provenance.
-- **Cache**: Caching relies on the existing `LexicalCacheRepository`. The provider name is embedded in cache keys to ensure isolation.
-- **UI & Flow**: No UI or database migrations are included in this foundational provider implementation. The database schema version remains `7`.
-- **Backup**: No changes to the backup mechanism are applied.
-- **Device Checks**: The execution requires no physical device validations.
+
+### Fallback Orchestration Decision Table
+
+| Initial provider | Primary outcome | Mode | Wikipedia fallback |
+| Wiktionary | Success | any | No |
+| Wiktionary | final NotFound | Definition | Yes, once |
+| Wiktionary | final NotFound | DefinitionAndTranslation | Yes, once |
+| Wiktionary | final NotFound | Translation | No |
+| Wiktionary | timeout | any | No |
+| Wiktionary | rate limit | any | No |
+| Wiktionary | network/transient failure | any | No |
+| Wiktionary | ParseFailure | any | No |
+| Wiktionary | PermanentFailure | any | No |
+| Wiktionary | caller cancellation | any | No; cancellation propagates |
+| Wikipedia | any | any | Explicit Wikipedia execution only; never route to Wiktionary |
+
+**Explicit constraints:**
+- One fallback attempt maximum.
+- No provider cycles.
+- No route from Wikipedia back to Wiktionary.
+- No result merging.
+- Genuine Wikipedia `ProviderName`, `SourceProject`, `PageTitle`, `RevisionId`, `Attribution`, and `MeaningId` remain intact.
+- Wikipedia never fabricates translations.
+- `DefinitionAndTranslation` follows the existing definition-or-translation success contract.
+- Cache keys include provider identity and provider schema version.
+- Schema remains 7.
+- No migration, UI, Backup/Restore, PDF/list import, or synchronization is included.

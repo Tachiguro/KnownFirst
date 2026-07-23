@@ -160,17 +160,29 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 
 ## Active development
 
+The stable master baseline for this package is `639618ade38f3a252705085433c1cf6d36598806`.
+
+The Wikipedia fallback orchestration exists only on the `feature/wikipedia-fallback-orchestration` branch. PR #11 is open and unmerged; it is not yet part of stable master.
+
+In this package:
 - The low-level Wikipedia API client and `WikipediaLookupProvider` are implemented.
 - Provider-neutral routing and resolution limits are tested and strictly enforced.
-- The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
 - Wikipedia fallback behind Wiktionary is implemented on PR #11.
-- No database migration, PDF package, OCR engine, cloud sync, or Linux host code has been added. Schema version remains 7.
+- Schema version remains 7.
+- No migration or provider-selection UI exists.
+- The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
+- Sense-level persistence/migration decision remains pending.
+- Backup/Restore remains paused.
 
 See the dated
 [branch and worktree inventory](maintenance/branch-and-worktree-inventory.md)
 for the complete snapshot.
 
-## Next milestone
+## Immediate action
+
+- Review PR #11 and decide whether to merge manually.
+
+## Next milestones (Future Work)
 
 1. Wikipedia fallback UI integration.
 2. Sense-level learning data-model decision package.

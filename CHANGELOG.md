@@ -6,12 +6,20 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
+### Changed
+
+- Wiktionary remains the primary lexical provider. Wikipedia is attempted once only after deterministic final Wiktionary `NotFound`.
+- Only `Definition` and `DefinitionAndTranslation` are eligible for fallback; `Translation`-only is not eligible.
+- `Timeout`, rate limit, network/transient failure, `ParseFailure`, `PermanentFailure`, and caller cancellation do not trigger fallback.
+- Wikipedia provides definitions or encyclopedic context, not translations.
+- Wikipedia metadata and provider-specific cache identity are preserved.
+
 ### Internal
 
 - Added binding architecture plan (`docs/plans/structured-vocabulary-import-and-sense-learning.md`) defining the vision, requirements, open design questions, data model options, PDF pipeline, sense-level learning progression, sync domain model, and multi-phase roadmap for structured vocabulary list import, sense-level knowledge, and Linux host feasibility.
 - Wikipedia fallback behind Wiktionary is implemented on PR #11. If the primary Wiktionary lookup returns a clean NotFound, the system gracefully queries Wikipedia in a separate lookup context, preserving essential redirect metadata without introducing provider cycles or requiring schema migrations. The orchestration accurately handles explicit transient failures, parse errors, and caller cancellation without fabricating Wikipedia entries or leaking exceptions.
 - Implemented `WikipediaLookupProvider` as an explicitly selectable lexical lookup provider. It leverages the Wikipedia JSON API client foundation and maps encyclopedic context into standard domain definitions. It enforces deterministic identity and empty metadata boundaries without generating fabricated dictionary items.
-- Added a low-level, source-generated Wikipedia JSON API client (`IWikipediaApiClient`) as a foundation for a future Fallback provider. This client implements robust text extraction, redirect chains, and rate limiting but is not yet wired to a user workflow or provider resolution.
+- Added a low-level, source-generated Wikipedia JSON API client (`IWikipediaApiClient`). This client implements robust text extraction, redirect chains, and rate limiting.
 - Added provider-neutral routing foundation (`ILexicalLookupProvider` and
   `ILexicalLookupProviderResolver`) to allow safe resolution of dictionary
   providers without hardcoded instantiation.

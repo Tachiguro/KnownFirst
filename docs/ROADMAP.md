@@ -27,7 +27,7 @@ exists. Verified implementation state belongs in
 | 8 | Statistics | Planned | Define and present privacy-preserving learning metrics. |
 | 9 | Privacy-friendly bug reporting | Planned | Produce explicit user-reviewed redacted diagnostic exports. |
 | 10 | Public-beta preparation | Planned | Complete release, privacy, platform, support, and operational readiness. |
-| 11 | [Structured vocabulary architecture](plans/structured-vocabulary-import-and-sense-learning.md) | In progress | Documented plan and schema decision for list/PDF import and sense-level learning. |
+| 11 | [Structured vocabulary architecture](plans/structured-vocabulary-import-and-sense-learning.md) | Completed | The structured-vocabulary architecture plan from PR #10 is merged. |
 | 12 | Structured vocabulary implementation | Planned | Multi-phase execution of list/PDF import, sense-level knowledge, sync domain, and Linux host feasibility. |
 
 Data Safety v1 and the database audit are gates for versioned backup and
@@ -36,7 +36,15 @@ define the format implicitly.
 
 ## In progress
 
-- Wikipedia fallback behind Wiktionary is implemented on PR #11. Wikipedia fallback UI integration is the next step.
+**Wikipedia fallback (Milestone 4)**
+- Implementation and automated validation are present on open PR #11.
+- Completion requires manual review, merge, and verification on master.
+
+**Pending decisions & future work**
+- Sense-level data-model decisions remain pending.
+- Structured vocabulary implementation has not started.
+- Provider/fallback UI is a separate future package.
+- Backup/Restore remains paused.
 
 ## Completed
 

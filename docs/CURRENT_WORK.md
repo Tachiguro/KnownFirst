@@ -24,9 +24,11 @@
 
 - Branch: feature/wikipedia-fallback-orchestration
 - Base: 639618ade38f3a252705085433c1cf6d36598806
-- Always verify the current tip with git rev-parse HEAD; this handoff does not embed a self-referential immutable HEAD value.
+- Current branch head after the final documentation commit: `[Pending final commit SHA]`
 - Pull Request #11 URL: https://github.com/Tachiguro/KnownFirst/pull/11
 - PR state: open and unmerged
+- Confirmation: PR #11 is not part of master.
+- GitHub has no repository status checks for this head, so evidence is strictly local.
 
 ## Active task
 
@@ -38,6 +40,10 @@
 - Wikipedia fallback behind Wiktionary is implemented on PR #11.
 - Added comprehensive regression tests for routing and preservation of relations.
 - Strengthened cache isolation tests for fallback orchestration.
+
+## Process notes
+
+- A process note: `git add .` was mistakenly used in earlier passes and must not be repeated. Stage every file explicitly.
 
 ## Exact implementation boundaries
 
@@ -85,7 +91,7 @@
 - Known words apply across texts; tests use synthetic data and temporary SQLite databases only.
 - AOT and trimming remain enabled; no reflection fallback is permitted.
 - Apple support is intentionally absent from the active project targets; no Apple build or device validation is part of this repository.
-- WikipediaLookupProvider maps low-level API objects to domain objects but doesn't persist data yet.
+- Provider output is stored in the existing lexical cache; no new durable sense-level/provider-specific application data model or UI persistence was introduced.
 - UI integration is not implemented.
 - Backup/Restore is not user-available.
 - Physical-device and visual validation are unverified.

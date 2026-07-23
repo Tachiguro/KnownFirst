@@ -1,7 +1,7 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-23
-**State source:** `feature/wikipedia-fallback-orchestration`
+**State source:** `master`
 **Next product milestone:** Wikipedia fallback UI integration
 
 This document is the authoritative snapshot of verified current state. Update
@@ -160,16 +160,21 @@ See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
 
 ## Active development
 
-The stable master baseline for this package is `639618ade38f3a252705085433c1cf6d36598806`.
+The stable master baseline for this package is `d33cd80633f1ad1c25f76567136c642c419a23af`.
 
-The Wikipedia fallback orchestration exists only on the `feature/wikipedia-fallback-orchestration` branch. PR #11 is open and unmerged; it is not yet part of stable master.
+The Wikipedia fallback orchestration is now merged into master (PR #11, merge commit `d33cd80`).
 
 In this package:
 - The low-level Wikipedia API client and `WikipediaLookupProvider` are implemented.
 - Provider-neutral routing and resolution limits are tested and strictly enforced.
-- Wikipedia fallback behind Wiktionary is implemented on PR #11.
 - Schema version remains 7.
-- No migration or provider-selection UI exists.
+- No migration was introduced for the Wikipedia fallback orchestration or this audit package. The future sense-level persistence and migration decision remains pending.
+- Merged-master validation confirmed a stable build and test suite (552 tests passed, 0 warnings/errors).
+- Physical-device and visual validation remain unverified.
+- Service orchestration is merged and verified.
+- The existing preparation rendering already processes usable Wikipedia results.
+- User-ready gaps remain: source-page link, license representation, disclosure wording, and manual visual validation.
+- No provider-selection UI is required for automatic fallback.
 - The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
 - Sense-level persistence/migration decision remains pending.
 - Backup/Restore remains paused.
@@ -180,10 +185,10 @@ for the complete snapshot.
 
 ## Immediate action
 
-- Review PR #11 and decide whether to merge manually.
+- Review the user-flow audit PR and decide on the bounded implementation package.
 
 ## Next milestones (Future Work)
 
-1. Wikipedia fallback UI integration.
+1. Wikipedia fallback user-readiness package.
 2. Sense-level learning data-model decision package.
 3. Resume Backup/Restore Phase 3.

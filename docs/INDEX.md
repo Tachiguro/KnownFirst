@@ -29,6 +29,7 @@ release, or handoff documents.
 
 - [Word preparation and online lookup](WORD_ANALYSIS.md)
 - [Backup and restore plan](plans/backup-restore-v1-implementation-plan.md)
+- [Structured vocabulary import and sense-level learning](plans/structured-vocabulary-import-and-sense-learning.md)
 - [Learning and normalization requirements](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md)
 - [GUI test matrix](GUI_TEST_MATRIX.md)
 - [Windows GUI test plan](KnownFirst_Windows_GUI_Testplan.md)

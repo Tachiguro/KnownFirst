@@ -27,6 +27,7 @@ exists. Verified implementation state belongs in
 | 8 | Statistics | Planned | Define and present privacy-preserving learning metrics. |
 | 9 | Privacy-friendly bug reporting | Planned | Produce explicit user-reviewed redacted diagnostic exports. |
 | 10 | Public-beta preparation | Planned | Complete release, privacy, platform, support, and operational readiness. |
+| 11 | [Structured vocabulary, sense-level learning, synchronization, and Linux feasibility](plans/structured-vocabulary-import-and-sense-learning.md) | Planned | Multi-phase architecture for list/PDF import, sense-level knowledge, sync domain, and Linux host feasibility. |
 
 Data Safety v1 and the database audit are gates for versioned backup and
 restore. The UI follows the service and compatibility contract; it must not

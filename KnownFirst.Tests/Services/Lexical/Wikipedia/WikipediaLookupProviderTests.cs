@@ -25,15 +25,15 @@ public class WikipediaLookupProviderTests
     [TestMethod]
     public void ProviderName_IsWikipedia()
     {
+        Assert.AreEqual(WikipediaLookupProvider.Name, _provider.ProviderName);
         Assert.AreEqual("Wikipedia", _provider.ProviderName);
-        Assert.AreEqual("Wikipedia", WikipediaLookupProvider.Name);
     }
 
     [TestMethod]
     public void ProviderSchemaVersion_Is1()
     {
+        Assert.AreEqual(WikipediaLookupProvider.SchemaVersion, _provider.ProviderSchemaVersion);
         Assert.AreEqual(1, _provider.ProviderSchemaVersion);
-        Assert.AreEqual(1, WikipediaLookupProvider.SchemaVersion);
     }
 
     [TestMethod]

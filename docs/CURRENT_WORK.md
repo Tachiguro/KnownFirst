@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-23 00:00:00 +02:00
+2026-07-23 01:55:20 +02:00
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Stable baseline
 
-- Stable master baseline: 2f0d41aeab7e2fc4e50a668ebfcfc410270a56b6
+- Stable master baseline: 573c2ece4e0b0520821f1812e89f03ee3760a568
 - App version: 1.0.0-beta.8 (code 8)
 - Database schema: SQLite PRAGMA user_version 7
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
@@ -22,13 +22,13 @@
 
 ## Current branch
 
-- Branch: feature/wikipedia-lookup-provider
-- Base: 2f0d41aeab7e2fc4e50a668ebfcfc410270a56b6
+- Branch: maintenance/post-pr8-cleanup
+- Base: 573c2ece4e0b0520821f1812e89f03ee3760a568
 - Always verify the current tip with git rev-parse HEAD; this handoff does not embed a self-referential immutable HEAD value.
 
 ## Active task
 
-- Review and merge Pull Request #8 after final validation.
+- Review and merge Pull Request #9 after final validation.
 
 ## Completed recently
 
@@ -37,14 +37,16 @@
 - Handled disambiguation, rate-limits, operation cancellations, and not-found mappings.
 - Validated integration with LexicalLookupProviderResolver.
 - Verified test suite and AOT/Trimming Android Release bounds.
+- Resolved all MSTest analyzers warnings (MSTEST0032, MSTEST0037).
+- Merged Pull Request #8 via `gh` and fast-forwarded local `master`.
 
 ## Validation
 
-- Focused tests (Wikipedia, Resolver, Enrichment): [pending] passed, [pending] failed, [pending] skipped.
-- Full test suite: [pending] passed, [pending] failed, [pending] skipped, duration [pending] s.
-- Windows Debug build: [pending] warnings, [pending] errors.
-- Android Debug build: [pending] warnings, [pending] errors.
-- Android Release build: [pending] warnings, [pending] errors; AOT and trimming executed successfully (single-threaded MSBuild).
+- Focused tests (Wikipedia, Resolver, Enrichment): 114 passed, 0 failed, 0 skipped.
+- Full test suite: 534 passed, 0 failed, 0 skipped.
+- Windows Debug build: 0 warnings, 0 errors.
+- Android Debug build: 0 warnings, 0 errors.
+- Android Release build: 0 warnings, 0 errors; AOT and trimming executed successfully.
 - No live Wikipedia request, device action, ADB, APK installation, publish, database migration, cache integration, or backup change was performed.
 
 ## Paused work
@@ -54,14 +56,14 @@
 
 ## Planned sequence
 
-1. Review and merge Pull Request #8.
+1. Review and merge Pull Request #9.
 2. Fast-forward local master after merge.
-3. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
-4. In that documentation package, separate: decided requirements, open design questions, deferred ideas, data-model impact, milestones, acceptance criteria.
-5. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
-6. After that documentation PR is merged, continue with the separate Wikipedia fallback orchestration branch.
-7. Do not combine fallback orchestration and UI.
-8. Keep schema version 7 until a later explicit data-model decision.
+3. Create a documentation-only branch for structured vocabulary/PDF import and sense-level learning.
+4. Create: docs/plans/structured-vocabulary-import-and-sense-learning.md
+5. Separate decided requirements, open design questions, deferred ideas, data-model impact, milestones, and acceptance criteria.
+6. After that documentation PR is merged, create a separate branch for Wikipedia fallback orchestration.
+7. Keep fallback orchestration and UI separate.
+8. Keep schema version 7 until an explicit data-model decision.
 
 ## Known constraints and risks
 
@@ -103,12 +105,10 @@
 
 ## Next exact action
 
-1. Review and merge Pull Request #8.
+1. Review and merge Pull Request #9.
 2. Fast-forward local master after merge.
-3. Create a separate documentation-only branch for structured vocabulary/PDF import and sense-level learning.
-4. Separate requirements, design, impact, and milestones in the new plan.
-5. The planned document path is: docs/plans/structured-vocabulary-import-and-sense-learning.md.
-6. Do not implement Wikipedia fallback orchestration yet.
+3. Create the separate documentation-only branch.
+4. Do not implement PDF import, sense-level learning, fallback, or UI in the cleanup branch.
 
 ## New-chat handoff
 

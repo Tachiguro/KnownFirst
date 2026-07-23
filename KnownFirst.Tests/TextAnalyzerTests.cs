@@ -538,7 +538,7 @@ public sealed class TextAnalyzerTests
     {
         var content = string.Join("\n", Enumerable.Range(0, 100).Select(i => $"Line {i} without punctuation"));
         var result = _analyzer.Analyze(content);
-        Assert.AreEqual(100, result.Sentences.Count);
+        Assert.HasCount(100, result.Sentences);
         Assert.IsTrue(result.Sentences.All(s => s.Length < 100));
     }
 
@@ -547,7 +547,7 @@ public sealed class TextAnalyzerTests
     {
         const string content = "word1\nword2\nword3";
         var result = _analyzer.Analyze(content);
-        Assert.AreEqual(3, result.Candidates.Count);
+        Assert.HasCount(3, result.Candidates);
         Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm == "word1"));
         Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm == "word2"));
         Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm == "word3"));
@@ -568,7 +568,7 @@ public sealed class TextAnalyzerTests
         var rare = result.Candidates.SingleOrDefault(c => c.CanonicalTerm == "rare");
 
         Assert.IsNotNull(rare);
-        Assert.AreEqual(1, rare.Occurrences.Count);
+        Assert.HasCount(1, rare.Occurrences);
     }
 
     [TestMethod]
@@ -581,8 +581,8 @@ public sealed class TextAnalyzerTests
         
         Assert.IsNotNull(common);
         Assert.IsNotNull(rare);
-        Assert.AreEqual(3, common.Occurrences.Count);
-        Assert.AreEqual(1, rare.Occurrences.Count);
+        Assert.HasCount(3, common.Occurrences);
+        Assert.HasCount(1, rare.Occurrences);
     }
 
     [TestMethod]
@@ -619,7 +619,7 @@ public sealed class TextAnalyzerTests
 
         Assert.AreEqual("Datenschutzprozess", candidate.CanonicalTerm);
         Assert.AreEqual("Datenschutzprozesse", occurrence.SurfaceForm);
-        Assert.AreEqual(1, candidate.Occurrences.Count);
+        Assert.HasCount(1, candidate.Occurrences);
         Assert.AreEqual("Datenschutzprozesse", content.Substring(occurrence.StartPosition, occurrence.Length));
     }
 

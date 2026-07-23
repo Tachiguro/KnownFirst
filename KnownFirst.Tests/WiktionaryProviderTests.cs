@@ -36,7 +36,7 @@ public sealed class WiktionaryProviderTests
         // Verify Labels were extracted and deduplicated
         var m7 = meanings.First(m => m.Definition == "Def 14.");
         var labels = m7.UsageLabels;
-        Assert.AreEqual(6, labels.Count, "Expected 6 labels due to deduplication (Label 14 is duplicate).");
+        Assert.HasCount(6, labels);
         Assert.AreEqual("Label 14", labels[0]);
         Assert.AreEqual("Label 15", labels[1]);
         Assert.AreEqual("Label 16", labels[2]);
@@ -51,7 +51,7 @@ public sealed class WiktionaryProviderTests
         Assert.IsTrue(meanings.Any(m => m.Example == "Excluded ex."));
         
         // Labels in case 21-24
-        Assert.AreEqual(1, m8.UsageLabels.Count);
+        Assert.HasCount(1, m8.UsageLabels);
         Assert.AreEqual("Excluded label.", m8.UsageLabels[0]);
 
         // Verify nested lists are treated separately
@@ -1387,7 +1387,9 @@ public sealed class WiktionaryProviderTests
     [TestMethod]
     public void ProviderSchemaVersion_ChangesWhenHostAndParserSemanticsChange()
     {
-        Assert.AreEqual(6, WiktionaryLookupProvider.SchemaVersion);
+        var provider = CreateProvider(_ => new HttpResponseMessage());
+        Assert.AreEqual(WiktionaryLookupProvider.SchemaVersion, provider.ProviderSchemaVersion);
+        Assert.AreEqual(6, provider.ProviderSchemaVersion);
     }
 
     private static WiktionaryLookupProvider CreateProvider(

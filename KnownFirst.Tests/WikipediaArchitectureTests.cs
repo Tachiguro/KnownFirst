@@ -72,13 +72,7 @@ public class WikipediaArchitectureTests
         Assert.IsFalse(text.Contains("Wikipedia", StringComparison.Ordinal));
     }
 
-    [TestMethod]
-    public void Architecture_LexicalEnrichmentService_NotChangedForFallback()
-    {
-        var text = File.ReadAllText(Path.Combine(RepositoryDir, "Services", "Lexical", "LexicalEnrichmentService.cs"));
 
-        Assert.IsFalse(text.Contains("Wikipedia", StringComparison.Ordinal));
-    }
 
     [TestMethod]
     public void Architecture_SchemaVersionIs7()

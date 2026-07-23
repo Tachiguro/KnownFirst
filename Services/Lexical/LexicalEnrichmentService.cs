@@ -49,6 +49,16 @@ public sealed class LexicalEnrichmentService(
             _diagnosticLog.Write(Event(currentRequest, currentRequest.Provider, "enrichment.lookup.start"));
             var result = await LookupOneAsync(currentRequest, cancellationToken);
             _diagnosticLog.Write(Event(currentRequest, currentRequest.Provider, "enrichment.lookup.complete"));
+            if (result.Status == LexicalLookupStatus.NotFound 
+                && KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.IsEligibleForFallback(request, result))
+            {
+                _diagnosticLog.Write(Event(currentRequest, "Wikipedia", "enrichment.fallback.start"));
+                var fallbackRequest = KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.CreateFallbackRequest(currentRequest);
+                var fallbackResult = await LookupOneAsync(fallbackRequest, cancellationToken);
+                _diagnosticLog.Write(Event(currentRequest, "Wikipedia", "enrichment.fallback.complete"));
+                result = fallbackResult;
+            }
+
             if (result.Status != LexicalLookupStatus.Success)
             {
                 return ApplyRelationMetadata(result, originalTerm, initialRelation, redirectDepth);

@@ -43,6 +43,7 @@ release, or handoff documents.
 - [Single-worktree consolidation handoff](handoffs/2026-07-22-single-worktree-consolidation.md)
 - [Remove Apple targets handoff](handoffs/2026-07-22-remove-apple-targets.md)
 - [Wikipedia fallback orchestration handoff](handoffs/2026-07-23-wikipedia-fallback-orchestration.md)
+- [Wikipedia fallback user-flow audit](audits/2026-07-23-wikipedia-fallback-user-flow-audit.md)
 
 ## Maintenance and history
 

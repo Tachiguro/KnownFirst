@@ -1,6 +1,6 @@
 # KnownFirst roadmap
 
-**Prioritization date:** 2026-07-22
+**Prioritization date:** 2026-07-23
 
 This roadmap records intended order. It does not claim that planned behavior
 exists. Verified implementation state belongs in
@@ -20,7 +20,7 @@ exists. Verified implementation state belongs in
 | 1 | Documentation and handoff structure | Completed | Maintain canonical entry points and an auditable single-worktree handoff. |
 | 2 | Remove Apple targets | Completed | Remove iOS and Mac Catalyst from project, platform code, build configuration, tests, and docs on a dedicated branch. |
 | 3 | Windows/Android validation | Completed | Validate Windows Debug and Android Debug/Release after platform cleanup. |
-| 4 | Wikipedia fallback | In progress | Add a consented fallback behind Wiktionary without changing provider boundaries prematurely. |
+| 4 | Wikipedia fallback | Completed | Add a consented fallback behind Wiktionary without changing provider boundaries prematurely. |
 | 5 | Persistence and migration decision | Planned | Decide and document schema implications of the final provider model. |
 | 6 | Re-check backup model | Planned | Verify the backup contract against the final provider and persistence model. |
 | 7 | Backup/Restore continuation | Planned | Resume Phase 3 only after the preceding gates are complete. |
@@ -36,18 +36,18 @@ define the format implicitly.
 
 ## In progress
 
-**Wikipedia fallback (Milestone 4)**
-- Implementation and automated validation are present on open PR #11.
-- Completion requires manual review, merge, and verification on master.
+**Wikipedia fallback user-flow audit**
+- Current in-progress package is a strictly bounded user-flow audit to evaluate the merged Wikipedia fallback.
+- Do not automatically declare a UI implementation package required until the audit findings justify it.
 
 **Pending decisions & future work**
-- Sense-level data-model decisions remain pending.
-- Structured vocabulary implementation has not started.
-- Provider/fallback UI is a separate future package.
+- Sense-level data-model decisions remain planned.
+- Structured vocabulary implementation remains unstarted.
 - Backup/Restore remains paused.
 
 ## Completed
 
+- Wikipedia fallback orchestration merged through PR #11 as `d33cd80633f1ad1c25f76567136c642c419a23af`.
 - Stable Windows and Android application foundation.
 - Exact text import and resumable Known/Unknown review.
 - Automatic/manual vocabulary preparation with optional Wiktionary lookup.

@@ -13,7 +13,7 @@
 
 ## Stable baseline
 
-- Stable master baseline: 639618ade38f3a252705085433c1cf6d36598806
+- Stable master baseline: d33cd80633f1ad1c25f76567136c642c419a23af
 - App version: 1.0.0-beta.8 (code 8)
 - Database schema: SQLite PRAGMA user_version 7
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
@@ -22,24 +22,21 @@
 
 ## Current branch
 
-- Branch: feature/wikipedia-fallback-orchestration
-- Base: 639618ade38f3a252705085433c1cf6d36598806
-- Current branch head is intentionally not embedded because editing this document changes the commit SHA. Verify the current tip with `git rev-parse HEAD` and the PR head on GitHub.
-- Pull Request #11 URL: https://github.com/Tachiguro/KnownFirst/pull/11
-- PR state: open and unmerged
-- Confirmation: PR #11 is not part of master.
-- GitHub has no repository status checks for this head, so evidence is strictly local.
+- Branch: docs/wikipedia-fallback-post-merge-audit
+- Base: d33cd80633f1ad1c25f76567136c642c419a23af
+- Local master has been fast-forwarded to origin/master.
 
 ## Active task
 
-- Finalize Wikipedia fallback orchestration pull request.
+- Audit the actual user flow without changing code for the merged Wikipedia fallback.
 
 ## Completed recently
 
-- Created binding architecture and initiative plan `docs/plans/structured-vocabulary-import-and-sense-learning.md`.
-- Wikipedia fallback behind Wiktionary is implemented on PR #11.
-- Added comprehensive regression tests for routing and preservation of relations.
-- Strengthened cache isolation tests for fallback orchestration.
+- PR #11 (Wikipedia fallback orchestration) is merged.
+- Merged feature head is 9aa4ef7bb02166bfbafdf475f4c6fa7731ce1201.
+- Merge commit is d33cd80633f1ad1c25f76567136c642c419a23af.
+- Feature and merge commit trees are identical.
+- Created `docs/audits/2026-07-23-wikipedia-fallback-user-flow-audit.md`.
 
 ## Process notes
 
@@ -47,30 +44,18 @@
 
 ## Exact implementation boundaries
 
-- Wikipedia fallback behind primary Wiktionary
-- Cache isolation strictly implemented
-- Schema version 7, no migration
-- No provider-selection UI
-- No Backup/Restore continuation
-- No PDF/list import
-- No synchronization
-- No live Wikimedia tests
-- No device, emulator, ADB, or logcat work
-- No APK/AAB creation
-- No publish, signing, deployment, or store work
+- Schema version 7, no migration.
+- No production code or tests were modified in this audit package.
+- No live Wikimedia requests occurred.
+- No device or visual execution occurred.
 
 ## Validation
 
-- Focused tests (Fallback, EnrichAsync, Cache): 35 passed, 0 failed, 0 skipped.
-- Complete test suite: 552 passed, 0 failed, 0 skipped.
-- Windows Debug warnings and errors: 0 warnings, 0 errors.
-- Android Debug warnings and errors: 0 warnings, 0 errors.
-- Android Release warnings and errors: 0 warnings, 0 errors.
-- AOT warnings: 0
-- Trimming warnings: 0
-- Source-generation warnings: 0
-- git diff --check result: 0 whitespace errors
-- Markdown-link validation: passed
+- Merged-master validation: Complete test suite (552 passed, 0 failed, 0 skipped).
+- Windows Debug build: 0 warnings, 0 errors.
+- Android Debug build: 0 warnings, 0 errors.
+- Android Release build: 0 warnings, 0 errors.
+- AOT, trimming, and source-generation warnings: 0.
 
 ## Paused work
 
@@ -79,10 +64,8 @@
 
 ## Planned sequence
 
-1. Finalize PR #11 for Wikipedia fallback orchestration.
-2. Fast-forward local master after merge.
-3. Keep fallback orchestration and UI separate.
-4. Keep schema version 7 until an explicit data-model decision.
+1. Review the documentation-only pull request containing the user-flow audit.
+2. Choose the bounded implementation package identified by the audit.
 
 ## Known constraints and risks
 
@@ -110,25 +93,11 @@
 - docs/PROJECT_STATE.md
 - docs/ROADMAP.md
 - CHANGELOG.md
-- docs/DATABASE_CONTRACT.md
-- docs/architecture/wikipedia-json-client.md
-- docs/architecture/wikipedia-lookup-provider.md
-- docs/architecture/backup-format-v1.md
-- docs/plans/backup-restore-v1-implementation-plan.md
-- docs/handoffs/2026-07-22-beta-8-release.md
-- docs/handoffs/2026-07-23-wikipedia-fallback-orchestration.md
-- KnownFirst.slnx
-- KnownFirst.csproj
-- Services/Lexical/Wikipedia/WikipediaLookupProvider.cs
-- Services/Lexical/LexicalEnrichmentService.cs
-- KnownFirst.Tests/LexicalEnrichmentRoutingTests.cs
-- KnownFirst.Tests/StudyWorkflowServiceTests.cs
+- docs/audits/2026-07-23-wikipedia-fallback-user-flow-audit.md
 
 ## Next exact action
 
-1. Review Pull Request #11.
-2. Merge it manually only after explicit user approval.
-3. After merge, fast-forward local master in a separate controlled step.
+- Review the audit PR and choose the bounded implementation package identified by the evidence.
 
 ## New-chat handoff
 

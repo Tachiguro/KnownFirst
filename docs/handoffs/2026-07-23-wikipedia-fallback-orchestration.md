@@ -1,10 +1,9 @@
 # Handoff: Wikipedia fallback orchestration
 
 **Date:** 2026-07-23
-**Branch:** `feature/wikipedia-fallback-orchestration`
-**Base:** `639618ade38f3a252705085433c1cf6d36598806`
-**Final branch head is intentionally not embedded because editing this document changes the commit SHA. Verify the current tip with `git rev-parse HEAD` and the PR head on GitHub.**
-**PR #11:** https://github.com/Tachiguro/KnownFirst/pull/11 (Open and unmerged)
+**Branch:** `master`
+**Merge commit:** `d33cd80633f1ad1c25f76567136c642c419a23af`
+**PR #11:** https://github.com/Tachiguro/KnownFirst/pull/11 (Merged)
 
 ## Scope and Architecture
 
@@ -70,5 +69,4 @@ The core architecture correctly places the Wikipedia fallback behind Wiktionary 
 
 ## Next Exact Action
 
-1. Review Pull Request #11.
-2. Manual merge decision by the user.
+1. Review the Wikipedia fallback user-flow audit pull request on the new branch.

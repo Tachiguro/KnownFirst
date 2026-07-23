@@ -25,7 +25,7 @@ public sealed class LexicalEnrichmentRoutingTests
 
             InvocationCount++;
             ReceivedRequests.Add(request);
-            
+
             if (ReturnResult != null) return Task.FromResult(ReturnResult);
 
             return Task.FromResult(new LexicalResult(
@@ -86,7 +86,7 @@ public sealed class LexicalEnrichmentRoutingTests
                     TargetLanguage: request.TargetLanguage
                 ));
             }
-            
+
             return Task.FromResult(new LexicalResult(
                 Status: LexicalLookupStatus.NotFound,
                 QueriedLemma: request.CanonicalLookupTerm,
@@ -189,7 +189,7 @@ public sealed class LexicalEnrichmentRoutingTests
     [TestMethod]
     public async Task Wiktionary_NotFound_Translation_DoesNotCallWikipedia()
     {
-        var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.Success);
+        var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.NotFound);
         var wiktionary = new TrackingProvider("Wiktionary", LexicalLookupStatus.NotFound);
         var service = CreateService([wikipedia, wiktionary]);
 
@@ -199,6 +199,26 @@ public sealed class LexicalEnrichmentRoutingTests
         Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
         Assert.AreEqual(1, wiktionary.InvocationCount);
         Assert.AreEqual(0, wikipedia.InvocationCount);
+    }
+
+    [TestMethod]
+    public async Task ExplicitWikipedia_RelationLikeResult_DoesNotCallWiktionary()
+    {
+        var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.Success);
+        // "plural of redirected" will cause a redirect attempt within the provider loop
+        wikipedia.ReturnResult = CreateValidResult("Wikipedia", LexicalLookupStatus.Success, null, LexicalLookupMode.Definition, false, "test");
+        wikipedia.ReturnResult = wikipedia.ReturnResult with { Meanings = [new LexicalMeaning("1", null, "plural of redirected", null, null, [])] };
+
+        var wiktionary = new TrackingProvider("Wiktionary", LexicalLookupStatus.Success);
+        var service = CreateService([wikipedia, wiktionary]);
+
+        var request = CreateRequest("Wikipedia");
+        var result = await service.EnrichAsync(request, "test", null);
+
+        // It should have redirected internally in Wikipedia, failing because the second Wikipedia return is also "plural of redirected" (the mock always returns it) which triggers lemma-redirect-loop
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("lemma-redirect-loop", result.ErrorCode);
+        Assert.AreEqual(0, wiktionary.InvocationCount);
     }
 
     [DataTestMethod]
@@ -220,6 +240,51 @@ public sealed class LexicalEnrichmentRoutingTests
     }
 
     [TestMethod]
+    public async Task Wiktionary_ProviderCrash_DoesNotCallWikipedia()
+    {
+        var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.Success);
+        var wiktionary = new CrashingProvider("Wiktionary");
+        var service = CreateService([wikipedia, wiktionary]);
+
+        var request = CreateRequest("Wiktionary");
+        var result = await service.EnrichAsync(request, "test", null);
+
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("provider-crash", result.ErrorCode);
+        Assert.AreEqual(0, wikipedia.InvocationCount);
+    }
+
+    [TestMethod]
+    public async Task Wiktionary_ProviderIdentityMismatch_DoesNotCallWikipedia()
+    {
+        var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.Success);
+        var wiktionary = new TrackingProvider("Wiktionary", LexicalLookupStatus.Success);
+        wiktionary.ReturnResult = CreateValidResult("WrongIdentity", LexicalLookupStatus.Success);
+        var service = CreateService([wikipedia, wiktionary]);
+
+        var request = CreateRequest("Wiktionary");
+        var result = await service.EnrichAsync(request, "test", null);
+
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("provider-identity-mismatch", result.ErrorCode);
+        Assert.AreEqual(0, wikipedia.InvocationCount);
+    }
+
+    [TestMethod]
+    public async Task UnknownExplicitlyRequestedProvider_DoesNotCallWikipedia()
+    {
+        var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.Success);
+        var service = CreateService([wikipedia]);
+
+        var request = CreateRequest("UnknownProvider");
+        var result = await service.EnrichAsync(request, "test", null);
+
+        Assert.AreEqual(LexicalLookupStatus.PermanentFailure, result.Status);
+        Assert.AreEqual("provider-not-registered", result.ErrorCode);
+        Assert.AreEqual(0, wikipedia.InvocationCount);
+    }
+
+    [TestMethod]
     public async Task CallerCancellation_DoesNotTriggerFallback()
     {
         var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.Success);
@@ -227,9 +292,9 @@ public sealed class LexicalEnrichmentRoutingTests
         var service = CreateService([wikipedia, wiktionary]);
 
         var request = CreateRequest("Wiktionary");
-        
+
         await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => service.EnrichAsync(request, "test", null, new CancellationToken(true)));
-        
+
         Assert.AreEqual(0, wikipedia.InvocationCount);
     }
 
@@ -237,7 +302,7 @@ public sealed class LexicalEnrichmentRoutingTests
     public async Task MissingWikipediaRegistration_ProducesDeterministicError()
     {
         var wiktionary = new TrackingProvider("Wiktionary", LexicalLookupStatus.NotFound);
-        var service = CreateService([wiktionary]); 
+        var service = CreateService([wiktionary]);
 
         var request = CreateRequest("Wiktionary");
         var result = await service.EnrichAsync(request, "test", null);
@@ -287,20 +352,30 @@ public sealed class LexicalEnrichmentRoutingTests
     {
         var wikipedia = new TrackingProvider("Wikipedia", LexicalLookupStatus.Success);
         wikipedia.ReturnResult = CreateValidResult("Wikipedia", LexicalLookupStatus.Success, null, LexicalLookupMode.Definition, true, "redirected");
-        
+
         var wiktionary = new RedirectingThenNotFoundProvider();
-        
+
         var service = CreateService([wikipedia, wiktionary]);
         var request = CreateRequest("Wiktionary", LexicalLookupMode.Definition, null, "test", "test");
-        
+
         var result = await service.EnrichAsync(request, "test", null);
-        
+
         Assert.AreEqual(1, wikipedia.InvocationCount);
         Assert.AreEqual("redirected", wikipedia.ReceivedRequests[0].CanonicalLookupTerm);
         Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
         Assert.AreEqual("test", result.EncounteredSurfaceForm);
         Assert.AreEqual(1, result.RedirectDepth);
         Assert.AreEqual("plural of redirected", result.GrammaticalRelationship);
+    }
+
+    private sealed class CrashingProvider(string name) : ILexicalLookupProvider
+    {
+        public string ProviderName { get; } = name;
+        public int ProviderSchemaVersion { get; } = 1;
+        public Task<LexicalResult> LookupAsync(LexicalLookupRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new Exception("Intentional crash");
+        }
     }
 
     private static LexicalEnrichmentService CreateService(ILexicalLookupProvider[] providers)
@@ -311,8 +386,8 @@ public sealed class LexicalEnrichmentRoutingTests
     }
 
     private static LexicalLookupRequest CreateRequest(
-        string provider, 
-        LexicalLookupMode mode = LexicalLookupMode.Definition, 
+        string provider,
+        LexicalLookupMode mode = LexicalLookupMode.Definition,
         string? targetLang = null,
         string displayForm = "test",
         string canonicalForm = "test")
@@ -321,10 +396,10 @@ public sealed class LexicalEnrichmentRoutingTests
     }
 
     private static LexicalResult CreateValidResult(
-        string provider, 
-        LexicalLookupStatus status, 
-        string? targetLang = null, 
-        LexicalLookupMode mode = LexicalLookupMode.Definition, 
+        string provider,
+        LexicalLookupStatus status,
+        string? targetLang = null,
+        LexicalLookupMode mode = LexicalLookupMode.Definition,
         bool withTranslation = true,
         string lemma = "test")
     {

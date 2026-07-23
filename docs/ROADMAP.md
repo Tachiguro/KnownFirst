@@ -20,7 +20,7 @@ exists. Verified implementation state belongs in
 | 1 | Documentation and handoff structure | Completed | Maintain canonical entry points and an auditable single-worktree handoff. |
 | 2 | Remove Apple targets | Completed | Remove iOS and Mac Catalyst from project, platform code, build configuration, tests, and docs on a dedicated branch. |
 | 3 | Windows/Android validation | Completed | Validate Windows Debug and Android Debug/Release after platform cleanup. |
-| 4 | Wikipedia fallback | Planned | Add a consented fallback behind Wiktionary without changing provider boundaries prematurely. |
+| 4 | Wikipedia fallback | In progress | Add a consented fallback behind Wiktionary without changing provider boundaries prematurely. |
 | 5 | Persistence and migration decision | Planned | Decide and document schema implications of the final provider model. |
 | 6 | Re-check backup model | Planned | Verify the backup contract against the final provider and persistence model. |
 | 7 | Backup/Restore continuation | Planned | Resume Phase 3 only after the preceding gates are complete. |
@@ -36,10 +36,7 @@ define the format implicitly.
 
 ## In progress
 
-- No implementation package is currently in progress after the platform-target
-  cleanup; the next branch is the Wikipedia fallback audit.
-
-No Wikipedia fallback or backup/restore implementation is in progress.
+- Wikipedia fallback orchestration is complete. Wikipedia fallback UI integration is the next step.
 
 ## Completed
 

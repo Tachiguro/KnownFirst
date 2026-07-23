@@ -145,6 +145,43 @@ public sealed class StudyWorkflowServiceTests
     }
 
     [TestMethod]
+    public async Task Preparation_WikipediaFallback_SucceedsAndRetainsMetadata()
+    {
+        var wikipediaProvider = new MutableDictionaryProvider(_clock, "Wikipedia");
+        var preparationWithFallback = CreatePreparationService(_provider, wikipediaProvider);
+
+        _provider.ResultFactory = request => FailureResult(request) with
+        {
+            Status = LexicalLookupStatus.NotFound,
+            ErrorCode = "not-found",
+            Meanings = []
+        };
+        wikipediaProvider.ResultFactory = request => SuccessResult(request) with
+        {
+            ProviderName = "Wikipedia",
+            SourceProject = "en.wikipedia.org",
+            Meanings = [new LexicalMeaning("wiki-1", "noun", "Wikipedia definition", null, null, [])]
+        };
+
+        await ImportAllUnknownAsync("network.");
+        await preparationWithFallback.StartAsync(PreparationMethod.AutomaticOnline, 1);
+
+        var lookedUp = await preparationWithFallback.LookupCurrentAsync();
+        var reloaded = await preparationWithFallback.GetCurrentAsync();
+
+        Assert.AreEqual(PreparationCandidateStatus.ResultReady, lookedUp!.Status);
+        Assert.IsNotNull(reloaded?.Result);
+
+        Assert.AreEqual(1, _provider.CallCount);
+        Assert.AreEqual(1, wikipediaProvider.CallCount);
+
+        Assert.AreEqual("Wikipedia definition", reloaded.Result.Meanings.Single().Definition);
+
+        Assert.AreEqual("Wikipedia", reloaded.Result.ProviderName);
+        Assert.AreEqual("en.wikipedia.org", reloaded.Result.SourceProject);
+    }
+
+    [TestMethod]
     public async Task Preparation_AutomaticResultCanBeAcceptedWithoutTyping()
     {
         await ImportAllUnknownAsync("network.");
@@ -1301,13 +1338,13 @@ public sealed class StudyWorkflowServiceTests
         blocking.Release.TrySetResult();
     }
 
-    private PreparationService CreatePreparationService(IDictionaryLookupProvider provider) => new(
+    private PreparationService CreatePreparationService(params ILexicalLookupProvider[] providers) => new(
         _database,
         new LexicalEnrichmentService(
             new AcronymExpansionDetector(),
             new MeaningRanker(),
             new LexicalCacheRepository(_database),
-            new LexicalLookupProviderResolver([provider])),
+            new LexicalLookupProviderResolver(providers)),
         _clock);
 
     private LearningService CreateLearningService() => new(
@@ -1501,7 +1538,7 @@ public sealed class StudyWorkflowServiceTests
         LookupMode: request.LookupMode,
         TargetLanguage: request.TargetLanguage);
 
-    private sealed class MutableDictionaryProvider(FakeClock clock) : IDictionaryLookupProvider
+    private sealed class MutableDictionaryProvider(FakeClock clock, string providerName = "Wiktionary") : IDictionaryLookupProvider
     {
         private int _callCount;
         private readonly ConcurrentQueue<LexicalLookupRequest> _requests = new();
@@ -1526,7 +1563,7 @@ public sealed class StudyWorkflowServiceTests
 
         public LexicalLookupRequest? LastRequest { get; private set; }
 
-        public string ProviderName => WiktionaryLookupProvider.Name;
+        public string ProviderName => providerName;
 
         public int ProviderSchemaVersion => 1;
 

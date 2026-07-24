@@ -1,60 +1,51 @@
-# KnownFirst documentation index
+# KnownFirst Documentation Index
 
-This is the canonical map of project documentation. New agents read
-`AGENTS.md`, this index, `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`,
-`CHANGELOG.md`, and then only the relevant architecture, plan, decision, test,
-release, or handoff documents.
+This document is the canonical task router for KnownFirst. Coding agents use this index to locate only the specific documentation required for their active task.
 
-## Canonical entry points
+## Baseline Reading Rules
 
-- [Current work and handoff](CURRENT_WORK.md) — operational state and the next exact action.
-- [Project state](PROJECT_STATE.md) — verified stable product and repository facts.
-- [Roadmap](ROADMAP.md) — prioritized future work; planned items are not claims of implementation.
-- [Changelog](../CHANGELOG.md) — completed user-visible changes and release notes.
-- [Debug artifact policy](development/DEBUG_ARTIFACT_POLICY.md) — disposable diagnostic storage rules.
+- **Always read:** [AGENTS.md](../AGENTS.md) (universal repository and safety rules).
+- **Read [docs/CURRENT_WORK.md](CURRENT_WORK.md) when:** continuing active implementation, updating operational task state, reviewing active branch status, or when the task explicitly references current work.
+- **Do NOT read routine status/historical docs** ([PROJECT_STATE.md](PROJECT_STATE.md), [ROADMAP.md](ROADMAP.md), [CHANGELOG.md](../CHANGELOG.md), audits, handoffs, backup plans, build guides) unless directly required by the task category below.
 
-## Architecture and domain contracts
+## Task-Based Reading Matrix
 
-- [Architecture](KNOWNFIRST_ARCHITECTURE.md)
-- [MVP workflow](MVP_WORKFLOW.md)
-- [Word analysis](WORD_ANALYSIS.md)
-- [Database contract](DATABASE_CONTRACT.md)
-- [UI/UX acceptance](UI_UX_ACCEPTANCE.md)
-- [Database audit](architecture/database-audit.md)
-- [Backup format v1](architecture/backup-format-v1.md)
-- [Wikipedia JSON API client](architecture/wikipedia-json-client.md)
-- [Wikipedia Lookup Provider](architecture/wikipedia-lookup-provider.md)
+### 1. Text Analysis and Import
+- **Required reading:** [WORD_ANALYSIS.md](WORD_ANALYSIS.md), relevant sections of [product/IMPORT_AND_REVIEW.md](product/IMPORT_AND_REVIEW.md), relevant accepted ADRs ([ADR-0002](decisions/ADR-0002-separate-analysis-preparation-and-learning.md), [ADR-0003](decisions/ADR-0003-frequency-prioritizes-never-filters.md)), affected code and tests.
+- **Normally NOT required:** Database audit, online provider docs, build/release guides.
 
-## Feature and delivery material
+### 2. Vocabulary Review, Preparation, and Lexical Lookup
+- **Required reading:** [product/PREPARATION.md](product/PREPARATION.md), [product/PREPARATION_RESULTS.md](product/PREPARATION_RESULTS.md), [engineering/LEXICAL_LOOKUP.md](engineering/LEXICAL_LOOKUP.md), provider architecture when applicable ([architecture/wikipedia-json-client.md](architecture/wikipedia-json-client.md), [architecture/wikipedia-lookup-provider.md](architecture/wikipedia-lookup-provider.md)), affected code and tests.
+- **Normally NOT required:** Backup plans, database audit, build/release guides.
 
-- [Word preparation and online lookup](WORD_ANALYSIS.md)
-- [Backup and restore plan](plans/backup-restore-v1-implementation-plan.md)
-- [Structured vocabulary import and sense-level learning](plans/structured-vocabulary-import-and-sense-learning.md)
-- [Learning and normalization requirements](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md)
-- [GUI test matrix](GUI_TEST_MATRIX.md)
-- [Windows GUI test plan](KnownFirst_Windows_GUI_Testplan.md)
-- [Beta testing](BETA_TESTING.md)
+### 3. Learning and Scheduling
+- **Required reading:** [product/LEARNING.md](product/LEARNING.md), [REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if persistence changes), affected code and tests.
+- **Normally NOT required:** Text analysis internals, backup plans, build/release guides.
 
-## Decisions, releases, and handoffs
+### 4. UI and Localization
+- **Required reading:** [UI_UX_ACCEPTANCE.md](UI_UX_ACCEPTANCE.md), relevant design specs ([design/IMPORT_AND_REVIEW.md](design/IMPORT_AND_REVIEW.md), [design/PREPARATION.md](design/PREPARATION.md), [design/LEARNING.md](design/LEARNING.md), [design/SETTINGS_AND_NAVIGATION.md](design/SETTINGS_AND_NAVIGATION.md)), affected Razor/CSS/localization files and tests.
+- **Normally NOT required:** Database audit, text analysis internals, build/release guides.
 
-- [Accepted decisions](decisions/README.md)
-- [Versioning policy](VERSIONING.md)
-- [Beta 8 release notes](releases/1.0.0-beta.8.md)
-- [Beta 8 release handoff](handoffs/2026-07-22-beta-8-release.md)
-- [Single-worktree consolidation handoff](handoffs/2026-07-22-single-worktree-consolidation.md)
-- [Remove Apple targets handoff](handoffs/2026-07-22-remove-apple-targets.md)
-- [Wikipedia fallback orchestration handoff](handoffs/2026-07-23-wikipedia-fallback-orchestration.md)
-- [Wikipedia fallback user-flow audit](audits/2026-07-23-wikipedia-fallback-user-flow-audit.md)
+### 5. Database and Migration
+- **Required reading:** [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [architecture/database-audit.md](architecture/database-audit.md), relevant accepted ADRs ([ADR-0001](decisions/ADR-0001-local-sqlite-storage.md), [ADR-0004](decisions/ADR-0004-known-vocabulary-across-texts.md)), migration and compatibility tests.
+- **Normally NOT required:** UI design docs, online lookup provider specs, build/release guides.
 
-## Maintenance and history
+### 6. Backup and Restore
+- **Required reading:** [architecture/backup-format-v1.md](architecture/backup-format-v1.md), [plans/backup-restore-v1-implementation-plan.md](plans/backup-restore-v1-implementation-plan.md), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [architecture/database-audit.md](architecture/database-audit.md), affected Data Safety code and tests.
+- **Normally NOT required:** UI design specs, online lookup provider specs, build/release guides.
 
-- [Documentation audit](maintenance/documentation-audit.md)
-- [Branch/worktree inventory](maintenance/branch-and-worktree-inventory.md) — historical snapshot, not current operational state.
-- [Agent workflow](AGENT_WORKFLOW.md)
-- [Archived vertical-slice prompt](archive/TEXT_REVIEW_VERTICAL_SLICE_PROMPT.md) — historical reference only.
-- [Original implementation prompt](CODEX_IMPLEMENTATION_PROMPT.md) — historical reference; it cannot override this index or `AGENTS.md`.
+### 7. Build, Versioning, Packaging, APK, AAB, and Release
+- **Required reading:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md), [VERSIONING.md](VERSIONING.md), [BETA_TESTING.md](BETA_TESTING.md), relevant release evidence ([releases/1.0.0-beta.8.md](releases/1.0.0-beta.8.md)), current build scripts and tests.
+- **Normally NOT required:** Text analysis internals, UI acceptance criteria, database audit.
 
-Historical documents remain available for traceability. They are not current
-instructions unless explicitly linked from `CURRENT_WORK.md` as relevant
-context. `PROJECT_STATE.md` owns stable facts, `ROADMAP.md` owns future order,
-and `CURRENT_WORK.md` owns the active handoff.
+### 8. Diagnostics
+- **Required reading:** [development/DEBUG_ARTIFACT_POLICY.md](development/DEBUG_ARTIFACT_POLICY.md), relevant diagnostic service code and tests.
+- **Normally NOT required:** Backup plans, text analysis internals, release packaging.
+
+### 9. Governance and Documentation
+- **Required reading:** [AGENTS.md](../AGENTS.md), [INDEX.md](INDEX.md), [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md), only the specific contracts or documents being updated.
+- **Normally NOT required:** Unaffected domain code, test suites, build scripts.
+
+### 10. Historical Investigation
+- **Required reading:** Only the specific historical document needed for investigation ([audits/](audits/), [handoffs/](handoffs/), [archive/](archive/), historical test plans).
+- **Normally NOT required:** All active implementation contracts not under investigation.

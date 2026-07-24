@@ -18,6 +18,32 @@ if ([string]::IsNullOrWhiteSpace($PasswordFilePath)) {
 if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
     throw "KnownFirst.csproj was not found at $projectPath."
 }
+
+function Get-KnownFirstVersionInfo {
+    param([Parameter(Mandatory = $true)][string]$ProjectPath)
+
+    $output = & dotnet msbuild $ProjectPath -nologo `
+        -getProperty:KnownFirstProductVersion `
+        -getProperty:KnownFirstBuildNumber
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not read KnownFirstProductVersion/KnownFirstBuildNumber from $ProjectPath.`n$($output | Out-String)"
+    }
+
+    $parsed = ($output | Out-String).Trim() | ConvertFrom-Json
+    $productVersion = $parsed.Properties.KnownFirstProductVersion
+    $buildNumber = $parsed.Properties.KnownFirstBuildNumber
+    if ([string]::IsNullOrWhiteSpace($productVersion) -or [string]::IsNullOrWhiteSpace($buildNumber)) {
+        throw "KnownFirstProductVersion or KnownFirstBuildNumber was empty when evaluated from $ProjectPath."
+    }
+
+    return [pscustomobject]@{
+        ProductVersion = $productVersion
+        BuildNumber = $buildNumber
+    }
+}
+
+$versionInfo = Get-KnownFirstVersionInfo -ProjectPath $projectPath
+
 if (-not (Test-Path -LiteralPath $KeystorePath -PathType Leaf)) {
     throw "The Android beta keystore is missing at $KeystorePath. Restore the existing signing identity before publishing."
 }
@@ -49,7 +75,7 @@ if ([string]::IsNullOrWhiteSpace($javaHome)) {
 }
 
 $artifactRoot = Join-Path $projectRoot "artifacts\android-google-play"
-$bundleName = "KnownFirst-1.0.0-beta.6-code6.aab"
+$bundleName = "KnownFirst-$($versionInfo.ProductVersion)-code$($versionInfo.BuildNumber).aab"
 $bundlePath = Join-Path $artifactRoot $bundleName
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
 if (Test-Path -LiteralPath $bundlePath) {

@@ -34,6 +34,6 @@ Update documentation in one bundled pass after stable code implementation:
 1. **Review:** Audit diffs for scope, safety, localization, performance, AOT/trimming safety, and secrets.
 2. **External review limit:** Normal packages undergo one external review pass and at most one consolidated correction pass for routine findings. Additional review passes occur only for explicit high-risk findings.
 3. **Explicit staging:** Use explicit staging (`git add <file1> <file2>`). Do not use `git add .` or stage untracked scratch files.
-4. **Clean commits:** Create clear commits using standard conventional prefixes (`feature/`, `fix/`, `docs/`, `build/`, `test/`, `chore/`).
+4. **Clean commits:** Create clear commits using standard conventional commit prefixes (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `chore:`). Branch prefixes (`feature/`, `fix/`, `docs/`, `build/`, `test/`, `chore/`, `hotfix/`, `release/`) are used for Git branches.
 5. **Authorized push and PR:** Push branches and create pull requests only when explicitly authorized. Auto-merge is strictly prohibited.
 6. **Accurate claims:** Never claim physical device validation, visual acceptance, or manual verification without concrete empirical evidence.

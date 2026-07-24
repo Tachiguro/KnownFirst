@@ -55,5 +55,8 @@ that decision.
 - [ADR-0003: Frequency prioritizes but never filters vocabulary](ADR-0003-frequency-prioritizes-never-filters.md)
 - [ADR-0004: Known vocabulary is stored across texts](ADR-0004-known-vocabulary-across-texts.md)
 - [ADR-0005: Source-generated JSON metadata for Android AOT](ADR-0005-source-generated-json-for-android-aot.md)
-- [ADR-0006: Git worktrees isolate feature development](ADR-0006-git-worktrees-for-isolated-development.md) *(Superseded by ADR-0007)*
 - [ADR-0007: Single canonical working directory](ADR-0007-single-canonical-working-directory.md)
+
+## Superseded ADRs
+
+- [ADR-0006: Git worktrees isolate feature development](ADR-0006-git-worktrees-for-isolated-development.md) *(Superseded by [ADR-0007](ADR-0007-single-canonical-working-directory.md))*

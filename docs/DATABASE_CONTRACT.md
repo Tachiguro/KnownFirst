@@ -115,9 +115,7 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 
 ## Backup and restore boundary
 
-No supported backup, restore, export, synchronization, or cloud format exists
-in version 1.0.0-beta.8. Future work must not infer a format directly from the
-physical SQLite file.
+No supported backup, restore, export, synchronization, or cloud format exists in the current KnownFirst source state. Future work must not infer a format directly from the physical SQLite file.
 
 Before implementation, Data Safety v1 must define:
 

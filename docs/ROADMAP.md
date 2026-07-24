@@ -7,7 +7,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 ## Status definitions
 
 - **Planned:** accepted ordering, implementation not started.
-- **In progress:** active scoped work on a task branch.
+- **In progress:** active scoped work on a task branch under review.
 - **Completed:** merged and verified at the stated milestone.
 - **Deferred:** intentionally outside the current sequence.
 
@@ -20,7 +20,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 3 | Windows/Android validation | Completed | Validate Windows Debug and Android Debug/Release after platform cleanup. |
 | 4 | Wikipedia fallback | Completed | Add consented fallback behind Wiktionary without changing provider boundaries prematurely. |
 | 5 | Versioning policy & Beta 9 identity | Completed | Establish binding versioning rules, build identity formatting, and Beta 9 product version. |
-| 6 | Task-based documentation routing | In progress | Restructure documentation so agents read only task-relevant specifications. |
+| 6 | Task-based documentation routing | In progress | Restructure documentation so agents read only task-relevant specifications (PR #16). |
 | 7 | Persistence and migration decision | Planned | Decide and document schema implications of the final provider model. |
 | 8 | Re-check backup model | Planned | Verify the backup contract against the final provider and persistence model. |
 | 9 | Backup/Restore continuation | Planned | Resume Phase 3 only after the preceding gates are complete. |
@@ -35,7 +35,7 @@ Data Safety v1 and the database audit are gates for versioned backup and restore
 ## In progress
 
 **Task-based documentation routing**
-- Rationalize Markdown documentation, streamline AGENTS.md to universal rules, rebuild docs/INDEX.md as a task router, create docs/BUILD_AND_RELEASE.md, and resolve worktree ADR-0006/ADR-0007.
+- Rationalize Markdown documentation, streamline AGENTS.md to universal rules, rebuild docs/INDEX.md as a task router, create docs/BUILD_AND_RELEASE.md, and resolve worktree ADR-0006/ADR-0007 (Pull Request #16 open).
 
 ## Completed
 

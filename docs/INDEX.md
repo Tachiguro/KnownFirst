@@ -5,25 +5,27 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 ## Baseline Reading Rules
 
 - **Always read:** [AGENTS.md](../AGENTS.md) (universal repository and safety rules).
-- **Read [docs/CURRENT_WORK.md](CURRENT_WORK.md) when:** continuing active implementation, updating operational task state, reviewing active branch status, or when the task explicitly references current work.
-- **Do NOT read routine status/historical docs** ([PROJECT_STATE.md](PROJECT_STATE.md), [ROADMAP.md](ROADMAP.md), [CHANGELOG.md](../CHANGELOG.md), audits, handoffs, backup plans, build guides) unless directly required by the task category below.
+- **Read [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) when:** writing or modifying repository files.
+- **Read [docs/CURRENT_WORK.md](CURRENT_WORK.md) when:** continuing the active package, reviewing the active branch, changing operational task state, or explicitly requested by the task.
+- **Read [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) only after:** an explicit build, configuration, packaging, signing, APK, AAB, release, artifact-reconstruction, or store request.
+- **Do NOT read routine status or historical docs** ([PROJECT_STATE.md](PROJECT_STATE.md), [ROADMAP.md](ROADMAP.md), [CHANGELOG.md](../CHANGELOG.md), audits, handoffs, backup plans) unless directly required by the task category below.
 
 ## Task-Based Reading Matrix
 
 ### 1. Text Analysis and Import
-- **Required reading:** [WORD_ANALYSIS.md](WORD_ANALYSIS.md), relevant sections of [product/IMPORT_AND_REVIEW.md](product/IMPORT_AND_REVIEW.md), relevant accepted ADRs ([ADR-0002](decisions/ADR-0002-separate-analysis-preparation-and-learning.md), [ADR-0003](decisions/ADR-0003-frequency-prioritizes-never-filters.md)), affected code and tests.
-- **Normally NOT required:** Database audit, online provider docs, build/release guides.
+- **Required reading:** [WORD_ANALYSIS.md](WORD_ANALYSIS.md), relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), relevant accepted ADRs ([ADR-0002](decisions/ADR-0002-separate-analysis-preparation-and-learning.md), [ADR-0003](decisions/ADR-0003-frequency-prioritizes-never-filters.md), [ADR-0004](decisions/ADR-0004-known-vocabulary-across-texts.md)), affected code and tests.
+- **Normally NOT required:** Database audit, online provider specs, build/release guides.
 
 ### 2. Vocabulary Review, Preparation, and Lexical Lookup
-- **Required reading:** [product/PREPARATION.md](product/PREPARATION.md), [product/PREPARATION_RESULTS.md](product/PREPARATION_RESULTS.md), [engineering/LEXICAL_LOOKUP.md](engineering/LEXICAL_LOOKUP.md), provider architecture when applicable ([architecture/wikipedia-json-client.md](architecture/wikipedia-json-client.md), [architecture/wikipedia-lookup-provider.md](architecture/wikipedia-lookup-provider.md)), affected code and tests.
+- **Required reading:** Relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), relevant high-level sections of [KNOWNFIRST_ARCHITECTURE.md](KNOWNFIRST_ARCHITECTURE.md), Wikipedia integration specs when applicable ([architecture/wikipedia-json-client.md](architecture/wikipedia-json-client.md), [architecture/wikipedia-lookup-provider.md](architecture/wikipedia-lookup-provider.md)), [ADR-0005](decisions/ADR-0005-source-generated-json-for-android-aot.md) (when JSON/AOT/serialization is affected), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if cache or persisted data changes), affected code and tests.
 - **Normally NOT required:** Backup plans, database audit, build/release guides.
 
 ### 3. Learning and Scheduling
-- **Required reading:** [product/LEARNING.md](product/LEARNING.md), [REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if persistence changes), affected code and tests.
+- **Required reading:** Relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), [REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md) (when its historical checkpoint is relevant), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if persistence changes), affected code and tests.
 - **Normally NOT required:** Text analysis internals, backup plans, build/release guides.
 
 ### 4. UI and Localization
-- **Required reading:** [UI_UX_ACCEPTANCE.md](UI_UX_ACCEPTANCE.md), relevant design specs ([design/IMPORT_AND_REVIEW.md](design/IMPORT_AND_REVIEW.md), [design/PREPARATION.md](design/PREPARATION.md), [design/LEARNING.md](design/LEARNING.md), [design/SETTINGS_AND_NAVIGATION.md](design/SETTINGS_AND_NAVIGATION.md)), affected Razor/CSS/localization files and tests.
+- **Required reading:** [UI_UX_ACCEPTANCE.md](UI_UX_ACCEPTANCE.md), relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), affected Razor/CSS/localization files and tests.
 - **Normally NOT required:** Database audit, text analysis internals, build/release guides.
 
 ### 5. Database and Migration
@@ -34,9 +36,12 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 - **Required reading:** [architecture/backup-format-v1.md](architecture/backup-format-v1.md), [plans/backup-restore-v1-implementation-plan.md](plans/backup-restore-v1-implementation-plan.md), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [architecture/database-audit.md](architecture/database-audit.md), affected Data Safety code and tests.
 - **Normally NOT required:** UI design specs, online lookup provider specs, build/release guides.
 
-### 7. Build, Versioning, Packaging, APK, AAB, and Release
-- **Required reading:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md), [VERSIONING.md](VERSIONING.md), [BETA_TESTING.md](BETA_TESTING.md), relevant release evidence ([releases/1.0.0-beta.8.md](releases/1.0.0-beta.8.md)), current build scripts and tests.
-- **Normally NOT required:** Text analysis internals, UI acceptance criteria, database audit.
+### 7. Build, Versioning, Packaging, and Release
+Conditional routing based on work type:
+- **Build / configuration verification:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md), [VERSIONING.md](VERSIONING.md), affected project files, scripts, and configuration tests.
+- **APK / AAB / package generation:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md), [VERSIONING.md](VERSIONING.md), relevant current scripts, and applicable release evidence.
+- **Manual Android device or beta-package validation:** [BETA_TESTING.md](BETA_TESTING.md) in addition to [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
+- **Historical artifact reconstruction:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) plus only the exact release/tag evidence required.
 
 ### 8. Diagnostics
 - **Required reading:** [development/DEBUG_ARTIFACT_POLICY.md](development/DEBUG_ARTIFACT_POLICY.md), relevant diagnostic service code and tests.

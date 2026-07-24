@@ -46,7 +46,7 @@ The current product implements:
 
 ### Automated
 
-Automated test suite (606 tests) passed clean against PR #15 head before master merge. Tests cover Core policies, text analysis, temporary-SQLite persistence and migration, review/preparation/learning workflows, localization, diagnostics, build identity, UI contracts, Wikipedia JSON API client, Wikipedia lookup provider, and offline Wiktionary fixtures. Automated tests do not use live Wikimedia requests.
+Automated test suite (606 tests) passed clean against code commit `35d9fa15c5d4fdf028c94fafac5a03296008e390`. The later PR #15 change was documentation-only. Tests cover Core policies, text analysis, temporary-SQLite persistence and migration, review/preparation/learning workflows, localization, diagnostics, build identity, UI contracts, Wikipedia JSON API client, Wikipedia lookup provider, and offline Wiktionary fixtures. Automated tests do not use live Wikimedia requests.
 
 ### Release evidence
 
@@ -75,17 +75,15 @@ The verified release handoff records that a signed Beta 8 AAB was built from `29
 
 The stable master baseline is `28f8a74637b2b81d55ed39411922d2ac1decda75` (PR #15 merged).
 
-- Version identity and versioning governance policy for Beta 9 are merged.
-- Wikipedia fallback orchestration is merged.
-- Single canonical working directory (`C:\Dev\KnownFirst`) is established in [ADR-0007](decisions/ADR-0007-single-canonical-working-directory.md).
-- Task-based documentation routing package (`docs/task-based-documentation-routing`) is active.
+- Version identity and versioning governance policy for Beta 9 are merged into `master`.
+- Wikipedia fallback orchestration is merged into `master`.
+- Task-based documentation routing package is currently under review in open Pull Request #16.
 
 ## Immediate action
 
-- Review and merge `docs/task-based-documentation-routing` pull request.
+- Review and merge Pull Request #16 for `docs/task-based-documentation-routing`.
 
 ## Next milestones (Future Work)
 
-1. Post-merge Beta 9 build and AAB release package.
-2. Sense-level learning data-model decision package.
-3. Resume Backup/Restore Phase 3.
+1. Sense-level learning data-model decision package.
+2. Resume Backup/Restore Phase 3.

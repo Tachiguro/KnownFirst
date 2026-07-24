@@ -2,38 +2,42 @@
 
 Git is the source of truth for KnownFirst development.
 
-An agent receives the current branch and one concrete work package. It must consult [docs/INDEX.md](INDEX.md) to read only the documentation relevant to the current task before modifying code or documentation.
+An agent receives the current branch and one concrete work package. Prompt formulation, model selection, and mode isolation are governed by [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md). Before modifying code or documentation, consult [docs/INDEX.md](INDEX.md) to read only the contracts relevant to the active task.
 
-## Work Package Boundaries
+## Explicit Phase State Sequence
 
-1. **One coherent vertical slice per package:** Deliver complete, focused functionality within a single bounded package. Do not create speculative abstractions or unrequested infrastructure.
-2. **Task-specific reading:** Do not reconstruct full repository context or read unrelated architecture docs, audits, or handoffs.
-3. **No routine extra artifacts:** Do not create new handoffs, audits, implementation plans, or extra guide documents unless explicitly instructed.
+KnownFirst development follows a strict, user-authorized phase sequence. No phase starts automatically.
+
+1. **PLAN_ONLY:** Read-only analysis and proposal.
+2. **User Plan Approval:** Explicit user approval of the presented plan.
+3. **IMPLEMENT:** Minimum production change using focused TDD red/green loop (see [docs/TESTING.md](TESTING.md)).
+4. **TEST_ONLY:** Scoped test execution when explicitly requested.
+5. **DOCUMENT_ONLY:** Updating documentation for verified implementation when explicitly requested.
+6. **User Review:** Inspection of uncommitted changes.
+7. **COMMIT_ONLY:** Staging explicit files and committing.
+8. **PUSH_ONLY:** Pushing approved branch and commit to remote repository.
+9. **PR_ONLY:** Opening or updating a pull request.
+10. **REVIEW_ONLY:** Read-only review of PR or diff.
+11. **Correction Package:** Approved fixes for review findings.
+12. **Explicit User Merge Decision:** Separate user-driven merge.
+13. **SYNC_ONLY:** Synchronizing local master to merged remote master.
+
+### Phase Isolation Boundaries
+- A prompt author may explicitly authorize a combination of modes, but the prompt must enumerate every included mode.
+- Normal `IMPLEMENT` mode stops as soon as focused green tests pass. It does not automatically run full test suites, build platforms, update documentation, commit, push, or create PRs.
+- Normal `TEST_ONLY` mode does not modify code or fix failures.
+- Normal `DOCUMENT_ONLY` mode does not modify production or test code.
+- Commit does not imply push. Push does not imply PR. PR does not imply merge. Merge does not imply build or package creation.
 
 ## Development and Testing Loop
 
-1. **Establish existing behavior:** Verify behavior from code and unit tests.
-2. **Focused test execution:** Select approximately 5 to 8 decisive test groups matching modified code. Run focused tests during development to verify affected behavior quickly.
-3. **No repeated full-suite runs:** Do not run full test suites repeatedly during active code editing when relevant inputs have not changed.
-4. **Final validation gate:** Execute the complete relevant test suite once against the stable final commit before opening a PR or finalizing the package.
-5. **Targeted builds:** Run only the platform builds required by the affected target or explicit task. For build procedures and AAB/packaging instructions, see [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
-6. **Automated test boundaries:** Automated tests must use temporary isolated SQLite databases, fake clocks, offline fixtures, and mock HTTP handlers. Never execute live Wikimedia network requests or touch a real user database in tests.
+1. **Focused TDD loop:** Write minimum focused tests first, confirm expected red failure, implement minimum code change, confirm focused tests pass green.
+2. **No automatic broad validation:** Full test suite runs, Windows smoke tests, manual GUI tests, and platform builds are separate authorized operations. Refer to [docs/TESTING.md](TESTING.md) for test scopes and [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for build procedures.
+3. **Single writing agent:** Only one writing agent may operate at a time in `C:\Dev\KnownFirst`.
 
-## Documentation and Release State Updates
+## Review, Staging, and Git Operations
 
-Update documentation in one bundled pass after stable code implementation:
-
-- **docs/CURRENT_WORK.md:** Update operational task state for normal implementation packages.
-- **CHANGELOG.md:** Update only for user-visible behavioral changes.
-- **Contract / Architecture documents:** Update only when an underlying contract or durable principle changes.
-- **docs/PROJECT_STATE.md:** Update only for verified global state or completed milestone changes.
-- **docs/ROADMAP.md:** Update only for material sequencing or milestone status changes.
-
-## Review, Staging, and Publication
-
-1. **Review:** Audit diffs for scope, safety, localization, performance, AOT/trimming safety, and secrets.
-2. **External review limit:** Normal packages undergo one external review pass and at most one consolidated correction pass for routine findings. Additional review passes occur only for explicit high-risk findings.
-3. **Explicit staging:** Use explicit staging (`git add <file1> <file2>`). Do not use `git add .` or stage untracked scratch files.
-4. **Clean commits:** Create clear commits using standard conventional commit prefixes (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `chore:`). Branch prefixes (`feature/`, `fix/`, `docs/`, `build/`, `test/`, `chore/`, `hotfix/`, `release/`) are used for Git branches.
-5. **Authorized push and PR:** Push branches and create pull requests only when explicitly authorized. Auto-merge is strictly prohibited.
-6. **Accurate claims:** Never claim physical device validation, visual acceptance, or manual verification without concrete empirical evidence.
+1. **Explicit staging:** Use explicit file paths (`git add <file1> <file2>`). Never use `git add .` or stage untracked scratch files.
+2. **Conventional commits:** Use standard conventional commit prefixes (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `chore:`).
+3. **Authorized publication:** Push branches and create pull requests only when explicitly authorized. Auto-merge is strictly prohibited.
+4. **Evidence-based claims:** Never claim physical device validation, visual acceptance, or manual verification without concrete empirical evidence.

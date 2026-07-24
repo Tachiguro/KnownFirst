@@ -92,8 +92,7 @@ older `Words` table in a temporary database, preserves its existing row, and
 verifies defaults for `AutomaticInteractionMode` and
 `ConsecutiveRecallSuccessCount`.
 
-That single fixture is not a complete historical migration audit. Expanding the
-fixture matrix is the second prioritized roadmap milestone.
+That single fixture is not a complete historical migration audit. Expanding the migration fixture matrix remains separately planned work.
 
 ## Lexical-cache compatibility
 
@@ -116,9 +115,7 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 
 ## Backup and restore boundary
 
-No supported backup, restore, export, synchronization, or cloud format exists
-in version 1.0.0-beta.8. Future work must not infer a format directly from the
-physical SQLite file.
+No supported backup, restore, export, synchronization, or cloud format exists in the current KnownFirst source state. Future work must not infer a format directly from the physical SQLite file.
 
 Before implementation, Data Safety v1 must define:
 

@@ -15,7 +15,7 @@ The current MVP supports:
 - text import with deterministic Unicode-aware analysis and exact source coordinates
 - resumable Known/Unknown vocabulary review with Undo
 - automatic and manual word preparation
-- optional online Wiktionary lookup with explicit consent and a local SQLite cache
+- optional online dictionary lookup (Wiktionary with automatic Wikipedia definition fallback) with explicit consent and a local SQLite cache
 - recognition and spelling learning cards with deterministic scheduling
 - local SQLite persistence, migrations, transactions, and cleanup
 - persistent structured diagnostics with redaction and bounded retention
@@ -25,20 +25,17 @@ The binding product and architecture specifications are [docs/KNOWNFIRST_ARCHITE
 
 ## Documentation
 
-Start with [AGENTS.md](AGENTS.md). It defines the required reading order,
-repository rules, verification expectations, and Definition of Done.
+Start with [AGENTS.md](AGENTS.md) and [docs/INDEX.md](docs/INDEX.md). They define the universal rules, task-based reading router, and delivery workflow.
 
-- [Project state](docs/PROJECT_STATE.md) records the verified current release,
-  capabilities, tests, database status, and limitations.
-- [Roadmap](docs/ROADMAP.md) records the prioritized next milestones.
+- [Task Index](docs/INDEX.md) routes agents to task-specific specifications.
+- [Agent Workflow](docs/AGENT_WORKFLOW.md) defines detailed operational delivery and validation policies.
+- [Build and Release Guide](docs/BUILD_AND_RELEASE.md) defines build, packaging, signing, and release procedures.
+- [Project state](docs/PROJECT_STATE.md) records verified current release, capabilities, tests, database status, and limitations.
+- [Roadmap](docs/ROADMAP.md) records prioritized next milestones.
 - [Changelog](CHANGELOG.md) records user-visible release changes.
-- [Database contract](docs/DATABASE_CONTRACT.md) defines persisted-data and
-  migration rules.
-- [Architecture](docs/KNOWNFIRST_ARCHITECTURE.md), [MVP workflow](docs/MVP_WORKFLOW.md),
-  and [word analysis](docs/WORD_ANALYSIS.md) are binding specifications.
-- [Decision records](docs/decisions/README.md), [release notes](docs/releases/1.0.0-beta.8.md),
-  and [handoffs](docs/handoffs/2026-07-22-beta-8-release.md) preserve rationale
-  and release evidence.
+- [Database contract](docs/DATABASE_CONTRACT.md) defines persisted-data and migration rules.
+- [Architecture](docs/KNOWNFIRST_ARCHITECTURE.md), [MVP workflow](docs/MVP_WORKFLOW.md), and [word analysis](docs/WORD_ANALYSIS.md) are binding specifications.
+- [Decision records](docs/decisions/README.md), [release notes](docs/releases/1.0.0-beta.8.md), and [handoffs](docs/handoffs/2026-07-22-beta-8-release.md) preserve rationale and release evidence.
 
 ## Technology stack
 
@@ -62,50 +59,15 @@ repository rules, verification expectations, and Definition of Done.
 - .NET MAUI workloads
 - Android SDK when building Android
 
-## Windows development workflow
+## Development and Build Workflows
 
-Run the complete deterministic Windows verification from the repository root:
+For detailed build commands, configuration options, versioning policies, packaging workflows, and manual Android device testing:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-test-windows.ps1
-```
+- Consult [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md) for build targets, restore safeguards, AOT/trimming requirements, packaging, and release procedures.
+- Consult [docs/VERSIONING.md](docs/VERSIONING.md) for versioning policy and build identity rules.
+- Consult [docs/BETA_TESTING.md](docs/BETA_TESTING.md) for explicit manual Android test procedures and diagnostic log verification.
 
-The script cleans generated project output, performs a plain restore, verifies every expected target in `project.assets.json`, builds the Debug solution and Windows target, runs all tests, launches the actual Windows executable, observes its window and startup-complete log event, keeps it alive for the smoke interval, and closes it.
-
-Individual commands remain available:
-
-```powershell
-dotnet restore ./KnownFirst.csproj --force-evaluate --no-cache
-dotnet build ./KnownFirst.csproj -c Debug -f net10.0-windows10.0.19041.0 --no-restore
-dotnet build ./KnownFirst.slnx -c Debug
-dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj -c Debug
-powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/verify-build-configurations.ps1
-```
-
-For interactive development, open `KnownFirst.slnx` in Visual Studio, select Windows Machine, and start debugging.
-
-### Empty Configuration restore safeguard
-
-Visual Studio can supply `Configuration` as an empty global MSBuild property during project evaluation. Global properties are immutable unless a project explicitly treats them as local. Without that declaration, the conditional Debug fallback appeared correct in the project file but could not replace the empty value; NuGet then completed a restore with an empty framework graph, and the next Windows build failed with `NETSDK1005`.
-
-`KnownFirst.csproj` declares `Configuration` in `TreatAsLocalProperty`. The existing conditional fallback can therefore resolve only an empty value to `Debug`, while explicit `Debug`, `Release`, and `BetaDiagnostic` selections remain unchanged. This makes plain command-line restore and Visual Studio design-time restore deterministic after deleting `.vs`, `bin`, and `obj`.
-
-Visual Studio restore also requires standard NuGet properties such as `PackageVersion` to have one value across every target framework in a multi-target project. Debug and BetaDiagnostic package versions are therefore configuration-wide; Android-specific application IDs, titles, and visible versions remain scoped to Android. This prevents Visual Studio from replacing a valid assets file with an empty `NU1105` graph when Windows and Android are evaluated together.
-
-## Other build configurations
-
-Build the persistent diagnostic configuration on Windows:
-
-```powershell
-dotnet restore ./KnownFirst.csproj -p:Configuration=BetaDiagnostic
-dotnet build ./KnownFirst.csproj -c BetaDiagnostic -f net10.0-windows10.0.19041.0 --no-restore
-```
-
-Build Android without launching an emulator:
-
-```powershell
-dotnet build ./KnownFirst.csproj -c Debug -f net10.0-android
-```
+For interactive development on Windows, open `KnownFirst.slnx` in Visual Studio, select Windows Machine, and start debugging.
 
 ## Diagnostics
 
@@ -123,7 +85,7 @@ KnownFirst is local-first:
 
 - Imported texts and learning data remain on the device.
 - No account, analytics, advertising, or mandatory cloud service is required.
-- Optional dictionary requests send only the selected term and required language information directly to Wikimedia after user consent.
+- Optional dictionary requests send only the selected term and required language information directly to Wikimedia (Wiktionary / Wikipedia) after user consent.
 - No document, context sentence, or learning history is sent to the KnownFirst developer.
 
 This direction describes the current architecture and is not a promise of final legal compliance.

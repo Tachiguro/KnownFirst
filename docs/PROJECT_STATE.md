@@ -1,38 +1,28 @@
 # KnownFirst project state
 
-**Status date:** 2026-07-23
-**State source:** `master`
-**Next product milestone:** Wikipedia fallback UI integration
+**Status date:** 2026-07-24
+**State source:** `master` (`28f8a74637b2b81d55ed39411922d2ac1decda75`)
+**Next product milestone:** Sense-level learning data-model decision package
 
-This document is the authoritative snapshot of verified current state. Update
-it when a milestone is completed or when a release, schema, supported platform,
-or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
+This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
 ## Stable release
 
 | Field | Verified value |
 | --- | --- |
 | Project | KnownFirst |
-| Version | `1.0.0-beta.8` |
-| Version code | `8` |
+| Source Version | `1.0.0-beta.9` (build 9, merged PR #15 `28f8a74`) |
+| Distributed Stable Version | `1.0.0-beta.8` (code 8) |
 | Package ID | `com.tachiguro.knownfirst` |
-| Release commit | `29aff385f2c3cabca49b70bd011bf4c09808df6d` |
-| Master merge commit | `956e71895cf141805c8c24f7d32691075d439730` |
+| Release commit (Beta 8) | `29aff385f2c3cabca49b70bd011bf4c09808df6d` |
+| Master merge commit (Beta 8) | `956e71895cf141805c8c24f7d32691075d439730` |
 | Annotated release tag | `v1.0.0-beta.8` |
-| Tag target | `29aff385f2c3cabca49b70bd011bf4c09808df6d` |
 | Distribution | Google Play Internal Testing |
-
-The release commit and merge commit have the same Git tree
-(`64c97c4768f240099e25bffcca2e570310b2fdcc`). The tag intentionally identifies
-the exact source commit used for the tested AAB rather than the later merge
-commit.
 
 ## Supported platforms
 
-- **Android:** released through Google Play Internal Testing; minimum Android
-  version is API 24.
-- **Windows:** primary local development and automated/manual verification
-  platform.
+- **Android:** released through Google Play Internal Testing; minimum Android version is API 24 (Android 7.0).
+- **Windows:** primary local development and automated/manual verification platform.
 - **iOS:** deliberately removed from the project and not supported.
 - **Mac Catalyst:** deliberately removed from the project and not supported.
 
@@ -40,155 +30,58 @@ commit.
 
 The current product implements:
 
-- English and German UI localization with persisted System, Light, and Dark
-  appearance modes;
-- exact text import with deterministic Unicode-aware sentence and vocabulary
-  analysis;
+- English and German UI localization with persisted System, Light, and Dark appearance modes;
+- exact text import with deterministic Unicode-aware sentence and vocabulary analysis;
 - resumable Known/Unknown vocabulary review with persisted decisions and Undo;
 - language-scoped vocabulary identity and global minimal known-word markers;
 - frequency-prioritized automatic or manual preparation;
-- explicit online-lookup consent, read-only Wiktionary lookup, and a local
-  SQLite lexical cache;
-- source attribution, alternative-meaning selection, manual correction, and
-  context snapshots;
-- recognition and spelling card directions with independent deterministic
-  schedules;
+- explicit online-lookup consent, read-only Wiktionary lookup with automatic fallback to Wikipedia definitions, and a local SQLite lexical cache;
+- source attribution, alternative-meaning selection, manual correction, and context snapshots;
+- recognition and spelling card directions with independent deterministic schedules;
 - resumable learning sessions and permanent-known cleanup;
-- transactional local persistence, startup maintenance, and bounded structured
-  diagnostics;
+- transactional local persistence, startup maintenance, and bounded structured diagnostics;
 - responsive Windows and Android layouts with localized workflow gating.
 
 ## Confirmed verification
 
 ### Automated
 
-On 2026-07-22, the following command completed against master merge commit
-`956e71895cf141805c8c24f7d32691075d439730`:
-
-```powershell
-dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj -c Debug --nologo
-```
-
-Result: **389 passed, 0 failed, 0 skipped**. The run used the `net10.0` test
-project and did not build an Android APK or AAB. Existing nullable and MSTest
-analyzer warnings remain; they did not fail the run.
-
-Automated coverage includes Core policies, text analysis, temporary-SQLite
-persistence and migration, review/preparation/learning workflows, localization,
-diagnostics, build identity, UI contracts, and offline Wiktionary fixtures.
-Automated tests do not use live Wikimedia requests.
-
-On 2026-07-22, the Data Safety foundation branch additionally passed 26 focused
-backup-contract/JSON/database-compatibility tests and the complete suite of
-**415 passed, 0 failed, 0 skipped**. A Windows Debug build and serial Android
-Debug and Release builds also completed with 0 warnings and 0 errors, including
-no AOT, trimmer, or source-generator warnings. These checks used only synthetic
-DTOs and temporary SQLite databases; they did not exercise a real backup or
-restore workflow.
+Automated test suite (606 tests) passed clean against code commit `35d9fa15c5d4fdf028c94fafac5a03296008e390`. The later PR #15 change was documentation-only. Tests cover Core policies, text analysis, temporary-SQLite persistence and migration, review/preparation/learning workflows, localization, diagnostics, build identity, UI contracts, Wikipedia JSON API client, Wikipedia lookup provider, and offline Wiktionary fixtures. Automated tests do not use live Wikimedia requests.
 
 ### Release evidence
 
-The verified release handoff records that:
-
-- a signed Beta 8 AAB was built from `29aff385f2c3cabca49b70bd011bf4c09808df6d`;
-- the AAB was accepted in Google Play Internal Testing;
-- a physical Android run covered startup, automatic online lookup, learning,
-  reset, restart, and workflow continuation; and
-- the two Android Release/AOT crashes fixed by `f1f1891` and `29aff385` did
-  not recur in the accepted Beta 8 flow.
-
-The repository does not contain the device model, Android version, AAB
-checksum, screenshots, or a completed full GUI matrix. Do not infer those
-details.
+The verified release handoff records that a signed Beta 8 AAB was built from `29aff385f2c3cabca49b70bd011bf4c09808df6d` and accepted in Google Play Internal Testing. Post-merge Beta 9 build and AAB output package awaits explicit post-merge execution.
 
 ## Database status
 
-- Storage is local SQLite in the application data directory.
+- Storage is local SQLite in the application data directory (`knownfirst.db3`).
 - Current `PRAGMA user_version` is **7**.
-- The schema creates 17 application tables for documents, vocabulary,
-  occurrences, review, lexical cache, preparation, meanings, context
-  snapshots, learning cards, reviews, and resumable sessions.
-- Initialization is forward-oriented and preserves existing rows while adding
-  supported tables or columns.
-- Initialization now reads `PRAGMA user_version` first and rejects a version
-  greater than 7 before creating tables, invalidating cache rows, or changing
-  the version marker.
-- One automated migration regression starts with an older `Words` table,
-  verifies the existing row is preserved, and verifies defaults for newer
-  learning fields.
-- Legacy lexical-cache keys outside the current `v2|` key format are
-  invalidated; this affects reference cache data, not personal learning state.
-- Beta 8 introduced no schema change relative to Beta 7.
-
-The complete persisted-data rules are in
-[DATABASE_CONTRACT.md](DATABASE_CONTRACT.md). Data Safety v1 now has a database
-audit, external backup-format contract, phased implementation plan, immutable
-external data models, strict source-generated JSON metadata/codecs, and the
-future-schema refusal guard. These foundations are internal and are not wired
-to an application workflow. No ZIP reader/writer, database snapshot, backup
-service, validation service, restore preview, restore, file picker, or UI has
-been implemented.
+- The schema creates 17 application tables for documents, vocabulary, occurrences, review, lexical cache, preparation, meanings, context snapshots, learning cards, reviews, and resumable sessions.
+- Initialization is forward-oriented and preserves existing rows while adding supported tables or columns.
+- Initialization reads `PRAGMA user_version` first and rejects a version greater than 7 before modifying tables or cache.
+- Complete persisted-data rules are in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md).
+- Data Safety v1 internal contracts and schemas are defined, but backup/restore runtime features are paused.
 
 ## Known limitations
 
-- Data Safety v1 is not complete. Its internal format/JSON foundations exist,
-  but archive creation, usable backup, restore, and backup/restore UI are not
-  implemented.
-- Cloud synchronization, accounts, analytics, advertising, and payments are
-  not implemented.
-- Offline dictionary packages and FSRS are deferred.
-- Online lookup needs explicit consent and network access on cache misses.
-- Apple platform targets and platform folders were deliberately removed; Apple
-  builds and device validation are outside the supported product scope.
-- The direct-install Android test-package script contains legacy Beta 6
-  filenames and installation metadata and is not a valid Beta 8 release path.
-- Complete visual acceptance remains manual; the checked-in matrices are test
-  definitions, not completed evidence.
-
-## Last completed sprint
-
-**Beta 8 Android Release/AOT stabilization**
-
-- `f1f1891eaf42ad9e7610afc2e9f796771fed27e7` replaced reflection-dependent
-  JSON persistence paths with source-generated metadata and hardened provider
-  failure handling.
-- `29aff385f2c3cabca49b70bd011bf4c09808df6d` removed the AOT-unsafe parser
-  selector path and added parser regression coverage.
-- Pull request 1 merged the release source into `master` as `956e718`.
-
-See the [release handoff](handoffs/2026-07-22-beta-8-release.md).
+- Data Safety v1 is not complete. Internal formats exist, but backup, export, restore, and UI are not implemented.
+- Cloud synchronization, accounts, analytics, advertising, and payments are not implemented.
+- Offline dictionary packages and FSRS scheduling are deferred.
+- Online lookup requires explicit consent and network access on cache misses.
+- Apple platform targets were deliberately removed.
+- Visual acceptance remains manual.
 
 ## Active development
 
-The stable master baseline for this package is `d33cd80633f1ad1c25f76567136c642c419a23af`.
+The stable master baseline is `28f8a74637b2b81d55ed39411922d2ac1decda75` (PR #15 merged).
 
-The Wikipedia fallback orchestration is now merged into master (PR #11, merge commit `d33cd80`).
-
-In this package:
-- The low-level Wikipedia API client and `WikipediaLookupProvider` are implemented.
-- Provider-neutral routing and resolution limits are tested and strictly enforced.
-- Schema version remains 7.
-- No migration was introduced for the Wikipedia fallback orchestration or this audit package. The future sense-level persistence and migration decision remains pending.
-- Merged-master validation confirmed a stable build and test suite (552 tests passed, 0 warnings/errors).
-- Physical-device and visual validation remain unverified.
-- Service orchestration and user-readiness attribution package are complete and verified.
-- Trusted Wiktionary (`.wiktionary.org`) and Wikipedia (`.wikipedia.org`) page titles are rendered as HTTPS links, and concrete CC BY-SA 4.0 license links (`https://creativecommons.org/licenses/by-sa/4.0/`) are rendered with `target="_blank"` and `rel="noopener noreferrer"`.
-- English and German privacy disclosures (`Prepare_OnlineDisclosure`) accurately cover Wiktionary-first querying, Wikipedia definition-only fallback after final Wiktionary `NotFound`, network metadata, and local storage.
-- Schema version remains 7; no migration was introduced.
-- Wiktionary remains primary; Wikipedia remains a definition-only fallback after final Wiktionary `NotFound`. Fallback routing and cache behavior were unchanged.
-- No live Wikimedia, device, emulator, ADB, APK/AAB, signing, publishing, deployment, or store work occurred.
-- Physical-device and visual validation remain unverified.
-- The structured vocabulary/PDF import, sense-level learning, sync, and Linux feasibility plan has been documented (`docs/plans/structured-vocabulary-import-and-sense-learning.md`).
-- Sense-level persistence/migration decision remains pending.
-- Backup/Restore remains paused.
-
-See the dated
-[branch and worktree inventory](maintenance/branch-and-worktree-inventory.md)
-for the complete snapshot.
+- Version identity and versioning governance policy for Beta 9 are merged into `master`.
+- Wikipedia fallback orchestration is merged into `master`.
+- Task-based documentation routing package is currently under review in open Pull Request #16.
 
 ## Immediate action
 
-- Perform external review and manual merge decision for the Wikipedia user-readiness PR.
+- Review and merge Pull Request #16 for `docs/task-based-documentation-routing`.
 
 ## Next milestones (Future Work)
 

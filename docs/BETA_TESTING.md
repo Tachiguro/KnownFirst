@@ -1,79 +1,25 @@
 # KnownFirst Android beta and diagnostic testing
 
-> **Reviewed 2026-07-22:** The current release identity is
-> `1.0.0-beta.8` / version code `8`. The direct-install APK helper still
-> contains legacy Beta 6 filenames and installation metadata; it must not be
-> used to claim a Beta 8 artifact until a separate code task corrects it. The
-> verified Beta 8 release is documented in
-> [releases/1.0.0-beta.8.md](releases/1.0.0-beta.8.md).
+> **Current status (2026-07-24):** Current source identity is `1.0.0-beta.9` / version code `9`. Verified Beta 8 release evidence is preserved in [releases/1.0.0-beta.8.md](releases/1.0.0-beta.8.md). For build, packaging, signing, and AAB retention rules, see [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md). For version policy, see [VERSIONING.md](VERSIONING.md).
 
 ## Scope
 
-The Android test packages are directly installable signed APKs for focused manual validation. Automated tests and builds do not prove runtime behavior on a physical device. GUI automation, emulator testing, and broad device testing are outside the package-publish command.
+The Android test packages are directly installable signed APKs for focused manual validation. Automated tests and builds do not prove runtime behavior on a physical device. GUI automation, emulator testing, and broad device testing are outside routine automated checks.
 
-Current identities:
+Current package identities:
 
-- normal Release: `com.tachiguro.knownfirst`, `1.0.0-beta.8`
-- Release-equivalent diagnostic: `com.tachiguro.knownfirst.diagnostic`, `1.0.0-beta.8-diagnostic`
-- standalone Debug: `com.tachiguro.knownfirst.debug`, `1.0.0-beta.8-debug`
-- application version: `8`
+- normal Release: `com.tachiguro.knownfirst`
+- Release-equivalent diagnostic: `com.tachiguro.knownfirst.diagnostic`
+- standalone Debug: `com.tachiguro.knownfirst.debug`
 - minimum Android version: Android 7.0 (API 24)
 
-The diagnostic package keeps Release optimization, trimming, AOT, and embedded assemblies, while adding symbols and the bounded lexical diagnostic actions. The Debug package embeds assemblies and disables Fast Deployment so that its APK can run without Visual Studio. The three package IDs allow side-by-side installation.
+The diagnostic package keeps Release optimization, trimming, AOT, and embedded assemblies, while adding symbols and bounded lexical diagnostic actions. The Debug package embeds assemblies and disables Fast Deployment so that its APK can run without Visual Studio. The three package IDs allow side-by-side installation.
 
-## Signing identity
+## Build, Packaging, and Signing
 
-The beta signing identity lives outside the repository:
+Build execution, APK/AAB packaging, keystore credentials, retention policy, and store publication boundaries are governed strictly by [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
 
-- `%USERPROFILE%\KnownFirst-Secrets\knownfirst-beta.keystore`
-- `%USERPROFILE%\KnownFirst-Secrets\knownfirst-beta-signing-password.txt`
-
-Never commit either file and never generate a replacement while the existing keystore is usable. Back up the keystore and password together in a secure location. Losing the keystore prevents an APK from updating an installed beta signed with that identity. Exposing the keystore or password compromises the update identity and requires an explicit incident response.
-
-The password may instead be supplied through `KNOWNFIRST_ANDROID_SIGNING_PASSWORD`. The publishing script does not print it.
-
-## Publishing workflows
-
-### Google Play AAB
-
-The current parameterized release path is:
-
-```powershell
-.\scripts\publish-android-google-play.ps1 -VersionCode 9 -DisplayVersion 1.0.0-beta.9
-```
-
-It publishes a signed AAB for `net10.0-android` in Release, verifies the
-signature, and writes a SHA-256 sidecar below the ignored `artifacts`
-directory. Run it only for an explicitly authorized release task with the
-existing external signing identity.
-
-#### Permanent AAB retention policy
-
-- Retain exactly the two newest verified Google Play Internal Testing AABs and their matching SHA-256 sidecars.
-- These represent the immediately previous release and the current release.
-- Never delete the previous release before the new release is created, signed, independently hashed, and verified.
-- After successful verification of the new release, delete only release AABs older than those two.
-- Temporary generated AABs in `bin` or `obj` are build outputs, not retained release artifacts.
-- Never delete APKs, source code, documentation, signing credentials, or unrelated files.
-- A missing previous release may be regenerated only from its exact release tag and existing signing identity.
-- Regenerated historical artifacts must be explicitly documented and must not be claimed byte-identical to the deleted original.
-
-### Direct-install APK helper
-
-`publish-android-test-packages.ps1` still publishes Release,
-BetaDiagnostic, and Debug APKs and verifies them with `apksigner`, but its
-artifact names are hard-coded to Beta 6 and its generated installation text
-reports an older version code. `publish-android-beta.ps1` invokes that same
-helper.
-
-Until those values are parameterized and covered by corrected tests:
-
-- do not describe its output as a Beta 8 package;
-- do not distribute its ZIP instructions as current release metadata; and
-- record any explicitly authorized run as a tooling investigation rather than
-  release evidence.
-
-## Diagnostic log
+## Diagnostic Log
 
 Debug and diagnostic builds add these localized actions to Settings:
 
@@ -81,13 +27,11 @@ Debug and diagnostic builds add these localized actions to Settings:
 - Export diagnostic log / Diagnoselog exportieren
 - Clear diagnostic log / Diagnoselog löschen
 
-The bounded log records timestamps, build and app version, lookup phases, the normalized lookup term, explicit language/mode/provider metadata, cache/HTTP/parser outcomes, and sanitized exception details. It excludes imported documents, contexts, definitions, credentials, HTTP headers, and secrets. The normal Release build does not expose the diagnostic actions or Android diagnostic log output.
+The bounded log records timestamps, build and app version, lookup phases, the normalized lookup term, explicit language/mode/provider metadata, cache/HTTP/parser outcomes, and sanitized exception details. It excludes imported documents, contexts, definitions, credentials, HTTP headers, and secrets. The normal Release build does not expose diagnostic actions or Android diagnostic log output.
 
-## Manual checks
+## Manual Checks
 
-After current, correctly identified packages exist, record results on an
-authorized Android device separately for normal Release, diagnostic, and Debug.
-Verify at least:
+After authorized, correctly identified packages exist, record results on an authorized Android device separately for normal Release, diagnostic, and Debug. Verify at least:
 
 1. The APK installs and KnownFirst launches without an immediate crash.
 2. English/German UI switching remains immediate and persists after restart.

@@ -2,67 +2,63 @@
 
 ## Last updated
 
-2026-07-23
+2026-07-24
 
 ## Repository
 
 - Repository: https://github.com/Tachiguro/KnownFirst.git
-- Only local project folder: C:\Dev\KnownFirst
+- Only local project folder: C:\Dev\KnownFirst (see [ADR-0007](decisions/ADR-0007-single-canonical-working-directory.md))
 - Active rule: use the single folder; create no worktree without explicit user approval.
 - Only one writing agent may operate at a time.
 
 ## Stable baseline
 
-- Stable master baseline: 766f3c1e02097c058d445d881dd3d6aa0bddb881
+- Stable master baseline: 28f8a74637b2b81d55ed39411922d2ac1decda75 (PR #15 merge commit)
 - App version: 1.0.0-beta.9 (code 9)
 - Database schema: SQLite PRAGMA user_version 7
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
 - Solution: KnownFirst.slnx
-- Google Play: Provisional Beta 9 AAB generated locally; Beta 8 local retained artifact is currently missing and must be reconstructed from tag after merge.
 
 ## Current branch
 
-- Branch: build/versioning-policy-beta-9
-- Base: 766f3c1e02097c058d445d881dd3d6aa0bddb881
+- Branch: docs/task-based-documentation-routing (Pull Request #16 open)
+- Base: 28f8a74637b2b81d55ed39411922d2ac1decda75
 
 ## Ongoing task
 
-Establish coherent version identity and governance rules across KnownFirst for Beta 9.
+Restructure and rationalize KnownFirst documentation so coding agents read only task-relevant documentation.
 
 ## Current state
 
-- PR #14 (Wikipedia fallback user-readiness) is merged to master (`766f3c1e02097c058d445d881dd3d6aa0bddb881`). Wikipedia fallback manual testing succeeded.
-- KnownFirst.csproj updated to authoritative `<KnownFirstProductVersion>1.0.0-beta.9</KnownFirstProductVersion>` and `<KnownFirstBuildNumber>9</KnownFirstBuildNumber>`.
-- Cross-platform build identity formatting corrected (`KnownFirst · 1.0.0-beta.9 · <Config> · Build 9 · Commit <short-sha>`).
-- Binding versioning policy document created at `docs/VERSIONING.md`.
-- In-app release-notes UI requirement documented for Beta 10 (explicitly deferred from Beta 9).
-- Provisional Beta 9 AAB retained locally; must not be uploaded to Google Play until post-merge build task creates final AABs from synchronized master.
-- Beta 8 local retained artifact is missing and must be reconstructed post-merge.
+- PR #15 (Versioning policy for Beta 9) is merged to master (`28f8a74637b2b81d55ed39411922d2ac1decda75`).
+- Active work is on branch `docs/task-based-documentation-routing` under open Pull Request #16.
+- Universal repository instructions in [AGENTS.md](../AGENTS.md) streamlined.
+- Task-based documentation router rebuilt in [docs/INDEX.md](INDEX.md) using only existing document paths.
+- Delivery and validation workflow updated in [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) with corrected conventional commit prefixes (`feat:`, `fix:`, `docs:`, etc.).
+- Dedicated build and release guide created in [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
+- Single canonical working directory adopted in [ADR-0007](decisions/ADR-0007-single-canonical-working-directory.md); ADR-0006 marked Superseded.
 
 ## Completed recently
 
-- PR #14 (Wikipedia fallback user-readiness) merged to master (`766f3c1`).
-- Created branch `build/versioning-policy-beta-9`.
+- PR #15 (build/versioning-policy-beta-9) merged to master (`28f8a74`).
+- Documentation refactoring and task-based routing package created and submitted as PR #16.
 
 ## Process notes
 
-- Lean delivery workflow from AGENTS.md followed: explicit file staging used, focused tests run during implementation.
+- Followed single worktree rule (`C:\Dev\KnownFirst`).
+- Documentation-only package; no production code, test, project, or schema changes made.
 
 ## Exact implementation boundaries
 
 - Schema version 7, no migration.
 - In-app release notes UI is NOT implemented in Beta 9; documented for Beta 10.
-- No AAB creation, signing, store upload, device use, emulator use, ADB, installation, or deployment occurred in this package.
-- Provisional Beta 9 AAB remained untouched.
+- No build, test execution, packaging, signing, store upload, ADB, or device operations were performed.
 
 ## Validation
 
-- Complete automated test suite: 606 passed, 0 failed, 0 skipped (rerun against committed PR head `35d9fa15c5d4fdf028c94fafac5a03296008e390` before documentation correction).
-- Windows Debug build: 0 warnings, 0 errors.
-- Windows Release build: 0 warnings, 0 errors.
-- Android Debug build (-m:1): 0 warnings, 0 errors.
-- Android Release build (-m:1): 0 warnings, 0 errors, 0 AOT warnings, 0 trimming warnings, 0 source-generation warnings.
-- The four platform builds require regeneration after the correction commit so their embedded Git metadata identifies the clean final PR head.
+- Clean working tree verification (`git status --short`).
+- Repository-wide inline relative Markdown link audit completed clean (0 broken links across tracked `.md` files).
+- `git diff --check` clean.
 
 ## Paused work
 
@@ -70,11 +66,10 @@ Establish coherent version identity and governance rules across KnownFirst for B
 
 ## Planned sequence
 
-1. Open pull request for `build/versioning-policy-beta-9`.
-2. External review and manual merge decision for versioning policy package.
-3. Synchronize master to merged PR HEAD.
-4. Execute authorized post-merge build package: build all four configurations from synchronized master, build final Beta 9 AAB, reconstruct Beta 8 AAB from tag, retain both.
-5. In-app release notes UI package targeting Beta 10.
+1. Review Pull Request #16 for `docs/task-based-documentation-routing` and decide on manual merge.
+2. Synchronize local master to merged PR HEAD.
+3. Post-merge release outputs (Windows/Android builds, Beta 9 AAB) occur only upon a separate explicit user request.
+4. Future milestones: Sense-level data-model decision, Backup/Restore Phase 3 continuation, In-app release notes UI (Beta 10).
 
 ## Known constraints and risks
 
@@ -83,25 +78,23 @@ Establish coherent version identity and governance rules across KnownFirst for B
 - Known words apply across texts; tests use synthetic data and temporary SQLite databases only.
 - AOT and trimming remain enabled; no reflection fallback is permitted.
 - Apple support is intentionally absent from active project targets.
-- Provisional Beta 9 AAB must not be uploaded until post-merge build package completes.
 
 ## Relevant files
 
 - AGENTS.md
-- KnownFirst.csproj
-- Services/Diagnostics/BuildIdentityService.cs
-- Services/Diagnostics/BuildIdentity.cs
-- KnownFirst.Tests/Services/Diagnostics/BuildIdentityServiceTests.cs
-- KnownFirst.Tests/UiWorkflowContractTests.cs
-- docs/VERSIONING.md
-- docs/BETA_TESTING.md
 - docs/INDEX.md
+- docs/AGENT_WORKFLOW.md
+- docs/BUILD_AND_RELEASE.md
 - docs/CURRENT_WORK.md
-- CHANGELOG.md
+- docs/PROJECT_STATE.md
+- docs/ROADMAP.md
+- docs/decisions/ADR-0007-single-canonical-working-directory.md
+- docs/decisions/ADR-0006-git-worktrees-for-isolated-development.md
+- docs/decisions/README.md
 
 ## Next exact action
 
-- Review pull request for `build/versioning-policy-beta-9` and decide on manual merge.
+- Review Pull Request #16 for `docs/task-based-documentation-routing` and decide on manual merge.
 
 ## New-chat handoff
 

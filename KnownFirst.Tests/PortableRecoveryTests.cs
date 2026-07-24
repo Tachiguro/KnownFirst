@@ -296,6 +296,360 @@ public sealed class PortableRecoveryTests
         Assert.AreEqual("target-cache-kept", excluded.ResultJson);
     }
 
+    // --- Minimal Schema-7 export states (regression coverage for the uppercase content-fingerprint defect) ---
+    // TextReviewService.CreateContentFingerprint hashes with Convert.ToHexString, which is UPPERCASE.
+    // BackupModelContract.ValidateChecksum only accepts lowercase hex. Every real document (and therefore
+    // almost every real word, since words are only ever created via document analysis) has an uppercase
+    // fingerprint, so export always failed with BackupErrorCodes.ManifestInvalid outside of tests that
+    // hand-crafted an already-lowercased fingerprint. These tests seed data the same way production does.
+    private static string ProductionStyleContentFingerprint(string content) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
+
+    [TestMethod]
+    public async Task PortableArchive_OneAnalyzedWord_ExportsSuccessfully()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-minimal-analyzed");
+        await source.InitializeAsync();
+        const string text = "The house.";
+        var fingerprint = ProductionStyleContentFingerprint(text);
+        await source.RunInTransactionAsync(connection =>
+        {
+            var document = new DocumentEntity
+            {
+                Title = "Doc",
+                TextLanguage = "en",
+                ExplanationLanguage = "de",
+                LookupMode = LexicalLookupMode.Definition,
+                Content = text,
+                ContentFingerprint = fingerprint,
+                ImportedAt = FixedUtc,
+                WordCount = 1
+            };
+            connection.Insert(document);
+            var sentence = new SentenceSpanEntity { DocumentId = document.Id, Order = 0, StartPosition = 0, Length = text.Length };
+            connection.Insert(sentence);
+            var word = new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = "house",
+                NormalizedTerm = "house",
+                Status = WordStatus.Unreviewed,
+                TokenKind = TokenKind.Word,
+                PreparationState = PreparationState.Unprepared,
+                TotalOccurrenceCount = 1,
+                DocumentCount = 1,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc
+            };
+            connection.Insert(word);
+            connection.Insert(new WordOccurrenceEntity
+            {
+                DocumentId = document.Id,
+                SentenceSpanId = sentence.Id,
+                WordId = word.Id,
+                StartPosition = 4,
+                Length = 5,
+                SurfaceForm = "house",
+                Order = 0,
+                TechnicalFamily = TechnicalTokenFamily.None
+            });
+            return true;
+        });
+
+        using var archive = await CreateArchiveAsync(source);
+        var validated = await BackupArchiveReader.ValidateAsync(archive, CancellationToken.None);
+
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.SourceMaterials);
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.VocabularyItems);
+        Assert.AreEqual(0, validated.Manifest.RecordCounts.PreparedItems);
+        Assert.AreEqual(0, validated.Manifest.RecordCounts.LearningCards);
+        Assert.IsEmpty(validated.Payload.Workflows.VocabularyReviews);
+        Assert.IsEmpty(validated.Payload.Workflows.PreparationBatches);
+        Assert.IsEmpty(validated.Payload.Workflows.LearningSessions);
+    }
+
+    [TestMethod]
+    public async Task PortableArchive_OneWordWithPreparedMeaning_ExportsSuccessfully()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-minimal-prepared");
+        await source.InitializeAsync();
+        const string text = "Das Haus.";
+        var fingerprint = ProductionStyleContentFingerprint(text);
+        await source.RunInTransactionAsync(connection =>
+        {
+            var document = new DocumentEntity
+            {
+                Title = "Doc",
+                TextLanguage = "de",
+                ExplanationLanguage = "en",
+                LookupMode = LexicalLookupMode.Definition,
+                Content = text,
+                ContentFingerprint = fingerprint,
+                ImportedAt = FixedUtc,
+                WordCount = 1
+            };
+            connection.Insert(document);
+            var word = new WordEntity
+            {
+                Language = "de",
+                CanonicalTerm = "Haus",
+                NormalizedTerm = "haus",
+                Status = WordStatus.Learning,
+                TokenKind = TokenKind.Word,
+                PreparationState = PreparationState.Prepared,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc
+            };
+            connection.Insert(word);
+            connection.Insert(new MeaningEntity
+            {
+                WordId = word.Id,
+                SourceLanguage = "de",
+                ExplanationLanguage = "en",
+                DisplayTerm = "Haus",
+                TokenKind = TokenKind.Word,
+                Translation = "house",
+                TranslationOrDefinition = "house",
+                Source = "Manual",
+                ConfirmedByUser = true,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc,
+                PreparedAt = FixedUtc
+            });
+            return true;
+        });
+
+        using var archive = await CreateArchiveAsync(source);
+        var validated = await BackupArchiveReader.ValidateAsync(archive, CancellationToken.None);
+
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.VocabularyItems);
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.PreparedItems);
+        Assert.AreEqual(0, validated.Manifest.RecordCounts.LearningCards);
+    }
+
+    [TestMethod]
+    public async Task PortableArchive_OneLearningCardWithOneCompletedReview_ExportsSuccessfully()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-minimal-learned");
+        await source.InitializeAsync();
+        await source.RunInTransactionAsync(connection =>
+        {
+            var word = new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = "house",
+                NormalizedTerm = "house",
+                Status = WordStatus.Known,
+                TokenKind = TokenKind.Word,
+                PreparationState = PreparationState.Prepared,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc
+            };
+            connection.Insert(word);
+            var meaning = new MeaningEntity
+            {
+                WordId = word.Id,
+                SourceLanguage = "en",
+                ExplanationLanguage = "de",
+                DisplayTerm = "house",
+                TokenKind = TokenKind.Word,
+                Translation = "Haus",
+                TranslationOrDefinition = "Haus",
+                Source = "Manual",
+                ConfirmedByUser = true,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc,
+                PreparedAt = FixedUtc
+            };
+            connection.Insert(meaning);
+            var card = new LearningCardEntity
+            {
+                WordId = word.Id,
+                MeaningId = meaning.Id,
+                Direction = CardDirection.TermToMeaning,
+                State = CardState.Review,
+                DueAtUtc = FixedUtc.AddDays(1),
+                IntervalDays = 1,
+                EaseFactor = 2.5,
+                SuccessfulReviewCount = 1,
+                LastReviewedAtUtc = FixedUtc,
+                LastRating = ReviewRating.Good,
+                CreatedAtUtc = FixedUtc,
+                UpdatedAtUtc = FixedUtc
+            };
+            connection.Insert(card);
+            var session = new LearningSessionEntity
+            {
+                Status = LearningSessionStatus.Completed,
+                TotalCards = 1,
+                CompletedCards = 1,
+                GoodCount = 1,
+                StartedAtUtc = FixedUtc,
+                UpdatedAtUtc = FixedUtc,
+                CompletedAtUtc = FixedUtc
+            };
+            connection.Insert(session);
+            connection.Insert(new LearningSessionCardEntity
+            {
+                SessionId = session.Id,
+                CardId = card.Id,
+                QueueOrder = 0,
+                IsDueCard = true,
+                AnswerRevealed = true,
+                IsCompleted = true,
+                Rating = ReviewRating.Good,
+                CompletedAtUtc = FixedUtc
+            });
+            connection.Insert(new LearningReviewEntity
+            {
+                CardId = card.Id,
+                SessionId = session.Id,
+                Rating = ReviewRating.Good,
+                WasTypedAnswer = false,
+                WasCorrect = true,
+                ReviewedAtUtc = FixedUtc,
+                DueAtUtc = FixedUtc.AddDays(1),
+                IntervalDays = 1,
+                EaseFactor = 2.5
+            });
+            return true;
+        });
+
+        using var archive = await CreateArchiveAsync(source);
+        var validated = await BackupArchiveReader.ValidateAsync(archive, CancellationToken.None);
+
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.LearningCards);
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.LearningReviews);
+        Assert.HasCount(1, validated.Payload.Workflows.LearningSessions);
+        Assert.AreEqual(
+            BackupLearningSessionStatus.Completed,
+            validated.Payload.Workflows.LearningSessions[0].Status);
+    }
+
+    [TestMethod]
+    public async Task PortableArchive_MinimalDatasetWithNoOptionalSessionHistory_ExportsSuccessfully()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-minimal-no-sessions");
+        await source.InitializeAsync();
+        await source.RunInTransactionAsync(connection =>
+        {
+            var word = new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = "house",
+                NormalizedTerm = "house",
+                Status = WordStatus.Learning,
+                TokenKind = TokenKind.Word,
+                PreparationState = PreparationState.Prepared,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc
+            };
+            connection.Insert(word);
+            var meaning = new MeaningEntity
+            {
+                WordId = word.Id,
+                SourceLanguage = "en",
+                ExplanationLanguage = "de",
+                DisplayTerm = "house",
+                TokenKind = TokenKind.Word,
+                Translation = "Haus",
+                TranslationOrDefinition = "Haus",
+                Source = "Manual",
+                ConfirmedByUser = true,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc,
+                PreparedAt = FixedUtc
+            };
+            connection.Insert(meaning);
+            connection.Insert(new LearningCardEntity
+            {
+                WordId = word.Id,
+                MeaningId = meaning.Id,
+                Direction = CardDirection.TermToMeaning,
+                State = CardState.New,
+                DueAtUtc = FixedUtc,
+                EaseFactor = 2.5,
+                CreatedAtUtc = FixedUtc,
+                UpdatedAtUtc = FixedUtc
+            });
+            // No ReviewSessions, PreparationSessions, LearningSessions, or LearningReviews at all:
+            // these optional workflow tables are entirely empty, not merely filtered down.
+            return true;
+        });
+
+        using var archive = await CreateArchiveAsync(source);
+        var validated = await BackupArchiveReader.ValidateAsync(archive, CancellationToken.None);
+
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.LearningCards);
+        Assert.AreEqual(0, validated.Manifest.RecordCounts.LearningReviews);
+        Assert.IsEmpty(validated.Payload.Workflows.VocabularyReviews);
+        Assert.IsEmpty(validated.Payload.Workflows.PreparationBatches);
+        Assert.IsEmpty(validated.Payload.Workflows.LearningSessions);
+    }
+
+    [TestMethod]
+    public async Task PortableArchive_EmptyExcludedCacheSettingsAndSessionTables_ExportsSuccessfully()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-minimal-empty-excluded");
+        await source.InitializeAsync();
+        await source.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = "house",
+                NormalizedTerm = "house",
+                Status = WordStatus.Unreviewed,
+                TokenKind = TokenKind.Word,
+                PreparationState = PreparationState.Unprepared,
+                CreatedAt = FixedUtc,
+                UpdatedAt = FixedUtc
+            });
+            // No AppSettings table, no LexicalCacheEntity rows, no workflow session rows at all.
+            return true;
+        });
+
+        using var archive = await CreateArchiveAsync(source);
+        var validated = await BackupArchiveReader.ValidateAsync(archive, CancellationToken.None);
+
+        Assert.AreEqual(1, validated.Manifest.RecordCounts.VocabularyItems);
+        Assert.AreEqual(0, validated.Manifest.RecordCounts.VocabularyReviewWorkflows);
+        Assert.AreEqual(0, validated.Manifest.RecordCounts.PreparationWorkflows);
+        Assert.AreEqual(0, validated.Manifest.RecordCounts.LearningWorkflows);
+        Assert.IsEmpty(validated.Payload.Extensions.Features);
+    }
+
+    // --- Platform adapter boundary: the destination stream stands in for the file/share adapter that
+    // MauiPortableArchiveFileService hands off to. It cannot be exercised without a device, but the
+    // failure-propagation contract at this boundary can be. ---
+
+    [TestMethod]
+    public async Task CreatePortableArchiveAsync_WhenDestinationStreamFails_PropagatesExceptionWithoutSwallowing()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-adapter-failure");
+        await SeedDurableGraphAsync(source);
+        using var failingStream = new FailingWriteStream();
+
+        await Assert.ThrowsExactlyAsync<IOException>(async () =>
+            await CreateService(source).CreatePortableArchiveAsync(failingStream, CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task CreatePortableArchiveAsync_AfterDestinationFailure_SubsequentExportStillSucceeds()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-adapter-retry");
+        await SeedDurableGraphAsync(source);
+        using (var failingStream = new FailingWriteStream())
+        {
+            await Assert.ThrowsExactlyAsync<IOException>(async () =>
+                await CreateService(source).CreatePortableArchiveAsync(failingStream, CancellationToken.None));
+        }
+
+        using var archive = await CreateArchiveAsync(source);
+        var validated = await BackupArchiveReader.ValidateAsync(archive, CancellationToken.None);
+        Assert.IsNotNull(validated.Manifest);
+    }
+
     [TestMethod]
     public void PortableArchive_UsesSourceGeneratedJsonAndLocalizedSettingsContract()
     {
@@ -767,5 +1121,17 @@ public sealed class PortableRecoveryTests
                 throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
             }
         }
+    }
+
+    private sealed class FailingWriteStream : MemoryStream
+    {
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            throw new IOException("Simulated destination write failure.");
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
+            throw new IOException("Simulated destination write failure.");
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new IOException("Simulated destination write failure.");
     }
 }

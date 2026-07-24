@@ -599,6 +599,47 @@ public class BackupCreationTests
         }
     }
 
+    [TestMethod]
+    public async Task CreateBackup_WithProductionStyleUppercaseContentFingerprint_Succeeds()
+    {
+        // TextReviewService.CreateContentFingerprint hashes with Convert.ToHexString, which produces
+        // UPPERCASE hex. BackupModelContract.ValidateChecksum only accepts lowercase hex, so any document
+        // fingerprint generated the way production actually generates it used to fail export outright.
+        var database = new TemporaryKnownFirstDatabase();
+        await database.InitializeAsync();
+        try
+        {
+            const string contentText = "The houses stand here.";
+            var productionStyleFingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(contentText)));
+            Assert.IsTrue(productionStyleFingerprint.Any(char.IsUpper));
+
+            await database.RunInTransactionAsync(conn =>
+            {
+                conn.Insert(new DocumentEntity
+                {
+                    Title = "Doc 1",
+                    TextLanguage = "en",
+                    ExplanationLanguage = "de",
+                    Content = contentText,
+                    ContentFingerprint = productionStyleFingerprint,
+                    LookupMode = KnownFirst.Core.Preparation.LexicalLookupMode.Definition
+                });
+                return true;
+            });
+
+            var service = new BackupService(database, new FakePlatformInfo());
+            using var ms = new MemoryStream();
+            await service.CreateBackupAsync(ms, CancellationToken.None);
+
+            Assert.IsGreaterThan(0, ms.Length);
+        }
+        finally
+        {
+            await database.ResetAsync();
+        }
+    }
+
     // --- Package B.1 Opaque & Deterministic ID Tests ---
 
     [TestMethod]

@@ -324,7 +324,7 @@ public static class BackupModelMapper
             BackupEnumMappings.ToBackup(doc.LookupMode),
             string.IsNullOrEmpty(doc.TargetLanguage) ? null : doc.TargetLanguage,
             doc.Content,
-            doc.ContentFingerprint,
+            doc.ContentFingerprint.ToLowerInvariant(),
             EnsureUtc(doc.ImportedAt),
             doc.WordCount,
             docSentences,

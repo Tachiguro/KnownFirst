@@ -565,9 +565,28 @@ public sealed class UiWorkflowContractTests
         var project = LoadUi("KnownFirst.csproj");
         var script = LoadUi("publish-android-test-packages.ps1");
 
+        // The product version and build number are read out of KnownFirst.csproj itself
+        // rather than hardcoded here, so this contract stays valid across future version bumps
+        // (Beta 10 and beyond) instead of going stale the moment the version changes.
+        var productVersionMatch = System.Text.RegularExpressions.Regex.Match(
+            project, "<KnownFirstProductVersion>([^<]+)</KnownFirstProductVersion>");
+        Assert.IsTrue(productVersionMatch.Success, "KnownFirstProductVersion must be declared in KnownFirst.csproj.");
+        var productVersion = productVersionMatch.Groups[1].Value;
+        StringAssert.Matches(
+            productVersion,
+            new System.Text.RegularExpressions.Regex(@"^1\.0\.0-beta\.\d+$"),
+            "KnownFirstProductVersion must follow the 1.0.0-beta.N pattern.");
+
+        var buildNumberMatch = System.Text.RegularExpressions.Regex.Match(
+            project, "<KnownFirstBuildNumber>([^<]+)</KnownFirstBuildNumber>");
+        Assert.IsTrue(buildNumberMatch.Success, "KnownFirstBuildNumber must be declared in KnownFirst.csproj.");
+        var buildNumber = buildNumberMatch.Groups[1].Value;
+        StringAssert.Matches(
+            buildNumber,
+            new System.Text.RegularExpressions.Regex(@"^\d+$"),
+            "KnownFirstBuildNumber must be numeric.");
+
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst</ApplicationId>", project);
-        Assert.Contains("<KnownFirstProductVersion>1.0.0-beta.9</KnownFirstProductVersion>", project);
-        Assert.Contains("<KnownFirstBuildNumber>9</KnownFirstBuildNumber>", project);
         Assert.Contains("<ApplicationVersion>$(KnownFirstBuildNumber)</ApplicationVersion>", project);
         Assert.Contains("<ApplicationDisplayVersion>$(KnownFirstProductVersion)</ApplicationDisplayVersion>", project);
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>", project);
@@ -587,9 +606,14 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("knownfirst-beta.keystore", script);
         Assert.Contains("env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD", script);
         Assert.Contains("AndroidPackageFormats=apk", script);
-        Assert.Contains("KnownFirst-1.0.0-beta.6-android-release", script);
-        Assert.Contains("KnownFirst-1.0.0-beta.6-android-diagnostic", script);
-        Assert.Contains("KnownFirst-1.0.0-beta.6-android-debug", script);
+        Assert.Contains($"KnownFirst-{productVersion}-android-release", script);
+        Assert.Contains($"KnownFirst-{productVersion}-android-diagnostic", script);
+        Assert.Contains($"KnownFirst-{productVersion}-android-debug", script);
+        Assert.Contains("Application version: $($versionInfo.BuildNumber)", script);
+        Assert.IsFalse(
+            System.Text.RegularExpressions.Regex.IsMatch(
+                script, @"KnownFirst-\d+\.\d+\.\d+-beta\.\d+-android-(release|diagnostic|debug)"),
+            "The Android artifact base names must be built from the resolved product version, not a hardcoded literal.");
         Assert.Contains("dotnet clean", script);
         Assert.Contains("apksigner", script);
         Assert.Contains("Get-FileHash", script);

@@ -15,7 +15,7 @@ The current MVP supports:
 - text import with deterministic Unicode-aware analysis and exact source coordinates
 - resumable Known/Unknown vocabulary review with Undo
 - automatic and manual word preparation
-- optional online Wiktionary lookup with explicit consent and a local SQLite cache
+- optional online dictionary lookup (Wiktionary with automatic Wikipedia definition fallback) with explicit consent and a local SQLite cache
 - recognition and spelling learning cards with deterministic scheduling
 - local SQLite persistence, migrations, transactions, and cleanup
 - persistent structured diagnostics with redaction and bounded retention
@@ -25,20 +25,17 @@ The binding product and architecture specifications are [docs/KNOWNFIRST_ARCHITE
 
 ## Documentation
 
-Start with [AGENTS.md](AGENTS.md). It defines the required reading order,
-repository rules, verification expectations, and Definition of Done.
+Start with [AGENTS.md](AGENTS.md) and [docs/INDEX.md](docs/INDEX.md). They define the universal rules, task-based reading router, and delivery workflow.
 
-- [Project state](docs/PROJECT_STATE.md) records the verified current release,
-  capabilities, tests, database status, and limitations.
-- [Roadmap](docs/ROADMAP.md) records the prioritized next milestones.
+- [Task Index](docs/INDEX.md) routes agents to task-specific specifications.
+- [Agent Workflow](docs/AGENT_WORKFLOW.md) defines detailed operational delivery and validation policies.
+- [Build and Release Guide](docs/BUILD_AND_RELEASE.md) defines build, packaging, signing, and release procedures.
+- [Project state](docs/PROJECT_STATE.md) records verified current release, capabilities, tests, database status, and limitations.
+- [Roadmap](docs/ROADMAP.md) records prioritized next milestones.
 - [Changelog](CHANGELOG.md) records user-visible release changes.
-- [Database contract](docs/DATABASE_CONTRACT.md) defines persisted-data and
-  migration rules.
-- [Architecture](docs/KNOWNFIRST_ARCHITECTURE.md), [MVP workflow](docs/MVP_WORKFLOW.md),
-  and [word analysis](docs/WORD_ANALYSIS.md) are binding specifications.
-- [Decision records](docs/decisions/README.md), [release notes](docs/releases/1.0.0-beta.8.md),
-  and [handoffs](docs/handoffs/2026-07-22-beta-8-release.md) preserve rationale
-  and release evidence.
+- [Database contract](docs/DATABASE_CONTRACT.md) defines persisted-data and migration rules.
+- [Architecture](docs/KNOWNFIRST_ARCHITECTURE.md), [MVP workflow](docs/MVP_WORKFLOW.md), and [word analysis](docs/WORD_ANALYSIS.md) are binding specifications.
+- [Decision records](docs/decisions/README.md), [release notes](docs/releases/1.0.0-beta.8.md), and [handoffs](docs/handoffs/2026-07-22-beta-8-release.md) preserve rationale and release evidence.
 
 ## Technology stack
 
@@ -123,7 +120,7 @@ KnownFirst is local-first:
 
 - Imported texts and learning data remain on the device.
 - No account, analytics, advertising, or mandatory cloud service is required.
-- Optional dictionary requests send only the selected term and required language information directly to Wikimedia after user consent.
+- Optional dictionary requests send only the selected term and required language information directly to Wikimedia (Wiktionary / Wikipedia) after user consent.
 - No document, context sentence, or learning history is sent to the KnownFirst developer.
 
 This direction describes the current architecture and is not a promise of final legal compliance.

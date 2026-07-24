@@ -1,7 +1,7 @@
 # ADR-0006: Git worktrees isolate feature development
 
-**Status:** Accepted
-**Decision date:** 2026-07-22
+**Status:** Superseded by [ADR-0007](ADR-0007-single-canonical-working-directory.md)
+**Decision date:** 2026-07-22 (Superseded 2026-07-24)
 
 ## Context
 

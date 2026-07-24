@@ -92,8 +92,7 @@ older `Words` table in a temporary database, preserves its existing row, and
 verifies defaults for `AutomaticInteractionMode` and
 `ConsecutiveRecallSuccessCount`.
 
-That single fixture is not a complete historical migration audit. Expanding the
-fixture matrix is the second prioritized roadmap milestone.
+That single fixture is not a complete historical migration audit. Expanding the migration fixture matrix remains separately planned work.
 
 ## Lexical-cache compatibility
 

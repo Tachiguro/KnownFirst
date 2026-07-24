@@ -619,8 +619,9 @@ public sealed class PortableRecoveryTests
         Assert.IsEmpty(validated.Payload.Extensions.Features);
     }
 
-    // --- Platform adapter boundary: the destination stream stands in for the file/share adapter that
-    // MauiPortableArchiveFileService hands off to. It cannot be exercised without a device, but the
+    // --- Platform adapter boundary: the destination stream stands in for the native Windows/Android
+    // save adapter (WindowsPortableArchiveFileService / AndroidPortableArchiveFileService) that
+    // BackupService hands off to. Those platform types cannot be exercised without a device, but the
     // failure-propagation contract at this boundary can be. ---
 
     [TestMethod]
@@ -648,6 +649,74 @@ public sealed class PortableRecoveryTests
         using var archive = await CreateArchiveAsync(source);
         var validated = await BackupArchiveReader.ValidateAsync(archive, CancellationToken.None);
         Assert.IsNotNull(validated.Manifest);
+    }
+
+    // SimulatedFileSaveAdapter mirrors the control flow of WindowsPortableArchiveFileService /
+    // AndroidPortableArchiveFileService (validate name -> maybe cancel -> write to destination ->
+    // flush/close -> verify -> report Saved) without touching a real native picker, so the
+    // Saved/Cancelled contract and destination-verification wiring stay exercised without a device.
+
+    [TestMethod]
+    public async Task PortableArchiveExport_SimulatedNativeAdapter_SavesAndVerifiesDestination()
+    {
+        await using var source = new TemporaryKnownFirstDatabase("portable-adapter-save");
+        await SeedDurableGraphAsync(source);
+        var adapter = new SimulatedFileSaveAdapter(cancel: false);
+
+        var status = await adapter.ExportAsync(
+            "KnownFirst-Data-2026-07-24.kfarchive",
+            CreateService(source).CreatePortableArchiveAsync,
+            CancellationToken.None);
+
+        try
+        {
+            Assert.AreEqual(PortableArchiveSaveStatus.Saved, status);
+            Assert.IsTrue(File.Exists(adapter.LastDestinationPath));
+            Assert.IsGreaterThan(0, new FileInfo(adapter.LastDestinationPath!).Length);
+        }
+        finally
+        {
+            adapter.DeleteDestinationIfPresent();
+        }
+    }
+
+    [TestMethod]
+    public async Task PortableArchiveExport_SimulatedNativeAdapter_WhenCancelled_ReturnsCancelledWithoutInvokingWriter()
+    {
+        var adapter = new SimulatedFileSaveAdapter(cancel: true);
+        var writerInvoked = false;
+
+        var status = await adapter.ExportAsync(
+            "KnownFirst-Data-2026-07-24.kfarchive",
+            (_, _) =>
+            {
+                writerInvoked = true;
+                return Task.CompletedTask;
+            },
+            CancellationToken.None);
+
+        Assert.AreEqual(PortableArchiveSaveStatus.Cancelled, status);
+        Assert.IsFalse(writerInvoked);
+        Assert.IsNull(adapter.LastDestinationPath);
+    }
+
+    [TestMethod]
+    public async Task PortableArchiveExport_SimulatedNativeAdapter_WhenWriterFails_PropagatesExceptionInsteadOfStatus()
+    {
+        var adapter = new SimulatedFileSaveAdapter(cancel: false);
+
+        try
+        {
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
+                await adapter.ExportAsync(
+                    "KnownFirst-Data-2026-07-24.kfarchive",
+                    (_, _) => throw new InvalidOperationException("Simulated writer failure."),
+                    CancellationToken.None));
+        }
+        finally
+        {
+            adapter.DeleteDestinationIfPresent();
+        }
     }
 
     [TestMethod]
@@ -1133,5 +1202,55 @@ public sealed class PortableRecoveryTests
 
         public override void Write(byte[] buffer, int offset, int count) =>
             throw new IOException("Simulated destination write failure.");
+    }
+
+    private sealed class SimulatedFileSaveAdapter(bool cancel) : IPortableArchiveFileService
+    {
+        public string? LastDestinationPath { get; private set; }
+
+        public async Task<PortableArchiveSaveStatus> ExportAsync(
+            string suggestedFileName,
+            Func<Stream, CancellationToken, Task> writeArchive,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(writeArchive);
+            var safeFileName = PortableArchiveExportGuard.ValidateArchiveFileName(suggestedFileName);
+
+            if (cancel)
+            {
+                return PortableArchiveSaveStatus.Cancelled;
+            }
+
+            var destinationPath = Path.Combine(
+                Path.GetTempPath(),
+                $"simulated-save-{Guid.NewGuid():N}-{safeFileName}");
+            LastDestinationPath = destinationPath;
+
+            await using (var output = new FileStream(
+                destinationPath,
+                FileMode.Create,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 81920,
+                useAsync: true))
+            {
+                await writeArchive(output, cancellationToken);
+                await output.FlushAsync(cancellationToken);
+            }
+
+            PortableArchiveExportGuard.VerifySavedArchive(destinationPath);
+            return PortableArchiveSaveStatus.Saved;
+        }
+
+        public Task<IPortableArchiveSelection?> PickImportAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public void DeleteDestinationIfPresent()
+        {
+            if (LastDestinationPath is not null && File.Exists(LastDestinationPath))
+            {
+                File.Delete(LastDestinationPath);
+            }
+        }
     }
 }

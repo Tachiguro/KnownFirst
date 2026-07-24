@@ -1,8 +1,14 @@
 namespace KnownFirst.Services.DataSafety;
 
+public enum PortableArchiveSaveStatus
+{
+    Saved,
+    Cancelled
+}
+
 public interface IPortableArchiveFileService
 {
-    Task ExportAsync(
+    Task<PortableArchiveSaveStatus> ExportAsync(
         string suggestedFileName,
         Func<Stream, CancellationToken, Task> writeArchive,
         CancellationToken cancellationToken);

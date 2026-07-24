@@ -541,13 +541,14 @@
         _portableDataMessageKey = null;
         try
         {
-            var fileName =
-                $"KnownFirst-data-export-{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}.kfarchive";
-            await PortableArchiveFiles.ExportAsync(
+            var fileName = $"KnownFirst-Data-{DateTime.UtcNow:yyyy-MM-dd}.kfarchive";
+            var status = await PortableArchiveFiles.ExportAsync(
                 fileName,
                 BackupService.CreatePortableArchiveAsync,
                 CancellationToken.None);
-            _portableDataMessageKey = "Settings_DataExportSuccess";
+            _portableDataMessageKey = status == PortableArchiveSaveStatus.Saved
+                ? "Settings_DataExportSuccess"
+                : "Settings_DataExportCancelled";
         }
         catch (Exception exception)
         {

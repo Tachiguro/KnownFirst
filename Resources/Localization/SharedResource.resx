@@ -1330,13 +1330,19 @@
     <value>Data Export</value>
   </data>
   <data name="Settings_DataExportSuccess" xml:space="preserve">
-    <value>The Data Export is ready to save or share.</value>
+    <value>The Data Export was saved.</value>
+  </data>
+  <data name="Settings_DataExportCancelled" xml:space="preserve">
+    <value>The Data Export was cancelled. No file was saved.</value>
   </data>
   <data name="Settings_DataExportFailure" xml:space="preserve">
     <value>The Data Export could not be created.</value>
   </data>
   <data name="Settings_DataExportShareTitle" xml:space="preserve">
     <value>Save or share KnownFirst Data Export</value>
+  </data>
+  <data name="Settings_PortableArchiveFileTypeLabel" xml:space="preserve">
+    <value>KnownFirst Data Archive</value>
   </data>
   <data name="Settings_DataImport" xml:space="preserve">
     <value>Data Import</value>

@@ -1330,13 +1330,19 @@
     <value>Datenexport</value>
   </data>
   <data name="Settings_DataExportSuccess" xml:space="preserve">
-    <value>Der Datenexport kann jetzt gespeichert oder geteilt werden.</value>
+    <value>Der Datenexport wurde gespeichert.</value>
+  </data>
+  <data name="Settings_DataExportCancelled" xml:space="preserve">
+    <value>Der Datenexport wurde abgebrochen. Es wurde keine Datei gespeichert.</value>
   </data>
   <data name="Settings_DataExportFailure" xml:space="preserve">
     <value>Der Datenexport konnte nicht erstellt werden.</value>
   </data>
   <data name="Settings_DataExportShareTitle" xml:space="preserve">
     <value>KnownFirst-Datenexport speichern oder teilen</value>
+  </data>
+  <data name="Settings_PortableArchiveFileTypeLabel" xml:space="preserve">
+    <value>KnownFirst-Datenarchiv</value>
   </data>
   <data name="Settings_DataImport" xml:space="preserve">
     <value>Datenimport</value>

@@ -56,7 +56,11 @@ public static class MauiProgram
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
         builder.Services.AddSingleton<IBackupPlatformInfo, MauiBackupPlatformInfo>();
         builder.Services.AddSingleton<IBackupService, BackupService>();
-        builder.Services.AddSingleton<IPortableArchiveFileService, MauiPortableArchiveFileService>();
+#if WINDOWS
+        builder.Services.AddSingleton<IPortableArchiveFileService, WindowsPortableArchiveFileService>();
+#elif ANDROID
+        builder.Services.AddSingleton<IPortableArchiveFileService, AndroidPortableArchiveFileService>();
+#endif
         builder.Services.AddSingleton<IDashboardService, DashboardService>();
         builder.Services.AddSingleton<ISentenceSegmenter, DeterministicSentenceSegmenter>();
         builder.Services.AddSingleton<TextAnalyzer>();

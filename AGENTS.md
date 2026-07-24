@@ -10,18 +10,23 @@ KnownFirst is a local-first vocabulary-learning application for Windows and Andr
 - **Prohibited destructive operations:** Do not use `git clean`, destructive reset, stash, rebase, amend, history rewriting, or force-push unless an explicit recovery task authorizes it.
 - **Branch and worktree safety:** Inspect branch, HEAD, status, diff, untracked files, and registered worktrees before editing. Treat all pre-existing local work as protected. Never delete a branch or worktree without verifying it is clean.
 - **Explicit authorization required:** Do not commit, push, create a pull request, merge, tag, run ADB/device commands, build APK/AAB packages, or perform release deployment unless explicitly authorized. Auto-merge is strictly prohibited.
+- **No scope expansion:** Perform only the explicitly authorized operation. Prompt authoring and task orchestration are governed by [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md).
+- **Approved plan required:** Any repository-writing feature or fix requires an approved `PLAN_ONLY` phase before code implementation.
+- **Isolated operation modes:** One agent prompt has one primary operation mode. Completion of one mode never authorizes follow-up operations (tests, documentation, builds, packaging, commit, push, PR, or merge) automatically.
 
 ## Task-based documentation routing
 
-Do not reconstruct the full repository context for routine tasks. Follow task-based routing:
+Do not reconstruct full repository context for routine tasks. Follow task-based routing:
 
 1. `AGENTS.md` is always read before making repository edits.
-2. [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) is read for every task that writes repository files.
-3. [docs/CURRENT_WORK.md](docs/CURRENT_WORK.md) is read only when continuing the active package, reviewing the active branch, changing operational task state, or explicitly requested by the task.
-4. Consult [docs/INDEX.md](docs/INDEX.md) to locate task-specific contracts and architecture specifications.
-5. [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md) is read only after an explicit build, configuration, packaging, signing, APK, AAB, release, artifact-reconstruction, or store request.
-6. Single authoritative owners: `docs/PROJECT_STATE.md` owns stable verified facts; `docs/ROADMAP.md` owns planned sequence; `docs/CURRENT_WORK.md` owns active task state.
-7. Historical prompts, handoffs, audits, and old test plans are non-routine evidence and must not be read unless specifically required by the task.
+2. [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md) governs prompt formulation, model routing, and task isolation.
+3. [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) is read for every task that writes repository files.
+4. [docs/TESTING.md](docs/TESTING.md) defines test scopes and failure policies.
+5. [docs/CURRENT_WORK.md](docs/CURRENT_WORK.md) is read only when continuing the active package, reviewing the active branch, changing operational task state, or explicitly requested by the task.
+6. Consult [docs/INDEX.md](docs/INDEX.md) to locate task-specific contracts and architecture specifications.
+7. [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md) is read only after an explicit build, configuration, packaging, signing, APK, AAB, release, artifact-reconstruction, or store request.
+8. Single authoritative owners: `docs/PROJECT_STATE.md` owns stable verified facts; `docs/ROADMAP.md` owns planned sequence; `docs/CURRENT_WORK.md` owns active task state.
+9. Historical prompts, handoffs, audits, and old test plans are non-routine evidence and must not be read unless specifically required by the task.
 
 ## Safety and privacy rules
 

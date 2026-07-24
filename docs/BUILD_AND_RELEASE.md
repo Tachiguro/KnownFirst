@@ -2,60 +2,84 @@
 
 > **Notice:** This document is read only when the user explicitly requests build, configuration verification, packaging, signing, APK/AAB generation, release, artifact reconstruction, or store-related work. It must not be part of routine feature-agent reading.
 
-## 1. Build Verification
+## Operation Isolation Rules
 
-Build commands must target specific configurations and platforms as explicitly authorized:
+- **Isolated execution:** Execute only the exact requested build or packaging operation.
+- **No side-effect testing:** Do not run automated unit tests, smoke tests, or GUI tests as a side effect of a build or package request unless separately requested.
+- **No extra targets:** Do not build additional target platforms or configurations beyond the explicitly requested intent.
+- **No version auto-increment:** No build or package operation increments product version or build number in `KnownFirst.csproj`. Version changes occur only in an explicit versioning/release task.
+- **Local rebuilds:** Rebuilding unchanged source code does not alter version identity.
+- **Clarification for ambiguous APK requests:** An APK request without specified configuration (Debug vs Release vs BetaDiagnostic) is ambiguous and requires one concise clarification question.
+- **Store upload isolation:** Generating a build, signing, or creating an AAB does not authorize Google Play Store upload. Store upload is never automatic and requires separate explicit authorization.
+- **Device testing isolation:** Manual GUI or physical device testing remains a separate authorized package (see [docs/BETA_TESTING.md](BETA_TESTING.md)).
 
-- **Windows Debug:**
-  ```powershell
-  dotnet build ./KnownFirst.csproj -c Debug -f net10.0-windows10.0.19041.0 --nologo
-  ```
-- **Windows Release:**
-  ```powershell
-  dotnet build ./KnownFirst.csproj -c Release -f net10.0-windows10.0.19041.0 --nologo
-  ```
-- **Android Debug (serial build):**
-  ```powershell
-  dotnet build ./KnownFirst.csproj -c Debug -f net10.0-android -m:1
-  ```
-- **Android Release (serial build):**
-  ```powershell
-  dotnet build ./KnownFirst.csproj -c Release -f net10.0-android -m:1
-  ```
-- **Windows BetaDiagnostic:**
-  ```powershell
-  dotnet restore ./KnownFirst.csproj -p:Configuration=BetaDiagnostic
-  dotnet build ./KnownFirst.csproj -c BetaDiagnostic -f net10.0-windows10.0.19041.0 --no-restore
-  ```
+## 1. Isolated Build Commands
 
-### Build Invariants and Restore Safeguards
+### WINDOWS_DEBUG_BUILD
+```powershell
+dotnet build ./KnownFirst.csproj -c Debug -f net10.0-windows10.0.19041.0 --nologo
+```
 
+### WINDOWS_RELEASE_BUILD
+```powershell
+dotnet build ./KnownFirst.csproj -c Release -f net10.0-windows10.0.19041.0 --nologo
+```
+
+### WINDOWS_BETADIAGNOSTIC_BUILD
+```powershell
+dotnet restore ./KnownFirst.csproj -p:Configuration=BetaDiagnostic
+dotnet build ./KnownFirst.csproj -c BetaDiagnostic -f net10.0-windows10.0.19041.0 --no-restore
+```
+
+### ANDROID_DEBUG_BUILD
+```powershell
+dotnet build ./KnownFirst.csproj -c Debug -f net10.0-android -m:1
+```
+
+### ANDROID_RELEASE_BUILD
+```powershell
+dotnet build ./KnownFirst.csproj -c Release -f net10.0-android -m:1
+```
+
+### ANDROID_BETADIAGNOSTIC_BUILD
+```powershell
+dotnet restore ./KnownFirst.csproj -p:Configuration=BetaDiagnostic
+dotnet build ./KnownFirst.csproj -c BetaDiagnostic -f net10.0-android -m:1 --no-restore
+```
+
+### Build Invariants and Safeguards
 - **Serial Android builds:** Always use `-m:1` for Android builds to enforce single-threaded MSBuild execution and prevent parallel asset compilation errors.
-- **AOT and Trimming checks:** Android Release and BetaDiagnostic builds must compile with **0 AOT warnings, 0 trimming warnings, and 0 source-generation warnings**.
+- **AOT and Trimming checks:** Android Release and Android BetaDiagnostic builds must compile with **0 AOT warnings, 0 trimming warnings, and 0 source-generation warnings**. (Does not apply to Windows builds).
 - **Empty Configuration restore safeguard:** `KnownFirst.csproj` declares `Configuration` in `TreatAsLocalProperty`. Visual Studio or command-line restores with empty configuration properties fall back cleanly to `Debug` without generating empty framework graph errors (`NETSDK1005`).
 - **NuGet multi-target restore safeguard:** Core NuGet properties like `PackageVersion` remain uniform across target frameworks to prevent `NU1105` evaluation failures when evaluating Windows and Android targets together.
 
 ## 2. Build Identity
 
 Build identity components are governed by [docs/VERSIONING.md](VERSIONING.md):
-
 - Read `<KnownFirstProductVersion>` and `<KnownFirstBuildNumber>` directly from `KnownFirst.csproj`.
 - **Formatted identity string:** `KnownFirst · <DisplayVersion> · <Configuration> · Build <BuildNumber> · Commit <ShortSHA>`
 - `Services/Diagnostics/BuildIdentityService.cs` formats the runtime identity string.
 
-## 3. Packaging
+## 3. Isolated Packaging Commands
 
-- APK and AAB creation require explicit user authorization.
-- Packaging must use the synchronized intended source commit on master.
-- Creating packages as a side effect of routine feature validation is strictly prohibited.
-- Parameterized Google Play AAB creation script (reading current version numbers from `KnownFirst.csproj`):
-  ```powershell
-  .\scripts\publish-android-google-play.ps1 -VersionCode <BuildNumber> -DisplayVersion <ProductVersion>
-  ```
-  *(Example for Beta 9: `.\scripts\publish-android-google-play.ps1 -VersionCode 9 -DisplayVersion 1.0.0-beta.9`)*
+Packaging creation requires explicit user authorization and must target the synchronized intended source commit on `master`.
+
+### ANDROID_DEBUG_APK
+Requires explicit user request. Executes build steps required for Debug APK.
+
+### ANDROID_RELEASE_APK
+Requires explicit user request. Executes build steps required for Release APK.
+
+### ANDROID_BETADIAGNOSTIC_APK
+Requires explicit user request. Executes build steps required for BetaDiagnostic APK.
+
+### ANDROID_GOOGLE_PLAY_AAB
+Executes parameterized Google Play AAB creation script (reading version numbers from `KnownFirst.csproj`):
+```powershell
+.\scripts\publish-android-google-play.ps1 -VersionCode <BuildNumber> -DisplayVersion <ProductVersion>
+```
 
 ### Legacy Direct-Install Helper Limitation
-
 - `scripts/publish-android-test-packages.ps1` publishes Release, BetaDiagnostic, and Debug APKs, but its artifact names contain hard-coded legacy Beta 6 labels and installation metadata. `scripts/publish-android-beta.ps1` invokes that same helper.
 - Until parameterized and updated by tests, do not report output from these helper scripts as current release evidence or distribute generated ZIP instructions as current release metadata. Record any authorized run as a tooling investigation.
 
@@ -81,14 +105,14 @@ Build identity components are governed by [docs/VERSIONING.md](VERSIONING.md):
 - Pull-request merge is never automatic.
 - Physical-device testing and manual GUI verification are separate explicit packages.
 
-## 7. Post-Merge Release Outputs Package
+## 7. FULL_RELEASE_OUTPUT_PACKAGE
 
-Only when explicitly requested by the user after a feature or milestone is reviewed, merged, and synchronized to local `master`, an authorized release output sequence generates:
+This composite operation is **never** inferred from feature completion, PR merge, synchronization, or an individual build request. It is executed **only** upon explicit user request after a milestone is reviewed, merged, and synchronized to `master`:
 
 1. Windows Debug build
 2. Windows Release build
 3. Android Debug build (`-m:1`)
 4. Android Release build (`-m:1`)
-5. Signed Google Play AAB (when explicitly requested and authorized)
+5. Signed Google Play AAB
 
 All outputs must target the synchronized merged `master` HEAD commit.

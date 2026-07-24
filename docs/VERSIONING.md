@@ -67,16 +67,29 @@ The application displays the formatted build identity as follows:
 
 ## In-app release notes (Beta 10 requirement)
 
-The in-app release-notes user interface is explicitly deferred from Beta 9 and targets **Beta 10** as its first release:
+The in-app release-notes user interface is explicitly deferred from Beta 9 and targets **Beta 10** as its first release.
 
-- **Beta 9:** Does not show an in-app release-notes dialog.
-- **First target release:** Beta 10.
-- **Display trigger:** Displayed once automatically after first launch following an installation or update to a new version.
-- **Reopen access:** Users can reopen the release notes at any time from Settings.
-- **Content:**
-  - Release builds present a concise localized summary of user-visible changes.
-  - Debug and Diagnostic builds additionally display detailed technical/tester notes.
-- **Storage:** Persisted using platform `Preferences` rather than the SQLite learning database.
-- **Localization:** English and German resources required.
-- **Schema boundary:** Must not introduce a database migration.
-- **Accuracy:** Release notes content must be authored strictly from verified implemented behavior, never from unverified plans.
+### Cumulative Unread Release Notes Specification
+- **Display trigger:** Shown automatically once after the first application launch following installation or update to a new version. The automatic display occurs once for the current unread release-note set.
+- **Ordered sequence:** Every distributed version has an ordered release-note sequence.
+- **Acknowledged sequence storage:** Platform `Preferences` (not SQLite) stores the integer sequence of the highest acknowledged release.
+- **Cumulative display on update:** Upon update, the application collects every release newer than the acknowledged sequence and displays them in a scrollable view:
+  - Newest release notes appear first, followed by older unread releases.
+  - *Example:* User acknowledged Beta 8, skipped Beta 9, and installed Beta 10 -> the view presents Beta 10 notes first, then Beta 9 notes below.
+- **Read confirmation:** Acknowledging or closing the completed release-note view records all displayed entries as read in platform preferences.
+- **Reopen access:** Users can reopen release notes from Settings at any time. Reopening from Settings does not alter version identity or acknowledged version state.
+- **Clean install:** A fresh installation displays only the current release notes unless a future product decision explicitly specifies full history.
+
+### User Content Guidelines
+- **Titles:** Localized German and English version title.
+- **Bullets:** Two to four concise user-facing bullet points per version.
+- **Length limit:** Maximum approximately 500 characters per language (excluding title).
+- **Style:** Clean, non-technical language. Do **not** include Git commit hashes, PR numbers, internal C# class names, database column names, test counts, or unverified future plans.
+- **Tester details:** Technical details may exist separately in a collapsed control for Debug/Diagnostic builds.
+
+### Authorship Workflow
+- **Drafting:** The feature documentation phase (`DOCUMENT_ONLY`) drafts verified user-facing release notes.
+- **Freezing:** Release preparation approves and freezes release-note text before building distribution packages.
+- **Consumption:** Build and packaging agents consume pre-approved release-note content.
+- **Changelog separation:** `CHANGELOG.md` remains the complete developer/technical history and is **not** rendered directly to end users.
+- **No UI implementation:** This specification governs future implementation. No UI code is implemented in this documentation package.

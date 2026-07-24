@@ -53,6 +53,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<INavigationHistoryService, NavigationHistoryService>();
         builder.Services.AddSingleton<IAppSettingsService, AppSettingsService>();
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
+        builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
         builder.Services.AddSingleton<IBackupPlatformInfo, MauiBackupPlatformInfo>();
         builder.Services.AddSingleton<IBackupService, BackupService>();

@@ -1371,4 +1371,25 @@
   <data name="Settings_DataImportFailure" xml:space="preserve">
     <value>The Data Import failed and all database changes were rolled back.</value>
   </data>
+  <data name="WhatsNew_Title" xml:space="preserve">
+    <value>What's New</value>
+  </data>
+  <data name="WhatsNew_VersionLabel" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="WhatsNew_Close" xml:space="preserve">
+    <value>Got it</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet1" xml:space="preserve">
+    <value>Data Export saves your data to a portable .kfarchive file using the native Save dialog on Windows and Android.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet2" xml:space="preserve">
+    <value>Data Import loads a .kfarchive file into a new, empty KnownFirst installation using the native Open dialog.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet3" xml:space="preserve">
+    <value>Data Import works only on an empty installation. Existing learning data is never merged, replaced, or deleted.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet4" xml:space="preserve">
+    <value>The archive may contain imported text and learning history. It is not encrypted. Store and share it carefully.</value>
+  </data>
 </root>

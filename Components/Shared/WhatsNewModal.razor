@@ -1,0 +1,70 @@
+@inject IReleaseNotesService ReleaseNotes
+@inject IBuildIdentityService BuildIdentityService
+
+@if (_entry is not null)
+{
+    <div class="whats-new-backdrop">
+        <div class="whats-new-modal"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="whats-new-title"
+             @onkeydown="HandleKeyDown">
+            <h2 id="whats-new-title">@Localizer[_entry.TitleResourceKey]</h2>
+            <p class="whats-new-version">@Localizer["WhatsNew_VersionLabel", BuildIdentityService.Identity.Version]</p>
+            <ul class="whats-new-bullets">
+                @foreach (var bulletKey in _entry.BulletResourceKeys)
+                {
+                    <li>@Localizer[bulletKey]</li>
+                }
+            </ul>
+            <div class="whats-new-actions">
+                <button type="button"
+                        class="button button-primary"
+                        @ref="_closeButton"
+                        @onclick="Close">
+                    @Localizer["WhatsNew_Close"]
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ReleaseNoteEntry? _entry;
+    private ElementReference _closeButton;
+    private bool _shouldFocusCloseButton;
+
+    protected override void OnInitialized()
+    {
+        _entry = ReleaseNotes.GetUnseenReleaseNotes();
+        _shouldFocusCloseButton = _entry is not null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldFocusCloseButton)
+        {
+            _shouldFocusCloseButton = false;
+            await _closeButton.FocusAsync(preventScroll: true);
+        }
+    }
+
+    private void Close()
+    {
+        if (_entry is null)
+        {
+            return;
+        }
+
+        ReleaseNotes.MarkSeen(_entry.Version);
+        _entry = null;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Escape")
+        {
+            Close();
+        }
+    }
+}

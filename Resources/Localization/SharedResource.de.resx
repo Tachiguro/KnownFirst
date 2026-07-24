@@ -1371,4 +1371,25 @@
   <data name="Settings_DataImportFailure" xml:space="preserve">
     <value>Der Datenimport ist fehlgeschlagen. Alle Datenbankänderungen wurden zurückgerollt.</value>
   </data>
+  <data name="WhatsNew_Title" xml:space="preserve">
+    <value>Neuigkeiten</value>
+  </data>
+  <data name="WhatsNew_VersionLabel" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="WhatsNew_Close" xml:space="preserve">
+    <value>Verstanden</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet1" xml:space="preserve">
+    <value>Der Datenexport speichert deine Daten in einer portablen .kfarchive-Datei über den nativen Speichern-Dialog unter Windows und Android.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet2" xml:space="preserve">
+    <value>Der Datenimport lädt eine .kfarchive-Datei über den nativen Öffnen-Dialog in eine neue, leere KnownFirst-Installation.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet3" xml:space="preserve">
+    <value>Der Datenimport funktioniert nur bei einer leeren Installation. Vorhandene Lerndaten werden niemals zusammengeführt, ersetzt oder gelöscht.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet4" xml:space="preserve">
+    <value>Das Archiv kann importierte Texte und den Lernverlauf enthalten. Es ist nicht verschlüsselt. Bewahre und teile es sorgfältig.</value>
+  </data>
 </root>

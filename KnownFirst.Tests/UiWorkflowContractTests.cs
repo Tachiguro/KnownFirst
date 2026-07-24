@@ -606,9 +606,13 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("knownfirst-beta.keystore", script);
         Assert.Contains("env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD", script);
         Assert.Contains("AndroidPackageFormats=apk", script);
-        Assert.Contains($"KnownFirst-{productVersion}-android-release", script);
-        Assert.Contains($"KnownFirst-{productVersion}-android-diagnostic", script);
-        Assert.Contains($"KnownFirst-{productVersion}-android-debug", script);
+        // The script resolves the version at run time via $versionInfo.ProductVersion, so the
+        // source text never contains the resolved literal - it must contain the interpolation
+        // expression itself, proving the artifact names are built dynamically rather than
+        // reconstructed from a value this test happens to read from KnownFirst.csproj today.
+        Assert.Contains("KnownFirst-$($versionInfo.ProductVersion)-android-release", script);
+        Assert.Contains("KnownFirst-$($versionInfo.ProductVersion)-android-diagnostic", script);
+        Assert.Contains("KnownFirst-$($versionInfo.ProductVersion)-android-debug", script);
         Assert.Contains("Application version: $($versionInfo.BuildNumber)", script);
         Assert.IsFalse(
             System.Text.RegularExpressions.Regex.IsMatch(

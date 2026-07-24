@@ -444,3 +444,16 @@ public sealed record BackupReplaceAllScope(
     bool PreservesPreferences,
     bool PreservesOnlineLookupConsent,
     bool PreservesLogs);
+
+public enum PortableImportStatus
+{
+    Success,
+    TargetNotEmpty,
+    ValidationFailed,
+    Cancelled,
+    Failed
+}
+
+public sealed record PortableImportResult(
+    PortableImportStatus Status,
+    string? ErrorCode);

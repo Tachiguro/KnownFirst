@@ -1,4 +1,5 @@
 @page "/settings"
+@implements IAsyncDisposable
 @inject ILanguageSelectionService LanguageSelection
 @inject IThemeService ThemeService
 @inject IAppSettingsService AppSettings
@@ -9,6 +10,8 @@
 @inject ITextReviewService TextReviewService
 @inject KnownFirst.Services.Lexical.ILexicalDiagnosticLog LexicalDiagnosticLog
 @inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
+@inject IBackupService BackupService
+@inject IPortableArchiveFileService PortableArchiveFiles
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
 
@@ -195,6 +198,61 @@
         }
     </section>
 
+    <section class="settings-card" aria-labelledby="portable-data-title">
+        <h2 id="portable-data-title">@Localizer["Settings_PortableData"]</h2>
+        <p>@Localizer["Settings_PortableDataDescription"]</p>
+        <p class="setting-help">@Localizer["Settings_PortableDataPrivacyNotice"]</p>
+        <div class="support-actions">
+            <button type="button"
+                    class="button button-secondary"
+                    disabled="@_isPortableDataOperation"
+                    @onclick="ExportPortableDataAsync">
+                @Localizer["Settings_DataExport"]
+            </button>
+            <button type="button"
+                    class="button button-secondary"
+                    disabled="@_isPortableDataOperation"
+                    @onclick="ChoosePortableImportAsync">
+                @Localizer["Settings_DataImport"]
+            </button>
+        </div>
+
+        @if (_showImportConfirmation && _portableImportSelection is not null)
+        {
+            <div class="destructive-confirmation"
+                 role="alertdialog"
+                 aria-labelledby="portable-import-confirmation-message">
+                <p id="portable-import-confirmation-message">
+                    @Localizer["Settings_DataImportConfirm", _portableImportSelection.DisplayName]
+                </p>
+                <p class="setting-help">@Localizer["Settings_DataImportEmptyOnly"]</p>
+                <div class="button-row">
+                    <button type="button"
+                            class="button button-secondary"
+                            disabled="@_isPortableDataOperation"
+                            @onclick="CancelPortableImportAsync">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button type="button"
+                            class="button button-primary"
+                            disabled="@_isPortableDataOperation"
+                            @onclick="ImportPortableDataAsync">
+                        @Localizer["Settings_DataImportConfirmAction"]
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (_portableDataMessageKey is not null)
+        {
+            <p class="setting-feedback @(_portableDataOperationFailed ? "setting-feedback-error" : "setting-feedback-success")"
+               role="@(_portableDataOperationFailed ? "alert" : "status")"
+               aria-live="polite">
+                @Localizer[_portableDataMessageKey]
+            </p>
+        }
+    </section>
+
     @if (DiagnosticsEnabled)
     {
         <section class="settings-card debug-tools" aria-labelledby="lexical-diagnostics-title">
@@ -315,6 +373,11 @@
     private bool _cardDirectionSaved;
     private bool _learningModeSaved;
     private bool _onlineConsentRevoked;
+    private bool _isPortableDataOperation;
+    private bool _portableDataOperationFailed;
+    private bool _showImportConfirmation;
+    private string? _portableDataMessageKey;
+    private IPortableArchiveSelection? _portableImportSelection;
     private bool _hasActiveReview;
     private bool _isChangingLanguage;
     private bool _showResetConfirmation;
@@ -470,6 +533,135 @@
         AppSettings.RevokeOnlineLookupConsent();
         _onlineConsentRevoked = true;
     }
+
+    private async Task ExportPortableDataAsync()
+    {
+        _isPortableDataOperation = true;
+        _portableDataOperationFailed = false;
+        _portableDataMessageKey = null;
+        try
+        {
+            var fileName =
+                $"KnownFirst-data-export-{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}.kfarchive";
+            await PortableArchiveFiles.ExportAsync(
+                fileName,
+                BackupService.CreatePortableArchiveAsync,
+                CancellationToken.None);
+            _portableDataMessageKey = "Settings_DataExportSuccess";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The portable data export failed.");
+            _portableDataOperationFailed = true;
+            _portableDataMessageKey = "Settings_DataExportFailure";
+        }
+        finally
+        {
+            _isPortableDataOperation = false;
+        }
+    }
+
+    private async Task ChoosePortableImportAsync()
+    {
+        _isPortableDataOperation = true;
+        _portableDataOperationFailed = false;
+        _portableDataMessageKey = null;
+        _showImportConfirmation = false;
+        await DisposePortableImportSelectionAsync();
+
+        try
+        {
+            _portableImportSelection =
+                await PortableArchiveFiles.PickImportAsync(CancellationToken.None);
+            if (_portableImportSelection is null)
+            {
+                return;
+            }
+
+            await using var stream =
+                await _portableImportSelection.OpenReadAsync(CancellationToken.None);
+            await BackupService.ValidatePortableArchiveAsync(stream, CancellationToken.None);
+            _showImportConfirmation = true;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "The selected portable data archive is invalid.");
+            _portableDataOperationFailed = true;
+            _portableDataMessageKey = "Settings_DataImportValidationFailure";
+            await DisposePortableImportSelectionAsync();
+        }
+        finally
+        {
+            _isPortableDataOperation = false;
+        }
+    }
+
+    private async Task ImportPortableDataAsync()
+    {
+        if (_portableImportSelection is null)
+        {
+            return;
+        }
+
+        _isPortableDataOperation = true;
+        _portableDataOperationFailed = false;
+        _portableDataMessageKey = null;
+        try
+        {
+            await using var stream =
+                await _portableImportSelection.OpenReadAsync(CancellationToken.None);
+            var result = await BackupService.ImportPortableArchiveAsync(
+                stream,
+                CancellationToken.None);
+            (_portableDataMessageKey, _portableDataOperationFailed) = result.Status switch
+            {
+                KnownFirst.Models.Backup.PortableImportStatus.Success =>
+                    ("Settings_DataImportSuccess", false),
+                KnownFirst.Models.Backup.PortableImportStatus.TargetNotEmpty =>
+                    ("Settings_DataImportTargetNotEmpty", true),
+                KnownFirst.Models.Backup.PortableImportStatus.ValidationFailed =>
+                    ("Settings_DataImportValidationFailure", true),
+                _ => ("Settings_DataImportFailure", true)
+            };
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The portable data import failed.");
+            _portableDataOperationFailed = true;
+            _portableDataMessageKey = "Settings_DataImportFailure";
+        }
+        finally
+        {
+            _showImportConfirmation = false;
+            await DisposePortableImportSelectionAsync();
+            _isPortableDataOperation = false;
+        }
+    }
+
+    private async Task CancelPortableImportAsync()
+    {
+        if (_isPortableDataOperation)
+        {
+            return;
+        }
+
+        _showImportConfirmation = false;
+        await DisposePortableImportSelectionAsync();
+    }
+
+    private async Task DisposePortableImportSelectionAsync()
+    {
+        if (_portableImportSelection is null)
+        {
+            return;
+        }
+
+        await _portableImportSelection.DisposeAsync();
+        _portableImportSelection = null;
+    }
+
+    async ValueTask IAsyncDisposable.DisposeAsync() =>
+        await DisposePortableImportSelectionAsync();
 
     private async Task CopyLexicalDiagnosticReportAsync()
     {

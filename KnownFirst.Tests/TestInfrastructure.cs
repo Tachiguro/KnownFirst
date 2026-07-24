@@ -66,6 +66,22 @@ internal sealed class TemporaryKnownFirstDatabase : IKnownFirstDatabase, IAsyncD
         }
     }
 
+    public async Task<T> ExecuteSnapshotAsync<T>(Func<SQLiteConnection, T> operation)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            await InitializeAsync();
+            T? result = default;
+            await _connection!.RunInTransactionAsync(connection => result = operation(connection));
+            return result!;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task ResetAsync()
     {
         await DisposeConnectionAsync();

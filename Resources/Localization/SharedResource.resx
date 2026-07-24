@@ -1317,4 +1317,52 @@
   <data name="Prepare_LoadingDictionaryData" xml:space="preserve">
     <value>Loading dictionary data…</value>
   </data>
+  <data name="Settings_PortableData" xml:space="preserve">
+    <value>Portable data</value>
+  </data>
+  <data name="Settings_PortableDataDescription" xml:space="preserve">
+    <value>Create a Data Export or recover your data with a Data Import. Data Import is supported only when this installation has no saved learning data.</value>
+  </data>
+  <data name="Settings_PortableDataPrivacyNotice" xml:space="preserve">
+    <value>The archive may contain imported text and learning history. It is not encrypted. Store and share it carefully.</value>
+  </data>
+  <data name="Settings_DataExport" xml:space="preserve">
+    <value>Data Export</value>
+  </data>
+  <data name="Settings_DataExportSuccess" xml:space="preserve">
+    <value>The Data Export is ready to save or share.</value>
+  </data>
+  <data name="Settings_DataExportFailure" xml:space="preserve">
+    <value>The Data Export could not be created.</value>
+  </data>
+  <data name="Settings_DataExportShareTitle" xml:space="preserve">
+    <value>Save or share KnownFirst Data Export</value>
+  </data>
+  <data name="Settings_DataImport" xml:space="preserve">
+    <value>Data Import</value>
+  </data>
+  <data name="Settings_DataImportPickerTitle" xml:space="preserve">
+    <value>Choose a KnownFirst Data Import archive</value>
+  </data>
+  <data name="Settings_DataImportConfirm" xml:space="preserve">
+    <value>Import data from “{0}”?</value>
+  </data>
+  <data name="Settings_DataImportEmptyOnly" xml:space="preserve">
+    <value>Data Import works only on an empty installation. Existing learning data is never merged, replaced, or deleted.</value>
+  </data>
+  <data name="Settings_DataImportConfirmAction" xml:space="preserve">
+    <value>Confirm Data Import</value>
+  </data>
+  <data name="Settings_DataImportSuccess" xml:space="preserve">
+    <value>The Data Import completed successfully.</value>
+  </data>
+  <data name="Settings_DataImportValidationFailure" xml:space="preserve">
+    <value>This archive is invalid, corrupt, or not supported. No data was changed.</value>
+  </data>
+  <data name="Settings_DataImportTargetNotEmpty" xml:space="preserve">
+    <value>Data Import was refused because this installation already contains learning data. Nothing was changed.</value>
+  </data>
+  <data name="Settings_DataImportFailure" xml:space="preserve">
+    <value>The Data Import failed and all database changes were rolled back.</value>
+  </data>
 </root>

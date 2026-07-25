@@ -24,6 +24,50 @@ public sealed class ReleaseNotesTests
         Assert.IsGreaterThan(0, entry.BulletResourceKeys.Count);
     }
 
+    // --- Active release identity (Beta 10) ---------------------------------------------
+
+    [TestMethod]
+    public void ActiveProductIdentity_IsBeta10Build10()
+    {
+        var root = FindRepositoryRoot();
+        var project = File.ReadAllText(Path.Combine(root, "KnownFirst.csproj"));
+
+        Assert.Contains("<KnownFirstProductVersion>1.0.0-beta.10</KnownFirstProductVersion>", project);
+        Assert.Contains("<KnownFirstBuildNumber>10</KnownFirstBuildNumber>", project);
+    }
+
+    [TestMethod]
+    public void WhatsNewBeta10Entry_IsActiveForTheCurrentProductVersion()
+    {
+        var activeVersion = ReadActiveProductVersion();
+        Assert.AreEqual(
+            Beta10,
+            activeVersion,
+            "The Beta 10 catalog entry is only meaningful while Beta 10 is the active product version.");
+
+        var entry = ReleaseNotesService.DefaultCatalog.SingleOrDefault(
+            candidate => candidate.Version == activeVersion);
+        Assert.IsNotNull(entry, "The active product version must have a matching What's New catalog entry.");
+    }
+
+    [TestMethod]
+    public void WhatsNewActiveEntry_DisplaysOnceThenStaysDismissed()
+    {
+        var activeVersion = ReadActiveProductVersion();
+        var store = new FakeWhatsNewPreferenceStore();
+        var service = CreateService(activeVersion, store);
+
+        var firstEvaluation = service.GetUnseenReleaseNotes();
+        Assert.IsNotNull(firstEvaluation, "The active version's notice must display when unseen.");
+        Assert.AreEqual(activeVersion, firstEvaluation.Version);
+
+        service.MarkSeen(firstEvaluation.Version);
+
+        Assert.IsNull(
+            service.GetUnseenReleaseNotes(),
+            "The active version's notice must stay dismissed once marked seen.");
+    }
+
     [TestMethod]
     public void Resources_WhatsNewKeysAreCompleteAndParallelInEnglishAndGerman()
     {
@@ -252,6 +296,16 @@ public sealed class ReleaseNotesTests
         return catalog is null
             ? new ReleaseNotesService(buildIdentity, store, logger)
             : new ReleaseNotesService(buildIdentity, store, logger, catalog);
+    }
+
+    private static string ReadActiveProductVersion()
+    {
+        var root = FindRepositoryRoot();
+        var project = File.ReadAllText(Path.Combine(root, "KnownFirst.csproj"));
+        var match = System.Text.RegularExpressions.Regex.Match(
+            project, "<KnownFirstProductVersion>([^<]+)</KnownFirstProductVersion>");
+        Assert.IsTrue(match.Success, "KnownFirstProductVersion must be declared in KnownFirst.csproj.");
+        return match.Groups[1].Value;
     }
 
     private static string FindRepositoryRoot()

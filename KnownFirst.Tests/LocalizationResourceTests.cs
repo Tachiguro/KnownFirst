@@ -558,6 +558,26 @@ public sealed class LocalizationResourceTests
     }
 
     [TestMethod]
+    public void Resources_LearningDirectionAndRepeatLabelsUseSpecifiedWording()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        Assert.AreEqual("Term → meaning", english["Learn_DirectionTermToMeaning"]);
+        Assert.AreEqual("Meaning → term", english["Learn_DirectionMeaningToTerm"]);
+        Assert.AreEqual("Repeat", english["Learn_AgainRepeatBadge"]);
+
+        Assert.AreEqual("Wort → Bedeutung", german["Learn_DirectionTermToMeaning"]);
+        Assert.AreEqual("Bedeutung → Wort", german["Learn_DirectionMeaningToTerm"]);
+        Assert.AreEqual("Wiederholung", german["Learn_AgainRepeatBadge"]);
+
+        Assert.AreEqual("Слово → значение", russian["Learn_DirectionTermToMeaning"]);
+        Assert.AreEqual("Значение → слово", russian["Learn_DirectionMeaningToTerm"]);
+        Assert.AreEqual("Повторение", russian["Learn_AgainRepeatBadge"]);
+    }
+
+    [TestMethod]
     public void Resources_DailyLimitAndPostLearningRecommendationMatchSpecification()
     {
         var english = LoadResources("SharedResource.resx");

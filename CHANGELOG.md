@@ -11,10 +11,15 @@ and uses the application's prerelease version identifiers.
 - Russian application-interface localization, with a Language setting offering System, English, Deutsch, and Русский. System automatically follows the device language on every start; Russian devices resolve to Russian, and unsupported device languages fall back to English.
 - Russian as a translation target for English and German imported texts. Russian is not yet available as a source (imported-text) language.
 
+### Changed
+
+- The Learn screen now shows a small, secondary direction label (Term → meaning / Meaning → term) and a "Repeat" badge when a card is the one-time re-appearance after an Again rating, so a legitimate repeat or opposite-direction card is no longer visually indistinguishable from a first-time card ([KF-LEARN-001](docs/BACKLOG.md)).
+
 ### Internal
 
 - Added an internal `docs/BACKLOG.md` for solo-development bugs and small UX improvements, replacing GitHub Issues for now.
 - Implemented on branch `feature/russian-language-support-v1`; not yet merged. Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback remain deferred to a separate milestone. Native-speaker review of the Russian wording has not yet been performed.
+- Investigated [KF-LEARN-001](docs/BACKLOG.md) (duplicate-looking learning question): confirmed no accidental card/queue duplication in `LearningService`; implemented the UX clarity fix on `feature/learning-repeat-direction-clarity` (uncommitted).
 
 ## [1.0.0-beta.10] - 2026-07-25
 

@@ -1099,6 +1099,28 @@ public sealed class StudyWorkflowServiceTests
         Assert.AreEqual(CardDirection.MeaningToTerm, second.Direction);
         Assert.AreEqual(CardState.Review, states.Single(card => card.Direction == CardDirection.TermToMeaning).State);
         Assert.AreEqual(CardState.New, states.Single(card => card.Direction == CardDirection.MeaningToTerm).State);
+        Assert.IsFalse(first.IsAgainRepeat);
+        Assert.IsFalse(second.IsAgainRepeat);
+    }
+
+    [TestMethod]
+    public async Task Learning_BothDirectionSessionQueuesTwoDistinctCardDirectionCombinations()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.Both);
+        await _learning.GetOrStartAsync();
+
+        var queueItems = await _database.ReadAsync(connection =>
+            connection.Table<LearningSessionCardEntity>().ToListAsync());
+        var cardsById = (await _database.ReadAsync(connection => connection.Table<LearningCardEntity>().ToListAsync()))
+            .ToDictionary(card => card.Id);
+
+        var combinations = queueItems
+            .Select(item => (item.CardId, cardsById[item.CardId].Direction))
+            .Distinct()
+            .ToArray();
+
+        Assert.AreEqual(2, queueItems.Count);
+        Assert.AreEqual(2, combinations.Length);
     }
 
     [TestMethod]
@@ -1148,8 +1170,10 @@ public sealed class StudyWorkflowServiceTests
     {
         await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
         var first = (await _learning.GetOrStartAsync()).Card!;
+        Assert.IsFalse(first.IsAgainRepeat);
         await _learning.RevealAnswerAsync(first.QueueItemId);
         var repeat = (await _learning.RateAsync(first.QueueItemId, ReviewRating.Again)).Card!;
+        Assert.IsTrue(repeat.IsAgainRepeat);
         await _learning.RevealAnswerAsync(repeat.QueueItemId);
 
         var completed = await _learning.RateAsync(repeat.QueueItemId, ReviewRating.Again);
@@ -1158,6 +1182,52 @@ public sealed class StudyWorkflowServiceTests
         Assert.IsNull(completed.Card);
         Assert.AreEqual(2, completed.CompletedSummary!.AgainCount);
         Assert.AreEqual(2, rows);
+    }
+
+    [TestMethod]
+    public async Task Learning_ResumePreservesExactlyOneAgainRepeat()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
+        var first = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(first.QueueItemId);
+        await _learning.RateAsync(first.QueueItemId, ReviewRating.Again);
+
+        var recreated = CreateLearningService();
+        var resumed = (await recreated.GetOrStartAsync()).Card!;
+
+        Assert.IsTrue(resumed.IsAgainRepeat);
+        var repeatRows = await _database.ReadAsync(connection =>
+            connection.Table<LearningSessionCardEntity>().Where(item => item.IsAgainRepeat).ToListAsync());
+        Assert.AreEqual(1, repeatRows.Count);
+    }
+
+    [TestMethod]
+    public async Task Learning_ConcurrentRatingCannotDoubleScoreOrEnqueue()
+    {
+        await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
+        var card = (await _learning.GetOrStartAsync()).Card!;
+        await _learning.RevealAnswerAsync(card.QueueItemId);
+
+        var outcomes = await Task.WhenAll(
+            RateSafelyAsync(card.QueueItemId, ReviewRating.Good),
+            RateSafelyAsync(card.QueueItemId, ReviewRating.Good));
+
+        Assert.AreEqual(1, outcomes.Count(succeeded => succeeded));
+        var reviewCount = await _database.ReadAsync(connection => connection.Table<LearningReviewEntity>().CountAsync());
+        Assert.AreEqual(1, reviewCount);
+    }
+
+    private async Task<bool> RateSafelyAsync(int queueItemId, ReviewRating rating)
+    {
+        try
+        {
+            await _learning.RateAsync(queueItemId, rating);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     [TestMethod]

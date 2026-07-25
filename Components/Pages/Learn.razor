@@ -28,6 +28,13 @@
                 <span>@Localizer["Learn_Progress", _card.CompletedCards + 1, _card.TotalCards]</span>
                 <progress value="@_card.CompletedCards" max="@_card.TotalCards"></progress>
             </div>
+            <p class="learning-meta">
+                <span class="learning-direction-label">@Localizer[DirectionLabelKey]</span>
+                @if (_card.IsAgainRepeat)
+                {
+                    <span class="learning-repeat-badge">@Localizer["Learn_AgainRepeatBadge"]</span>
+                }
+            </p>
 
             @if (_card.InteractionMode == LearningInteractionMode.Reading)
             {
@@ -252,6 +259,10 @@
     private LearningContext? CurrentContext => _card is null || _card.Contexts.Count == 0
         ? null
         : _card.Contexts[_contextIndex];
+
+    private string DirectionLabelKey => _card?.Direction == CardDirection.MeaningToTerm
+        ? "Learn_DirectionMeaningToTerm"
+        : "Learn_DirectionTermToMeaning";
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

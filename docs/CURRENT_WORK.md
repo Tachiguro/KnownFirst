@@ -40,7 +40,7 @@
 
 ## Current known risks
 
-- A learner with only a few available words may see what looks like the same word and question twice in one learning session. Likely cause under investigation: the legitimate one-time "Again" requeue is not visually distinguished from a first-time card. Tracked as [KF-LEARN-001](BACKLOG.md); not yet fixed.
+- A learner with only a few available words may see what looks like the same word and question twice in one learning session. Investigation confirmed no accidental backend duplication: the cause is the legitimate one-time "Again" requeue and/or the two opposite card directions from a `Both`-direction word, neither previously distinguished in the Learn UI. Fixed on `feature/learning-repeat-direction-clarity` (uncommitted): the Learn card view now exposes direction and `IsAgainRepeat`, and `Learn.razor` renders a secondary direction label and a "Repeat" badge. Tracked as [KF-LEARN-001](BACKLOG.md).
 - "Support KnownFirst" and "Report a bug" in Settings are placeholders (identical no-op handler); not gated out of Release builds.
 - Deterministic GUI automation (Appium/UiAutomator2 or equivalent) is not yet implemented; GUI verification remains manual per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md).
 - Public Google Play release is intentionally blocked; current distribution is Internal Testing only.
@@ -48,7 +48,7 @@
 
 ## Active planned sequence
 
-1. Focused, read-only investigation and deterministic test plan for the reported duplicate-looking learning question ([KF-LEARN-001](BACKLOG.md); no fix authorized yet).
+1. Review and merge the Learn UI repeat/direction clarity fix on `feature/learning-repeat-direction-clarity` ([KF-LEARN-001](BACKLOG.md); implemented and validated, not yet committed or merged).
 2. Functional "Support KnownFirst" and "Report a bug" controls (or explicit removal/gating decision).
 3. Reopenable release notes / release-note history access from Settings.
 4. Deterministic Android GUI automation feasibility and first implementation.
@@ -72,7 +72,7 @@
 
 ## Next exact action
 
-Perform a read-only, focused investigation and deterministic reproduction/test plan for the reported duplicate-looking learning question ([KF-LEARN-001](BACKLOG.md); small vocabulary pool: same word and same card direction appearing twice in one session). Trace card creation, queue building, and the "Again" requeue path; identify whether the cause is a genuine duplicate or an undistinguished legitimate repeat; propose the minimum test matrix. Do not implement a fix in this step.
+Review the uncommitted `feature/learning-repeat-direction-clarity` changes for [KF-LEARN-001](BACKLOG.md), decide whether to commit/merge, and continue with planned sequence item 2 (Support/Report-a-bug controls).
 
 ## New-chat handoff
 

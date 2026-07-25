@@ -774,6 +774,15 @@
   <data name="Learn_MeaningToTerm" xml:space="preserve">
     <value>Begriff erinnern</value>
   </data>
+  <data name="Learn_DirectionTermToMeaning" xml:space="preserve">
+    <value>Wort → Bedeutung</value>
+  </data>
+  <data name="Learn_DirectionMeaningToTerm" xml:space="preserve">
+    <value>Bedeutung → Wort</value>
+  </data>
+  <data name="Learn_AgainRepeatBadge" xml:space="preserve">
+    <value>Wiederholung</value>
+  </data>
   <data name="Learn_ReadingMode" xml:space="preserve">
     <value>Erinnere dich an die Antwort und zeige sie dann an</value>
   </data>

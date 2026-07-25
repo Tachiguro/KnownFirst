@@ -465,7 +465,8 @@ public sealed class LearningService : ILearningService
             string.IsNullOrWhiteSpace(meaning.GrammaticalRelationship)
                 ? null
                 : meaning.GrammaticalRelationship,
-            meaning.SourceRevisionId);
+            meaning.SourceRevisionId,
+            queueItem.IsAgainRepeat);
     }
 
     private static async Task<LearningSessionSummary> CreateSummaryAsync(

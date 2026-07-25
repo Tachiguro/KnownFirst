@@ -37,7 +37,8 @@ public sealed record LearningCardView(
     int TotalCards,
     string? EncounteredSurfaceForm = null,
     string? GrammaticalRelationship = null,
-    long? SourceRevisionId = null);
+    long? SourceRevisionId = null,
+    bool IsAgainRepeat = false);
 
 public sealed record LearningSessionSummary(
     int SessionId,

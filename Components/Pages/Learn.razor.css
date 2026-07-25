@@ -49,6 +49,23 @@
     font-size: clamp(2rem, 7vw, 3.5rem);
 }
 
+.learning-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2, 0.4rem);
+    margin: 0;
+    color: var(--color-muted);
+    font-size: 0.8rem;
+}
+
+.learning-repeat-badge {
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--color-surface-muted);
+    color: var(--color-muted);
+}
+
 .meaning-prompt,
 .spelling-result,
 .permanent-confirmation {

@@ -6,6 +6,8 @@ public interface ILanguageSelectionService
 
     string CurrentUiLanguage { get; }
 
+    bool IsSystemPreferenceActive { get; }
+
     IReadOnlyList<string> SupportedUiLanguages { get; }
 
     void Initialize();

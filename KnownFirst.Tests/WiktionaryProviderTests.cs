@@ -900,6 +900,56 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public async Task Lookup_EnglishToRussianReturnsTargetTranslations()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-house-russian.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "house",
+            "en",
+            LexicalLookupMode.Translation,
+            "ru"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == "дом"),
+            "Expected the lang=\"ru\" translation node to be recognized.");
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == "домик"),
+            "Expected the text-prefix fallback (\"Russian:\") to be recognized for an entry without a lang attribute.");
+        Assert.IsFalse(result.Meanings.Any(meaning => meaning.Translation == "Haus"),
+            "The German translation must not leak into a Russian-target lookup.");
+        Assert.IsTrue(result.Meanings.All(meaning => string.IsNullOrWhiteSpace(meaning.Definition)));
+        Assert.IsTrue(result.Meanings.All(meaning => !string.IsNullOrWhiteSpace(meaning.Translation)));
+        Assert.AreEqual("en.wiktionary.org", result.SourceProject,
+            "Russian is target-only in v1: the request must still be sent to the English Wiktionary project, never ru.wiktionary.org.");
+        Assert.AreEqual(WiktionaryLookupProvider.AttributionText, result.Attribution);
+        Assert.AreEqual(LexicalLookupMode.Translation, result.LookupMode);
+        Assert.AreEqual("ru", result.TargetLanguage);
+    }
+
+    [TestMethod]
+    public void CreateRequestUri_ForRussianTarget_NeverQueriesRussianWiktionary()
+    {
+        var request = Request("house", "en", LexicalLookupMode.Translation, "ru");
+
+        var uri = WiktionaryLookupProvider.CreateRequestUri(request);
+
+        Assert.AreEqual("en.wiktionary.org", uri.Host);
+        Assert.DoesNotContain("ru.wiktionary.org", uri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public async Task Lookup_EnglishToRussianAndEnglishToGermanProduceDistinctCacheKeys()
+    {
+        var germanRequest = Request("house", "en", LexicalLookupMode.Translation, "de");
+        var russianRequest = Request("house", "en", LexicalLookupMode.Translation, "ru");
+
+        var germanKey = LexicalCacheRepository.CreateCacheKey(germanRequest, WiktionaryLookupProvider.Name, WiktionaryLookupProvider.SchemaVersion);
+        var russianKey = LexicalCacheRepository.CreateCacheKey(russianRequest, WiktionaryLookupProvider.Name, WiktionaryLookupProvider.SchemaVersion);
+
+        Assert.AreNotEqual(germanKey, russianKey);
+    }
+
+    [TestMethod]
     public async Task Lookup_TranslationTemplateLanguageCodeIsRecognized()
     {
         var provider = CreateProvider(_ => JsonResponse(LoadFixture("english-security.json")));
@@ -1015,6 +1065,31 @@ public sealed class WiktionaryProviderTests
             new[] { "house", "building", "home" },
             result.Meanings.Select(meaning => meaning.Translation).ToArray());
         Assert.IsFalse(result.Meanings.Any(meaning => meaning.Translation == "maison"));
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanToRussianReturnsTargetTranslations()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-haus-russian.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "Haus",
+            "de",
+            LexicalLookupMode.Translation,
+            "ru"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == "дом"),
+            "Expected the lang=\"ru\" translation node to be recognized.");
+        Assert.IsTrue(result.Meanings.Any(meaning => meaning.Translation == "жилище"),
+            "Expected the text-prefix fallback (\"Russian:\") to be recognized for an entry without a lang attribute.");
+        Assert.IsTrue(result.Meanings.All(meaning => string.IsNullOrWhiteSpace(meaning.Definition)));
+        Assert.IsTrue(result.Meanings.All(meaning => !string.IsNullOrWhiteSpace(meaning.Translation)));
+        Assert.AreEqual("de.wiktionary.org", result.SourceProject,
+            "Russian is target-only in v1: the request must be sent to the German Wiktionary project, never ru.wiktionary.org.");
+        Assert.AreEqual(WiktionaryLookupProvider.AttributionText, result.Attribution);
+        Assert.AreEqual(LexicalLookupMode.Translation, result.LookupMode);
+        Assert.AreEqual("ru", result.TargetLanguage);
     }
 
     [TestMethod]

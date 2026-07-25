@@ -46,8 +46,10 @@
                         disabled="@_isSubmitting"
                         @bind="_textLanguage"
                         @bind:after="HandleSourceLanguageChanged">
-                    <option value="en">@Localizer["Settings_English"]</option>
-                    <option value="de">@Localizer["Settings_German"]</option>
+                    @foreach (var languageCode in SourceLanguages)
+                    {
+                        <option value="@languageCode">@GetLanguageName(languageCode)</option>
+                    }
                 </select>
             </div>
             <div class="field-group">
@@ -103,7 +105,8 @@
 </section>
 
 @code {
-    private static readonly string[] SupportedLanguages = ["en", "de"];
+    private static readonly string[] SourceLanguages = [.. LexicalLookupLanguagePolicy.SupportedSourceLanguages];
+    private static readonly string[] TargetLanguages = [.. LexicalLookupLanguagePolicy.SupportedTargetLanguages];
 
     private string _title = string.Empty;
     private string _content = string.Empty;
@@ -117,7 +120,7 @@
     private bool _submitFailed;
     private string? _preflightMessageKey;
 
-    private IEnumerable<string> ValidTargetLanguages => SupportedLanguages.Where(languageCode =>
+    private IEnumerable<string> ValidTargetLanguages => TargetLanguages.Where(languageCode =>
         !string.Equals(languageCode, _textLanguage, StringComparison.OrdinalIgnoreCase));
 
     private async Task SaveAndAnalyzeAsync()
@@ -197,6 +200,7 @@
     private string GetLanguageName(string languageCode) => languageCode switch
     {
         "de" => Localizer["Settings_German"],
+        "ru" => Localizer["Settings_Russian"],
         _ => Localizer["Settings_English"]
     };
 }

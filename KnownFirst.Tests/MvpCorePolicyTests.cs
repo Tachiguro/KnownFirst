@@ -337,6 +337,34 @@ public sealed class MvpCorePolicyTests
     }
 
     [TestMethod]
+    [DataRow("en")]
+    [DataRow("de")]
+    public void LexicalLookupLanguages_RussianIsAcceptedAsTargetForEnglishAndGerman(string sourceLanguage)
+    {
+        var request = new LexicalLookupRequest(
+            sourceLanguage,
+            LexicalLookupMode.Translation,
+            "ru",
+            "network",
+            TokenKind.Word,
+            "Wiktionary");
+
+        Assert.AreEqual("ru", request.TargetLanguage);
+    }
+
+    [TestMethod]
+    public void LexicalLookupLanguages_RussianIsRejectedAsSourceLanguage()
+    {
+        Assert.Throws<ArgumentException>(() => new LexicalLookupRequest(
+            "ru",
+            LexicalLookupMode.Definition,
+            null,
+            "дом",
+            TokenKind.Word,
+            "Wiktionary"));
+    }
+
+    [TestMethod]
     public void Workflow_PrepareIsEnabledForBacklogOrActivePreparationAndBlockedByReview()
     {
         Assert.IsTrue(new WorkflowSnapshot(false, false, false, 0, 0, 1, WorkflowPrimaryAction.PrepareWords).CanPrepare);

@@ -59,6 +59,7 @@
   <ItemGroup>
     <None Include="..\Resources\Localization\SharedResource.resx" Link="Resources\Localization\SharedResource.resx" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Resources\Localization\SharedResource.de.resx" Link="Resources\Localization\SharedResource.de.resx" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Resources\Localization\SharedResource.ru.resx" Link="Resources\Localization\SharedResource.ru.resx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

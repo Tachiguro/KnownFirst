@@ -116,12 +116,26 @@ public sealed record LexicalLookupRequest
 
 public static class LexicalLookupLanguagePolicy
 {
+    /// <summary>
+    /// Source languages that can be imported and parsed as vocabulary. Narrower than
+    /// <see cref="SupportedTargetLanguages"/>: a language may be a valid translation
+    /// target without the tokenization, normalization, and Wiktionary language-section
+    /// parsing required to support it as a source.
+    /// </summary>
+    public static readonly IReadOnlyList<string> SupportedSourceLanguages = ["en", "de"];
+
+    /// <summary>
+    /// Languages that can be selected as a translation target for a supported source.
+    /// Russian is target-only in v1: usable as an answer language, not yet as source text.
+    /// </summary>
+    public static readonly IReadOnlyList<string> SupportedTargetLanguages = ["en", "de", "ru"];
+
     public static void Validate(
         string sourceLanguage,
         LexicalLookupMode lookupMode,
         string? targetLanguage)
     {
-        ValidateSupportedLanguage(sourceLanguage, nameof(sourceLanguage));
+        ValidateSupportedSourceLanguage(sourceLanguage, nameof(sourceLanguage));
         if (!Enum.IsDefined(lookupMode))
         {
             throw new ArgumentOutOfRangeException(nameof(lookupMode));
@@ -146,7 +160,7 @@ public static class LexicalLookupLanguagePolicy
                 nameof(targetLanguage));
         }
 
-        ValidateSupportedLanguage(targetLanguage, nameof(targetLanguage));
+        ValidateSupportedTargetLanguage(targetLanguage, nameof(targetLanguage));
         if (string.Equals(sourceLanguage, targetLanguage, StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException(
@@ -155,11 +169,19 @@ public static class LexicalLookupLanguagePolicy
         }
     }
 
-    private static void ValidateSupportedLanguage(string language, string parameterName)
+    private static void ValidateSupportedSourceLanguage(string language, string parameterName)
     {
-        if (language is not ("en" or "de"))
+        if (!SupportedSourceLanguages.Contains(language, StringComparer.OrdinalIgnoreCase))
         {
-            throw new ArgumentException("Only English and German are supported.", parameterName);
+            throw new ArgumentException("Only English and German are supported as a source language.", parameterName);
+        }
+    }
+
+    private static void ValidateSupportedTargetLanguage(string language, string parameterName)
+    {
+        if (!SupportedTargetLanguages.Contains(language, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Only English, German, and Russian are supported as a target language.", parameterName);
         }
     }
 }

@@ -13,50 +13,58 @@
 
 ## Stable baseline
 
-- Stable master baseline: `2f3f89daabcced8fbe7133ec782808d1aa5f4038` (PR #18 merge commit)
-- App version: 1.0.0-beta.10 (build 10)
+- Stable master baseline: `f1d1c3047240ded2bdaae8eb026741fe140a6da3` (PR #19 merge commit)
+- App version: 1.0.0-beta.10 (build 10) — unchanged by this feature branch
 - Database schema: SQLite `PRAGMA user_version` 7 (unchanged)
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
 - Solution: KnownFirst.slnx
 
 ## Current branch
 
-- Branch: `docs/post-beta10-project-handoff` (documentation-only, uncommitted)
-- Base: `2f3f89daabcced8fbe7133ec782808d1aa5f4038`
+- Branch: `feature/russian-language-support-v1` (implementation complete, uncommitted)
+- Base: `f1d1c3047240ded2bdaae8eb026741fe140a6da3`
 
-## Completed recently
+## Completed recently (this branch)
 
-- Portable `.kfarchive` export (native Save dialog, Windows and Android).
-- Portable recovery import into an empty installation only (native Open dialog); populated targets are refused, not merged.
-- One-time localized What's New notice, reopenable in a future Settings control (not yet implemented — see risks).
-- Local build-launcher refinement and selective Android test-package scripting.
-- Pull Request #18 merged to `master` (`2f3f89d`).
+- Russian application-interface localization: `Resources/Localization/SharedResource.ru.resx` with full 464-key parity against English and German.
+- Explicit persisted System language preference (System / English / Deutsch / Русский), distinct from a manually chosen concrete language; System now re-resolves the device culture on every application start rather than freezing after first resolution.
+- Russian device cultures (`ru-*`) resolve to Russian under System; unsupported device cultures fall back to English.
+- Settings language control redesigned as a single accessible `<select>` (System, English, Deutsch, Русский) to avoid four buttons in one narrow row.
+- Russian accepted as a translation target for English and German source texts (`ImportText.razor`, `LexicalLookupLanguagePolicy`); Russian is explicitly rejected as a source language.
+- Wiktionary translation-target parsing recognizes `lang="ru"` and "Russian:"/"Русский:" text-prefix fallbacks; requests remain sent only to `en.wiktionary.org`/`de.wiktionary.org`, never `ru.wiktionary.org`.
+- `docs/BACKLOG.md` created as the internal backlog for solo development (routed from `docs/INDEX.md`).
+
+## Explicitly deferred (not in this branch)
+
+- Russian **source**-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback remain out of scope. Only Russian-as-target is implemented.
 
 ## Current known risks
 
-- A learner with only a few available words may see what looks like the same word and question twice in one learning session. Likely cause under investigation: the legitimate one-time "Again" requeue is not visually distinguished from a first-time card. Not yet fixed.
+- A learner with only a few available words may see what looks like the same word and question twice in one learning session. Likely cause under investigation: the legitimate one-time "Again" requeue is not visually distinguished from a first-time card. Tracked as [KF-LEARN-001](BACKLOG.md); not yet fixed.
 - "Support KnownFirst" and "Report a bug" in Settings are placeholders (identical no-op handler); not gated out of Release builds.
 - Deterministic GUI automation (Appium/UiAutomator2 or equivalent) is not yet implemented; GUI verification remains manual per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md).
 - Public Google Play release is intentionally blocked; current distribution is Internal Testing only.
+- Native-speaker wording review of the new Russian resource has not been performed; translations are complete but unreviewed by a native speaker.
 
 ## Active planned sequence
 
-1. Focused, read-only investigation and deterministic test plan for the reported duplicate-looking learning question (no fix authorized yet).
+1. Focused, read-only investigation and deterministic test plan for the reported duplicate-looking learning question ([KF-LEARN-001](BACKLOG.md); no fix authorized yet).
 2. Functional "Support KnownFirst" and "Report a bug" controls (or explicit removal/gating decision).
 3. Reopenable release notes / release-note history access from Settings.
 4. Deterministic Android GUI automation feasibility and first implementation.
 5. Public-release legal, privacy, and support readiness review.
+6. Russian source-text support decision (separately planned; not started).
 
 ## Explicit exclusions
 
 - No merge-import or overwrite semantics for portable recovery.
 - No `ReplaceAll`-style restore into a populated installation.
-- No additional learning languages beyond English/German source-target scope yet.
+- No Russian source-text import yet.
 - No public Google Play promotion yet.
 
 ## Relevant files for the next task
 
-- [architecture/backup-format-v1.md](architecture/backup-format-v1.md)
+- [BACKLOG.md](BACKLOG.md)
 - `Services/Study/LearningService.cs`
 - `Components/Pages/Learn.razor`
 - `Models/LearningModels.cs`
@@ -64,7 +72,7 @@
 
 ## Next exact action
 
-Perform a read-only, focused investigation and deterministic reproduction/test plan for the reported duplicate-looking learning question (small vocabulary pool: same word and same card direction appearing twice in one session). Trace card creation, queue building, and the "Again" requeue path; identify whether the cause is a genuine duplicate or an undistinguished legitimate repeat; propose the minimum test matrix. Do not implement a fix in this step.
+Perform a read-only, focused investigation and deterministic reproduction/test plan for the reported duplicate-looking learning question ([KF-LEARN-001](BACKLOG.md); small vocabulary pool: same word and same card direction appearing twice in one session). Trace card creation, queue building, and the "Again" requeue path; identify whether the cause is a genuine duplicate or an undistinguished legitimate repeat; propose the minimum test matrix. Do not implement a fix in this step.
 
 ## New-chat handoff
 

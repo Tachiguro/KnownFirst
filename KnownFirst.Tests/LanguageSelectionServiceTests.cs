@@ -100,22 +100,124 @@ public sealed class LanguageSelectionServiceTests
     }
 
     [TestMethod]
-    public void Initialize_WhenNoPreference_PersistsDeviceDefaultOnlyOnce()
+    public void Initialize_WhenNoPreference_ResolvesDeviceCultureOnEveryStartup()
     {
+        // A missing preference means System is active. System must re-resolve the device
+        // culture on every startup, not freeze the first-resolved language permanently.
         var operations = new List<string>();
         var store = new InMemoryLanguagePreferenceStore(false, null, operations);
         var deviceCultureProvider = new FakeDeviceCultureProvider("de-DE", operations);
         var cultureContext = new FakeUiCultureContext(operations);
         var service = new LanguageSelectionService(store, deviceCultureProvider, cultureContext);
         service.Initialize();
+
+        Assert.AreEqual("de", service.CurrentUiLanguage);
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual(1, store.SetCount, "The explicit System marker is persisted once on first launch.");
+        Assert.AreEqual(1, deviceCultureProvider.CallCount);
+
         deviceCultureProvider.DeviceCultureName = "en-US";
+        service.Initialize();
+
+        Assert.AreEqual("en", service.CurrentUiLanguage, "System must follow the device culture on every start.");
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual(1, store.SetCount, "The System marker itself does not need to be re-persisted.");
+        Assert.AreEqual(2, deviceCultureProvider.CallCount);
+    }
+
+    [TestMethod]
+    public void Initialize_SystemPreferenceWithRussianDeviceCulture_ResolvesToRussian()
+    {
+        var service = CreateInitializedService(false, null, "ru-RU", out var store, out _, out _);
+
+        Assert.AreEqual("ru", service.CurrentUiLanguage);
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual("system", store.SavedLanguage);
+    }
+
+    [TestMethod]
+    public void Initialize_SystemPreferenceWithRegionalRussianDeviceCulture_ResolvesToRussian()
+    {
+        var service = CreateInitializedService(false, null, "ru-KZ", out _, out _, out _);
+
+        Assert.AreEqual("ru", service.CurrentUiLanguage);
+    }
+
+    [TestMethod]
+    public void Initialize_SystemPreferenceWithUnsupportedDeviceCulture_FallsBackToEnglish()
+    {
+        var service = CreateInitializedService(false, null, "fr-FR", out var store, out _, out _);
+
+        Assert.AreEqual("en", service.CurrentUiLanguage);
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+    }
+
+    [TestMethod]
+    public void Initialize_MalformedStoredPreference_FailsSafelyToSystemResolution()
+    {
+        var operations = new List<string>();
+        var store = new InMemoryLanguagePreferenceStore(true, "xx-not-a-language", operations);
+        var deviceCultureProvider = new FakeDeviceCultureProvider("de-DE", operations);
+        var cultureContext = new FakeUiCultureContext(operations);
+        var service = new LanguageSelectionService(store, deviceCultureProvider, cultureContext);
 
         service.Initialize();
 
         Assert.AreEqual("de", service.CurrentUiLanguage);
-        Assert.AreEqual("de", store.SavedLanguage);
-        Assert.AreEqual(1, store.SetCount);
-        Assert.AreEqual(1, deviceCultureProvider.CallCount);
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+    }
+
+    [TestMethod]
+    public void SetUiLanguage_Russian_PersistsAndOverridesDeviceCulture()
+    {
+        var service = CreateInitializedService(false, null, "en-US", out var store, out var deviceCultureProvider, out var cultureContext);
+        deviceCultureProvider.CallCountReset();
+
+        service.SetUiLanguage("ru");
+
+        Assert.AreEqual("ru", service.CurrentUiLanguage);
+        Assert.IsFalse(service.IsSystemPreferenceActive);
+        Assert.AreEqual("ru", store.SavedLanguage);
+        Assert.AreEqual("ru", cultureContext.CurrentUiLanguage);
+        Assert.AreEqual(0, deviceCultureProvider.CallCount, "A manual selection must not consult the device culture.");
+    }
+
+    [TestMethod]
+    public void SetUiLanguage_Russian_UpdatesCultureAndRaisesNotificationExactlyOnce()
+    {
+        var service = CreateInitializedService(true, "en", "en-US", out _, out _, out _);
+        var notificationCount = 0;
+        service.UiLanguageChanged += (_, _) => notificationCount++;
+
+        service.SetUiLanguage("ru");
+
+        Assert.AreEqual(1, notificationCount);
+        Assert.AreEqual("ru", service.CurrentUiLanguage);
+    }
+
+    [TestMethod]
+    public void SetUiLanguage_System_RestoresDynamicDeviceCultureResolution()
+    {
+        var operations = new List<string>();
+        var store = new InMemoryLanguagePreferenceStore(true, "de", operations);
+        var deviceCultureProvider = new FakeDeviceCultureProvider("ru-RU", operations);
+        var cultureContext = new FakeUiCultureContext(operations);
+        var service = new LanguageSelectionService(store, deviceCultureProvider, cultureContext);
+        service.Initialize();
+        var notificationCount = 0;
+        service.UiLanguageChanged += (_, _) => notificationCount++;
+
+        service.SetUiLanguage("system");
+
+        Assert.AreEqual("ru", service.CurrentUiLanguage, "Selecting System must immediately apply the current device culture.");
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual("system", store.SavedLanguage);
+        Assert.AreEqual(1, notificationCount);
+
+        // Confirm the restored System mode stays dynamic across a later restart.
+        deviceCultureProvider.DeviceCultureName = "en-US";
+        service.Initialize();
+        Assert.AreEqual("en", service.CurrentUiLanguage);
     }
 
     [TestMethod]
@@ -163,30 +265,35 @@ public sealed class LanguageSelectionServiceTests
     }
 
     [TestMethod]
-    public void Initialize_FirstLaunchFrench_PersistsEnglish()
+    public void Initialize_FirstLaunchFrench_ResolvesEnglishUnderSystemPreference()
     {
+        // First launch persists the explicit "system" marker (not a frozen concrete
+        // language) so System mode continues to follow the device culture on later starts.
         var service = CreateInitializedService(false, null, "fr-FR", out var store, out _, out _);
 
         Assert.AreEqual("en", service.CurrentUiLanguage);
-        Assert.AreEqual("en", store.SavedLanguage);
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual("system", store.SavedLanguage);
     }
 
     [TestMethod]
-    public void Initialize_FirstLaunchGerman_PersistsGerman()
+    public void Initialize_FirstLaunchGerman_ResolvesGermanUnderSystemPreference()
     {
         var service = CreateInitializedService(false, null, "de-DE", out var store, out _, out _);
 
         Assert.AreEqual("de", service.CurrentUiLanguage);
-        Assert.AreEqual("de", store.SavedLanguage);
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual("system", store.SavedLanguage);
     }
 
     [TestMethod]
-    public void Initialize_FirstLaunchEnglish_PersistsEnglish()
+    public void Initialize_FirstLaunchEnglish_ResolvesEnglishUnderSystemPreference()
     {
         var service = CreateInitializedService(false, null, "en-US", out var store, out _, out _);
 
         Assert.AreEqual("en", service.CurrentUiLanguage);
-        Assert.AreEqual("en", store.SavedLanguage);
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual("system", store.SavedLanguage);
     }
 
     [TestMethod]
@@ -262,6 +369,8 @@ public sealed class LanguageSelectionServiceTests
             operations.Add($"device:{DeviceCultureName}");
             return DeviceCultureName;
         }
+
+        public void CallCountReset() => CallCount = 0;
     }
 
     private sealed class FakeUiCultureContext(List<string> operations) : IUiCultureContext

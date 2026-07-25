@@ -90,11 +90,17 @@
   <data name="Settings_UILanguage" xml:space="preserve">
     <value>Sprache</value>
   </data>
+  <data name="Settings_UILanguageSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
   <data name="Settings_English" xml:space="preserve">
     <value>Englisch</value>
   </data>
   <data name="Settings_German" xml:space="preserve">
     <value>Deutsch</value>
+  </data>
+  <data name="Settings_Russian" xml:space="preserve">
+    <value>Russisch</value>
   </data>
   <data name="Settings_Appearance" xml:space="preserve">
     <value>Darstellung</value>
@@ -116,6 +122,12 @@
   </data>
   <data name="Settings_LanguageChangedToGerman" xml:space="preserve">
     <value>Sprache auf Deutsch geändert.</value>
+  </data>
+  <data name="Settings_LanguageChangedToRussian" xml:space="preserve">
+    <value>Sprache auf Russisch geändert.</value>
+  </data>
+  <data name="Settings_LanguageChangedToSystem" xml:space="preserve">
+    <value>Die Sprache folgt jetzt deinem Gerät.</value>
   </data>
   <data name="Settings_AppearanceChangedTo" xml:space="preserve">
     <value>Darstellung auf {0} geändert.</value>

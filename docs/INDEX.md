@@ -12,6 +12,7 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 - **Read [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) only after:** an explicit build, configuration, packaging, signing, APK, AAB, release, artifact-reconstruction, or store request.
 - **Read [docs/BETA_TESTING.md](BETA_TESTING.md) for:** manual Android device testing procedures.
 - **Read [docs/GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md) for:** manual cross-platform GUI testing.
+- **Read [docs/BACKLOG.md](BACKLOG.md) for:** internal bugs, small UX improvements, and deferred observations tracked outside GitHub Issues.
 - **Do NOT read routine status or historical docs** ([PROJECT_STATE.md](PROJECT_STATE.md), [ROADMAP.md](ROADMAP.md), [CHANGELOG.md](../CHANGELOG.md), audits, handoffs, backup plans) unless directly required by the task category below.
 
 ## Task-Based Reading Matrix

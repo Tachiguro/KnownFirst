@@ -1,0 +1,1407 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="App_Name" xml:space="preserve">
+    <value>KnownFirst</value>
+  </data>
+  <data name="App_Initializing" xml:space="preserve">
+    <value>Подготовка KnownFirst…</value>
+  </data>
+  <data name="App_InitializationError" xml:space="preserve">
+    <value>Не удалось инициализировать локальную базу данных KnownFirst.</value>
+  </data>
+  <data name="Navigation_Home" xml:space="preserve">
+    <value>Главная</value>
+  </data>
+  <data name="Navigation_Menu" xml:space="preserve">
+    <value>Меню навигации</value>
+  </data>
+  <data name="Navigation_ImportText" xml:space="preserve">
+    <value>Импорт текста</value>
+  </data>
+  <data name="Navigation_ReviewWords" xml:space="preserve">
+    <value>Проверка слов</value>
+  </data>
+  <data name="Navigation_PrepareWords" xml:space="preserve">
+    <value>Подготовка слов</value>
+  </data>
+  <data name="Navigation_Learn" xml:space="preserve">
+    <value>Изучение</value>
+  </data>
+  <data name="Navigation_Dictionary" xml:space="preserve">
+    <value>Словарь</value>
+  </data>
+  <data name="Navigation_Settings" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="Home_Title" xml:space="preserve">
+    <value>KnownFirst</value>
+  </data>
+  <data name="Home_Subtitle" xml:space="preserve">
+    <value>Пропускай то, что уже знаешь. Учи то, что важно.</value>
+  </data>
+  <data name="Home_ImportedTexts" xml:space="preserve">
+    <value>Импортированные тексты</value>
+  </data>
+  <data name="Home_WordsToReview" xml:space="preserve">
+    <value>Слова для проверки</value>
+  </data>
+  <data name="Home_KnownWords" xml:space="preserve">
+    <value>Известные слова</value>
+  </data>
+  <data name="Home_UnknownWords" xml:space="preserve">
+    <value>Неизвестные слова</value>
+  </data>
+  <data name="Home_PreparedWords" xml:space="preserve">
+    <value>Подготовленные слова</value>
+  </data>
+  <data name="Home_LoadingStatistics" xml:space="preserve">
+    <value>Загрузка прогресса…</value>
+  </data>
+  <data name="Home_DashboardError" xml:space="preserve">
+    <value>Не удалось загрузить прогресс.</value>
+  </data>
+  <data name="Common_Save" xml:space="preserve">
+    <value>Сохранить</value>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Отмена</value>
+  </data>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Назад</value>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Повторить</value>
+  </data>
+  <data name="Settings_Title" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="Settings_UILanguage" xml:space="preserve">
+    <value>Язык</value>
+  </data>
+  <data name="Settings_UILanguageSystem" xml:space="preserve">
+    <value>Системный</value>
+  </data>
+  <data name="Settings_English" xml:space="preserve">
+    <value>Английский</value>
+  </data>
+  <data name="Settings_German" xml:space="preserve">
+    <value>Немецкий</value>
+  </data>
+  <data name="Settings_Russian" xml:space="preserve">
+    <value>Русский</value>
+  </data>
+  <data name="Settings_Appearance" xml:space="preserve">
+    <value>Оформление</value>
+  </data>
+  <data name="Settings_AppearanceSystem" xml:space="preserve">
+    <value>Системное</value>
+  </data>
+  <data name="Settings_AppearanceLight" xml:space="preserve">
+    <value>Светлое</value>
+  </data>
+  <data name="Settings_AppearanceDark" xml:space="preserve">
+    <value>Тёмное</value>
+  </data>
+  <data name="Settings_LanguageChangedTo" xml:space="preserve">
+    <value>Язык изменён на {0}.</value>
+  </data>
+  <data name="Settings_LanguageChangedToEnglish" xml:space="preserve">
+    <value>Язык изменён на английский.</value>
+  </data>
+  <data name="Settings_LanguageChangedToGerman" xml:space="preserve">
+    <value>Язык изменён на немецкий.</value>
+  </data>
+  <data name="Settings_LanguageChangedToRussian" xml:space="preserve">
+    <value>Язык изменён на русский.</value>
+  </data>
+  <data name="Settings_LanguageChangedToSystem" xml:space="preserve">
+    <value>Теперь язык определяется устройством.</value>
+  </data>
+  <data name="Settings_AppearanceChangedTo" xml:space="preserve">
+    <value>Оформление изменено на «{0}».</value>
+  </data>
+  <data name="Settings_PreparationLimit" xml:space="preserve">
+    <value>Новых слов в день</value>
+  </data>
+  <data name="Settings_ResetData" xml:space="preserve">
+    <value>Сбросить все данные приложения</value>
+  </data>
+  <data name="Settings_ResetDescription" xml:space="preserve">
+    <value>Безвозвратно удаляет все локально сохранённые тексты и данные слов.</value>
+  </data>
+  <data name="Settings_ResetConfirmTitle" xml:space="preserve">
+    <value>Сбросить все данные?</value>
+  </data>
+  <data name="Settings_ResetConfirmMessage" xml:space="preserve">
+    <value>Это действие нельзя отменить. Локальная база данных будет удалена и создана заново.</value>
+  </data>
+  <data name="Settings_ResetConfirmAction" xml:space="preserve">
+    <value>Сбросить данные</value>
+  </data>
+  <data name="Settings_PreparationLimitSaved" xml:space="preserve">
+    <value>Дневной лимит новых слов сохранён: {0}.</value>
+  </data>
+  <data name="Settings_ResetSuccess" xml:space="preserve">
+    <value>Все локальные данные приложения были сброшены.</value>
+  </data>
+  <data name="Settings_ResetError" xml:space="preserve">
+    <value>Не удалось сбросить локальные данные приложения.</value>
+  </data>
+  <data name="Settings_SaveError" xml:space="preserve">
+    <value>Не удалось сохранить настройки.</value>
+  </data>
+  <data name="Placeholder_Message" xml:space="preserve">
+    <value>Эта функция будет реализована позже.</value>
+  </data>
+  <data name="NotFound_Title" xml:space="preserve">
+    <value>Страница не найдена</value>
+  </data>
+  <data name="NotFound_Message" xml:space="preserve">
+    <value>Запрошенная страница не существует.</value>
+  </data>
+  <data name="Navigation_BackToHome" xml:space="preserve">
+    <value>На главную</value>
+  </data>
+  <data name="Navigation_OpenMenu" xml:space="preserve">
+    <value>Открыть меню</value>
+  </data>
+  <data name="Navigation_CloseMenu" xml:space="preserve">
+    <value>Закрыть меню</value>
+  </data>
+  <data name="Footer_DevelopedBy" xml:space="preserve">
+    <value>Разработано Tachiguro</value>
+  </data>
+  <data name="Footer_TachiguroLogoAlt" xml:space="preserve">
+    <value>Логотип Tachiguro</value>
+  </data>
+  <data name="Settings_HelpAndSupport" xml:space="preserve">
+    <value>Помощь и поддержка</value>
+  </data>
+  <data name="Settings_SupportKnownFirst" xml:space="preserve">
+    <value>Поддержать KnownFirst</value>
+  </data>
+  <data name="Settings_ReportBug" xml:space="preserve">
+    <value>Сообщить об ошибке</value>
+  </data>
+  <data name="Common_FeatureComingSoon" xml:space="preserve">
+    <value>Эта функция появится в одной из следующих версий.</value>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="Navigation_Diagnostics" xml:space="preserve">
+    <value>Диагностика</value>
+  </data>
+  <data name="ReviewGate_Checking" xml:space="preserve">
+    <value>Проверка активной проверки слов…</value>
+  </data>
+  <data name="ReviewGate_Error" xml:space="preserve">
+    <value>KnownFirst не удалось проверить, идёт ли сейчас проверка слов.</value>
+  </data>
+  <data name="Home_ReviewInProgress" xml:space="preserve">
+    <value>Проверка выполняется</value>
+  </data>
+  <data name="Home_ContinueReviewTitle" xml:space="preserve">
+    <value>Продолжить проверку</value>
+  </data>
+  <data name="Home_ContinueReviewDescription" xml:space="preserve">
+    <value>Сначала заверши проверку текста «{0}», прежде чем импортировать или изучать другой текст.</value>
+  </data>
+  <data name="Home_ReviewProgress" xml:space="preserve">
+    <value>Проверено {0} из {1} кандидатов</value>
+  </data>
+  <data name="Home_ContinueReviewAction" xml:space="preserve">
+    <value>Продолжить проверку</value>
+  </data>
+  <data name="Import_DocumentTitle" xml:space="preserve">
+    <value>Название документа</value>
+  </data>
+  <data name="Import_TitlePlaceholder" xml:space="preserve">
+    <value>Дай этому тексту название</value>
+  </data>
+  <data name="Import_Text" xml:space="preserve">
+    <value>Текст</value>
+  </data>
+  <data name="Import_TextPlaceholder" xml:space="preserve">
+    <value>Вставь сюда текст на английском или немецком языке</value>
+  </data>
+  <data name="Import_TextLanguage" xml:space="preserve">
+    <value>Язык текста</value>
+  </data>
+  <data name="Import_ExplanationLanguage" xml:space="preserve">
+    <value>Язык объяснения</value>
+  </data>
+  <data name="Import_SaveAndAnalyze" xml:space="preserve">
+    <value>Сохранить и проанализировать</value>
+  </data>
+  <data name="Import_Analyzing" xml:space="preserve">
+    <value>Анализ…</value>
+  </data>
+  <data name="Import_AnalyzingProgress" xml:space="preserve">
+    <value>Текст анализируется, прежде чем будут внесены какие-либо постоянные изменения.</value>
+  </data>
+  <data name="Import_TitleRequired" xml:space="preserve">
+    <value>Введите название документа.</value>
+  </data>
+  <data name="Import_TextRequired" xml:space="preserve">
+    <value>Вставьте текст для анализа.</value>
+  </data>
+  <data name="Import_Error" xml:space="preserve">
+    <value>Не удалось сохранить и проанализировать текст.</value>
+  </data>
+  <data name="Import_ExactDuplicate" xml:space="preserve">
+    <value>Этот текст уже был импортирован. Повторно он не сохранён.</value>
+  </data>
+  <data name="Import_NoNewVocabulary" xml:space="preserve">
+    <value>Новых слов не найдено. Текст не сохранён, статистика не изменилась.</value>
+  </data>
+  <data name="Review_Loading" xml:space="preserve">
+    <value>Загрузка проверки…</value>
+  </data>
+  <data name="Review_LoadError" xml:space="preserve">
+    <value>Не удалось загрузить активную проверку.</value>
+  </data>
+  <data name="Review_NoActive" xml:space="preserve">
+    <value>Незавершённой проверки слов нет.</value>
+  </data>
+  <data name="Review_StartImport" xml:space="preserve">
+    <value>Импортировать текст</value>
+  </data>
+  <data name="Review_ProgressLabel" xml:space="preserve">
+    <value>Прогресс проверки</value>
+  </data>
+  <data name="Review_Progress" xml:space="preserve">
+    <value>{0} / {1}</value>
+  </data>
+  <data name="Review_Candidate" xml:space="preserve">
+    <value>Кандидат</value>
+  </data>
+  <data name="Review_TokenKind" xml:space="preserve">
+    <value>Тип токена</value>
+  </data>
+  <data name="Review_EncounteredForms" xml:space="preserve">
+    <value>Встреченные формы</value>
+  </data>
+  <data name="Review_OccurrenceCount" xml:space="preserve">
+    <value>Количество вхождений</value>
+  </data>
+  <data name="Review_MultipleContextsNotice" xml:space="preserve">
+    <value>Это слово встречается в нескольких контекстах. Просмотри примеры перед принятием решения.</value>
+  </data>
+  <data name="Review_Context" xml:space="preserve">
+    <value>Исходный контекст</value>
+  </data>
+  <data name="Review_PreviousContext" xml:space="preserve">
+    <value>Предыдущий контекст</value>
+  </data>
+  <data name="Review_NextContext" xml:space="preserve">
+    <value>Следующий контекст</value>
+  </data>
+  <data name="Review_ContextPosition" xml:space="preserve">
+    <value>Контекст {0} из {1}</value>
+  </data>
+  <data name="Review_Question" xml:space="preserve">
+    <value>Ты уже знаешь это слово или аббревиатуру?</value>
+  </data>
+  <data name="Review_Known" xml:space="preserve">
+    <value>Знаю</value>
+  </data>
+  <data name="Review_Unknown" xml:space="preserve">
+    <value>Не знаю</value>
+  </data>
+  <data name="Review_Ignore" xml:space="preserve">
+    <value>Игнорировать</value>
+  </data>
+  <data name="Review_Undo" xml:space="preserve">
+    <value>Отменить предыдущее решение</value>
+  </data>
+  <data name="Review_DecisionError" xml:space="preserve">
+    <value>Не удалось сохранить решение. Попробуй ещё раз.</value>
+  </data>
+  <data name="Review_CompleteTitle" xml:space="preserve">
+    <value>Проверка завершена</value>
+  </data>
+  <data name="Review_CompleteDescription" xml:space="preserve">
+    <value>Все кандидаты из текста «{0}» классифицированы.</value>
+  </data>
+  <data name="Review_DiscardTitle" xml:space="preserve">
+    <value>Отменить незавершённый импорт</value>
+  </data>
+  <data name="Review_DiscardAction" xml:space="preserve">
+    <value>Отменить импорт</value>
+  </data>
+  <data name="Review_DiscardMessage" xml:space="preserve">
+    <value>Это удалит незавершённый документ и только созданные для него данные проверки. Это действие нельзя отменить.</value>
+  </data>
+  <data name="Review_DiscardConfirm" xml:space="preserve">
+    <value>Отменить незавершённый импорт</value>
+  </data>
+  <data name="Review_DiscardError" xml:space="preserve">
+    <value>Не удалось отменить незавершённый импорт.</value>
+  </data>
+  <data name="TokenKind_Word" xml:space="preserve">
+    <value>Слово</value>
+  </data>
+  <data name="TokenKind_Acronym" xml:space="preserve">
+    <value>Аббревиатура</value>
+  </data>
+  <data name="TokenKind_Abbreviation" xml:space="preserve">
+    <value>Сокращение</value>
+  </data>
+  <data name="TokenKind_TechnicalTerm" xml:space="preserve">
+    <value>Технический термин</value>
+  </data>
+  <data name="Learn_NextMilestone" xml:space="preserve">
+    <value>Изучение слов будет реализовано на следующем этапе.</value>
+  </data>
+  <data name="Prepare_NextMilestone" xml:space="preserve">
+    <value>Подготовка слов будет реализована на следующем этапе.</value>
+  </data>
+  <data name="Diagnostics_Title" xml:space="preserve">
+    <value>DEBUG-диагностика</value>
+  </data>
+  <data name="Diagnostics_Refresh" xml:space="preserve">
+    <value>Обновить</value>
+  </data>
+  <data name="Diagnostics_Loading" xml:space="preserve">
+    <value>Загрузка диагностики…</value>
+  </data>
+  <data name="Diagnostics_Error" xml:space="preserve">
+    <value>Не удалось загрузить данные диагностики.</value>
+  </data>
+  <data name="Diagnostics_Database" xml:space="preserve">
+    <value>База данных и активная сессия</value>
+  </data>
+  <data name="Diagnostics_ActiveSession" xml:space="preserve">
+    <value>Активна: {0} — проверено {1} из {2}</value>
+  </data>
+  <data name="Diagnostics_NoActiveSession" xml:space="preserve">
+    <value>Активной сессии проверки нет.</value>
+  </data>
+  <data name="Diagnostics_Documents" xml:space="preserve">
+    <value>Документы</value>
+  </data>
+  <data name="Diagnostics_Characters" xml:space="preserve">
+    <value>Символы</value>
+  </data>
+  <data name="Diagnostics_Occurrences" xml:space="preserve">
+    <value>Извлечённые вхождения</value>
+  </data>
+  <data name="Diagnostics_Sentences" xml:space="preserve">
+    <value>Границы предложений</value>
+  </data>
+  <data name="Diagnostics_Candidates" xml:space="preserve">
+    <value>Кандидаты</value>
+  </data>
+  <data name="Diagnostics_StoredOccurrences" xml:space="preserve">
+    <value>Сохранённые смещения вхождений</value>
+  </data>
+  <data name="Diagnostics_DocumentId" xml:space="preserve">
+    <value>document</value>
+  </data>
+  <data name="Diagnostics_WordId" xml:space="preserve">
+    <value>word</value>
+  </data>
+  <data name="Diagnostics_SentenceId" xml:space="preserve">
+    <value>sentence</value>
+  </data>
+  <data name="Diagnostics_Start" xml:space="preserve">
+    <value>start</value>
+  </data>
+  <data name="Diagnostics_Length" xml:space="preserve">
+    <value>length</value>
+  </data>
+  <data name="Diagnostics_Order" xml:space="preserve">
+    <value>order</value>
+  </data>
+  <data name="Diagnostics_Status" xml:space="preserve">
+    <value>Статус</value>
+  </data>
+  <data name="Diagnostics_ExplanationTitle" xml:space="preserve">
+    <value>Как читать эту диагностику</value>
+  </data>
+  <data name="Diagnostics_ExplanationIntro" xml:space="preserve">
+    <value>Эти записи показывают, как принятый текст переходит из своего неизменного источника в проверку слов.</value>
+  </data>
+  <data name="Diagnostics_TermDocument" xml:space="preserve">
+    <value>Документ</value>
+  </data>
+  <data name="Diagnostics_TermDocumentDescription" xml:space="preserve">
+    <value>Неизменный импортированный исходный текст и его метаданные.</value>
+  </data>
+  <data name="Diagnostics_TermSession" xml:space="preserve">
+    <value>Сессия проверки</value>
+  </data>
+  <data name="Diagnostics_TermSessionDescription" xml:space="preserve">
+    <value>Очередь проверки для одного принятого документа, включая прогресс и статус завершения.</value>
+  </data>
+  <data name="Diagnostics_TermSentenceSpan" xml:space="preserve">
+    <value>Граница предложения</value>
+  </data>
+  <data name="Diagnostics_TermSentenceSpanDescription" xml:space="preserve">
+    <value>Начало и длина, определяющие одно предложение внутри неизменного документа.</value>
+  </data>
+  <data name="Diagnostics_TermCandidate" xml:space="preserve">
+    <value>Кандидат</value>
+  </data>
+  <data name="Diagnostics_TermCandidateDescription" xml:space="preserve">
+    <value>Одна уникальная лексическая единица, проверяемая один раз, даже если она встречается несколько раз.</value>
+  </data>
+  <data name="Diagnostics_TermOccurrence" xml:space="preserve">
+    <value>Вхождение</value>
+  </data>
+  <data name="Diagnostics_TermOccurrenceDescription" xml:space="preserve">
+    <value>Одно фактическое появление кандидата в точной позиции документа.</value>
+  </data>
+  <data name="Diagnostics_TermStartDescription" xml:space="preserve">
+    <value>Смещение строки .NET от нуля, с которого начинается предложение или вхождение.</value>
+  </data>
+  <data name="Diagnostics_TermLengthDescription" xml:space="preserve">
+    <value>Количество символов UTF-16 .NET в предложении или найденной поверхностной форме.</value>
+  </data>
+  <data name="Diagnostics_TermOrderDescription" xml:space="preserve">
+    <value>Детерминированный порядок появления предложения или вхождения.</value>
+  </data>
+  <data name="Diagnostics_TermStatusDescription" xml:space="preserve">
+    <value>Текущий статус проверки или сессии, сохранённый в базе данных.</value>
+  </data>
+  <data name="Diagnostics_CopyReport" xml:space="preserve">
+    <value>Скопировать отчёт диагностики</value>
+  </data>
+  <data name="Diagnostics_CopyDatabasePath" xml:space="preserve">
+    <value>Скопировать путь к базе данных</value>
+  </data>
+  <data name="Diagnostics_ReportCopied" xml:space="preserve">
+    <value>Отчёт диагностики скопирован.</value>
+  </data>
+  <data name="Diagnostics_DatabasePathCopied" xml:space="preserve">
+    <value>Путь к базе данных скопирован.</value>
+  </data>
+  <data name="Diagnostics_CopyError" xml:space="preserve">
+    <value>Не удалось скопировать текст диагностики.</value>
+  </data>
+  <data name="Diagnostics_TitleColumn" xml:space="preserve">
+    <value>Название</value>
+  </data>
+  <data name="Diagnostics_SourceLanguage" xml:space="preserve">
+    <value>Исходный язык</value>
+  </data>
+  <data name="Diagnostics_SentenceCount" xml:space="preserve">
+    <value>Предложения</value>
+  </data>
+  <data name="Diagnostics_ImportDate" xml:space="preserve">
+    <value>Дата импорта</value>
+  </data>
+  <data name="Diagnostics_ReviewStatus" xml:space="preserve">
+    <value>Статус проверки</value>
+  </data>
+  <data name="Diagnostics_DocumentTitle" xml:space="preserve">
+    <value>Название документа</value>
+  </data>
+  <data name="Diagnostics_Preview" xml:space="preserve">
+    <value>Предпросмотр</value>
+  </data>
+  <data name="Diagnostics_CandidateText" xml:space="preserve">
+    <value>Текст кандидата</value>
+  </data>
+  <data name="Diagnostics_Storage" xml:space="preserve">
+    <value>Хранение</value>
+  </data>
+  <data name="Diagnostics_Temporary" xml:space="preserve">
+    <value>Временное</value>
+  </data>
+  <data name="Diagnostics_Retained" xml:space="preserve">
+    <value>Сохранённое</value>
+  </data>
+  <data name="Diagnostics_Sessions" xml:space="preserve">
+    <value>Сессии проверки</value>
+  </data>
+  <data name="Diagnostics_State" xml:space="preserve">
+    <value>Состояние</value>
+  </data>
+  <data name="Diagnostics_Reviewed" xml:space="preserve">
+    <value>Проверено</value>
+  </data>
+  <data name="Diagnostics_Total" xml:space="preserve">
+    <value>Всего</value>
+  </data>
+  <data name="Diagnostics_Remaining" xml:space="preserve">
+    <value>Осталось</value>
+  </data>
+  <data name="Diagnostics_StatusActive" xml:space="preserve">
+    <value>Активна</value>
+  </data>
+  <data name="Diagnostics_StatusCompleted" xml:space="preserve">
+    <value>Завершена</value>
+  </data>
+  <data name="Diagnostics_StatusNoSession" xml:space="preserve">
+    <value>Сессии проверки нет</value>
+  </data>
+  <data name="Diagnostics_NoRows" xml:space="preserve">
+    <value>Записи не сохранены.</value>
+  </data>
+  <data name="Diagnostics_TechnicalDetails" xml:space="preserve">
+    <value>Технические детали и исходные ID</value>
+  </data>
+  <data name="Diagnostics_RecordType" xml:space="preserve">
+    <value>Тип записи</value>
+  </data>
+  <data name="Diagnostics_RelatedIds" xml:space="preserve">
+    <value>Связанные ID или идентичность</value>
+  </data>
+  <data name="WordStatus_Unreviewed" xml:space="preserve">
+    <value>Не проверено</value>
+  </data>
+  <data name="WordStatus_Prepared" xml:space="preserve">
+    <value>Подготовлено</value>
+  </data>
+  <data name="WordStatus_Learning" xml:space="preserve">
+    <value>Изучается</value>
+  </data>
+  <data name="WordStatus_Mastered" xml:space="preserve">
+    <value>Освоено</value>
+  </data>
+  <data name="Common_Continue" xml:space="preserve">
+    <value>Продолжить</value>
+  </data>
+  <data name="Common_Later" xml:space="preserve">
+    <value>Позже</value>
+  </data>
+  <data name="Navigation_LearnUnavailable" xml:space="preserve">
+    <value>Пока нет слов, готовых для изучения.</value>
+  </data>
+  <data name="Navigation_ImportBlockedByReview" xml:space="preserve">
+    <value>Сначала заверши или отмени активную проверку слов.</value>
+  </data>
+  <data name="Home_ContinuePreparation" xml:space="preserve">
+    <value>Продолжить подготовку</value>
+  </data>
+  <data name="Settings_ReturnToReview" xml:space="preserve">
+    <value>Вернуться к активной проверке</value>
+  </data>
+  <data name="Settings_CardDirection" xml:space="preserve">
+    <value>Направления карточек</value>
+  </data>
+  <data name="Settings_CardDirectionTermToMeaning" xml:space="preserve">
+    <value>От слова к значению</value>
+  </data>
+  <data name="Settings_CardDirectionMeaningToTerm" xml:space="preserve">
+    <value>От значения к слову</value>
+  </data>
+  <data name="Settings_CardDirectionBoth" xml:space="preserve">
+    <value>Оба направления</value>
+  </data>
+  <data name="Settings_CardDirectionSaved" xml:space="preserve">
+    <value>Направления карточек сохранены.</value>
+  </data>
+  <data name="Settings_LearningMode" xml:space="preserve">
+    <value>Режим изучения</value>
+  </data>
+  <data name="Settings_LearningModeHelp" xml:space="preserve">
+    <value>Выбери, будут ли карточки использовать чтение, ввод текста или автоматический режим для каждого слова.</value>
+  </data>
+  <data name="Settings_LearningModeReading" xml:space="preserve">
+    <value>Чтение</value>
+  </data>
+  <data name="Settings_LearningModeTyping" xml:space="preserve">
+    <value>Ввод текста</value>
+  </data>
+  <data name="Settings_LearningModeAutomatic" xml:space="preserve">
+    <value>Автоматически</value>
+  </data>
+  <data name="Settings_LearningModeSaved" xml:space="preserve">
+    <value>Режим изучения сохранён.</value>
+  </data>
+  <data name="Settings_OnlineDictionary" xml:space="preserve">
+    <value>Онлайн-словарь</value>
+  </data>
+  <data name="Settings_OnlineConsentGranted" xml:space="preserve">
+    <value>Онлайн-поиск в словаре включён.</value>
+  </data>
+  <data name="Settings_OnlineConsentNotGranted" xml:space="preserve">
+    <value>Онлайн-поиск в словаре не включён.</value>
+  </data>
+  <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
+    <value>Отозвать согласие на онлайн-поиск</value>
+  </data>
+  <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
+    <value>Согласие на онлайн-поиск отозвано.</value>
+  </data>
+  <data name="Prepare_Loading" xml:space="preserve">
+    <value>Загрузка подготовки слов…</value>
+  </data>
+  <data name="Prepare_LoadError" xml:space="preserve">
+    <value>Не удалось загрузить подготовку слов.</value>
+  </data>
+  <data name="Prepare_OnlineDisclosureTitle" xml:space="preserve">
+    <value>Онлайн-поиск в словаре</value>
+  </data>
+  <data name="Prepare_OnlineDisclosure" xml:space="preserve">
+    <value>KnownFirst не отправляет твои документы, примеры предложений, историю обучения или личные данные разработчику KnownFirst. Только после согласия выбранный термин и необходимая информация о языке отправляются в сервисы Wikimedia. KnownFirst сначала запрашивает Wiktionary для получения содержимого словаря; если подходящий результат в Wiktionary не найден, может быть запрошена Wikipedia для получения энциклопедического определения. Wikipedia не предоставляет переводы. При запросах передаются стандартные сетевые метаданные, такие как твой IP-адрес и User-Agent KnownFirst. Полученное содержимое и твои данные обучения остаются сохранёнными локально на этом устройстве.</value>
+  </data>
+  <data name="Prepare_StartOnlineLookup" xml:space="preserve">
+    <value>Начать онлайн-поиск</value>
+  </data>
+  <data name="Prepare_NoWordsTitle" xml:space="preserve">
+    <value>Нет слов для подготовки</value>
+  </data>
+  <data name="Prepare_NoWords" xml:space="preserve">
+    <value>Проверь текст и отметь неизвестные слова перед подготовкой карточек для изучения.</value>
+  </data>
+  <data name="Prepare_MethodQuestion" xml:space="preserve">
+    <value>Как подготовить эти слова?</value>
+  </data>
+  <data name="Prepare_BatchDescription" xml:space="preserve">
+    <value>В этой партии будет подготовлено до {0} слов.</value>
+  </data>
+  <data name="Prepare_AutomaticOnline" xml:space="preserve">
+    <value>Автоматически онлайн</value>
+  </data>
+  <data name="Prepare_AutomaticRecommended" xml:space="preserve">
+    <value>Рекомендуется: получить и проверить варианты из словаря.</value>
+  </data>
+  <data name="Prepare_Manual" xml:space="preserve">
+    <value>Подготовить вручную</value>
+  </data>
+  <data name="Prepare_MethodManual" xml:space="preserve">
+    <value>Вручную</value>
+  </data>
+  <data name="Prepare_ManualDescription" xml:space="preserve">
+    <value>Введи содержимое для изучения самостоятельно, без онлайн-запроса.</value>
+  </data>
+  <data name="Prepare_Progress" xml:space="preserve">
+    <value>Подготовка слов — {0} из {1}</value>
+  </data>
+  <data name="Prepare_Candidate" xml:space="preserve">
+    <value>Слово</value>
+  </data>
+  <data name="Prepare_LookingUp" xml:space="preserve">
+    <value>Поиск этого термина…</value>
+  </data>
+  <data name="Prepare_ManualEntry" xml:space="preserve">
+    <value>Ввести вручную</value>
+  </data>
+  <data name="Prepare_SkipForNow" xml:space="preserve">
+    <value>Пропустить пока</value>
+  </data>
+  <data name="Prepare_AcronymExpansion" xml:space="preserve">
+    <value>Расшифровка аббревиатуры</value>
+  </data>
+  <data name="Prepare_Translation" xml:space="preserve">
+    <value>Перевод</value>
+  </data>
+  <data name="Prepare_Definition" xml:space="preserve">
+    <value>Определение</value>
+  </data>
+  <data name="Prepare_AdditionalNote" xml:space="preserve">
+    <value>Дополнительная заметка</value>
+  </data>
+  <data name="Prepare_AcceptedAliases" xml:space="preserve">
+    <value>Допустимые варианты написания (через точку с запятой)</value>
+  </data>
+  <data name="Prepare_DefinitionRequired" xml:space="preserve">
+    <value>Введи определение перед продолжением.</value>
+  </data>
+  <data name="Prepare_SaveAndContinue" xml:space="preserve">
+    <value>Применить</value>
+  </data>
+  <data name="Prepare_SeveralMeanings" xml:space="preserve">
+    <value>К этому контексту может подойти несколько значений.</value>
+  </data>
+  <data name="Prepare_Source" xml:space="preserve">
+    <value>Источник: {0}, «{1}»</value>
+  </data>
+  <data name="Prepare_AcceptAndContinue" xml:space="preserve">
+    <value>Применить</value>
+  </data>
+  <data name="Prepare_ChooseAnotherMeaning" xml:space="preserve">
+    <value>Выбрать другое значение</value>
+  </data>
+  <data name="Prepare_Edit" xml:space="preserve">
+    <value>Изменить</value>
+  </data>
+  <data name="Prepare_CancelPreparation" xml:space="preserve">
+    <value>Отменить подготовку</value>
+  </data>
+  <data name="Prepare_SaveError" xml:space="preserve">
+    <value>Не удалось сохранить изменение подготовки.</value>
+  </data>
+  <data name="Prepare_BatchCompleteTitle" xml:space="preserve">
+    <value>Подготовка завершена</value>
+  </data>
+  <data name="Prepare_BatchComplete" xml:space="preserve">
+    <value>Ты подготовил(а) {0} новых слов. Изучи эти слова перед добавлением новых или измени лимит в настройках.</value>
+  </data>
+  <data name="Prepare_ChangeLimit" xml:space="preserve">
+    <value>Изменить дневной лимит</value>
+  </data>
+  <data name="Prepare_StartLearning" xml:space="preserve">
+    <value>Начать изучение</value>
+  </data>
+  <data name="Prepare_RateLimited" xml:space="preserve">
+    <value>Сервис словаря попросил KnownFirst подождать. Попробуй ещё раз через некоторое время.</value>
+  </data>
+  <data name="Prepare_Offline" xml:space="preserve">
+    <value>Сервис словаря недоступен. Сохранённые в кэше результаты по-прежнему доступны.</value>
+  </data>
+  <data name="Prepare_NoResult" xml:space="preserve">
+    <value>Подходящий результат в словаре не найден.</value>
+  </data>
+  <data name="Learn_Loading" xml:space="preserve">
+    <value>Загрузка сессии изучения…</value>
+  </data>
+  <data name="Learn_LoadError" xml:space="preserve">
+    <value>Не удалось загрузить сессию изучения.</value>
+  </data>
+  <data name="Learn_Progress" xml:space="preserve">
+    <value>Карточка {0} из {1}</value>
+  </data>
+  <data name="Learn_TermToMeaning" xml:space="preserve">
+    <value>Вспомни значение</value>
+  </data>
+  <data name="Learn_MeaningToTerm" xml:space="preserve">
+    <value>Вспомни слово</value>
+  </data>
+  <data name="Learn_ReadingMode" xml:space="preserve">
+    <value>Вспомни ответ, затем открой его</value>
+  </data>
+  <data name="Learn_TypingMode" xml:space="preserve">
+    <value>Введи слово</value>
+  </data>
+  <data name="Learn_RevealAnswer" xml:space="preserve">
+    <value>Показать ответ</value>
+  </data>
+  <data name="Learn_YourAnswer" xml:space="preserve">
+    <value>Твой ответ</value>
+  </data>
+  <data name="Learn_CheckAnswer" xml:space="preserve">
+    <value>Проверить ответ</value>
+  </data>
+  <data name="Learn_SpellingCorrect" xml:space="preserve">
+    <value>Верно.</value>
+  </data>
+  <data name="Learn_SpellingIncorrect" xml:space="preserve">
+    <value>Не совсем. Посмотри свой ответ ниже.</value>
+  </data>
+  <data name="Learn_EnteredAnswer" xml:space="preserve">
+    <value>Твой ответ</value>
+  </data>
+  <data name="Learn_CorrectAnswer" xml:space="preserve">
+    <value>Правильный ответ</value>
+  </data>
+  <data name="Learn_AcceptedAlias" xml:space="preserve">
+    <value>Допустимый вариант написания</value>
+  </data>
+  <data name="Learn_Difference" xml:space="preserve">
+    <value>Отличие</value>
+  </data>
+  <data name="Learn_MissingLetter" xml:space="preserve">
+    <value>Пропущенная буква</value>
+  </data>
+  <data name="Learn_HiddenTarget" xml:space="preserve">
+    <value>Скрытое искомое слово</value>
+  </data>
+  <data name="Learn_DictionaryExample" xml:space="preserve">
+    <value>Пример из словаря</value>
+  </data>
+  <data name="Learn_Again" xml:space="preserve">
+    <value>Ещё раз</value>
+  </data>
+  <data name="Learn_Hard" xml:space="preserve">
+    <value>Сложно</value>
+  </data>
+  <data name="Learn_Good" xml:space="preserve">
+    <value>Хорошо</value>
+  </data>
+  <data name="Learn_Easy" xml:space="preserve">
+    <value>Легко</value>
+  </data>
+  <data name="Learn_MarkPermanentlyKnown" xml:space="preserve">
+    <value>Отметить как навсегда известное</value>
+  </data>
+  <data name="Learn_PermanentKnownConfirmation" xml:space="preserve">
+    <value>Это навсегда удалит оба направления карточек, подготовленное личное содержимое, контексты, расписания и устаревшую историю проверок. Останется только минимальная отметка известного слова.</value>
+  </data>
+  <data name="Learn_ActionError" xml:space="preserve">
+    <value>Не удалось сохранить изменение изучения.</value>
+  </data>
+  <data name="Learn_SessionComplete" xml:space="preserve">
+    <value>Сессия изучения завершена</value>
+  </data>
+  <data name="Learn_CardsReviewed" xml:space="preserve">
+    <value>Проверено карточек</value>
+  </data>
+  <data name="Learn_NextDue" xml:space="preserve">
+    <value>Следующая карточка: {0}</value>
+  </data>
+  <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
+    <value>Все текущие проверки завершены. {0} неизвестных слов ожидают подготовки.</value>
+  </data>
+  <data name="Learn_PrepareNextWords" xml:space="preserve">
+    <value>Подготовить следующие слова</value>
+  </data>
+  <data name="Learn_NothingDue" xml:space="preserve">
+    <value>Прямо сейчас слов для повторения нет.</value>
+  </data>
+  <data name="Learn_NoCardsTitle" xml:space="preserve">
+    <value>Нет доступных карточек для изучения</value>
+  </data>
+  <data name="Diagnostics_LexicalCache" xml:space="preserve">
+    <value>Лексический кэш</value>
+  </data>
+  <data name="Diagnostics_Lemma" xml:space="preserve">
+    <value>Лемма</value>
+  </data>
+  <data name="Diagnostics_Languages" xml:space="preserve">
+    <value>Языки</value>
+  </data>
+  <data name="Diagnostics_Provider" xml:space="preserve">
+    <value>Поставщик</value>
+  </data>
+  <data name="Diagnostics_SourcePage" xml:space="preserve">
+    <value>Исходная страница</value>
+  </data>
+  <data name="Diagnostics_Revision" xml:space="preserve">
+    <value>Версия</value>
+  </data>
+  <data name="Diagnostics_Fetched" xml:space="preserve">
+    <value>Получено</value>
+  </data>
+  <data name="Diagnostics_Preparation" xml:space="preserve">
+    <value>Подготовка слов</value>
+  </data>
+  <data name="Diagnostics_Method" xml:space="preserve">
+    <value>Метод</value>
+  </data>
+  <data name="Diagnostics_Completed" xml:space="preserve">
+    <value>Завершено</value>
+  </data>
+  <data name="Diagnostics_SelectedMeaning" xml:space="preserve">
+    <value>Выбранное значение</value>
+  </data>
+  <data name="Diagnostics_AvailableMeanings" xml:space="preserve">
+    <value>Доступные значения</value>
+  </data>
+  <data name="Diagnostics_LookupAttempts" xml:space="preserve">
+    <value>Попытки поиска</value>
+  </data>
+  <data name="Diagnostics_ErrorCode" xml:space="preserve">
+    <value>Код ошибки</value>
+  </data>
+  <data name="Diagnostics_PreparedMeanings" xml:space="preserve">
+    <value>Подготовленные элементы и значения</value>
+  </data>
+  <data name="Diagnostics_Confirmed" xml:space="preserve">
+    <value>Подтверждено</value>
+  </data>
+  <data name="Diagnostics_Learning" xml:space="preserve">
+    <value>Изучение и расписание</value>
+  </data>
+  <data name="Diagnostics_LearningSessions" xml:space="preserve">
+    <value>Сессии изучения</value>
+  </data>
+  <data name="Diagnostics_Ratings" xml:space="preserve">
+    <value>Оценки</value>
+  </data>
+  <data name="Diagnostics_LearningCards" xml:space="preserve">
+    <value>Карточки изучения</value>
+  </data>
+  <data name="Diagnostics_Direction" xml:space="preserve">
+    <value>Направление</value>
+  </data>
+  <data name="Diagnostics_Due" xml:space="preserve">
+    <value>Срок повторения</value>
+  </data>
+  <data name="Diagnostics_IntervalDays" xml:space="preserve">
+    <value>Интервал (дней)</value>
+  </data>
+  <data name="Diagnostics_EaseFactor" xml:space="preserve">
+    <value>Коэффициент лёгкости</value>
+  </data>
+  <data name="Diagnostics_LastRating" xml:space="preserve">
+    <value>Последняя оценка</value>
+  </data>
+  <data name="Diagnostics_LearningReviews" xml:space="preserve">
+    <value>Повторения изучения</value>
+  </data>
+  <data name="Diagnostics_Rating" xml:space="preserve">
+    <value>Оценка</value>
+  </data>
+  <data name="Diagnostics_ReviewedAt" xml:space="preserve">
+    <value>Проверено в</value>
+  </data>
+  <data name="Diagnostics_CleanupEligibility" xml:space="preserve">
+    <value>Готовность документа к очистке</value>
+  </data>
+  <data name="Diagnostics_ActiveReview" xml:space="preserve">
+    <value>Активная проверка</value>
+  </data>
+  <data name="Diagnostics_HasOccurrences" xml:space="preserve">
+    <value>Сохранённые вхождения</value>
+  </data>
+  <data name="Diagnostics_ActiveContexts" xml:space="preserve">
+    <value>Активные контексты</value>
+  </data>
+  <data name="Diagnostics_Eligible" xml:space="preserve">
+    <value>Готово</value>
+  </data>
+  <data name="Diagnostics_Yes" xml:space="preserve">
+    <value>Да</value>
+  </data>
+  <data name="Diagnostics_No" xml:space="preserve">
+    <value>Нет</value>
+  </data>
+  <data name="Analysis_Details" xml:space="preserve">
+    <value>Детали анализа</value>
+  </data>
+  <data name="Analysis_CopyReport" xml:space="preserve">
+    <value>Скопировать отчёт анализа</value>
+  </data>
+  <data name="Analysis_ReportCopied" xml:space="preserve">
+    <value>Отчёт анализа скопирован.</value>
+  </data>
+  <data name="Analysis_Title" xml:space="preserve">
+    <value>Анализ документа</value>
+  </data>
+  <data name="Analysis_DocumentSummary" xml:space="preserve">
+    <value>Сводка по документу</value>
+  </data>
+  <data name="Analysis_IncludedTokens" xml:space="preserve">
+    <value>Включённые токены</value>
+  </data>
+  <data name="Analysis_ExcludedDecisions" xml:space="preserve">
+    <value>Исключённые решения</value>
+  </data>
+  <data name="Analysis_Fingerprint" xml:space="preserve">
+    <value>Отпечаток</value>
+  </data>
+  <data name="Analysis_CandidateDetails" xml:space="preserve">
+    <value>Детали кандидата: {0}</value>
+  </data>
+  <data name="Analysis_FormsBefore" xml:space="preserve">
+    <value>Формы до дедупликации</value>
+  </data>
+  <data name="Analysis_FormsAfter" xml:space="preserve">
+    <value>Формы после дедупликации</value>
+  </data>
+  <data name="Analysis_SentenceSpans" xml:space="preserve">
+    <value>Границы предложений</value>
+  </data>
+  <data name="Analysis_BoundaryReason" xml:space="preserve">
+    <value>Причина границы</value>
+  </data>
+  <data name="Analysis_ExactText" xml:space="preserve">
+    <value>Точный текст</value>
+  </data>
+  <data name="Analysis_TokenDecisions" xml:space="preserve">
+    <value>Решения по токенам</value>
+  </data>
+  <data name="Analysis_RawValue" xml:space="preserve">
+    <value>Исходное значение</value>
+  </data>
+  <data name="Analysis_NormalizedValue" xml:space="preserve">
+    <value>Нормализованное значение</value>
+  </data>
+  <data name="Analysis_Decision" xml:space="preserve">
+    <value>Решение</value>
+  </data>
+  <data name="Analysis_Reason" xml:space="preserve">
+    <value>Причина</value>
+  </data>
+  <data name="Analysis_Included" xml:space="preserve">
+    <value>Включено</value>
+  </data>
+  <data name="Analysis_Excluded" xml:space="preserve">
+    <value>Исключено</value>
+  </data>
+  <data name="Analysis_CandidateGrouping" xml:space="preserve">
+    <value>Группировка кандидатов</value>
+  </data>
+  <data name="Analysis_ContextSelection" xml:space="preserve">
+    <value>Выбор контекста</value>
+  </data>
+  <data name="Analysis_Selected" xml:space="preserve">
+    <value>Выбрано</value>
+  </data>
+  <data name="Analysis_Rejected" xml:space="preserve">
+    <value>Отклонено</value>
+  </data>
+  <data name="Analysis_Target" xml:space="preserve">
+    <value>Цель</value>
+  </data>
+  <data name="Analysis_Coordinates" xml:space="preserve">
+    <value>Координаты</value>
+  </data>
+  <data name="Analysis_RelativeStart" xml:space="preserve">
+    <value>Относительное начало</value>
+  </data>
+  <data name="Analysis_Invariants" xml:space="preserve">
+    <value>Инварианты координат</value>
+  </data>
+  <data name="Analysis_InvariantsPassed" xml:space="preserve">
+    <value>Все инварианты координат пройдены.</value>
+  </data>
+  <data name="Common_TryAgain" xml:space="preserve">
+    <value>Повторить</value>
+  </data>
+  <data name="Common_Confirm" xml:space="preserve">
+    <value>Подтвердить</value>
+  </data>
+  <data name="Common_ShowFullText" xml:space="preserve">
+    <value>Показать полный текст</value>
+  </data>
+  <data name="Navigation_PrepareBlockedByReview" xml:space="preserve">
+    <value>Сначала заверши или отмени активную проверку слов.</value>
+  </data>
+  <data name="Navigation_PrepareUnavailable" xml:space="preserve">
+    <value>Нет неизвестных неподготовленных слов.</value>
+  </data>
+  <data name="Settings_PreparationLimitHelp" xml:space="preserve">
+    <value>Ограничивает количество новых слов в день, чтобы подготовка и изучение оставались посильными. Просроченные повторения не учитываются.</value>
+  </data>
+  <data name="Review_Details" xml:space="preserve">
+    <value>Детали</value>
+  </data>
+  <data name="Review_Saving" xml:space="preserve">
+    <value>Сохранение решения…</value>
+  </data>
+  <data name="Prepare_InText" xml:space="preserve">
+    <value>В тексте: {0}</value>
+  </data>
+  <data name="Prepare_Saving" xml:space="preserve">
+    <value>Сохранение…</value>
+  </data>
+  <data name="Prepare_OtherActions" xml:space="preserve">
+    <value>Другие действия подготовки</value>
+  </data>
+  <data name="Prepare_MarkKnown" xml:space="preserve">
+    <value>Отметить как известное</value>
+  </data>
+  <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
+    <value>Это слово будет сохранено как навсегда известное. Карточки для изучения не будут созданы, а устаревшие данные подготовки, контекста и частоты будут удалены.</value>
+  </data>
+  <data name="Prepare_DoNotLearn" xml:space="preserve">
+    <value>Не учить</value>
+  </data>
+  <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
+    <value>Эта точная лексическая единица будет исключена из будущих проверок и подготовки. Связанные слова и формы исключены не будут, карточки для изучения не будут созданы.</value>
+  </data>
+  <data name="Prepare_TransientFailure" xml:space="preserve">
+    <value>Сервис словаря временно недоступен. Сохранённые в кэше результаты по-прежнему доступны.</value>
+  </data>
+  <data name="Prepare_ParseFailure" xml:space="preserve">
+    <value>Не удалось прочитать загруженный результат из словаря.</value>
+  </data>
+  <data name="Prepare_PermanentFailure" xml:space="preserve">
+    <value>Сервис словаря не может выполнить этот запрос.</value>
+  </data>
+  <data name="Prepare_NotFound" xml:space="preserve">
+    <value>Подходящий результат в словаре не найден.</value>
+  </data>
+  <data name="Prepare_DictionaryEntryNotFound" xml:space="preserve">
+    <value>Словарная статья для этого слова не найдена.</value>
+  </data>
+  <data name="Prepare_DefinitionNotFound" xml:space="preserve">
+    <value>Определение для этого слова не найдено.</value>
+  </data>
+  <data name="Prepare_TranslationNotFound" xml:space="preserve">
+    <value>Перевод для этого направления языков не найден.</value>
+  </data>
+  <data name="Prepare_LanguageSectionNotFound" xml:space="preserve">
+    <value>Соответствующий языковой раздел в словарной статье не найден.</value>
+  </data>
+  <data name="Prepare_NetworkFailure" xml:space="preserve">
+    <value>Ошибка сети помешала поиску в словаре. Попробуй ещё раз.</value>
+  </data>
+  <data name="Prepare_ResponseParseFailure" xml:space="preserve">
+    <value>Не удалось обработать ответ словаря.</value>
+  </data>
+  <data name="Source_Details" xml:space="preserve">
+    <value>Сведения об источнике</value>
+  </data>
+  <data name="Source_Provider" xml:space="preserve">
+    <value>Поставщик</value>
+  </data>
+  <data name="Source_Project" xml:space="preserve">
+    <value>Проект Wiktionary/Wikimedia</value>
+  </data>
+  <data name="Source_PageTitle" xml:space="preserve">
+    <value>Название страницы</value>
+  </data>
+  <data name="Source_Revision" xml:space="preserve">
+    <value>ID версии</value>
+  </data>
+  <data name="Source_Attribution" xml:space="preserve">
+    <value>Указание авторства</value>
+  </data>
+  <data name="Source_License" xml:space="preserve">
+    <value>Ссылка на лицензию</value>
+  </data>
+  <data name="Diagnostics_PreparationTiming" xml:space="preserve">
+    <value>Тайминг подготовки</value>
+  </data>
+  <data name="Diagnostics_PreparationTimingDescription" xml:space="preserve">
+    <value>Монотонные DEBUG-измерения для этапов подготовки. Сетевая работа указывается отдельно от локальных этапов перехода.</value>
+  </data>
+  <data name="Diagnostics_Sequence" xml:space="preserve">
+    <value>Последовательность</value>
+  </data>
+  <data name="Diagnostics_Operation" xml:space="preserve">
+    <value>Операция</value>
+  </data>
+  <data name="Diagnostics_Phase" xml:space="preserve">
+    <value>Этап</value>
+  </data>
+  <data name="Diagnostics_DurationMilliseconds" xml:space="preserve">
+    <value>Длительность (мс)</value>
+  </data>
+  <data name="Diagnostics_CandidateId" xml:space="preserve">
+    <value>ID кандидата</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_Validation" xml:space="preserve">
+    <value>Проверка</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_DatabaseTransaction" xml:space="preserve">
+    <value>Транзакция базы данных</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_PreparedMeaningSave" xml:space="preserve">
+    <value>Сохранение подготовленного значения</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_LearningCardCreation" xml:space="preserve">
+    <value>Создание карточки изучения</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_SessionUpdate" xml:space="preserve">
+    <value>Обновление сессии</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NextCandidateQuery" xml:space="preserve">
+    <value>Запрос следующего кандидата</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_ContextLoading" xml:space="preserve">
+    <value>Загрузка контекста</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_UiTransition" xml:space="preserve">
+    <value>Переход интерфейса</value>
+  </data>
+  <data name="Diagnostics_TimingPhase_NetworkWork" xml:space="preserve">
+    <value>Сетевая работа</value>
+  </data>
+  <data name="Import_LookupMode" xml:space="preserve">
+    <value>Поиск в словаре</value>
+  </data>
+  <data name="Import_LookupDefinition" xml:space="preserve">
+    <value>Определение</value>
+  </data>
+  <data name="Import_LookupTranslation" xml:space="preserve">
+    <value>Перевод</value>
+  </data>
+  <data name="Import_LookupDefinitionAndTranslation" xml:space="preserve">
+    <value>Определение и перевод</value>
+  </data>
+  <data name="Import_TargetLanguage" xml:space="preserve">
+    <value>Язык перевода</value>
+  </data>
+  <data name="Import_TargetLanguageMustDiffer" xml:space="preserve">
+    <value>Язык перевода должен отличаться от языка текста.</value>
+  </data>
+  <data name="Prepare_CanonicalTerm" xml:space="preserve">
+    <value>Каноническая форма</value>
+  </data>
+  <data name="Prepare_EncounteredForm" xml:space="preserve">
+    <value>Встреченная форма</value>
+  </data>
+  <data name="Prepare_UsefulAnswerRequired" xml:space="preserve">
+    <value>Введи расшифровку аббревиатуры, перевод или определение.</value>
+  </data>
+  <data name="Prepare_CancelPreparationConfirmation" xml:space="preserve">
+    <value>Отменить эту партию? Принятые элементы останутся подготовленными; нерешённые и пропущенные элементы вернутся в очередь подготовки.</value>
+  </data>
+  <data name="Prepare_DebugLookupDetails" xml:space="preserve">
+    <value>Детали поиска</value>
+  </data>
+  <data name="Prepare_DebugDisplayedSurface" xml:space="preserve">
+    <value>Отображаемая поверхностная форма</value>
+  </data>
+  <data name="Prepare_DebugCanonicalTerm" xml:space="preserve">
+    <value>Каноническая форма</value>
+  </data>
+  <data name="Prepare_DebugLookupTerm" xml:space="preserve">
+    <value>Термин поиска</value>
+  </data>
+  <data name="Prepare_DebugSourceLanguage" xml:space="preserve">
+    <value>Исходный язык</value>
+  </data>
+  <data name="Prepare_DebugLookupMode" xml:space="preserve">
+    <value>Режим поиска</value>
+  </data>
+  <data name="Prepare_DebugTargetLanguage" xml:space="preserve">
+    <value>Целевой язык</value>
+  </data>
+  <data name="Prepare_DebugCacheKey" xml:space="preserve">
+    <value>Ключ кэша</value>
+  </data>
+  <data name="Prepare_DebugProviderRequest" xml:space="preserve">
+    <value>Запрос к поставщику</value>
+  </data>
+  <data name="Prepare_DebugProviderOutcome" xml:space="preserve">
+    <value>Результат от поставщика</value>
+  </data>
+  <data name="Diagnostics_LexicalLogTitle" xml:space="preserve">
+    <value>Диагностика поиска в словаре</value>
+  </data>
+  <data name="Diagnostics_LexicalLogDescription" xml:space="preserve">
+    <value>Ограниченный журнал содержит метаданные поиска, этапы и очищенные исключения. Он никогда не содержит документы, контексты, определения, учётные данные или заголовки HTTP.</value>
+  </data>
+  <data name="Diagnostics_CopyDiagnosticReport" xml:space="preserve">
+    <value>Скопировать отчёт диагностики</value>
+  </data>
+  <data name="Diagnostics_ExportDiagnosticLog" xml:space="preserve">
+    <value>Экспортировать журнал диагностики</value>
+  </data>
+  <data name="Diagnostics_ClearDiagnosticLog" xml:space="preserve">
+    <value>Очистить журнал диагностики</value>
+  </data>
+  <data name="Diagnostics_DiagnosticReportCopied" xml:space="preserve">
+    <value>Отчёт диагностики скопирован.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogExported" xml:space="preserve">
+    <value>Экспорт журнала диагностики открыт.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogCleared" xml:space="preserve">
+    <value>Журнал диагностики очищен.</value>
+  </data>
+  <data name="Diagnostics_DiagnosticLogActionError" xml:space="preserve">
+    <value>Не удалось выполнить действие с журналом диагностики.</value>
+  </data>
+  <data name="Diagnostics_DebugLabel" xml:space="preserve">
+    <value>DEBUG</value>
+  </data>
+  <data name="Diagnostics_DebugLearningTools" xml:space="preserve">
+    <value>Тестовые инструменты изучения</value>
+  </data>
+  <data name="Diagnostics_DebugLearningDescription" xml:space="preserve">
+    <value>Искусственные часы существуют только в этом debug-процессе. Эти элементы управления не изменяют часы устройства, сохранённые сроки повторения или производственные интервалы.</value>
+  </data>
+  <data name="Diagnostics_DebugCurrentTime" xml:space="preserve">
+    <value>Искусственное время UTC</value>
+  </data>
+  <data name="Diagnostics_DebugTimeOffset" xml:space="preserve">
+    <value>Смещение от UTC устройства</value>
+  </data>
+  <data name="Diagnostics_DebugMakeAllCardsDue" xml:space="preserve">
+    <value>Сделать все запланированные карточки просроченными</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceMinute" xml:space="preserve">
+    <value>Время +1 минута</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceHour" xml:space="preserve">
+    <value>Время +1 час</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceDay" xml:space="preserve">
+    <value>Время +1 день</value>
+  </data>
+  <data name="Diagnostics_DebugAdvanceFourDays" xml:space="preserve">
+    <value>Время +4 дня</value>
+  </data>
+  <data name="Diagnostics_DebugResetTime" xml:space="preserve">
+    <value>Сбросить debug-время</value>
+  </data>
+  <data name="Diagnostics_DebugTimeUpdated" xml:space="preserve">
+    <value>Искусственное время обновлено.</value>
+  </data>
+  <data name="ErrorBoundary_Title" xml:space="preserve">
+    <value>Что-то пошло не так</value>
+  </data>
+  <data name="ErrorBoundary_Message" xml:space="preserve">
+    <value>KnownFirst не удалось отобразить эту страницу. Перейди на другую страницу или перезапусти приложение.</value>
+  </data>
+  <data name="Prepare_LoadingDictionaryData" xml:space="preserve">
+    <value>Загрузка данных словаря…</value>
+  </data>
+  <data name="Settings_PortableData" xml:space="preserve">
+    <value>Переносимые данные</value>
+  </data>
+  <data name="Settings_PortableDataDescription" xml:space="preserve">
+    <value>Создай экспорт данных или восстанови свои данные с помощью импорта данных. Импорт данных поддерживается только тогда, когда в этой установке ещё нет сохранённых данных обучения.</value>
+  </data>
+  <data name="Settings_PortableDataPrivacyNotice" xml:space="preserve">
+    <value>Архив может содержать импортированный текст и историю обучения. Он не зашифрован. Храни и передавай его осторожно.</value>
+  </data>
+  <data name="Settings_DataExport" xml:space="preserve">
+    <value>Экспорт данных</value>
+  </data>
+  <data name="Settings_DataExportSuccess" xml:space="preserve">
+    <value>Экспорт данных сохранён.</value>
+  </data>
+  <data name="Settings_DataExportCancelled" xml:space="preserve">
+    <value>Экспорт данных отменён. Файл не сохранён.</value>
+  </data>
+  <data name="Settings_DataExportFailure" xml:space="preserve">
+    <value>Не удалось создать экспорт данных.</value>
+  </data>
+  <data name="Settings_DataExportShareTitle" xml:space="preserve">
+    <value>Сохранить или передать экспорт данных KnownFirst</value>
+  </data>
+  <data name="Settings_PortableArchiveFileTypeLabel" xml:space="preserve">
+    <value>Архив данных KnownFirst</value>
+  </data>
+  <data name="Settings_DataImport" xml:space="preserve">
+    <value>Импорт данных</value>
+  </data>
+  <data name="Settings_DataImportPickerTitle" xml:space="preserve">
+    <value>Выбери архив импорта данных KnownFirst</value>
+  </data>
+  <data name="Settings_DataImportConfirm" xml:space="preserve">
+    <value>Импортировать данные из «{0}»?</value>
+  </data>
+  <data name="Settings_DataImportEmptyOnly" xml:space="preserve">
+    <value>Импорт данных работает только в пустой установке. Существующие данные обучения никогда не объединяются, не заменяются и не удаляются.</value>
+  </data>
+  <data name="Settings_DataImportConfirmAction" xml:space="preserve">
+    <value>Подтвердить импорт данных</value>
+  </data>
+  <data name="Settings_DataImportSuccess" xml:space="preserve">
+    <value>Импорт данных успешно завершён.</value>
+  </data>
+  <data name="Settings_DataImportValidationFailure" xml:space="preserve">
+    <value>Этот архив недействителен, повреждён или не поддерживается. Данные не изменены.</value>
+  </data>
+  <data name="Settings_DataImportTargetNotEmpty" xml:space="preserve">
+    <value>В импорте данных отказано, так как в этой установке уже есть данные обучения. Ничего не изменено.</value>
+  </data>
+  <data name="Settings_DataImportFailure" xml:space="preserve">
+    <value>Импорт данных не удался, все изменения в базе данных отменены.</value>
+  </data>
+  <data name="WhatsNew_Title" xml:space="preserve">
+    <value>Что нового</value>
+  </data>
+  <data name="WhatsNew_VersionLabel" xml:space="preserve">
+    <value>Версия {0}</value>
+  </data>
+  <data name="WhatsNew_Close" xml:space="preserve">
+    <value>Понятно</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet1" xml:space="preserve">
+    <value>Экспорт данных сохраняет твои данные в переносимый файл .kfarchive с помощью стандартного диалога сохранения в Windows и Android.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet2" xml:space="preserve">
+    <value>Импорт данных загружает файл .kfarchive в новую, пустую установку KnownFirst с помощью стандартного диалога открытия.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet3" xml:space="preserve">
+    <value>Импорт данных работает только в пустой установке. Существующие данные обучения никогда не объединяются, не заменяются и не удаляются.</value>
+  </data>
+  <data name="WhatsNew_Beta10_Bullet4" xml:space="preserve">
+    <value>Архив может содержать импортированный текст и историю обучения. Он не зашифрован. Храни и передавай его осторожно.</value>
+  </data>
+</root>

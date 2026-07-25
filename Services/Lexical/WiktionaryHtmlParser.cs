@@ -373,9 +373,12 @@ public sealed partial class WiktionaryHtmlParser
 
     private static bool StartsWithTargetLanguageName(string value, string targetLanguage)
     {
-        var names = string.Equals(targetLanguage, "de", StringComparison.OrdinalIgnoreCase)
-            ? new[] { "German", "Deutsch" }
-            : new[] { "English", "Englisch" };
+        var names = targetLanguage.ToLowerInvariant() switch
+        {
+            "de" => new[] { "German", "Deutsch" },
+            "ru" => new[] { "Russian", "Русский" },
+            _ => new[] { "English", "Englisch" }
+        };
         return names.Any(name => value.StartsWith($"{name}:", StringComparison.OrdinalIgnoreCase));
     }
 

@@ -1,56 +1,46 @@
 # KnownFirst roadmap
 
-**Prioritization date:** 2026-07-24
+**Prioritization date:** 2026-07-25
 
 This roadmap records intended order. It does not claim that planned behavior exists. Verified implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md).
 
 ## Status definitions
 
+- **Committed:** merged and verified at the stated milestone.
+- **Current:** active scoped work on a task branch under review.
 - **Planned:** accepted ordering, implementation not started.
-- **In progress:** active scoped work on a task branch under review.
-- **Completed:** merged and verified at the stated milestone.
 - **Deferred:** intentionally outside the current sequence.
+- **Public-release blocker:** must be resolved before any public Google Play promotion.
 
 ## Prioritized milestones
 
 | Priority | Milestone | Status | Required outcome |
 | ---: | --- | --- | --- |
-| 1 | Documentation and handoff structure | Completed | Maintain canonical entry points and single-worktree handoff. |
-| 2 | Remove Apple targets | Completed | Remove iOS and Mac Catalyst from project, code, build configuration, tests, and docs. |
-| 3 | Windows/Android validation | Completed | Validate Windows Debug and Android Debug/Release after platform cleanup. |
-| 4 | Wikipedia fallback | Completed | Add consented fallback behind Wiktionary without changing provider boundaries prematurely. |
-| 5 | Versioning policy & Beta 9 identity | Completed | Establish binding versioning rules, build identity formatting, and Beta 9 product version. |
-| 6 | Task-based documentation routing | In progress | Restructure documentation so agents read only task-relevant specifications (PR #16). |
-| 7 | Persistence and migration decision | Planned | Decide and document schema implications of the final provider model. |
-| 8 | Re-check backup model | Planned | Verify the backup contract against the final provider and persistence model. |
-| 9 | Backup/Restore continuation | Planned | Resume Phase 3 only after the preceding gates are complete. |
-| 10 | Statistics | Planned | Define and present privacy-preserving learning metrics. |
-| 11 | Privacy-friendly bug reporting | Planned | Produce explicit user-reviewed redacted diagnostic exports. |
-| 12 | Public-beta preparation | Planned | Complete release, privacy, platform, support, and operational readiness. |
-| 13 | [Structured vocabulary architecture](plans/structured-vocabulary-import-and-sense-learning.md) | Completed | Architecture plan from PR #10 is merged. |
-| 14 | Structured vocabulary implementation | Planned | Multi-phase execution of list/PDF import, sense-level knowledge, sync domain, and Linux host feasibility. |
+| 1 | Beta 10 Internal Testing | Committed | Portable `.kfarchive` export/import, native file pickers, one-time What's New notice, Beta 10 identity; merged via PR #18 (`2f3f89d`). |
+| 2 | Core learning correctness | Current | Investigate and resolve the reported accidental duplicate-question behavior in Learn sessions. |
+| 3 | Public-release support surface | Planned — public-release blocker | Implement functional Support KnownFirst and Report a bug controls (or an explicit removal decision), and reopenable release-note history. |
+| 4 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation feasibility spike second. |
+| 5 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
+| 6 | Future recovery evolution | Deferred | Safe merge/overwrite import design, only after a dedicated data-model and safety-backup plan is separately approved. |
+| 7 | Additional learning languages | Deferred | One additional learning language at a time, only after core learning-correctness work (priority 2) stabilizes. |
 
-Data Safety v1 and the database audit are gates for versioned backup and restore. The UI follows the service and compatibility contract; it must not define the format implicitly.
+## Committed
 
-## In progress
+- Beta 10 Internal Testing: portable recovery export/import, native Windows/Android file pickers, one-time What's New notice, Beta 10 build identity — merged via PR #18 (`2f3f89d`).
+- Versioning policy and Beta 9 identity (PR #15, `28f8a74`).
+- Wikipedia fallback behind Wiktionary (PR #11, PR #14).
+- Task-based documentation routing (PR #16, PR #17).
+- Stable Windows and Android application foundation; exact text import and resumable review; automatic/manual preparation; recognition and spelling learning; local SQLite persistence at schema version 7.
 
-**Task-based documentation routing**
-- Rationalize Markdown documentation, streamline AGENTS.md to universal rules, rebuild docs/INDEX.md as a task router, create docs/BUILD_AND_RELEASE.md, and resolve worktree ADR-0006/ADR-0007 (Pull Request #16 open).
+## Current
 
-## Completed
-
-- Versioning policy and Beta 9 identity merged via PR #15 (`28f8a74`).
-- Wikipedia fallback user-readiness merged via PR #14 (`766f3c1`).
-- Wikipedia fallback orchestration merged via PR #11 (`d33cd80`).
-- Stable Windows and Android application foundation.
-- Exact text import and resumable Known/Unknown review.
-- Automatic/manual vocabulary preparation with optional Wiktionary and Wikipedia fallback.
-- Recognition and spelling learning with deterministic scheduling.
-- Local SQLite persistence and schema version 7.
-- Beta 8 Android Release/AOT stabilization and release tag `v1.0.0-beta.8`.
+**Core learning correctness**
+- Read-only investigation of the reported duplicate-looking learning question (same word, same card direction, twice in one session with a small vocabulary pool). See [CURRENT_WORK.md](CURRENT_WORK.md) for the exact next action.
 
 ## Deferred
 
+- Merge/overwrite ("ReplaceAll") portable restore into a populated installation.
+- Additional learning languages beyond the current English/German source-target scope.
 - Full offline dictionary package pipeline.
 - FSRS scheduling.
 - PDF, EPUB, and website import.
@@ -59,3 +49,13 @@ Data Safety v1 and the database audit are gates for versioned backup and restore
 - Analytics, advertising, payments, and automatic telemetry.
 
 Deferred items require a future explicit milestone and must not be introduced speculatively while executing the prioritized sequence.
+
+## Public-release blockers
+
+The following must be resolved before any public Google Play promotion (current distribution remains Internal Testing only):
+
+1. Functional (or explicitly removed) Support KnownFirst and Report a bug controls.
+2. Reopenable release notes / release-note history.
+3. Wikimedia attribution and license-version handling reviewed against actual provider-returned metadata (see [architecture/backup-format-v1.md](architecture/backup-format-v1.md) and Wikipedia/Wiktionary attribution code for current implementation detail).
+4. Deterministic GUI validation coverage sufficient to support release confidence without exclusively manual verification.
+5. Privacy, support, and payment-surface documentation and external legal/tax review where applicable.

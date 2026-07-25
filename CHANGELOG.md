@@ -6,20 +6,27 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
+## [1.0.0-beta.11] - Unreleased (release candidate in preparation)
+
+**This version is being prepared on the unmerged branch `release/beta-11-russian-internal-test` and has not been merged, packaged, or uploaded.** It is intended for Google Play Internal Testing, including testing by the user's father.
+
 ### Added
 
 - Russian application-interface localization, with a Language setting offering System, English, Deutsch, and Русский. System automatically follows the device language on every start; Russian devices resolve to Russian, and unsupported device languages fall back to English.
 - Russian as a translation target for English and German imported texts. Russian is not yet available as a source (imported-text) language.
+- A localized Beta 11 What's New entry (English, German, Russian) covering the Russian UI, the System-language behavior, Russian as a translation target, learning-card direction display, the Again-repeat badge, and the continued absence of Russian source-text analysis.
 
 ### Changed
 
 - The Learn screen now shows a small, secondary direction label (Term → meaning / Meaning → term) and a "Repeat" badge when a card is the one-time re-appearance after an Again rating, so a legitimate repeat or opposite-direction card is no longer visually indistinguishable from a first-time card ([KF-LEARN-001](docs/BACKLOG.md)).
+- Product version raised to `1.0.0-beta.11` (build `11`). Package ID, database schema (`7`), signing configuration, and the portable archive format are unchanged.
 
 ### Internal
 
 - Added an internal `docs/BACKLOG.md` for solo-development bugs and small UX improvements, replacing GitHub Issues for now.
-- Implemented on branch `feature/russian-language-support-v1`; not yet merged. Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback remain deferred to a separate milestone. Native-speaker review of the Russian wording has not yet been performed.
-- Investigated [KF-LEARN-001](docs/BACKLOG.md) (duplicate-looking learning question): confirmed no accidental card/queue duplication in `LearningService`; implemented the UX clarity fix on `feature/learning-repeat-direction-clarity` (uncommitted).
+- Russian UI/translation-target support was implemented on `feature/russian-language-support-v1` and merged via PR #20. Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback remain deferred to a separate milestone. Native-speaker review of the Russian wording has not yet been performed.
+- Investigated [KF-LEARN-001](docs/BACKLOG.md) (duplicate-looking learning question): confirmed no accidental card/queue duplication in `LearningService`; the UX clarity fix was implemented on `feature/learning-repeat-direction-clarity` and merged via PR #21.
+- Public release remains blocked by the placeholder Support/Report-a-bug controls, missing deterministic GUI automation, and outstanding legal/store-readiness review; see `docs/CURRENT_WORK.md`.
 
 ## [1.0.0-beta.10] - 2026-07-25
 

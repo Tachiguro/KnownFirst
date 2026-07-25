@@ -1413,4 +1413,22 @@
   <data name="WhatsNew_Beta10_Bullet4" xml:space="preserve">
     <value>The archive may contain imported text and learning history. It is not encrypted. Store and share it carefully.</value>
   </data>
+  <data name="WhatsNew_Beta11_Bullet1" xml:space="preserve">
+    <value>A Russian application interface has been added.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet2" xml:space="preserve">
+    <value>The System language setting now follows your device language automatically.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet3" xml:space="preserve">
+    <value>Russian can now be selected as the translation target for English and German texts.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet4" xml:space="preserve">
+    <value>Learning cards now show their direction (term → meaning or meaning → term).</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet5" xml:space="preserve">
+    <value>A Repeat badge now marks a card shown again after an Again rating.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet6" xml:space="preserve">
+    <value>Analyzing Russian source text for import is not yet supported.</value>
+  </data>
 </root>

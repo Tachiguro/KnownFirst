@@ -1,7 +1,7 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-25
-**State source:** `master` (`2f3f89daabcced8fbe7133ec782808d1aa5f4038`, PR #18 merge commit)
+**State source:** `master` (`f1d1c3047240ded2bdaae8eb026741fe140a6da3`, PR #19 merge commit)
 **Next product milestone:** Duplicate-looking learning-question investigation
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
@@ -11,7 +11,7 @@ This document is the authoritative snapshot of verified current state. Update it
 | Field | Verified value |
 | --- | --- |
 | Project | KnownFirst |
-| Source Version | `1.0.0-beta.10` (build 10, merged PR #18 `2f3f89d`) |
+| Source Version | `1.0.0-beta.10` (build 10, merged PR #19 `f1d1c30`) |
 | Package ID | `com.tachiguro.knownfirst` |
 | Distribution | Google Play Internal Testing |
 
@@ -82,11 +82,13 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `2f3f89daabcced8fbe7133ec782808d1aa5f4038` (PR #18 merged).
+The stable master baseline is `f1d1c3047240ded2bdaae8eb026741fe140a6da3` (PR #19 merged).
+
+Russian-language support v1 (Russian UI localization and Russian-as-translation-target for English/German source texts) is implemented on the uncommitted branch `feature/russian-language-support-v1`, not yet merged to `master`. Russian **source**-text support is explicitly deferred. See [CURRENT_WORK.md](CURRENT_WORK.md) for exact branch status.
 
 ## Immediate action
 
-- Investigate the reported duplicate-looking learning question (read-only investigation, see [CURRENT_WORK.md](CURRENT_WORK.md)).
+- Investigate the reported duplicate-looking learning question (read-only investigation, see [CURRENT_WORK.md](CURRENT_WORK.md) and [BACKLOG.md](BACKLOG.md) item KF-LEARN-001).
 
 ## Next milestones (Future Work)
 

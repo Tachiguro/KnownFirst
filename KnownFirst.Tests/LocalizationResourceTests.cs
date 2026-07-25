@@ -437,9 +437,29 @@ public sealed class LocalizationResourceTests
     }
 
     [TestMethod]
+    public void Resources_EveryEnglishKeyHasRussianCounterpart()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        var missingKeys = english.Keys.Except(russian.Keys, StringComparer.Ordinal).ToArray();
+
+        Assert.IsEmpty(missingKeys, $"Missing Russian keys: {string.Join(", ", missingKeys)}");
+    }
+
+    [TestMethod]
+    public void Resources_EveryRussianKeyHasEnglishCounterpart()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        var missingKeys = russian.Keys.Except(english.Keys, StringComparer.Ordinal).ToArray();
+
+        Assert.IsEmpty(missingKeys, $"Missing English keys: {string.Join(", ", missingKeys)}");
+    }
+
+    [TestMethod]
     public void Resources_NoResourceValueIsEmpty()
     {
-        var emptyEntries = new[] { "SharedResource.resx", "SharedResource.de.resx" }
+        var emptyEntries = new[] { "SharedResource.resx", "SharedResource.de.resx", "SharedResource.ru.resx" }
             .SelectMany(fileName => LoadResources(fileName)
                 .Where(entry => string.IsNullOrWhiteSpace(entry.Value))
                 .Select(entry => $"{fileName}:{entry.Key}"))
@@ -453,12 +473,64 @@ public sealed class LocalizationResourceTests
     {
         var english = LoadResources("SharedResource.resx");
         var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
 
         foreach (var key in RequiredMilestoneOneKeys.Concat(RequiredAutomaticDictionaryMvpKeys))
         {
             Assert.IsTrue(english.ContainsKey(key), $"The English resource key '{key}' is missing.");
             Assert.IsTrue(german.ContainsKey(key), $"The German resource key '{key}' is missing.");
+            Assert.IsTrue(russian.ContainsKey(key), $"The Russian resource key '{key}' is missing.");
         }
+    }
+
+    [TestMethod]
+    public void Resources_RussianLanguageOptionKeysExistAndAreDistinctFromGerman()
+    {
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        Assert.IsTrue(russian.ContainsKey("Settings_Russian"));
+        Assert.IsTrue(russian.ContainsKey("Settings_UILanguageSystem"));
+        Assert.IsTrue(russian.ContainsKey("Settings_LanguageChangedToRussian"));
+        Assert.IsTrue(russian.ContainsKey("Settings_LanguageChangedToSystem"));
+        Assert.AreNotEqual(russian["Settings_German"], russian["Settings_Russian"]);
+    }
+
+    [TestMethod]
+    public void Resources_RussianLocalizationUsesCyrillicLanguageNames()
+    {
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        Assert.AreEqual("Английский", russian["Settings_English"],
+            "Russian resource should use Cyrillic for English language name.");
+        Assert.AreEqual("Немецкий", russian["Settings_German"],
+            "Russian resource should use Cyrillic for German language name.");
+        Assert.AreEqual("Русский", russian["Settings_Russian"],
+            "Russian resource should use Cyrillic for Russian language name.");
+        Assert.AreEqual("Изучение", russian["Navigation_Learn"],
+            "Russian resource should use noun form for Navigation_Learn.");
+    }
+
+    [TestMethod]
+    public void Resources_PlaceholderCountsMatchAcrossEnglishGermanAndRussian()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        var placeholderPattern = new System.Text.RegularExpressions.Regex(@"\{\d+\}");
+
+        var mismatches = english.Keys
+            .Select(key => new
+            {
+                Key = key,
+                EnglishCount = placeholderPattern.Matches(english[key]).Count,
+                GermanCount = placeholderPattern.Matches(german[key]).Count,
+                RussianCount = placeholderPattern.Matches(russian[key]).Count
+            })
+            .Where(entry => entry.EnglishCount != entry.GermanCount || entry.EnglishCount != entry.RussianCount)
+            .Select(entry => $"{entry.Key} (en={entry.EnglishCount}, de={entry.GermanCount}, ru={entry.RussianCount})")
+            .ToArray();
+
+        Assert.IsEmpty(mismatches, $"Placeholder count mismatches: {string.Join(", ", mismatches)}");
     }
 
     [TestMethod]

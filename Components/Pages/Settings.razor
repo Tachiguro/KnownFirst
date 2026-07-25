@@ -25,29 +25,24 @@
     }
 
     <section class="settings-card" aria-labelledby="language-setting-title">
-        <h2 id="language-setting-title">@Localizer["Settings_UILanguage"]</h2>
-        <div class="choice-grid choice-grid-two">
-            <button type="button"
-                    class="choice-button @(IsLanguageSelected(LanguageSelectionService.EnglishLanguageCode) ? "active" : null)"
-                    aria-pressed="@IsLanguageSelected(LanguageSelectionService.EnglishLanguageCode)"
+        <h2 id="language-setting-title">
+            <label for="ui-language-select">@Localizer["Settings_UILanguage"]</label>
+        </h2>
+        <div class="field-group">
+            <select id="ui-language-select"
                     disabled="@_isChangingLanguage"
-                    @onclick="() => SelectUiLanguage(LanguageSelectionService.EnglishLanguageCode)">
-                @Localizer["Settings_English"]
-            </button>
-            <button type="button"
-                    class="choice-button @(IsLanguageSelected(LanguageSelectionService.GermanLanguageCode) ? "active" : null)"
-                    aria-pressed="@IsLanguageSelected(LanguageSelectionService.GermanLanguageCode)"
-                    disabled="@_isChangingLanguage"
-                    @onclick="() => SelectUiLanguage(LanguageSelectionService.GermanLanguageCode)">
-                @Localizer["Settings_German"]
-            </button>
+                    @bind="_selectedLanguagePreference"
+                    @bind:after="HandleUiLanguagePreferenceChanged">
+                <option value="@LanguageSelectionService.SystemPreferenceCode">@Localizer["Settings_UILanguageSystem"]</option>
+                <option value="@LanguageSelectionService.EnglishLanguageCode">@Localizer["Settings_English"]</option>
+                <option value="@LanguageSelectionService.GermanLanguageCode">@Localizer["Settings_German"]</option>
+                <option value="@LanguageSelectionService.RussianLanguageCode">@Localizer["Settings_Russian"]</option>
+            </select>
         </div>
         @if (_languageConfirmation is not null)
         {
             <p class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
-                @Localizer[_languageConfirmation == LanguageSelectionService.GermanLanguageCode
-                    ? "Settings_LanguageChangedToGerman"
-                    : "Settings_LanguageChangedToEnglish"]
+                @Localizer[GetLanguageConfirmationKey(_languageConfirmation)]
             </p>
         }
         else if (_languageChangeFailed)
@@ -359,7 +354,7 @@
 </section>
 
 @code {
-    private string _selectedUiLanguage = LanguageSelectionService.EnglishLanguageCode;
+    private string _selectedLanguagePreference = LanguageSelectionService.EnglishLanguageCode;
     private ThemePreference _selectedTheme = ThemePreference.System;
     private int _selectedPreparationLimit = AppSettingsService.DefaultPreparationLimit;
     private CardDirectionPreference _selectedCardDirection = CardDirectionPreference.Both;
@@ -396,7 +391,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _selectedUiLanguage = LanguageSelection.CurrentUiLanguage;
+        _selectedLanguagePreference = CurrentLanguagePreferenceValue;
         _selectedTheme = ThemeService.Preference;
         _selectedPreparationLimit = AppSettings.PreparationLimit;
         _selectedCardDirection = AppSettings.CardDirection;
@@ -420,8 +415,18 @@
         }
     }
 
-    private bool IsLanguageSelected(string languageCode) =>
-        string.Equals(_selectedUiLanguage, languageCode, StringComparison.OrdinalIgnoreCase);
+    private string CurrentLanguagePreferenceValue =>
+        LanguageSelection.IsSystemPreferenceActive
+            ? LanguageSelectionService.SystemPreferenceCode
+            : LanguageSelection.CurrentUiLanguage;
+
+    private static string GetLanguageConfirmationKey(string languageCode) => languageCode switch
+    {
+        LanguageSelectionService.GermanLanguageCode => "Settings_LanguageChangedToGerman",
+        LanguageSelectionService.RussianLanguageCode => "Settings_LanguageChangedToRussian",
+        LanguageSelectionService.SystemPreferenceCode => "Settings_LanguageChangedToSystem",
+        _ => "Settings_LanguageChangedToEnglish"
+    };
 
     private bool IsThemeSelected(ThemePreference preference) => _selectedTheme == preference;
 
@@ -432,28 +437,30 @@
         _ => Localizer["Settings_AppearanceSystem"]
     };
 
-    private void SelectUiLanguage(string languageCode)
+    private void HandleUiLanguagePreferenceChanged()
     {
-        if (_isChangingLanguage || IsLanguageSelected(languageCode))
+        if (_isChangingLanguage || string.Equals(_selectedLanguagePreference, CurrentLanguagePreferenceValue, StringComparison.OrdinalIgnoreCase))
         {
+            _selectedLanguagePreference = CurrentLanguagePreferenceValue;
             return;
         }
 
         _isChangingLanguage = true;
         _languageConfirmation = null;
         _languageChangeFailed = false;
-        SettingsFeedback.SetPendingLanguageConfirmation(languageCode);
+        SettingsFeedback.SetPendingLanguageConfirmation(_selectedLanguagePreference);
 
         try
         {
-            LanguageSelection.SetUiLanguage(languageCode);
-            _selectedUiLanguage = LanguageSelection.CurrentUiLanguage;
+            LanguageSelection.SetUiLanguage(_selectedLanguagePreference);
+            _selectedLanguagePreference = CurrentLanguagePreferenceValue;
         }
         catch (Exception exception)
         {
             SettingsFeedback.ClearPendingLanguageConfirmation();
             Logger.LogError(exception, "The UI language could not be changed.");
             _languageChangeFailed = true;
+            _selectedLanguagePreference = CurrentLanguagePreferenceValue;
         }
         finally
         {
@@ -776,6 +783,7 @@
             _selectedCardDirection = AppSettings.CardDirection;
             _selectedLearningMode = AppSettings.LearningMode;
             LanguageSelection.ResetToDeviceLanguage();
+            _selectedLanguagePreference = CurrentLanguagePreferenceValue;
             _showResetConfirmation = false;
             _resetSucceeded = true;
             _returnFocusToResetButton = true;

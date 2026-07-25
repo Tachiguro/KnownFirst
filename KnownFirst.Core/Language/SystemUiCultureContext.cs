@@ -6,9 +6,12 @@ public sealed class SystemUiCultureContext : IUiCultureContext
 {
     public UiCultureState ApplyUiCulture(string languageCode)
     {
-        var cultureName = languageCode == LanguagePreferencePolicy.GermanLanguageCode
-            ? "de-DE"
-            : "en-US";
+        var cultureName = languageCode switch
+        {
+            LanguagePreferencePolicy.GermanLanguageCode => "de-DE",
+            LanguagePreferencePolicy.RussianLanguageCode => "ru-RU",
+            _ => "en-US"
+        };
         var culture = CultureInfo.GetCultureInfo(cultureName);
 
         CultureInfo.CurrentCulture = culture;

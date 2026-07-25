@@ -21,47 +21,70 @@ public sealed class LanguageSelectionService : ILanguageSelectionService
 
     public const string EnglishLanguageCode = LanguagePreferencePolicy.EnglishLanguageCode;
     public const string GermanLanguageCode = LanguagePreferencePolicy.GermanLanguageCode;
+    public const string RussianLanguageCode = LanguagePreferencePolicy.RussianLanguageCode;
+    public const string SystemPreferenceCode = LanguagePreferencePolicy.SystemPreferenceCode;
 
     public event EventHandler? UiLanguageChanged;
 
     public string CurrentUiLanguage { get; private set; } = EnglishLanguageCode;
 
+    public bool IsSystemPreferenceActive { get; private set; }
+
     public IReadOnlyList<string> SupportedUiLanguages => LanguagePreferencePolicy.SupportedLanguageCodes;
 
     public void Initialize()
     {
-        var savedPreferenceExists = _preferenceStore.HasSavedLanguage;
-        var savedLanguage = savedPreferenceExists ? _preferenceStore.GetSavedLanguage() : null;
-        _diagnostics.LogInitialization(savedPreferenceExists, savedLanguage);
+        var hasSavedPreference = _preferenceStore.HasSavedLanguage;
+        var storedPreference = hasSavedPreference ? _preferenceStore.GetSavedLanguage() : null;
+        _diagnostics.LogInitialization(hasSavedPreference, storedPreference);
 
-        string selectedLanguage;
-        if (savedPreferenceExists)
-        {
-            selectedLanguage = LanguagePreferencePolicy.Resolve(savedLanguage, deviceCulture: null);
-        }
-        else
+        if (LanguagePreferencePolicy.IsSystemPreference(storedPreference))
         {
             var deviceCulture = _deviceCultureProvider.GetDeviceCultureName();
             _diagnostics.LogDeviceCultureDetected(deviceCulture);
-            selectedLanguage = LanguagePreferencePolicy.Resolve(savedLanguage: null, deviceCulture);
-            PersistAndVerify(selectedLanguage);
+            var selectedLanguage = LanguagePreferencePolicy.Normalize(deviceCulture);
+
+            if (!hasSavedPreference)
+            {
+                PersistSystemMarker();
+            }
+
+            ApplyCulture(selectedLanguage);
+            CurrentUiLanguage = selectedLanguage;
+            IsSystemPreferenceActive = true;
+            _diagnostics.LogStartupLanguageResolved(selectedLanguage);
+            return;
         }
 
-        ApplyCulture(selectedLanguage);
-        CurrentUiLanguage = selectedLanguage;
-        _diagnostics.LogStartupLanguageResolved(selectedLanguage);
+        LanguagePreferencePolicy.TryNormalizeSupportedLanguage(storedPreference, out var manualLanguage);
+        ApplyCulture(manualLanguage);
+        CurrentUiLanguage = manualLanguage;
+        IsSystemPreferenceActive = false;
+        _diagnostics.LogStartupLanguageResolved(manualLanguage);
     }
 
     public void SetUiLanguage(string languageCode)
     {
         _diagnostics.LogManualLanguageRequested(languageCode);
 
+        if (LanguagePreferencePolicy.IsExplicitSystemSelector(languageCode))
+        {
+            if (IsSystemPreferenceActive)
+            {
+                return;
+            }
+
+            ApplySystemSelection(persistExplicitMarker: true);
+            return;
+        }
+
         if (!LanguagePreferencePolicy.TryNormalizeSupportedLanguage(languageCode, out var normalizedLanguage))
         {
             throw new ArgumentOutOfRangeException(nameof(languageCode));
         }
 
-        if (string.Equals(CurrentUiLanguage, normalizedLanguage, StringComparison.Ordinal))
+        if (!IsSystemPreferenceActive
+            && string.Equals(CurrentUiLanguage, normalizedLanguage, StringComparison.Ordinal))
         {
             return;
         }
@@ -69,25 +92,49 @@ public sealed class LanguageSelectionService : ILanguageSelectionService
         PersistAndVerify(normalizedLanguage);
         ApplyCulture(normalizedLanguage);
         CurrentUiLanguage = normalizedLanguage;
+        IsSystemPreferenceActive = false;
         UiLanguageChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void ResetToDeviceLanguage()
     {
-        var deviceCulture = _deviceCultureProvider.GetDeviceCultureName();
-        _diagnostics.LogDeviceCultureDetected(deviceCulture);
-        var selectedLanguage = LanguagePreferencePolicy.Resolve(savedLanguage: null, deviceCulture);
-
-        PersistAndVerify(selectedLanguage);
-        ApplyCulture(selectedLanguage);
-        CurrentUiLanguage = selectedLanguage;
-        _diagnostics.LogStartupLanguageResolved(selectedLanguage);
-        UiLanguageChanged?.Invoke(this, EventArgs.Empty);
+        ApplySystemSelection(persistExplicitMarker: true);
     }
 
     public void ReapplyCurrentCulture()
     {
         ApplyCulture(CurrentUiLanguage);
+    }
+
+    private void ApplySystemSelection(bool persistExplicitMarker)
+    {
+        var deviceCulture = _deviceCultureProvider.GetDeviceCultureName();
+        _diagnostics.LogDeviceCultureDetected(deviceCulture);
+        var selectedLanguage = LanguagePreferencePolicy.Normalize(deviceCulture);
+
+        if (persistExplicitMarker)
+        {
+            PersistSystemMarker();
+        }
+
+        ApplyCulture(selectedLanguage);
+        CurrentUiLanguage = selectedLanguage;
+        IsSystemPreferenceActive = true;
+        _diagnostics.LogStartupLanguageResolved(selectedLanguage);
+        UiLanguageChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void PersistSystemMarker()
+    {
+        _preferenceStore.SetSavedLanguage(LanguagePreferencePolicy.SystemPreferenceCode);
+        var storedPreference = _preferenceStore.GetSavedLanguage();
+
+        if (!LanguagePreferencePolicy.IsExplicitSystemSelector(storedPreference))
+        {
+            throw new InvalidOperationException("The System language preference could not be verified after persistence.");
+        }
+
+        _diagnostics.LogPreferencePersisted(LanguagePreferencePolicy.SystemPreferenceCode);
     }
 
     private void PersistAndVerify(string languageCode)

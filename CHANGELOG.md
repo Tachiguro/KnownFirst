@@ -4,6 +4,18 @@ All notable user-visible changes to KnownFirst are documented in this file.
 The structure follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and uses the application's prerelease version identifiers.
 
+## [Unreleased]
+
+### Added
+
+- Russian application-interface localization, with a Language setting offering System, English, Deutsch, and Русский. System automatically follows the device language on every start; Russian devices resolve to Russian, and unsupported device languages fall back to English.
+- Russian as a translation target for English and German imported texts. Russian is not yet available as a source (imported-text) language.
+
+### Internal
+
+- Added an internal `docs/BACKLOG.md` for solo-development bugs and small UX improvements, replacing GitHub Issues for now.
+- Implemented on branch `feature/russian-language-support-v1`; not yet merged. Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback remain deferred to a separate milestone. Native-speaker review of the Russian wording has not yet been performed.
+
 ## [1.0.0-beta.10] - 2026-07-25
 
 ### Added

@@ -17,12 +17,13 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | Priority | Milestone | Status | Required outcome |
 | ---: | --- | --- | --- |
 | 1 | Beta 10 Internal Testing | Committed | Portable `.kfarchive` export/import, native file pickers, one-time What's New notice, Beta 10 identity; merged via PR #18 (`2f3f89d`). |
-| 2 | Core learning correctness | Current | Investigate and resolve the reported accidental duplicate-question behavior in Learn sessions. |
-| 3 | Public-release support surface | Planned — public-release blocker | Implement functional Support KnownFirst and Report a bug controls (or an explicit removal decision), and reopenable release-note history. |
-| 4 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation feasibility spike second. |
-| 5 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
-| 6 | Future recovery evolution | Deferred | Safe merge/overwrite import design, only after a dedicated data-model and safety-backup plan is separately approved. |
-| 7 | Additional learning languages | Deferred | One additional learning language at a time, only after core learning-correctness work (priority 2) stabilizes. |
+| 2 | Core learning correctness | Current | Investigate and resolve the reported accidental duplicate-question behavior in Learn sessions ([KF-LEARN-001](BACKLOG.md)). |
+| 3 | Russian language support v1 | Current | Russian UI localization and Russian-as-translation-target for English/German source texts, on `feature/russian-language-support-v1` (not yet merged). |
+| 4 | Public-release support surface | Planned — public-release blocker | Implement functional Support KnownFirst and Report a bug controls (or an explicit removal decision), and reopenable release-note history. |
+| 5 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation feasibility spike second. |
+| 6 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
+| 7 | Future recovery evolution | Deferred | Safe merge/overwrite import design, only after a dedicated data-model and safety-backup plan is separately approved. |
+| 8 | Russian source-text support | Deferred | Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, Russian Wikipedia fallback; only after core learning-correctness work (priority 2) stabilizes. |
 
 ## Committed
 
@@ -37,10 +38,14 @@ This roadmap records intended order. It does not claim that planned behavior exi
 **Core learning correctness**
 - Read-only investigation of the reported duplicate-looking learning question (same word, same card direction, twice in one session with a small vocabulary pool). See [CURRENT_WORK.md](CURRENT_WORK.md) for the exact next action.
 
+**Russian language support v1**
+- Russian UI localization, explicit System/English/Deutsch/Русский preference, and Russian-as-translation-target implemented on `feature/russian-language-support-v1`; awaiting review and merge. Russian source-text support is a separate, deferred milestone.
+
 ## Deferred
 
 - Merge/overwrite ("ReplaceAll") portable restore into a populated installation.
-- Additional learning languages beyond the current English/German source-target scope.
+- Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback.
+- Additional learning languages beyond English, German, and Russian-as-target.
 - Full offline dictionary package pipeline.
 - FSRS scheduling.
 - PDF, EPUB, and website import.

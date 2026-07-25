@@ -4,11 +4,17 @@ All notable user-visible changes to KnownFirst are documented in this file.
 The structure follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and uses the application's prerelease version identifiers.
 
-## [Unreleased]
+## [1.0.0-beta.10] - 2026-07-25
+
+### Added
+
+- Portable Data Export: save your data to a `.kfarchive` file using the native Save dialog on Windows and Android. Exported archives may contain personal imported text and learning history and are not encrypted; store and share them carefully.
+- Portable Data Import: load a `.kfarchive` file into a new, empty KnownFirst installation using the native Open dialog. Import into an installation that already has data, and merging existing data, are not yet supported.
+- A one-time in-app What's New notice that appears once per version with release notes and can be dismissed.
 
 ### Changed
 
-- Aligned source-controlled application identity to `1.0.0-beta.9` / build `9` across Windows and Android Debug, Diagnostic, and Release configurations, and established binding repository versioning governance.
+- Aligned source-controlled application identity to `1.0.0-beta.10` / build `10` across Windows and Android Debug, Diagnostic, and Release configurations, and established binding repository versioning governance.
 - Wiktionary remains the primary lexical provider. Wikipedia is attempted once only after deterministic final Wiktionary `NotFound`.
 - Only `Definition` and `DefinitionAndTranslation` are eligible for fallback; `Translation`-only is not eligible.
 - `Timeout`, rate limit, network/transient failure, `ParseFailure`, `PermanentFailure`, and caller cancellation do not trigger fallback.

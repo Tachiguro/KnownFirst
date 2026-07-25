@@ -21,6 +21,8 @@ public static class BackupErrorCodes
     public const string InsufficientSpace = "insufficient-space";
     public const string SafetyBackupFailed = "safety-backup-failed";
     public const string RestoreFailed = "restore-failed";
+    public const string TargetNotEmpty = "target-not-empty";
+    public const string ActiveWorkflowUnsupported = "active-workflow-unsupported";
     public const string OperationCancelled = "operation-cancelled";
     public const string IoFailure = "io-failure";
 }

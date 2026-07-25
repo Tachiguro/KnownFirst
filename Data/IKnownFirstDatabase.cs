@@ -13,4 +13,6 @@ public interface IKnownFirstDatabase
     Task<T> RunInTransactionAsync<T>(Func<SQLiteConnection, T> operation);
 
     Task ResetAsync();
+
+    Task<T> ExecuteSnapshotAsync<T>(Func<SQLiteConnection, T> operation);
 }

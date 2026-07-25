@@ -1,8 +1,10 @@
 using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.Content.Res;
 using Android.OS;
 using AndroidX.Core.View;
+using KnownFirst.Services;
 
 namespace KnownFirst;
 
@@ -27,6 +29,12 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnConfigurationChanged(newConfig);
         ApplySystemBarTheme(newConfig);
+    }
+
+    protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
+    {
+        base.OnActivityResult(requestCode, resultCode, data);
+        AndroidPortableArchiveFileService.HandleActivityResult(requestCode, resultCode, data);
     }
 
     private void ApplySystemBarTheme(Configuration? configuration)

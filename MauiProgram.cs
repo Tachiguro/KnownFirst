@@ -7,6 +7,7 @@ using KnownFirst.Services;
 using KnownFirst.Services.Diagnostics;
 using KnownFirst.Services.Lexical;
 using KnownFirst.Services.Study;
+using KnownFirst.Services.DataSafety;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics.CodeAnalysis;
 
@@ -52,7 +53,16 @@ public static class MauiProgram
         builder.Services.AddSingleton<INavigationHistoryService, NavigationHistoryService>();
         builder.Services.AddSingleton<IAppSettingsService, AppSettingsService>();
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
+        builder.Services.AddSingleton<IWhatsNewPreferenceStore, MauiWhatsNewPreferenceStore>();
+        builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
+        builder.Services.AddSingleton<IBackupPlatformInfo, MauiBackupPlatformInfo>();
+        builder.Services.AddSingleton<IBackupService, BackupService>();
+#if WINDOWS
+        builder.Services.AddSingleton<IPortableArchiveFileService, WindowsPortableArchiveFileService>();
+#elif ANDROID
+        builder.Services.AddSingleton<IPortableArchiveFileService, AndroidPortableArchiveFileService>();
+#endif
         builder.Services.AddSingleton<IDashboardService, DashboardService>();
         builder.Services.AddSingleton<ISentenceSegmenter, DeterministicSentenceSegmenter>();
         builder.Services.AddSingleton<TextAnalyzer>();

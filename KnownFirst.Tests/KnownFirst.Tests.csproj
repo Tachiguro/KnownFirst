@@ -69,12 +69,18 @@
     <Compile Include="..\Data\IKnownFirstDatabase.cs" Link="Production\Data\IKnownFirstDatabase.cs" />
     <Compile Include="..\Data\DatabaseSchema.cs" Link="Production\Data\DatabaseSchema.cs" />
     <Compile Include="..\Data\DatabaseSchemaCompatibilityException.cs" Link="Production\Data\DatabaseSchemaCompatibilityException.cs" />
+    <Compile Include="..\Data\BackupSnapshot.cs" Link="Production\Data\BackupSnapshot.cs" />
+    <Compile Include="..\Data\BackupSnapshotRepository.cs" Link="Production\Data\BackupSnapshotRepository.cs" />
+    <Compile Include="..\Data\BackupImportRepository.cs" Link="Production\Data\BackupImportRepository.cs" />
     <Compile Include="..\Data\Entities\*.cs" Link="Production\Data\Entities\%(Filename)%(Extension)" />
     <Compile Include="..\Models\*.cs" Link="Production\Models\%(Filename)%(Extension)" />
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
     <Compile Include="..\Services\IAppSettingsService.cs" Link="Production\Services\IAppSettingsService.cs" />
+    <Compile Include="..\Services\IReleaseNotesService.cs" Link="Production\Services\IReleaseNotesService.cs" />
+    <Compile Include="..\Services\IWhatsNewPreferenceStore.cs" Link="Production\Services\IWhatsNewPreferenceStore.cs" />
+    <Compile Include="..\Services\ReleaseNotesService.cs" Link="Production\Services\ReleaseNotesService.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticLogOptions.cs" Link="Production\Services\Diagnostics\DiagnosticLogOptions.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticLogConfiguration.cs" Link="Production\Services\Diagnostics\DiagnosticLogConfiguration.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticsJsonSerializerContext.cs" Link="Production\Services\Diagnostics\DiagnosticsJsonSerializerContext.cs" />

@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$KeystorePath,
-    [string]$PasswordFilePath
+    [string]$PasswordFilePath,
+    [ValidateSet('Debug', 'Diagnostic', 'Release', 'All')]
+    [string]$Configuration = 'All'
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +20,32 @@ if ([string]::IsNullOrWhiteSpace($PasswordFilePath)) {
 if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
     throw "KnownFirst.csproj was not found at $projectPath."
 }
+
+function Get-KnownFirstVersionInfo {
+    param([Parameter(Mandatory = $true)][string]$ProjectPath)
+
+    $output = & dotnet msbuild $ProjectPath -nologo `
+        -getProperty:KnownFirstProductVersion `
+        -getProperty:KnownFirstBuildNumber
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not read KnownFirstProductVersion/KnownFirstBuildNumber from $ProjectPath.`n$($output | Out-String)"
+    }
+
+    $parsed = ($output | Out-String).Trim() | ConvertFrom-Json
+    $productVersion = $parsed.Properties.KnownFirstProductVersion
+    $buildNumber = $parsed.Properties.KnownFirstBuildNumber
+    if ([string]::IsNullOrWhiteSpace($productVersion) -or [string]::IsNullOrWhiteSpace($buildNumber)) {
+        throw "KnownFirstProductVersion or KnownFirstBuildNumber was empty when evaluated from $ProjectPath."
+    }
+
+    return [pscustomobject]@{
+        ProductVersion = $productVersion
+        BuildNumber = $buildNumber
+    }
+}
+
+$versionInfo = Get-KnownFirstVersionInfo -ProjectPath $projectPath
+
 if (-not (Test-Path -LiteralPath $KeystorePath -PathType Leaf)) {
     throw "The Android beta keystore is missing at $KeystorePath. Restore the existing signing identity before publishing."
 }
@@ -73,28 +101,41 @@ $packages = @(
     [pscustomobject]@{
         Configuration = "Release"
         Kind = "release"
-        BaseName = "KnownFirst-1.0.0-beta.6-android-release"
+        BaseName = "KnownFirst-$($versionInfo.ProductVersion)-android-release"
         Title = "KnownFirst"
         PackageId = "com.tachiguro.knownfirst"
-        Version = "1.0.0-beta.6"
+        Version = $versionInfo.ProductVersion
     },
     [pscustomobject]@{
         Configuration = "BetaDiagnostic"
         Kind = "diagnostic"
-        BaseName = "KnownFirst-1.0.0-beta.6-android-diagnostic"
+        BaseName = "KnownFirst-$($versionInfo.ProductVersion)-android-diagnostic"
         Title = "KnownFirst Diagnostic"
         PackageId = "com.tachiguro.knownfirst.diagnostic"
-        Version = "1.0.0-beta.6-diagnostic"
+        Version = "$($versionInfo.ProductVersion)-diagnostic"
     },
     [pscustomobject]@{
         Configuration = "Debug"
         Kind = "debug"
-        BaseName = "KnownFirst-1.0.0-beta.6-android-debug"
+        BaseName = "KnownFirst-$($versionInfo.ProductVersion)-android-debug"
         Title = "KnownFirst Debug"
         PackageId = "com.tachiguro.knownfirst.debug"
-        Version = "1.0.0-beta.6-debug"
+        Version = "$($versionInfo.ProductVersion)-debug"
     }
 )
+
+$selectedKind = switch ($Configuration) {
+    'Debug' { 'debug' }
+    'Diagnostic' { 'diagnostic' }
+    'Release' { 'release' }
+    default { $null }
+}
+if ($selectedKind) {
+    $packages = $packages | Where-Object { $_.Kind -eq $selectedKind }
+    if (-not $packages) {
+        throw "No package definition matches Configuration '$Configuration'."
+    }
+}
 
 $previousPassword = $env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD
 $previousJavaHome = $env:JAVA_HOME
@@ -166,7 +207,7 @@ try {
             "$($package.Title) $($package.Version) for Android",
             "",
             "Package ID: $($package.PackageId)",
-            "Application version: 5",
+            "Application version: $($versionInfo.BuildNumber)",
             "Minimum Android version: Android 7.0 (API 24)",
             "SHA-256: $sha256",
             "",

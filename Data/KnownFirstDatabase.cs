@@ -61,6 +61,31 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
         }
     }
 
+    public async Task<T> ExecuteSnapshotAsync<T>(Func<SQLiteConnection, T> operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        await _databaseGate.WaitAsync();
+        try
+        {
+            logger.LogTrace("KnownFirst database snapshot read started.");
+            await EnsureInitializedAsync();
+            T? result = default;
+            await _connection!.RunInTransactionAsync(connection => result = operation(connection));
+            logger.LogTrace("KnownFirst database snapshot read completed.");
+            return result!;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "KnownFirst database snapshot read failed.");
+            throw;
+        }
+        finally
+        {
+            _databaseGate.Release();
+        }
+    }
+
     public async Task<T> RunInTransactionAsync<T>(Func<SQLiteConnection, T> operation)
     {
         ArgumentNullException.ThrowIfNull(operation);

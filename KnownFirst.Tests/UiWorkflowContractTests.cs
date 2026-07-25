@@ -625,6 +625,17 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("artifacts\\android-beta", script);
         Assert.DoesNotContain("storepass ", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("keypass ", script, StringComparison.OrdinalIgnoreCase);
+
+        // Selective package creation: the script accepts an optional Configuration selection
+        // (defaulting to building all three, preserving the pre-selection behavior) and filters
+        // by the same Kind values used to build the release/diagnostic/debug artifact names
+        // above, without changing package IDs, signing, checksum, or ZIP-content logic.
+        Assert.Contains("[ValidateSet('Debug', 'Diagnostic', 'Release', 'All')]", script);
+        Assert.Contains("[string]$Configuration = 'All'", script);
+        Assert.Contains("$packages = $packages | Where-Object { $_.Kind -eq $selectedKind }", script);
+        Assert.Contains("PackageId = \"com.tachiguro.knownfirst\"", script);
+        Assert.Contains("PackageId = \"com.tachiguro.knownfirst.diagnostic\"", script);
+        Assert.Contains("PackageId = \"com.tachiguro.knownfirst.debug\"", script);
     }
 
     [TestMethod]

@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$KeystorePath,
-    [string]$PasswordFilePath
+    [string]$PasswordFilePath,
+    [ValidateSet('Debug', 'Diagnostic', 'Release', 'All')]
+    [string]$Configuration = 'All'
 )
 
 $ErrorActionPreference = "Stop"
@@ -121,6 +123,19 @@ $packages = @(
         Version = "$($versionInfo.ProductVersion)-debug"
     }
 )
+
+$selectedKind = switch ($Configuration) {
+    'Debug' { 'debug' }
+    'Diagnostic' { 'diagnostic' }
+    'Release' { 'release' }
+    default { $null }
+}
+if ($selectedKind) {
+    $packages = $packages | Where-Object { $_.Kind -eq $selectedKind }
+    if (-not $packages) {
+        throw "No package definition matches Configuration '$Configuration'."
+    }
+}
 
 $previousPassword = $env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD
 $previousJavaHome = $env:JAVA_HOME

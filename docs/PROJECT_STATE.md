@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-25
-**State source:** `master` (`f1d1c3047240ded2bdaae8eb026741fe140a6da3`, PR #19 merge commit)
-**Next product milestone:** Duplicate-looking learning-question investigation
+**State source:** `master` (`52e74f2aa4ec0f071d99232eca1d4dde5a1d5110`, PR #21 merge commit)
+**Next product milestone:** Beta 11 release-candidate preparation (version/build identity bump and Beta 11 What's New content)
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -82,17 +82,17 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `f1d1c3047240ded2bdaae8eb026741fe140a6da3` (PR #19 merged).
+The stable master baseline is `52e74f2aa4ec0f071d99232eca1d4dde5a1d5110` (PR #21 merged).
 
-Russian-language support v1 (Russian UI localization and Russian-as-translation-target for English/German source texts) is implemented on the uncommitted branch `feature/russian-language-support-v1`, not yet merged to `master`. Russian **source**-text support is explicitly deferred. See [CURRENT_WORK.md](CURRENT_WORK.md) for exact branch status.
+Master already contains Russian UI localization, Russian-as-translation-target support (PR #20), and the learning repeat/direction clarity fix for [KF-LEARN-001](BACKLOG.md) (PR #21), but the product version metadata is still `1.0.0-beta.10`. Beta 11 (`1.0.0-beta.11`, build `11`) is being prepared on the unmerged branch `release/beta-11-russian-internal-test` to bump the identity and add a localized Beta 11 What's New entry (English, German, Russian). Russian **source**-text support remains explicitly deferred. This package is intended for Google Play Internal Testing, including testing by the user's father. Public release remains blocked by the outstanding support/bug-report, GUI-automation, legal, and store-readiness work below. See [CURRENT_WORK.md](CURRENT_WORK.md) for exact branch status.
 
 ## Immediate action
 
-- Investigate the reported duplicate-looking learning question (read-only investigation, see [CURRENT_WORK.md](CURRENT_WORK.md) and [BACKLOG.md](BACKLOG.md) item KF-LEARN-001).
+- Validate and, once approved, commit/push/open a PR for the Beta 11 release-candidate branch `release/beta-11-russian-internal-test` (identity bump and What's New content only; no AAB has been created or uploaded).
 
 ## Next milestones (Future Work)
 
-1. Duplicate-looking learning-question investigation and resolution.
+1. Merge the Beta 11 release-candidate branch; no AAB or Play upload until separately authorized.
 2. Functional support/bug-report surface.
 3. Reopenable release notes and release-note history.
 4. Deterministic GUI automation (Android first).

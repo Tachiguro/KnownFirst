@@ -1413,4 +1413,22 @@
   <data name="WhatsNew_Beta10_Bullet4" xml:space="preserve">
     <value>Das Archiv kann importierte Texte und den Lernverlauf enthalten. Es ist nicht verschlüsselt. Bewahre und teile es sorgfältig.</value>
   </data>
+  <data name="WhatsNew_Beta11_Bullet1" xml:space="preserve">
+    <value>Eine russische Anwendungsoberfläche wurde hinzugefügt.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet2" xml:space="preserve">
+    <value>Die Spracheinstellung „System“ folgt jetzt automatisch der Sprache deines Geräts.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet3" xml:space="preserve">
+    <value>Russisch kann jetzt als Übersetzungsziel für englische und deutsche Texte ausgewählt werden.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet4" xml:space="preserve">
+    <value>Lernkarten zeigen jetzt ihre Richtung an (Wort → Bedeutung oder Bedeutung → Wort).</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet5" xml:space="preserve">
+    <value>Ein Wiederholung-Badge kennzeichnet jetzt eine Karte, die nach einer Nochmal-Bewertung erneut angezeigt wird.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet6" xml:space="preserve">
+    <value>Die Analyse russischer Quelltexte für den Import wird noch nicht unterstützt.</value>
+  </data>
 </root>

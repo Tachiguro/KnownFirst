@@ -1413,4 +1413,22 @@
   <data name="WhatsNew_Beta10_Bullet4" xml:space="preserve">
     <value>Архив может содержать импортированный текст и историю обучения. Он не зашифрован. Храни и передавай его осторожно.</value>
   </data>
+  <data name="WhatsNew_Beta11_Bullet1" xml:space="preserve">
+    <value>Добавлен русский интерфейс приложения.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet2" xml:space="preserve">
+    <value>Настройка языка "Система" теперь автоматически следует языку твоего устройства.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet3" xml:space="preserve">
+    <value>Русский теперь можно выбрать как язык перевода для английских и немецких текстов.</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet4" xml:space="preserve">
+    <value>Карточки для изучения теперь показывают направление (слово → значение или значение → слово).</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet5" xml:space="preserve">
+    <value>Значок "Повторение" теперь отмечает карточку, показанную снова после оценки "Ещё раз".</value>
+  </data>
+  <data name="WhatsNew_Beta11_Bullet6" xml:space="preserve">
+    <value>Анализ русского исходного текста для импорта пока не поддерживается.</value>
+  </data>
 </root>

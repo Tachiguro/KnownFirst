@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-24
+2026-07-25
 
 ## Repository
 
@@ -13,85 +13,59 @@
 
 ## Stable baseline
 
-- Stable master baseline: 2211d3fb8f21b7207eb09e0699617dcfb925cc75 (PR #16 merge commit)
-- App version: 1.0.0-beta.9 (code 9)
-- Database schema: SQLite PRAGMA user_version 7
-- Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst have been deliberately removed from the application targets.
+- Stable master baseline: `2f3f89daabcced8fbe7133ec782808d1aa5f4038` (PR #18 merge commit)
+- App version: 1.0.0-beta.10 (build 10)
+- Database schema: SQLite `PRAGMA user_version` 7 (unchanged)
+- Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
 - Solution: KnownFirst.slnx
 
 ## Current branch
 
-- Branch: docs/strict-task-execution-workflow (uncommitted diff)
-- Base: 2211d3fb8f21b7207eb09e0699617dcfb925cc75
-
-## Ongoing task
-
-Implement the approved KnownFirst workflow-governance plan establishing strict isolation between planning, implementation, testing, documentation, builds, packaging, Git, and PR operations.
-
-## Current state
-
-- PR #16 (task-based documentation routing) was merged into master (`2211d3fb8f21b7207eb09e0699617dcfb925cc75`).
-- Active branch is `docs/strict-task-execution-workflow` created from synchronized `master`.
-- Created [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) as the canonical prompt-authoring and task-isolation guide.
-- Created [docs/TESTING.md](TESTING.md) as the canonical test scope guide and failure policy.
-- Updated [AGENTS.md](../AGENTS.md) with universal operation mode rules and scope boundaries.
-- Updated [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) with the 13-phase explicit state sequence.
-- Updated [docs/INDEX.md](INDEX.md) with prompt creation routing, test routing, and baseline routers.
-- Updated [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) with isolated build/package subsections and AOT scoping.
-- Updated [docs/VERSIONING.md](VERSIONING.md) with the cumulative unread release notes specification and display trigger.
+- Branch: `docs/post-beta10-project-handoff` (documentation-only, uncommitted)
+- Base: `2f3f89daabcced8fbe7133ec782808d1aa5f4038`
 
 ## Completed recently
 
-- PR #16 (task-based documentation routing) merged to master (`2211d3f`).
-- Synchronized local master to `2211d3f`.
+- Portable `.kfarchive` export (native Save dialog, Windows and Android).
+- Portable recovery import into an empty installation only (native Open dialog); populated targets are refused, not merged.
+- One-time localized What's New notice, reopenable in a future Settings control (not yet implemented — see risks).
+- Local build-launcher refinement and selective Android test-package scripting.
+- Pull Request #18 merged to `master` (`2f3f89d`).
 
-## Process notes
+## Current known risks
 
-- Followed single worktree rule (`C:\Dev\KnownFirst`).
-- Documentation-only package; no production code, test code, project files, scripts, or localization resources were modified.
-- Created exactly two new Markdown files: `docs/PROMPT_AND_TASK_ROUTING.md` and `docs/TESTING.md`.
+- A learner with only a few available words may see what looks like the same word and question twice in one learning session. Likely cause under investigation: the legitimate one-time "Again" requeue is not visually distinguished from a first-time card. Not yet fixed.
+- "Support KnownFirst" and "Report a bug" in Settings are placeholders (identical no-op handler); not gated out of Release builds.
+- Deterministic GUI automation (Appium/UiAutomator2 or equivalent) is not yet implemented; GUI verification remains manual per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md).
+- Public Google Play release is intentionally blocked; current distribution is Internal Testing only.
 
-## Exact implementation boundaries
+## Active planned sequence
 
-- Schema version 7, no migration.
-- In-app release notes UI is NOT implemented in code.
-- No builds, test runs, packaging, signing, store uploads, ADB, emulator, or device operations were performed.
-- No commit, push, PR creation, merge, or staging occurred.
+1. Focused, read-only investigation and deterministic test plan for the reported duplicate-looking learning question (no fix authorized yet).
+2. Functional "Support KnownFirst" and "Report a bug" controls (or explicit removal/gating decision).
+3. Reopenable release notes / release-note history access from Settings.
+4. Deterministic Android GUI automation feasibility and first implementation.
+5. Public-release legal, privacy, and support readiness review.
 
-## Validation
+## Explicit exclusions
 
-- Clean working tree verification (`git status --short`).
-- Repository-wide inline relative Markdown link audit across 46 committed HEAD `.md` files and 2 untracked `.md` files (48 total in working-tree review scope; 0 broken links).
-- `git diff --check` clean.
+- No merge-import or overwrite semantics for portable recovery.
+- No `ReplaceAll`-style restore into a populated installation.
+- No additional learning languages beyond English/German source-target scope yet.
+- No public Google Play promotion yet.
 
-## Paused work
+## Relevant files for the next task
 
-- Backup/Restore Phase 3 is paused until provider and persistence models are finalized.
-
-## Planned sequence
-
-1. User review of the uncommitted documentation diff on `docs/strict-task-execution-workflow`.
-2. Explicit `COMMIT_ONLY` prompt.
-3. Explicit `PUSH_ONLY` prompt.
-4. Explicit `PR_ONLY` prompt.
-5. Review and explicit user merge decision.
-6. `SYNC_ONLY` after merge.
-
-## Relevant files
-
-- AGENTS.md
-- docs/PROMPT_AND_TASK_ROUTING.md
-- docs/TESTING.md
-- docs/INDEX.md
-- docs/AGENT_WORKFLOW.md
-- docs/BUILD_AND_RELEASE.md
-- docs/VERSIONING.md
-- docs/CURRENT_WORK.md
+- [architecture/backup-format-v1.md](architecture/backup-format-v1.md)
+- `Services/Study/LearningService.cs`
+- `Components/Pages/Learn.razor`
+- `Models/LearningModels.cs`
+- `KnownFirst.Tests/StudyWorkflowServiceTests.cs`
 
 ## Next exact action
 
-- User review of the uncommitted documentation diff on branch `docs/strict-task-execution-workflow`.
+Perform a read-only, focused investigation and deterministic reproduction/test plan for the reported duplicate-looking learning question (small vocabulary pool: same word and same card direction appearing twice in one session). Trace card creation, queue building, and the "Again" requeue path; identify whether the cause is a genuine duplicate or an undistinguished legitimate repeat; propose the minimum test matrix. Do not implement a fix in this step.
 
 ## New-chat handoff
 
-"Read AGENTS.md, docs/PROMPT_AND_TASK_ROUTING.md, and docs/CURRENT_WORK.md completely. Follow the reading order defined there. Verify the branch, HEAD, Git status, and registered worktrees. Then proceed exclusively with the task described under 'Next exact action'."
+"Read AGENTS.md, docs/PROMPT_AND_TASK_ROUTING.md, docs/CURRENT_WORK.md, and docs/INDEX.md completely. Verify branch, HEAD, Git status, and registered worktrees. Follow the task-specific reading route from docs/INDEX.md. Then perform only the task under 'Next exact action'."

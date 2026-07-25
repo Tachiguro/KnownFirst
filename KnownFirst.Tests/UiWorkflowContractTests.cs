@@ -553,10 +553,18 @@ public sealed class UiWorkflowContractTests
 
         Assert.Contains("LexicalLookupMode.Definition", markup);
         Assert.Contains("LexicalLookupMode.Translation", markup);
-        Assert.Contains("LexicalLookupMode.DefinitionAndTranslation", markup);
         Assert.Contains("_lookupLanguageInvalid", markup);
         Assert.Contains("Import_TargetLanguageMustDiffer", markup);
         Assert.DoesNotContain("CurrentUiCulture", markup);
+    }
+
+    [TestMethod]
+    public void Import_NoLongerOffersTheCombinedDefinitionAndTranslationChoice()
+    {
+        var markup = LoadUi("ImportText.razor");
+
+        Assert.DoesNotContain("LexicalLookupMode.DefinitionAndTranslation", markup);
+        Assert.DoesNotContain("Import_LookupDefinitionAndTranslation", markup);
     }
 
     [TestMethod]

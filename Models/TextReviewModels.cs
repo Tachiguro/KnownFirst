@@ -31,7 +31,7 @@ public sealed record ImportTextRequest(
             textLanguage,
             string.Equals(textLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
                 ? LexicalLookupMode.Definition
-                : LexicalLookupMode.DefinitionAndTranslation,
+                : LexicalLookupMode.Translation,
             string.Equals(textLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
                 ? null
                 : explanationLanguage)

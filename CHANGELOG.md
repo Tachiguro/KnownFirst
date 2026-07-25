@@ -6,9 +6,26 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
-## [1.0.0-beta.11] - Unreleased (release candidate in preparation)
+## [1.0.0-beta.12] - Unreleased (hotfix in preparation)
 
-**This version is being prepared on the unmerged branch `release/beta-11-russian-internal-test` and has not been merged, packaged, or uploaded.** It is intended for Google Play Internal Testing, including testing by the user's father.
+**This version is being prepared on the unmerged branch `hotfix/beta-12-russian-translation` and has not been tested, built, packaged, or uploaded in this step.**
+
+### Fixed
+
+- Russian translation targets now work correctly for German-to-Russian and English-to-Russian text imports. `TextReviewService` previously re-validated `ExplanationLanguage`/`TargetLanguage` against a local English/German-only set and rejected `ru` before the lexical lookup started, even though `LexicalLookupLanguagePolicy` already supported Russian as a translation target. The duplicated, incorrect validation was removed; `LexicalLookupLanguagePolicy` is now the sole authority for source/target language capability.
+
+### Changed
+
+- Text import now offers only Definition or Translation. The combined Definition-and-Translation choice has been removed from the Import Text selector; existing database rows, preparation state, and portable archives that already use the combined mode continue to be read and processed unchanged.
+- Product version raised to `1.0.0-beta.12` (build `12`). Package ID, database schema (`7`), signing configuration, and the portable archive format are unchanged.
+
+### Added
+
+- A localized Beta 12 What's New entry (English, German, Russian) covering the Russian-translation-target fix, the simplified Definition/Translation import choice, and the continued absence of Russian source-text analysis.
+
+## [1.0.0-beta.11] - 2026-07-25 (merged via PR #22)
+
+*Intended for Google Play Internal Testing, including testing by the user's father.*
 
 ### Added
 

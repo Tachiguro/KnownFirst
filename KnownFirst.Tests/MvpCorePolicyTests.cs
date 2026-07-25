@@ -365,6 +365,24 @@ public sealed class MvpCorePolicyTests
     }
 
     [TestMethod]
+    public void LexicalLookupRequest_CompatibilityConstructorCreatesTranslationForDifferingLanguages()
+    {
+        var request = new LexicalLookupRequest("network", "network", TokenKind.Word, "en", "ru");
+
+        Assert.AreEqual(LexicalLookupMode.Translation, request.LookupMode);
+        Assert.AreEqual("ru", request.TargetLanguage);
+    }
+
+    [TestMethod]
+    public void LexicalLookupRequest_CompatibilityConstructorCreatesDefinitionForSameLanguage()
+    {
+        var request = new LexicalLookupRequest("network", "network", TokenKind.Word, "en", "en");
+
+        Assert.AreEqual(LexicalLookupMode.Definition, request.LookupMode);
+        Assert.IsNull(request.TargetLanguage);
+    }
+
+    [TestMethod]
     public void Workflow_PrepareIsEnabledForBacklogOrActivePreparationAndBlockedByReview()
     {
         Assert.IsTrue(new WorkflowSnapshot(false, false, false, 0, 0, 1, WorkflowPrimaryAction.PrepareWords).CanPrepare);

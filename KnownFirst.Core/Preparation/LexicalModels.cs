@@ -69,7 +69,7 @@ public sealed record LexicalLookupRequest
             sourceLanguage,
             string.Equals(sourceLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
                 ? LexicalLookupMode.Definition
-                : LexicalLookupMode.DefinitionAndTranslation,
+                : LexicalLookupMode.Translation,
             string.Equals(sourceLanguage, explanationLanguage, StringComparison.OrdinalIgnoreCase)
                 ? null
                 : explanationLanguage,

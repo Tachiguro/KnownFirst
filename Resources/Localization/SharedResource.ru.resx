@@ -1431,4 +1431,13 @@
   <data name="WhatsNew_Beta11_Bullet6" xml:space="preserve">
     <value>Анализ русского исходного текста для импорта пока не поддерживается.</value>
   </data>
+  <data name="WhatsNew_Beta12_Bullet1" xml:space="preserve">
+    <value>Русский как язык перевода теперь корректно работает для английских и немецких исходных текстов.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet2" xml:space="preserve">
+    <value>Импорт текста теперь предлагает более простой выбор: Определение или Перевод.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet3" xml:space="preserve">
+    <value>Анализ русского исходного текста для импорта по-прежнему не поддерживается.</value>
+  </data>
 </root>

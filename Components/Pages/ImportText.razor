@@ -60,7 +60,6 @@
                         @bind:after="EnsureValidTargetLanguage">
                     <option value="@LexicalLookupMode.Definition">@Localizer["Import_LookupDefinition"]</option>
                     <option value="@LexicalLookupMode.Translation">@Localizer["Import_LookupTranslation"]</option>
-                    <option value="@LexicalLookupMode.DefinitionAndTranslation">@Localizer["Import_LookupDefinitionAndTranslation"]</option>
                 </select>
             </div>
             @if (_lookupMode != LexicalLookupMode.Definition)

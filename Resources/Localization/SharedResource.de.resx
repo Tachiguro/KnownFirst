@@ -1431,4 +1431,13 @@
   <data name="WhatsNew_Beta11_Bullet6" xml:space="preserve">
     <value>Die Analyse russischer Quelltexte für den Import wird noch nicht unterstützt.</value>
   </data>
+  <data name="WhatsNew_Beta12_Bullet1" xml:space="preserve">
+    <value>Russisch als Übersetzungsziel funktioniert jetzt korrekt für englische und deutsche Quelltexte.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet2" xml:space="preserve">
+    <value>Der Textimport bietet jetzt die einfachere Wahl zwischen Definition und Übersetzung.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet3" xml:space="preserve">
+    <value>Die Analyse russischer Quelltexte für den Import wird weiterhin nicht unterstützt.</value>
+  </data>
 </root>

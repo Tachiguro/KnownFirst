@@ -393,18 +393,33 @@ function New-LauncherLogPath {
 }
 
 function Invoke-KnownFirstCommand {
+    # $CommandArguments accepts EITHER a [string[]] (for native commands like dotnet.exe,
+    # where splatting is purely positional/order-preserving argv - exactly right for a CLI
+    # that reads flags like -c/-f itself) OR an [System.Collections.IDictionary]/hashtable
+    # (for invoking another .ps1 script that needs real PowerShell named-parameter binding).
+    # This distinction matters: splatting a STRING ARRAY via @CommandArguments always binds
+    # positionally in PowerShell, even when the strings look like "-Name value" pairs, so a
+    # target script's own param() block will NOT recognize them as named parameters. Only
+    # splatting a hashtable produces genuine -Name value binding.
     param(
         [Parameter(Mandatory = $true)][string]$StepName,
         [Parameter(Mandatory = $true)][string]$FilePath,
-        [string[]]$CommandArguments = @(),
+        $CommandArguments = @(),
         [Parameter(Mandatory = $true)][string]$LogPath
     )
 
-    $commandText = if ($CommandArguments.Count -gt 0) {
-        "$FilePath $($CommandArguments -join ' ')"
+    $isNamedArguments = $CommandArguments -is [System.Collections.IDictionary]
+    $argumentCount = if ($isNamedArguments) { $CommandArguments.Count } else { @($CommandArguments).Count }
+
+    $commandText = if ($argumentCount -eq 0) {
+        $FilePath
+    }
+    elseif ($isNamedArguments) {
+        $pairs = foreach ($key in $CommandArguments.Keys) { "-$key $($CommandArguments[$key])" }
+        "$FilePath $($pairs -join ' ')"
     }
     else {
-        $FilePath
+        "$FilePath $($CommandArguments -join ' ')"
     }
 
     Write-Host ''
@@ -413,7 +428,7 @@ function Invoke-KnownFirstCommand {
     $exitCode = 1
     $errorMessage = $null
     try {
-        if ($CommandArguments.Count -gt 0) {
+        if ($argumentCount -gt 0) {
             & $FilePath @CommandArguments | Tee-Object -Variable 'knownFirstStepOutput'
         }
         else {
@@ -696,9 +711,9 @@ function Invoke-AndroidTestPackageAction {
     $logPath = New-LauncherLogPath -ActionName 'AndroidTestPackage'
     Write-Host "Log: $logPath"
 
-    $scriptArguments = @('-Configuration', $effectiveConfiguration)
-    if ($KeystorePath) { $scriptArguments += @('-KeystorePath', $KeystorePath) }
-    if ($PasswordFilePath) { $scriptArguments += @('-PasswordFilePath', $PasswordFilePath) }
+    $scriptArguments = [ordered]@{ Configuration = $effectiveConfiguration }
+    if ($KeystorePath) { $scriptArguments['KeystorePath'] = $KeystorePath }
+    if ($PasswordFilePath) { $scriptArguments['PasswordFilePath'] = $PasswordFilePath }
 
     $result = Invoke-KnownFirstCommand -StepName 'Create Android test packages' -FilePath $scriptPath `
         -CommandArguments $scriptArguments -LogPath $logPath
@@ -745,9 +760,9 @@ function Invoke-GooglePlayBundleAction {
     $logPath = New-LauncherLogPath -ActionName 'GooglePlayBundle'
     Write-Host "Log: $logPath"
 
-    $scriptArguments = @()
-    if ($KeystorePath) { $scriptArguments += @('-KeystorePath', $KeystorePath) }
-    if ($PasswordFilePath) { $scriptArguments += @('-PasswordFilePath', $PasswordFilePath) }
+    $scriptArguments = [ordered]@{}
+    if ($KeystorePath) { $scriptArguments['KeystorePath'] = $KeystorePath }
+    if ($PasswordFilePath) { $scriptArguments['PasswordFilePath'] = $PasswordFilePath }
 
     $result = Invoke-KnownFirstCommand -StepName 'Create Google Play bundle' -FilePath $scriptPath `
         -CommandArguments $scriptArguments -LogPath $logPath

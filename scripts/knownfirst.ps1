@@ -10,19 +10,36 @@
     UTF-8 log under artifacts\launcher-logs\. A failure never crashes the launcher or the
     parent PowerShell window: it is reported as the failed command, its exit code, and the log
     path, and the interactive menu keeps running. Nothing is ever uploaded to Google Play and
-    nothing is installed on a device automatically; package creation ("Create Android test
-    package" / "Create Google Play bundle") calls the existing, already-reviewed
+    nothing is installed on a device automatically; package creation ("Build Android test APK"
+    / "Create Google Play AAB") calls the existing, already-reviewed
     publish-android-test-packages.ps1 and publish-google-play-bundle.ps1 scripts instead of
     duplicating their signing logic.
+
+    Successful results can be reused across runs (see -Force). A result under
+    artifacts\launcher-state\ is only ever reused when the worktree is clean, HEAD has not
+    moved, the .NET SDK version matches, the action/configuration/parameters match, the
+    operation previously succeeded, every expected output file still exists and is non-empty,
+    the state record itself is well-formed, and the relevant script files are unchanged.
+    Anything else - including a merely dirty worktree or a corrupt state file - is treated as
+    "not reusable", never as a launcher error.
 
 .PARAMETER Action
     Test | WindowsBuild | AndroidTestPackage | GooglePlayBundle | ValidateAll
     When omitted, the interactive menu is shown instead.
 
+.PARAMETER Configuration
+    Debug | Release | Diagnostic | All
+    Applies to WindowsBuild (Debug, Release, or All; Diagnostic is not a Windows configuration)
+    and AndroidTestPackage (Debug, Diagnostic, Release, or All). Omitted or blank means All for
+    both, matching the previous (pre-selection) behavior.
+
 .PARAMETER WhatIf
     Prints what each operation would do and its expected output path without running it.
     Useful to validate an -Action name or check the launcher itself without building,
     testing, or creating any package.
+
+.PARAMETER Force
+    Ignores any stored reusable result and always executes the requested operation.
 
 .PARAMETER KeystorePath
     Forwarded to the Android publish scripts. See their own defaults if omitted.
@@ -38,15 +55,30 @@
     .\scripts\knownfirst.ps1 -Action Test
 
 .EXAMPLE
+    .\scripts\knownfirst.ps1 -Action WindowsBuild -Configuration Debug
+
+.EXAMPLE
+    .\scripts\knownfirst.ps1 -Action AndroidTestPackage -Configuration Diagnostic
+
+.EXAMPLE
     .\scripts\knownfirst.ps1 -Action GooglePlayBundle -WhatIf
     Prints what would happen without creating an AAB.
+
+.EXAMPLE
+    .\scripts\knownfirst.ps1 -Action WindowsBuild -Configuration Debug -Force
+    Rebuilds even if a valid reusable result already exists.
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('Test', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'ValidateAll')]
     [string]$Action,
 
+    [ValidateSet('Debug', 'Release', 'Diagnostic', 'All')]
+    [string]$Configuration,
+
     [switch]$WhatIf,
+
+    [switch]$Force,
 
     [string]$KeystorePath,
 
@@ -60,8 +92,277 @@ $projectRoot = Split-Path -Parent $scriptRoot
 $projectPath = Join-Path $projectRoot 'KnownFirst.csproj'
 $testProjectPath = Join-Path $projectRoot 'KnownFirst.Tests\KnownFirst.Tests.csproj'
 $logRoot = Join-Path $projectRoot 'artifacts\launcher-logs'
+$stateRoot = Join-Path $projectRoot 'artifacts\launcher-state'
+$windowsTargetFramework = 'net10.0-windows10.0.19041.0'
+$androidTargetFramework = 'net10.0-android'
 
-# --- Reliable command runner --------------------------------------------------------------
+# --- Environment probes (cached: cheap, but no need to ask git/dotnet more than once) ------
+
+$script:cachedWorktreeClean = $null
+function Test-GitWorktreeClean {
+    if ($null -eq $script:cachedWorktreeClean) {
+        try {
+            $status = & git -C $projectRoot status --short 2>$null
+            $script:cachedWorktreeClean = [string]::IsNullOrEmpty(($status -join ''))
+        }
+        catch {
+            $script:cachedWorktreeClean = $false
+        }
+    }
+    return $script:cachedWorktreeClean
+}
+
+$script:cachedHeadSha = $null
+function Get-CurrentHeadSha {
+    if ($null -eq $script:cachedHeadSha) {
+        try {
+            $script:cachedHeadSha = (& git -C $projectRoot rev-parse HEAD 2>$null | Select-Object -First 1).Trim()
+        }
+        catch {
+            $script:cachedHeadSha = ''
+        }
+        if (-not $script:cachedHeadSha) {
+            $script:cachedHeadSha = ''
+        }
+    }
+    return $script:cachedHeadSha
+}
+
+$script:cachedDotnetVersion = $null
+function Get-CurrentDotnetVersion {
+    if ($null -eq $script:cachedDotnetVersion) {
+        try {
+            $script:cachedDotnetVersion = (& dotnet --version 2>$null | Select-Object -First 1).Trim()
+        }
+        catch {
+            $script:cachedDotnetVersion = ''
+        }
+        if (-not $script:cachedDotnetVersion) {
+            $script:cachedDotnetVersion = ''
+        }
+    }
+    return $script:cachedDotnetVersion
+}
+
+$script:cachedVersionInfo = $null
+function Get-KnownFirstVersionInfo {
+    if ($null -ne $script:cachedVersionInfo) {
+        return $script:cachedVersionInfo
+    }
+
+    $output = & dotnet msbuild $projectPath -nologo `
+        -getProperty:KnownFirstProductVersion `
+        -getProperty:KnownFirstBuildNumber
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not read KnownFirstProductVersion/KnownFirstBuildNumber from $projectPath."
+    }
+
+    $parsed = ($output | Out-String).Trim() | ConvertFrom-Json
+    $script:cachedVersionInfo = [pscustomobject]@{
+        ProductVersion = $parsed.Properties.KnownFirstProductVersion
+        BuildNumber    = $parsed.Properties.KnownFirstBuildNumber
+    }
+    return $script:cachedVersionInfo
+}
+
+# --- Reusable-result state --------------------------------------------------------------
+#
+# One JSON record per operation+configuration under artifacts\launcher-state\. A record is
+# only ever treated as reusable when every one of these holds:
+#   1. the worktree is clean;
+#   2. the recorded full HEAD SHA equals the current full HEAD SHA;
+#   3. the recorded `dotnet --version` equals the current one;
+#   4. action, configuration, target framework, and parameters match;
+#   5. the recorded operation succeeded;
+#   6. every expected output file still exists and is non-empty;
+#   7. the record itself is well-formed JSON with the required fields;
+#   8. the relevant script file hashes are unchanged.
+# Timestamps are stored for information only and are never used as proof of freshness.
+# Any failure of any check - including a corrupt/incomplete record - simply means "not
+# reusable"; it is never a fatal launcher error.
+
+function Get-LauncherStatePath {
+    param([Parameter(Mandatory = $true)][string]$StateKey)
+    return Join-Path $stateRoot "$StateKey.json"
+}
+
+function Get-RelativeScriptPath {
+    param([Parameter(Mandatory = $true)][string]$FullPath)
+    $resolved = $FullPath
+    if ($resolved.StartsWith($projectRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        $resolved = $resolved.Substring($projectRoot.Length)
+    }
+    return $resolved.TrimStart('\', '/')
+}
+
+function Get-ScriptHashMap {
+    param([Parameter(Mandatory = $true)][string[]]$ScriptPaths)
+
+    $map = [ordered]@{}
+    foreach ($path in $ScriptPaths) {
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $key = Get-RelativeScriptPath -FullPath $path
+            $map[$key] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+        }
+    }
+    return $map
+}
+
+function Get-ParameterSignature {
+    param($Parameters)
+
+    if ($null -eq $Parameters) {
+        return ''
+    }
+
+    if ($Parameters -is [System.Collections.IDictionary]) {
+        $keys = @($Parameters.Keys) | Sort-Object
+        $parts = foreach ($key in $keys) { "$key=$($Parameters[$key])" }
+    }
+    else {
+        $keys = @($Parameters.PSObject.Properties.Name) | Sort-Object
+        $parts = foreach ($key in $keys) { "$key=$($Parameters.$key)" }
+    }
+    return ($parts -join '|')
+}
+
+function Save-LauncherState {
+    param(
+        [Parameter(Mandatory = $true)][string]$StateKey,
+        [Parameter(Mandatory = $true)][string]$Action,
+        [string]$Configuration = '',
+        [string]$TargetFramework = '',
+        [hashtable]$Parameters = @{},
+        [Parameter(Mandatory = $true)][bool]$Succeeded,
+        [string]$Summary = '',
+        [Parameter(Mandatory = $true)][string[]]$OutputFiles,
+        [Parameter(Mandatory = $true)][string[]]$RelevantScriptPaths
+    )
+
+    if (-not $Succeeded) {
+        return
+    }
+    if (-not (Test-GitWorktreeClean)) {
+        # A dirty-worktree result must never be stored as reusable for a future clean commit.
+        return
+    }
+
+    New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
+    $record = [ordered]@{
+        Action          = $Action
+        Configuration   = $Configuration
+        TargetFramework = $TargetFramework
+        ParameterSignature = Get-ParameterSignature -Parameters $Parameters
+        HeadSha         = Get-CurrentHeadSha
+        DotnetVersion   = Get-CurrentDotnetVersion
+        Succeeded       = $true
+        Summary         = $Summary
+        OutputFiles     = @($OutputFiles)
+        ScriptHashes    = Get-ScriptHashMap -ScriptPaths $RelevantScriptPaths
+        CreatedAtUtc    = (Get-Date).ToUniversalTime().ToString('o')
+    }
+
+    $statePath = Get-LauncherStatePath -StateKey $StateKey
+    try {
+        ($record | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath $statePath -Encoding UTF8
+    }
+    catch {
+        # Being unable to persist a reusable-result record must never fail the operation that
+        # already succeeded; the next run will simply execute again instead of reusing.
+        Write-Host "Note: the reusable-result record for $StateKey could not be saved ($($_.Exception.Message))." -ForegroundColor Yellow
+    }
+}
+
+function Test-LauncherStateReusable {
+    param(
+        [Parameter(Mandatory = $true)][string]$StateKey,
+        [Parameter(Mandatory = $true)][string]$Action,
+        [string]$Configuration = '',
+        [string]$TargetFramework = '',
+        [hashtable]$Parameters = @{},
+        [Parameter(Mandatory = $true)][string[]]$OutputFiles,
+        [Parameter(Mandatory = $true)][string[]]$RelevantScriptPaths
+    )
+
+    if ($Force) {
+        return $null
+    }
+
+    $statePath = Get-LauncherStatePath -StateKey $StateKey
+    if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
+        return $null
+    }
+
+    $record = $null
+    try {
+        $raw = Get-Content -LiteralPath $statePath -Raw -ErrorAction Stop
+        $record = $raw | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        return $null
+    }
+
+    if ($null -eq $record) {
+        return $null
+    }
+
+    $requiredFields = @('Action', 'HeadSha', 'DotnetVersion', 'Succeeded', 'OutputFiles', 'ScriptHashes')
+    foreach ($field in $requiredFields) {
+        if (-not ($record.PSObject.Properties.Name -contains $field)) {
+            return $null
+        }
+    }
+
+    if ($record.Succeeded -ne $true) { return $null }
+    if (-not (Test-GitWorktreeClean)) { return $null }
+    if ([string]$record.HeadSha -ne (Get-CurrentHeadSha) -or [string]::IsNullOrEmpty([string]$record.HeadSha)) { return $null }
+    if ([string]$record.DotnetVersion -ne (Get-CurrentDotnetVersion) -or [string]::IsNullOrEmpty([string]$record.DotnetVersion)) { return $null }
+    if ([string]$record.Action -ne $Action) { return $null }
+    if ([string]$record.Configuration -ne $Configuration) { return $null }
+    if ([string]$record.TargetFramework -ne $TargetFramework) { return $null }
+
+    $expectedSignature = Get-ParameterSignature -Parameters $Parameters
+    $recordedSignature = if ($record.PSObject.Properties.Name -contains 'ParameterSignature') { [string]$record.ParameterSignature } else { '' }
+    if ($recordedSignature -ne $expectedSignature) { return $null }
+
+    foreach ($outputFile in $OutputFiles) {
+        if (-not (Test-Path -LiteralPath $outputFile -PathType Leaf)) { return $null }
+        if ((Get-Item -LiteralPath $outputFile).Length -le 0) { return $null }
+    }
+
+    foreach ($scriptPath in $RelevantScriptPaths) {
+        if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) { return $null }
+        $relativePath = Get-RelativeScriptPath -FullPath $scriptPath
+        $recordedHash = $null
+        if ($record.ScriptHashes.PSObject.Properties.Name -contains $relativePath) {
+            $recordedHash = $record.ScriptHashes.$relativePath
+        }
+        if (-not $recordedHash) { return $null }
+        $currentHash = (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash
+        if ($currentHash -ne $recordedHash) { return $null }
+    }
+
+    if ($Action -eq 'Test') {
+        # Extra proof for tests specifically: the retained log must still show the same
+        # successful totals, not just be present and non-empty.
+        $currentSummary = Get-TestSummaryFromLog -LogPath $OutputFiles[0]
+        if (-not $currentSummary) { return $null }
+        if ($currentSummary -ne [string]$record.Summary) { return $null }
+        if ($currentSummary -notmatch 'Failed:\s*0\b') { return $null }
+    }
+
+    return $record
+}
+
+function Write-ReuseMessage {
+    param([Parameter(Mandatory = $true)][string]$DisplayName)
+
+    $sha = Get-CurrentHeadSha
+    $shortSha = if ($sha.Length -ge 7) { $sha.Substring(0, 7) } else { $sha }
+    Write-Host "$DisplayName is already current for commit $shortSha. Skipped." -ForegroundColor DarkGray
+}
+
+# --- Reliable native-command runner --------------------------------------------------------
 #
 # Used consistently by every action below. It:
 #   - prints the exact executable and arguments before running anything;
@@ -174,7 +475,8 @@ function New-ActionResult {
         [string]$FailedCommand,
         [int]$ExitCode,
         [string]$LogPath,
-        [string]$Summary
+        [string]$Summary,
+        [bool]$Reused = $false
     )
 
     return [pscustomobject]@{
@@ -185,6 +487,7 @@ function New-ActionResult {
         ExitCode       = $ExitCode
         LogPath        = $LogPath
         Summary        = $Summary
+        Reused         = $Reused
     }
 }
 
@@ -193,7 +496,8 @@ function Write-ActionResult {
 
     Write-Host ''
     if ($Result.Succeeded) {
-        Write-Host "SUCCESS: $($Result.ActionName) completed." -ForegroundColor Green
+        $tag = if ($Result.Reused) { 'SUCCESS (REUSED)' } else { 'SUCCESS' }
+        Write-Host "${tag}: $($Result.ActionName) completed." -ForegroundColor Green
         if ($Result.Summary) { Write-Host "Result: $($Result.Summary)" }
         if ($Result.LogPath) { Write-Host "Log: $($Result.LogPath)" }
     }
@@ -211,13 +515,23 @@ function Write-ActionResult {
 # --- Actions -------------------------------------------------------------------------------
 
 function Invoke-RunTests {
-    Write-Host 'Restoring and running the complete KnownFirst.Tests suite (every unit test). This only compiles and executes tests; nothing is installed or packaged.'
+    Write-Host 'Restores and executes the complete automated test suite only.'
     if ($WhatIf) {
         Write-Host "[WhatIf] Would run: dotnet restore/test on $testProjectPath"
         return New-ActionResult -ActionName 'Test' -Succeeded $true -Summary '[WhatIf] no commands executed.'
     }
 
     $logPath = New-LauncherLogPath -ActionName 'Test'
+    $outputFiles = @($logPath)
+    $relevantScripts = @((Join-Path $scriptRoot 'knownfirst.ps1'))
+
+    $reusable = Test-LauncherStateReusable -StateKey 'Test' -Action 'Test' `
+        -OutputFiles $outputFiles -RelevantScriptPaths $relevantScripts
+    if ($reusable) {
+        Write-ReuseMessage -DisplayName 'Tests'
+        return New-ActionResult -ActionName 'Test' -Succeeded $true -LogPath $outputFiles[0] -Summary $reusable.Summary -Reused $true
+    }
+
     Write-Host "Log: $logPath"
 
     Write-Host 'Stage 1/2: restoring the test project.'
@@ -241,14 +555,49 @@ function Invoke-RunTests {
             -ExitCode $testResult.ExitCode -LogPath $logPath -Summary $summary
     }
 
+    Save-LauncherState -StateKey 'Test' -Action 'Test' -Succeeded $true -Summary $summary `
+        -OutputFiles $outputFiles -RelevantScriptPaths $relevantScripts
+
     return New-ActionResult -ActionName 'Test' -Succeeded $true -LogPath $logPath -Summary $summary
 }
 
+function Get-EffectiveWindowsConfigurations {
+    param([string]$RequestedConfiguration)
+
+    $effective = if ([string]::IsNullOrEmpty($RequestedConfiguration)) { 'All' } else { $RequestedConfiguration }
+    if ($effective -notin @('Debug', 'Release', 'All')) {
+        throw "WindowsBuild does not support Configuration '$effective'. Use Debug, Release, or All."
+    }
+    if ($effective -eq 'All') { return @('Debug', 'Release') }
+    return @($effective)
+}
+
 function Invoke-WindowsBuildAction {
-    Write-Host 'Building the Windows desktop app in Debug and Release. This only compiles the app for local use; it does not package, sign, or publish anything for distribution.'
+    Write-Host 'Compiles the selected Windows configuration and does not create an installer.'
+    $configurations = Get-EffectiveWindowsConfigurations -RequestedConfiguration $Configuration
+
     if ($WhatIf) {
-        Write-Host "[WhatIf] Would run: dotnet build $projectPath -f net10.0-windows10.0.19041.0 (Debug, Release)"
+        Write-Host "[WhatIf] Would run: dotnet build $projectPath -f $windowsTargetFramework ($($configurations -join ', '))"
         return New-ActionResult -ActionName 'WindowsBuild' -Succeeded $true -Summary '[WhatIf] no commands executed.'
+    }
+
+    $relevantScripts = @((Join-Path $scriptRoot 'knownfirst.ps1'))
+    $pending = @()
+    foreach ($configuration in $configurations) {
+        $outputPath = Join-Path $projectRoot "bin\$configuration\$windowsTargetFramework\win-x64\KnownFirst.dll"
+        $reusable = Test-LauncherStateReusable -StateKey "WindowsBuild-$configuration" -Action 'WindowsBuild' `
+            -Configuration $configuration -TargetFramework $windowsTargetFramework `
+            -OutputFiles @($outputPath) -RelevantScriptPaths $relevantScripts
+        if ($reusable) {
+            Write-ReuseMessage -DisplayName "Windows $configuration"
+        }
+        else {
+            $pending += $configuration
+        }
+    }
+
+    if ($pending.Count -eq 0) {
+        return New-ActionResult -ActionName 'WindowsBuild' -Succeeded $true -Summary 'All requested configurations reused.' -Reused $true
     }
 
     $logPath = New-LauncherLogPath -ActionName 'WindowsBuild'
@@ -262,9 +611,9 @@ function Invoke-WindowsBuildAction {
             -ExitCode $restoreResult.ExitCode -LogPath $logPath
     }
 
-    foreach ($configuration in @('Debug', 'Release')) {
+    foreach ($configuration in $pending) {
         $buildResult = Invoke-KnownFirstCommand -StepName "Windows $configuration build" -FilePath 'dotnet' -CommandArguments @(
-            'build', $projectPath, '-c', $configuration, '-f', 'net10.0-windows10.0.19041.0', '--no-restore'
+            'build', $projectPath, '-c', $configuration, '-f', $windowsTargetFramework, '--no-restore'
         ) -LogPath $logPath
         if (-not $buildResult.Succeeded) {
             return New-ActionResult -ActionName 'WindowsBuild' -Succeeded $false `
@@ -272,26 +621,82 @@ function Invoke-WindowsBuildAction {
                 -ExitCode $buildResult.ExitCode -LogPath $logPath
         }
 
-        $outputPath = Join-Path $projectRoot "bin\$configuration\net10.0-windows10.0.19041.0\win-x64\KnownFirst.dll"
+        $outputPath = Join-Path $projectRoot "bin\$configuration\$windowsTargetFramework\win-x64\KnownFirst.dll"
         Write-Host "Output ($configuration): $outputPath"
+        Save-LauncherState -StateKey "WindowsBuild-$configuration" -Action 'WindowsBuild' `
+            -Configuration $configuration -TargetFramework $windowsTargetFramework -Succeeded $true `
+            -OutputFiles @($outputPath) -RelevantScriptPaths $relevantScripts
     }
 
     return New-ActionResult -ActionName 'WindowsBuild' -Succeeded $true -LogPath $logPath
 }
 
+function Get-EffectiveAndroidPackageConfigurations {
+    param([string]$RequestedConfiguration)
+
+    $effective = if ([string]::IsNullOrEmpty($RequestedConfiguration)) { 'All' } else { $RequestedConfiguration }
+    if ($effective -notin @('Debug', 'Diagnostic', 'Release', 'All')) {
+        throw "AndroidTestPackage does not support Configuration '$effective'. Use Debug, Diagnostic, Release, or All."
+    }
+    if ($effective -eq 'All') { return @('Debug', 'Diagnostic', 'Release') }
+    return @($effective)
+}
+
 function Invoke-AndroidTestPackageAction {
-    Write-Host 'Creating signed Android APKs for manual sideload testing (release, diagnostic, and debug builds). This is NOT the Google Play bundle, is never uploaded anywhere, and nothing is installed automatically on any device.'
+    Write-Host 'Creates selected signed APKs for manual sideload testing; nothing is installed or uploaded.'
+    $effectiveConfiguration = if ([string]::IsNullOrEmpty($Configuration)) { 'All' } else { $Configuration }
+    $requestedKinds = Get-EffectiveAndroidPackageConfigurations -RequestedConfiguration $Configuration
     $scriptPath = Join-Path $scriptRoot 'publish-android-test-packages.ps1'
     $outputRoot = Join-Path $projectRoot 'artifacts\android-beta'
+
     if ($WhatIf) {
-        Write-Host "[WhatIf] Would run: $scriptPath -> $outputRoot"
+        Write-Host "[WhatIf] Would run: $scriptPath -Configuration $effectiveConfiguration -> $outputRoot"
         return New-ActionResult -ActionName 'AndroidTestPackage' -Succeeded $true -Summary '[WhatIf] no commands executed.'
+    }
+
+    $versionInfo = Get-KnownFirstVersionInfo
+    $relevantScripts = @(
+        (Join-Path $scriptRoot 'knownfirst.ps1'),
+        $scriptPath
+    )
+    $parameters = @{ KeystorePath = $KeystorePath; PasswordFilePath = $PasswordFilePath }
+
+    function Get-AndroidTestPackageOutputFiles {
+        param([Parameter(Mandatory = $true)][string]$Kind)
+        $kindLower = $Kind.ToLowerInvariant()
+        $baseName = "KnownFirst-$($versionInfo.ProductVersion)-android-$kindLower"
+        return @(
+            (Join-Path $outputRoot "$baseName.apk"),
+            (Join-Path $outputRoot "$baseName.zip")
+        )
+    }
+
+    # "All" is treated as reusable only when every one of the three individual packages is
+    # still valid; if any one is stale, the whole requested selection is rebuilt in a single
+    # publish-android-test-packages.ps1 invocation rather than partially re-running (simpler,
+    # never does less work than required, and keeps the packaging script the single owner of
+    # its own build loop).
+    $allReusable = $true
+    foreach ($kind in $requestedKinds) {
+        $reusable = Test-LauncherStateReusable -StateKey "AndroidTestPackage-$kind" -Action 'AndroidTestPackage' `
+            -Configuration $kind -Parameters $parameters `
+            -OutputFiles (Get-AndroidTestPackageOutputFiles -Kind $kind) -RelevantScriptPaths $relevantScripts
+        if (-not $reusable) {
+            $allReusable = $false
+        }
+    }
+
+    if ($allReusable) {
+        foreach ($kind in $requestedKinds) {
+            Write-ReuseMessage -DisplayName "Android $kind test APK"
+        }
+        return New-ActionResult -ActionName 'AndroidTestPackage' -Succeeded $true -Summary 'All requested APKs reused.' -Reused $true
     }
 
     $logPath = New-LauncherLogPath -ActionName 'AndroidTestPackage'
     Write-Host "Log: $logPath"
 
-    $scriptArguments = @()
+    $scriptArguments = @('-Configuration', $effectiveConfiguration)
     if ($KeystorePath) { $scriptArguments += @('-KeystorePath', $KeystorePath) }
     if ($PasswordFilePath) { $scriptArguments += @('-PasswordFilePath', $PasswordFilePath) }
 
@@ -303,17 +708,38 @@ function Invoke-AndroidTestPackageAction {
             -ExitCode $result.ExitCode -LogPath $logPath
     }
 
+    foreach ($kind in $requestedKinds) {
+        Save-LauncherState -StateKey "AndroidTestPackage-$kind" -Action 'AndroidTestPackage' `
+            -Configuration $kind -Parameters $parameters -Succeeded $true `
+            -OutputFiles (Get-AndroidTestPackageOutputFiles -Kind $kind) -RelevantScriptPaths $relevantScripts
+    }
+
     Write-Host "Output: $outputRoot"
     return New-ActionResult -ActionName 'AndroidTestPackage' -Succeeded $true -LogPath $logPath
 }
 
 function Invoke-GooglePlayBundleAction {
-    Write-Host 'Creating the signed Android App Bundle (.aab) for Google Play. This produces a local file only; this script never uploads it to Google Play.'
+    Write-Host 'Creates one signed local App Bundle; nothing is uploaded.'
     $scriptPath = Join-Path $scriptRoot 'publish-google-play-bundle.ps1'
     $outputRoot = Join-Path $projectRoot 'artifacts\android-google-play'
     if ($WhatIf) {
         Write-Host "[WhatIf] Would run: $scriptPath -> $outputRoot"
         return New-ActionResult -ActionName 'GooglePlayBundle' -Succeeded $true -Summary '[WhatIf] no commands executed.'
+    }
+
+    $versionInfo = Get-KnownFirstVersionInfo
+    $aabPath = Join-Path $outputRoot "KnownFirst-$($versionInfo.ProductVersion)-code$($versionInfo.BuildNumber).aab"
+    $relevantScripts = @(
+        (Join-Path $scriptRoot 'knownfirst.ps1'),
+        $scriptPath
+    )
+    $parameters = @{ KeystorePath = $KeystorePath; PasswordFilePath = $PasswordFilePath }
+
+    $reusable = Test-LauncherStateReusable -StateKey 'GooglePlayBundle' -Action 'GooglePlayBundle' `
+        -Parameters $parameters -OutputFiles @($aabPath) -RelevantScriptPaths $relevantScripts
+    if ($reusable) {
+        Write-ReuseMessage -DisplayName 'Google Play AAB'
+        return New-ActionResult -ActionName 'GooglePlayBundle' -Succeeded $true -Reused $true
     }
 
     $logPath = New-LauncherLogPath -ActionName 'GooglePlayBundle'
@@ -331,63 +757,149 @@ function Invoke-GooglePlayBundleAction {
             -ExitCode $result.ExitCode -LogPath $logPath
     }
 
+    Save-LauncherState -StateKey 'GooglePlayBundle' -Action 'GooglePlayBundle' -Parameters $parameters `
+        -Succeeded $true -OutputFiles @($aabPath) -RelevantScriptPaths $relevantScripts
+
     Write-Host "Output: $outputRoot"
     return New-ActionResult -ActionName 'GooglePlayBundle' -Succeeded $true -LogPath $logPath
 }
 
+function Invoke-ValidateAllStep {
+    param(
+        [Parameter(Mandatory = $true)][string]$DisplayName,
+        [Parameter(Mandatory = $true)][string]$StateKey,
+        [Parameter(Mandatory = $true)][string]$Action,
+        [string]$Configuration = '',
+        [string]$TargetFramework = '',
+        [Parameter(Mandatory = $true)][string[]]$OutputFiles,
+        [Parameter(Mandatory = $true)][string[]]$RelevantScriptPaths,
+        [Parameter(Mandatory = $true)][string]$LogPath,
+        [Parameter(Mandatory = $true)][string]$StepName,
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$CommandArguments
+    )
+
+    $reusable = Test-LauncherStateReusable -StateKey $StateKey -Action $Action -Configuration $Configuration `
+        -TargetFramework $TargetFramework -OutputFiles $OutputFiles -RelevantScriptPaths $RelevantScriptPaths
+    if ($reusable) {
+        Write-Host "$DisplayName : REUSED"
+        Write-ReuseMessage -DisplayName $DisplayName
+        Write-Host "$DisplayName : PASSED" -ForegroundColor Green
+        return [pscustomobject]@{ Succeeded = $true; Summary = [string]$reusable.Summary; StepResult = $null }
+    }
+
+    Write-Host "$DisplayName : EXECUTED"
+    $stepResult = Invoke-KnownFirstCommand -StepName $StepName -FilePath $FilePath `
+        -CommandArguments $CommandArguments -LogPath $LogPath
+
+    if (-not $stepResult.Succeeded) {
+        Write-Host "$DisplayName : FAILED" -ForegroundColor Red
+        return [pscustomobject]@{ Succeeded = $false; Summary = $null; StepResult = $stepResult }
+    }
+
+    $summary = if ($Action -eq 'Test') { Get-TestSummaryFromLog -LogPath $LogPath } else { '' }
+    Save-LauncherState -StateKey $StateKey -Action $Action -Configuration $Configuration `
+        -TargetFramework $TargetFramework -Succeeded $true -Summary $summary `
+        -OutputFiles $OutputFiles -RelevantScriptPaths $RelevantScriptPaths
+    Write-Host "$DisplayName : PASSED" -ForegroundColor Green
+    return [pscustomobject]@{ Succeeded = $true; Summary = $summary; StepResult = $stepResult }
+}
+
 function Invoke-ValidateAllAction {
-    Write-Host 'Running the full local validation matrix: restore, the complete test suite, then Windows and Android builds in both Debug and Release. This mirrors what must pass before any release and creates no APK, AAB, or other package.'
+    Write-Host 'Verifies tests and the required Windows and Android builds; it creates no APK or AAB package.'
     if ($WhatIf) {
-        Write-Host '[WhatIf] Would run: restore, dotnet test, and four dotnet build passes (Windows Debug/Release, Android Debug/Release).'
+        Write-Host '[WhatIf] Would evaluate (reuse or run): tests, then Windows Debug/Release and Android Debug/Release builds.'
         return New-ActionResult -ActionName 'ValidateAll' -Succeeded $true -Summary '[WhatIf] no commands executed.'
     }
 
     $logPath = New-LauncherLogPath -ActionName 'ValidateAll'
     Write-Host "Log: $logPath"
+    $launcherScript = @((Join-Path $scriptRoot 'knownfirst.ps1'))
 
-    $stages = @(
-        @{ Number = 1; Name = 'App restore'; FilePath = 'dotnet'; Arguments = @('restore', $projectPath) }
-        @{ Number = 2; Name = 'Test project restore'; FilePath = 'dotnet'; Arguments = @('restore', $testProjectPath) }
-        @{ Number = 3; Name = 'Complete test suite'; FilePath = 'dotnet'; Arguments = @(
-                'test', $testProjectPath, '-c', 'Debug', '--no-restore', '--logger', 'console;verbosity=normal'
-            )
+    # App/test-project restore is required whenever at least one build/test step below is
+    # going to actually execute (not be reused). Restoring is cheap and idempotent, so it is
+    # simplest and safest to always restore both up front rather than trying to predict which
+    # individual steps will need it.
+    $restoreResult = Invoke-KnownFirstCommand -StepName 'App restore' -FilePath 'dotnet' `
+        -CommandArguments @('restore', $projectPath) -LogPath $logPath
+    if (-not $restoreResult.Succeeded) {
+        return New-ActionResult -ActionName 'ValidateAll' -Succeeded $false `
+            -FailedStepName $restoreResult.StepName -FailedCommand $restoreResult.Command `
+            -ExitCode $restoreResult.ExitCode -LogPath $logPath
+    }
+    $testRestoreResult = Invoke-KnownFirstCommand -StepName 'Test project restore' -FilePath 'dotnet' `
+        -CommandArguments @('restore', $testProjectPath) -LogPath $logPath
+    if (-not $testRestoreResult.Succeeded) {
+        return New-ActionResult -ActionName 'ValidateAll' -Succeeded $false `
+            -FailedStepName $testRestoreResult.StepName -FailedCommand $testRestoreResult.Command `
+            -ExitCode $testRestoreResult.ExitCode -LogPath $logPath
+    }
+
+    $steps = @(
+        @{
+            DisplayName = 'Tests'; StateKey = 'Test'; Action = 'Test'
+            OutputFiles = @($logPath); RelevantScriptPaths = $launcherScript
+            StepName = 'Run tests'; FilePath = 'dotnet'
+            CommandArguments = @('test', $testProjectPath, '-c', 'Debug', '--no-restore', '--logger', 'console;verbosity=normal')
         }
-        @{ Number = 4; Name = 'Windows Debug build'; FilePath = 'dotnet'; Arguments = @(
-                'build', $projectPath, '-c', 'Debug', '-f', 'net10.0-windows10.0.19041.0', '--no-restore'
-            )
+        @{
+            DisplayName = 'Windows Debug'; StateKey = 'WindowsBuild-Debug'; Action = 'WindowsBuild'
+            Configuration = 'Debug'; TargetFramework = $windowsTargetFramework
+            OutputFiles = @((Join-Path $projectRoot "bin\Debug\$windowsTargetFramework\win-x64\KnownFirst.dll"))
+            RelevantScriptPaths = $launcherScript
+            StepName = 'Windows Debug build'; FilePath = 'dotnet'
+            CommandArguments = @('build', $projectPath, '-c', 'Debug', '-f', $windowsTargetFramework, '--no-restore')
         }
-        @{ Number = 5; Name = 'Windows Release build'; FilePath = 'dotnet'; Arguments = @(
-                'build', $projectPath, '-c', 'Release', '-f', 'net10.0-windows10.0.19041.0', '--no-restore'
-            )
+        @{
+            DisplayName = 'Windows Release'; StateKey = 'WindowsBuild-Release'; Action = 'WindowsBuild'
+            Configuration = 'Release'; TargetFramework = $windowsTargetFramework
+            OutputFiles = @((Join-Path $projectRoot "bin\Release\$windowsTargetFramework\win-x64\KnownFirst.dll"))
+            RelevantScriptPaths = $launcherScript
+            StepName = 'Windows Release build'; FilePath = 'dotnet'
+            CommandArguments = @('build', $projectPath, '-c', 'Release', '-f', $windowsTargetFramework, '--no-restore')
         }
-        @{ Number = 6; Name = 'Android Debug build'; FilePath = 'dotnet'; Arguments = @(
-                'build', $projectPath, '-c', 'Debug', '-f', 'net10.0-android', '-m:1', '--no-restore'
-            )
+        @{
+            DisplayName = 'Android Debug build'; StateKey = 'AndroidBuildValidation-Debug'; Action = 'AndroidBuildValidation'
+            Configuration = 'Debug'; TargetFramework = $androidTargetFramework
+            OutputFiles = @((Join-Path $projectRoot "bin\Debug\$androidTargetFramework\KnownFirst.dll"))
+            RelevantScriptPaths = $launcherScript
+            StepName = 'Android Debug build'; FilePath = 'dotnet'
+            CommandArguments = @('build', $projectPath, '-c', 'Debug', '-f', $androidTargetFramework, '-m:1', '--no-restore')
         }
-        @{ Number = 7; Name = 'Android Release build'; FilePath = 'dotnet'; Arguments = @(
-                'build', $projectPath, '-c', 'Release', '-f', 'net10.0-android', '-m:1', '--no-restore'
-            )
+        @{
+            DisplayName = 'Android Release build'; StateKey = 'AndroidBuildValidation-Release'; Action = 'AndroidBuildValidation'
+            Configuration = 'Release'; TargetFramework = $androidTargetFramework
+            OutputFiles = @((Join-Path $projectRoot "bin\Release\$androidTargetFramework\KnownFirst.dll"))
+            RelevantScriptPaths = $launcherScript
+            StepName = 'Android Release build'; FilePath = 'dotnet'
+            CommandArguments = @('build', $projectPath, '-c', 'Release', '-f', $androidTargetFramework, '-m:1', '--no-restore')
         }
     )
 
-    $summary = $null
-    foreach ($stage in $stages) {
-        Write-Host "Stage $($stage.Number)/7: $($stage.Name)."
-        $stepResult = Invoke-KnownFirstCommand -StepName $stage.Name -FilePath $stage.FilePath `
-            -CommandArguments $stage.Arguments -LogPath $logPath
+    $overallSummary = $null
+    foreach ($step in $steps) {
+        $stepConfiguration = if ($step.ContainsKey('Configuration')) { $step.Configuration } else { '' }
+        $stepTargetFramework = if ($step.ContainsKey('TargetFramework')) { $step.TargetFramework } else { '' }
+        $outcome = Invoke-ValidateAllStep -DisplayName $step.DisplayName -StateKey $step.StateKey -Action $step.Action `
+            -Configuration $stepConfiguration -TargetFramework $stepTargetFramework `
+            -OutputFiles $step.OutputFiles -RelevantScriptPaths $step.RelevantScriptPaths `
+            -LogPath $logPath -StepName $step.StepName -FilePath $step.FilePath -CommandArguments $step.CommandArguments
 
-        if ($stage.Number -eq 3) {
-            $summary = Get-TestSummaryFromLog -LogPath $logPath
+        if ($step.StateKey -eq 'Test' -and $outcome.Summary) {
+            $overallSummary = $outcome.Summary
         }
 
-        if (-not $stepResult.Succeeded) {
+        if (-not $outcome.Succeeded) {
+            $failedStepName = if ($outcome.StepResult) { $outcome.StepResult.StepName } else { $step.StepName }
+            $failedCommand = if ($outcome.StepResult) { $outcome.StepResult.Command } else { '' }
+            $failedExitCode = if ($outcome.StepResult) { $outcome.StepResult.ExitCode } else { 1 }
             return New-ActionResult -ActionName 'ValidateAll' -Succeeded $false `
-                -FailedStepName $stepResult.StepName -FailedCommand $stepResult.Command `
-                -ExitCode $stepResult.ExitCode -LogPath $logPath -Summary $summary
+                -FailedStepName $failedStepName -FailedCommand $failedCommand `
+                -ExitCode $failedExitCode -LogPath $logPath -Summary $overallSummary
         }
     }
 
-    return New-ActionResult -ActionName 'ValidateAll' -Succeeded $true -LogPath $logPath -Summary $summary
+    return New-ActionResult -ActionName 'ValidateAll' -Succeeded $true -LogPath $logPath -Summary $overallSummary
 }
 
 function Invoke-KnownFirstAction {
@@ -406,8 +918,8 @@ function Invoke-KnownFirstAction {
     catch {
         # Defense in depth: nothing above is expected to throw uncaught (every native/script
         # step goes through Invoke-KnownFirstCommand, which never rethrows), but if something
-        # truly unexpected still escapes, report it the same structured way instead of letting
-        # it crash the launcher or the parent PowerShell host.
+        # truly unexpected still escapes (e.g. a Configuration validation failure), report it
+        # the same structured way instead of letting it crash the launcher or the parent host.
         return New-ActionResult -ActionName $SelectedAction -Succeeded $false -ExitCode 1 `
             -FailedStepName 'Launcher' -FailedCommand $SelectedAction `
             -Summary $_.Exception.Message
@@ -416,44 +928,120 @@ function Invoke-KnownFirstAction {
 
 # --- Menu / entry point ----------------------------------------------------------------
 
-function Show-KnownFirstMenu {
+function Show-WindowsBuildMenu {
     Write-Host ''
-    Write-Host 'KnownFirst build launcher' -ForegroundColor Green
-    Write-Host '1. Run tests'
-    Write-Host '2. Build Windows'
-    Write-Host '3. Create Android test package'
-    Write-Host '4. Create Google Play bundle'
-    Write-Host '5. Validate everything'
-    Write-Host '6. Exit'
+    Write-Host 'Build Windows app' -ForegroundColor Green
+    Write-Host '1. Debug'
+    Write-Host '2. Release'
+    Write-Host '3. Debug and Release'
+    Write-Host '4. Back'
     Write-Host ''
-    $choice = Read-Host 'Choose an option (1-6)'
+    $choice = Read-Host 'Choose an option (1-4)'
 
-    $selectedAction = switch ($choice) {
-        '1' { 'Test' }
-        '2' { 'WindowsBuild' }
-        '3' { 'AndroidTestPackage' }
-        '4' { 'GooglePlayBundle' }
-        '5' { 'ValidateAll' }
-        '6' { $null }
+    $selectedConfiguration = switch ($choice) {
+        '1' { 'Debug' }
+        '2' { 'Release' }
+        '3' { 'All' }
         default { $null }
     }
 
-    if ($choice -eq '6') {
-        Write-Host 'Exiting.'
-        return $false
-    }
-    if (-not $selectedAction) {
-        Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
-        return $true
+    if ($choice -eq '4' -or -not $selectedConfiguration) {
+        if ($choice -ne '4') {
+            Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
+        }
+        return
     }
 
-    $result = Invoke-KnownFirstAction -SelectedAction $selectedAction
+    $script:Configuration = $selectedConfiguration
+    $result = Invoke-KnownFirstAction -SelectedAction 'WindowsBuild'
     Write-ActionResult -Result $result
     if (-not $result.Succeeded) {
         Read-Host 'Press Enter to return to the menu'
     }
+}
 
-    return $true
+function Show-AndroidTestPackageMenu {
+    Write-Host ''
+    Write-Host 'Build Android test APK' -ForegroundColor Green
+    Write-Host '1. Debug APK'
+    Write-Host '2. Diagnostic APK'
+    Write-Host '3. Release APK'
+    Write-Host '4. All test APKs'
+    Write-Host '5. Back'
+    Write-Host ''
+    $choice = Read-Host 'Choose an option (1-5)'
+
+    $selectedConfiguration = switch ($choice) {
+        '1' { 'Debug' }
+        '2' { 'Diagnostic' }
+        '3' { 'Release' }
+        '4' { 'All' }
+        default { $null }
+    }
+
+    if ($choice -eq '5' -or -not $selectedConfiguration) {
+        if ($choice -ne '5') {
+            Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
+        }
+        return
+    }
+
+    $script:Configuration = $selectedConfiguration
+    $result = Invoke-KnownFirstAction -SelectedAction 'AndroidTestPackage'
+    Write-ActionResult -Result $result
+    if (-not $result.Succeeded) {
+        Read-Host 'Press Enter to return to the menu'
+    }
+}
+
+function Show-KnownFirstMenu {
+    Write-Host ''
+    Write-Host 'KnownFirst build launcher' -ForegroundColor Green
+    Write-Host '1. Run all automated tests'
+    Write-Host '2. Build Windows app'
+    Write-Host '3. Build Android test APK'
+    Write-Host '4. Create Google Play AAB'
+    Write-Host '5. Validate current source'
+    Write-Host '6. Exit'
+    Write-Host ''
+    $choice = Read-Host 'Choose an option (1-6)'
+
+    switch ($choice) {
+        '1' {
+            $result = Invoke-KnownFirstAction -SelectedAction 'Test'
+            Write-ActionResult -Result $result
+            if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
+            return $true
+        }
+        '2' {
+            Show-WindowsBuildMenu
+            return $true
+        }
+        '3' {
+            Show-AndroidTestPackageMenu
+            return $true
+        }
+        '4' {
+            $result = Invoke-KnownFirstAction -SelectedAction 'GooglePlayBundle'
+            Write-ActionResult -Result $result
+            if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
+            return $true
+        }
+        '5' {
+            $result = Invoke-KnownFirstAction -SelectedAction 'ValidateAll'
+            Write-ActionResult -Result $result
+            if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
+            return $true
+        }
+        '6' {
+            Write-Host 'Exiting.'
+            return $false
+        }
+        default {
+            Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
+            return $true
+        }
+    }
 }
 
 if ($Action) {

@@ -87,4 +87,85 @@ public sealed class PortableArchiveExportGuardTests
             File.Delete(path);
         }
     }
+
+    [TestMethod]
+    public async Task VerifySavedArchiveAsync_WithNonSeekableNonEmptyStream_DoesNotThrow()
+    {
+        await PortableArchiveExportGuard.VerifySavedArchiveAsync(
+            () => new NonSeekableStream([1, 2, 3]),
+            CancellationToken.None);
+    }
+
+    [TestMethod]
+    public async Task VerifySavedArchiveAsync_WithNonSeekableEmptyStream_Throws()
+    {
+        await Assert.ThrowsExactlyAsync<IOException>(() =>
+            PortableArchiveExportGuard.VerifySavedArchiveAsync(
+                () => new NonSeekableStream([]),
+                CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task VerifySavedArchiveAsync_WithNullStream_Throws()
+    {
+        await Assert.ThrowsExactlyAsync<IOException>(() =>
+            PortableArchiveExportGuard.VerifySavedArchiveAsync(
+                () => null,
+                CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task VerifySavedArchiveAsync_WhenCancelled_PropagatesCancellation()
+    {
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(() =>
+            PortableArchiveExportGuard.VerifySavedArchiveAsync(
+                () => new NonSeekableStream([1, 2, 3]),
+                cancellationSource.Token));
+    }
+
+    // Mimics an Android ContentResolver stream: non-seekable, throws on Length/Position.
+    private sealed class NonSeekableStream(byte[] data) : Stream
+    {
+        private readonly MemoryStream _inner = new(data);
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            _inner.ReadAsync(buffer, offset, count, cancellationToken);
+
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+
+        public override void Flush() => _inner.Flush();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
 }

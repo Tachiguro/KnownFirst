@@ -639,6 +639,12 @@
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Согласие на онлайн-поиск отозвано.</value>
   </data>
+  <data name="Settings_ActivateOnlineConsent" xml:space="preserve">
+    <value>Активировать онлайн-словарь</value>
+  </data>
+  <data name="Settings_OnlineConsentActivated" xml:space="preserve">
+    <value>Онлайн-поиск в словаре активирован.</value>
+  </data>
   <data name="Prepare_Loading" xml:space="preserve">
     <value>Загрузка подготовки слов…</value>
   </data>

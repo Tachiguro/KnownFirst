@@ -13,6 +13,9 @@ and uses the application's prerelease version identifiers.
 ### Fixed
 
 - Russian translation targets now work correctly for German-to-Russian and English-to-Russian text imports. `TextReviewService` previously re-validated `ExplanationLanguage`/`TargetLanguage` against a local English/German-only set and rejected `ru` before the lexical lookup started, even though `LexicalLookupLanguagePolicy` already supported Russian as a translation target. The duplicated, incorrect validation was removed; `LexicalLookupLanguagePolicy` is now the sole authority for source/target language capability.
+- Android portable data export no longer reports a false failure after a successful write. `AndroidPortableArchiveFileService` verified the saved destination with `Stream.Length`, which non-seekable Android content-provider streams can throw on even though the archive was written correctly. Verification now opens the destination and reads a single byte instead, which works for both seekable and non-seekable streams. This was a verification defect, not archive corruption.
+- The Settings portable-import confirmation no longer overlaps the Data Export/Data Import actions. The normal action row is now hidden while the confirmation panel is visible and is restored on Cancel, on validation failure, or after the import completes.
+- Home and the burger menu now refresh immediately after a successful portable import or a successful full data reset, instead of requiring navigation to another page first.
 
 ### Changed
 
@@ -22,6 +25,7 @@ and uses the application's prerelease version identifiers.
 ### Added
 
 - A localized Beta 12 What's New entry (English, German, Russian) covering the Russian-translation-target fix, the simplified Definition/Translation import choice, and the continued absence of Russian source-text analysis.
+- Settings now offers an explicit "Activate online dictionary" action, with the binding online-lookup disclosure, when consent has not been granted. Portable archives continue to exclude online-lookup consent and preferences; importing an archive or resetting local data does not grant or restore consent. Users must grant consent independently after installation or restore.
 
 ## [1.0.0-beta.11] - 2026-07-25 (merged via PR #22)
 

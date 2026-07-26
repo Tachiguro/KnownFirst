@@ -1,5 +1,6 @@
 ﻿@implements IDisposable
 @inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
+@inject KnownFirst.Services.Study.IWorkflowChangeNotifier WorkflowChangeNotifier
 @inject NavigationManager Navigation
 @inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
 
@@ -105,15 +106,24 @@
     protected override async Task OnInitializedAsync()
     {
         Navigation.LocationChanged += OnLocationChanged;
+        WorkflowChangeNotifier.Changed += OnWorkflowChanged;
         await LoadWorkflowAsync();
     }
 
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        WorkflowChangeNotifier.Changed -= OnWorkflowChanged;
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs eventArgs) =>
+        _ = InvokeAsync(async () =>
+        {
+            await LoadWorkflowAsync();
+            StateHasChanged();
+        });
+
+    private void OnWorkflowChanged(object? sender, EventArgs eventArgs) =>
         _ = InvokeAsync(async () =>
         {
             await LoadWorkflowAsync();

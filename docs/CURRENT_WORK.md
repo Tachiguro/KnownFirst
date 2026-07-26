@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-25
+2026-07-26
 
 ## Repository
 
@@ -21,8 +21,11 @@
 
 ## Current branch
 
-- Branch: `hotfix/beta-12-russian-translation` (Russian-translation-target hotfix and combined-lookup removal, uncommitted)
+- Branch: `hotfix/beta-12-russian-translation`
 - Base: `7076aa4ac0617bd55ff97821ea69dc6b0e1228b0`
+- HEAD (committed): `c0ff28ecb189f5496182f3489af5de721d97add7` ("fix: enable Russian translation targets in Beta 12")
+- PR #23 is open against this branch and must not be merged as part of this task.
+- Uncommitted on top of HEAD: the four Beta 12 Android smoke-test corrections below (export verification, import confirmation layout, workflow-state refresh, online dictionary activation). Not staged or committed.
 
 ## Completed recently (this branch)
 
@@ -31,6 +34,13 @@
 - `DefinitionAndTranslation` remains a valid enum member for reading/processing existing database rows, preparation state, and portable archives; `BackupLexicalLookupMode` numeric/string mappings are unchanged.
 - Product/display version raised to `1.0.0-beta.12`; Android build/version code raised to `12`. Package ID, database schema (`7`), signing configuration, and portable archive format are unchanged.
 - Added a localized Beta 12 What's New catalog entry (English, German, Russian) covering the Russian-translation-target fix, the simplified Definition/Translation import choice, and the continued absence of Russian source-text analysis.
+
+### Uncommitted Android smoke-test corrections (this session)
+
+- **Root cause fixed (KF-EXPORT-001):** `AndroidPortableArchiveFileService.ExportAsync` verified the saved destination with `verifyStream.Length`, which non-seekable Android `ContentResolver` streams can throw `NotSupportedException` on even after a fully successful write. This was a verification defect, not archive corruption. Replaced with `PortableArchiveExportGuard.VerifySavedArchiveAsync`, which opens the destination and reads a single byte without touching `Length`/`Position`; works on seekable and non-seekable streams alike. Archive creation, checksums, validation, and import checks are unchanged.
+- **KF-UX-001 implemented:** `Settings.razor` now hides the Data Export/Data Import action row entirely while the portable-import confirmation panel is visible, and restores it on Cancel, on validation failure, or after the import completes (success or failure).
+- **KF-STATE-001 implemented:** added `IWorkflowChangeNotifier`/`WorkflowChangeNotifier` (registered as a singleton in `MauiProgram.cs`). `NavMenu` and `Home` subscribe in `OnInitializedAsync`, reload `WorkflowState`/statistics and call `StateHasChanged` on notification, and unsubscribe via `IDisposable`. `Settings.razor` publishes only after a successfully completed portable import (`PortableImportStatus.Success`) and after a successful full data reset; cancelled or failed operations never publish.
+- **KF-CONSENT-001 implemented:** Settings now shows the binding online-lookup disclosure (`Prepare_OnlineDisclosureTitle`/`Prepare_OnlineDisclosure`) and an explicit "Activate online dictionary" action when `IAppSettingsService.HasOnlineLookupConsent` is false; activation calls `GrantOnlineLookupConsent` directly. The existing revoke action remains available after activation. Portable archives still never capture or restore online-lookup consent or preferences (`BackupSnapshotRepository`/`BackupImportRepository` never reference `Preferences.Default` or consent). Restoring or resetting does not grant consent; users must activate it independently.
 
 ## Completed on master (prior branches, already merged)
 
@@ -70,19 +80,21 @@
 ## Relevant files for the next task
 
 - [BACKLOG.md](BACKLOG.md)
-- `Services/TextReviewService.cs`
-- `KnownFirst.Core/Preparation/LexicalModels.cs`
-- `Models/TextReviewModels.cs`
-- `Components/Pages/ImportText.razor`
-- `KnownFirst.csproj`
-- `Services/ReleaseNotesService.cs`
+- `Services/DataSafety/PortableArchiveExportGuard.cs`
+- `Platforms/Android/AndroidPortableArchiveFileService.cs`
+- `Components/Pages/Settings.razor`
+- `Services/Study/IWorkflowChangeNotifier.cs`, `Services/Study/WorkflowChangeNotifier.cs`
+- `Components/Layout/NavMenu.razor`, `Components/Pages/Home.razor`
+- `MauiProgram.cs`
 - `Resources/Localization/SharedResource*.resx`
-- `KnownFirst.Tests/TextReviewServiceTests.cs`
-- `KnownFirst.Tests/ReleaseNotesTests.cs`
+- `KnownFirst.Tests/PortableArchiveExportGuardTests.cs`
+- `KnownFirst.Tests/WorkflowChangeNotifierTests.cs`
+- `KnownFirst.Tests/UiWorkflowContractTests.cs`
+- `KnownFirst.Tests/LocalizationResourceTests.cs`
 
 ## Next exact action
 
-Run local validation (`scripts\knownfirst.ps1`) on the uncommitted `hotfix/beta-12-russian-translation` changes; once tests and builds pass, decide whether to commit/push/open a PR, then continue with planned sequence item 2 (Support/Report-a-bug controls).
+Run local validation (`scripts\knownfirst.ps1`, or the targeted `dotnet test` filters in this task's report) on the uncommitted Android smoke-test corrections (export verification, import confirmation layout, workflow-state refresh, online dictionary activation); everything remains unstaged and uncommitted pending explicit authorization to commit/push. PR #23 stays open and unmerged. Once validated, continue with planned sequence item 2 (Support/Report-a-bug controls).
 
 ## New-chat handoff
 

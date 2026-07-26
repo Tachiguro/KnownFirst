@@ -639,6 +639,12 @@
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Online lookup consent was revoked.</value>
   </data>
+  <data name="Settings_ActivateOnlineConsent" xml:space="preserve">
+    <value>Activate online dictionary</value>
+  </data>
+  <data name="Settings_OnlineConsentActivated" xml:space="preserve">
+    <value>Online dictionary lookup was activated.</value>
+  </data>
   <data name="Prepare_Loading" xml:space="preserve">
     <value>Loading vocabulary preparation…</value>
   </data>

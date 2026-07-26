@@ -647,6 +647,108 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Settings_PortableImportConfirmationHidesTheNormalDataActionsRowAndRestoresOnCancel()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var actionsRowStart = markup.IndexOf("@if (!_showImportConfirmation)", StringComparison.Ordinal);
+        var confirmationStart = markup.IndexOf(
+            "@if (_showImportConfirmation && _portableImportSelection is not null)",
+            StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, actionsRowStart);
+        Assert.IsGreaterThanOrEqualTo(0, confirmationStart);
+        Assert.IsGreaterThan(actionsRowStart, confirmationStart);
+
+        var actionsRow = markup[actionsRowStart..confirmationStart];
+        Assert.Contains("Settings_DataExport", actionsRow);
+        Assert.Contains("Settings_DataImport", actionsRow);
+        Assert.Contains("CancelPortableImportAsync", markup);
+        Assert.Contains("_showImportConfirmation = false", markup);
+    }
+
+    [TestMethod]
+    public void WorkflowChangeNotifier_NavMenuAndHomeSubscribeReloadAndUnsubscribeOnDisposal()
+    {
+        var navMenu = LoadUi("NavMenu.razor");
+        var home = LoadUi("Home.razor");
+
+        Assert.Contains("@implements IDisposable", navMenu);
+        Assert.Contains("@implements IDisposable", home);
+        Assert.Contains("IWorkflowChangeNotifier WorkflowChangeNotifier", navMenu);
+        Assert.Contains("IWorkflowChangeNotifier WorkflowChangeNotifier", home);
+        Assert.Contains("WorkflowChangeNotifier.Changed += OnWorkflowChanged", navMenu);
+        Assert.Contains("WorkflowChangeNotifier.Changed += OnWorkflowChanged", home);
+        Assert.Contains("WorkflowChangeNotifier.Changed -= OnWorkflowChanged", navMenu);
+        Assert.Contains("WorkflowChangeNotifier.Changed -= OnWorkflowChanged", home);
+        Assert.Contains("await LoadWorkflowAsync()", navMenu);
+        Assert.Contains("await LoadStatisticsAsync()", home);
+        Assert.Contains("StateHasChanged()", navMenu);
+        Assert.Contains("StateHasChanged()", home);
+    }
+
+    [TestMethod]
+    public void WorkflowChangeNotifier_PublishesOnlyAfterSuccessfulImportOrReset()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var importStart = markup.IndexOf("private async Task ImportPortableDataAsync()", StringComparison.Ordinal);
+        var importEnd = markup.IndexOf("private async Task CancelPortableImportAsync()", importStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, importStart);
+        Assert.IsGreaterThan(importStart, importEnd);
+        var importMethod = markup[importStart..importEnd];
+        Assert.Contains("PortableImportStatus.Success", importMethod);
+        Assert.Contains("WorkflowChangeNotifier.NotifyChanged()", importMethod);
+
+        var resetStart = markup.IndexOf("private async Task ResetDataAsync()", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, resetStart);
+        var resetMethod = markup[resetStart..];
+        var successIndex = resetMethod.IndexOf("_resetSucceeded = true", StringComparison.Ordinal);
+        var notifyIndex = resetMethod.IndexOf("WorkflowChangeNotifier.NotifyChanged()", StringComparison.Ordinal);
+        var catchIndex = resetMethod.IndexOf("catch (Exception exception)", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, successIndex);
+        Assert.IsGreaterThanOrEqualTo(0, notifyIndex);
+        Assert.IsGreaterThan(successIndex, notifyIndex);
+        Assert.IsGreaterThan(notifyIndex, catchIndex);
+    }
+
+    [TestMethod]
+    public void Settings_OfferOnlineDictionaryActivationWithDisclosureWhenConsentIsAbsent()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var sectionStart = markup.IndexOf("id=\"online-lookup-title\"", StringComparison.Ordinal);
+        var sectionEnd = markup.IndexOf("<section class=\"settings-card\" aria-labelledby=\"portable-data-title\">", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, sectionStart);
+        Assert.IsGreaterThan(sectionStart, sectionEnd);
+        var section = markup[sectionStart..sectionEnd];
+
+        Assert.Contains("Prepare_OnlineDisclosureTitle", section);
+        Assert.Contains("Prepare_OnlineDisclosure", section);
+        Assert.Contains("Settings_ActivateOnlineConsent", section);
+        Assert.Contains("ActivateOnlineConsent", section);
+        Assert.Contains("Settings_RevokeOnlineConsent", section);
+        Assert.Contains("RevokeOnlineConsent", section);
+        Assert.Contains("AppSettings.HasOnlineLookupConsent", section);
+
+        Assert.Contains("AppSettings.GrantOnlineLookupConsent()", markup);
+        Assert.Contains("_onlineConsentActivated = true", markup);
+        Assert.Contains("_onlineConsentRevoked = false", markup);
+    }
+
+    [TestMethod]
+    public void PortableArchive_NeverCapturesOrRestoresOnlineLookupConsentOrPreferences()
+    {
+        var snapshotRepository = LoadUi("BackupSnapshotRepository.cs");
+        var importRepository = LoadUi("BackupImportRepository.cs");
+
+        Assert.DoesNotContain("Consent", snapshotRepository, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Consent", importRepository, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Preferences.Default", snapshotRepository);
+        Assert.DoesNotContain("Preferences.Default", importRepository);
+    }
+
+    [TestMethod]
     public void LexicalDiagnostics_AreGuardedAndExposeOnlyTheRequestedSettingsActions()
     {
         var settings = LoadUi("Settings.razor");

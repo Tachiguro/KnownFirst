@@ -89,6 +89,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IPreparationService, PreparationService>();
         builder.Services.AddSingleton<ILearningService, LearningService>();
         builder.Services.AddSingleton<IWorkflowStateService, WorkflowStateService>();
+        builder.Services.AddSingleton<IWorkflowChangeNotifier, WorkflowChangeNotifier>();
         builder.Services.AddSingleton<IStartupMaintenanceService, StartupMaintenanceService>();
 
 #if DEBUG

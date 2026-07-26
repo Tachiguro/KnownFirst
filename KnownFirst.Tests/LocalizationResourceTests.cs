@@ -246,6 +246,8 @@ public sealed class LocalizationResourceTests
         "Settings_OnlineConsentNotGranted",
         "Settings_RevokeOnlineConsent",
         "Settings_OnlineConsentRevoked",
+        "Settings_ActivateOnlineConsent",
+        "Settings_OnlineConsentActivated",
         "Prepare_Loading",
         "Prepare_LoadError",
         "Prepare_OnlineDisclosureTitle",

@@ -639,6 +639,12 @@
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Die Einwilligung zur Online-Abfrage wurde widerrufen.</value>
   </data>
+  <data name="Settings_ActivateOnlineConsent" xml:space="preserve">
+    <value>Online-Wörterbuch aktivieren</value>
+  </data>
+  <data name="Settings_OnlineConsentActivated" xml:space="preserve">
+    <value>Die Online-Wörterbuchabfrage wurde aktiviert.</value>
+  </data>
   <data name="Prepare_Loading" xml:space="preserve">
     <value>Wortschatzvorbereitung wird geladen…</value>
   </data>

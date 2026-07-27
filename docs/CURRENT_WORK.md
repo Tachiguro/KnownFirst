@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-25
+2026-07-26
 
 ## Repository
 
@@ -13,27 +13,40 @@
 
 ## Stable baseline
 
-- Stable master baseline: `52e74f2aa4ec0f071d99232eca1d4dde5a1d5110` (PR #21 merge commit)
-- App version on master: 1.0.0-beta.10 (build 10) — master already contains the Russian UI/translation-target work (PR #20) and the learning repeat/direction clarity fix (PR #21), but the product version metadata was not yet bumped
+- Stable master baseline: `7076aa4ac0617bd55ff97821ea69dc6b0e1228b0` (PR #22 merge commit)
+- App version on master: `1.0.0-beta.11` (build 11) — master already contains Russian UI/translation-target support (PR #20), the learning repeat/direction clarity fix (PR #21), and the Beta 11 identity bump and What's New content (PR #22)
 - Database schema: SQLite `PRAGMA user_version` 7 (unchanged)
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
 - Solution: KnownFirst.slnx
 
 ## Current branch
 
-- Branch: `release/beta-11-russian-internal-test` (release-candidate identity bump and What's New content, uncommitted)
-- Base: `52e74f2aa4ec0f071d99232eca1d4dde5a1d5110`
+- Branch: `hotfix/beta-12-russian-translation`
+- Base: `7076aa4ac0617bd55ff97821ea69dc6b0e1228b0`
+- HEAD (committed): `c0ff28ecb189f5496182f3489af5de721d97add7` ("fix: enable Russian translation targets in Beta 12")
+- PR #23 is open against this branch and must not be merged as part of this task.
+- Uncommitted on top of HEAD: the four Beta 12 Android smoke-test corrections below (export verification, import confirmation layout, workflow-state refresh, online dictionary activation). Not staged or committed.
 
 ## Completed recently (this branch)
 
-- Product/display version raised to `1.0.0-beta.11`; Android build/version code raised to `11`. Package ID, database schema (`7`), signing configuration, and portable archive format are unchanged.
-- Added a localized Beta 11 What's New catalog entry (English, German, Russian) covering: Russian UI added; System language now follows the device; Russian as a translation target for English/German; learning-card direction display; the Again-repeat badge; Russian source-text analysis still unsupported.
-- Extended `ReleaseNotesTests.cs` and `LocalizationResourceTests`-style resource checks for the Beta 11 identity and release-note content across all three locales.
+- **Root cause fixed (KF-LANG-001):** `TextReviewService.ValidateImport` incorrectly re-validated `ExplanationLanguage`/`TargetLanguage` against a local English/German-only set, rejecting valid German-to-Russian and English-to-Russian imports before the lexical lookup started, even though `LexicalLookupLanguagePolicy` already supported Russian as a translation target. The duplicated, incorrect check was removed; `LexicalLookupLanguagePolicy.Validate` is now the sole authority.
+- Removed the combined Definition-and-Translation choice from the Import Text selector; only Definition and Translation remain user-selectable. The compatibility `ImportTextRequest` and `LexicalLookupRequest` constructors now produce `Translation` (not `DefinitionAndTranslation`) when source and explanation languages differ. New imports that explicitly request `DefinitionAndTranslation` are rejected at the `TextReviewService.ValidateImport` boundary.
+- `DefinitionAndTranslation` remains a valid enum member for reading/processing existing database rows, preparation state, and portable archives; `BackupLexicalLookupMode` numeric/string mappings are unchanged.
+- Product/display version raised to `1.0.0-beta.12`; Android build/version code raised to `12`. Package ID, database schema (`7`), signing configuration, and portable archive format are unchanged.
+- Added a localized Beta 12 What's New catalog entry (English, German, Russian) covering the Russian-translation-target fix, the simplified Definition/Translation import choice, and the continued absence of Russian source-text analysis.
+
+### Uncommitted Android smoke-test corrections (this session)
+
+- **Root cause fixed (KF-EXPORT-001):** `AndroidPortableArchiveFileService.ExportAsync` verified the saved destination with `verifyStream.Length`, which non-seekable Android `ContentResolver` streams can throw `NotSupportedException` on even after a fully successful write. This was a verification defect, not archive corruption. Replaced with `PortableArchiveExportGuard.VerifySavedArchiveAsync`, which opens the destination and reads a single byte without touching `Length`/`Position`; works on seekable and non-seekable streams alike. Archive creation, checksums, validation, and import checks are unchanged.
+- **KF-UX-001 implemented:** `Settings.razor` now hides the Data Export/Data Import action row entirely while the portable-import confirmation panel is visible, and restores it on Cancel, on validation failure, or after the import completes (success or failure).
+- **KF-STATE-001 implemented:** added `IWorkflowChangeNotifier`/`WorkflowChangeNotifier` (registered as a singleton in `MauiProgram.cs`). `NavMenu` and `Home` subscribe in `OnInitializedAsync`, reload `WorkflowState`/statistics and call `StateHasChanged` on notification, and unsubscribe via `IDisposable`. `Settings.razor` publishes only after a successfully completed portable import (`PortableImportStatus.Success`) and after a successful full data reset; cancelled or failed operations never publish.
+- **KF-CONSENT-001 implemented:** Settings now shows the binding online-lookup disclosure (`Prepare_OnlineDisclosureTitle`/`Prepare_OnlineDisclosure`) and an explicit "Activate online dictionary" action when `IAppSettingsService.HasOnlineLookupConsent` is false; activation calls `GrantOnlineLookupConsent` directly. The existing revoke action remains available after activation. Portable archives still never capture or restore online-lookup consent or preferences (`BackupSnapshotRepository`/`BackupImportRepository` never reference `Preferences.Default` or consent). Restoring or resetting does not grant consent; users must activate it independently.
 
 ## Completed on master (prior branches, already merged)
 
 - Russian application-interface localization (PR #20): `Resources/Localization/SharedResource.ru.resx` with full key parity against English and German; explicit persisted System language preference that re-resolves the device culture on every start; Russian accepted as a translation target for English/German source texts; Russian explicitly rejected as a source language.
 - Learning repeat/direction clarity (PR #21, [KF-LEARN-001](BACKLOG.md)): the Learn card view exposes card direction and `IsAgainRepeat`; `Learn.razor` renders a secondary direction label and a "Repeat" badge so a legitimate Again-repeat or opposite-direction card is no longer visually indistinguishable from a first-time card.
+- Beta 11 release-candidate identity and What's New content (PR #22): version/build raised to `1.0.0-beta.11`/`11`; localized Beta 11 What's New entry added.
 
 ## Explicitly deferred (not in this branch)
 
@@ -43,12 +56,12 @@
 
 - "Support KnownFirst" and "Report a bug" in Settings are placeholders (identical no-op handler); not gated out of Release builds.
 - Deterministic GUI automation (Appium/UiAutomator2 or equivalent) is not yet implemented; GUI verification remains manual per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md).
-- Public Google Play release is intentionally blocked; current distribution is Internal Testing only. Beta 11 is intended for Internal Testing, including testing by the user's father.
-- Native-speaker wording review of the Russian resource (including the new Beta 11 bullets) has not been performed; translations are complete but unreviewed by a native speaker.
+- Public Google Play release is intentionally blocked; current distribution is Internal Testing only. Beta 12 is intended for Internal Testing, including testing by the user's father, once validated.
+- Native-speaker wording review of the Russian resource (including the new Beta 11 and Beta 12 bullets) has not been performed; translations are complete but unreviewed by a native speaker.
 
 ## Active planned sequence
 
-1. Validate and, once approved, commit/push/PR the Beta 11 release-candidate branch `release/beta-11-russian-internal-test` (version/build bump and What's New content only; no AAB yet).
+1. Validate (tests, builds) the Beta 12 hotfix branch `hotfix/beta-12-russian-translation`, then commit/push/PR once approved (no AAB yet).
 2. Functional "Support KnownFirst" and "Report a bug" controls (or explicit removal/gating decision).
 3. Reopenable release notes / release-note history access from Settings.
 4. Deterministic Android GUI automation feasibility and first implementation.
@@ -62,18 +75,26 @@
 - No Russian source-text import yet.
 - No public Google Play promotion yet.
 - No AAB, signed package, or Play upload created in this branch.
+- No database migration and no schema change; schema remains 7.
 
 ## Relevant files for the next task
 
 - [BACKLOG.md](BACKLOG.md)
-- `KnownFirst.csproj`
-- `Services/ReleaseNotesService.cs`
+- `Services/DataSafety/PortableArchiveExportGuard.cs`
+- `Platforms/Android/AndroidPortableArchiveFileService.cs`
+- `Components/Pages/Settings.razor`
+- `Services/Study/IWorkflowChangeNotifier.cs`, `Services/Study/WorkflowChangeNotifier.cs`
+- `Components/Layout/NavMenu.razor`, `Components/Pages/Home.razor`
+- `MauiProgram.cs`
 - `Resources/Localization/SharedResource*.resx`
-- `KnownFirst.Tests/ReleaseNotesTests.cs`
+- `KnownFirst.Tests/PortableArchiveExportGuardTests.cs`
+- `KnownFirst.Tests/WorkflowChangeNotifierTests.cs`
+- `KnownFirst.Tests/UiWorkflowContractTests.cs`
+- `KnownFirst.Tests/LocalizationResourceTests.cs`
 
 ## Next exact action
 
-Review the uncommitted `release/beta-11-russian-internal-test` identity bump and What's New content, decide whether to commit/push/open a PR, and continue with planned sequence item 2 (Support/Report-a-bug controls).
+Run local validation (`scripts\knownfirst.ps1`, or the targeted `dotnet test` filters in this task's report) on the uncommitted Android smoke-test corrections (export verification, import confirmation layout, workflow-state refresh, online dictionary activation); everything remains unstaged and uncommitted pending explicit authorization to commit/push. PR #23 stays open and unmerged. Once validated, continue with planned sequence item 2 (Support/Report-a-bug controls).
 
 ## New-chat handoff
 

@@ -18,12 +18,6 @@ public sealed class TextReviewService(
     TextAnalyzer analyzer,
     ILogger<TextReviewService>? logger = null) : ITextReviewService
 {
-    private static readonly HashSet<string> SupportedLanguages = new(StringComparer.Ordinal)
-    {
-        "de",
-        "en"
-    };
-
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly ILogger<TextReviewService> _logger =
         logger ?? NullLogger<TextReviewService>.Instance;
@@ -1153,10 +1147,11 @@ public sealed class TextReviewService(
             throw new ArgumentException("Document text is required.", nameof(request));
         }
 
-        if (!SupportedLanguages.Contains(request.TextLanguage)
-            || !SupportedLanguages.Contains(request.ExplanationLanguage))
+        if (request.LookupMode == LexicalLookupMode.DefinitionAndTranslation)
         {
-            throw new ArgumentException("Only English and German are supported.", nameof(request));
+            throw new ArgumentException(
+                "New text imports must use Definition or Translation, not the combined legacy mode.",
+                nameof(request));
         }
 
         LexicalLookupLanguagePolicy.Validate(

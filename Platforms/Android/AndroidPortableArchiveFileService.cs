@@ -57,13 +57,9 @@ public sealed class AndroidPortableArchiveFileService : IPortableArchiveFileServ
             await output.FlushAsync(cancellationToken);
         }
 
-        using (var verifyStream = contentResolver.OpenInputStream(destinationUri))
-        {
-            if (verifyStream is null || verifyStream.Length == 0)
-            {
-                throw new IOException("The saved archive could not be verified at its destination.");
-            }
-        }
+        await PortableArchiveExportGuard.VerifySavedArchiveAsync(
+            () => contentResolver.OpenInputStream(destinationUri),
+            cancellationToken);
 
         return PortableArchiveSaveStatus.Saved;
     }

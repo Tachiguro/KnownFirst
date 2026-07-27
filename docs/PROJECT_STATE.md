@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-07-25
-**State source:** `master` (`52e74f2aa4ec0f071d99232eca1d4dde5a1d5110`, PR #21 merge commit)
-**Next product milestone:** Beta 11 release-candidate preparation (version/build identity bump and Beta 11 What's New content)
+**State source:** `master` (`7076aa4ac0617bd55ff97821ea69dc6b0e1228b0`, PR #22 merge commit)
+**Next product milestone:** Beta 12 hotfix (Russian-translation-target defect fix and removal of the combined lookup choice)
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -11,7 +11,7 @@ This document is the authoritative snapshot of verified current state. Update it
 | Field | Verified value |
 | --- | --- |
 | Project | KnownFirst |
-| Source Version | `1.0.0-beta.10` (build 10, merged PR #19 `f1d1c30`) |
+| Source Version | `1.0.0-beta.11` (build 11, merged PR #22 `7076aa4`) |
 | Package ID | `com.tachiguro.knownfirst` |
 | Distribution | Google Play Internal Testing |
 
@@ -82,17 +82,19 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `52e74f2aa4ec0f071d99232eca1d4dde5a1d5110` (PR #21 merged).
+The stable master baseline is `7076aa4ac0617bd55ff97821ea69dc6b0e1228b0` (PR #22 merged), carrying product version `1.0.0-beta.11` (build 11).
 
-Master already contains Russian UI localization, Russian-as-translation-target support (PR #20), and the learning repeat/direction clarity fix for [KF-LEARN-001](BACKLOG.md) (PR #21), but the product version metadata is still `1.0.0-beta.10`. Beta 11 (`1.0.0-beta.11`, build `11`) is being prepared on the unmerged branch `release/beta-11-russian-internal-test` to bump the identity and add a localized Beta 11 What's New entry (English, German, Russian). Russian **source**-text support remains explicitly deferred. This package is intended for Google Play Internal Testing, including testing by the user's father. Public release remains blocked by the outstanding support/bug-report, GUI-automation, legal, and store-readiness work below. See [CURRENT_WORK.md](CURRENT_WORK.md) for exact branch status.
+**Confirmed defect (KF-LANG-001):** Beta 11 exposed Russian as a valid translation target, but `TextReviewService` incorrectly treated `ExplanationLanguage`/`TargetLanguage` as a source-language capability, validating both against a local English/German-only set and rejecting `ru` before the lexical lookup started — even though `LexicalLookupLanguagePolicy` already supported Russian as a translation target. German-to-Russian and English-to-Russian imports were therefore incorrectly rejected.
+
+A hotfix is being prepared on the unmerged branch `hotfix/beta-12-russian-translation` (base `7076aa4`): the duplicated, incorrect validation in `TextReviewService` was removed in favor of `LexicalLookupLanguagePolicy.Validate` as sole authority; the combined Definition-and-Translation lookup choice was removed from the Import Text selector (existing/legacy combined data remains readable); and the product identity was bumped to `1.0.0-beta.12` (build `12`) with a localized Beta 12 What's New entry. Russian **source**-text support remains explicitly deferred. This package is intended for Google Play Internal Testing, including testing by the user's father, once validated. Public release remains blocked by the outstanding support/bug-report, GUI-automation, legal, and store-readiness work below. See [CURRENT_WORK.md](CURRENT_WORK.md) for exact branch status.
 
 ## Immediate action
 
-- Validate and, once approved, commit/push/open a PR for the Beta 11 release-candidate branch `release/beta-11-russian-internal-test` (identity bump and What's New content only; no AAB has been created or uploaded).
+- Run local validation (`scripts\knownfirst.ps1`) on the Beta 12 hotfix branch `hotfix/beta-12-russian-translation`; once tests and builds pass, commit/push/open a PR (no AAB has been created or uploaded).
 
 ## Next milestones (Future Work)
 
-1. Merge the Beta 11 release-candidate branch; no AAB or Play upload until separately authorized.
+1. Validate and merge the Beta 12 hotfix branch; no AAB or Play upload until separately authorized.
 2. Functional support/bug-report surface.
 3. Reopenable release notes and release-note history.
 4. Deterministic GUI automation (Android first).

@@ -12,6 +12,7 @@
 @inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
 @inject IBackupService BackupService
 @inject IPortableArchiveFileService PortableArchiveFiles
+@inject KnownFirst.Services.Study.IWorkflowChangeNotifier WorkflowChangeNotifier
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
 
@@ -185,10 +186,24 @@
                 @Localizer["Settings_RevokeOnlineConsent"]
             </button>
         }
+        else
+        {
+            <h3>@Localizer["Prepare_OnlineDisclosureTitle"]</h3>
+            <p class="setting-help">@Localizer["Prepare_OnlineDisclosure"]</p>
+            <button type="button" class="button button-primary" @onclick="ActivateOnlineConsent">
+                @Localizer["Settings_ActivateOnlineConsent"]
+            </button>
+        }
         @if (_onlineConsentRevoked)
         {
             <p class="setting-feedback setting-feedback-success" role="status">
                 @Localizer["Settings_OnlineConsentRevoked"]
+            </p>
+        }
+        @if (_onlineConsentActivated)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">
+                @Localizer["Settings_OnlineConsentActivated"]
             </p>
         }
     </section>
@@ -197,20 +212,23 @@
         <h2 id="portable-data-title">@Localizer["Settings_PortableData"]</h2>
         <p>@Localizer["Settings_PortableDataDescription"]</p>
         <p class="setting-help">@Localizer["Settings_PortableDataPrivacyNotice"]</p>
-        <div class="support-actions">
-            <button type="button"
-                    class="button button-secondary"
-                    disabled="@_isPortableDataOperation"
-                    @onclick="ExportPortableDataAsync">
-                @Localizer["Settings_DataExport"]
-            </button>
-            <button type="button"
-                    class="button button-secondary"
-                    disabled="@_isPortableDataOperation"
-                    @onclick="ChoosePortableImportAsync">
-                @Localizer["Settings_DataImport"]
-            </button>
-        </div>
+        @if (!_showImportConfirmation)
+        {
+            <div class="support-actions">
+                <button type="button"
+                        class="button button-secondary"
+                        disabled="@_isPortableDataOperation"
+                        @onclick="ExportPortableDataAsync">
+                    @Localizer["Settings_DataExport"]
+                </button>
+                <button type="button"
+                        class="button button-secondary"
+                        disabled="@_isPortableDataOperation"
+                        @onclick="ChoosePortableImportAsync">
+                    @Localizer["Settings_DataImport"]
+                </button>
+            </div>
+        }
 
         @if (_showImportConfirmation && _portableImportSelection is not null)
         {
@@ -368,6 +386,7 @@
     private bool _cardDirectionSaved;
     private bool _learningModeSaved;
     private bool _onlineConsentRevoked;
+    private bool _onlineConsentActivated;
     private bool _isPortableDataOperation;
     private bool _portableDataOperationFailed;
     private bool _showImportConfirmation;
@@ -539,6 +558,14 @@
     {
         AppSettings.RevokeOnlineLookupConsent();
         _onlineConsentRevoked = true;
+        _onlineConsentActivated = false;
+    }
+
+    private void ActivateOnlineConsent()
+    {
+        AppSettings.GrantOnlineLookupConsent();
+        _onlineConsentActivated = true;
+        _onlineConsentRevoked = false;
     }
 
     private async Task ExportPortableDataAsync()
@@ -631,6 +658,11 @@
                     ("Settings_DataImportValidationFailure", true),
                 _ => ("Settings_DataImportFailure", true)
             };
+
+            if (result.Status == KnownFirst.Models.Backup.PortableImportStatus.Success)
+            {
+                WorkflowChangeNotifier.NotifyChanged();
+            }
         }
         catch (Exception exception)
         {
@@ -787,6 +819,7 @@
             _showResetConfirmation = false;
             _resetSucceeded = true;
             _returnFocusToResetButton = true;
+            WorkflowChangeNotifier.NotifyChanged();
         }
         catch (Exception exception)
         {

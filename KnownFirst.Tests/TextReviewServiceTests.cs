@@ -54,7 +54,7 @@ public sealed class TextReviewServiceTests
         Assert.AreEqual(64, stored.Document.ContentFingerprint.Length);
         Assert.AreEqual("en", stored.Document.TextLanguage);
         Assert.AreEqual("de", stored.Document.ExplanationLanguage);
-        Assert.AreEqual(LexicalLookupMode.DefinitionAndTranslation, stored.Document.LookupMode);
+        Assert.AreEqual(LexicalLookupMode.Translation, stored.Document.LookupMode);
         Assert.AreEqual("de", stored.Document.TargetLanguage);
         foreach (var sentence in stored.Sentences)
         {
@@ -96,6 +96,85 @@ public sealed class TextReviewServiceTests
             "en",
             LexicalLookupMode.Translation,
             "en")));
+    }
+
+    // --- KF-LANG-001: Russian translation-target regression (Beta 12 hotfix) -----------
+
+    [TestMethod]
+    public async Task ImportAsync_GermanToRussianTranslationIsAccepted()
+    {
+        var result = await _service.ImportAsync(new ImportTextRequest(
+            "German to Russian",
+            "Die Sicherheit ist wichtig.",
+            "de",
+            LexicalLookupMode.Translation,
+            "ru"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+    }
+
+    [TestMethod]
+    public async Task ImportAsync_EnglishToRussianTranslationIsAccepted()
+    {
+        var result = await _service.ImportAsync(new ImportTextRequest(
+            "English to Russian",
+            "Network security matters.",
+            "en",
+            LexicalLookupMode.Translation,
+            "ru"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+    }
+
+    [TestMethod]
+    public async Task ImportAsync_RussianSourceTextRemainsRejected()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.ImportAsync(new ImportTextRequest(
+            "Russian source",
+            "Безопасность важна.",
+            "ru",
+            LexicalLookupMode.Translation,
+            "en")));
+    }
+
+    [TestMethod]
+    public async Task ImportAsync_GermanToGermanTranslationRemainsRejected()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.ImportAsync(new ImportTextRequest(
+            "Invalid request",
+            "Die Sicherheit ist wichtig.",
+            "de",
+            LexicalLookupMode.Translation,
+            "de")));
+    }
+
+    // English-to-English translation rejection is already covered by
+    // ImportAsync_RejectsIdenticalTranslationLanguages, and Definition mode with no
+    // target language is already covered by
+    // ImportAsync_StoresExplicitDefinitionRequestWithoutTargetLanguage, above.
+
+    [TestMethod]
+    public async Task ImportAsync_CombinedLookupModeIsRejectedForNewImports()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.ImportAsync(new ImportTextRequest(
+            "Legacy combined request",
+            "Network security matters.",
+            "en",
+            LexicalLookupMode.DefinitionAndTranslation,
+            "de")));
+    }
+
+    [TestMethod]
+    public void ImportTextRequest_CompatibilityConstructorCreatesTranslationForDifferingLanguages()
+    {
+        var request = new ImportTextRequest(
+            "Legacy compatibility",
+            "Network security matters.",
+            "en",
+            "ru");
+
+        Assert.AreEqual(LexicalLookupMode.Translation, request.LookupMode);
+        Assert.AreEqual("ru", request.TargetLanguage);
     }
 
     [TestMethod]

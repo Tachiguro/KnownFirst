@@ -639,6 +639,12 @@
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Online lookup consent was revoked.</value>
   </data>
+  <data name="Settings_ActivateOnlineConsent" xml:space="preserve">
+    <value>Activate online dictionary</value>
+  </data>
+  <data name="Settings_OnlineConsentActivated" xml:space="preserve">
+    <value>Online dictionary lookup was activated.</value>
+  </data>
   <data name="Prepare_Loading" xml:space="preserve">
     <value>Loading vocabulary preparation…</value>
   </data>
@@ -1430,5 +1436,14 @@
   </data>
   <data name="WhatsNew_Beta11_Bullet6" xml:space="preserve">
     <value>Analyzing Russian source text for import is not yet supported.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet1" xml:space="preserve">
+    <value>Russian translation targets now work correctly for English and German source texts.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet2" xml:space="preserve">
+    <value>Text import now offers the simpler Definition or Translation choice.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet3" xml:space="preserve">
+    <value>Analyzing Russian source text for import is still not supported.</value>
   </data>
 </root>

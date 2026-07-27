@@ -11,6 +11,7 @@ public sealed class ReleaseNotesTests
     private const string Beta9 = "1.0.0-beta.9";
     private const string Beta10 = "1.0.0-beta.10";
     private const string Beta11 = "1.0.0-beta.11";
+    private const string Beta12 = "1.0.0-beta.12";
 
     // --- Catalog contract -------------------------------------------------------------
 
@@ -53,26 +54,56 @@ public sealed class ReleaseNotesTests
         Assert.IsGreaterThan(0, entry.BulletResourceKeys.Count);
     }
 
-    // --- Active release identity (Beta 11) ---------------------------------------------
+    [TestMethod]
+    public void Catalog_Beta11RemainsAvailableAndUnchangedAfterBeta12Added()
+    {
+        var entry = ReleaseNotesService.DefaultCatalog.Single(candidate => candidate.Version == Beta11);
+
+        Assert.AreEqual("WhatsNew_Title", entry.TitleResourceKey);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "WhatsNew_Beta11_Bullet1",
+                "WhatsNew_Beta11_Bullet2",
+                "WhatsNew_Beta11_Bullet3",
+                "WhatsNew_Beta11_Bullet4",
+                "WhatsNew_Beta11_Bullet5",
+                "WhatsNew_Beta11_Bullet6"
+            },
+            entry.BulletResourceKeys.ToArray());
+    }
 
     [TestMethod]
-    public void ActiveProductIdentity_IsBeta11Build11()
+    public void Catalog_Beta12HasReleaseNoteEntry()
+    {
+        var entry = ReleaseNotesService.DefaultCatalog.SingleOrDefault(
+            candidate => candidate.Version == Beta12);
+
+        Assert.IsNotNull(entry);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(entry.TitleResourceKey));
+        Assert.IsGreaterThan(0, entry.BulletResourceKeys.Count);
+    }
+
+    // --- Active release identity (Beta 12) ---------------------------------------------
+
+    [TestMethod]
+    public void ActiveProductIdentity_IsBeta12Build12()
     {
         var root = FindRepositoryRoot();
         var project = File.ReadAllText(Path.Combine(root, "KnownFirst.csproj"));
 
-        Assert.Contains("<KnownFirstProductVersion>1.0.0-beta.11</KnownFirstProductVersion>", project);
-        Assert.Contains("<KnownFirstBuildNumber>11</KnownFirstBuildNumber>", project);
+        Assert.Contains("<KnownFirstProductVersion>1.0.0-beta.12</KnownFirstProductVersion>", project);
+        Assert.Contains("<KnownFirstBuildNumber>12</KnownFirstBuildNumber>", project);
     }
 
     [TestMethod]
-    public void WhatsNewBeta11Entry_IsActiveForTheCurrentProductVersion()
+    public void WhatsNewBeta12Entry_IsActiveForTheCurrentProductVersion()
     {
         var activeVersion = ReadActiveProductVersion();
         Assert.AreEqual(
-            Beta11,
+            Beta12,
             activeVersion,
-            "The Beta 11 catalog entry is only meaningful while Beta 11 is the active product version.");
+            "The Beta 12 catalog entry is only meaningful while Beta 12 is the active product version.");
 
         var entry = ReleaseNotesService.DefaultCatalog.SingleOrDefault(
             candidate => candidate.Version == activeVersion);
@@ -209,6 +240,70 @@ public sealed class ReleaseNotesTests
         }
     }
 
+    [TestMethod]
+    public void Resources_WhatsNewBeta12KeysAreCompleteAndParallelAcrossAllLocales()
+    {
+        var root = FindRepositoryRoot();
+        var english = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.resx"));
+        var german = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.de.resx"));
+        var russian = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.ru.resx"));
+
+        var beta11 = ReleaseNotesService.DefaultCatalog.Single(candidate => candidate.Version == Beta11);
+        var beta12 = ReleaseNotesService.DefaultCatalog.Single(candidate => candidate.Version == Beta12);
+
+        Assert.AreEqual(
+            Beta11,
+            beta11.Version,
+            "The Beta 11 entry's version identifier must remain unchanged.");
+        Assert.AreEqual(
+            Beta12,
+            beta12.Version,
+            "The Beta 12 entry's version identifier must be the new product version.");
+        Assert.AreEqual(
+            beta11.TitleResourceKey,
+            beta12.TitleResourceKey,
+            "All release-note entries share the same generic title resource key.");
+
+        foreach (var bulletKey in beta12.BulletResourceKeys)
+        {
+            Assert.Contains(bulletKey, english.Keys);
+            Assert.Contains(bulletKey, german.Keys);
+            Assert.Contains(bulletKey, russian.Keys);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[bulletKey]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[bulletKey]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[bulletKey]));
+        }
+    }
+
+    [TestMethod]
+    public void WhatsNewBeta12Content_CommunicatesRequiredFactsInEnglishGermanAndRussian()
+    {
+        var root = FindRepositoryRoot();
+        var english = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.resx"));
+        var german = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.de.resx"));
+        var russian = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.ru.resx"));
+        var beta12 = ReleaseNotesService.DefaultCatalog.Single(candidate => candidate.Version == Beta12);
+
+        var englishText = string.Join(" ", beta12.BulletResourceKeys.Select(key => english[key]));
+        var germanText = string.Join(" ", beta12.BulletResourceKeys.Select(key => german[key]));
+        var russianText = string.Join(" ", beta12.BulletResourceKeys.Select(key => russian[key]));
+
+        foreach (var fact in new[] { "Russian translation targets", "correctly", "Definition or Translation", "not supported" })
+        {
+            StringAssert.Contains(englishText, fact);
+        }
+
+        foreach (var fact in new[] { "Russisch als Übersetzungsziel", "korrekt", "Definition und Übersetzung", "nicht unterstützt" })
+        {
+            StringAssert.Contains(germanText, fact);
+        }
+
+        foreach (var fact in new[] { "Русский как язык перевода", "корректно", "Определение или Перевод", "не поддерживается" })
+        {
+            StringAssert.Contains(russianText, fact);
+        }
+    }
+
     // --- Display/seen behavior ---------------------------------------------------------
 
     [TestMethod]
@@ -340,6 +435,54 @@ public sealed class ReleaseNotesTests
 
         Assert.IsNotNull(entry);
         Assert.AreEqual(Beta11, entry.Version);
+    }
+
+    [TestMethod]
+    public void GetUnseenReleaseNotes_FirstEvaluationOfBeta12_ReturnsEntry()
+    {
+        var service = CreateService(Beta12, new FakeWhatsNewPreferenceStore());
+
+        var entry = service.GetUnseenReleaseNotes();
+
+        Assert.IsNotNull(entry);
+        Assert.AreEqual(Beta12, entry.Version);
+    }
+
+    [TestMethod]
+    public void MarkSeen_ForBeta12_RecordsExactVersionString()
+    {
+        var store = new FakeWhatsNewPreferenceStore();
+        var service = CreateService(Beta12, store);
+
+        service.MarkSeen(Beta12);
+
+        Assert.AreEqual(Beta12, store.GetSeenVersion());
+    }
+
+    [TestMethod]
+    public void GetUnseenReleaseNotes_AfterMarkSeenBeta12_SecondEvaluationReturnsNull()
+    {
+        var store = new FakeWhatsNewPreferenceStore();
+        var service = CreateService(Beta12, store);
+
+        var firstEntry = service.GetUnseenReleaseNotes();
+        Assert.IsNotNull(firstEntry);
+        service.MarkSeen(firstEntry.Version);
+
+        Assert.IsNull(service.GetUnseenReleaseNotes());
+    }
+
+    [TestMethod]
+    public void GetUnseenReleaseNotes_Beta11SeenDoesNotSuppressBeta12()
+    {
+        var store = new FakeWhatsNewPreferenceStore();
+        store.SetSeenVersion(Beta11);
+        var service = CreateService(Beta12, store);
+
+        var entry = service.GetUnseenReleaseNotes();
+
+        Assert.IsNotNull(entry);
+        Assert.AreEqual(Beta12, entry.Version);
     }
 
     // --- Fault tolerance -----------------------------------------------------------------

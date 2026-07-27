@@ -639,6 +639,12 @@
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Согласие на онлайн-поиск отозвано.</value>
   </data>
+  <data name="Settings_ActivateOnlineConsent" xml:space="preserve">
+    <value>Активировать онлайн-словарь</value>
+  </data>
+  <data name="Settings_OnlineConsentActivated" xml:space="preserve">
+    <value>Онлайн-поиск в словаре активирован.</value>
+  </data>
   <data name="Prepare_Loading" xml:space="preserve">
     <value>Загрузка подготовки слов…</value>
   </data>
@@ -1430,5 +1436,14 @@
   </data>
   <data name="WhatsNew_Beta11_Bullet6" xml:space="preserve">
     <value>Анализ русского исходного текста для импорта пока не поддерживается.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet1" xml:space="preserve">
+    <value>Русский как язык перевода теперь корректно работает для английских и немецких исходных текстов.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet2" xml:space="preserve">
+    <value>Импорт текста теперь предлагает более простой выбор: Определение или Перевод.</value>
+  </data>
+  <data name="WhatsNew_Beta12_Bullet3" xml:space="preserve">
+    <value>Анализ русского исходного текста для импорта по-прежнему не поддерживается.</value>
   </data>
 </root>

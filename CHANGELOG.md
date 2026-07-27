@@ -6,9 +6,30 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
-## [1.0.0-beta.11] - Unreleased (release candidate in preparation)
+## [1.0.0-beta.12] - Unreleased (hotfix in preparation)
 
-**This version is being prepared on the unmerged branch `release/beta-11-russian-internal-test` and has not been merged, packaged, or uploaded.** It is intended for Google Play Internal Testing, including testing by the user's father.
+**This version is being prepared on the unmerged branch `hotfix/beta-12-russian-translation` and has not been tested, built, packaged, or uploaded in this step.**
+
+### Fixed
+
+- Russian translation targets now work correctly for German-to-Russian and English-to-Russian text imports. `TextReviewService` previously re-validated `ExplanationLanguage`/`TargetLanguage` against a local English/German-only set and rejected `ru` before the lexical lookup started, even though `LexicalLookupLanguagePolicy` already supported Russian as a translation target. The duplicated, incorrect validation was removed; `LexicalLookupLanguagePolicy` is now the sole authority for source/target language capability.
+- Android portable data export no longer reports a false failure after a successful write. `AndroidPortableArchiveFileService` verified the saved destination with `Stream.Length`, which non-seekable Android content-provider streams can throw on even though the archive was written correctly. Verification now opens the destination and reads a single byte instead, which works for both seekable and non-seekable streams. This was a verification defect, not archive corruption.
+- The Settings portable-import confirmation no longer overlaps the Data Export/Data Import actions. The normal action row is now hidden while the confirmation panel is visible and is restored on Cancel, on validation failure, or after the import completes.
+- Home and the burger menu now refresh immediately after a successful portable import or a successful full data reset, instead of requiring navigation to another page first.
+
+### Changed
+
+- Text import now offers only Definition or Translation. The combined Definition-and-Translation choice has been removed from the Import Text selector; existing database rows, preparation state, and portable archives that already use the combined mode continue to be read and processed unchanged.
+- Product version raised to `1.0.0-beta.12` (build `12`). Package ID, database schema (`7`), signing configuration, and the portable archive format are unchanged.
+
+### Added
+
+- A localized Beta 12 What's New entry (English, German, Russian) covering the Russian-translation-target fix, the simplified Definition/Translation import choice, and the continued absence of Russian source-text analysis.
+- Settings now offers an explicit "Activate online dictionary" action, with the binding online-lookup disclosure, when consent has not been granted. Portable archives continue to exclude online-lookup consent and preferences; importing an archive or resetting local data does not grant or restore consent. Users must grant consent independently after installation or restore.
+
+## [1.0.0-beta.11] - 2026-07-25 (merged via PR #22)
+
+*Intended for Google Play Internal Testing, including testing by the user's father.*
 
 ### Added
 

@@ -1562,7 +1562,8 @@ public sealed class StudyWorkflowServiceTests
         $"Document {Guid.NewGuid():N}",
         content,
         "en",
-        "de");
+        LexicalLookupMode.Definition,
+        null);
 
     private static PreparedMeaningInput ManualInput(string term) => new(
         null,

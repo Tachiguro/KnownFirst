@@ -29,6 +29,14 @@ public sealed class ReleaseNotesService : IReleaseNotesService
                 "WhatsNew_Beta11_Bullet4",
                 "WhatsNew_Beta11_Bullet5",
                 "WhatsNew_Beta11_Bullet6"
+            ]),
+        new ReleaseNoteEntry(
+            "1.0.0-beta.12",
+            "WhatsNew_Title",
+            [
+                "WhatsNew_Beta12_Bullet1",
+                "WhatsNew_Beta12_Bullet2",
+                "WhatsNew_Beta12_Bullet3"
             ])
     ];
 

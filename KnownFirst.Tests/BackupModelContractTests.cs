@@ -262,6 +262,23 @@ public sealed class BackupModelContractTests
     }
 
     [TestMethod]
+    public void BackupLexicalLookupMode_DefinitionAndTranslationRoundTripsForLegacyData()
+    {
+        // KF-LANG-001 hotfix: DefinitionAndTranslation is no longer selectable for new imports,
+        // but existing database rows, portable archives, and older imported data may still use
+        // it. The backup mapping and external string form must keep accepting it unchanged.
+        const LexicalLookupMode legacyMode = LexicalLookupMode.DefinitionAndTranslation;
+
+        var backupValue = BackupEnumMappings.ToBackup(legacyMode);
+        Assert.AreEqual(BackupLexicalLookupMode.DefinitionAndTranslation, backupValue);
+        Assert.AreEqual(legacyMode, BackupEnumMappings.ToPersistence(backupValue));
+
+        var externalString = BackupEnumMappings.ToExternalString(backupValue);
+        Assert.AreEqual("definition-and-translation", externalString);
+        Assert.AreEqual(backupValue, BackupEnumMappings.ParseLexicalLookupMode(externalString));
+    }
+
+    [TestMethod]
     public void EnumMappings_RejectUnknownInternalExternalAndStringValues()
     {
         Action[] invalidInternalMappings =

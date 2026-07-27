@@ -1,8 +1,10 @@
 @page "/"
+@implements IDisposable
 @inject IDashboardService DashboardService
 @inject ITextReviewService TextReviewService
 @inject ILogger<Home> Logger
 @inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
+@inject KnownFirst.Services.Study.IWorkflowChangeNotifier WorkflowChangeNotifier
 @inject IJSRuntime JavaScript
 @inject NavigationManager Navigation
 
@@ -164,9 +166,20 @@ else
 
     private bool IsReviewBlocked => _activeReview is not null;
 
-    protected override Task OnInitializedAsync() => LoadStatisticsAsync();
+    protected override Task OnInitializedAsync()
+    {
+        WorkflowChangeNotifier.Changed += OnWorkflowChanged;
+        return LoadStatisticsAsync();
+    }
 
+    public void Dispose() => WorkflowChangeNotifier.Changed -= OnWorkflowChanged;
 
+    private void OnWorkflowChanged(object? sender, EventArgs eventArgs) =>
+        _ = InvokeAsync(async () =>
+        {
+            await LoadStatisticsAsync();
+            StateHasChanged();
+        });
 
     private async Task LoadStatisticsAsync()
     {

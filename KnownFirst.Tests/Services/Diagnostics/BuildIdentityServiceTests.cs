@@ -71,6 +71,33 @@ public class BuildIdentityServiceTests
     }
 
     [TestMethod]
+    public void ResolveIdentity_BuildNumber_MetadataOverridesAppInfoWhenConflict()
+    {
+        var assembly = typeof(BuildIdentity).Assembly;
+        var appInfo = new AppInfoData("KnownFirst", "1.0.0.12", "9", "com.tachiguro.knownfirst");
+        var metadata = new Dictionary<string, string>
+        {
+            ["KnownFirstBuildNumber"] = "12",
+            ["KnownFirstProductVersion"] = "1.0.0-beta.12"
+        };
+
+        var identity = BuildIdentityService.ResolveIdentity(assembly, appInfo, metadataOverrides: metadata);
+
+        Assert.AreEqual("12", identity.BuildNumber);
+    }
+
+    [TestMethod]
+    public void ResolveIdentity_BuildNumber_FallsBackToAppInfo_WhenMetadataIsAbsent()
+    {
+        var assembly = typeof(BuildIdentity).Assembly;
+        var appInfo = new AppInfoData("KnownFirst", "1.0.0.9", "9", "com.tachiguro.knownfirst");
+
+        var identity = BuildIdentityService.ResolveIdentity(assembly, appInfo);
+
+        Assert.AreEqual("9", identity.BuildNumber);
+    }
+
+    [TestMethod]
     public void GetFormattedBuildIdentity_ForDebug_HasSingleDebugLabel()
     {
         var identity = CreateTestIdentity("KnownFirst Debug", "1.0.0-beta.9", "9", "Debug", isDirty: true);

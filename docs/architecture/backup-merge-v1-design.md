@@ -4,6 +4,18 @@
 **Backlog item:** [KF-BACKUP-002](../BACKLOG.md), P1, blocks public release readiness, does not block Beta 12 Internal Testing.
 **Builds on:** [backup-format-v1.md](backup-format-v1.md) (binding contract for the *existing* Restore-into-empty behavior, unchanged by this proposal), `Models/BackupModels.cs`, `Data/BackupImportRepository.cs`, `Data/BackupSnapshotRepository.cs`, `Services/DataSafety/BackupService.cs`, `Services/TextReviewService.cs`, `Services/Study/PreparationService.cs`, `Services/Study/LearningService.cs`.
 
+## Product contract: single "Import data" action
+
+This section states the final user-facing behavior this design and [backup-format-v1.md](backup-format-v1.md) jointly implement, so slice-by-slice implementation work has one unambiguous target. It does not change anything below — §§0–15 already imply every point here; this section only makes the resulting product contract explicit in one place.
+
+- KnownFirst has **one** primary user-facing action: **"Import data"**. There is no separate user-facing "Merge" button as a first-class alternative the user chooses between — Import is a single entry point.
+- If the target installation has **no durable user data** (`BackupImportRepository.HasDurableUserData` is false), Import uses the existing, unchanged **Restore-into-empty** path (§1, §7).
+- If the target installation **already contains durable user data**, Import uses the **Merge** path defined by this document (§4–§12) instead of failing. This is the only behavioral difference Merge introduces at the product level: Import stops being conditional on an empty target.
+- A valid, compatible archive **must not** be rejected merely because the target already contains data — `PortableImportStatus.TargetNotEmpty` (§1) becomes a routing signal to the Merge path, not a terminal user-facing failure, once Merge ships.
+- Importing an archive whose contents are already fully present in the target **succeeds with a no-change result** — every entity classifies as an exact duplicate (§11), zero rows are written, and the user sees a successful "nothing new to import" outcome rather than an error.
+- Corrupt, manipulated, incompatible, or unsafe archives **still fail closed without mutation**, exactly as today's Restore path already guarantees — Merge only relaxes the empty-target precondition; it does not relax validation, checksum verification, or format-compatibility checks.
+- Restoring a private pre-merge recovery copy (§8, "safety copy") remains a **separate, distinct Recovery action** in Settings — it is not part of the "Import data" flow and is never triggered implicitly by Import.
+
 ## 0. Revision history
 
 This is a **revision** of the design first written for this task, not a restart. Everything in §§0–15 below either carries a prior section forward unchanged, or replaces it in response to one of ten defect categories raised in review. The table maps each category to what changed and why; sections not listed here (worked-scenario framing, format-compatibility conclusion, the R1 "history is truth" principle, the out-of-scope note) carry forward from the prior revision essentially unchanged.
@@ -182,18 +194,20 @@ The prior revision's "newest-`UpdatedAt`-wins" rule for `Definition`/`Translatio
 
 **Do not use timestamps alone for duplicate detection.** For `LearningReviewEntity`, the duplicate/identity key combines content with time:
 
-**Event fingerprint (`LearningReviewEntity`):** `SHA-256` over the UTF-8 bytes of a fixed-order, `|`-joined canonical string of these **immutable** fields:
+**Event fingerprint (`LearningReviewEntity`):** `SHA-256` over an unambiguous canonical byte encoding of these **immutable** fields, in this fixed order — implemented as `KnownFirst.Services.DataSafety.Merge.LearningReviewFingerprintPolicy`/`CanonicalFingerprintBuilder` (slice 1):
 
 ```
-stableCardKey            (the card's stable (Language, NormalizedTerm, Direction) — never the raw int CardId)
-ReviewedAtUtc             (RFC 3339 UTC round-trip string, already canonical per format v1)
-Rating                    (enum string: again | hard | good | easy)
+stableCardKey            (the card's stable (VocabularyIdentity, Direction) match identity — never the raw int CardId)
+ReviewedAtUtc             (normalized to UTC, invariant-culture round-trip "O" format)
+Rating                    (enum symbolic name: Again | Hard | Good | Easy)
 WasTypedAnswer            (true | false)
 WasCorrect                (true | false)
-DueAtUtc                  (RFC 3339 UTC round-trip string)
-IntervalDays              (integer)
-EaseFactor                (fixed-precision decimal string)
+DueAtUtc                  (normalized to UTC, invariant-culture round-trip "O" format)
+IntervalDays              (invariant-culture decimal integer)
+EaseFactor                (invariant-culture "G17" round-trippable double)
 ```
+
+This is **not** a `|`-joined string. Naive delimiter-joining is ambiguous whenever a field's own content can contain the delimiter or produce equal concatenations from different splits (e.g. `("a|b","c")` and `("a","b|c")` both join to `"a|b|c"`). Instead, each field is written as an explicit null/non-null marker byte followed (for non-null values) by a fixed-width 4-byte big-endian UTF-8 byte-length prefix and the raw payload bytes, so every field's boundary is self-describing and no two distinct field sequences can ever collide on the same byte stream. The complete byte sequence is prefixed with a version/domain discriminator string (`KnownFirst.Merge.LearningReview.v1`) so this fingerprint family can never collide with a structurally similar one (e.g. a Meaning or SourceMaterial identity), then reduced to an **uppercase** SHA-256 hex digest. Every other stable identity in §4 uses the same canonical encoding with its own domain discriminator (e.g. `KnownFirst.Merge.SourceMaterial.v1`, `KnownFirst.Merge.Meaning.v1`).
 
 These fields are the complete, immutable record of "what this review event was and what it produced" — nothing about them can legitimately differ between two exports of the *same* real-world event.
 

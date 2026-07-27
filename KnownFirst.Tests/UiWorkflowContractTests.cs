@@ -638,9 +638,23 @@ public sealed class UiWorkflowContractTests
         // (defaulting to building all three, preserving the pre-selection behavior) and filters
         // by the same Kind values used to build the release/diagnostic/debug artifact names
         // above, without changing package IDs, signing, checksum, or ZIP-content logic.
-        Assert.Contains("[ValidateSet('Debug', 'Diagnostic', 'Release', 'All')]", script);
+        Assert.Contains("[ValidateSet('Debug', 'Diagnostic', 'Release', 'DebugRelease', 'All')]", script);
         Assert.Contains("[string]$Configuration = 'All'", script);
-        Assert.Contains("$packages = $packages | Where-Object { $_.Kind -eq $selectedKind }", script);
+
+        // DebugRelease resolves to exactly Debug and Release, excluding Diagnostic
+        Assert.Contains("'DebugRelease' { @('debug', 'release') }", script);
+
+        // Diagnostic remains independently selectable
+        Assert.Contains("'Diagnostic' { @('diagnostic') }", script);
+
+        // Debug and Release remain independently selectable
+        Assert.Contains("'Debug' { @('debug') }", script);
+        Assert.Contains("'Release' { @('release') }", script);
+
+        // Package filtering supports a set of selected kinds rather than assuming exactly one kind
+        Assert.Contains("$packages = $packages | Where-Object { $_.Kind -in $selectedKinds }", script);
+
+        // Existing package IDs remain asserted
         Assert.Contains("PackageId = \"com.tachiguro.knownfirst\"", script);
         Assert.Contains("PackageId = \"com.tachiguro.knownfirst.diagnostic\"", script);
         Assert.Contains("PackageId = \"com.tachiguro.knownfirst.debug\"", script);

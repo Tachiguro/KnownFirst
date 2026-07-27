@@ -28,10 +28,11 @@
     When omitted, the interactive menu is shown instead.
 
 .PARAMETER Configuration
-    Debug | Release | Diagnostic | All
+    Debug | Release | Diagnostic | DebugRelease | All
     Applies to WindowsBuild (Debug, Release, or All; Diagnostic is not a Windows configuration)
-    and AndroidTestPackage (Debug, Diagnostic, Release, or All). Omitted or blank means All for
-    both, matching the previous (pre-selection) behavior.
+    and AndroidTestPackage (Debug, Release, Diagnostic, DebugRelease, or All). Omitted or blank
+    means All for both, matching the previous (pre-selection) behavior. DebugRelease is an
+    internal configuration for the interactive menu; it creates Debug and Release APKs only.
 
 .PARAMETER WhatIf
     Prints what each operation would do and its expected output path without running it.
@@ -73,7 +74,7 @@ param(
     [ValidateSet('Test', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'ValidateAll')]
     [string]$Action,
 
-    [ValidateSet('Debug', 'Release', 'Diagnostic', 'All')]
+    [ValidateSet('Debug', 'Release', 'Diagnostic', 'DebugRelease', 'All')]
     [string]$Configuration,
 
     [switch]$WhatIf,
@@ -650,10 +651,11 @@ function Get-EffectiveAndroidPackageConfigurations {
     param([string]$RequestedConfiguration)
 
     $effective = if ([string]::IsNullOrEmpty($RequestedConfiguration)) { 'All' } else { $RequestedConfiguration }
-    if ($effective -notin @('Debug', 'Diagnostic', 'Release', 'All')) {
-        throw "AndroidTestPackage does not support Configuration '$effective'. Use Debug, Diagnostic, Release, or All."
+    if ($effective -notin @('Debug', 'Diagnostic', 'Release', 'DebugRelease', 'All')) {
+        throw "AndroidTestPackage does not support Configuration '$effective'. Use Debug, Diagnostic, Release, DebugRelease, or All."
     }
     if ($effective -eq 'All') { return @('Debug', 'Diagnostic', 'Release') }
+    if ($effective -eq 'DebugRelease') { return @('Debug', 'Release') }
     return @($effective)
 }
 
@@ -822,6 +824,7 @@ function Invoke-ValidateAllStep {
 
 function Invoke-ValidateAllAction {
     Write-Host 'Verifies tests and the required Windows and Android builds; it creates no APK or AAB package.'
+    Write-Host 'This runs: automated tests, Windows Debug, Windows Release, Android Debug, and Android Release builds.'
     if ($WhatIf) {
         Write-Host '[WhatIf] Would evaluate (reuse or run): tests, then Windows Debug/Release and Android Debug/Release builds.'
         return New-ActionResult -ActionName 'ValidateAll' -Succeeded $true -Summary '[WhatIf] no commands executed.'
@@ -977,20 +980,22 @@ function Show-WindowsBuildMenu {
 
 function Show-AndroidTestPackageMenu {
     Write-Host ''
-    Write-Host 'Build Android test APK' -ForegroundColor Green
-    Write-Host '1. Debug APK'
-    Write-Host '2. Diagnostic APK'
-    Write-Host '3. Release APK'
-    Write-Host '4. All test APKs'
+    Write-Host 'Build Android APK' -ForegroundColor Green
+    Write-Host '1. Debug'
+    Write-Host '2. Release'
+    Write-Host '3. Debug and Release'
+    Write-Host '4. Diagnostic (advanced)'
     Write-Host '5. Back'
+    Write-Host ''
+    Write-Host 'Diagnostic is for investigating release-only, AOT, or trimming problems.' -ForegroundColor DarkGray
     Write-Host ''
     $choice = Read-Host 'Choose an option (1-5)'
 
     $selectedConfiguration = switch ($choice) {
         '1' { 'Debug' }
-        '2' { 'Diagnostic' }
-        '3' { 'Release' }
-        '4' { 'All' }
+        '2' { 'Release' }
+        '3' { 'DebugRelease' }
+        '4' { 'Diagnostic' }
         default { $null }
     }
 
@@ -1012,11 +1017,11 @@ function Show-AndroidTestPackageMenu {
 function Show-KnownFirstMenu {
     Write-Host ''
     Write-Host 'KnownFirst build launcher' -ForegroundColor Green
-    Write-Host '1. Run all automated tests'
+    Write-Host '1. Run automated tests'
     Write-Host '2. Build Windows app'
-    Write-Host '3. Build Android test APK'
+    Write-Host '3. Build Android APK'
     Write-Host '4. Create Google Play AAB'
-    Write-Host '5. Validate current source'
+    Write-Host '5. Run full validation'
     Write-Host '6. Exit'
     Write-Host ''
     $choice = Read-Host 'Choose an option (1-6)'

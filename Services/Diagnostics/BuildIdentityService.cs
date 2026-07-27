@@ -145,8 +145,8 @@ public sealed class BuildIdentityService : IBuildIdentityService
             ?? assembly.GetName().Version?.ToString()
             ?? "unknown";
 
-        string buildNumber = appInfo?.BuildString
-            ?? metadataBuild
+        string buildNumber = metadataBuild
+            ?? appInfo?.BuildString
             ?? "unknown";
 
         string packageId = appInfo?.PackageName ?? "unknown";

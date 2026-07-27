@@ -1,5 +1,6 @@
 using KnownFirst.Core.Settings;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Storage;
 
 namespace KnownFirst.Services;
 
@@ -11,15 +12,17 @@ public sealed class AppSettingsService : IAppSettingsService
     private const string CardDirectionPreferenceKey = "card_direction";
     private const string LearningModePreferenceKey = "learning_mode";
     private const string OnlineLookupConsentPreferenceKey = "online_lookup_consent";
+    private readonly IPreferences _preferences;
     private readonly ILogger<AppSettingsService> _logger;
 
-    public AppSettingsService(ILogger<AppSettingsService> logger)
+    public AppSettingsService(IPreferences preferences, ILogger<AppSettingsService> logger)
     {
+        _preferences = preferences;
         _logger = logger;
         PreparationLimit = ReadPreparationLimit();
         CardDirection = ReadCardDirection();
         LearningMode = ReadLearningMode();
-        HasOnlineLookupConsent = Preferences.Default.Get(OnlineLookupConsentPreferenceKey, false);
+        HasOnlineLookupConsent = _preferences.Get(OnlineLookupConsentPreferenceKey, false);
         _logger.LogDebug(
             "Application settings loaded. PreparationLimit = {PreparationLimit}, card direction = {CardDirection}, learning mode = {LearningMode}, online lookup consent = {HasOnlineLookupConsent}",
             PreparationLimit,
@@ -48,7 +51,7 @@ public sealed class AppSettingsService : IAppSettingsService
                 preparationLimit);
         }
 
-        Preferences.Default.Set(PreparationLimitPreferenceKey, normalizedLimit);
+        _preferences.Set(PreparationLimitPreferenceKey, normalizedLimit);
         PreparationLimit = normalizedLimit;
         _logger.LogInformation(
             "Preparation limit saved. PreparationLimit = {PreparationLimit}",
@@ -58,7 +61,7 @@ public sealed class AppSettingsService : IAppSettingsService
     public void SetCardDirection(CardDirectionPreference preference)
     {
         var normalized = CardDirectionPreferencePolicy.Normalize((int)preference);
-        Preferences.Default.Set(CardDirectionPreferenceKey, (int)normalized);
+        _preferences.Set(CardDirectionPreferenceKey, (int)normalized);
         CardDirection = normalized;
         _logger.LogInformation("Card direction saved. CardDirection = {CardDirection}", normalized);
     }
@@ -66,31 +69,31 @@ public sealed class AppSettingsService : IAppSettingsService
     public void SetLearningMode(LearningMode mode)
     {
         var normalized = LearningModePolicy.Normalize((int)mode);
-        Preferences.Default.Set(LearningModePreferenceKey, (int)normalized);
+        _preferences.Set(LearningModePreferenceKey, (int)normalized);
         LearningMode = normalized;
         _logger.LogInformation("Learning mode saved. LearningMode = {LearningMode}", normalized);
     }
 
     public void GrantOnlineLookupConsent()
     {
-        Preferences.Default.Set(OnlineLookupConsentPreferenceKey, true);
+        _preferences.Set(OnlineLookupConsentPreferenceKey, true);
         HasOnlineLookupConsent = true;
         _logger.LogInformation("Online dictionary lookup consent was granted.");
     }
 
     public void RevokeOnlineLookupConsent()
     {
-        Preferences.Default.Remove(OnlineLookupConsentPreferenceKey);
+        _preferences.Remove(OnlineLookupConsentPreferenceKey);
         HasOnlineLookupConsent = false;
         _logger.LogInformation("Online dictionary lookup consent was revoked.");
     }
 
     public void Reset()
     {
-        Preferences.Default.Remove(PreparationLimitPreferenceKey);
-        Preferences.Default.Remove(CardDirectionPreferenceKey);
-        Preferences.Default.Remove(LearningModePreferenceKey);
-        Preferences.Default.Remove(OnlineLookupConsentPreferenceKey);
+        _preferences.Remove(PreparationLimitPreferenceKey);
+        _preferences.Remove(CardDirectionPreferenceKey);
+        _preferences.Remove(LearningModePreferenceKey);
+        _preferences.Remove(OnlineLookupConsentPreferenceKey);
         PreparationLimit = DefaultPreparationLimit;
         CardDirection = CardDirectionPreferencePolicy.DefaultPreference;
         LearningMode = LearningModePolicy.DefaultMode;
@@ -100,7 +103,7 @@ public sealed class AppSettingsService : IAppSettingsService
 
     private int ReadPreparationLimit()
     {
-        var savedLimit = Preferences.Default.Get(PreparationLimitPreferenceKey, DefaultPreparationLimit);
+        var savedLimit = _preferences.Get(PreparationLimitPreferenceKey, DefaultPreparationLimit);
         var normalizedLimit = PreparationLimitPolicy.Normalize(savedLimit);
         if (normalizedLimit == savedLimit)
         {
@@ -110,13 +113,13 @@ public sealed class AppSettingsService : IAppSettingsService
         _logger.LogWarning(
             "The saved preparation limit '{PreparationLimit}' is unsupported. Falling back to the default.",
             savedLimit);
-        Preferences.Default.Set(PreparationLimitPreferenceKey, normalizedLimit);
+        _preferences.Set(PreparationLimitPreferenceKey, normalizedLimit);
         return normalizedLimit;
     }
 
     private CardDirectionPreference ReadCardDirection()
     {
-        var saved = Preferences.Default.Get(
+        var saved = _preferences.Get(
             CardDirectionPreferenceKey,
             (int)CardDirectionPreferencePolicy.DefaultPreference);
         var normalized = CardDirectionPreferencePolicy.Normalize(saved);
@@ -125,7 +128,7 @@ public sealed class AppSettingsService : IAppSettingsService
             _logger.LogWarning(
                 "The saved card direction value '{CardDirection}' is unsupported. Falling back to Both directions.",
                 saved);
-            Preferences.Default.Set(CardDirectionPreferenceKey, (int)normalized);
+            _preferences.Set(CardDirectionPreferenceKey, (int)normalized);
         }
 
         return normalized;
@@ -133,7 +136,7 @@ public sealed class AppSettingsService : IAppSettingsService
 
     private LearningMode ReadLearningMode()
     {
-        var saved = Preferences.Default.Get(
+        var saved = _preferences.Get(
             LearningModePreferenceKey,
             (int)LearningModePolicy.DefaultMode);
         var normalized = LearningModePolicy.Normalize(saved);
@@ -142,7 +145,7 @@ public sealed class AppSettingsService : IAppSettingsService
             _logger.LogWarning(
                 "The saved learning mode value '{LearningMode}' is unsupported. Falling back to Automatic.",
                 saved);
-            Preferences.Default.Set(LearningModePreferenceKey, (int)normalized);
+            _preferences.Set(LearningModePreferenceKey, (int)normalized);
         }
 
         return normalized;

@@ -1,10 +1,12 @@
+using Microsoft.Maui.Storage;
+
 namespace KnownFirst.Services;
 
-public sealed class MauiWhatsNewPreferenceStore : IWhatsNewPreferenceStore
+public sealed class MauiWhatsNewPreferenceStore(IPreferences preferences) : IWhatsNewPreferenceStore
 {
     private const string SeenVersionPreferenceKey = "whats_new_seen_version";
 
-    public string GetSeenVersion() => Preferences.Default.Get(SeenVersionPreferenceKey, string.Empty);
+    public string GetSeenVersion() => preferences.Get(SeenVersionPreferenceKey, string.Empty);
 
-    public void SetSeenVersion(string version) => Preferences.Default.Set(SeenVersionPreferenceKey, version);
+    public void SetSeenVersion(string version) => preferences.Set(SeenVersionPreferenceKey, version);
 }

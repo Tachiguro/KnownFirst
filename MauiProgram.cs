@@ -5,10 +5,12 @@ using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Services;
 using KnownFirst.Services.Diagnostics;
+using KnownFirst.Services.Isolation;
 using KnownFirst.Services.Lexical;
 using KnownFirst.Services.Study;
 using KnownFirst.Services.DataSafety;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Storage;
 using System.Diagnostics.CodeAnalysis;
 
 namespace KnownFirst;
@@ -30,6 +32,12 @@ public static class MauiProgram
             "Application startup is beginning. Configuration = {BuildConfiguration}, target = {TargetFramework}",
             diagnosticOptions.BuildConfiguration,
             diagnosticOptions.TargetFramework);
+        if (GuiTestProfile.IsActive)
+        {
+            bootstrapLogger.LogWarning(
+                "GUI test profile is active. Database and preferences are isolated under {GuiTestProfileRoot}.",
+                GuiTestProfile.RootPath);
+        }
 
         builder
             .UseMauiApp<App>()
@@ -41,6 +49,9 @@ public static class MauiProgram
         builder.Services.AddMauiBlazorWebView();
         builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
         builder.Services.AddSingleton<IBuildIdentityService>(buildIdentity);
+        builder.Services.AddSingleton<IPreferences>(_ => GuiTestProfile.IsActive
+            ? new IsolatedFilePreferences(GuiTestProfile.RootPath)
+            : Preferences.Default);
         builder.Services.AddSingleton(fileLoggerProvider);
         builder.Services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
         builder.Services.AddSingleton<RuntimeExceptionMonitor>();

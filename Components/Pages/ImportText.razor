@@ -80,7 +80,7 @@
             }
         </div>
 
-        <button type="submit" class="button button-primary" disabled="@_isSubmitting">
+        <button id="save-and-analyze-button" type="submit" class="button button-primary" disabled="@_isSubmitting">
             @(_isSubmitting ? Localizer["Import_Analyzing"] : Localizer["Import_SaveAndAnalyze"])
         </button>
 

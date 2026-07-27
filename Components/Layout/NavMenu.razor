@@ -6,7 +6,7 @@
 
 <div class="nav-shell">
     <div class="nav-header">
-        <a class="brand" href="@HomeRoute" @onclick="NotifyNavigationAsync">@Localizer["App_Name"]</a>
+        <a id="nav-home" class="brand" href="@HomeRoute" @onclick="NotifyNavigationAsync">@Localizer["App_Name"]</a>
     </div>
 
     <div class="nav-scrollable">
@@ -42,19 +42,20 @@
             }
             @if (_workflow?.CanImport != false)
             {
-                <NavLink class="nav-link" href="import-text" @onclick="NotifyNavigationAsync">
+                <NavLink id="nav-import-text" class="nav-link" href="import-text" @onclick="NotifyNavigationAsync">
                     @Localizer["Navigation_ImportText"]
                 </NavLink>
             }
             else
             {
-                <span class="nav-link nav-link-disabled"
+                <span id="nav-import-text" class="nav-link nav-link-disabled"
+                      role="link"
                       aria-disabled="true"
                       title="@(Localizer["Navigation_ImportBlockedByReview"])">
                     @Localizer["Navigation_ImportText"]
                 </span>
             }
-            <NavLink class="nav-link" href="settings" @onclick="NotifyNavigationAsync">
+            <NavLink id="nav-settings" class="nav-link" href="settings" @onclick="NotifyNavigationAsync">
                 @Localizer["Navigation_Settings"]
             </NavLink>
             @if (IsDebugBuild)
@@ -73,7 +74,7 @@
              alt="@(Localizer["Footer_TachiguroLogoAlt"])"
              class="developer-sign" />
     </div>
-    <div class="build-identity">
+    <div id="build-identity-text" class="build-identity" role="group">
         @BuildIdentityService.GetFormattedBuildIdentity()
     </div>
 </div>

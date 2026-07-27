@@ -1,9 +1,10 @@
 using KnownFirst.Core.Settings;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.Storage;
 
 namespace KnownFirst.Services;
 
-public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, IDisposable
+public sealed class ThemeService(IPreferences preferences, ILogger<ThemeService> logger) : IThemeService, IDisposable
 {
     private const string ThemePreferenceKey = "theme_preference";
     private Microsoft.Maui.Controls.Application? _application;
@@ -57,7 +58,7 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
             return false;
         }
 
-        Preferences.Default.Set(ThemePreferenceKey, (int)normalizedPreference);
+        preferences.Set(ThemePreferenceKey, (int)normalizedPreference);
         Preference = normalizedPreference;
         ApplyNativeTheme();
         UpdateEffectiveTheme(ResolveEffectiveTheme(_application!.RequestedTheme), notify: true);
@@ -73,7 +74,7 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
         EnsureInitialized();
 
         var preferenceChanged = Preference != ThemePreference.System;
-        Preferences.Default.Remove(ThemePreferenceKey);
+        preferences.Remove(ThemePreferenceKey);
         Preference = ThemePreference.System;
         ApplyNativeTheme();
 
@@ -105,7 +106,7 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
 
     private ThemePreference ReadPreference()
     {
-        var savedValue = Preferences.Default.Get(ThemePreferenceKey, (int)ThemePreference.System);
+        var savedValue = preferences.Get(ThemePreferenceKey, (int)ThemePreference.System);
         var normalizedPreference = ThemePreferencePolicy.Normalize(savedValue);
         if ((int)normalizedPreference == savedValue)
         {
@@ -115,7 +116,7 @@ public sealed class ThemeService(ILogger<ThemeService> logger) : IThemeService, 
         logger.LogWarning(
             "The saved theme preference value '{ThemePreference}' is unsupported. Falling back to System.",
             savedValue);
-        Preferences.Default.Set(ThemePreferenceKey, (int)ThemePreference.System);
+        preferences.Set(ThemePreferenceKey, (int)ThemePreference.System);
         return normalizedPreference;
     }
 

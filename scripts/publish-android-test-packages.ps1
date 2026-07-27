@@ -2,7 +2,7 @@
 param(
     [string]$KeystorePath,
     [string]$PasswordFilePath,
-    [ValidateSet('Debug', 'Diagnostic', 'Release', 'All')]
+    [ValidateSet('Debug', 'Diagnostic', 'Release', 'DebugRelease', 'All')]
     [string]$Configuration = 'All'
 )
 
@@ -124,14 +124,15 @@ $packages = @(
     }
 )
 
-$selectedKind = switch ($Configuration) {
-    'Debug' { 'debug' }
-    'Diagnostic' { 'diagnostic' }
-    'Release' { 'release' }
+$selectedKinds = switch ($Configuration) {
+    'Debug' { @('debug') }
+    'Diagnostic' { @('diagnostic') }
+    'Release' { @('release') }
+    'DebugRelease' { @('debug', 'release') }
     default { $null }
 }
-if ($selectedKind) {
-    $packages = $packages | Where-Object { $_.Kind -eq $selectedKind }
+if ($selectedKinds) {
+    $packages = $packages | Where-Object { $_.Kind -in $selectedKinds }
     if (-not $packages) {
         throw "No package definition matches Configuration '$Configuration'."
     }

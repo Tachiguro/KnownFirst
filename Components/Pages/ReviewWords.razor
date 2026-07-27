@@ -28,7 +28,7 @@
         }
         else if (_candidate is not null)
         {
-            <article class="review-card">
+            <article id="review-card" class="review-card">
                 <div class="review-progress" aria-label="@Localizer["Review_ProgressLabel"]">
                     <span>@Localizer["Review_Progress", _candidate.ReviewedCount + 1, _candidate.TotalCandidates]</span>
                     <progress value="@_candidate.ReviewedCount" max="@_candidate.TotalCandidates"></progress>

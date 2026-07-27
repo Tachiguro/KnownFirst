@@ -66,6 +66,13 @@
     <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     </PropertyGroup>
 
+    <!-- GUI test profile isolation (KNOWNFIRST_GUI_TEST_ROOT) is only supported in Windows Debug
+         and Windows BetaDiagnostic builds; Windows Release and every Android configuration must
+         fail closed instead of silently isolating (or worse, not isolating) real application data. -->
+    <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and ('$(Configuration)' == 'Debug' or '$(Configuration)' == 'BetaDiagnostic')">
+        <DefineConstants>$(DefineConstants);KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED</DefineConstants>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <ApplicationTitle>KnownFirst Diagnostic</ApplicationTitle>
         <ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>

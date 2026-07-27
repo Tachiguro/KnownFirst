@@ -1,20 +1,21 @@
 using KnownFirst.Core.Language;
+using Microsoft.Maui.Storage;
 
 namespace KnownFirst.Services;
 
-public sealed class MauiLanguagePreferenceStore : ILanguagePreferenceStore
+public sealed class MauiLanguagePreferenceStore(IPreferences preferences) : ILanguagePreferenceStore
 {
     public const string PreferenceKey = "knownfirst.uiLanguage";
 
-    public bool HasSavedLanguage => Preferences.Default.ContainsKey(PreferenceKey);
+    public bool HasSavedLanguage => preferences.ContainsKey(PreferenceKey);
 
     public string? GetSavedLanguage() =>
         HasSavedLanguage
-            ? Preferences.Default.Get(PreferenceKey, string.Empty)
+            ? preferences.Get(PreferenceKey, string.Empty)
             : null;
 
     public void SetSavedLanguage(string languageCode)
     {
-        Preferences.Default.Set(PreferenceKey, languageCode);
+        preferences.Set(PreferenceKey, languageCode);
     }
 }

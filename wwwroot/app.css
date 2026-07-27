@@ -372,6 +372,28 @@ a:focus-visible {
     display: none;
 }
 
+.gui-test-profile-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-align: center;
+    color: #1a1a1a;
+    background: #ffb300;
+    pointer-events: none;
+}
+
+.gui-test-profile-indicator .gui-test-profile-root {
+    font-weight: 400;
+    margin-left: 0.5em;
+    opacity: 0.8;
+}
+
 @media (min-width: 800px) {
     .workflow-layout {
         margin: calc(-1 * var(--space-8)) calc(-1 * clamp(var(--space-8), 5vw, var(--space-12)));

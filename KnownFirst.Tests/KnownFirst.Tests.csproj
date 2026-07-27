@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- Lets GuiTestProfileTests exercise the "supported build" path by default; the
+         unsupported-build path is exercised via GuiTestProfile.SupportedOverrideForTests. -->
+    <DefineConstants>$(DefineConstants);KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

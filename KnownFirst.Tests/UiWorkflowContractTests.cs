@@ -661,6 +661,28 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void GuiTestProfileSupport_IsCompileTimeGatedToWindowsDebugAndBetaDiagnosticOnly()
+    {
+        var project = LoadUi("KnownFirst.csproj");
+
+        // The exact MSBuild condition that must gate the symbol: Windows platform AND
+        // (Debug OR BetaDiagnostic configuration). This is a project-file text assertion so the
+        // contract does not depend on which configuration happens to run this test.
+        Assert.Contains(
+            "Condition=\"$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' " +
+            "and ('$(Configuration)' == 'Debug' or '$(Configuration)' == 'BetaDiagnostic')\"",
+            project);
+
+        // The symbol must be defined exactly once in the project, and only inside the
+        // Windows-Debug-or-BetaDiagnostic-gated group asserted above - never unconditionally,
+        // and never inside a Release-only or Android-only property group.
+        Assert.AreEqual(1, CountOccurrences(project, "KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED"));
+        Assert.Contains(
+            "<DefineConstants>$(DefineConstants);KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED</DefineConstants>",
+            project);
+    }
+
+    [TestMethod]
     public void Settings_PortableImportConfirmationHidesTheNormalDataActionsRowAndRestoresOnCancel()
     {
         var markup = LoadUi("Settings.razor");

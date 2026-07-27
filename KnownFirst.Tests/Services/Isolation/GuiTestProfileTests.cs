@@ -23,6 +23,7 @@ public class GuiTestProfileTests
     public void TearDown()
     {
         Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, _previousValue);
+        GuiTestProfile.SupportedOverrideForTests = null;
         if (_createdDirectory is not null && Directory.Exists(_createdDirectory))
         {
             Directory.Delete(_createdDirectory, recursive: true);
@@ -89,6 +90,71 @@ public class GuiTestProfileTests
         Assert.IsTrue(Directory.Exists(resolved));
         Assert.IsTrue(GuiTestProfile.IsActive);
         Assert.AreEqual(resolved, GuiTestProfile.RootPath);
+    }
+
+    [TestMethod]
+    public void Resolve_ActivatesInSupportedBuild_WhenPathIsValid()
+    {
+        // Explicit supported-build activation, independent of whatever the test binary's
+        // compiled default happens to be.
+        GuiTestProfile.SupportedOverrideForTests = true;
+        var validPath = Path.Combine(
+            Path.GetTempPath(),
+            "kf-gui-test-" + Guid.NewGuid().ToString("N"),
+            "artifacts",
+            "gui-tests",
+            "windows",
+            "profiles",
+            "run-supported");
+        _createdDirectory = validPath;
+        Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, validPath);
+
+        var resolved = GuiTestProfile.Resolve();
+
+        Assert.IsNotNull(resolved);
+        Assert.IsTrue(Directory.Exists(resolved));
+    }
+
+    [TestMethod]
+    public void Resolve_Throws_WhenPathIsRelative()
+    {
+        GuiTestProfile.SupportedOverrideForTests = true;
+        var relativePath = Path.Combine("artifacts", "gui-tests", "windows", "profiles", "run-relative");
+        Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, relativePath);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => GuiTestProfile.Resolve());
+        Assert.IsFalse(
+            Directory.Exists(Path.GetFullPath(relativePath)),
+            "A relative path must never be created on disk.");
+    }
+
+    [TestMethod]
+    public void Resolve_FailsClosed_WhenBuildIsUnsupported_EvenWithAnOtherwiseValidPath()
+    {
+        GuiTestProfile.SupportedOverrideForTests = false;
+        var validPath = Path.Combine(
+            Path.GetTempPath(),
+            "kf-gui-test-" + Guid.NewGuid().ToString("N"),
+            "artifacts",
+            "gui-tests",
+            "windows",
+            "profiles",
+            "run-unsupported");
+        Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, validPath);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => GuiTestProfile.Resolve());
+        Assert.IsFalse(
+            Directory.Exists(validPath),
+            "An unsupported build must never create the requested profile directory.");
+    }
+
+    [TestMethod]
+    public void Resolve_ReturnsNull_WhenBuildIsUnsupportedAndEnvironmentVariableIsAbsent()
+    {
+        GuiTestProfile.SupportedOverrideForTests = false;
+
+        Assert.IsNull(GuiTestProfile.Resolve());
+        Assert.IsFalse(GuiTestProfile.IsActive);
     }
 
     [TestMethod]

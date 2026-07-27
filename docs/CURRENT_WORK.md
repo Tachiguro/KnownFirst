@@ -96,6 +96,10 @@
 
 Run local validation (`scripts\knownfirst.ps1`, or the targeted `dotnet test` filters in this task's report) on the uncommitted Android smoke-test corrections (export verification, import confirmation layout, workflow-state refresh, online dictionary activation); everything remains unstaged and uncommitted pending explicit authorization to commit/push. PR #23 stays open and unmerged. Once validated, continue with planned sequence item 2 (Support/Report-a-bug controls).
 
+## Design work (not implemented)
+
+- **KF-BACKUP-002** (P1, blocks public release readiness, does not block Beta 12 Internal Testing): non-destructive portable archive merge design, revision 2, recorded in [architecture/backup-merge-v1-design.md](architecture/backup-merge-v1-design.md) and [BACKLOG.md](BACKLOG.md). No code, schema, or archive-format change was made. Revision 2 corrected source-material/Meaning/LearningCard identity against verified code, added a mandatory pre-merge safety copy, an explicit clock-skew/event-fingerprint policy, and idempotency proofs; four open decisions remain for product/engineering sign-off (design doc §13).
+
 ## New-chat handoff
 
 "Read AGENTS.md, docs/PROMPT_AND_TASK_ROUTING.md, docs/CURRENT_WORK.md, and docs/INDEX.md completely. Verify branch, HEAD, Git status, and registered worktrees. Follow the task-specific reading route from docs/INDEX.md. Then perform only the task under 'Next exact action'."

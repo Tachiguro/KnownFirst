@@ -4,6 +4,7 @@
 @inject INavigationHistoryService NavigationHistory
 @inject ILogger<MainLayout> Logger
 
+<KnownFirst.Components.Shared.GuiTestProfileIndicator />
 <div class="page @(_isMenuOpen ? "menu-open" : null)" @onkeydown="HandleKeyDown">
     <header class="mobile-header">
         <button type="button"

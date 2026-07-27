@@ -1,0 +1,9 @@
+@using KnownFirst.Services.Isolation
+
+@if (GuiTestProfile.IsActive)
+{
+    <div id="gui-test-profile-indicator" class="gui-test-profile-indicator" role="status">
+        GUI TEST PROFILE
+        <span class="gui-test-profile-root">@GuiTestProfile.RootPath</span>
+    </div>
+}

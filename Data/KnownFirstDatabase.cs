@@ -1,4 +1,5 @@
 using KnownFirst.Data.Entities;
+using KnownFirst.Services.Isolation;
 using Microsoft.Extensions.Logging;
 using SQLite;
 
@@ -16,7 +17,12 @@ public sealed class KnownFirstDatabase(ILogger<KnownFirstDatabase> logger) : IKn
     private SQLiteAsyncConnection? _connection;
     private bool _initialized;
 
-    public string DatabasePath => Path.Combine(FileSystem.AppDataDirectory, DatabaseFileName);
+    /// <summary>
+    /// Redirected under an isolated GUI test profile so tests never open the real database.
+    /// </summary>
+    public string DatabasePath => Path.Combine(
+        GuiTestProfile.IsActive ? GuiTestProfile.RootPath : FileSystem.AppDataDirectory,
+        DatabaseFileName);
 
     public async Task InitializeAsync()
     {

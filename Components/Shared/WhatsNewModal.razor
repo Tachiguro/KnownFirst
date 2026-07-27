@@ -4,7 +4,8 @@
 @if (_entry is not null)
 {
     <div class="whats-new-backdrop">
-        <div class="whats-new-modal"
+        <div id="whats-new-modal"
+             class="whats-new-modal"
              role="dialog"
              aria-modal="true"
              aria-labelledby="whats-new-title"
@@ -18,7 +19,8 @@
                 }
             </ul>
             <div class="whats-new-actions">
-                <button type="button"
+                <button id="whats-new-close-button"
+                        type="button"
                         class="button button-primary"
                         @ref="_closeButton"
                         @onclick="Close">

@@ -602,6 +602,40 @@ public static class BackupEnumMappings
         _ => throw UnknownEnum()
     };
 
+    // ---- Archive format v2 additions (KF-MEANING-001 Slice 2) — purely additive, no existing mapping changed ----
+
+    public static string ToExternalString(BackupSenseStatus value) => value switch
+    {
+        BackupSenseStatus.Prepared => "prepared",
+        BackupSenseStatus.Learning => "learning",
+        BackupSenseStatus.Mastered => "mastered",
+        BackupSenseStatus.Suspended => "suspended",
+        _ => throw UnknownEnum()
+    };
+
+    public static BackupSenseStatus ParseSenseStatus(string value) => value switch
+    {
+        "prepared" => BackupSenseStatus.Prepared,
+        "learning" => BackupSenseStatus.Learning,
+        "mastered" => BackupSenseStatus.Mastered,
+        "suspended" => BackupSenseStatus.Suspended,
+        _ => throw UnknownEnum()
+    };
+
+    public static string ToExternalString(BackupAnswerVariantRequirement value) => value switch
+    {
+        BackupAnswerVariantRequirement.Required => "required",
+        BackupAnswerVariantRequirement.AcceptedOnly => "accepted-only",
+        _ => throw UnknownEnum()
+    };
+
+    public static BackupAnswerVariantRequirement ParseAnswerVariantRequirement(string value) => value switch
+    {
+        "required" => BackupAnswerVariantRequirement.Required,
+        "accepted-only" => BackupAnswerVariantRequirement.AcceptedOnly,
+        _ => throw UnknownEnum()
+    };
+
     private static BackupFormatException UnknownEnum() =>
         new(BackupErrorCodes.UnknownEnum);
 }

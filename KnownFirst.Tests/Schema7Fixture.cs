@@ -53,6 +53,34 @@ internal sealed class Schema7Fixture : IAsyncDisposable
         }
     }
 
+    public async Task<int> InsertDocumentAsync(
+        string title = "Doc",
+        string textLanguage = "en",
+        string explanationLanguage = "de",
+        string content = "some document text",
+        string? contentFingerprint = null,
+        int wordCount = 1,
+        DateTime? importedAt = null)
+    {
+        // Real production content fingerprints are a SHA-256 hex digest of Content (verified against
+        // BackupSourceMaterial.ContentSha256 by BackupModelContract(V2).ValidateContentChecksum) —
+        // a default must match that shape, not an arbitrary GUID.
+        var fingerprint = contentFingerprint ?? Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
+
+        await Connection.ExecuteAsync(
+            """
+            INSERT INTO Documents
+                (Title, TextLanguage, ExplanationLanguage, LookupMode, TargetLanguage, Content,
+                 ContentFingerprint, ImportedAt, WordCount)
+            VALUES (?, ?, ?, 0, '', ?, ?, ?, ?)
+            """,
+            title, textLanguage, explanationLanguage, content,
+            fingerprint, importedAt ?? DateTime.UtcNow, wordCount);
+
+        return await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+    }
+
     public async Task<int> InsertWordAsync(
         string canonicalTerm,
         string language = "en",
@@ -179,6 +207,27 @@ internal sealed class Schema7Fixture : IAsyncDisposable
             """,
             meaningId, wordId, sourceDocumentId, sourceDocumentTitle, text, targetStart, targetLength,
             normalizedFingerprint ?? Guid.NewGuid().ToString("N"), createdAtUtc ?? DateTime.UtcNow);
+
+        return await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+    }
+
+    public async Task<int> InsertLearningSessionAsync(
+        LearningSessionStatus status = LearningSessionStatus.Completed,
+        int totalCards = 1,
+        int completedCards = 1,
+        DateTime? startedAtUtc = null,
+        DateTime? updatedAtUtc = null,
+        DateTime? completedAtUtc = null)
+    {
+        var now = DateTime.UtcNow;
+        await Connection.ExecuteAsync(
+            """
+            INSERT INTO LearningSessions
+                (Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount,
+                 StartedAtUtc, UpdatedAtUtc, CompletedAtUtc)
+            VALUES (?, ?, ?, 0, 0, 0, 0, ?, ?, ?)
+            """,
+            (int)status, totalCards, completedCards, startedAtUtc ?? now, updatedAtUtc ?? now, completedAtUtc);
 
         return await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
     }

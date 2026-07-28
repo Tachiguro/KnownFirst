@@ -1,9 +1,5 @@
-using System.Globalization;
-using System.Text.Json;
 using KnownFirst.Core.Learning;
-using KnownFirst.Core.Preparation;
 using KnownFirst.Models;
-using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety.Merge;
 using SQLite;
 
@@ -194,9 +190,9 @@ public static class Schema8DormantMigration
                 continue;
             }
 
-            var vocabularyIdentity = ComputeVocabularyIdentity(word);
-            var groups = GroupMeaningsIntoSenses(meanings, vocabularyIdentity);
-            var initialSenseStatus = TranslateInitialSenseStatus(word.Status);
+            var vocabularyIdentity = Schema8SemanticUpgradePolicy.ComputeVocabularyIdentity(word);
+            var groups = Schema8SemanticUpgradePolicy.GroupMeaningsIntoSenses(meanings, vocabularyIdentity);
+            var initialSenseStatus = Schema8SemanticUpgradePolicy.TranslateInitialSenseStatus(word.Status);
 
             if (word.Status is WordStatus.Prepared or WordStatus.Learning or WordStatus.Mastered)
             {
@@ -281,7 +277,7 @@ public static class Schema8DormantMigration
 
                     if (directionsPresent.Contains(CardDirection.MeaningToTerm))
                     {
-                        foreach (var alias in DeserializeAliases(meaning.AcceptedAliasesJson).Distinct(StringComparer.Ordinal))
+                        foreach (var alias in Schema8SemanticUpgradePolicy.DeserializeAliases(meaning.AcceptedAliasesJson).Distinct(StringComparer.Ordinal))
                         {
                             if (string.IsNullOrWhiteSpace(alias))
                             {
@@ -301,87 +297,11 @@ public static class Schema8DormantMigration
         return context;
     }
 
-    private static List<List<LegacyMeaningRow>> GroupMeaningsIntoSenses(
-        List<LegacyMeaningRow> meanings, VocabularyIdentity vocabularyIdentity)
-    {
-        var groups = new List<List<LegacyMeaningRow>>();
-        var groupKeys = new List<string?>();
-
-        foreach (var meaning in meanings)
-        {
-            var preparedItem = BuildPreparedItem(meaning);
-            var hasDiscriminator = SemanticMeaningIdentityPolicy.HasReliableSenseDiscriminator(preparedItem);
-            var identity = SemanticMeaningIdentityPolicy.Compute(preparedItem, vocabularyIdentity);
-
-            if (hasDiscriminator)
-            {
-                var existingGroupIndex = groupKeys.FindIndex(k => k == identity.Value);
-                if (existingGroupIndex >= 0)
-                {
-                    groups[existingGroupIndex].Add(meaning);
-                    continue;
-                }
-            }
-
-            groups.Add([meaning]);
-            groupKeys.Add(hasDiscriminator ? identity.Value : null);
-        }
-
-        return groups;
-    }
-
-    private static VocabularyIdentity ComputeVocabularyIdentity(LegacyWordRow word)
-    {
-        var resolution = KnownFirst.Core.Text.VocabularyIdentityPolicy.Resolve(word.CanonicalTerm, word.TokenKind, word.Language);
-        return VocabularyMergeIdentityPolicy.Compute(word.Language, resolution.Identity);
-    }
-
-    private static BackupPreparedItem BuildPreparedItem(LegacyMeaningRow meaning) =>
-        new(
-            Id: meaning.Id.ToString(CultureInfo.InvariantCulture),
-            VocabularyId: string.Empty,
-            SourceLanguage: meaning.SourceLanguage,
-            ExplanationLanguage: meaning.ExplanationLanguage,
-            DisplayTerm: meaning.DisplayTerm,
-            EncounteredSurfaceForm: meaning.EncounteredSurfaceForm,
-            GrammaticalRelationship: meaning.GrammaticalRelationship,
-            TokenKind: (BackupTokenKind)(int)meaning.TokenKind,
-            ProviderMeaningId: meaning.SelectedMeaningId,
-            AcronymExpansion: meaning.AcronymExpansion,
-            Translation: meaning.Translation,
-            Definition: meaning.Definition,
-            DictionaryExample: meaning.DictionaryExample,
-            AdditionalNote: meaning.AdditionalNote,
-            LegacyAnswerText: null,
-            AcceptedAliases: DeserializeAliases(meaning.AcceptedAliasesJson),
-            ConfirmedByUser: meaning.ConfirmedByUser,
-            Source: new BackupSourceReference(meaning.Source, meaning.SourceProject, meaning.SourcePageTitle, meaning.SourceRevisionId, meaning.Attribution),
-            CreatedAtUtc: meaning.CreatedAt,
-            UpdatedAtUtc: meaning.UpdatedAt,
-            PreparedAtUtc: meaning.CreatedAt,
-            Contexts: []);
-
-    private static SenseStatus TranslateInitialSenseStatus(WordStatus status) => status switch
-    {
-        WordStatus.Prepared => SenseStatus.Prepared,
-        WordStatus.Learning => SenseStatus.Learning,
-        WordStatus.Mastered => SenseStatus.Mastered,
-        _ => SenseStatus.Prepared
-    };
-
-    private static string[] DeserializeAliases(string json)
-    {
-        try
-        {
-            return string.IsNullOrWhiteSpace(json)
-                ? []
-                : JsonSerializer.Deserialize(json, LexicalJsonSerializerContext.Default.StringArray) ?? [];
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
-    }
+    // GroupMeaningsIntoSenses, ComputeVocabularyIdentity, BuildPreparedItem,
+    // TranslateInitialSenseStatus, and DeserializeAliases moved to the shared, connection-free
+    // Schema8SemanticUpgradePolicy (KF-MEANING-001 Slice 2) so the archive-format v1->v2 in-memory
+    // upgrader (BackupArchiveV1UpgradePolicy) uses the identical Sense-grouping algorithm rather than
+    // a second, independently-written copy. Purely mechanical move — behavior unchanged.
 
     private static string NewStableId() => Guid.NewGuid().ToString("N");
 
@@ -473,16 +393,11 @@ public static class Schema8DormantMigration
         MigrationContext context,
         DateTime now)
     {
-        var candidates = group.Where(m => !string.IsNullOrEmpty(textSelector(m))).ToList();
-        if (candidates.Count == 0)
+        var chosen = Schema8SemanticUpgradePolicy.SelectPreferredCandidate(group, textSelector);
+        if (chosen is null)
         {
             return;
         }
-
-        var chosen = candidates
-            .OrderBy(m => m.Id)
-            .ThenBy(m => CanonicalText.NormalizeOptional(textSelector(m)), StringComparer.Ordinal)
-            .First();
 
         var variantId = GetOrCreateAnswerVariant(connection, senseId, languageSelector(chosen), textSelector(chosen), chosen.Id, now);
         CreateAssignment(connection, senseId, direction, variantId, AnswerVariantRequirement.AcceptedOnly, isPreferred: true, now);
@@ -801,8 +716,7 @@ public static class Schema8DormantMigration
     }
 
     private static bool HasColumn(SQLiteConnection connection, string table, string column) =>
-        connection.Query<TableColumnInfo>($"PRAGMA table_info({table})")
-            .Any(c => string.Equals(c.Name, column, StringComparison.OrdinalIgnoreCase));
+        Schema8ShapeValidator.HasColumn(connection, table, column);
 
     // ---- Step 8: version cutover ----
 
@@ -811,33 +725,14 @@ public static class Schema8DormantMigration
 
     // ---- Already-applied (target version) validation, no mutation ----
 
+    // KF-MEANING-001 Slice 2: delegates to the shared Schema8ShapeValidator (also used by
+    // Services/DataSafety/BackupSchemaCapability) so there is exactly one source of truth for what a
+    // physically valid Schema-8 shape looks like.
     private static void ValidateAlreadyMigratedShape(SQLiteConnection connection)
     {
-        foreach (var table in new[] { "Senses", "AnswerVariants", "SenseAnswerVariantAssignments", "AnswerVariantProgress" })
+        if (!Schema8ShapeValidator.IsValidShape(connection, out var failureDetail))
         {
-            var exists = connection.ExecuteScalar<int>(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table) > 0;
-            if (!exists)
-            {
-                throw Schema8MigrationException.AlreadyAppliedShapeInvalid($"Required table '{table}' is missing.");
-            }
-        }
-
-        if (HasColumn(connection, "LearningCards", "MeaningId"))
-        {
-            throw Schema8MigrationException.AlreadyAppliedShapeInvalid("LearningCards still has a legacy MeaningId column.");
-        }
-
-        if (!HasColumn(connection, "LearningCards", "PreferredMeaningId"))
-        {
-            throw Schema8MigrationException.AlreadyAppliedShapeInvalid("LearningCards is missing the PreferredMeaningId column.");
-        }
-
-        var newIndexExists = connection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'IX_LearningCards_Sense_Direction'") > 0;
-        if (!newIndexExists)
-        {
-            throw Schema8MigrationException.AlreadyAppliedShapeInvalid("IX_LearningCards_Sense_Direction is missing.");
+            throw Schema8MigrationException.AlreadyAppliedShapeInvalid(failureDetail!);
         }
     }
 }

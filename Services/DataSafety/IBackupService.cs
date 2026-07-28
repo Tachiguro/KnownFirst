@@ -10,7 +10,7 @@ public interface IBackupService
         Stream destinationStream,
         CancellationToken cancellationToken);
 
-    Task<BackupManifest> ValidatePortableArchiveAsync(
+    Task<BackupPortableArchiveSummary> ValidatePortableArchiveAsync(
         Stream sourceStream,
         CancellationToken cancellationToken);
 

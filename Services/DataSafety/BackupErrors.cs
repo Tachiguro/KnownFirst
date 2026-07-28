@@ -25,6 +25,11 @@ public static class BackupErrorCodes
     public const string ActiveWorkflowUnsupported = "active-workflow-unsupported";
     public const string OperationCancelled = "operation-cancelled";
     public const string IoFailure = "io-failure";
+
+    /// <summary>KF-MEANING-001 Slice 2: a native v2 archive was presented to a Schema-7 restore target.
+    /// Restore never downgrades or migrates the target — this is a stable, machine-readable rejection
+    /// with zero mutation.</summary>
+    public const string Schema8ArchiveIncompatibleWithSchema7Target = "schema8-archive-incompatible-with-schema7-target";
 }
 
 public sealed class BackupFormatException : Exception

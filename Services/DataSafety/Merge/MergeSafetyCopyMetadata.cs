@@ -13,7 +13,7 @@ public sealed record MergeSafetyCopyMetadata(
     string ArchiveFileName,
     DateTime CreatedAtUtc,
     long SizeBytes,
-    BackupRecordCounts RecordCounts,
+    BackupPortableArchiveCounts RecordCounts,
     string? SourceDescription,
     int ArchiveFormatVersion,
     string SourceAppVersion,
@@ -32,7 +32,7 @@ public sealed record MergeSafetyCopyMetadata(
     UseStringEnumConverter = true,
     WriteIndented = false)]
 [JsonSerializable(typeof(MergeSafetyCopyMetadata))]
-[JsonSerializable(typeof(BackupRecordCounts))]
+[JsonSerializable(typeof(BackupPortableArchiveCounts))]
 internal sealed partial class MergeSafetyCopyMetadataJsonSerializerContext : JsonSerializerContext
 {
 }

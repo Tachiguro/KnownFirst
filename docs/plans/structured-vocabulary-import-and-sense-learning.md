@@ -4,7 +4,7 @@
 
 - **Type**: Initiative Requirements & Architecture Proposal
 - **Created**: 2026-07-23
-- **Status**: Draft / Proposal — Pending Data-Model Decision
+- **Status**: Draft / Proposal — Data-model decision made (§5 "Decision (KF-MEANING-001 Slice 0)"); binding architecture and migration contract recorded in [architecture/meaning-centric-learning-v1-design.md](../architecture/meaning-centric-learning-v1-design.md). Remaining sections (import pipeline, milestones) are still proposal-only.
 - **Target Scope**: Structured List/PDF Import, Sense-Level Learning, Sync Preparation, Linux Feasibility
 - **Database Schema Constraint**: Preserves SQLite `PRAGMA user_version = 7` (No schema migration in this package)
 
@@ -215,18 +215,20 @@ An audit of the codebase (`C:\Dev\KnownFirst`) reveals:
 10. **Complexity**: High.
 11. **Principal unresolved risks**: Threatens local data continuity and delays feature delivery significantly.
 
-### Provisional Recommendation
-> **Provisional recommendation — requires dedicated data-model decision**: Option B is preferred.
-> - `WordEntity` can retain global written-form knowledge for now.
-> - `SenseEntity` can represent curated, user-confirmed meaning.
-> - `MeaningEntity` can continue to represent source-specific or prepared meaning and attribution.
-> - Learning cards can long-term target `SenseId`.
-> - Multiple provider sources can be mapped to one curated sense.
+### Decision (KF-MEANING-001 Slice 0)
+> **Decided, not provisional**: Option B is the binding data-model direction, recorded in full in [architecture/meaning-centric-learning-v1-design.md](../architecture/meaning-centric-learning-v1-design.md). A code audit (that document's §0) found no blocking incompatibility, so no fallback to Option A was needed.
+> - `WordEntity` retains global written-form knowledge only.
+> - `SenseEntity` represents curated, user-confirmed meaning (full field list, natural identity, and status model in the linked document's §2.2).
+> - `MeaningEntity` continues to represent source-specific/prepared exact content variants and attribution, extended additively (§2.4).
+> - Learning cards target `SenseId` (unique `(SenseId, Direction)`, §2.7).
+> - Multiple provider sources map to one curated sense via `AnswerVariantEntity` (§2.5).
 > - This separation is cleaner than further overloading `MeaningEntity` and less disruptive than the full Lexeme-Sense-Source model (Option C).
 >
-> **Fallback**: Option A remains the fallback if the audit proves that a new `SenseEntity` creates disproportionate migration or backup complexity.
+> **Option C** remains the long-term reference architecture but is not recommended for the next migration step.
 >
-> **Long-term**: Option C remains the long-term reference architecture but is not recommended for the next migration step.
+> This resolves open questions 1, 2, 9, and 11 in §3 above; the remaining open questions in §3 that concern later implementation slices (sync-specific identifiers, PDF parsing, etc.) are unaffected by this decision and remain open.
+>
+> **Correction passes:** two focused reviews corrected nine defects total in the linked document — first pass: word-status/Sense-status conflation, an incorrectly mutually-exclusive answer-variant role model, missing queue/review target-variant tracking, and no immutable cross-device identity distinct from mutable content; second pass: preferred-display and mastery-requirement were still Sense-wide instead of direction-specific, corrected by introducing `SenseAnswerVariantAssignmentEntity` (scoped per Sense+CardDirection+AnswerVariant), making `LearningCardEntity.PreferredMeaningId` (migrated in place from the legacy `MeaningId` column) the authoritative per-direction preferred-Meaning reference instead of a Sense-wide pointer, scoping mastery progress by `(CardId, AnswerVariantId)`, and resolving `WordEntity.PreparationState`'s word-vs-sense scoping. See that document's §0, §1, and §9 for the full list. None of these corrections change the Option B decision or the resolutions above; they refine the entity model and migration contract underneath it.
 
 ---
 

@@ -602,7 +602,7 @@ public static class BackupModelMapper
     private static DateTime EnsureUtc(DateTime dt) => dt.Kind == DateTimeKind.Utc ? dt : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
     private static DateTime? EnsureUtc(DateTime? dt) => dt.HasValue ? EnsureUtc(dt.Value) : null;
 
-    private static BackupLookupDraft ParseLookupDraft(string resultJson)
+    internal static BackupLookupDraft ParseLookupDraft(string resultJson)
     {
         try
         {

@@ -156,6 +156,12 @@ public sealed class PortableRecoveryTests
     [TestMethod]
     public async Task PortableArchive_UnsupportedFormatIsRefusedBeforeMutation()
     {
+        // KF-MEANING-001 Slice 2: format 2 is now a real, supported archive version (with its own
+        // distinct v2 shape) — so a mutation that merely relabels a v1 archive's declared formatVersion
+        // as "2" now exercises "impossible payload/manifest version mixing" (manifest-invalid), not
+        // "unsupported format" (see BackupArchiveReaderV2Tests for that case). This test keeps its
+        // original intent — a genuinely unrecognized format number is rejected before any mutation —
+        // by using "3", which is outside the supported {1,2} range.
         await using var source = new TemporaryKnownFirstDatabase("portable-version-source");
         await using var destination = new TemporaryKnownFirstDatabase("portable-version-target");
         await SeedDurableGraphAsync(source);
@@ -168,7 +174,7 @@ public sealed class PortableRecoveryTests
             {
                 var json = Encoding.UTF8.GetString(manifest);
                 return Encoding.UTF8.GetBytes(
-                    json.Replace("\"formatVersion\":1", "\"formatVersion\":2", StringComparison.Ordinal));
+                    json.Replace("\"formatVersion\":1", "\"formatVersion\":3", StringComparison.Ordinal));
             });
 
         var result = await CreateService(destination).ImportPortableArchiveAsync(

@@ -363,7 +363,7 @@ public sealed class MergeSafetyCopyServiceTests
             Assert.AreEqual(fileSizeOnDisk, result.ArchiveSizeBytes);
             Assert.AreEqual(fileSizeOnDisk, metadata.SizeBytes);
             Assert.AreEqual(result.RecordCounts, metadata.RecordCounts);
-            Assert.AreEqual(result.ValidatedManifest!.RecordCounts, result.RecordCounts);
+            Assert.AreEqual(result.ValidatedManifest!.Counts, result.RecordCounts);
 
             Assert.AreEqual(rowsBefore, await CountDurableRowsAsync(database));
 
@@ -1243,5 +1243,71 @@ public sealed class MergeSafetyCopyServiceTests
         CollectionAssert.AreEquivalent(
             new[] { Path.GetFileName(firstArchivePath), Path.GetFileName(firstMetadataPath) },
             remaining);
+    }
+
+    // ---- KF-MEANING-001 Slice 2: Core 10 — Schema-8 merge safety copy ----
+
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task CreateSafetyCopy_FromSyntheticSchema8Database_ProducesValidV2Archive()
+    {
+        await using var fixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
+        try
+        {
+            var service = CreateService(database, new FixedIdentityProvider(DateTime.UtcNow, "aabbcc"));
+            var result = await service.CreateSafetyCopyAsync("schema8-test", CancellationToken.None);
+
+            Assert.AreEqual(MergeSafetyCopyStatus.Success, result.Status);
+            Assert.IsNotNull(result.ArchivePath);
+            Assert.IsTrue(File.Exists(result.ArchivePath));
+
+            await using var readStream = new FileStream(result.ArchivePath!, FileMode.Open, FileAccess.Read);
+            var versioned = await BackupArchiveReader.ValidateVersionedAsync(readStream, CancellationToken.None);
+            Assert.AreEqual(2, versioned.FormatVersion);
+            Assert.IsNotNull(versioned.V2);
+            Assert.AreEqual(8, versioned.V2!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.IsGreaterThan(0, versioned.V2.Payload.Senses.Count);
+
+            Assert.AreEqual(2, result.ValidatedManifest!.FormatVersion);
+            Assert.IsNotNull(result.RecordCounts!.Senses);
+        }
+        finally
+        {
+            var root = StorageRoot(database);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task CreateSafetyCopy_FromSchema8Database_ActiveReviewSession_BlocksFailClosedNoFilesWritten()
+    {
+        await using var fixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO ReviewSessions (DocumentId, Status, TotalCandidates, ReviewedCount, KnownCount, UnknownCount, IgnoredCount, DecisionSequence, StartedAt) VALUES (0, ?, 0, 0, 0, 0, 0, 0, ?)",
+            (int)ReviewSessionStatus.Active, DateTime.UtcNow);
+
+        var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
+        var root = StorageRoot(database);
+        try
+        {
+            var service = CreateService(database);
+            var result = await service.CreateSafetyCopyAsync(null, CancellationToken.None);
+
+            Assert.AreEqual(MergeSafetyCopyStatus.BlockedByActiveWorkflow, result.Status);
+            Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, result.ErrorCode);
+            Assert.IsFalse(Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
     }
 }

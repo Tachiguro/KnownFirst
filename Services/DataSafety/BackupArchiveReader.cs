@@ -9,8 +9,160 @@ public sealed record ValidatedBackupArchive(
     BackupManifest Manifest,
     BackupPayload Payload);
 
+/// <summary>Archive format v2 counterpart of <see cref="ValidatedBackupArchive"/>.</summary>
+public sealed record ValidatedBackupArchiveV2(
+    BackupManifestV2 Manifest,
+    BackupPayloadV2 Payload);
+
+/// <summary>Discriminated result of <see cref="BackupArchiveReader.ValidateVersionedAsync"/> — exactly
+/// one of <see cref="V1"/>/<see cref="V2"/> is populated, selected by <see cref="FormatVersion"/>.</summary>
+public sealed record ValidatedBackupArchiveEnvelope(
+    int FormatVersion,
+    ValidatedBackupArchive? V1,
+    ValidatedBackupArchiveV2? V2);
+
 public static class BackupArchiveReader
 {
+    /// <summary>
+    /// Version-aware entry point (KF-MEANING-001 Slice 2): reads and validates the manifest envelope,
+    /// rejects an unsupported format before interpreting the data payload, verifies checksum and JSON
+    /// structural safety, deserializes with the correct version-specific source-generated JSON
+    /// contract, validates version-specific model and graph invariants, and returns a clearly versioned
+    /// validated result. <see cref="ValidateAsync"/> (v1-only) is kept unchanged alongside this method
+    /// for exact v1-only callers/tests — it is not implemented in terms of this method, to avoid any
+    /// risk of changing its existing, proven behavior.
+    /// </summary>
+    public static async Task<ValidatedBackupArchiveEnvelope> ValidateVersionedAsync(
+        Stream sourceStream,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(sourceStream);
+
+        Stream archiveStream = sourceStream;
+        MemoryStream? bufferedStream = null;
+        try
+        {
+            if (sourceStream.CanSeek)
+            {
+                if (sourceStream.Length > BackupFormatLimits.MaxArchiveBytes)
+                {
+                    throw new BackupFormatException(BackupErrorCodes.ArchiveTooLarge);
+                }
+
+                sourceStream.Position = 0;
+            }
+            else
+            {
+                bufferedStream = new MemoryStream();
+                await CopyBoundedAsync(
+                    sourceStream,
+                    bufferedStream,
+                    BackupFormatLimits.MaxArchiveBytes,
+                    BackupErrorCodes.ArchiveTooLarge,
+                    cancellationToken);
+                bufferedStream.Position = 0;
+                archiveStream = bufferedStream;
+            }
+
+            using var archive = OpenArchive(archiveStream);
+            ValidateEntries(archive);
+
+            var manifestEntry = archive.GetEntry("manifest.json")!;
+            var dataEntry = archive.GetEntry("data.json")!;
+            var manifestBytes = await ReadEntryAsync(
+                manifestEntry,
+                BackupFormatLimits.MaxManifestUncompressedBytes,
+                cancellationToken);
+
+            // Structural safety (duplicate-property rejection) must run before the manifest's
+            // formatVersion field is ever interpreted.
+            ValidateNoDuplicateProperties(manifestBytes, BackupErrorCodes.ManifestInvalid);
+
+            // Peek formatVersion via the source-generated (never reflection-based) envelope, and
+            // reject an unsupported format before touching data.json at all.
+            var formatVersion = BackupJsonCodecV2.PeekFormatVersion(manifestBytes);
+            if (formatVersion < BackupFormatLimits.MinimumSupportedFormatVersion
+                || formatVersion > BackupFormatLimits.CurrentArchiveFormatVersion)
+            {
+                throw new BackupFormatException(BackupErrorCodes.UnsupportedFormat);
+            }
+
+            if (formatVersion == BackupFormatLimits.FormatVersion)
+            {
+                var manifest = BackupJsonCodec.DeserializeManifest(manifestBytes);
+                if (manifest.RequiredFeatures.Count != 0 || manifest.OptionalFeatures.Count != 0)
+                {
+                    throw new BackupFormatException(BackupErrorCodes.UnsupportedRequiredFeature);
+                }
+
+                var dataBytes = await ReadEntryAsync(dataEntry, BackupFormatLimits.MaxDataUncompressedBytes, cancellationToken);
+                VerifyChecksum(manifest.DataChecksum, dataBytes);
+                ValidateNoDuplicateProperties(dataBytes, BackupErrorCodes.DataJsonInvalid);
+                var payload = BackupJsonCodec.DeserializeData(dataBytes);
+                if (payload.Extensions.Features.Count != 0)
+                {
+                    throw new BackupFormatException(BackupErrorCodes.UnsupportedRequiredFeature);
+                }
+
+                BackupModelContract.ValidateRecordCounts(manifest, payload);
+                BackupArchiveWriter.ValidatePayloadGraph(payload);
+                ValidatePortableRecoveryScope(payload);
+
+                return new ValidatedBackupArchiveEnvelope(
+                    formatVersion,
+                    new ValidatedBackupArchive(manifest, payload),
+                    null);
+            }
+            else
+            {
+                var manifest = BackupJsonCodecV2.DeserializeManifest(manifestBytes);
+                if (manifest.RequiredFeatures.Count != 0 || manifest.OptionalFeatures.Count != 0)
+                {
+                    throw new BackupFormatException(BackupErrorCodes.UnsupportedRequiredFeature);
+                }
+
+                var dataBytes = await ReadEntryAsync(dataEntry, BackupFormatLimits.MaxDataUncompressedBytes, cancellationToken);
+                VerifyChecksum(manifest.DataChecksum, dataBytes);
+                ValidateNoDuplicateProperties(dataBytes, BackupErrorCodes.DataJsonInvalid);
+                var payload = BackupJsonCodecV2.DeserializeData(dataBytes);
+                if (payload.Extensions.Features.Count != 0)
+                {
+                    throw new BackupFormatException(BackupErrorCodes.UnsupportedRequiredFeature);
+                }
+
+                BackupModelContractV2.ValidateRecordCounts(manifest, payload);
+                BackupArchiveWriterV2.ValidatePayloadGraphV2(payload);
+                ValidatePortableRecoveryScopeV2(payload);
+
+                return new ValidatedBackupArchiveEnvelope(
+                    formatVersion,
+                    null,
+                    new ValidatedBackupArchiveV2(manifest, payload));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (BackupFormatException)
+        {
+            throw;
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new BackupFormatException(BackupErrorCodes.ArchiveLayoutInvalid, exception);
+        }
+        catch (IOException exception)
+        {
+            throw new BackupFormatException(BackupErrorCodes.IoFailure, exception);
+        }
+        finally
+        {
+            bufferedStream?.Dispose();
+        }
+    }
+
+
     public static async Task<ValidatedBackupArchive> ValidateAsync(
         Stream sourceStream,
         CancellationToken cancellationToken)
@@ -285,6 +437,19 @@ public static class BackupArchiveReader
     }
 
     private static void ValidatePortableRecoveryScope(BackupPayload payload)
+    {
+        if (payload.Workflows.VocabularyReviews.Any(
+                workflow => workflow.Status == BackupReviewSessionStatus.Active)
+            || payload.Workflows.PreparationBatches.Any(
+                workflow => workflow.Status == BackupPreparationSessionStatus.Active)
+            || payload.Workflows.LearningSessions.Any(
+                workflow => workflow.Status == BackupLearningSessionStatus.Active))
+        {
+            throw new BackupFormatException(BackupErrorCodes.ActiveWorkflowUnsupported);
+        }
+    }
+
+    private static void ValidatePortableRecoveryScopeV2(BackupPayloadV2 payload)
     {
         if (payload.Workflows.VocabularyReviews.Any(
                 workflow => workflow.Status == BackupReviewSessionStatus.Active)

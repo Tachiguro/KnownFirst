@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
-using KnownFirst.Data;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety;
@@ -9,12 +8,14 @@ public static class BackupArchiveWriter
 {
     public static async Task WriteArchiveAsync(
         BackupPayload payload,
-        BackupSnapshot snapshot, // For counts
         IBackupPlatformInfo platformInfo,
+        ValidatedSchema7Capability capability,
         DateTime timestampUtc,
         Stream destinationStream,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(capability);
+
         BackupModelContract.ValidatePayload(payload);
         ValidatePayloadGraph(payload);
 
@@ -37,29 +38,16 @@ public static class BackupArchiveWriter
 
             var hashString = "sha256:" + Convert.ToHexString(hash).ToLowerInvariant();
 
+            // Record counts come only from the payload actually being serialized (never a second,
+            // independently-suppliable source such as the raw snapshot) — RecordCounts cannot
+            // disagree with the serialized payload by construction (KF-MEANING-001 Slice 2).
             var manifest = new BackupManifest(
                 FormatVersion: BackupFormatLimits.FormatVersion,
                 SourceAppVersion: platformInfo.SourceAppVersion,
-                SourceDatabaseSchemaVersion: DatabaseSchema.CurrentVersion,
+                SourceDatabaseSchemaVersion: ValidatedSchema7Capability.SchemaVersion,
                 SourcePlatform: platformInfo.SourcePlatform,
                 CreatedAtUtc: timestampUtc,
-                RecordCounts: new BackupRecordCounts(
-                    snapshot.Documents.Count,
-                    snapshot.SentenceSpans.Count,
-                    snapshot.Words.Count,
-                    snapshot.WordForms.Count,
-                    snapshot.WordOccurrences.Count,
-                    snapshot.Meanings.Count,
-                    snapshot.ContextSnapshots.Count,
-                    snapshot.ReviewStates.Count,
-                    snapshot.ReviewSessions.Count,
-                    snapshot.ReviewCandidates.Count,
-                    snapshot.PreparationSessions.Count,
-                    snapshot.PreparationCandidates.Count,
-                    snapshot.LearningCards.Count,
-                    snapshot.LearningReviews.Count,
-                    snapshot.LearningSessions.Count,
-                    snapshot.LearningSessionCards.Count),
+                RecordCounts: BackupModelContract.CountRecords(payload),
                 OptionalFeatures: Array.Empty<string>(),
                 RequiredFeatures: Array.Empty<string>(),
                 DataChecksum: hashString);

@@ -23,8 +23,8 @@ public sealed record MergeSafetyCopyResult(
     string? MetadataPath,
     DateTime? CreatedAtUtc,
     long? ArchiveSizeBytes,
-    BackupRecordCounts? RecordCounts,
-    BackupManifest? ValidatedManifest,
+    BackupPortableArchiveCounts? RecordCounts,
+    BackupPortableArchiveSummary? ValidatedManifest,
     string? ErrorCode)
 {
     internal static MergeSafetyCopyResult ForSuccess(
@@ -32,8 +32,8 @@ public sealed record MergeSafetyCopyResult(
         string metadataPath,
         DateTime createdAtUtc,
         long archiveSizeBytes,
-        BackupRecordCounts recordCounts,
-        BackupManifest validatedManifest) =>
+        BackupPortableArchiveCounts recordCounts,
+        BackupPortableArchiveSummary validatedManifest) =>
         new(
             MergeSafetyCopyStatus.Success,
             archivePath,

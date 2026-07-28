@@ -1,0 +1,34 @@
+using KnownFirst.Data.Entities;
+using KnownFirst.Data.Migrations.Schema8;
+
+namespace KnownFirst.Data.Schema8;
+
+/// <summary>
+/// Full-fidelity raw capture of a Schema-8 database (KF-MEANING-001 Slice 2), analogous to
+/// <see cref="BackupSnapshot"/> for Schema 7. Tables unaffected by the Schema-8 migration are captured
+/// via the existing <c>Data/Entities</c> classes exactly as <see cref="BackupSnapshotRepository"/> already
+/// does; tables the migration changes (Meanings, ContextSnapshots, LearningCards, LearningReviews,
+/// LearningSessionCards) and the four new tables use the isolated row models in this namespace /
+/// <c>Data/Migrations/Schema8</c> — no existing entity class is read or written through here.
+/// </summary>
+public sealed record Schema8BackupSnapshot(
+    IReadOnlyList<DocumentEntity> Documents,
+    IReadOnlyList<WordEntity> Words,
+    IReadOnlyList<WordFormEntity> WordForms,
+    IReadOnlyList<SentenceSpanEntity> SentenceSpans,
+    IReadOnlyList<WordOccurrenceEntity> WordOccurrences,
+    IReadOnlyList<Schema8MeaningRow> Meanings,
+    IReadOnlyList<ReviewStateEntity> ReviewStates,
+    IReadOnlyList<ReviewSessionEntity> ReviewSessions,
+    IReadOnlyList<ReviewCandidateEntity> ReviewCandidates,
+    IReadOnlyList<PreparationSessionEntity> PreparationSessions,
+    IReadOnlyList<PreparationCandidateEntity> PreparationCandidates,
+    IReadOnlyList<Schema8ContextRow> ContextSnapshots,
+    IReadOnlyList<SenseRow> Senses,
+    IReadOnlyList<AnswerVariantRow> AnswerVariants,
+    IReadOnlyList<SenseAnswerVariantAssignmentRow> Assignments,
+    IReadOnlyList<AnswerVariantProgressRow> AnswerVariantProgress,
+    IReadOnlyList<Schema8CardRow> LearningCards,
+    IReadOnlyList<Schema8ReviewRow> LearningReviews,
+    IReadOnlyList<LearningSessionEntity> LearningSessions,
+    IReadOnlyList<Schema8QueueRow> LearningSessionCards);

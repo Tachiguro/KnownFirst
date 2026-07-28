@@ -5,34 +5,41 @@ using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety;
 
-public static class BackupJsonCodec
+/// <summary>Archive format v2 JSON codec (KF-MEANING-001 Slice 2). Mirrors <see cref="BackupJsonCodec"/>'s
+/// shape exactly, against the v2 model graph and <see cref="BackupModelContractV2"/>. Strict
+/// source-generated serialization throughout — no reflection fallback.</summary>
+public static class BackupJsonCodecV2
 {
-    private static readonly BackupJsonSerializerContext SerializerContext =
+    private static readonly BackupJsonSerializerContextV2 SerializerContext =
         new(CreateSerializerOptions());
 
-    public static byte[] SerializeManifest(BackupManifest manifest)
+    /// <summary>A separate, permissive source-generated context used only to peek a manifest's
+    /// <c>formatVersion</c> field before any version-specific deserialization — never the authoritative
+    /// manifest reader. <see cref="JsonUnmappedMemberHandling.Skip"/> lets it read a v1 <em>or</em> v2
+    /// manifest shape without failing on fields the other version doesn't declare.</summary>
+    private static readonly BackupJsonSerializerContextV2 PeekSerializerContext =
+        new(CreatePeekSerializerOptions());
+
+    public static byte[] SerializeManifest(BackupManifestV2 manifest)
     {
-        BackupModelContract.ValidateManifest(manifest);
+        BackupModelContractV2.ValidateManifest(manifest);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(
             manifest,
-            SerializerContext.BackupManifest);
+            SerializerContext.BackupManifestV2);
         EnforceMaximumLength(bytes, BackupFormatLimits.MaxManifestUncompressedBytes);
         return bytes;
     }
 
-    public static BackupManifest DeserializeManifest(ReadOnlySpan<byte> utf8Json)
+    public static BackupManifestV2 DeserializeManifest(ReadOnlySpan<byte> utf8Json)
     {
-        EnforceInput(
-            utf8Json,
-            BackupFormatLimits.MaxManifestUncompressedBytes,
-            BackupErrorCodes.ManifestInvalid);
+        EnforceInput(utf8Json, BackupFormatLimits.MaxManifestUncompressedBytes, BackupErrorCodes.ManifestInvalid);
         try
         {
             var manifest = JsonSerializer.Deserialize(
                 utf8Json,
-                SerializerContext.BackupManifest)
+                SerializerContext.BackupManifestV2)
                 ?? throw new BackupFormatException(BackupErrorCodes.ManifestInvalid);
-            BackupModelContract.ValidateManifest(manifest);
+            BackupModelContractV2.ValidateManifest(manifest);
             return manifest;
         }
         catch (BackupFormatException)
@@ -45,29 +52,26 @@ public static class BackupJsonCodec
         }
     }
 
-    public static byte[] SerializeData(BackupPayload payload)
+    public static byte[] SerializeData(BackupPayloadV2 payload)
     {
-        BackupModelContract.ValidatePayload(payload);
+        BackupModelContractV2.ValidatePayload(payload);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(
             payload,
-            SerializerContext.BackupPayload);
+            SerializerContext.BackupPayloadV2);
         EnforceMaximumLength(bytes, BackupFormatLimits.MaxDataUncompressedBytes);
         return bytes;
     }
 
-    public static BackupPayload DeserializeData(ReadOnlySpan<byte> utf8Json)
+    public static BackupPayloadV2 DeserializeData(ReadOnlySpan<byte> utf8Json)
     {
-        EnforceInput(
-            utf8Json,
-            BackupFormatLimits.MaxDataUncompressedBytes,
-            BackupErrorCodes.DataJsonInvalid);
+        EnforceInput(utf8Json, BackupFormatLimits.MaxDataUncompressedBytes, BackupErrorCodes.DataJsonInvalid);
         try
         {
             var payload = JsonSerializer.Deserialize(
                 utf8Json,
-                SerializerContext.BackupPayload)
+                SerializerContext.BackupPayloadV2)
                 ?? throw new BackupFormatException(BackupErrorCodes.DataJsonInvalid);
-            BackupModelContract.ValidatePayload(payload);
+            BackupModelContractV2.ValidatePayload(payload);
             return payload;
         }
         catch (BackupFormatException)
@@ -77,6 +81,29 @@ public static class BackupJsonCodec
         catch (JsonException exception)
         {
             throw new BackupFormatException(BackupErrorCodes.DataJsonInvalid, exception);
+        }
+    }
+
+    /// <summary>
+    /// Peeks the <c>formatVersion</c> field from already-duplicate-checked manifest bytes, using the
+    /// source-generated (never reflection-based) <see cref="BackupFormatVersionEnvelope"/> contract.
+    /// Must only be called after <c>ValidateNoDuplicateProperties</c> has already run on
+    /// <paramref name="utf8Json"/> — this method performs no structural safety checks of its own beyond
+    /// the size bound already enforced by the caller reading the entry.
+    /// </summary>
+    internal static int PeekFormatVersion(ReadOnlySpan<byte> utf8Json)
+    {
+        try
+        {
+            var envelope = JsonSerializer.Deserialize(
+                utf8Json,
+                PeekSerializerContext.BackupFormatVersionEnvelope)
+                ?? throw new BackupFormatException(BackupErrorCodes.ManifestInvalid);
+            return envelope.FormatVersion;
+        }
+        catch (JsonException exception)
+        {
+            throw new BackupFormatException(BackupErrorCodes.ManifestInvalid, exception);
         }
     }
 
@@ -99,6 +126,34 @@ public static class BackupJsonCodec
             WriteIndented = false
         };
 
+        AddSharedConverters(options);
+        options.Converters.Add(new StrictBackupEnumJsonConverter<BackupSenseStatus>(
+            BackupEnumMappings.ToExternalString,
+            BackupEnumMappings.ParseSenseStatus));
+        options.Converters.Add(new StrictBackupEnumJsonConverter<BackupAnswerVariantRequirement>(
+            BackupEnumMappings.ToExternalString,
+            BackupEnumMappings.ParseAnswerVariantRequirement));
+        return options;
+    }
+
+    private static JsonSerializerOptions CreatePeekSerializerOptions()
+    {
+        var options = new JsonSerializerOptions
+        {
+            AllowTrailingCommas = false,
+            MaxDepth = BackupFormatLimits.MaxJsonDepth,
+            NumberHandling = JsonNumberHandling.Strict,
+            PropertyNameCaseInsensitive = false,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            ReadCommentHandling = JsonCommentHandling.Disallow,
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+            WriteIndented = false
+        };
+        return options;
+    }
+
+    private static void AddSharedConverters(JsonSerializerOptions options)
+    {
         options.Converters.Add(new StrictBackupEnumJsonConverter<BackupSourcePlatform>(
             BackupEnumMappings.ToExternalString,
             BackupEnumMappings.ParseSourcePlatform));
@@ -152,23 +207,16 @@ public static class BackupJsonCodec
             BackupEnumMappings.ParseGrammaticalRelationKind));
         options.Converters.Add(new StrictUtcDateTimeJsonConverter());
         options.Converters.Add(new BackupExtensionsJsonConverter());
-        return options;
     }
 
-    private static void EnforceInput(
-        ReadOnlySpan<byte> utf8Json,
-        int maximumLength,
-        string invalidJsonCode)
+    private static void EnforceInput(ReadOnlySpan<byte> utf8Json, int maximumLength, string invalidJsonCode)
     {
         if (utf8Json.Length > maximumLength)
         {
             throw new BackupFormatException(BackupErrorCodes.LimitExceeded);
         }
 
-        if (utf8Json.Length >= 3
-            && utf8Json[0] == 0xEF
-            && utf8Json[1] == 0xBB
-            && utf8Json[2] == 0xBF)
+        if (utf8Json.Length >= 3 && utf8Json[0] == 0xEF && utf8Json[1] == 0xBB && utf8Json[2] == 0xBF)
         {
             throw new BackupFormatException(invalidJsonCode);
         }
@@ -181,8 +229,4 @@ public static class BackupJsonCodec
             throw new BackupFormatException(BackupErrorCodes.LimitExceeded);
         }
     }
-
-    // StrictBackupEnumJsonConverter<T>, StrictUtcDateTimeJsonConverter, and
-    // BackupExtensionsJsonConverter moved to BackupJsonConverters.cs (KF-MEANING-001 Slice 2) so
-    // BackupJsonCodecV2 can reuse them verbatim — pure mechanical extraction, zero behavior change.
 }

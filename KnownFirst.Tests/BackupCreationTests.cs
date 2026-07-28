@@ -439,7 +439,7 @@ public class BackupCreationTests
         BackupFormatException? exception = null;
         try
         {
-            await BackupArchiveWriter.WriteArchiveAsync(payload, snapshot, new FakePlatformInfo(), DateTime.UtcNow, ms, CancellationToken.None);
+            await BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), DateTime.UtcNow, ms, CancellationToken.None);
         }
         catch (BackupFormatException ex)
         {
@@ -821,7 +821,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
         Assert.DoesNotContain(ex.Message, "999");
     }
@@ -845,7 +845,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -865,7 +865,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -886,7 +886,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -909,7 +909,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -928,7 +928,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -949,7 +949,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -967,7 +967,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -988,7 +988,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -1005,7 +1005,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.MissingReference, ex.Code);
     }
 
@@ -1025,7 +1025,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.InvariantViolation, ex.Code);
     }
 
@@ -1043,7 +1043,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.InvariantViolation, ex.Code);
     }
 
@@ -1063,7 +1063,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.InvariantViolation, ex.Code);
     }
 
@@ -1083,7 +1083,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.InvariantViolation, ex.Code);
     }
 
@@ -1104,7 +1104,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.InvariantViolation, ex.Code);
     }
 
@@ -1123,7 +1123,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.InvariantViolation, ex.Code);
     }
 
@@ -1144,7 +1144,7 @@ public class BackupCreationTests
 
         var payload = BackupModelMapper.MapToExternal(snap);
         using var ms = new MemoryStream();
-        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, snap, new FakePlatformInfo(), now, ms, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<BackupFormatException>(() => BackupArchiveWriter.WriteArchiveAsync(payload, new FakePlatformInfo(), new ValidatedSchema7Capability(), now, ms, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.InvariantViolation, ex.Code);
     }
 

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using KnownFirst.Data;
+using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety.Merge;
@@ -15,11 +16,12 @@ public interface IMergeSafetyCopyService
 
 /// <summary>
 /// Creates a validated, private pre-merge recovery archive ("safety copy") of the target database's
-/// current portable-recovery-scope state. This is KF-BACKUP-002 Slice 2: it guarantees only that the
-/// safety-copy snapshot itself was captured with no active workflow at capture time, and that the
-/// resulting archive+metadata pair was reopened and validated from its final path before Success is
-/// returned. It performs no merge matching, no database mutation, and no Import routing — a future
-/// merge writer must re-check the active-workflow precondition again, immediately before mutation.
+/// current portable-recovery-scope state. This is KF-BACKUP-002 Slice 2 / KF-MEANING-001 Slice 2 (dual-
+/// schema capture): it guarantees only that the safety-copy snapshot itself was captured with no active
+/// workflow at capture time, and that the resulting archive+metadata pair was reopened and validated
+/// from its final path before Success is returned. It performs no merge matching, no database mutation,
+/// and no Import routing — a future merge writer must re-check the active-workflow precondition again,
+/// immediately before mutation.
 /// </summary>
 public sealed class MergeSafetyCopyService(
     IKnownFirstDatabase database,
@@ -52,24 +54,23 @@ public sealed class MergeSafetyCopyService(
 
             var storageRoot = ResolveStorageRoot(database.DatabasePath);
 
-            var captureResult = await database.ExecuteSnapshotAsync(connection =>
-                BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection));
+            // Active-workflow check, schema-capability resolution, and snapshot capture all happen
+            // inside this one ExecuteSnapshotAsync callback — the same race-free guarantee as before,
+            // now proven for both schema versions.
+            var captured = await database.ExecuteSnapshotAsync(connection =>
+                BackupMergeSafetyCopySnapshotCapture.CaptureForMergeSafetyCopy(connection));
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (captureResult.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow)
+            if (captured is MergeSafetyCopyCaptureBlocked)
             {
                 return MergeSafetyCopyResult.BlockedByActiveWorkflow;
             }
-
-            var snapshot = captureResult.Snapshot
-                ?? throw new InvalidOperationException(
-                    "Snapshot capture reported success without a snapshot.");
 
             Directory.CreateDirectory(storageRoot);
 
             return await WriteSafetyCopyAsync(
                 storageRoot,
-                snapshot,
+                captured,
                 sourceDescription,
                 createdFiles,
                 cancellationToken);
@@ -88,7 +89,7 @@ public sealed class MergeSafetyCopyService(
 
     private async Task<MergeSafetyCopyResult> WriteSafetyCopyAsync(
         string storageRoot,
-        BackupSnapshot snapshot,
+        MergeSafetyCopyCaptureEnvelope captured,
         string? sourceDescription,
         List<string> createdFiles,
         CancellationToken cancellationToken)
@@ -110,7 +111,6 @@ public sealed class MergeSafetyCopyService(
         _failureInjector.BeforeArchiveWrite();
         cancellationToken.ThrowIfCancellationRequested();
 
-        var payload = BackupModelMapper.MapToExternal(snapshot);
         await using (var stagingStream = new FileStream(
             stagingArchivePath,
             FileMode.CreateNew,
@@ -120,13 +120,7 @@ public sealed class MergeSafetyCopyService(
             useAsync: true))
         {
             createdFiles.Add(stagingArchivePath);
-            await BackupArchiveWriter.WriteArchiveAsync(
-                payload,
-                snapshot,
-                platformInfo,
-                timestampUtc,
-                stagingStream,
-                cancellationToken);
+            await WriteArchiveAsync(captured, timestampUtc, stagingStream, cancellationToken);
             await stagingStream.FlushAsync(cancellationToken);
         }
 
@@ -142,7 +136,7 @@ public sealed class MergeSafetyCopyService(
                 "Staged safety-copy archive failed basic verification.");
         }
 
-        ValidatedBackupArchive stagedValidated;
+        ValidatedBackupArchiveEnvelope stagedValidated;
         await using (var stagedReadStream = new FileStream(
             stagingArchivePath,
             FileMode.Open,
@@ -151,10 +145,10 @@ public sealed class MergeSafetyCopyService(
             bufferSize: 81920,
             useAsync: true))
         {
-            stagedValidated = await BackupArchiveReader.ValidateAsync(stagedReadStream, cancellationToken);
+            stagedValidated = await BackupArchiveReader.ValidateVersionedAsync(stagedReadStream, cancellationToken);
         }
 
-        VerifyRecordCountsMatchSnapshot(stagedValidated.Manifest.RecordCounts, snapshot);
+        VerifyRecordCountsMatchCapture(stagedValidated, captured);
         cancellationToken.ThrowIfCancellationRequested();
 
         File.Move(stagingArchivePath, finalArchivePath);
@@ -164,7 +158,7 @@ public sealed class MergeSafetyCopyService(
         _failureInjector.AfterArchiveMoved(finalArchivePath);
         cancellationToken.ThrowIfCancellationRequested();
 
-        ValidatedBackupArchive finalValidated;
+        ValidatedBackupArchiveEnvelope finalValidated;
         await using (var finalReadStream = new FileStream(
             finalArchivePath,
             FileMode.Open,
@@ -173,10 +167,11 @@ public sealed class MergeSafetyCopyService(
             bufferSize: 81920,
             useAsync: true))
         {
-            finalValidated = await BackupArchiveReader.ValidateAsync(finalReadStream, cancellationToken);
+            finalValidated = await BackupArchiveReader.ValidateVersionedAsync(finalReadStream, cancellationToken);
         }
 
         var finalArchiveSize = new FileInfo(finalArchivePath).Length;
+        var summary = BackupService.BuildSummary(finalValidated);
 
         _failureInjector.BeforeMetadataWrite();
         cancellationToken.ThrowIfCancellationRequested();
@@ -186,12 +181,12 @@ public sealed class MergeSafetyCopyService(
             archiveFileName,
             timestampUtc,
             finalArchiveSize,
-            finalValidated.Manifest.RecordCounts,
+            summary.Counts,
             SanitizeSourceDescription(sourceDescription),
-            finalValidated.Manifest.FormatVersion,
-            finalValidated.Manifest.SourceAppVersion,
-            finalValidated.Manifest.SourceDatabaseSchemaVersion,
-            finalValidated.Manifest.SourcePlatform);
+            summary.FormatVersion,
+            summary.SourceAppVersion,
+            summary.SourceDatabaseSchemaVersion,
+            summary.SourcePlatform);
 
         var metadataBytes = JsonSerializer.SerializeToUtf8Bytes(
             metadata,
@@ -241,38 +236,68 @@ public sealed class MergeSafetyCopyService(
             finalMetadataPath,
             timestampUtc,
             finalArchiveSize,
-            finalValidated.Manifest.RecordCounts,
-            finalValidated.Manifest);
+            summary.Counts,
+            summary);
     }
 
-    private static void VerifyRecordCountsMatchSnapshot(
-        BackupRecordCounts manifestCounts,
-        BackupSnapshot snapshot)
+    private async Task WriteArchiveAsync(
+        MergeSafetyCopyCaptureEnvelope captured,
+        DateTime timestampUtc,
+        Stream destinationStream,
+        CancellationToken cancellationToken)
     {
-        var expected = new BackupRecordCounts(
-            snapshot.Documents.Count,
-            snapshot.SentenceSpans.Count,
-            snapshot.Words.Count,
-            snapshot.WordForms.Count,
-            snapshot.WordOccurrences.Count,
-            snapshot.Meanings.Count,
-            snapshot.ContextSnapshots.Count,
-            snapshot.ReviewStates.Count,
-            snapshot.ReviewSessions.Count,
-            snapshot.ReviewCandidates.Count,
-            snapshot.PreparationSessions.Count,
-            snapshot.PreparationCandidates.Count,
-            snapshot.LearningCards.Count,
-            snapshot.LearningReviews.Count,
-            snapshot.LearningSessions.Count,
-            snapshot.LearningSessionCards.Count);
+        switch (captured)
+        {
+            case MergeSafetyCopySchema7Captured schema7:
+                var payloadV1 = BackupModelMapper.MapToExternal(schema7.Snapshot);
+                await BackupArchiveWriter.WriteArchiveAsync(
+                    payloadV1, platformInfo, schema7.Capability, timestampUtc, destinationStream, cancellationToken);
+                break;
 
-        if (!expected.Equals(manifestCounts))
+            case MergeSafetyCopySchema8Captured schema8:
+                var payloadV2 = BackupModelMapperV2.MapToExternal(schema8.Snapshot);
+                await BackupArchiveWriterV2.WriteArchiveAsync(
+                    payloadV2, platformInfo, schema8.Capability, timestampUtc, destinationStream, cancellationToken);
+                break;
+
+            default:
+                throw new InvalidOperationException("Unrecognized merge safety-copy capture envelope.");
+        }
+    }
+
+    private static void VerifyRecordCountsMatchCapture(
+        ValidatedBackupArchiveEnvelope validated,
+        MergeSafetyCopyCaptureEnvelope captured)
+    {
+        var actual = BackupService.BuildSummary(validated).Counts;
+        var expected = captured switch
+        {
+            MergeSafetyCopySchema7Captured schema7 => BuildExpectedCounts(schema7.Snapshot),
+            MergeSafetyCopySchema8Captured schema8 => BuildExpectedCounts(schema8.Snapshot),
+            _ => throw new InvalidOperationException("Unrecognized merge safety-copy capture envelope.")
+        };
+
+        if (!expected.Equals(actual))
         {
             throw new InvalidOperationException(
                 "Validated safety-copy manifest record counts did not match the captured snapshot.");
         }
     }
+
+    private static BackupPortableArchiveCounts BuildExpectedCounts(BackupSnapshot snapshot) => new(
+        snapshot.Documents.Count, snapshot.SentenceSpans.Count, snapshot.Words.Count, snapshot.WordForms.Count,
+        snapshot.WordOccurrences.Count, snapshot.Meanings.Count, snapshot.ContextSnapshots.Count, snapshot.ReviewStates.Count,
+        snapshot.ReviewSessions.Count, snapshot.ReviewCandidates.Count, snapshot.PreparationSessions.Count,
+        snapshot.PreparationCandidates.Count, snapshot.LearningCards.Count, snapshot.LearningReviews.Count,
+        snapshot.LearningSessions.Count, snapshot.LearningSessionCards.Count, null, null, null, null);
+
+    private static BackupPortableArchiveCounts BuildExpectedCounts(Schema8BackupSnapshot snapshot) => new(
+        snapshot.Documents.Count, snapshot.SentenceSpans.Count, snapshot.Words.Count, snapshot.WordForms.Count,
+        snapshot.WordOccurrences.Count, snapshot.Meanings.Count, snapshot.ContextSnapshots.Count, snapshot.ReviewStates.Count,
+        snapshot.ReviewSessions.Count, snapshot.ReviewCandidates.Count, snapshot.PreparationSessions.Count,
+        snapshot.PreparationCandidates.Count, snapshot.LearningCards.Count, snapshot.LearningReviews.Count,
+        snapshot.LearningSessions.Count, snapshot.LearningSessionCards.Count,
+        snapshot.Senses.Count, snapshot.AnswerVariants.Count, snapshot.Assignments.Count, snapshot.AnswerVariantProgress.Count);
 
     private static string FormatArchiveFileName(DateTime timestampUtc, string shortId) =>
         $"merge-safety-{timestampUtc:yyyyMMdd'T'HHmmssfff'Z'}-{shortId}.kfarchive";

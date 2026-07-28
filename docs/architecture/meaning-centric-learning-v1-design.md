@@ -478,6 +478,27 @@ The activation PR (Slice 6) is the first, and only, PR permitted to:
 
 Unchanged from the first correction pass in mechanism: the writer *code* emits v2 whenever the live database it is capturing is Schema 8 (§4.8.2's schema-capability rule, not a feature flag), and continues emitting v1 for a live database still at Schema 7 — the writer/reader code itself (Slice 2) is complete and merged **before** activation (§4.8.4), it is only the v2-*emitting* branch that is naturally unreachable until a real database is Schema 8; reader accepts `{1, 2}`; v1 upgrades in memory using the identical §4.2 algorithm, never rejecting for grouping ambiguity; `cardKeys` becomes `(SenseId, Direction)`-keyed for v2; old applications reject v2 safely; excluded-data categories unchanged; `StableId` is the cross-device reference, never an archive-local ID. Preserved data now explicitly includes, per this pass's corrections: `AnswerVariant` rows (pure text expressions), `SenseAnswerVariantAssignment` rows (direction-specific `Requirement`/`IsPreferred`), `LearningCard.PreferredMeaningId` (per-direction, not per-Sense), target/matched `AnswerVariant` references in reviews, target `AnswerVariant` references in completed queue rows, and the `(CardId, AnswerVariantId)`-scoped progress cache (or sufficient review events to rebuild it).
 
+**Slice 2 implementation correction — v1 information boundary (narrow, additive).** A v1 archive
+does not preserve the live database's local SQLite `Meaning.Id` values. The live migration (§4.2)
+uses ascending local `Meaning.Id` as its deterministic tie-break key for representative-Sense
+selection, `SourceMeaning` provenance on deduplicated `AnswerVariant` text, and preferred-assignment-
+fallback candidate choice; a v1 archive's own Meaning ids are assigned by the existing v1 mapper's
+canonical export order (a content/business-field sort), which is a genuinely different total order
+in general. The archive-format v1→v2 upgrader (`BackupArchiveV1UpgradePolicy`) therefore cannot
+always reconstruct exactly which specific Meaning the live migration would have picked when a real
+content tie exists — this is an inherent property of what a v1 archive contains, not an
+implementation shortfall. The shared pure Sense-grouping/preferred-candidate policy
+(`Schema8SemanticUpgradePolicy`) is accordingly parameterized by an explicit **source-order key**:
+the live migration supplies preserved local `Meaning.Id`; the v1 upgrader supplies ordinal v1
+Meaning archive id. When no content tie exists, both converge on the same functional outcome; when
+a tie does exist, the two paths may pick a different specific Meaning as the internal "winner," but
+this never changes any *observable* content, since a tie by definition means the tied candidates'
+text is identical. The compatibility contract above ("v1 upgrades in memory using the identical
+§4.2 algorithm") always meant semantic/behavioral equivalence, not internal-provenance-pointer
+equivalence — this correction states that plainly. Card `PreferredMeaningId` is unaffected by this
+distinction: it is copied directly from the v1 card's `PreparedItemId`, with no re-derivation or
+tie-break involved.
+
 ### 5.2 New/changed v2 domain shapes (contract, not code)
 
 ```

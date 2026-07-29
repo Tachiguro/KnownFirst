@@ -42,7 +42,7 @@ Test classes do not currently use formal MSTest category attributes; filtering r
   OR (interactive menu option 2.1 / 2.2)
 - **Behavior:** Wraps the Windows smoke-test verification with structured artifact reporting and disposable profile isolation. Performs restore, build, automated tests, Windows Debug launch, process/window/startup-event observation, and clean shutdown. Writes JSON summary, step log, and compressed report package to `artifacts/gui-tests/windows/runs/<timestamp-scenarioid>/`. Uses unique disposable application profile under `artifacts/gui-tests/windows/profiles/<run-id>/` to prevent corruption of user data.
 - **Boundaries:** Does NOT click controls, send input, or perform interaction workflows. Does not capture rendered pixels or compare layouts. No AI analysis, import automation, or token assertions.
-- **Branch reconciliation:** This package originates from baseline b5e4b05 (Archive-v2 / Slice 2 merge). KF-MEANING-001 Slice 3 exists on separate branch feature/meaning-centric-multi-sense-preparation-v1 (commit a51b0e8) and must be reconciled with master before merging this GUI-test branch.
+- **Branch status:** KF-MEANING-001 Slice 3 is merged into master (PR #33, merge commit b405aa4). This GUI-test launcher branch (`feature/windows-gui-test-launcher-v1`) has been reconciled with that master via a local merge commit. `report.zip` is uploaded to an external analysis tool only when a human explicitly chooses to do so; no AI invocation or upload happens automatically as part of running StartupSmoke.
 
 ### E. MANUAL_WINDOWS_GUI
 - **Definition:** Manual visual and interaction testing on Windows using disposable synthetic data.

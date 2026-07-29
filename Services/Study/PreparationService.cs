@@ -18,7 +18,8 @@ public sealed partial class PreparationService(
     IKnownFirstDatabase database,
     ILexicalEnrichmentService lexicalEnrichment,
     IClock clock,
-    ILexicalDiagnosticLog? diagnosticLog = null) : IPreparationService
+    ILexicalDiagnosticLog? diagnosticLog = null,
+    IPreparationFaultInjector? faultInjector = null) : IPreparationService
 {
     private const int MaximumContextSnapshots = 3;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
@@ -97,6 +98,15 @@ public sealed partial class PreparationService(
                     return active.Id;
                 }
 
+                // KF-MEANING-001 Slice 3: Schema 7 keeps the unchanged legacy selection path below
+                // byte-for-byte; Schema 8 dispatches to StartSchema8 (PreparationServiceSchema8Start.cs),
+                // which never queries Schema-8-only structures until this branch is actually taken.
+                var capability = PreparationSchemaCapability.Resolve(connection);
+                if (capability is PreparationSchema8CapabilityResult schema8)
+                {
+                    return StartSchema8(connection, method, requestedLimit, schema8.Capability);
+                }
+
                 var preparedWordIds = connection.Table<MeaningEntity>()
                     .Where(meaning => meaning.ConfirmedByUser)
                     .ToList()
@@ -157,29 +167,147 @@ public sealed partial class PreparationService(
         }
     }
 
-    public Task<PreparationItem?> GetCurrentAsync() => database.ReadAsync(async connection =>
+    public async Task<PreparationItem?> GetCurrentAsync()
+    {
+        // KF-MEANING-001 Slice 3 (§6): a genuine EnvelopeV1 is left byte-identical; an active
+        // Empty/LegacyLexicalResult/malformed/unsupported Schema-8 candidate is upgraded (or fails)
+        // transactionally before it is exposed to the caller. Schema-7 databases are never touched here.
+        var pendingCandidateId = await FindActiveCandidateIdAsync();
+        if (pendingCandidateId is int candidateIdToUpgrade)
+        {
+            await EnsureSchema8CandidateUpgradedAsync(candidateIdToUpgrade);
+        }
+
+        return await database.ReadAsync(async connection =>
+        {
+            var session = await connection.Table<PreparationSessionEntity>()
+                .Where(item => item.Status == PreparationSessionStatus.Active)
+                .FirstOrDefaultAsync();
+            if (session is null)
+            {
+                return null;
+            }
+
+            var queryStarted = Stopwatch.GetTimestamp();
+            var candidate = await FindCurrentCandidateAsync(connection, session.Id);
+            RecordTiming(candidate?.Id, "Get current", PreparationTimingPhase.NextCandidateQuery, queryStarted);
+            if (candidate is null)
+            {
+                return null;
+            }
+
+            var contextStarted = Stopwatch.GetTimestamp();
+            var item = await CreateItemAsync(connection, session, candidate);
+            RecordTiming(candidate.Id, "Get current", PreparationTimingPhase.ContextLoading, contextStarted);
+            return item;
+        });
+    }
+
+    private Task<int?> FindActiveCandidateIdAsync() => database.ReadAsync(async connection =>
     {
         var session = await connection.Table<PreparationSessionEntity>()
             .Where(item => item.Status == PreparationSessionStatus.Active)
             .FirstOrDefaultAsync();
         if (session is null)
         {
-            return null;
+            return (int?)null;
         }
 
-        var queryStarted = Stopwatch.GetTimestamp();
         var candidate = await FindCurrentCandidateAsync(connection, session.Id);
-        RecordTiming(candidate?.Id, "Get current", PreparationTimingPhase.NextCandidateQuery, queryStarted);
-        if (candidate is null)
+        return candidate?.Id;
+    });
+
+    /// <summary>
+    /// Lazy Schema-8 envelope upgrade (KF-MEANING-001 Slice 3 §6), safe to call from a read-only code path
+    /// (<see cref="GetCurrentAsync"/>/<see cref="LookupCurrentAsync"/>): a cheap read-only peek decides
+    /// whether anything needs to change, and only opens a transaction when it does. A genuine EnvelopeV1 is
+    /// never touched. A Schema-7 database is never touched (the transaction re-checks capability itself
+    /// before doing anything, closing the TOCTOU gap between the peek and the transaction).
+    /// </summary>
+    private async Task EnsureSchema8CandidateUpgradedAsync(int candidateId)
+    {
+        var needsUpgrade = await database.ReadAsync(async connection =>
         {
-            return null;
+            var candidate = await connection.FindAsync<PreparationCandidateEntity>(candidateId);
+            return candidate is not null
+                && PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Kind != PreparationCandidatePayloadKind.EnvelopeV1;
+        });
+        if (!needsUpgrade)
+        {
+            return;
         }
 
-        var contextStarted = Stopwatch.GetTimestamp();
-        var item = await CreateItemAsync(connection, session, candidate);
-        RecordTiming(candidate.Id, "Get current", PreparationTimingPhase.ContextLoading, contextStarted);
-        return item;
-    });
+        await database.RunInTransactionAsync(connection =>
+        {
+            var capability = PreparationSchemaCapability.Resolve(connection);
+            if (capability is not PreparationSchema8CapabilityResult)
+            {
+                return true;
+            }
+
+            var candidate = connection.Find<PreparationCandidateEntity>(candidateId);
+            if (candidate is null)
+            {
+                return true;
+            }
+
+            EnsureCandidateEnvelopeAndSelection(connection, candidate);
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// Ensures <paramref name="candidate"/>'s <c>ResultJson</c> is a valid EnvelopeV1, mutating and
+    /// persisting it if necessary (KF-MEANING-001 Slice 3 §6): a genuine EnvelopeV1 is returned byte-
+    /// identical and never rewritten; Empty becomes an envelope with a null Result and newly frozen
+    /// evidence; a raw LegacyLexicalResult becomes an envelope wrapping that exact result plus newly frozen
+    /// evidence, with <see cref="PreparationCandidateEntity.SelectedMeaningIndex"/> preserved if still valid
+    /// or deterministically corrected (clamped into range, or 0 when the result has no meanings) otherwise.
+    /// Unsupported/malformed data throws <see cref="PreparationCandidateStateException"/> before any write.
+    /// Never performs a network lookup — only ever touches the ResultJson/SelectedMeaningIndex columns.
+    /// </summary>
+    private static void EnsureCandidateEnvelopeAndSelection(SQLiteConnection connection, PreparationCandidateEntity candidate)
+    {
+        var read = PreparationCandidatePayloadCodec.Read(candidate.ResultJson);
+        switch (read.Kind)
+        {
+            case PreparationCandidatePayloadKind.EnvelopeV1:
+                return;
+
+            case PreparationCandidatePayloadKind.Empty:
+            {
+                var frozen = Schema8EvidenceScanner.SelectFrozenEvidence(connection, candidate.WordId, MaximumContextSnapshots);
+                candidate.ResultJson = PreparationCandidatePayloadCodec.Write(PreparationCandidatePayloadV1.CreatePending(frozen));
+                candidate.SelectedMeaningIndex = 0;
+                connection.Update(candidate);
+                return;
+            }
+
+            case PreparationCandidatePayloadKind.LegacyLexicalResult:
+            {
+                var frozen = Schema8EvidenceScanner.SelectFrozenEvidence(connection, candidate.WordId, MaximumContextSnapshots);
+                var legacyResult = read.LegacyResult!;
+                var correctedIndex = legacyResult.Meanings.Count == 0
+                    ? 0
+                    : Math.Clamp(candidate.SelectedMeaningIndex, 0, legacyResult.Meanings.Count - 1);
+                var upgraded = PreparationCandidatePayloadV1.Create(legacyResult, frozenEvidence: frozen);
+                candidate.ResultJson = PreparationCandidatePayloadCodec.Write(upgraded);
+                candidate.SelectedMeaningIndex = correctedIndex;
+                connection.Update(candidate);
+                return;
+            }
+
+            case PreparationCandidatePayloadKind.UnsupportedEnvelopeVersion:
+                throw new PreparationCandidateStateException(
+                    "preparation-candidate-unsupported-envelope-version",
+                    $"Preparation candidate {candidate.Id}'s ResultJson envelope version {read.UnsupportedVersion} is not supported.");
+
+            default:
+                throw new PreparationCandidateStateException(
+                    "preparation-candidate-malformed",
+                    $"Preparation candidate {candidate.Id}'s ResultJson is malformed: {read.FailureDetail}");
+        }
+    }
 
     public async Task<PreparationItem?> LookupCurrentAsync(CancellationToken cancellationToken = default)
     {
@@ -233,39 +361,74 @@ public sealed partial class PreparationService(
                     PreparationTimingPhase.NetworkWork,
                     networkStarted);
             }
-            await database.RunInTransactionAsync(connection =>
+            var persisted = await database.RunInTransactionAsync(connection =>
             {
                 var candidate = connection.Find<PreparationCandidateEntity>(item.CandidateId)
                     ?? throw new InvalidOperationException("The preparation candidate no longer exists.");
                 EnsureCurrentCandidate(connection, candidate);
                 _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.start"));
-                candidate.ResultJson = JsonSerializer.Serialize(
-                    result,
-                    LexicalJsonSerializerContext.Default.LexicalResult);
-                _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.complete"));
-                candidate.SelectedMeaningIndex = 0;
-                candidate.Status = result.HasUsableData
-                    ? PreparationCandidateStatus.ResultReady
-                    : PreparationCandidateStatus.Failed;
-                candidate.LastErrorCode = result.ErrorCode ?? string.Empty;
-                candidate.UpdatedAtUtc = clock.UtcNow;
-                connection.Update(candidate);
+                // KF-MEANING-001 Slice 3: a Schema-8 database merges the provider result into the
+                // already-frozen envelope (evidence recorded at StartAsync/lazy-upgrade time is never
+                // replaced here); Schema-7 output is byte-for-byte unchanged.
+                var capability = PreparationSchemaCapability.Resolve(connection);
+                var now = clock.UtcNow;
                 var word = connection.Find<WordEntity>(candidate.WordId)!;
-                word.PreparationState = result.HasUsableData
-                    ? PreparationState.Preparing
-                    : PreparationState.PreparationFailed;
-                word.UpdatedAt = clock.UtcNow;
-                connection.Update(word);
-                return true;
+                if (capability is PreparationSchema8CapabilityResult && result.HasUsableData)
+                {
+                    // §9: every provider index that already matches an existing Sense is auto-resolved
+                    // right away — never requiring an explicit accept first — and the candidate
+                    // auto-completes immediately if that resolves every index.
+                    var merged = MergeResultIntoEnvelope(candidate.ResultJson, result);
+                    var (autoResolved, nextIndex, isFullyResolved) = AutoResolveExactVariantsAfterLookup(connection, word, merged);
+                    candidate.ResultJson = PreparationCandidatePayloadCodec.Write(autoResolved);
+                    candidate.SelectedMeaningIndex = nextIndex;
+                    candidate.LastErrorCode = string.Empty;
+                    candidate.UpdatedAtUtc = now;
+                    if (isFullyResolved)
+                    {
+                        var session = connection.Find<PreparationSessionEntity>(candidate.SessionId)!;
+                        word.PreparationState = PreparationState.Prepared;
+                        word.UpdatedAt = now;
+                        connection.Update(word);
+                        connection.Update(candidate);
+                        CompleteCandidate(connection, session, candidate, PreparationCandidateStatus.Prepared, now);
+                        _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.complete"));
+                        return (candidate.Status, candidate.SelectedMeaningIndex);
+                    }
+
+                    candidate.Status = PreparationCandidateStatus.ResultReady;
+                    word.PreparationState = PreparationState.Preparing;
+                    word.UpdatedAt = now;
+                    connection.Update(word);
+                }
+                else
+                {
+                    candidate.ResultJson = capability is PreparationSchema8CapabilityResult
+                        ? PreparationCandidatePayloadCodec.Write(MergeResultIntoEnvelope(candidate.ResultJson, result))
+                        : JsonSerializer.Serialize(result, LexicalJsonSerializerContext.Default.LexicalResult);
+                    candidate.SelectedMeaningIndex = 0;
+                    candidate.Status = result.HasUsableData
+                        ? PreparationCandidateStatus.ResultReady
+                        : PreparationCandidateStatus.Failed;
+                    candidate.LastErrorCode = result.ErrorCode ?? string.Empty;
+                    word.PreparationState = result.HasUsableData
+                        ? PreparationState.Preparing
+                        : PreparationState.PreparationFailed;
+                    word.UpdatedAt = now;
+                    connection.Update(word);
+                }
+
+                _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.complete"));
+                candidate.UpdatedAtUtc = now;
+                connection.Update(candidate);
+                return (candidate.Status, candidate.SelectedMeaningIndex);
             });
 
             var updated = item with
             {
-                Status = result.HasUsableData
-                    ? PreparationCandidateStatus.ResultReady
-                    : PreparationCandidateStatus.Failed,
+                Status = persisted.Status,
                 Result = result,
-                SelectedMeaningIndex = 0,
+                SelectedMeaningIndex = persisted.SelectedMeaningIndex,
                 LastErrorCode = result.ErrorCode
             };
             if (result.HasUsableData)
@@ -291,6 +454,21 @@ public sealed partial class PreparationService(
                 var candidate = connection.Find<PreparationCandidateEntity>(candidateId)
                     ?? throw new InvalidOperationException("The preparation candidate does not exist.");
                 EnsureCurrentCandidate(connection, candidate);
+
+                // KF-MEANING-001 Slice 3 (§6/§7): lazy-upgrade before selection, then reject an
+                // already-resolved index (Schema-8 only; Schema-7 never carries a resolved-index ledger).
+                var capability = PreparationSchemaCapability.Resolve(connection);
+                if (capability is PreparationSchema8CapabilityResult)
+                {
+                    EnsureCandidateEnvelopeAndSelection(connection, candidate);
+                    var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
+                    if (envelope?.ResolvedProviderMeaningIndexes.Contains(meaningIndex) == true)
+                    {
+                        throw new InvalidOperationException(
+                            $"Provider meaning index {meaningIndex} has already been resolved for this candidate.");
+                    }
+                }
+
                 var result = DeserializeResult(candidate.ResultJson)
                     ?? throw new InvalidOperationException("The preparation candidate has no lexical result.");
                 if (meaningIndex < 0 || meaningIndex >= result.Meanings.Count)
@@ -334,127 +512,15 @@ public sealed partial class PreparationService(
             var transactionStarted = Stopwatch.GetTimestamp();
             await database.RunInTransactionAsync(connection =>
             {
-                var candidate = connection.Find<PreparationCandidateEntity>(candidateId)
-                    ?? throw new InvalidOperationException("The preparation candidate does not exist.");
-                EnsureCurrentCandidate(connection, candidate);
-                var session = connection.Find<PreparationSessionEntity>(candidate.SessionId)
-                    ?? throw new InvalidOperationException("The preparation session does not exist.");
-                var word = connection.Find<WordEntity>(candidate.WordId)
-                    ?? throw new InvalidOperationException("The preparation word does not exist.");
-                if (connection.Table<MeaningEntity>()
-                    .Any(meaning => meaning.WordId == word.Id && meaning.ConfirmedByUser))
-                {
-                    throw new InvalidOperationException("This vocabulary item is already prepared.");
-                }
-
-                var contextStarted = Stopwatch.GetTimestamp();
-                var contextData = BuildContextData(connection, word.Id);
-                RecordTiming(candidateId, "Accept", PreparationTimingPhase.ContextLoading, contextStarted);
-                var explanationLanguage = contextData.FirstOrDefault()?.ExplanationLanguage ?? word.Language;
-                var now = clock.UtcNow;
-                var preparedTokenKind = !string.IsNullOrWhiteSpace(input.AcronymExpansion)
-                    && AcronymExpansionDetector.IsAcronymCandidate(word.CanonicalTerm)
-                        ? KnownFirst.Core.Text.TokenKind.Acronym
-                        : word.TokenKind;
-                var aliases = input.AcceptedAliases
-                    .Select(alias => alias.Trim())
-                    .Where(alias => alias.Length > 0)
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray();
-                var meaningSaveStarted = Stopwatch.GetTimestamp();
-                var meaning = new MeaningEntity
-                {
-                    WordId = word.Id,
-                    SourceLanguage = word.Language,
-                    ExplanationLanguage = explanationLanguage,
-                    DisplayTerm = string.IsNullOrWhiteSpace(input.CanonicalLearningTerm)
-                        ? word.CanonicalTerm
-                        : input.CanonicalLearningTerm.Trim(),
-                    EncounteredSurfaceForm = input.EncounteredSurfaceForm?.Trim() ?? string.Empty,
-                    GrammaticalRelationship = input.GrammaticalRelationship?.Trim() ?? string.Empty,
-                    TokenKind = preparedTokenKind,
-                    SelectedMeaningId = input.SelectedMeaningId ?? string.Empty,
-                    AcronymExpansion = input.AcronymExpansion?.Trim() ?? string.Empty,
-                    Translation = input.Translation?.Trim() ?? string.Empty,
-                    Definition = input.Definition.Trim(),
-                    DictionaryExample = input.DictionaryExample?.Trim() ?? string.Empty,
-                    AdditionalNote = input.AdditionalNote?.Trim() ?? string.Empty,
-                    AcceptedAliasesJson = JsonSerializer.Serialize(
-                        aliases,
-                        LexicalJsonSerializerContext.Default.StringArray),
-                    TranslationOrDefinition = !string.IsNullOrWhiteSpace(input.Translation)
-                        ? input.Translation.Trim()
-                        : !string.IsNullOrWhiteSpace(input.Definition)
-                            ? input.Definition.Trim()
-                            : input.AcronymExpansion!.Trim(),
-                    Source = input.ProviderName,
-                    SourceProject = input.SourceProject,
-                    SourcePageTitle = input.SourcePageTitle,
-                    SourceRevisionId = input.SourceRevisionId,
-                    Attribution = input.Attribution,
-                    ConfirmedByUser = true,
-                    CreatedAt = now,
-                    UpdatedAt = now,
-                    PreparedAt = now
-                };
-                connection.Insert(meaning);
-                foreach (var context in contextData.Take(MaximumContextSnapshots))
-                {
-                    connection.Insert(new ContextSnapshotEntity
-                    {
-                        MeaningId = meaning.Id,
-                        WordId = word.Id,
-                        SourceDocumentId = context.DocumentId,
-                        SourceDocumentTitle = context.DocumentTitle,
-                        Text = context.Text,
-                        TargetStart = context.TargetStart,
-                        TargetLength = context.TargetLength,
-                        NormalizedFingerprint = CreateFingerprint(NormalizeContext(context.Text)),
-                        CreatedAtUtc = now
-                    });
-                }
-
-                RecordTiming(
-                    candidateId,
-                    "Accept",
-                    PreparationTimingPhase.PreparedMeaningSave,
-                    meaningSaveStarted);
-
-                var cardCreationStarted = Stopwatch.GetTimestamp();
-                foreach (var direction in CardDirectionPreferencePolicy.GetDirections(cardDirectionPreference))
-                {
-                    connection.Insert(new LearningCardEntity
-                    {
-                        WordId = word.Id,
-                        MeaningId = meaning.Id,
-                        Direction = direction,
-                        State = CardState.New,
-                        DueAtUtc = now,
-                        EaseFactor = SimpleSpacedRepetitionScheduler.DefaultEaseFactor,
-                        CreatedAtUtc = now,
-                        UpdatedAtUtc = now
-                    });
-                }
-
-                RecordTiming(
-                    candidateId,
-                    "Accept",
-                    PreparationTimingPhase.LearningCardCreation,
-                    cardCreationStarted);
-
-                var sessionUpdateStarted = Stopwatch.GetTimestamp();
-                word.TokenKind = preparedTokenKind;
-                word.Status = WordStatus.Prepared;
-                word.PreparationState = PreparationState.Prepared;
-                word.UpdatedAt = now;
-                connection.Update(word);
-                CompleteCandidate(connection, session, candidate, PreparationCandidateStatus.Prepared, now);
-                RecordTiming(
-                    candidateId,
-                    "Accept",
-                    PreparationTimingPhase.SessionUpdate,
-                    sessionUpdateStarted);
-                return true;
+                // KF-MEANING-001 Slice 3: schema capability is resolved before any mutation, fail-closed,
+                // via the preparation-specific PreparationSchemaCapability (validated PRAGMA user_version +
+                // Schema8ShapeValidator) — deliberately independent of the backup subsystem's
+                // BackupSchemaCapability. The Schema-7 branch below is otherwise byte-for-byte the
+                // pre-Slice-3 behavior; the Schema-8 branch lives entirely in PreparationServiceSchema8.cs.
+                var capability = PreparationSchemaCapability.Resolve(connection);
+                return capability is PreparationSchema8CapabilityResult schema8
+                    ? AcceptSchema8(connection, candidateId, input, cardDirectionPreference, schema8.Capability)
+                    : AcceptSchema7(connection, candidateId, input, cardDirectionPreference);
             });
             RecordTiming(
                 candidateId,
@@ -466,6 +532,147 @@ public sealed partial class PreparationService(
         {
             _operationGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Strict Schema-7 behavior preservation (KF-MEANING-001 Slice 3): extracted verbatim from the
+    /// pre-Slice-3 <c>AcceptAsync</c> transaction body, unchanged. Existing candidate-selection policy,
+    /// confirmed-Meaning exclusion, Prepared-state exclusion, raw <c>LexicalResult</c> ResultJson,
+    /// <see cref="WordStatus.Prepared"/>/<see cref="PreparationState.Prepared"/> writes, and existing
+    /// timestamp/session-count behavior are all identical to before this slice. Issues no Schema-8 SQL.
+    /// </summary>
+    private bool AcceptSchema7(
+        SQLiteConnection connection,
+        int candidateId,
+        PreparedMeaningInput input,
+        CardDirectionPreference cardDirectionPreference)
+    {
+        // KF-MEANING-001 Slice 3 (§8): Schema 7 validates the same TopicOrDomain/PartOfSpeech API bounds as
+        // Schema 8, before any mutation, but never persists them and never changes legacy rows/shape.
+        PreparationMetadataPolicy.NormalizeTopicOrDomain(input.TopicOrDomain);
+        PreparationMetadataPolicy.NormalizePartOfSpeech(input.PartOfSpeech);
+
+        var candidate = connection.Find<PreparationCandidateEntity>(candidateId)
+            ?? throw new InvalidOperationException("The preparation candidate does not exist.");
+        EnsureCurrentCandidate(connection, candidate);
+        var session = connection.Find<PreparationSessionEntity>(candidate.SessionId)
+            ?? throw new InvalidOperationException("The preparation session does not exist.");
+        var word = connection.Find<WordEntity>(candidate.WordId)
+            ?? throw new InvalidOperationException("The preparation word does not exist.");
+        if (connection.Table<MeaningEntity>()
+            .Any(meaning => meaning.WordId == word.Id && meaning.ConfirmedByUser))
+        {
+            throw new InvalidOperationException("This vocabulary item is already prepared.");
+        }
+
+        var contextStarted = Stopwatch.GetTimestamp();
+        var contextData = BuildContextData(connection, word.Id);
+        RecordTiming(candidateId, "Accept", PreparationTimingPhase.ContextLoading, contextStarted);
+        var explanationLanguage = contextData.FirstOrDefault()?.ExplanationLanguage ?? word.Language;
+        var now = clock.UtcNow;
+        var preparedTokenKind = !string.IsNullOrWhiteSpace(input.AcronymExpansion)
+            && AcronymExpansionDetector.IsAcronymCandidate(word.CanonicalTerm)
+                ? KnownFirst.Core.Text.TokenKind.Acronym
+                : word.TokenKind;
+        var aliases = input.AcceptedAliases
+            .Select(alias => alias.Trim())
+            .Where(alias => alias.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var meaningSaveStarted = Stopwatch.GetTimestamp();
+        var meaning = new MeaningEntity
+        {
+            WordId = word.Id,
+            SourceLanguage = word.Language,
+            ExplanationLanguage = explanationLanguage,
+            DisplayTerm = string.IsNullOrWhiteSpace(input.CanonicalLearningTerm)
+                ? word.CanonicalTerm
+                : input.CanonicalLearningTerm.Trim(),
+            EncounteredSurfaceForm = input.EncounteredSurfaceForm?.Trim() ?? string.Empty,
+            GrammaticalRelationship = input.GrammaticalRelationship?.Trim() ?? string.Empty,
+            TokenKind = preparedTokenKind,
+            SelectedMeaningId = input.SelectedMeaningId ?? string.Empty,
+            AcronymExpansion = input.AcronymExpansion?.Trim() ?? string.Empty,
+            Translation = input.Translation?.Trim() ?? string.Empty,
+            Definition = input.Definition.Trim(),
+            DictionaryExample = input.DictionaryExample?.Trim() ?? string.Empty,
+            AdditionalNote = input.AdditionalNote?.Trim() ?? string.Empty,
+            AcceptedAliasesJson = JsonSerializer.Serialize(
+                aliases,
+                LexicalJsonSerializerContext.Default.StringArray),
+            TranslationOrDefinition = !string.IsNullOrWhiteSpace(input.Translation)
+                ? input.Translation.Trim()
+                : !string.IsNullOrWhiteSpace(input.Definition)
+                    ? input.Definition.Trim()
+                    : input.AcronymExpansion!.Trim(),
+            Source = input.ProviderName,
+            SourceProject = input.SourceProject,
+            SourcePageTitle = input.SourcePageTitle,
+            SourceRevisionId = input.SourceRevisionId,
+            Attribution = input.Attribution,
+            ConfirmedByUser = true,
+            CreatedAt = now,
+            UpdatedAt = now,
+            PreparedAt = now
+        };
+        connection.Insert(meaning);
+        foreach (var context in contextData.Take(MaximumContextSnapshots))
+        {
+            connection.Insert(new ContextSnapshotEntity
+            {
+                MeaningId = meaning.Id,
+                WordId = word.Id,
+                SourceDocumentId = context.DocumentId,
+                SourceDocumentTitle = context.DocumentTitle,
+                Text = context.Text,
+                TargetStart = context.TargetStart,
+                TargetLength = context.TargetLength,
+                NormalizedFingerprint = CreateFingerprint(NormalizeContext(context.Text)),
+                CreatedAtUtc = now
+            });
+        }
+
+        RecordTiming(
+            candidateId,
+            "Accept",
+            PreparationTimingPhase.PreparedMeaningSave,
+            meaningSaveStarted);
+
+        var cardCreationStarted = Stopwatch.GetTimestamp();
+        foreach (var direction in CardDirectionPreferencePolicy.GetDirections(cardDirectionPreference))
+        {
+            connection.Insert(new LearningCardEntity
+            {
+                WordId = word.Id,
+                MeaningId = meaning.Id,
+                Direction = direction,
+                State = CardState.New,
+                DueAtUtc = now,
+                EaseFactor = SimpleSpacedRepetitionScheduler.DefaultEaseFactor,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+
+        RecordTiming(
+            candidateId,
+            "Accept",
+            PreparationTimingPhase.LearningCardCreation,
+            cardCreationStarted);
+
+        var sessionUpdateStarted = Stopwatch.GetTimestamp();
+        word.TokenKind = preparedTokenKind;
+        word.Status = WordStatus.Prepared;
+        word.PreparationState = PreparationState.Prepared;
+        word.UpdatedAt = now;
+        connection.Update(word);
+        CompleteCandidate(connection, session, candidate, PreparationCandidateStatus.Prepared, now);
+        RecordTiming(
+            candidateId,
+            "Accept",
+            PreparationTimingPhase.SessionUpdate,
+            sessionUpdateStarted);
+        return true;
     }
 
     public async Task SkipAsync(int candidateId)
@@ -666,29 +873,39 @@ public sealed partial class PreparationService(
         }
     }
 
-    private Task<PreparationItem?> GetLookupItemAsync() => database.ReadAsync(async connection =>
+    private async Task<PreparationItem?> GetLookupItemAsync()
     {
-        var session = await connection.Table<PreparationSessionEntity>()
-            .Where(item => item.Status == PreparationSessionStatus.Active)
-            .FirstOrDefaultAsync();
-        if (session is null)
+        // KF-MEANING-001 Slice 3 (§6): same lazy-upgrade guarantee as GetCurrentAsync.
+        var pendingCandidateId = await FindActiveCandidateIdAsync();
+        if (pendingCandidateId is int candidateIdToUpgrade)
         {
-            return null;
+            await EnsureSchema8CandidateUpgradedAsync(candidateIdToUpgrade);
         }
 
-        var queryStarted = Stopwatch.GetTimestamp();
-        var candidate = await FindCurrentCandidateAsync(connection, session.Id);
-        RecordTiming(candidate?.Id, "Lookup", PreparationTimingPhase.NextCandidateQuery, queryStarted);
-        if (candidate is null)
+        return await database.ReadAsync(async connection =>
         {
-            return null;
-        }
+            var session = await connection.Table<PreparationSessionEntity>()
+                .Where(item => item.Status == PreparationSessionStatus.Active)
+                .FirstOrDefaultAsync();
+            if (session is null)
+            {
+                return null;
+            }
 
-        var contextStarted = Stopwatch.GetTimestamp();
-        var item = await CreateItemAsync(connection, session, candidate);
-        RecordTiming(candidate.Id, "Lookup", PreparationTimingPhase.ContextLoading, contextStarted);
-        return item;
-    });
+            var queryStarted = Stopwatch.GetTimestamp();
+            var candidate = await FindCurrentCandidateAsync(connection, session.Id);
+            RecordTiming(candidate?.Id, "Lookup", PreparationTimingPhase.NextCandidateQuery, queryStarted);
+            if (candidate is null)
+            {
+                return null;
+            }
+
+            var contextStarted = Stopwatch.GetTimestamp();
+            var item = await CreateItemAsync(connection, session, candidate);
+            RecordTiming(candidate.Id, "Lookup", PreparationTimingPhase.ContextLoading, contextStarted);
+            return item;
+        });
+    }
 
     private Task<string> GetDocumentContentAsync(int wordId) => database.ReadAsync(
         connection => LoadDocumentContentAsync(connection, wordId));
@@ -845,6 +1062,42 @@ public sealed partial class PreparationService(
     {
         var word = await connection.FindAsync<WordEntity>(candidate.WordId)
             ?? throw new InvalidOperationException("The preparation word does not exist.");
+
+        // KF-MEANING-001 Slice 3 (§4): a genuine EnvelopeV1 exposes its frozen evidence as Contexts (in
+        // frozen order, so Contexts[0] is the frozen first context sent to the lexical provider);
+        // Empty/LegacyLexicalResult (Schema-7, or a not-yet-upgraded Schema-8 row) keep the exact
+        // pre-Slice-3 live-scan algorithm, unchanged.
+        var read = PreparationCandidatePayloadCodec.Read(candidate.ResultJson);
+        var (contexts, explanationLanguage, lookupMode, targetLanguage) = read.Kind == PreparationCandidatePayloadKind.EnvelopeV1
+            ? await ResolveFrozenContextsAsync(connection, word, read.Envelope!.FrozenEvidence)
+            : await ResolveLiveContextsAsync(connection, word);
+
+        return new PreparationItem(
+            session.Id,
+            candidate.Id,
+            word.Id,
+            word.CanonicalTerm,
+            word.TokenKind,
+            word.Language,
+            explanationLanguage,
+            word.TotalOccurrenceCount,
+            candidate.Order + 1,
+            session.TotalItems,
+            session.Method,
+            candidate.Status,
+            contexts,
+            read.AnyResult,
+            candidate.SelectedMeaningIndex,
+            string.IsNullOrWhiteSpace(candidate.LastErrorCode) ? null : candidate.LastErrorCode,
+            lookupMode,
+            targetLanguage);
+    }
+
+    /// <summary>The exact pre-Slice-3 Schema-7 context-loading algorithm: first three valid occurrences,
+    /// deduplicated by normalized-text fingerprint, in (DocumentId, Order) order.</summary>
+    private static async Task<(List<PreparationContext> Contexts, string ExplanationLanguage, LexicalLookupMode LookupMode, string? TargetLanguage)>
+        ResolveLiveContextsAsync(SQLiteAsyncConnection connection, WordEntity word)
+    {
         var occurrences = await connection.Table<WordOccurrenceEntity>()
             .Where(item => item.WordId == word.Id)
             .OrderBy(item => item.DocumentId)
@@ -882,25 +1135,71 @@ public sealed partial class PreparationService(
             }
         }
 
-        return new PreparationItem(
-            session.Id,
-            candidate.Id,
-            word.Id,
-            word.CanonicalTerm,
-            word.TokenKind,
-            word.Language,
-            explanationLanguage,
-            word.TotalOccurrenceCount,
-            candidate.Order + 1,
-            session.TotalItems,
-            session.Method,
-            candidate.Status,
-            contexts,
-            DeserializeResult(candidate.ResultJson),
-            candidate.SelectedMeaningIndex,
-            string.IsNullOrWhiteSpace(candidate.LastErrorCode) ? null : candidate.LastErrorCode,
-            lookupMode,
-            targetLanguage);
+        return (contexts, explanationLanguage, lookupMode, targetLanguage);
+    }
+
+    /// <summary>
+    /// Resolves an envelope's frozen evidence into display-ready contexts (KF-MEANING-001 Slice 3 §4): a
+    /// full live occurrence scan builds a key→context lookup (documents/sentences/occurrences are
+    /// immutable once imported, so a frozen key always resolves to the same text/position), then the
+    /// frozen evidence list is mapped in its own order — never occurrence-scan order — so Contexts[0] is
+    /// always the frozen first context.
+    /// </summary>
+    private static async Task<(List<PreparationContext> Contexts, string ExplanationLanguage, LexicalLookupMode LookupMode, string? TargetLanguage)>
+        ResolveFrozenContextsAsync(
+            SQLiteAsyncConnection connection, WordEntity word, IReadOnlyList<PreparationCandidateEvidence> frozenEvidence)
+    {
+        var contexts = new List<PreparationContext>();
+        if (frozenEvidence.Count == 0)
+        {
+            return (contexts, word.Language, LexicalLookupMode.Definition, null);
+        }
+
+        var occurrences = await connection.Table<WordOccurrenceEntity>()
+            .Where(item => item.WordId == word.Id)
+            .OrderBy(item => item.DocumentId)
+            .ThenBy(item => item.Order)
+            .ToListAsync();
+
+        var byKey = new Dictionary<KnownFirst.Core.Preparation.ContextEvidenceKey, (PreparationContext Context, DocumentEntity Document)>();
+        foreach (var occurrence in occurrences)
+        {
+            var document = await connection.FindAsync<DocumentEntity>(occurrence.DocumentId);
+            var sentence = await connection.FindAsync<SentenceSpanEntity>(occurrence.SentenceSpanId);
+            if (document is null || sentence is null || !TryCreateContext(document, sentence, occurrence, out var context))
+            {
+                continue;
+            }
+
+            var key = KnownFirst.Core.Preparation.PreparationContextEvidencePolicy.CreateKey(
+                context.DocumentId, context.Text, context.TargetStart, context.TargetLength);
+            byKey.TryAdd(key, (context, document));
+        }
+
+        string explanationLanguage = word.Language;
+        var lookupMode = LexicalLookupMode.Definition;
+        string? targetLanguage = null;
+        var lookupSettingsLoaded = false;
+        foreach (var evidence in frozenEvidence)
+        {
+            var key = new KnownFirst.Core.Preparation.ContextEvidenceKey(
+                evidence.SourceDocumentId, evidence.NormalizedFingerprint, evidence.TargetStart, evidence.TargetLength);
+            if (!byKey.TryGetValue(key, out var match))
+            {
+                continue;
+            }
+
+            if (!lookupSettingsLoaded)
+            {
+                (lookupMode, targetLanguage) = ResolveLookupSettings(match.Document);
+                explanationLanguage = targetLanguage ?? match.Document.TextLanguage;
+                lookupSettingsLoaded = true;
+            }
+
+            contexts.Add(match.Context);
+        }
+
+        return (contexts, explanationLanguage, lookupMode, targetLanguage);
     }
 
     private static List<ContextData> BuildContextData(SQLiteConnection connection, int wordId)
@@ -942,7 +1241,7 @@ public sealed partial class PreparationService(
         return result;
     }
 
-    private static bool TryCreateContext(
+    internal static bool TryCreateContext(
         DocumentEntity document,
         SentenceSpanEntity sentence,
         WordOccurrenceEntity occurrence,
@@ -1025,12 +1324,31 @@ public sealed partial class PreparationService(
         connection.Update(session);
     }
 
+    /// <summary>
+    /// Reads <paramref name="resultJson"/> through the discriminated
+    /// <see cref="PreparationCandidatePayloadCodec"/> and returns the underlying provider lookup
+    /// regardless of shape (Empty/EnvelopeV1/LegacyLexicalResult) — the pre-Slice-3 raw-only
+    /// deserialization would silently mis-parse a Schema-8 envelope's own top-level JSON as if it were a
+    /// <see cref="LexicalResult"/>. Malformed/UnsupportedEnvelopeVersion rows report no usable result
+    /// rather than throwing, matching this method's pre-existing nullable-return contract for callers
+    /// that already treat "no result yet" as normal (e.g. <see cref="CreateItemAsync"/>); callers that
+    /// require the result to exist (<see cref="SelectMeaningAsync"/>) already throw on a null return.
+    /// </summary>
     private static LexicalResult? DeserializeResult(string resultJson) =>
-        string.IsNullOrWhiteSpace(resultJson)
-            ? null
-            : JsonSerializer.Deserialize(
-                resultJson,
-                LexicalJsonSerializerContext.Default.LexicalResult);
+        PreparationCandidatePayloadCodec.Read(resultJson).AnyResult;
+
+    /// <summary>
+    /// Merges a freshly-completed provider lookup into whatever envelope shape the candidate already
+    /// carried, preserving any evidence frozen earlier (at StartAsync or lazy-upgrade time) byte-for-byte —
+    /// the lookup step itself must never recompute or replace frozen evidence.
+    /// </summary>
+    private static PreparationCandidatePayloadV1 MergeResultIntoEnvelope(string existingResultJson, LexicalResult result)
+    {
+        var read = PreparationCandidatePayloadCodec.Read(existingResultJson);
+        return read.Kind == PreparationCandidatePayloadKind.EnvelopeV1
+            ? read.Envelope! with { Result = result }
+            : PreparationCandidatePayloadV1.Create(result);
+    }
 
     private static async Task<PreparationCandidateEntity?> FindCurrentCandidateAsync(
         SQLiteAsyncConnection connection,
@@ -1126,21 +1444,20 @@ public sealed partial class PreparationService(
         return (LexicalLookupMode.Definition, null);
     }
 
-    private static string NormalizeContext(string value) =>
-        WhitespaceRegex().Replace(value.Replace("\r\n", "\n").Replace('\r', '\n').Trim(), " ")
-            .Normalize(NormalizationForm.FormC);
+    /// <summary>
+    /// Delegates to the shared, database-independent <see cref="PreparationContextEvidencePolicy"/>
+    /// (KF-MEANING-001 Slice 3) — kept as a private wrapper so every existing Schema-7 call site is
+    /// unchanged, while the Schema-8 evidence scanner/ledger use the exact same underlying algorithm.
+    /// </summary>
+    private static string NormalizeContext(string value) => PreparationContextEvidencePolicy.NormalizeText(value);
 
-    private static string CreateFingerprint(string value) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
-
-    [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
-    private static partial Regex WhitespaceRegex();
+    private static string CreateFingerprint(string value) => PreparationContextEvidencePolicy.CreateFingerprint(value);
 
     private sealed record PreparationLookupSource(PreparationItem Item, string DocumentContent);
 
     private sealed record PrefetchedLookup(int CandidateId, LexicalResult Result);
 
-    private sealed record ContextData(
+    internal sealed record ContextData(
         int DocumentId,
         string DocumentTitle,
         string ExplanationLanguage,

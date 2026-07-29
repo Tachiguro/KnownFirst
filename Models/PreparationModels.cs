@@ -81,4 +81,6 @@ public sealed record PreparedMeaningInput(
     string Attribution,
     string? EncounteredSurfaceForm = null,
     string? GrammaticalRelationship = null,
-    string? CanonicalLearningTerm = null);
+    string? CanonicalLearningTerm = null,
+    string? TopicOrDomain = null,
+    string? PartOfSpeech = null);

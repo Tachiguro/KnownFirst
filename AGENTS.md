@@ -9,8 +9,8 @@ KnownFirst is a local-first vocabulary-learning application for Windows and Andr
 - **No direct master commits:** Never implement directly on `master`. Work on task-appropriate branches using narrow prefixes (`feature/`, `fix/`, `docs/`, `build/`, `test/`, `chore/`, `hotfix/`, `release/`).
 - **Prohibited destructive operations:** Do not use `git clean`, destructive reset, stash, rebase, amend, history rewriting, or force-push unless an explicit recovery task authorizes it.
 - **Branch and worktree safety:** Inspect branch, HEAD, status, diff, untracked files, and registered worktrees before editing. Treat all pre-existing local work as protected. Never delete a branch or worktree without verifying it is clean.
-- **Explicit authorization required:** Do not commit, push, create a pull request, merge, tag, run ADB/device commands, build APK/AAB packages, or perform release deployment unless explicitly authorized. Auto-merge is strictly prohibited.
-- **No scope expansion:** Perform only the explicitly authorized operation. Prompt authoring and task orchestration are governed by [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md).
+- **Explicit authorization required:** Do not commit, push, create a pull request, merge, tag, run ADB/device commands, build APK/AAB packages, or perform release deployment unless explicitly authorized. Auto-merge and agent PR merges are strictly prohibited; pull requests are merged exclusively by the user manually through GitHub.
+- **No scope expansion:** Perform only the explicitly authorized operation. Prompt authoring and task orchestration are governed by [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md) and [docs/NEW_CHAT_BOOTSTRAP.md](docs/NEW_CHAT_BOOTSTRAP.md).
 - **Approved plan required:** Any repository-writing feature or fix requires an approved `PLAN_ONLY` phase before code implementation.
 - **Isolated operation modes:** One agent prompt has one primary operation mode. Completion of one mode never authorizes follow-up operations (tests, documentation, builds, packaging, commit, push, PR, or merge) automatically.
 
@@ -18,7 +18,7 @@ KnownFirst is a local-first vocabulary-learning application for Windows and Andr
 
 Do not reconstruct full repository context for routine tasks. Follow task-based routing:
 
-1. `AGENTS.md` is always read before making repository edits.
+1. `AGENTS.md` and [docs/NEW_CHAT_BOOTSTRAP.md](docs/NEW_CHAT_BOOTSTRAP.md) are the entry points for new sessions. `AGENTS.md` is always read before making repository edits.
 2. [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md) governs prompt formulation, model routing, and task isolation.
 3. [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) is read for every task that writes repository files.
 4. [docs/TESTING.md](docs/TESTING.md) defines test scopes and failure policies.

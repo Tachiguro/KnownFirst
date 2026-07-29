@@ -23,7 +23,7 @@ When the low-level client package was introduced:
 
 ### Current verified architecture
 
-On open PR #11:
+Merged architecture (PR #11):
 - `WikipediaLookupProvider` implements `ILexicalLookupProvider`;
 - it is registered through `LexicalLookupProviderResolver`;
 - `LexicalEnrichmentService` may create exactly one Wikipedia fallback request after a complete final Wiktionary `NotFound`;
@@ -33,7 +33,7 @@ On open PR #11:
 - `LexicalCacheRepository` stores results using provider-specific identity and schema version;
 - no UI or migration is included;
 - `PRAGMA user_version` remains 7;
-- PR #11 is open and unmerged, so this is not yet stable master behavior.
+- PR #11 was merged through `d33cd80633f1ad1c25f76567136c642c419a23af` and is contained in master baseline `b405aa49001538ac60f45dc9697d9308e48e9eb2`.
 
 ## Verified boundaries
 

@@ -6,9 +6,9 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
-## [1.0.0-beta.12] - Unreleased (hotfix in preparation)
+## [1.0.0-beta.12] - Unreleased
 
-**This version is being prepared on the unmerged branch `hotfix/beta-12-russian-translation` and has not been tested, built, packaged, or uploaded in this step.**
+**Beta 12 source changes are merged into `master` (`b5e4b05` / `b405aa4`). This changelog does not claim that Beta 12 has been packaged, uploaded, promoted, installed, or distributed through Google Play.**
 
 ### Fixed
 

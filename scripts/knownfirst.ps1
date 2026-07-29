@@ -24,15 +24,20 @@
     "not reusable", never as a launcher error.
 
 .PARAMETER Action
-    Test | WindowsBuild | AndroidTestPackage | GooglePlayBundle | ValidateAll
+    Test | GuiTest | WindowsBuild | AndroidTestPackage | GooglePlayBundle | ValidateAll
     When omitted, the interactive menu is shown instead.
 
 .PARAMETER Configuration
     Debug | Release | Diagnostic | DebugRelease | All
     Applies to WindowsBuild (Debug, Release, or All; Diagnostic is not a Windows configuration)
-    and AndroidTestPackage (Debug, Release, Diagnostic, DebugRelease, or All). Omitted or blank
-    means All for both, matching the previous (pre-selection) behavior. DebugRelease is an
-    internal configuration for the interactive menu; it creates Debug and Release APKs only.
+    and AndroidTestPackage (Debug, Release, Diagnostic, DebugRelease, or All). For GuiTest,
+    only supported configurations (e.g., Debug) are valid. Omitted or blank means All for
+    WindowsBuild and AndroidTestPackage. DebugRelease is an internal configuration for the
+    interactive menu; it creates Debug and Release APKs only.
+
+.PARAMETER GuiScenario
+    Scenario id for -Action GuiTest. Supported: StartupSmoke (default), or future scenarios.
+    Invalid or NotImplemented scenarios are rejected before execution.
 
 .PARAMETER WhatIf
     Prints what each operation would do and its expected output path without running it.
@@ -71,11 +76,14 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Test', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'ValidateAll')]
+    [ValidateSet('Test', 'GuiTest', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'ValidateAll')]
     [string]$Action,
 
     [ValidateSet('Debug', 'Release', 'Diagnostic', 'DebugRelease', 'All')]
     [string]$Configuration,
+
+    [ValidateSet('StartupSmoke')]
+    [string]$GuiScenario = 'StartupSmoke',
 
     [switch]$WhatIf,
 
@@ -492,18 +500,30 @@ function New-ActionResult {
         [int]$ExitCode,
         [string]$LogPath,
         [string]$Summary,
-        [bool]$Reused = $false
+        [bool]$Reused = $false,
+        [string]$RunDirectory = '',
+        [string]$SummaryPath = '',
+        [string]$ReportZipPath = ''
     )
+
+    # Precomputed into a plain variable (not an inline parenthesized "-Prop (if ...)"
+    # argument) because Windows PowerShell 5.1 cannot parse an `if` statement inside a
+    # group-expression used as a command/property argument.
+    $status = if ($Succeeded) { 'PASSED' } else { 'FAILED' }
 
     return [pscustomobject]@{
         ActionName     = $ActionName
         Succeeded      = $Succeeded
+        Status         = $status
         FailedStepName = $FailedStepName
         FailedCommand  = $FailedCommand
         ExitCode       = $ExitCode
         LogPath        = $LogPath
         Summary        = $Summary
         Reused         = $Reused
+        RunDirectory   = $RunDirectory
+        SummaryPath    = $SummaryPath
+        ReportZipPath  = $ReportZipPath
     }
 }
 
@@ -920,12 +940,129 @@ function Invoke-ValidateAllAction {
     return New-ActionResult -ActionName 'ValidateAll' -Succeeded $true -LogPath $logPath -Summary $overallSummary
 }
 
+function Invoke-GuiTestAction {
+    param([Parameter(Mandatory = $true)][string]$Scenario)
+
+    Write-Host "Runs automated Windows GUI tests using the $Scenario scenario."
+
+    # GuiTest only ever supports Debug (see scenarios.json). Never forward a null, empty, or
+    # whitespace Configuration to the scenario runner - its own ValidateSet('Debug') would
+    # reject an explicit blank value before falling back to its own default.
+    $effectiveConfiguration = if ([string]::IsNullOrWhiteSpace($Configuration)) { 'Debug' } else { $Configuration }
+
+    if ($WhatIf) {
+        $scenarioName = switch ($Scenario) {
+            'StartupSmoke' { 'Startup smoke test' }
+            default { $Scenario }
+        }
+        Write-Host "[WhatIf] Would run: GUI test scenario '$scenarioName' in $effectiveConfiguration configuration"
+        Write-Host "[WhatIf] No directories, profiles, builds, tests, or processes created."
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $true -Summary '[WhatIf] no commands executed.'
+    }
+
+    $scriptPath = Join-Path $scriptRoot 'gui-tests\windows\run-scenario-startup-smoke.ps1'
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false -ExitCode 1 `
+            -FailedStepName 'Setup' -FailedCommand 'Launcher' `
+            -Summary "GUI test runner script not found: $scriptPath"
+    }
+
+    $logPath = New-LauncherLogPath -ActionName "GuiTest-$Scenario"
+    Write-Host "Log: $logPath"
+
+    $guiRunsRoot = Join-Path $projectRoot 'artifacts\gui-tests\windows\runs'
+    $priorRunDirNames = @()
+    if (Test-Path -LiteralPath $guiRunsRoot -PathType Container) {
+        $priorRunDirNames = @(Get-ChildItem -LiteralPath $guiRunsRoot -Directory | Select-Object -ExpandProperty Name)
+    }
+
+    $exitCode = 1
+    $errorMessage = $null
+    try {
+        & $scriptPath -Configuration $effectiveConfiguration -WorkingDirectory $projectRoot | Tee-Object -Variable 'guiTestOutput'
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        $errorMessage = $_.Exception.Message
+    }
+
+    if ($guiTestOutput) {
+        Add-Content -LiteralPath $logPath -Value $guiTestOutput -Encoding UTF8
+    }
+    if ($errorMessage) {
+        Add-Content -LiteralPath $logPath -Value "ERROR: $errorMessage" -Encoding UTF8
+        Write-Host "ERROR: $errorMessage" -ForegroundColor Red
+    }
+
+    # Discover the actual GUI run directory the scenario runner created (its RunId is
+    # timestamp-generated and not known ahead of time). artifacts\launcher-logs is never the
+    # GUI run directory - it only holds this launcher's own wrapper log.
+    $newRunDir = $null
+    if (Test-Path -LiteralPath $guiRunsRoot -PathType Container) {
+        $newRunDir = Get-ChildItem -LiteralPath $guiRunsRoot -Directory |
+            Where-Object { $priorRunDirNames -notcontains $_.Name } |
+            Sort-Object -Property Name -Descending |
+            Select-Object -First 1
+    }
+
+    if (-not $newRunDir) {
+        # The runner never got past its own preconditions, so no GUI run was ever created.
+        # This is a launcher/precondition-level failure, never a smoke-test result - do not
+        # fabricate a run directory, summary.json, or report.zip path for it.
+        $summary = if ($errorMessage) { "No GUI run directory was created. $errorMessage" } else { 'No GUI run directory was created.' }
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath -Summary $summary
+    }
+
+    $runDirectory = $newRunDir.FullName
+    $summaryPath = Join-Path $runDirectory 'summary.json'
+    $reportZipPath = Join-Path $runDirectory 'report.zip'
+    if (-not (Test-Path -LiteralPath $reportZipPath -PathType Leaf)) {
+        $reportZipPath = ''
+    }
+
+    if (-not (Test-Path -LiteralPath $summaryPath -PathType Leaf)) {
+        $summary = if ($errorMessage) { "GUI run directory was created but summary.json was not found. $errorMessage" } else { 'GUI run directory was created but summary.json was not found.' }
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath -Summary $summary `
+            -RunDirectory $runDirectory -ReportZipPath $reportZipPath
+    }
+
+    # summary.json is the authoritative record of whether the process/window/startup-event
+    # assertions passed. It is written before report packaging and before any later console
+    # formatting runs, so an unrelated error occurring after it (e.g. a packaging failure or a
+    # PowerShell expression error) must never overwrite this genuine outcome.
+    try {
+        $runSummary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath `
+            -Summary "summary.json could not be read: $($_.Exception.Message)" `
+            -RunDirectory $runDirectory -SummaryPath $summaryPath -ReportZipPath $reportZipPath
+    }
+
+    $succeeded = ($runSummary.result -eq 'Passed')
+    if ($succeeded) {
+        $summaryText = if ($errorMessage) { "Smoke checks passed; a secondary error occurred after results were recorded: $errorMessage" } else { '' }
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $true -LogPath $logPath -Summary $summaryText `
+            -RunDirectory $runDirectory -SummaryPath $summaryPath -ReportZipPath $reportZipPath
+    }
+
+    $failedStepName = if ($runSummary.failedStep) { [string]$runSummary.failedStep } else { 'SmokeTest' }
+    $summaryText = if ($runSummary.errorMessage) { [string]$runSummary.errorMessage } else { $errorMessage }
+    return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+        -FailedStepName $failedStepName -ExitCode $exitCode -LogPath $logPath -Summary $summaryText `
+        -RunDirectory $runDirectory -SummaryPath $summaryPath -ReportZipPath $reportZipPath
+}
+
 function Invoke-KnownFirstAction {
     param([Parameter(Mandatory = $true)][string]$SelectedAction)
 
     try {
         switch ($SelectedAction) {
             'Test' { return Invoke-RunTests }
+            'GuiTest' { return Invoke-GuiTestAction -Scenario $GuiScenario }
             'WindowsBuild' { return Invoke-WindowsBuildAction }
             'AndroidTestPackage' { return Invoke-AndroidTestPackageAction }
             'GooglePlayBundle' { return Invoke-GooglePlayBundleAction }
@@ -1014,17 +1151,118 @@ function Show-AndroidTestPackageMenu {
     }
 }
 
+function Show-GuiTestMenu {
+    Write-Host ''
+    Write-Host 'Windows GUI tests' -ForegroundColor Green
+    Write-Host '1. Startup smoke test'
+    Write-Host '2. Run all available GUI tests'
+    Write-Host '3. Show last GUI-test result'
+    Write-Host '4. Back'
+    Write-Host ''
+    $choice = Read-Host 'Choose an option (1-4)'
+
+    switch ($choice) {
+        '1' {
+            $script:GuiScenario = 'StartupSmoke'
+            $script:Configuration = 'Debug'
+            $result = Invoke-KnownFirstAction -SelectedAction 'GuiTest'
+            Write-ActionResult -Result $result
+            Write-Host ''
+            Write-Host "Result: $($result.ActionName) $($result.Status)"
+            if ($result.RunDirectory) {
+                Write-Host "Run directory: $($result.RunDirectory)"
+            }
+            else {
+                Write-Host 'No GUI run directory was created.' -ForegroundColor Yellow
+            }
+            if ($result.SummaryPath) { Write-Host "Summary: $($result.SummaryPath)" }
+            if ($result.ReportZipPath) { Write-Host "Report package: $($result.ReportZipPath)" }
+            Read-Host 'Press Enter to return to the menu'
+            return $true
+        }
+        '2' {
+            Write-Host 'Running all available GUI tests (currently only StartupSmoke)...'
+            $script:GuiScenario = 'StartupSmoke'
+            $script:Configuration = 'Debug'
+            $result = Invoke-KnownFirstAction -SelectedAction 'GuiTest'
+            Write-ActionResult -Result $result
+            Write-Host ''
+            Write-Host "Result: $($result.ActionName) $($result.Status)"
+            if ($result.RunDirectory) {
+                Write-Host "Run directory: $($result.RunDirectory)"
+            }
+            else {
+                Write-Host 'No GUI run directory was created.' -ForegroundColor Yellow
+            }
+            if ($result.SummaryPath) { Write-Host "Summary: $($result.SummaryPath)" }
+            if ($result.ReportZipPath) { Write-Host "Report package: $($result.ReportZipPath)" }
+            Read-Host 'Press Enter to return to the menu'
+            return $true
+        }
+        '3' {
+            $runsRoot = Join-Path $projectRoot 'artifacts\gui-tests\windows\runs'
+            if (-not (Test-Path -LiteralPath $runsRoot -PathType Container)) {
+                Write-Host 'No GUI test runs found.' -ForegroundColor Yellow
+                Read-Host 'Press Enter to return to the menu'
+                return $true
+            }
+
+            $runDirs = @(Get-ChildItem -LiteralPath $runsRoot -Directory | Sort-Object -Property Name -Descending)
+            if ($runDirs.Count -eq 0) {
+                Write-Host 'No GUI test runs found.' -ForegroundColor Yellow
+                Read-Host 'Press Enter to return to the menu'
+                return $true
+            }
+
+            $lastRunDir = $runDirs[0]
+            $summaryPath = Join-Path $lastRunDir.FullName 'summary.json'
+            $reportZipPath = Join-Path $lastRunDir.FullName 'report.zip'
+
+            if (Test-Path -LiteralPath $summaryPath -PathType Leaf) {
+                $summary = Get-Content -LiteralPath $summaryPath | ConvertFrom-Json
+                Write-Host ''
+                Write-Host "Last GUI test run: $($lastRunDir.Name)"
+                $resultColor = if ($summary.result -eq 'Passed') { 'Green' } else { 'Red' }
+                Write-Host "Result: $($summary.result)" -ForegroundColor $resultColor
+                Write-Host "Scenario: $($summary.displayName)"
+                Write-Host "Completed: $($summary.completedAtUtc)"
+                Write-Host "Run directory: $($lastRunDir.FullName)"
+                Write-Host "Summary: $summaryPath"
+                if (Test-Path -LiteralPath $reportZipPath) {
+                    Write-Host "Report package: $reportZipPath"
+                }
+                if ($summary.failedStep) {
+                    Write-Host "Failed step: $($summary.failedStep)"
+                }
+            }
+            else {
+                Write-Host 'Last run summary not found.' -ForegroundColor Yellow
+            }
+            Read-Host 'Press Enter to return to the menu'
+            return $true
+        }
+        '4' {
+            return $true
+        }
+        default {
+            Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
+            return $true
+        }
+    }
+}
+
 function Show-KnownFirstMenu {
     Write-Host ''
     Write-Host 'KnownFirst build launcher' -ForegroundColor Green
-    Write-Host '1. Run automated tests'
-    Write-Host '2. Build Windows app'
-    Write-Host '3. Build Android APK'
-    Write-Host '4. Create Google Play AAB'
-    Write-Host '5. Run full validation'
-    Write-Host '6. Exit'
+    Write-Host '1. Automated tests (unit, integration and contract)'
+    Write-Host '2. Windows GUI tests'
+    Write-Host '3. Build Windows app'
+    Write-Host '4. Build Android APK'
+    Write-Host '5. Create Google Play AAB'
+    Write-Host '6. Full validation (automated tests + Windows/Android builds)'
+    Write-Host '7. Exit'
     Write-Host ''
-    $choice = Read-Host 'Choose an option (1-6)'
+    $choice = Read-Host 'Choose an option (1-7)'
 
     switch ($choice) {
         '1' {
@@ -1034,26 +1272,30 @@ function Show-KnownFirstMenu {
             return $true
         }
         '2' {
-            Show-WindowsBuildMenu
+            Show-GuiTestMenu
             return $true
         }
         '3' {
-            Show-AndroidTestPackageMenu
+            Show-WindowsBuildMenu
             return $true
         }
         '4' {
+            Show-AndroidTestPackageMenu
+            return $true
+        }
+        '5' {
             $result = Invoke-KnownFirstAction -SelectedAction 'GooglePlayBundle'
             Write-ActionResult -Result $result
             if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
             return $true
         }
-        '5' {
+        '6' {
             $result = Invoke-KnownFirstAction -SelectedAction 'ValidateAll'
             Write-ActionResult -Result $result
             if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
             return $true
         }
-        '6' {
+        '7' {
             Write-Host 'Exiting.'
             return $false
         }

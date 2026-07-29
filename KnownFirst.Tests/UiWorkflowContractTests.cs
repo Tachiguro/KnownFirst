@@ -661,6 +661,172 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void GuiTestMenu_StartupSmokeChoicesAlwaysSetDebugConfigurationBeforeInvokingGuiTest()
+    {
+        var script = LoadUi("knownfirst.ps1");
+
+        // Both interactive StartupSmoke choices ('1' and '2' inside Show-GuiTestMenu) must set
+        // Configuration to Debug immediately after selecting the scenario, so the launcher
+        // never forwards a null/empty/whitespace Configuration to the scenario runner (whose
+        // own ValidateSet('Debug') rejects an explicit blank value before applying its default).
+        const string scenarioMarker = "$script:GuiScenario = 'StartupSmoke'";
+        var markerIndex = script.IndexOf(scenarioMarker, StringComparison.Ordinal);
+        var occurrences = 0;
+        while (markerIndex >= 0)
+        {
+            occurrences++;
+            var windowStart = markerIndex + scenarioMarker.Length;
+            var windowLength = Math.Min(120, script.Length - windowStart);
+            var window = script.Substring(windowStart, windowLength);
+            Assert.Contains(
+                "$script:Configuration = 'Debug'",
+                window,
+                $"Menu choice at offset {markerIndex} selects StartupSmoke without immediately setting Configuration to Debug.");
+
+            markerIndex = script.IndexOf(scenarioMarker, windowStart, StringComparison.Ordinal);
+        }
+
+        Assert.IsTrue(occurrences >= 2, "Expected at least two StartupSmoke menu choices (options 1 and 2).");
+    }
+
+    [TestMethod]
+    public void GuiTestAction_NeverForwardsAnEmptyOrWhitespaceConfigurationToTheScenarioRunner()
+    {
+        var script = LoadUi("knownfirst.ps1");
+
+        // Invoke-GuiTestAction defensively defaults a null/empty/whitespace Configuration to
+        // 'Debug' before invoking run-scenario-startup-smoke.ps1, and always invokes with the
+        // computed $effectiveConfiguration rather than the raw, possibly-blank $Configuration.
+        Assert.Contains(
+            "$effectiveConfiguration = if ([string]::IsNullOrWhiteSpace($Configuration)) { 'Debug' } else { $Configuration }",
+            script);
+        Assert.Contains("-Configuration $effectiveConfiguration -WorkingDirectory $projectRoot", script);
+    }
+
+    [TestMethod]
+    public void GuiTestRunner_LoadsBothCompressionAssembliesBeforeReferencingCompressionTypes()
+    {
+        var script = LoadUi("run-scenario-startup-smoke.ps1");
+
+        // Windows PowerShell 5.1 needs System.IO.Compression (ZipArchiveMode) loaded alongside
+        // System.IO.Compression.FileSystem (ZipFile) - loading only the latter reproduces
+        // "Unable to find type [System.IO.Compression.ZipArchiveMode]".
+        var compressionAssemblyIndex = script.IndexOf("Add-Type -AssemblyName 'System.IO.Compression'", StringComparison.Ordinal);
+        var fileSystemAssemblyIndex = script.IndexOf("Add-Type -AssemblyName 'System.IO.Compression.FileSystem'", StringComparison.Ordinal);
+        var zipArchiveModeUseIndex = script.IndexOf("[System.IO.Compression.ZipArchiveMode]::Create", StringComparison.Ordinal);
+
+        Assert.IsTrue(compressionAssemblyIndex >= 0, "System.IO.Compression must be loaded explicitly.");
+        Assert.IsTrue(fileSystemAssemblyIndex >= 0, "System.IO.Compression.FileSystem must be loaded explicitly.");
+        Assert.IsTrue(zipArchiveModeUseIndex >= 0, "ZipArchiveMode must still be used to open the report zip.");
+        Assert.IsTrue(
+            compressionAssemblyIndex < zipArchiveModeUseIndex && fileSystemAssemblyIndex < zipArchiveModeUseIndex,
+            "Both compression assemblies must be loaded before ZipArchiveMode is referenced.");
+
+        // CreateEntryFromFile is an extension method (ZipFileExtensions); Windows PowerShell
+        // 5.1 cannot resolve it via instance dot-syntax ($zip.CreateEntryFromFile(...)) - it
+        // must be invoked as the static method it actually is, confirmed by an isolated
+        // Windows PowerShell 5.1 compatibility check exercising this exact API sequence.
+        Assert.DoesNotContain("$zip.CreateEntryFromFile(", script);
+        Assert.Contains("[System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(", script);
+    }
+
+    [TestMethod]
+    public void GuiTestRunner_ReportZipAllowlistStaysExplicitAndNeverRecursivelyZipsTheRunDirectory()
+    {
+        var script = LoadUi("run-scenario-startup-smoke.ps1");
+
+        // The report package must only ever contain the four explicitly allowlisted files
+        // (plus screenshots), never the run directory wholesale, the profile directory, a
+        // database/WAL/SHM, secrets, keystores, launcher state, build output, or report.zip
+        // itself.
+        Assert.Contains("'summary.json',", script);
+        Assert.Contains("'steps.jsonl',", script);
+        Assert.Contains("'runner.log',", script);
+        Assert.Contains("'environment.json'", script);
+        Assert.DoesNotContain("CreateFromDirectory", script);
+
+        var listStart = script.IndexOf("$filesToInclude = @(", StringComparison.Ordinal);
+        var listEnd = script.IndexOf(")", listStart, StringComparison.Ordinal);
+        Assert.IsTrue(listStart >= 0 && listEnd > listStart, "The explicit $filesToInclude allowlist must be present.");
+        var allowlistLiteral = script.Substring(listStart, listEnd - listStart);
+        Assert.DoesNotContain("report.zip", allowlistLiteral);
+
+        // report.zip is created only after summary.json is already written to disk (summary.json
+        // is itself one of the packaged files, so it must exist before packaging runs).
+        var summaryWrittenIndex = script.IndexOf("$summary | ConvertTo-Json | Set-Content -LiteralPath $summaryPath", StringComparison.Ordinal);
+        var reportZipCallIndex = script.IndexOf("New-ReportZip -SourceDir $runDir -OutputPath $reportZipPath", StringComparison.Ordinal);
+        Assert.IsTrue(summaryWrittenIndex >= 0 && reportZipCallIndex >= 0);
+        Assert.IsTrue(summaryWrittenIndex < reportZipCallIndex, "report.zip must be created only after summary.json is written.");
+    }
+
+    [TestMethod]
+    public void GuiTestRunner_PackagingFailureIsLoggedWithoutFailingTheScript()
+    {
+        var script = LoadUi("run-scenario-startup-smoke.ps1");
+
+        // A report.zip packaging failure must be recorded (steps.jsonl) rather than silently
+        // dropped, and must not throw out of New-ReportZip (it already returns $false on
+        // failure, which the caller treats as non-fatal).
+        Assert.Contains("Log-Step -Name 'ReportPackaged' -Status 'Failed' -Message $_.Exception.Message", script);
+    }
+
+    [TestMethod]
+    public void GuiScripts_ContainNoUnsafeParenthesizedInlineIfUsedAsACommandArgument()
+    {
+        // (if (...) { ... } else { ... }) used directly as a parenthesized command/property
+        // argument is not a valid PowerShell pipeline expression: Windows PowerShell resolves
+        // "if" as a command name at runtime and fails with "The term 'if' is not recognized...".
+        var unsafePattern = new System.Text.RegularExpressions.Regex(@"\(if\s*\(");
+
+        var launcherScript = LoadUi("knownfirst.ps1");
+        Assert.IsFalse(
+            unsafePattern.IsMatch(launcherScript),
+            "knownfirst.ps1 must not contain an unsafe parenthesized inline-if used as a command argument.");
+
+        var runnerScript = LoadUi("run-scenario-startup-smoke.ps1");
+        Assert.IsFalse(
+            unsafePattern.IsMatch(runnerScript),
+            "run-scenario-startup-smoke.ps1 must not contain an unsafe parenthesized inline-if used as a command argument.");
+
+        // The safe replacement form (assign to a plain variable first) must be present at both
+        // previously-broken call sites.
+        Assert.Contains("$resultColor = if ($summary.result -eq 'Passed') { 'Green' } else { 'Red' }", launcherScript);
+        Assert.Contains("$resultColor = if ($result -eq 'Passed') { 'Green' } else { 'Red' }", runnerScript);
+    }
+
+    [TestMethod]
+    public void GuiTestMenu_RendersActualResultPropertiesInsteadOfAStringifiedCustomObject()
+    {
+        var script = LoadUi("knownfirst.ps1");
+
+        // The old expression printed the literal text "@{Status=FAILED}.Status" because the
+        // interpolated $(...) subexpression closed before ".Status" was appended. The fix must
+        // use real property access on the result object entirely inside the subexpression.
+        Assert.DoesNotContain("Select-Object @{Name='Status';Expression={if($_){'PASSED'}else{'FAILED'}}}).Status", script);
+        Assert.Contains("Write-Host \"Result: $($result.ActionName) $($result.Status)\"", script);
+        Assert.Contains("$($result.RunDirectory)", script);
+        Assert.Contains("$($result.SummaryPath)", script);
+        Assert.Contains("$($result.ReportZipPath)", script);
+    }
+
+    [TestMethod]
+    public void GuiTestAction_NeverLabelsTheLauncherLogDirectoryAsTheGuiRunDirectory()
+    {
+        var script = LoadUi("knownfirst.ps1");
+
+        // The pre-run-failure path (no new directory under artifacts\gui-tests\windows\runs)
+        // must not fabricate a run directory from the launcher log's own folder, and the menu
+        // must not derive "Run directory" from Split-Path $result.LogPath any longer.
+        Assert.DoesNotContain("Write-Host \"Run directory: $(Split-Path $result.LogPath)\"", script);
+        Assert.Contains("No GUI run directory was created.", script);
+
+        // The real GUI run directory is discovered by diffing artifacts\gui-tests\windows\runs
+        // before/after invocation, never assumed to be the launcher-logs folder.
+        Assert.Contains("$priorRunDirNames = @()", script);
+        Assert.Contains("Where-Object { $priorRunDirNames -notcontains $_.Name }", script);
+    }
+
+    [TestMethod]
     public void GuiTestProfileSupport_IsCompileTimeGatedToWindowsDebugAndBetaDiagnosticOnly()
     {
         var project = LoadUi("KnownFirst.csproj");

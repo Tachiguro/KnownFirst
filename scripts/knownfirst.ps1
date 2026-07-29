@@ -500,18 +500,30 @@ function New-ActionResult {
         [int]$ExitCode,
         [string]$LogPath,
         [string]$Summary,
-        [bool]$Reused = $false
+        [bool]$Reused = $false,
+        [string]$RunDirectory = '',
+        [string]$SummaryPath = '',
+        [string]$ReportZipPath = ''
     )
+
+    # Precomputed into a plain variable (not an inline parenthesized "-Prop (if ...)"
+    # argument) because Windows PowerShell 5.1 cannot parse an `if` statement inside a
+    # group-expression used as a command/property argument.
+    $status = if ($Succeeded) { 'PASSED' } else { 'FAILED' }
 
     return [pscustomobject]@{
         ActionName     = $ActionName
         Succeeded      = $Succeeded
+        Status         = $status
         FailedStepName = $FailedStepName
         FailedCommand  = $FailedCommand
         ExitCode       = $ExitCode
         LogPath        = $LogPath
         Summary        = $Summary
         Reused         = $Reused
+        RunDirectory   = $RunDirectory
+        SummaryPath    = $SummaryPath
+        ReportZipPath  = $ReportZipPath
     }
 }
 
@@ -933,12 +945,17 @@ function Invoke-GuiTestAction {
 
     Write-Host "Runs automated Windows GUI tests using the $Scenario scenario."
 
+    # GuiTest only ever supports Debug (see scenarios.json). Never forward a null, empty, or
+    # whitespace Configuration to the scenario runner - its own ValidateSet('Debug') would
+    # reject an explicit blank value before falling back to its own default.
+    $effectiveConfiguration = if ([string]::IsNullOrWhiteSpace($Configuration)) { 'Debug' } else { $Configuration }
+
     if ($WhatIf) {
         $scenarioName = switch ($Scenario) {
             'StartupSmoke' { 'Startup smoke test' }
             default { $Scenario }
         }
-        Write-Host "[WhatIf] Would run: GUI test scenario '$scenarioName' in $Configuration configuration"
+        Write-Host "[WhatIf] Would run: GUI test scenario '$scenarioName' in $effectiveConfiguration configuration"
         Write-Host "[WhatIf] No directories, profiles, builds, tests, or processes created."
         return New-ActionResult -ActionName 'GuiTest' -Succeeded $true -Summary '[WhatIf] no commands executed.'
     }
@@ -953,10 +970,16 @@ function Invoke-GuiTestAction {
     $logPath = New-LauncherLogPath -ActionName "GuiTest-$Scenario"
     Write-Host "Log: $logPath"
 
+    $guiRunsRoot = Join-Path $projectRoot 'artifacts\gui-tests\windows\runs'
+    $priorRunDirNames = @()
+    if (Test-Path -LiteralPath $guiRunsRoot -PathType Container) {
+        $priorRunDirNames = @(Get-ChildItem -LiteralPath $guiRunsRoot -Directory | Select-Object -ExpandProperty Name)
+    }
+
     $exitCode = 1
     $errorMessage = $null
     try {
-        & $scriptPath -Configuration $Configuration -WorkingDirectory $projectRoot | Tee-Object -Variable 'guiTestOutput'
+        & $scriptPath -Configuration $effectiveConfiguration -WorkingDirectory $projectRoot | Tee-Object -Variable 'guiTestOutput'
         $exitCode = $LASTEXITCODE
     }
     catch {
@@ -971,14 +994,66 @@ function Invoke-GuiTestAction {
         Write-Host "ERROR: $errorMessage" -ForegroundColor Red
     }
 
-    $succeeded = ($exitCode -eq 0 -and -not $errorMessage)
-    if ($succeeded) {
-        return New-ActionResult -ActionName 'GuiTest' -Succeeded $true -LogPath $logPath
+    # Discover the actual GUI run directory the scenario runner created (its RunId is
+    # timestamp-generated and not known ahead of time). artifacts\launcher-logs is never the
+    # GUI run directory - it only holds this launcher's own wrapper log.
+    $newRunDir = $null
+    if (Test-Path -LiteralPath $guiRunsRoot -PathType Container) {
+        $newRunDir = Get-ChildItem -LiteralPath $guiRunsRoot -Directory |
+            Where-Object { $priorRunDirNames -notcontains $_.Name } |
+            Sort-Object -Property Name -Descending |
+            Select-Object -First 1
     }
-    else {
+
+    if (-not $newRunDir) {
+        # The runner never got past its own preconditions, so no GUI run was ever created.
+        # This is a launcher/precondition-level failure, never a smoke-test result - do not
+        # fabricate a run directory, summary.json, or report.zip path for it.
+        $summary = if ($errorMessage) { "No GUI run directory was created. $errorMessage" } else { 'No GUI run directory was created.' }
         return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
-            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath -Summary $errorMessage
+            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath -Summary $summary
     }
+
+    $runDirectory = $newRunDir.FullName
+    $summaryPath = Join-Path $runDirectory 'summary.json'
+    $reportZipPath = Join-Path $runDirectory 'report.zip'
+    if (-not (Test-Path -LiteralPath $reportZipPath -PathType Leaf)) {
+        $reportZipPath = ''
+    }
+
+    if (-not (Test-Path -LiteralPath $summaryPath -PathType Leaf)) {
+        $summary = if ($errorMessage) { "GUI run directory was created but summary.json was not found. $errorMessage" } else { 'GUI run directory was created but summary.json was not found.' }
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath -Summary $summary `
+            -RunDirectory $runDirectory -ReportZipPath $reportZipPath
+    }
+
+    # summary.json is the authoritative record of whether the process/window/startup-event
+    # assertions passed. It is written before report packaging and before any later console
+    # formatting runs, so an unrelated error occurring after it (e.g. a packaging failure or a
+    # PowerShell expression error) must never overwrite this genuine outcome.
+    try {
+        $runSummary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath `
+            -Summary "summary.json could not be read: $($_.Exception.Message)" `
+            -RunDirectory $runDirectory -SummaryPath $summaryPath -ReportZipPath $reportZipPath
+    }
+
+    $succeeded = ($runSummary.result -eq 'Passed')
+    if ($succeeded) {
+        $summaryText = if ($errorMessage) { "Smoke checks passed; a secondary error occurred after results were recorded: $errorMessage" } else { '' }
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $true -LogPath $logPath -Summary $summaryText `
+            -RunDirectory $runDirectory -SummaryPath $summaryPath -ReportZipPath $reportZipPath
+    }
+
+    $failedStepName = if ($runSummary.failedStep) { [string]$runSummary.failedStep } else { 'SmokeTest' }
+    $summaryText = if ($runSummary.errorMessage) { [string]$runSummary.errorMessage } else { $errorMessage }
+    return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+        -FailedStepName $failedStepName -ExitCode $exitCode -LogPath $logPath -Summary $summaryText `
+        -RunDirectory $runDirectory -SummaryPath $summaryPath -ReportZipPath $reportZipPath
 }
 
 function Invoke-KnownFirstAction {
@@ -1089,22 +1164,38 @@ function Show-GuiTestMenu {
     switch ($choice) {
         '1' {
             $script:GuiScenario = 'StartupSmoke'
+            $script:Configuration = 'Debug'
             $result = Invoke-KnownFirstAction -SelectedAction 'GuiTest'
             Write-ActionResult -Result $result
             Write-Host ''
-            Write-Host "Result: $($result.ActionName) $($result.Succeeded | Select-Object @{Name='Status';Expression={if($_){'PASSED'}else{'FAILED'}}}).Status"
-            if ($result.LogPath) { Write-Host "Run directory: $(Split-Path $result.LogPath)" }
+            Write-Host "Result: $($result.ActionName) $($result.Status)"
+            if ($result.RunDirectory) {
+                Write-Host "Run directory: $($result.RunDirectory)"
+            }
+            else {
+                Write-Host 'No GUI run directory was created.' -ForegroundColor Yellow
+            }
+            if ($result.SummaryPath) { Write-Host "Summary: $($result.SummaryPath)" }
+            if ($result.ReportZipPath) { Write-Host "Report package: $($result.ReportZipPath)" }
             Read-Host 'Press Enter to return to the menu'
             return $true
         }
         '2' {
             Write-Host 'Running all available GUI tests (currently only StartupSmoke)...'
             $script:GuiScenario = 'StartupSmoke'
+            $script:Configuration = 'Debug'
             $result = Invoke-KnownFirstAction -SelectedAction 'GuiTest'
             Write-ActionResult -Result $result
             Write-Host ''
-            Write-Host "Result: $($result.ActionName) $($result.Succeeded | Select-Object @{Name='Status';Expression={if($_){'PASSED'}else{'FAILED'}}}).Status"
-            if ($result.LogPath) { Write-Host "Run directory: $(Split-Path $result.LogPath)" }
+            Write-Host "Result: $($result.ActionName) $($result.Status)"
+            if ($result.RunDirectory) {
+                Write-Host "Run directory: $($result.RunDirectory)"
+            }
+            else {
+                Write-Host 'No GUI run directory was created.' -ForegroundColor Yellow
+            }
+            if ($result.SummaryPath) { Write-Host "Summary: $($result.SummaryPath)" }
+            if ($result.ReportZipPath) { Write-Host "Report package: $($result.ReportZipPath)" }
             Read-Host 'Press Enter to return to the menu'
             return $true
         }
@@ -1131,7 +1222,8 @@ function Show-GuiTestMenu {
                 $summary = Get-Content -LiteralPath $summaryPath | ConvertFrom-Json
                 Write-Host ''
                 Write-Host "Last GUI test run: $($lastRunDir.Name)"
-                Write-Host "Result: $($summary.result)" -ForegroundColor (if ($summary.result -eq 'Passed') { 'Green' } else { 'Red' })
+                $resultColor = if ($summary.result -eq 'Passed') { 'Green' } else { 'Red' }
+                Write-Host "Result: $($summary.result)" -ForegroundColor $resultColor
                 Write-Host "Scenario: $($summary.displayName)"
                 Write-Host "Completed: $($summary.completedAtUtc)"
                 Write-Host "Run directory: $($lastRunDir.FullName)"

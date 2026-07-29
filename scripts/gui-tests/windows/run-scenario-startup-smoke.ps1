@@ -181,6 +181,12 @@ function New-ReportZip {
             Remove-Item -LiteralPath $OutputPath -Force
         }
 
+        # Windows PowerShell 5.1 (.NET Framework) does not implicitly load
+        # System.IO.Compression alongside System.IO.Compression.FileSystem: ZipArchiveMode
+        # lives in the former, ZipFile in the latter. Both must be loaded before either type
+        # is referenced, or type resolution fails with "Unable to find type
+        # [System.IO.Compression.ZipArchiveMode]".
+        Add-Type -AssemblyName 'System.IO.Compression'
         Add-Type -AssemblyName 'System.IO.Compression.FileSystem'
 
         $filesToInclude = @(
@@ -201,7 +207,11 @@ function New-ReportZip {
             foreach ($file in $filesToInclude) {
                 $fullPath = Join-Path $SourceDir $file
                 if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
-                    $zip.CreateEntryFromFile($fullPath, $file, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+                    # CreateEntryFromFile is an extension method (ZipFileExtensions). Windows
+                    # PowerShell 5.1 cannot resolve it via instance dot-syntax ($zip.CreateEntry...)
+                    # - it must be invoked as the static method it actually is.
+                    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                        $zip, $fullPath, $file, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
                 }
             }
         }
@@ -213,6 +223,10 @@ function New-ReportZip {
     }
     catch {
         Write-Host "Warning: could not create report.zip: $($_.Exception.Message)" -ForegroundColor Yellow
+        # A packaging failure is recorded accurately in steps.jsonl without touching
+        # summary.json's result, which is already written and reflects only the genuine
+        # process/window/startup-event smoke outcome.
+        Log-Step -Name 'ReportPackaged' -Status 'Failed' -Message $_.Exception.Message
         return $false
     }
 }
@@ -375,7 +389,8 @@ finally {
 
         # Print results
         Write-Host ''
-        Write-Host "GUI Test Result: $result" -ForegroundColor (if ($result -eq 'Passed') { 'Green' } else { 'Red' })
+        $resultColor = if ($result -eq 'Passed') { 'Green' } else { 'Red' }
+        Write-Host "GUI Test Result: $result" -ForegroundColor $resultColor
         Write-Host "Run directory: $runDir"
         Write-Host "Summary: $summaryPath"
         if (Test-Path -LiteralPath $reportZipPath) {

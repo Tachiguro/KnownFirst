@@ -24,15 +24,20 @@
     "not reusable", never as a launcher error.
 
 .PARAMETER Action
-    Test | WindowsBuild | AndroidTestPackage | GooglePlayBundle | ValidateAll
+    Test | GuiTest | WindowsBuild | AndroidTestPackage | GooglePlayBundle | ValidateAll
     When omitted, the interactive menu is shown instead.
 
 .PARAMETER Configuration
     Debug | Release | Diagnostic | DebugRelease | All
     Applies to WindowsBuild (Debug, Release, or All; Diagnostic is not a Windows configuration)
-    and AndroidTestPackage (Debug, Release, Diagnostic, DebugRelease, or All). Omitted or blank
-    means All for both, matching the previous (pre-selection) behavior. DebugRelease is an
-    internal configuration for the interactive menu; it creates Debug and Release APKs only.
+    and AndroidTestPackage (Debug, Release, Diagnostic, DebugRelease, or All). For GuiTest,
+    only supported configurations (e.g., Debug) are valid. Omitted or blank means All for
+    WindowsBuild and AndroidTestPackage. DebugRelease is an internal configuration for the
+    interactive menu; it creates Debug and Release APKs only.
+
+.PARAMETER GuiScenario
+    Scenario id for -Action GuiTest. Supported: StartupSmoke (default), or future scenarios.
+    Invalid or NotImplemented scenarios are rejected before execution.
 
 .PARAMETER WhatIf
     Prints what each operation would do and its expected output path without running it.
@@ -71,11 +76,14 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Test', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'ValidateAll')]
+    [ValidateSet('Test', 'GuiTest', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'ValidateAll')]
     [string]$Action,
 
     [ValidateSet('Debug', 'Release', 'Diagnostic', 'DebugRelease', 'All')]
     [string]$Configuration,
+
+    [ValidateSet('StartupSmoke')]
+    [string]$GuiScenario = 'StartupSmoke',
 
     [switch]$WhatIf,
 
@@ -920,12 +928,66 @@ function Invoke-ValidateAllAction {
     return New-ActionResult -ActionName 'ValidateAll' -Succeeded $true -LogPath $logPath -Summary $overallSummary
 }
 
+function Invoke-GuiTestAction {
+    param([Parameter(Mandatory = $true)][string]$Scenario)
+
+    Write-Host "Runs automated Windows GUI tests using the $Scenario scenario."
+
+    if ($WhatIf) {
+        $scenarioName = switch ($Scenario) {
+            'StartupSmoke' { 'Startup smoke test' }
+            default { $Scenario }
+        }
+        Write-Host "[WhatIf] Would run: GUI test scenario '$scenarioName' in $Configuration configuration"
+        Write-Host "[WhatIf] No directories, profiles, builds, tests, or processes created."
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $true -Summary '[WhatIf] no commands executed.'
+    }
+
+    $scriptPath = Join-Path $scriptRoot 'gui-tests\windows\run-scenario-startup-smoke.ps1'
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false -ExitCode 1 `
+            -FailedStepName 'Setup' -FailedCommand 'Launcher' `
+            -Summary "GUI test runner script not found: $scriptPath"
+    }
+
+    $logPath = New-LauncherLogPath -ActionName "GuiTest-$Scenario"
+    Write-Host "Log: $logPath"
+
+    $exitCode = 1
+    $errorMessage = $null
+    try {
+        & $scriptPath -Configuration $Configuration -WorkingDirectory $projectRoot | Tee-Object -Variable 'guiTestOutput'
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        $errorMessage = $_.Exception.Message
+    }
+
+    if ($guiTestOutput) {
+        Add-Content -LiteralPath $logPath -Value $guiTestOutput -Encoding UTF8
+    }
+    if ($errorMessage) {
+        Add-Content -LiteralPath $logPath -Value "ERROR: $errorMessage" -Encoding UTF8
+        Write-Host "ERROR: $errorMessage" -ForegroundColor Red
+    }
+
+    $succeeded = ($exitCode -eq 0 -and -not $errorMessage)
+    if ($succeeded) {
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $true -LogPath $logPath
+    }
+    else {
+        return New-ActionResult -ActionName 'GuiTest' -Succeeded $false `
+            -FailedStepName 'GuiTestRunner' -ExitCode $exitCode -LogPath $logPath -Summary $errorMessage
+    }
+}
+
 function Invoke-KnownFirstAction {
     param([Parameter(Mandatory = $true)][string]$SelectedAction)
 
     try {
         switch ($SelectedAction) {
             'Test' { return Invoke-RunTests }
+            'GuiTest' { return Invoke-GuiTestAction -Scenario $GuiScenario }
             'WindowsBuild' { return Invoke-WindowsBuildAction }
             'AndroidTestPackage' { return Invoke-AndroidTestPackageAction }
             'GooglePlayBundle' { return Invoke-GooglePlayBundleAction }
@@ -1014,17 +1076,101 @@ function Show-AndroidTestPackageMenu {
     }
 }
 
+function Show-GuiTestMenu {
+    Write-Host ''
+    Write-Host 'Windows GUI tests' -ForegroundColor Green
+    Write-Host '1. Startup smoke test'
+    Write-Host '2. Run all available GUI tests'
+    Write-Host '3. Show last GUI-test result'
+    Write-Host '4. Back'
+    Write-Host ''
+    $choice = Read-Host 'Choose an option (1-4)'
+
+    switch ($choice) {
+        '1' {
+            $script:GuiScenario = 'StartupSmoke'
+            $result = Invoke-KnownFirstAction -SelectedAction 'GuiTest'
+            Write-ActionResult -Result $result
+            Write-Host ''
+            Write-Host "Result: $($result.ActionName) $($result.Succeeded | Select-Object @{Name='Status';Expression={if($_){'PASSED'}else{'FAILED'}}}).Status"
+            if ($result.LogPath) { Write-Host "Run directory: $(Split-Path $result.LogPath)" }
+            Read-Host 'Press Enter to return to the menu'
+            return $true
+        }
+        '2' {
+            Write-Host 'Running all available GUI tests (currently only StartupSmoke)...'
+            $script:GuiScenario = 'StartupSmoke'
+            $result = Invoke-KnownFirstAction -SelectedAction 'GuiTest'
+            Write-ActionResult -Result $result
+            Write-Host ''
+            Write-Host "Result: $($result.ActionName) $($result.Succeeded | Select-Object @{Name='Status';Expression={if($_){'PASSED'}else{'FAILED'}}}).Status"
+            if ($result.LogPath) { Write-Host "Run directory: $(Split-Path $result.LogPath)" }
+            Read-Host 'Press Enter to return to the menu'
+            return $true
+        }
+        '3' {
+            $runsRoot = Join-Path $projectRoot 'artifacts\gui-tests\windows\runs'
+            if (-not (Test-Path -LiteralPath $runsRoot -PathType Container)) {
+                Write-Host 'No GUI test runs found.' -ForegroundColor Yellow
+                Read-Host 'Press Enter to return to the menu'
+                return $true
+            }
+
+            $runDirs = @(Get-ChildItem -LiteralPath $runsRoot -Directory | Sort-Object -Property Name -Descending)
+            if ($runDirs.Count -eq 0) {
+                Write-Host 'No GUI test runs found.' -ForegroundColor Yellow
+                Read-Host 'Press Enter to return to the menu'
+                return $true
+            }
+
+            $lastRunDir = $runDirs[0]
+            $summaryPath = Join-Path $lastRunDir.FullName 'summary.json'
+            $reportZipPath = Join-Path $lastRunDir.FullName 'report.zip'
+
+            if (Test-Path -LiteralPath $summaryPath -PathType Leaf) {
+                $summary = Get-Content -LiteralPath $summaryPath | ConvertFrom-Json
+                Write-Host ''
+                Write-Host "Last GUI test run: $($lastRunDir.Name)"
+                Write-Host "Result: $($summary.result)" -ForegroundColor (if ($summary.result -eq 'Passed') { 'Green' } else { 'Red' })
+                Write-Host "Scenario: $($summary.displayName)"
+                Write-Host "Completed: $($summary.completedAtUtc)"
+                Write-Host "Run directory: $($lastRunDir.FullName)"
+                Write-Host "Summary: $summaryPath"
+                if (Test-Path -LiteralPath $reportZipPath) {
+                    Write-Host "Report package: $reportZipPath"
+                }
+                if ($summary.failedStep) {
+                    Write-Host "Failed step: $($summary.failedStep)"
+                }
+            }
+            else {
+                Write-Host 'Last run summary not found.' -ForegroundColor Yellow
+            }
+            Read-Host 'Press Enter to return to the menu'
+            return $true
+        }
+        '4' {
+            return $true
+        }
+        default {
+            Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
+            return $true
+        }
+    }
+}
+
 function Show-KnownFirstMenu {
     Write-Host ''
     Write-Host 'KnownFirst build launcher' -ForegroundColor Green
-    Write-Host '1. Run automated tests'
-    Write-Host '2. Build Windows app'
-    Write-Host '3. Build Android APK'
-    Write-Host '4. Create Google Play AAB'
-    Write-Host '5. Run full validation'
-    Write-Host '6. Exit'
+    Write-Host '1. Automated tests (unit, integration and contract)'
+    Write-Host '2. Windows GUI tests'
+    Write-Host '3. Build Windows app'
+    Write-Host '4. Build Android APK'
+    Write-Host '5. Create Google Play AAB'
+    Write-Host '6. Full validation (automated tests + Windows/Android builds)'
+    Write-Host '7. Exit'
     Write-Host ''
-    $choice = Read-Host 'Choose an option (1-6)'
+    $choice = Read-Host 'Choose an option (1-7)'
 
     switch ($choice) {
         '1' {
@@ -1034,26 +1180,30 @@ function Show-KnownFirstMenu {
             return $true
         }
         '2' {
-            Show-WindowsBuildMenu
+            Show-GuiTestMenu
             return $true
         }
         '3' {
-            Show-AndroidTestPackageMenu
+            Show-WindowsBuildMenu
             return $true
         }
         '4' {
+            Show-AndroidTestPackageMenu
+            return $true
+        }
+        '5' {
             $result = Invoke-KnownFirstAction -SelectedAction 'GooglePlayBundle'
             Write-ActionResult -Result $result
             if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
             return $true
         }
-        '5' {
+        '6' {
             $result = Invoke-KnownFirstAction -SelectedAction 'ValidateAll'
             Write-ActionResult -Result $result
             if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
             return $true
         }
-        '6' {
+        '7' {
             Write-Host 'Exiting.'
             return $false
         }

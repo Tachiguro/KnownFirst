@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Single entry point for the everyday KnownFirst local build/test/package operations.
 
@@ -337,6 +337,18 @@ function Test-LauncherStateReusable {
     foreach ($outputFile in $OutputFiles) {
         if (-not (Test-Path -LiteralPath $outputFile -PathType Leaf)) { return $null }
         if ((Get-Item -LiteralPath $outputFile).Length -le 0) { return $null }
+
+        if ($outputFile -match '\.sha256\.txt$') {
+            $aabPath = $outputFile.Substring(0, $outputFile.Length - 11)
+            if (Test-Path -LiteralPath $aabPath -PathType Leaf) {
+                $sidecarContent = (Get-Content -LiteralPath $outputFile -Raw).Trim()
+                if ($sidecarContent -notmatch "\A([a-f0-9]{64})[ \t]+([^\r\n]+)\r?\n?\z") { return $null }
+                $expectedHash = $matches[1]
+                $expectedName = $matches[2]
+                if ((Split-Path $aabPath -Leaf) -ne $expectedName) { return $null }
+                if ($expectedHash -ne (Get-FileHash -LiteralPath $aabPath -Algorithm SHA256).Hash.ToLowerInvariant()) { return $null }
+            }
+        }
     }
 
     foreach ($scriptPath in $RelevantScriptPaths) {
@@ -766,6 +778,7 @@ function Invoke-GooglePlayBundleAction {
 
     $versionInfo = Get-KnownFirstVersionInfo
     $aabPath = Join-Path $outputRoot "KnownFirst-$($versionInfo.ProductVersion)-code$($versionInfo.BuildNumber).aab"
+    $checksumPath = "$aabPath.sha256.txt"
     $relevantScripts = @(
         (Join-Path $scriptRoot 'knownfirst.ps1'),
         $scriptPath
@@ -773,7 +786,7 @@ function Invoke-GooglePlayBundleAction {
     $parameters = @{ KeystorePath = $KeystorePath; PasswordFilePath = $PasswordFilePath }
 
     $reusable = Test-LauncherStateReusable -StateKey 'GooglePlayBundle' -Action 'GooglePlayBundle' `
-        -Parameters $parameters -OutputFiles @($aabPath) -RelevantScriptPaths $relevantScripts
+        -Parameters $parameters -OutputFiles @($aabPath, $checksumPath) -RelevantScriptPaths $relevantScripts
     if ($reusable) {
         Write-ReuseMessage -DisplayName 'Google Play AAB'
         return New-ActionResult -ActionName 'GooglePlayBundle' -Succeeded $true -Reused $true
@@ -795,7 +808,7 @@ function Invoke-GooglePlayBundleAction {
     }
 
     Save-LauncherState -StateKey 'GooglePlayBundle' -Action 'GooglePlayBundle' -Parameters $parameters `
-        -Succeeded $true -OutputFiles @($aabPath) -RelevantScriptPaths $relevantScripts
+        -Succeeded $true -OutputFiles @($aabPath, $checksumPath) -RelevantScriptPaths $relevantScripts
 
     Write-Host "Output: $outputRoot"
     return New-ActionResult -ActionName 'GooglePlayBundle' -Succeeded $true -LogPath $logPath

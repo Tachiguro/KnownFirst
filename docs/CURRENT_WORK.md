@@ -23,18 +23,19 @@
 
 - Branch: `feature/meaning-centric-multi-sense-preparation-v1`
 - Base: `b5e4b055ed1ac626f237f0560bfa894e2fdc4e86` (PR #32 merge commit)
-- HEAD: `b5e4b055ed1ac626f237f0560bfa894e2fdc4e86` (no commits since base)
-- KF-MEANING-001 Slice 3 implementation complete locally. All changes unstaged/untracked. Not committed, pushed, or merged.
+- **As of 2026-07-29:** KF-MEANING-001 Slice 3 was committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765` and pushed to this branch. [PR #33](https://github.com/Tachiguro/KnownFirst/pull/33) (`feature/meaning-centric-multi-sense-preparation-v1` → `master`) is open and has not been merged.
+- This entry is updated by a same-day, single authorized correction pass reconciling the ContextSnapshot-evidence documentation and Git-state claims recorded below (see the correction commit on this branch for the exact diff, message `fix: reconcile Slice 3 evidence and handoff`).
+- Schema 8 remains dormant: `DatabaseSchema.CurrentVersion` remains `7`.
 
 ## Completed on current branch (this session)
 
 **KF-MEANING-001 Slice 3 — multi-Sense preparation and topic persistence, dual-schema compatible**
 
-- Branch: `feature/meaning-centric-multi-sense-preparation-v1`, base `b5e4b055ed1ac626f237f0560bfa894e2fdc4e86`, implementation complete and unstaged.
+- Branch: `feature/meaning-centric-multi-sense-preparation-v1`, base `b5e4b055ed1ac626f237f0560bfa894e2fdc4e86`. Committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`; pushed; PR #33 open (not merged).
 - Implemented the §4.8.2 Slice 3 architecture contract (schema-capability-neutral preparation layer for Schema 8).
 - Added preparation-specific schema-capability resolver (`PreparationSchemaCapability.cs`), independent of backup's `BackupSchemaCapability`.
 - Real Schema-8 `StartAsync` dispatch: words with `PreparationState.Prepared` and existing Senses are eligible again when `Schema8EvidenceScanner` finds genuinely-new evidence (unbounded scan, matched by four-field key: `SourceDocumentId`, `NormalizedFingerprint`, `TargetStart`, `TargetLength`).
-- Frozen candidate evidence at creation time, re-matched against live occurrence data at item creation (deterministic, no fresh scan). Schema-7 legacy selection/creation paths unchanged (byte-for-byte).
+- Frozen candidate evidence at creation time, re-matched against live occurrence data at item creation (deterministic, no fresh scan). Schema-7 legacy selection/creation database-write behavior is unchanged; the code itself was refactored (extracted `AcceptSchema7`, delegated context/fingerprint helpers, an added validate-only metadata check on two brand-new optional fields) rather than left byte-for-byte identical — see [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §D item 3 for the exact boundary.
 - Versioned `PreparationCandidatePayloadV1` envelope with discriminated codec (`Empty`/`EnvelopeV1`/`LegacyLexicalResult`/`UnsupportedEnvelopeVersion`/`Malformed`).
 - Lazy envelope upgrade (`EnsureCandidateEnvelopeAndSelection`): genuine envelopes never rewritten; Empty/Legacy upgraded on demand when accessed, with frozen evidence appended and Schema-8 shape verified before any transaction.
 - Effective-processed-evidence ledger (`Schema8EvidenceLedger`): tracks `legacyBaselineKeys ∪ fullyResolvedPreparedEnvelopeKeys` (Empty/LegacyLexicalResult candidates own no evidence; partially-resolved/Pending/Failed/Skipped/Cancelled envelopes mark nothing as processed).
@@ -44,10 +45,10 @@
 - Direction-specific preferred Meaning: each card (`LearningCardEntity`) has its own `PreferredMeaningId`; `SenseEntity.DefaultMeaningId` is a non-authoritative fallback only.
 - Nine named fault-injection checkpoints: `AfterEnvelopePersist`, `AfterSenseInsert`, `AfterMeaningInsert`, `AfterContextLink`, `AfterCardInsert`, `AfterResolvedIndexPersist`, `DuringAutoExactVariantLinking`, `BeforeCandidateCompletion`, `BeforeAutomaticCandidateCompletion` — each proven to roll back completely.
 - **Database schema unchanged** (`CurrentVersion` remains `7`, `InitializeAsync` unchanged, `Data/Entities` unchanged, migration dormant).
-- **25 files changed** (5 modified, 20 added): new core policy, new services, new schema-8 logic, 12 new test files.
-- **Tests: 1190/1190 passed** (focused preparation 184/184, directly affected 230/230, complete suite).
-- **No production code regressions** (`git diff --check` clean).
-- Ready for review and Git finalization. See handoff: [docs/handoffs/kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md).
+- **26 files changed** (5 modified, 21 added — regenerated from `git diff master...HEAD --name-status`): 1 new core-library policy file, 10 new service files, 9 new test files, plus the added handoff document itself.
+- **Tests: 1190/1190 passed** (focused preparation 184/184, directly affected 230/230, complete suite) — last run recorded before the correction pass; see PR #33 for the current validation evidence.
+- **No production code regressions**: `git diff master...HEAD --check` (the committed-range check) is clean after the correction pass.
+- Committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, pushed, and under review in [PR #33](https://github.com/Tachiguro/KnownFirst/pull/33). See handoff: [docs/handoffs/kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md).
 
 ## Completed on master (prior branches, already merged)
 
@@ -59,19 +60,19 @@
 ## Design work completed but not yet implemented
 
 - **KF-BACKUP-002 Slices 1–3** (merged on `feature/backup-merge-contracts-v1`, `feature/backup-merge-safety-copy-v1`, `feature/backup-merge-preflight-v1`): merge contracts library, safety-copy service, and read-only merge preflight — awaiting staged merge and eventual populated-target merge writer (Slice 5+).
-- **KF-MEANING-001 Slice 0** + **Slice 0.1** (merged as `feature/meaning-centric-architecture-v1`): binding architecture decision, activation-boundary review, dormancy rules, nine-slice implementation sequence. **Slice 1** (merged as `feature/meaning-centric-dormant-migration-v1`): dormant Schema 7→8 migration. **Slice 2** (merged as `feature/meaning-centric-archive-v2`): archive format v2 and dual-schema backup. **Slice 3** (current branch, not yet committed/merged): multi-Sense preparation and topic persistence, dual-schema compatible.
+- **KF-MEANING-001 Slice 0** + **Slice 0.1** (merged as `feature/meaning-centric-architecture-v1`): binding architecture decision, activation-boundary review, dormancy rules, nine-slice implementation sequence. **Slice 1** (merged as `feature/meaning-centric-dormant-migration-v1`): dormant Schema 7→8 migration. **Slice 2** (merged as `feature/meaning-centric-archive-v2`): archive format v2 and dual-schema backup. **Slice 3** (current branch `feature/meaning-centric-multi-sense-preparation-v1`, committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, PR #33 open, not yet merged): multi-Sense preparation and topic persistence, dual-schema compatible.
 
 ## Current known risks and limitations
 
 - Slice 3 test coverage: no single test exercises all four semantic discriminators (`provider-sense-id`, `topic/domain`, `grammatical-relationship`, `no-discriminator`) in one combined lookup (pairwise/sequential coverage complete; unified scenario not tested). See [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §F.
 - Slice 3 edit-API behavior: edited content not reappearing is structurally guaranteed by evidence-ledger formula but not tested by a dedicated edit-scenario test.
 - Slice 3 checkpoint naming: `BeforeCandidateCompletion` vs. `BeforeAutomaticCandidateCompletion` distinction is clear but could benefit from naming review.
-- Slice 3 duplicate evidence across documents: identical normalized text in different documents is correctly supported by `SourceDocumentId` in the four-field key but lacks an isolated dedicated test.
+- Slice 3 duplicate evidence across documents — two distinct concerns, not one, corrected this pass (see [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §F.4 for the full analysis): (1) the **evidence ledger** (`Schema8EvidenceScanner`/`Schema8EvidenceLedger`, keyed by the four-field `ContextEvidenceKey`) correctly treats identical normalized text in two different documents as distinct evidence — `SourceDocumentId` is part of the key — proven structurally by the code, not by a dedicated isolated test. (2) The **`ContextSnapshots` display rows** persisted for a given Meaning intentionally deduplicate by `NormalizedFingerprint` alone, scoped per `MeaningId` (`PreparationServiceSchema8.InsertNewContextSnapshots`), matching the pre-existing, unchanged `IX_ContextSnapshots_Meaning_Fingerprint` unique index (`Data/Entities/ContextSnapshotEntity.cs`) — so if identical normalized text from two different documents is linked to the same Meaning, only one illustrative snapshot row is kept. This does not lose evidence identity: eligibility scanning reads the four-field key from the candidate envelope's `FrozenEvidence` (and the ledger's legacy-baseline fallback), never solely from which `ContextSnapshots` rows happen to exist.
 - Slice 3 envelope-upgrade performance: the lazy upgrade read/transaction path has not been benchmarked against prior code paths.
 
 ## Active planned sequence
 
-1. **Slice 3 review and Git finalization** (current): focused review of Slice 3, at most one correction pass, final validation, commit/push/PR.
+1. **Slice 3 review and Git finalization** (current): committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, pushed, PR #33 opened. The single authorized correction pass (this update) reconciles ContextSnapshot-evidence documentation and Git-state claims. Remaining action: human review and explicit merge approval for PR #33.
 2. **Slice 4** (design done, not started): Sense answer-variant assignments, per-card/per-variant progress, synonym-credit replay.
 3. **Slice 5** (design done, not started): Sense-addressed cards, learning queue, per-Sense mastery rollup.
 4. **Slice 6 — Schema 8 activation** (design done, not started): the one-way flip of `CurrentVersion` to `8`, wiring the migration into `InitializeAsync`. Depends on Slices 1–5 merged.
@@ -82,28 +83,26 @@
 ## Explicit boundaries for Slice 3
 
 - Slice 3 diff must not touch: `Data/DatabaseSchema.cs`, `DatabaseSchema.CurrentVersion`, `DatabaseSchema.InitializeAsync`, `Data/Entities/*`, Schema8Ddl, `Components/Pages/PrepareWords.razor`, localization, archive DTOs/format, `LearningService`, answer-variant/assignment/progress entities, review fields, merge writer, Import UI, package identity, build number, secrets, branding.
-- **Verified:** none of these are changed by the current unstaged Slice-3 diff.
+- **Verified:** none of these are changed by the committed Slice-3 diff (`git diff master...HEAD --name-status`).
 
 ## Relevant files for Slice-3 review
 
 - **Handoff:** [docs/handoffs/kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md)
 - **Architecture:** [docs/architecture/meaning-centric-learning-v1-design.md](architecture/meaning-centric-learning-v1-design.md) §2–§4
-- **Added services:** `Services/Study/PreparationSchemaCapability.cs`, `PreparationServiceSchema8*.cs`, `PreparationCandidatePayload*.cs`, `PreparationMetadataPolicy.cs`, `PreparationSenseClassifier.cs`, `Schema8Evidence*.cs`
-- **Added core library:** `KnownFirst.Core/Preparation/PreparationContextEvidencePolicy.cs`
+- **Added services (10):** `Services/Study/PreparationSchemaCapability.cs`, `PreparationServiceSchema8.cs`, `PreparationServiceSchema8Start.cs`, `PreparationCandidatePayloadV1.cs`, `PreparationCandidatePayloadCodec.cs`, `PreparationCandidateStateException.cs`, `PreparationMetadataPolicy.cs`, `PreparationSenseClassifier.cs`, `Schema8EvidenceLedger.cs`, `Schema8EvidenceScanner.cs`
+- **Added core library (1):** `KnownFirst.Core/Preparation/PreparationContextEvidencePolicy.cs`
 - **Modified services:** `Services/Study/PreparationService.cs` (real Schema-8 dispatch, lazy upgrade, multi-Sense logic)
-- **Added tests:** 12 new test files covering schema-capability, evidence, codec, metadata, sense classification, provider-index integrity, lazy upgrade, acceptance logic.
+- **Added tests (9):** `PreparationSchemaCapabilityTests.cs`, `PreparationContextEvidencePolicyTests.cs`, `PreparationServiceSchema8StartAndEvidenceTests.cs`, `PreparationServiceSchema8LazyUpgradeTests.cs`, `PreparationServiceSchema8AcceptTests.cs`, `PreparationMetadataPolicyTests.cs`, `PreparationProviderIndexIntegrityTests.cs`, `PreparationSenseClassifierTests.cs`, `PreparationCandidatePayloadCodecTests.cs` — covering schema-capability, evidence, codec, metadata, sense classification, provider-index integrity, lazy upgrade, acceptance logic.
+- **Modified test infrastructure:** `KnownFirst.Tests/TestInfrastructure.cs` (synthetic Schema-8 fixture support — modified, not added).
 
 ## Next exact action
 
-**Review and finalize Slice 3:**
+**Slice 3 Git finalization is complete; this document records the single authorized correction pass:**
 
-1. Focused review of the 25 changed files (5 modified, 20 added) against the acceptance criteria.
-2. Verify no unintended side effects; check protected boundaries (section above).
-3. If corrections needed, apply them on this branch; do not abandon the changes.
-4. Stage explicit files only (review `git status` after `git add`).
-5. Commit with a clear message.
-6. Request explicit approval before push and PR creation.
-7. No automatic merge — human approval required.
+1. Slice 3 was committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765` and pushed to `feature/meaning-centric-multi-sense-preparation-v1`.
+2. [PR #33](https://github.com/Tachiguro/KnownFirst/pull/33) is open against `master` and has not been merged.
+3. This correction pass resolved the ContextSnapshot dedup-vs-evidence-identity documentation question (§F.4 of the handoff; see also the "known risks" entry above), corrected stale Git-state claims in this file and the handoff, corrected the changed-file inventory and technical detail defects, and removed committed-Markdown trailing whitespace.
+4. No further correction pass is authorized. Remaining action is human review and explicit merge approval for PR #33 — no automatic merge.
 
 ## Design work (not implemented)
 
@@ -137,7 +136,7 @@
       - **Model-contract coverage confirmed/added**: v2 rejecting `Prepared`/`Learning`/`Mastered` `KnowledgeState` was already covered by the existing `BackupArchiveV2Tests.BackupModelContractV2_SchemaEightWordStatus_RejectsLegacyPreparedLearningMastered` (all three values, one test) — not duplicated. v1 continuing to accept its legacy status values was already covered by existing v1 `BackupModelContractTests`/`BackupCreationTests` coverage — not duplicated. New: separate per-entity v2 record-count-mismatch tests for Senses, AnswerVariants, SenseAnswerVariantAssignments, and AnswerVariantProgress (`ValidateVersioned_V2Manifest*CountMismatch_RejectedSeparately`); a v2 source-material content-checksum-mismatch test that corrupts only the persisted `contentSha256` field (recomputing the outer archive checksum so the *inner* per-source-material check is the one actually exercised, not the outer one); and `ImportPortableArchive_V2ValidationFailure_LeavesTargetCompletelyUnmutated`, proving `ImportPortableArchiveAsync` validates the whole archive before its restore transaction ever opens (a corrupt archive reaches `ValidationFailed` with zero durable rows written, never `Failed`, which is reserved for a mid-restore rollback).
       - **Final evidence correction** (same branch, same pass): strengthened the local-ID-independence test as described above and re-verified the file-level repository inventory (20 modified + 20 added = 40 changed paths, 0 deleted, 0 renamed, all Slice 2). This pass edited an existing test method and its fixture-builder helper — it added zero new `[TestMethod]`s, so the complete-suite total is unaffected and stays `1098/1098` (last run confirmed, not rerun during this evidence-only pass; only the directly affected `BackupArchiveV2Tests`/`Schema8BackupRestoreTests` classes were re-run, both green).
       - **Test-count reconciliation**: the prior pass's arithmetic conflated two separately-confirmed baselines. The last independently-confirmed complete-suite run before Slice 2 was `1044/1044` (Slice 1 completion); a separate, uncommitted 8-test correction pass was layered on top without its own complete-suite run (noted at the time as "last known good: 1044/1044, unaffected by this internal-only correction") — so the real pre-Slice-2 baseline actually exercised was `1052` (`1044 + 8`), not `1044`, the first time the complete suite ran again. Slice 2's own first pass added 32 new tests in entirely new files/methods (30 in the two new files `BackupArchiveV2Tests.cs`/`Schema8BackupRestoreTests.cs` + 2 added to existing `MergeSafetyCopyServiceTests.cs`) and reported `1084/1084`, which is arithmetically `1052 + 32` — correct once the real baseline is used, but the complete suite had at that point already been run twice total (`1044`, then `1084`), never separately confirmed at the intermediate `1052` checkpoint. This correction pass added 14 further tests, all in the two existing Slice-2 test files (7 in `BackupArchiveV2Tests.cs`, 7 in `Schema8BackupRestoreTests.cs`; zero entirely-new test files, zero existing tests edited rather than added): final discovered complete-suite total is `1098/1098` (`1084 + 14`), confirmed by one complete-suite run after all corrections passed — the suite's third full run overall, and the first to actually pass through the `1052`/`1084`/`1098` checkpoints in sequence within one session.
-  - **Slice 3 — multi-Sense preparation and topic persistence, dual-schema compatible** (branch `feature/meaning-centric-multi-sense-preparation-v1`, uncommitted): completed the previously-partial Slice 3 implementation (§4.8.2). Schema 7's `PreparationService.StartAsync`/`AcceptAsync` selection/write paths are byte-for-byte unchanged; Schema 8 gained a real candidate-selection/eligibility path (not just an already-dormant Accept path).
+  - **Slice 3 — multi-Sense preparation and topic persistence, dual-schema compatible** (branch `feature/meaning-centric-multi-sense-preparation-v1`, committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, PR #33 open, not merged): completed the previously-partial Slice 3 implementation (§4.8.2). Schema 7's `PreparationService.StartAsync`/`AcceptAsync` selection/write behavior is unchanged (same persisted rows, same decisions), but the code itself was refactored, not left byte-for-byte identical (see [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §D item 3); Schema 8 gained a real candidate-selection/eligibility path (not just an already-dormant Accept path).
     - **Neutral schema capability**: `Services/Study/PreparationSchemaCapability.cs` (`ValidatedPreparationSchema7/8Capability`, `PreparationSchemaCapabilityException`) reuses the existing `Schema8ShapeValidator` but is fully independent of `Services/DataSafety/BackupSchemaCapability` — preparation no longer depends on a backup-specific capability type or exception. `BackupSchemaCapability` itself is unchanged.
     - **Shared context-evidence policy**: `KnownFirst.Core.Preparation.PreparationContextEvidencePolicy` (new, database-independent) holds the normalization/SHA-256-fingerprint/four-field-key (`ContextEvidenceKey`: SourceDocumentId, NormalizedFingerprint, TargetStart, TargetLength) algorithm extracted verbatim from the pre-Slice-3 `PreparationService.NormalizeContext`/`CreateFingerprint`; the Schema-7 context path now delegates to it (byte-identical output, covered by a frozen-reference-implementation parity test) and the new Schema-8 evidence scanner uses the same policy.
     - **Real Schema-8 `StartAsync`** (`PreparationServiceSchema8Start.cs`): a Word already `PreparationState.Prepared` with existing Senses is eligible again only when `Schema8EvidenceScanner.HasGenuinelyNewEvidence` (an unbounded (DocumentId, Order)-ordered scan, never capped at three) finds a context outside the Word's `Schema8EvidenceLedger.ComputeEffectiveProcessedKeys` set; frequency remains ordering-only. Only after a Word survives priority/limit selection are up to three genuinely-new evidence snapshots frozen into a `PreparationCandidatePayloadV1` (`Result` now nullable — a "Pending, evidence already frozen, no lookup yet" envelope) while the candidate is still Pending.

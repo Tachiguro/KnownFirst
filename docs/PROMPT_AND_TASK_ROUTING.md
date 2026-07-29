@@ -6,19 +6,18 @@ This document governs the conversion of user requests into KnownFirst agent prom
 
 Before every coding-agent prompt, the prompt author must state:
 
-- **Task classification:** [e.g. PLAN_ONLY, IMPLEMENT, TEST_ONLY, etc.]
 - **Agent:** [e.g. Primary Agent / Subagent]
 - **Model:** [e.g. Gemini 3.6 Flash Medium, Claude Sonnet 4.6 Thinking, etc.]
 - **Effort:** [Low / Medium / High]
-- **Speed:** [Standard / Fast]
-- **Project directory:** `C:\Dev\KnownFirst`
+
+Task classification is placed inside the prompt text. Speed is always `Standard` and is omitted from the visible prompt header. Project directory is omitted unless technically necessary.
 
 All agent prompts must:
 - be written in English;
 - use exactly one continuous fenced code block;
 - begin exactly with `PROMPT START`;
 - end exactly with `PROMPT ENDE`;
-- never contain nested prompt blocks;
+- never contain nested prompt blocks or nested code fences;
 - request a final report in German;
 - contain only one next agent task.
 
@@ -55,10 +54,11 @@ The repository enforces strict mutual isolation between task phases:
 - `PUSH_ONLY`: Pushing approved commits to remote repository.
 - `PR_ONLY`: Opening or updating a pull request.
 - `REVIEW_ONLY`: Read-only diff and contract review.
-- `SYNC_ONLY`: Fast-forward synchronizing local master with remote.
+- `POST_MERGE_SYNC_ONLY`: Fast-forward synchronizing local master with remote master after a manual user merge on GitHub.
 
 ### Isolation Rules
 - Select **exactly one** primary mode per prompt.
+- Pull-request merges are performed exclusively by the user manually through GitHub. Automated agents never merge pull requests, enable auto-merge, or execute `MERGE_ONLY` operations.
 - Multiple modes may be combined **only** when the user explicitly requests the combination.
 - Completion of one mode never authorizes the next mode.
 - The agent must not infer permission from previous work packages.
@@ -172,25 +172,11 @@ Keep Git and PR operations strictly separated:
 - `PUSH_ONLY`: Push only the approved existing branch and commit.
 - `PR_ONLY`: Create or update only the pull request.
 - `REVIEW_ONLY`: Read-only diff and contract review.
-- `SYNC_ONLY`: Fast-forward synchronize local master with remote master.
-- **Merge:** Remains a separate explicit user decision and is never an automatic agent mode.
+- `POST_MERGE_SYNC_ONLY`: Fast-forward synchronize local master with remote master after a manual user merge on GitHub.
+- **Merge:** Pull requests are merged exclusively by the user manually through GitHub. ChatGPT and programming agents never merge PRs, enable auto-merge, or execute `MERGE_ONLY` operations. After an approved final review, ChatGPT informs the user that the PR is ready for manual merge. Upon user confirmation of the merge, the next mode is `POST_MERGE_SYNC_ONLY`.
 
 No Git mode may rewrite published history or force-push.
 
-## J. New-Chat Bootstrap
+## J. New-Chat Bootstrap Protocol
 
-When starting a new ChatGPT or prompt-authoring session for KnownFirst, distinguish repository access capability:
-
-1. **Session WITH direct repository access:**
-   - Read `AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, `docs/INDEX.md`, and only the selected task-specific documents directly from the synchronized intended branch.
-2. **Session WITHOUT direct repository access:**
-   - Do not claim or imply that repository files were read.
-   - Ask the user to provide repository access or paste/upload the relevant current file contents.
-   - Do not reconstruct contracts from memory.
-   - Do not generate an implementation prompt until the required current rules are available.
-
-Do not assume that every ChatGPT conversation automatically has GitHub or repository access.
-
-### Minimal User Bootstrap Phrase
-*(Valid when the session has repository access)*:
-`KnownFirst: read AGENTS.md and docs/PROMPT_AND_TASK_ROUTING.md from master, then prepare only the next scoped agent prompt.`
+Dynamic discovery for new ChatGPT or prompt-authoring sessions is governed by [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Refer to that document for the complete initialization sequence, repository access gate, pull-request inspection rules, and evergreen user bootstrap prompt.

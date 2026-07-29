@@ -5,6 +5,7 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 ## Baseline Reading Rules
 
 - **Always read:** [AGENTS.md](../AGENTS.md) (universal repository and safety rules).
+- **New session discovery:** Consult [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) for dynamic new-chat discovery and PR inspection.
 - **Prompt formulation & task isolation:** Consult [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md).
 - **Read [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) when:** writing or modifying repository files.
 - **Read [docs/TESTING.md](TESTING.md) for:** test scopes, failure policies, and execution rules.
@@ -18,7 +19,7 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 ## Task-Based Reading Matrix
 
 ### 0. Prompt Creation and Task Orchestration
-- **Required reading:** [AGENTS.md](../AGENTS.md), [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), [INDEX.md](INDEX.md), and only the task-specific contracts needed to formulate the next prompt.
+- **Required reading:** [AGENTS.md](../AGENTS.md), [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md), [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), [INDEX.md](INDEX.md), and only the task-specific contracts needed to formulate the next prompt.
 - **Normally NOT required:** Full project state, roadmap, changelog, historical handoffs, unrelated architecture, source code outside the requested task.
 
 ### 1. Text Analysis and Import
@@ -67,7 +68,7 @@ Refer to [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for full commands and isol
 - **Normally NOT required:** Backup plans, text analysis internals, release packaging.
 
 ### 10. Governance and Documentation
-- **Required reading:** [AGENTS.md](../AGENTS.md), [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), [INDEX.md](INDEX.md), [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md), [TESTING.md](TESTING.md), only the specific contracts being updated.
+- **Required reading:** [AGENTS.md](../AGENTS.md), [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md), [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), [INDEX.md](INDEX.md), [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md), [TESTING.md](TESTING.md), only the specific contracts being updated.
 - **Normally NOT required:** Unaffected domain code, test suites, build scripts.
 
 ### 11. Historical Investigation

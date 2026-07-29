@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-28
+2026-07-29
 
 ## Repository
 
@@ -21,80 +21,88 @@
 
 ## Current branch
 
-- Branch: `hotfix/beta-12-russian-translation`
-- Base: `7076aa4ac0617bd55ff97821ea69dc6b0e1228b0`
-- HEAD (committed): `c0ff28ecb189f5496182f3489af5de721d97add7` ("fix: enable Russian translation targets in Beta 12")
-- PR #23 is open against this branch and must not be merged as part of this task.
-- Uncommitted on top of HEAD: the four Beta 12 Android smoke-test corrections below (export verification, import confirmation layout, workflow-state refresh, online dictionary activation). Not staged or committed.
+- Branch: `feature/meaning-centric-multi-sense-preparation-v1`
+- Base: `b5e4b055ed1ac626f237f0560bfa894e2fdc4e86` (PR #32 merge commit)
+- **As of 2026-07-29:** KF-MEANING-001 Slice 3 was committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765` and pushed to this branch. [PR #33](https://github.com/Tachiguro/KnownFirst/pull/33) (`feature/meaning-centric-multi-sense-preparation-v1` → `master`) is open and has not been merged.
+- This entry is updated by a same-day, single authorized correction pass reconciling the ContextSnapshot-evidence documentation and Git-state claims recorded below (see the correction commit on this branch for the exact diff, message `fix: reconcile Slice 3 evidence and handoff`).
+- Schema 8 remains dormant: `DatabaseSchema.CurrentVersion` remains `7`.
 
-## Completed recently (this branch)
+## Completed on current branch (this session)
 
-- **Root cause fixed (KF-LANG-001):** `TextReviewService.ValidateImport` incorrectly re-validated `ExplanationLanguage`/`TargetLanguage` against a local English/German-only set, rejecting valid German-to-Russian and English-to-Russian imports before the lexical lookup started, even though `LexicalLookupLanguagePolicy` already supported Russian as a translation target. The duplicated, incorrect check was removed; `LexicalLookupLanguagePolicy.Validate` is now the sole authority.
-- Removed the combined Definition-and-Translation choice from the Import Text selector; only Definition and Translation remain user-selectable. The compatibility `ImportTextRequest` and `LexicalLookupRequest` constructors now produce `Translation` (not `DefinitionAndTranslation`) when source and explanation languages differ. New imports that explicitly request `DefinitionAndTranslation` are rejected at the `TextReviewService.ValidateImport` boundary.
-- `DefinitionAndTranslation` remains a valid enum member for reading/processing existing database rows, preparation state, and portable archives; `BackupLexicalLookupMode` numeric/string mappings are unchanged.
-- Product/display version raised to `1.0.0-beta.12`; Android build/version code raised to `12`. Package ID, database schema (`7`), signing configuration, and portable archive format are unchanged.
-- Added a localized Beta 12 What's New catalog entry (English, German, Russian) covering the Russian-translation-target fix, the simplified Definition/Translation import choice, and the continued absence of Russian source-text analysis.
+**KF-MEANING-001 Slice 3 — multi-Sense preparation and topic persistence, dual-schema compatible**
 
-### Uncommitted Android smoke-test corrections (this session)
-
-- **Root cause fixed (KF-EXPORT-001):** `AndroidPortableArchiveFileService.ExportAsync` verified the saved destination with `verifyStream.Length`, which non-seekable Android `ContentResolver` streams can throw `NotSupportedException` on even after a fully successful write. This was a verification defect, not archive corruption. Replaced with `PortableArchiveExportGuard.VerifySavedArchiveAsync`, which opens the destination and reads a single byte without touching `Length`/`Position`; works on seekable and non-seekable streams alike. Archive creation, checksums, validation, and import checks are unchanged.
-- **KF-UX-001 implemented:** `Settings.razor` now hides the Data Export/Data Import action row entirely while the portable-import confirmation panel is visible, and restores it on Cancel, on validation failure, or after the import completes (success or failure).
-- **KF-STATE-001 implemented:** added `IWorkflowChangeNotifier`/`WorkflowChangeNotifier` (registered as a singleton in `MauiProgram.cs`). `NavMenu` and `Home` subscribe in `OnInitializedAsync`, reload `WorkflowState`/statistics and call `StateHasChanged` on notification, and unsubscribe via `IDisposable`. `Settings.razor` publishes only after a successfully completed portable import (`PortableImportStatus.Success`) and after a successful full data reset; cancelled or failed operations never publish.
-- **KF-CONSENT-001 implemented:** Settings now shows the binding online-lookup disclosure (`Prepare_OnlineDisclosureTitle`/`Prepare_OnlineDisclosure`) and an explicit "Activate online dictionary" action when `IAppSettingsService.HasOnlineLookupConsent` is false; activation calls `GrantOnlineLookupConsent` directly. The existing revoke action remains available after activation. Portable archives still never capture or restore online-lookup consent or preferences (`BackupSnapshotRepository`/`BackupImportRepository` never reference `Preferences.Default` or consent). Restoring or resetting does not grant consent; users must activate it independently.
+- Branch: `feature/meaning-centric-multi-sense-preparation-v1`, base `b5e4b055ed1ac626f237f0560bfa894e2fdc4e86`. Committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`; pushed; PR #33 open (not merged).
+- Implemented the §4.8.2 Slice 3 architecture contract (schema-capability-neutral preparation layer for Schema 8).
+- Added preparation-specific schema-capability resolver (`PreparationSchemaCapability.cs`), independent of backup's `BackupSchemaCapability`.
+- Real Schema-8 `StartAsync` dispatch: words with `PreparationState.Prepared` and existing Senses are eligible again when `Schema8EvidenceScanner` finds genuinely-new evidence (unbounded scan, matched by four-field key: `SourceDocumentId`, `NormalizedFingerprint`, `TargetStart`, `TargetLength`).
+- Frozen candidate evidence at creation time, re-matched against live occurrence data at item creation (deterministic, no fresh scan). Schema-7 legacy selection/creation database-write behavior is unchanged; the code itself was refactored (extracted `AcceptSchema7`, delegated context/fingerprint helpers, an added validate-only metadata check on two brand-new optional fields) rather than left byte-for-byte identical — see [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §D item 3 for the exact boundary.
+- Versioned `PreparationCandidatePayloadV1` envelope with discriminated codec (`Empty`/`EnvelopeV1`/`LegacyLexicalResult`/`UnsupportedEnvelopeVersion`/`Malformed`).
+- Lazy envelope upgrade (`EnsureCandidateEnvelopeAndSelection`): genuine envelopes never rewritten; Empty/Legacy upgraded on demand when accessed, with frozen evidence appended and Schema-8 shape verified before any transaction.
+- Effective-processed-evidence ledger (`Schema8EvidenceLedger`): tracks `legacyBaselineKeys ∪ fullyResolvedPreparedEnvelopeKeys` (Empty/LegacyLexicalResult candidates own no evidence; partially-resolved/Pending/Failed/Skipped/Cancelled envelopes mark nothing as processed).
+- Multi-Sense classification and deterministic all-exact auto-linking: provider indices matching existing Sense vocabulary (via `SemanticMeaningIdentityPolicy`) are auto-linked post-explicit-accept; `LookupCurrentAsync` opportunistically auto-resolves all matching indices and auto-completes candidates when all indices resolve.
+- Provider-index integrity: `AcceptSchema8` revalidates index freshly inside transaction, rejects out-of-range/already-resolved/stale selections.
+- Metadata persistence: `TopicOrDomain` and `PartOfSpeech` (Unicode Form C, trimmed, limits enforced) validated before mutation in both Schema-7 and Schema-8 paths; PartOfSpeech resolved from input, selected Meaning, or empty.
+- Direction-specific preferred Meaning: each card (`LearningCardEntity`) has its own `PreferredMeaningId`; `SenseEntity.DefaultMeaningId` is a non-authoritative fallback only.
+- Nine named fault-injection checkpoints: `AfterEnvelopePersist`, `AfterSenseInsert`, `AfterMeaningInsert`, `AfterContextLink`, `AfterCardInsert`, `AfterResolvedIndexPersist`, `DuringAutoExactVariantLinking`, `BeforeCandidateCompletion`, `BeforeAutomaticCandidateCompletion` — each proven to roll back completely.
+- **Database schema unchanged** (`CurrentVersion` remains `7`, `InitializeAsync` unchanged, `Data/Entities` unchanged, migration dormant).
+- **26 files changed** (5 modified, 21 added — regenerated from `git diff master...HEAD --name-status`): 1 new core-library policy file, 10 new service files, 9 new test files, plus the added handoff document itself.
+- **Tests: 1190/1190 passed** (focused preparation 184/184, directly affected 230/230, complete suite) — last run recorded before the correction pass; see PR #33 for the current validation evidence.
+- **No production code regressions**: `git diff master...HEAD --check` (the committed-range check) is clean after the correction pass.
+- Committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, pushed, and under review in [PR #33](https://github.com/Tachiguro/KnownFirst/pull/33). See handoff: [docs/handoffs/kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md).
 
 ## Completed on master (prior branches, already merged)
 
-- Russian application-interface localization (PR #20): `Resources/Localization/SharedResource.ru.resx` with full key parity against English and German; explicit persisted System language preference that re-resolves the device culture on every start; Russian accepted as a translation target for English/German source texts; Russian explicitly rejected as a source language.
-- Learning repeat/direction clarity (PR #21, [KF-LEARN-001](BACKLOG.md)): the Learn card view exposes card direction and `IsAgainRepeat`; `Learn.razor` renders a secondary direction label and a "Repeat" badge so a legitimate Again-repeat or opposite-direction card is no longer visually indistinguishable from a first-time card.
-- Beta 11 release-candidate identity and What's New content (PR #22): version/build raised to `1.0.0-beta.11`/`11`; localized Beta 11 What's New entry added.
+- Russian application-interface localization (PR #20): `Resources/Localization/SharedResource.ru.resx`, Russian as translation target, System language preference.
+- Learning repeat/direction clarity (PR #21): Learn card exposes direction and `IsAgainRepeat`, visual badges for legitimate repeats.
+- Beta 11 release identity and What's New (PR #22): version/build to `1.0.0-beta.11`/`11`.
+- Beta 12 Russian-translation and UI fixes (PR #23, merged as PR #32): version/build to `1.0.0-beta.12`/`12`; export verification fix, import UI fixes, workflow-state notifier, online-lookup consent UI.
 
-## Explicitly deferred (not in this branch)
+## Design work completed but not yet implemented
 
-- Russian **source**-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback remain out of scope. Only Russian-as-target is implemented.
+- **KF-BACKUP-002 Slices 1–3** (merged on `feature/backup-merge-contracts-v1`, `feature/backup-merge-safety-copy-v1`, `feature/backup-merge-preflight-v1`): merge contracts library, safety-copy service, and read-only merge preflight — awaiting staged merge and eventual populated-target merge writer (Slice 5+).
+- **KF-MEANING-001 Slice 0** + **Slice 0.1** (merged as `feature/meaning-centric-architecture-v1`): binding architecture decision, activation-boundary review, dormancy rules, nine-slice implementation sequence. **Slice 1** (merged as `feature/meaning-centric-dormant-migration-v1`): dormant Schema 7→8 migration. **Slice 2** (merged as `feature/meaning-centric-archive-v2`): archive format v2 and dual-schema backup. **Slice 3** (current branch `feature/meaning-centric-multi-sense-preparation-v1`, committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, PR #33 open, not yet merged): multi-Sense preparation and topic persistence, dual-schema compatible.
 
-## Current known risks
+## Current known risks and limitations
 
-- "Support KnownFirst" and "Report a bug" in Settings are placeholders (identical no-op handler); not gated out of Release builds.
-- Deterministic GUI automation (Appium/UiAutomator2 or equivalent) is not yet implemented; GUI verification remains manual per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md).
-- Public Google Play release is intentionally blocked; current distribution is Internal Testing only. Beta 12 is intended for Internal Testing, including testing by the user's father, once validated.
-- Native-speaker wording review of the Russian resource (including the new Beta 11 and Beta 12 bullets) has not been performed; translations are complete but unreviewed by a native speaker.
+- Slice 3 test coverage: no single test exercises all four semantic discriminators (`provider-sense-id`, `topic/domain`, `grammatical-relationship`, `no-discriminator`) in one combined lookup (pairwise/sequential coverage complete; unified scenario not tested). See [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §F.
+- Slice 3 edit-API behavior: edited content not reappearing is structurally guaranteed by evidence-ledger formula but not tested by a dedicated edit-scenario test.
+- Slice 3 checkpoint naming: `BeforeCandidateCompletion` vs. `BeforeAutomaticCandidateCompletion` distinction is clear but could benefit from naming review.
+- Slice 3 duplicate evidence across documents — two distinct concerns, not one, corrected this pass (see [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §F.4 for the full analysis): (1) the **evidence ledger** (`Schema8EvidenceScanner`/`Schema8EvidenceLedger`, keyed by the four-field `ContextEvidenceKey`) correctly treats identical normalized text in two different documents as distinct evidence — `SourceDocumentId` is part of the key — proven structurally by the code, not by a dedicated isolated test. (2) The **`ContextSnapshots` display rows** persisted for a given Meaning intentionally deduplicate by `NormalizedFingerprint` alone, scoped per `MeaningId` (`PreparationServiceSchema8.InsertNewContextSnapshots`), matching the pre-existing, unchanged `IX_ContextSnapshots_Meaning_Fingerprint` unique index (`Data/Entities/ContextSnapshotEntity.cs`) — so if identical normalized text from two different documents is linked to the same Meaning, only one illustrative snapshot row is kept. This does not lose evidence identity: eligibility scanning reads the four-field key from the candidate envelope's `FrozenEvidence` (and the ledger's legacy-baseline fallback), never solely from which `ContextSnapshots` rows happen to exist.
+- Slice 3 envelope-upgrade performance: the lazy upgrade read/transaction path has not been benchmarked against prior code paths.
 
 ## Active planned sequence
 
-1. Validate (tests, builds) the Beta 12 hotfix branch `hotfix/beta-12-russian-translation`, then commit/push/PR once approved (no AAB yet).
-2. Functional "Support KnownFirst" and "Report a bug" controls (or explicit removal/gating decision).
-3. Reopenable release notes / release-note history access from Settings.
-4. Deterministic Android GUI automation feasibility and first implementation.
-5. Public-release legal, privacy, and support readiness review.
-6. Russian source-text support decision (separately planned; not started).
+1. **Slice 3 review and Git finalization** (current): committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, pushed, PR #33 opened. The single authorized correction pass (this update) reconciles ContextSnapshot-evidence documentation and Git-state claims. Remaining action: human review and explicit merge approval for PR #33.
+2. **Slice 4** (design done, not started): Sense answer-variant assignments, per-card/per-variant progress, synonym-credit replay.
+3. **Slice 5** (design done, not started): Sense-addressed cards, learning queue, per-Sense mastery rollup.
+4. **Slice 6 — Schema 8 activation** (design done, not started): the one-way flip of `CurrentVersion` to `8`, wiring the migration into `InitializeAsync`. Depends on Slices 1–5 merged.
+5. **Slice 7** (design done, not started): MergePreflight adaptation for Sense-addressed queries.
+6. **Slice 8** (design done, not started): populated-database merge writer and Import routing. Depends on Slice 6.
+7. **Slice 9** (design done, not started): Import UI and convergence testing.
 
-## Explicit exclusions
+## Explicit boundaries for Slice 3
 
-- No merge-import or overwrite semantics for portable recovery.
-- No `ReplaceAll`-style restore into a populated installation.
-- No Russian source-text import yet.
-- No public Google Play promotion yet.
-- No AAB, signed package, or Play upload created in this branch.
-- No database migration and no schema change; schema remains 7.
+- Slice 3 diff must not touch: `Data/DatabaseSchema.cs`, `DatabaseSchema.CurrentVersion`, `DatabaseSchema.InitializeAsync`, `Data/Entities/*`, Schema8Ddl, `Components/Pages/PrepareWords.razor`, localization, archive DTOs/format, `LearningService`, answer-variant/assignment/progress entities, review fields, merge writer, Import UI, package identity, build number, secrets, branding.
+- **Verified:** none of these are changed by the committed Slice-3 diff (`git diff master...HEAD --name-status`).
 
-## Relevant files for the next task
+## Relevant files for Slice-3 review
 
-- [BACKLOG.md](BACKLOG.md)
-- `Services/DataSafety/PortableArchiveExportGuard.cs`
-- `Platforms/Android/AndroidPortableArchiveFileService.cs`
-- `Components/Pages/Settings.razor`
-- `Services/Study/IWorkflowChangeNotifier.cs`, `Services/Study/WorkflowChangeNotifier.cs`
-- `Components/Layout/NavMenu.razor`, `Components/Pages/Home.razor`
-- `MauiProgram.cs`
-- `Resources/Localization/SharedResource*.resx`
-- `KnownFirst.Tests/PortableArchiveExportGuardTests.cs`
-- `KnownFirst.Tests/WorkflowChangeNotifierTests.cs`
-- `KnownFirst.Tests/UiWorkflowContractTests.cs`
-- `KnownFirst.Tests/LocalizationResourceTests.cs`
+- **Handoff:** [docs/handoffs/kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md)
+- **Architecture:** [docs/architecture/meaning-centric-learning-v1-design.md](architecture/meaning-centric-learning-v1-design.md) §2–§4
+- **Added services (10):** `Services/Study/PreparationSchemaCapability.cs`, `PreparationServiceSchema8.cs`, `PreparationServiceSchema8Start.cs`, `PreparationCandidatePayloadV1.cs`, `PreparationCandidatePayloadCodec.cs`, `PreparationCandidateStateException.cs`, `PreparationMetadataPolicy.cs`, `PreparationSenseClassifier.cs`, `Schema8EvidenceLedger.cs`, `Schema8EvidenceScanner.cs`
+- **Added core library (1):** `KnownFirst.Core/Preparation/PreparationContextEvidencePolicy.cs`
+- **Modified services:** `Services/Study/PreparationService.cs` (real Schema-8 dispatch, lazy upgrade, multi-Sense logic)
+- **Added tests (9):** `PreparationSchemaCapabilityTests.cs`, `PreparationContextEvidencePolicyTests.cs`, `PreparationServiceSchema8StartAndEvidenceTests.cs`, `PreparationServiceSchema8LazyUpgradeTests.cs`, `PreparationServiceSchema8AcceptTests.cs`, `PreparationMetadataPolicyTests.cs`, `PreparationProviderIndexIntegrityTests.cs`, `PreparationSenseClassifierTests.cs`, `PreparationCandidatePayloadCodecTests.cs` — covering schema-capability, evidence, codec, metadata, sense classification, provider-index integrity, lazy upgrade, acceptance logic.
+- **Modified test infrastructure:** `KnownFirst.Tests/TestInfrastructure.cs` (synthetic Schema-8 fixture support — modified, not added).
 
 ## Next exact action
 
-Run local validation (`scripts\knownfirst.ps1`, or the targeted `dotnet test` filters in this task's report) on the uncommitted Android smoke-test corrections (export verification, import confirmation layout, workflow-state refresh, online dictionary activation); everything remains unstaged and uncommitted pending explicit authorization to commit/push. PR #23 stays open and unmerged. Once validated, continue with planned sequence item 2 (Support/Report-a-bug controls).
+**Slice 3 Git finalization is complete; this document records the single authorized correction pass:**
+
+1. Slice 3 was committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765` and pushed to `feature/meaning-centric-multi-sense-preparation-v1`.
+2. [PR #33](https://github.com/Tachiguro/KnownFirst/pull/33) is open against `master` and has not been merged.
+3. This correction pass resolved the ContextSnapshot dedup-vs-evidence-identity documentation question (§F.4 of the handoff; see also the "known risks" entry above), corrected stale Git-state claims in this file and the handoff, corrected the changed-file inventory and technical detail defects, and removed committed-Markdown trailing whitespace.
+4. No further correction pass is authorized. Remaining action is human review and explicit merge approval for PR #33 — no automatic merge.
 
 ## Design work (not implemented)
 
@@ -128,6 +136,19 @@ Run local validation (`scripts\knownfirst.ps1`, or the targeted `dotnet test` fi
       - **Model-contract coverage confirmed/added**: v2 rejecting `Prepared`/`Learning`/`Mastered` `KnowledgeState` was already covered by the existing `BackupArchiveV2Tests.BackupModelContractV2_SchemaEightWordStatus_RejectsLegacyPreparedLearningMastered` (all three values, one test) — not duplicated. v1 continuing to accept its legacy status values was already covered by existing v1 `BackupModelContractTests`/`BackupCreationTests` coverage — not duplicated. New: separate per-entity v2 record-count-mismatch tests for Senses, AnswerVariants, SenseAnswerVariantAssignments, and AnswerVariantProgress (`ValidateVersioned_V2Manifest*CountMismatch_RejectedSeparately`); a v2 source-material content-checksum-mismatch test that corrupts only the persisted `contentSha256` field (recomputing the outer archive checksum so the *inner* per-source-material check is the one actually exercised, not the outer one); and `ImportPortableArchive_V2ValidationFailure_LeavesTargetCompletelyUnmutated`, proving `ImportPortableArchiveAsync` validates the whole archive before its restore transaction ever opens (a corrupt archive reaches `ValidationFailed` with zero durable rows written, never `Failed`, which is reserved for a mid-restore rollback).
       - **Final evidence correction** (same branch, same pass): strengthened the local-ID-independence test as described above and re-verified the file-level repository inventory (20 modified + 20 added = 40 changed paths, 0 deleted, 0 renamed, all Slice 2). This pass edited an existing test method and its fixture-builder helper — it added zero new `[TestMethod]`s, so the complete-suite total is unaffected and stays `1098/1098` (last run confirmed, not rerun during this evidence-only pass; only the directly affected `BackupArchiveV2Tests`/`Schema8BackupRestoreTests` classes were re-run, both green).
       - **Test-count reconciliation**: the prior pass's arithmetic conflated two separately-confirmed baselines. The last independently-confirmed complete-suite run before Slice 2 was `1044/1044` (Slice 1 completion); a separate, uncommitted 8-test correction pass was layered on top without its own complete-suite run (noted at the time as "last known good: 1044/1044, unaffected by this internal-only correction") — so the real pre-Slice-2 baseline actually exercised was `1052` (`1044 + 8`), not `1044`, the first time the complete suite ran again. Slice 2's own first pass added 32 new tests in entirely new files/methods (30 in the two new files `BackupArchiveV2Tests.cs`/`Schema8BackupRestoreTests.cs` + 2 added to existing `MergeSafetyCopyServiceTests.cs`) and reported `1084/1084`, which is arithmetically `1052 + 32` — correct once the real baseline is used, but the complete suite had at that point already been run twice total (`1044`, then `1084`), never separately confirmed at the intermediate `1052` checkpoint. This correction pass added 14 further tests, all in the two existing Slice-2 test files (7 in `BackupArchiveV2Tests.cs`, 7 in `Schema8BackupRestoreTests.cs`; zero entirely-new test files, zero existing tests edited rather than added): final discovered complete-suite total is `1098/1098` (`1084 + 14`), confirmed by one complete-suite run after all corrections passed — the suite's third full run overall, and the first to actually pass through the `1052`/`1084`/`1098` checkpoints in sequence within one session.
+  - **Slice 3 — multi-Sense preparation and topic persistence, dual-schema compatible** (branch `feature/meaning-centric-multi-sense-preparation-v1`, committed as `a51b0e82e35b2bb82d707580fe4fa04f8ac79765`, PR #33 open, not merged): completed the previously-partial Slice 3 implementation (§4.8.2). Schema 7's `PreparationService.StartAsync`/`AcceptAsync` selection/write behavior is unchanged (same persisted rows, same decisions), but the code itself was refactored, not left byte-for-byte identical (see [kf-meaning-slice3-complete-handoff.md](handoffs/kf-meaning-slice3-complete-handoff.md) §D item 3); Schema 8 gained a real candidate-selection/eligibility path (not just an already-dormant Accept path).
+    - **Neutral schema capability**: `Services/Study/PreparationSchemaCapability.cs` (`ValidatedPreparationSchema7/8Capability`, `PreparationSchemaCapabilityException`) reuses the existing `Schema8ShapeValidator` but is fully independent of `Services/DataSafety/BackupSchemaCapability` — preparation no longer depends on a backup-specific capability type or exception. `BackupSchemaCapability` itself is unchanged.
+    - **Shared context-evidence policy**: `KnownFirst.Core.Preparation.PreparationContextEvidencePolicy` (new, database-independent) holds the normalization/SHA-256-fingerprint/four-field-key (`ContextEvidenceKey`: SourceDocumentId, NormalizedFingerprint, TargetStart, TargetLength) algorithm extracted verbatim from the pre-Slice-3 `PreparationService.NormalizeContext`/`CreateFingerprint`; the Schema-7 context path now delegates to it (byte-identical output, covered by a frozen-reference-implementation parity test) and the new Schema-8 evidence scanner uses the same policy.
+    - **Real Schema-8 `StartAsync`** (`PreparationServiceSchema8Start.cs`): a Word already `PreparationState.Prepared` with existing Senses is eligible again only when `Schema8EvidenceScanner.HasGenuinelyNewEvidence` (an unbounded (DocumentId, Order)-ordered scan, never capped at three) finds a context outside the Word's `Schema8EvidenceLedger.ComputeEffectiveProcessedKeys` set; frequency remains ordering-only. Only after a Word survives priority/limit selection are up to three genuinely-new evidence snapshots frozen into a `PreparationCandidatePayloadV1` (`Result` now nullable — a "Pending, evidence already frozen, no lookup yet" envelope) while the candidate is still Pending.
+    - **Effective-processed-evidence ledger** (`Schema8EvidenceLedger.cs`): implements the documented `legacyBaselineKeys ∪ fullyResolvedPreparedEnvelopeKeys` formula exactly (Empty/LegacyLexicalResult candidate history owns no envelope evidence; Skipped/Cancelled/Failed/Pending/ResultReady/partially-resolved envelopes mark nothing as fully processed); malformed/unsupported candidate history throws the new `PreparationCandidateStateException` before `StartAsync` creates any session/candidate.
+    - **Frozen candidate evidence**: `PreparationService.CreateItemAsync` now branches on the ResultJson shape — a genuine EnvelopeV1 resolves its `Contexts` from `FrozenEvidence` (re-matched against a live occurrence scan by the same four-field key; documents/occurrences are immutable so this is exact, never a fresh ledger-driven scan), so `Contexts[0]` is always the frozen first context sent to the lexical provider; Schema-7/Empty/Legacy candidates keep the exact prior live-scan algorithm. `AcceptSchema8` now links only the candidate's own frozen evidence (`ResolveContextDataFromFrozenEvidence`) and never recomputes or replaces it — a later-imported occurrence never changes an active candidate's evidence.
+    - **Lazy envelope upgrade** (`PreparationService.EnsureCandidateEnvelopeAndSelection`, called from `GetCurrentAsync`, `LookupCurrentAsync`, `SelectMeaningAsync`, and `AcceptSchema8`): a genuine EnvelopeV1 is never rewritten; Empty becomes an envelope with `Result = null` plus newly frozen evidence; a raw `LegacyLexicalResult` becomes an envelope wrapping that exact result plus newly frozen evidence, with a valid `SelectedMeaningIndex` preserved or deterministically clamped; unsupported/malformed data throws before any write; no network lookup is ever triggered by an upgrade (read-only code paths peek cheaply first and only open a transaction when something must change).
+    - **Provider-index integrity**: `AcceptSchema8` re-reads `SelectedMeaningIndex` fresh inside its transaction, rejects out-of-range/already-resolved indexes, and canonically compares a non-empty `input.SelectedMeaningId` against the persisted `Result.Meanings[selectedIndex].MeaningId` (stale selections fail before mutation). `SelectMeaningAsync` rejects out-of-range and already-resolved indexes. `PreparationCandidatePayloadCodec.Write` already enforced strictly-ascending, duplicate-rejecting ledger serialization (unchanged).
+    - **Metadata persistence**: `PreparationMetadataPolicy.cs` (trim, Unicode Form C, empty→`string.Empty`, 256/128-byte UTF-8 limits for TopicOrDomain/PartOfSpeech, `PreparationMetadataValidationException`) is validated before any mutation in both `AcceptSchema7` (validated, never persisted, never changes legacy rows) and `AcceptSchema8` (persisted onto the Sense). PartOfSpeech resolution order: explicit input, else the selected provider Meaning, else empty.
+    - **All-exact/multi-Meaning lifecycle**: in addition to the existing post-explicit-accept opportunistic all-exact auto-linking, `LookupCurrentAsync`'s persistence transaction now also auto-resolves every provider index that matches an existing Sense immediately after a successful lookup (before any explicit accept), advances `SelectedMeaningIndex` to the lowest still-unresolved index, and auto-completes the candidate (`PreparationState.Prepared`, session counters updated exactly once) when that resolves every index — a repeated `LookupCurrentAsync`/`GetCurrentAsync` call no longer finds an auto-completed candidate "current" and cannot double-complete it.
+    - **Fault injection**: `IPreparationFaultInjector`/`PreparationSchema8Checkpoints` now name the nine required boundaries (`AfterEnvelopePersist`, `AfterSenseInsert`, `AfterMeaningInsert`, `AfterContextLink`, `AfterCardInsert`, `AfterResolvedIndexPersist`, `DuringAutoExactVariantLinking`, `BeforeCandidateCompletion`, `BeforeAutomaticCandidateCompletion`), each proven (parameterized test) to roll back completely, leave `PRAGMA user_version` at 8, and allow a clean retry.
+    - **Tests**: `PreparationSchemaCapabilityTests.cs`, `PreparationContextEvidencePolicyTests.cs`, `PreparationServiceSchema8StartAndEvidenceTests.cs`, `PreparationServiceSchema8LazyUpgradeTests.cs`, `PreparationMetadataPolicyTests.cs`, `PreparationProviderIndexIntegrityTests.cs` added; `PreparationCandidatePayloadCodecTests.cs`/`PreparationServiceSchema8AcceptTests.cs` updated for the nullable-`Result` envelope shape and renamed checkpoints. Every Schema-8 fixture remains synthetic (`TemporarySchema8Database`/`Schema7Fixture` + `Schema8DormantMigration`), never a real application database; `DatabaseSchema.CurrentVersion` stays `7`. Complete suite: 1190/1190 (1144 + 46).
+    - No `Data/DatabaseSchema.cs`, `Data/Entities/*`, `Schema8Ddl`, `Components/Pages/PrepareWords.razor`, localization, archive DTO/format, `LearningService`, answer-variant, or package/build/secret/branding change.
 
 ## New-chat handoff
 

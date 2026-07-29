@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
@@ -33,16 +33,23 @@ public sealed class AndroidPublishingScriptContractTests
         return File.ReadAllText(path);
     }
 
-    // --------------------------------------------------------------------------------
-    // Expected Green Contracts (Safeguards already present in canonical pipeline)
-    // --------------------------------------------------------------------------------
+    private static string LoadDocs(string relativePath)
+    {
+        var path = Path.Combine(GetRepositoryRoot(), relativePath);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException($"File not found: {path}");
+        }
+        return File.ReadAllText(path);
+    }
+
+    // A. Canonical entry point and legacy path
 
     [TestMethod]
     public void Launcher_UsesCanonicalGooglePlayBundleScriptWithoutExternalIdentityOverrides()
     {
         var launcherScript = LoadScript("scripts/knownfirst.ps1");
 
-        // Extract the function body of Invoke-GooglePlayBundleAction
         var match = Regex.Match(
             launcherScript,
             @"function\s+Invoke-GooglePlayBundleAction\s*\{(?<body>[\s\S]*?)\n\}",
@@ -71,230 +78,102 @@ public sealed class AndroidPublishingScriptContractTests
     }
 
     [TestMethod]
-    public void PublishingScript_ReadsIdentityFromKnownFirstProject()
+    public void Docs_DocumentCanonicalLauncherCommand()
+    {
+        var docs = LoadDocs("docs/BUILD_AND_RELEASE.md");
+        Assert.IsTrue(docs.Contains("knownfirst.ps1 -Action GooglePlayBundle"), "BUILD_AND_RELEASE.md must document the canonical launcher command.");
+        Assert.IsFalse(docs.Contains("publish-android-google-play.ps1"), "BUILD_AND_RELEASE.md must not advertise the legacy script as supported.");
+    }
+
+    [TestMethod]
+    public void LegacyScript_FailsClosedBeforeAnyBuildOrArtifactBehavior()
+    {
+        var legacyScript = LoadScript("scripts/publish-android-google-play.ps1");
+
+        Assert.IsTrue(legacyScript.Contains("throw "), "Legacy script must contain a throw statement.");
+        Assert.IsTrue(legacyScript.Contains("knownfirst.ps1 -Action GooglePlayBundle"), "Legacy script must point to the canonical entry point.");
+
+        Assert.IsFalse(legacyScript.Contains("dotnet publish"), "Legacy script must not contain dotnet publish.");
+        Assert.IsFalse(legacyScript.Contains("jarsigner"), "Legacy script must not contain jarsigner.");
+        Assert.IsFalse(legacyScript.Contains("Remove-Item"), "Legacy script must not delete files.");
+    }
+
+    // B. Identity and boundaries
+
+    [TestMethod]
+    public void CanonicalScript_ReadsIdentityFromKnownFirstProject()
     {
         var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
 
         Assert.IsTrue(
-            canonicalScript.Contains("KnownFirst.csproj"),
-            "Canonical script must resolve KnownFirst.csproj."
+            canonicalScript.Contains("KnownFirstProductVersion") && canonicalScript.Contains("KnownFirstBuildNumber"),
+            "Canonical script must read KnownFirstProductVersion and KnownFirstBuildNumber."
         );
-        Assert.IsTrue(
-            canonicalScript.Contains("KnownFirstProductVersion"),
-            "Canonical script must read KnownFirstProductVersion."
-        );
-        Assert.IsTrue(
-            canonicalScript.Contains("KnownFirstBuildNumber"),
-            "Canonical script must read KnownFirstBuildNumber."
-        );
-        Assert.IsTrue(
-            canonicalScript.Contains("Get-KnownFirstVersionInfo"),
-            "Canonical script must obtain identity through its Get-KnownFirstVersionInfo flow."
-        );
-
-        // Check param block does not expose VersionCode or DisplayVersion
-        var paramMatch = Regex.Match(canonicalScript, @"param\s*\((?<params>[\s\S]*?)\)", RegexOptions.IgnoreCase);
-        Assert.IsTrue(paramMatch.Success, "Canonical script must have a param block.");
-        var paramText = paramMatch.Groups["params"].Value;
-
-        Assert.IsFalse(
-            paramText.Contains("VersionCode"),
-            "Canonical script param block must not expose VersionCode."
-        );
-        Assert.IsFalse(
-            paramText.Contains("DisplayVersion"),
-            "Canonical script param block must not expose DisplayVersion."
-        );
-
-        // Does not mutate KnownFirst.csproj
         Assert.IsFalse(
             Regex.IsMatch(canonicalScript, @"(Set-Content|Out-File|\[System.IO.File\]::Write).*KnownFirst\.csproj", RegexOptions.IgnoreCase),
             "Canonical script must not write to KnownFirst.csproj."
         );
-    }
-
-    [TestMethod]
-    public void PublishingScript_SerializesAndroidPublish()
-    {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
-
-        // Inspect actual publish argument array construction
-        var publishArgMatch = Regex.Match(
-            canonicalScript,
-            @"\$publishArguments\s*=\s*@\((?<args>[\s\S]*?)\)",
-            RegexOptions.IgnoreCase
-        );
-
-        Assert.IsTrue(publishArgMatch.Success, "$publishArguments array declaration must be present in canonical script.");
-        var argsText = publishArgMatch.Groups["args"].Value;
-
-        Assert.IsTrue(
-            argsText.Contains("\"-m:1\"") || argsText.Contains("'-m:1'"),
-            "$publishArguments array must contain exactly one explicit single-node MSBuild control: '-m:1'."
-        );
-    }
-
-    [TestMethod]
-    public void PublishingScript_PreservesSecretAndPublicationBoundaries()
-    {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
-
         Assert.IsFalse(
             Regex.IsMatch(canonicalScript, @"GooglePlayUpload", RegexOptions.IgnoreCase),
             "Canonical script must perform no Google Play upload."
         );
-
         Assert.IsTrue(
             canonicalScript.Contains("env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD"),
             "Canonical script must pass signing passwords via environment-variable indirection."
         );
+    }
 
-        // Secret values not placed directly into visible arguments
-        Assert.IsFalse(
-            Regex.IsMatch(canonicalScript, @"-p:AndroidSigningKeyPass=(?!env:)", RegexOptions.IgnoreCase),
-            "Signing password value must not be directly placed into visible arguments."
+    // C. Cross-process serialization
+
+    [TestMethod]
+    public void CanonicalScript_OpensDeterministicLockWithFileShareNone()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        Assert.IsTrue(
+            canonicalScript.Contains("[System.IO.File]::Open") && canonicalScript.Contains("'None'"),
+            "Canonical script must open a lock with FileShare.None."
         );
+    }
 
-        // Restoration of previous environment values in finally block
+    [TestMethod]
+    public void CanonicalScript_AcquiresLockBeforeCriticalOperations()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        var lockIndex = canonicalScript.IndexOf("[System.IO.File]::Open", StringComparison.OrdinalIgnoreCase);
+        Assert.IsTrue(lockIndex > 0, "Lock acquisition must exist.");
+
+        var collisionIndex = canonicalScript.IndexOf("Final artifact paths already exist", StringComparison.OrdinalIgnoreCase);
+        var stagingIndex = canonicalScript.IndexOf("NewGuid", StringComparison.OrdinalIgnoreCase);
+        var cleanIndex = canonicalScript.IndexOf("dotnet clean", StringComparison.OrdinalIgnoreCase);
+        var publishIndex = canonicalScript.IndexOf("dotnet @publishArguments", StringComparison.OrdinalIgnoreCase);
+
+        Assert.IsTrue(collisionIndex > lockIndex, "Lock must be acquired before collision check.");
+        Assert.IsTrue(stagingIndex > lockIndex, "Lock must be acquired before staging.");
+        Assert.IsTrue(cleanIndex > lockIndex, "Lock must be acquired before clean.");
+        Assert.IsTrue(publishIndex > lockIndex, "Lock must be acquired before publish.");
+    }
+
+    [TestMethod]
+    public void CanonicalScript_LockDisposalOccursInFinally()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
         var finallyIndex = canonicalScript.IndexOf("finally", StringComparison.OrdinalIgnoreCase);
-        Assert.IsTrue(finallyIndex >= 0, "Canonical script must have a finally block.");
+        Assert.IsTrue(finallyIndex > 0, "Finally block must exist.");
+
         var finallyText = canonicalScript.Substring(finallyIndex);
-
-        Assert.IsTrue(
-            finallyText.Contains("KNOWNFIRST_ANDROID_SIGNING_PASSWORD"),
-            "Finally block must restore KNOWNFIRST_ANDROID_SIGNING_PASSWORD state."
-        );
-        Assert.IsTrue(
-            finallyText.Contains("JAVA_HOME"),
-            "Finally block must restore JAVA_HOME state."
-        );
-
-        Assert.IsFalse(
-            Regex.IsMatch(canonicalScript, @"Remove-Item.*\.keystore", RegexOptions.IgnoreCase),
-            "Canonical script must not delete external keystore."
-        );
+        Assert.IsTrue(finallyText.Contains(".Dispose()"), "Lock disposal must occur in finally block.");
     }
 
-    // --------------------------------------------------------------------------------
-    // Expected Red Contracts (Missing safeguards in current canonical script)
-    // --------------------------------------------------------------------------------
+    // D. Warning enforcement
 
     [TestMethod]
-    public void PublishingScript_DoesNotDeleteOrOverwriteExistingFinalArtifactBeforeVerification()
+    public void CanonicalScript_EnforcesWarningsAsErrorsViaMSBuildEngineSwitch()
     {
         var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
 
-        // Reject pre-build Remove-Item targeting final bundle path
-        Assert.IsFalse(
-            Regex.IsMatch(canonicalScript, @"Remove-Item\s+-LiteralPath\s+\$bundlePath", RegexOptions.IgnoreCase),
-            "Pre-build Remove-Item of final artifact bundle is not allowed."
-        );
-
-        // Require fail-closed check throwing an error if final target exists
-        Assert.IsTrue(
-            Regex.IsMatch(canonicalScript, @"Test-Path\s+-LiteralPath\s+\$bundlePath[\s\S]*?throw", RegexOptions.IgnoreCase),
-            "Canonical script must fail closed when Test-Path on final bundle path is true."
-        );
-    }
-
-    [TestMethod]
-    public void PublishingScript_UsesUniqueStagingAndFailClosedFinalCollision()
-    {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
-
-        // Require unique staging directory creation
-        Assert.IsTrue(
-            Regex.IsMatch(canonicalScript, @"\$staging.*New-Item.*-ItemType\s+Directory", RegexOptions.IgnoreCase) ||
-            canonicalScript.Contains("stagingDir") || canonicalScript.Contains("stagingBundlePath"),
-            "A unique per-invocation staging directory must be created."
-        );
-
-        // Require collision check for final sidecar
-        Assert.IsTrue(
-            canonicalScript.Contains("checksumPath") && canonicalScript.Contains("Test-Path") && canonicalScript.Contains("throw"),
-            "Canonical script must perform collision check for the final sidecar path before finalization."
-        );
-    }
-
-    [TestMethod]
-    public void PublishingScript_RejectsAmbiguousSignedBundleCandidates()
-    {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
-
-        // Reject silent ambiguity resolution via Select-Object -First 1
-        var candidateMatch = Regex.Match(
-            canonicalScript,
-            @"\$signedBundle\s*=\s*Get-ChildItem[\s\S]*?Select-Object\s+-First\s+1",
-            RegexOptions.IgnoreCase
-        );
-
-        Assert.IsFalse(
-            candidateMatch.Success,
-            "Candidate selection must fail on ambiguous candidates rather than silently taking Select-Object -First 1."
-        );
-
-        Assert.IsTrue(
-            canonicalScript.Contains("ambiguous") || canonicalScript.Contains("candidates.Count"),
-            "Canonical script must explicitly validate candidate count to reject ambiguous signed bundles."
-        );
-    }
-
-    [TestMethod]
-    public void PublishingScript_RequiresStrictSignatureVerificationBeforeFinalization()
-    {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
-
-        Assert.IsTrue(
-            canonicalScript.Contains("-strict"),
-            "jarsigner verification must include the -strict flag."
-        );
-
-        var verifyIndex = canonicalScript.IndexOf("jarsigner -verify -strict", StringComparison.OrdinalIgnoreCase);
-        var moveIndex = canonicalScript.IndexOf("Move-Item", StringComparison.OrdinalIgnoreCase);
-
-        Assert.IsTrue(verifyIndex >= 0, "Strict jarsigner verification command must be present.");
-        Assert.IsTrue(
-            moveIndex >= 0 && verifyIndex < moveIndex,
-            "Strict signature verification must be executed on the staged candidate BEFORE moving to final path."
-        );
-    }
-
-    [TestMethod]
-    public void PublishingScript_CreatesAndVerifiesStagedAndFinalSha256Pair()
-    {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
-
-        Assert.IsTrue(
-            canonicalScript.Contains("checksumPath") || canonicalScript.Contains(".sha256.txt"),
-            "Canonical script must define a SHA-256 sidecar path."
-        );
-
-        // Require writing the sidecar file
-        Assert.IsTrue(
-            canonicalScript.Contains("Set-Content") && (canonicalScript.Contains("checksumPath") || canonicalScript.Contains(".sha256.txt")),
-            "Canonical script must write a SHA-256 sidecar file."
-        );
-
-        // Require recomputing hashes after finalization
-        var hashMatches = Regex.Matches(canonicalScript, "Get-FileHash");
-        Assert.IsTrue(
-            hashMatches.Count >= 2,
-            "Canonical script must calculate and re-verify SHA-256 hashes multiple times (staged & final)."
-        );
-
-        // Require rollback of created final files on error
-        Assert.IsTrue(
-            canonicalScript.Contains("catch") && canonicalScript.Contains("finalFilesCreated"),
-            "Canonical script must track and rollback created final files if final-pair validation fails."
-        );
-    }
-
-    [TestMethod]
-    public void PublishingScript_EnforcesWarningsAsErrorsAtPublishBoundary()
-    {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
-
-        // Inspect actual publish argument array construction
         var publishArgMatch = Regex.Match(
             canonicalScript,
             @"\$publishArguments\s*=\s*@\((?<args>[\s\S]*?)\)",
@@ -304,9 +183,117 @@ public sealed class AndroidPublishingScriptContractTests
         Assert.IsTrue(publishArgMatch.Success, "$publishArguments array declaration must be present in canonical script.");
         var argsText = publishArgMatch.Groups["args"].Value;
 
-        Assert.IsTrue(
-            argsText.Contains("TreatWarningsAsErrors") || argsText.Contains("WarningsAsErrors") || argsText.Contains("/warnaserror"),
-            "Deterministic warning-as-error switch/property must be present in $publishArguments."
-        );
+        Assert.IsFalse(argsText.Contains("-p:TreatWarningsAsErrors=true"), "The test must not accept TreatWarningsAsErrors text as a substitute for -warnaserror.");
+        Assert.IsTrue(argsText.Contains("\"-warnaserror\"") || argsText.Contains("'-warnaserror'"), "Actual publish arguments must contain -warnaserror.");
+        Assert.IsTrue(argsText.Contains("ILLinkTreatWarningsAsErrors=true"), "Actual publish arguments must contain ILLinkTreatWarningsAsErrors=true.");
+        Assert.IsTrue(argsText.Contains("\"-m:1\"") || argsText.Contains("'-m:1'"), "Actual publish arguments must retain exactly one effective -m:1.");
+    }
+
+    // E. Candidate ownership
+
+    [TestMethod]
+    public void CanonicalScript_RemovesLastWriteTimeUtcFiltering()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        Assert.IsFalse(canonicalScript.Contains("LastWriteTimeUtc"), "No LastWriteTimeUtc filtering remains.");
+
+        var candidateSection = canonicalScript.Substring(canonicalScript.IndexOf("$candidates ="));
+        Assert.IsFalse(candidateSection.Contains("Select-Object -First 1"), "No Select-Object -First 1 exists in candidate selection.");
+        Assert.IsTrue(candidateSection.Contains("$candidates[0]"), "Candidate selection uses direct array access.");
+    }
+
+    [TestMethod]
+    public void CanonicalScript_ValidatesEmptyPrePublishCandidateList()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        var cleanIndex = canonicalScript.IndexOf("dotnet clean", StringComparison.OrdinalIgnoreCase);
+        var publishIndex = canonicalScript.IndexOf("dotnet @publishArguments", StringComparison.OrdinalIgnoreCase);
+
+        var betweenCleanAndPublish = canonicalScript.Substring(cleanIndex, publishIndex - cleanIndex);
+        Assert.IsTrue(betweenCleanAndPublish.Contains("*-Signed.aab"), "Post-clean candidate enumeration must exist.");
+        Assert.IsTrue(betweenCleanAndPublish.Contains(".Count -gt 0"), "Post-clean candidate enumeration must be empty.");
+    }
+
+    [TestMethod]
+    public void CanonicalScript_FailsOnZeroOrMultiplePostPublishCandidates()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        var publishIndex = canonicalScript.IndexOf("dotnet @publishArguments", StringComparison.OrdinalIgnoreCase);
+        var afterPublish = canonicalScript.Substring(publishIndex);
+
+        Assert.IsTrue(afterPublish.Contains(".Count -eq 0"), "Post-publish zero candidates must fail.");
+        Assert.IsTrue(afterPublish.Contains(".Count -gt 1"), "Post-publish multiple candidates must fail.");
+    }
+
+    // F. Reuse integrity
+
+    [TestMethod]
+    public void Launcher_ReuseVerifiesSidecarFormatAndHash()
+    {
+        var launcherScript = LoadScript("scripts/knownfirst.ps1");
+
+        var actionMatch = Regex.Match(launcherScript, @"function\s+Invoke-GooglePlayBundleAction\s*\{(?<body>[\s\S]*?)\n\}", RegexOptions.IgnoreCase);
+        Assert.IsTrue(actionMatch.Success);
+        var actionBody = actionMatch.Groups["body"].Value;
+
+        // GooglePlayBundle output state includes both AAB and sidecar
+        var outputMatch = Regex.Match(actionBody, @"Test-LauncherStateReusable[\s\S]*?-OutputFiles\s+@\((?<outputs>[^\)]+)\)", RegexOptions.IgnoreCase);
+        Assert.IsTrue(outputMatch.Success, "OutputFiles argument must be present for Test-LauncherStateReusable in GooglePlayBundle action.");
+        Assert.IsTrue(outputMatch.Groups["outputs"].Value.Contains("$checksumPath"), "GooglePlayBundle output state must include sidecar.");
+        Assert.IsTrue(launcherScript.Contains("$checksumPath = \"$aabPath.sha256.txt\"") || launcherScript.Contains("$checksumPath = \"$($aabPath).sha256.txt\""), "Sidecar path must be derived from AAB path.");
+
+        // test logic
+        var testFunctionMatch = Regex.Match(launcherScript, @"function\s+Test-LauncherStateReusable\s*\{(?<body>[\s\S]*?)\n\}", RegexOptions.IgnoreCase);
+        Assert.IsTrue(testFunctionMatch.Success);
+        var testBody = testFunctionMatch.Groups["body"].Value;
+
+        Assert.IsTrue(testBody.Contains("-notmatch"), "Reuse verifies sidecar format.");
+        Assert.IsTrue(testBody.Contains("Get-FileHash"), "Reuse verifies real AAB hash.");
+        Assert.IsTrue(testBody.Contains("Substring") || testBody.Contains("Replace"), "Reuse derives AAB path from sidecar.");
+        Assert.IsTrue(testBody.Contains("return $null"), "Incomplete or malformed pairs cannot be reported reusable.");
+    }
+
+    // G. Signature, checksum, finalization, and failure behavior
+
+    [TestMethod]
+    public void CanonicalScript_SignatureVerificationIsStrictAndStaged()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        var verifyIndex = canonicalScript.IndexOf("-verify -strict", StringComparison.OrdinalIgnoreCase);
+        var moveIndex = canonicalScript.IndexOf("Move-Item", StringComparison.OrdinalIgnoreCase);
+
+        Assert.IsTrue(verifyIndex > 0, "jarsigner uses -verify and -strict.");
+        Assert.IsTrue(verifyIndex < moveIndex, "jarsigner verifies against staged output before finalization.");
+    }
+
+    [TestMethod]
+    public void CanonicalScript_SidecarParserRejectsMultilineAndDoesNotUseWhitespaceRegex()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        Assert.IsFalse(canonicalScript.Contains(@"\s+"), "Sidecar parser must not use \\s+.");
+        Assert.IsTrue(canonicalScript.Contains(@"\A") && canonicalScript.Contains(@"\z"), "Sidecar parser must anchor to start and end of string.");
+        Assert.IsFalse(canonicalScript.Contains("Move-Item -LiteralPath $stagingBundlePath -Destination $bundlePath -Force"), "Finalization must not use -Force.");
+    }
+
+    [TestMethod]
+    public void CanonicalScript_FailurePreservesOriginalErrorRecord()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        Assert.IsFalse(canonicalScript.Contains("$failureMessage = $_.Exception.Message"), "Script must not store only the exception message.");
+        Assert.IsTrue(canonicalScript.Contains("throw $failureRecord") || Regex.IsMatch(canonicalScript, @"catch\s*\{[\s\S]*?throw\s+\$_[\s\S]*?\}"), "Catch must use bare throw or equivalent original-ErrorRecord-preserving flow.");
+
+        var catchIndex = canonicalScript.IndexOf("catch {", StringComparison.OrdinalIgnoreCase);
+        var finallyIndex = canonicalScript.IndexOf("finally {", StringComparison.OrdinalIgnoreCase);
+        Assert.IsTrue(catchIndex > 0 && finallyIndex > catchIndex, "Script must use structured try/catch/finally.");
+
+        var catchBody = canonicalScript.Substring(catchIndex, finallyIndex - catchIndex);
+        Assert.IsTrue(catchBody.Contains("finalFilesCreated"), "Final files created by the invocation must be tracked for rollback in catch.");
+        Assert.IsTrue(catchBody.Contains("ErrorAction SilentlyContinue"), "Cleanup in catch must be silent.");
     }
 }

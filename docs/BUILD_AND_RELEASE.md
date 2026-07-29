@@ -74,10 +74,11 @@ Requires explicit user request. Executes build steps required for Release APK.
 Requires explicit user request. Executes build steps required for BetaDiagnostic APK.
 
 ### ANDROID_GOOGLE_PLAY_AAB
-Executes parameterized Google Play AAB creation script (reading version numbers from `KnownFirst.csproj`):
+Executes the canonical launcher to create a Google Play AAB:
 ```powershell
-.\scripts\publish-android-google-play.ps1 -VersionCode <BuildNumber> -DisplayVersion <ProductVersion>
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Action GooglePlayBundle
 ```
+A successful local package consists of the final AAB and its matching SHA-256 sidecar. Creation does not authorize upload, installation, or device testing. Warnings prohibited by the release contract will fail packaging.
 
 ### Legacy Direct-Install Helper Limitation
 - `scripts/publish-android-test-packages.ps1` publishes Release, BetaDiagnostic, and Debug APKs, but its artifact names contain hard-coded legacy Beta 6 labels and installation metadata. `scripts/publish-android-beta.ps1` invokes that same helper.

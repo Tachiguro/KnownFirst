@@ -49,55 +49,68 @@ $bundleName = "KnownFirst-$($versionInfo.ProductVersion)-code$($versionInfo.Buil
 $bundlePath = Join-Path $artifactRoot $bundleName
 $checksumPath = "$bundlePath.sha256.txt"
 
-if ((Test-Path -LiteralPath $bundlePath) -or (Test-Path -LiteralPath $checksumPath)) {
-    throw "Final artifact paths already exist. Collision protection failed closed."
-}
-
-if (-not (Test-Path -LiteralPath $KeystorePath -PathType Leaf)) {
-    throw "The Android beta keystore is missing at $KeystorePath. Restore the existing signing identity before publishing."
-}
-
-$signingPassword = $env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD
-if ([string]::IsNullOrWhiteSpace($signingPassword)) {
-    if (-not (Test-Path -LiteralPath $PasswordFilePath -PathType Leaf)) {
-        throw "The Android beta signing password is unavailable. Set KNOWNFIRST_ANDROID_SIGNING_PASSWORD or restore $PasswordFilePath."
-    }
-
-    $signingPassword = (Get-Content -LiteralPath $PasswordFilePath -Raw).Trim()
-}
-if ([string]::IsNullOrWhiteSpace($signingPassword)) {
-    throw "The Android beta signing password is empty."
-}
-
-$javaHomes = @($env:JAVA_HOME)
-$androidOpenJdkRoot = Join-Path ([Environment]::GetFolderPath("ProgramFiles")) "Android\openjdk"
-if (Test-Path -LiteralPath $androidOpenJdkRoot -PathType Container) {
-    $javaHomes += Get-ChildItem -LiteralPath $androidOpenJdkRoot -Directory |
-        Sort-Object Name -Descending |
-        Select-Object -ExpandProperty FullName
-}
-$javaHome = $javaHomes |
-    Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath (Join-Path $_ "bin\jarsigner.exe") -PathType Leaf) } |
-    Select-Object -First 1
-if ([string]::IsNullOrWhiteSpace($javaHome)) {
-    throw "An Android-compatible Java installation with jarsigner was not found."
-}
-
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
-$stagingDir = Join-Path $artifactRoot ([Guid]::NewGuid().ToString())
-New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
-
-$stagingBundlePath = Join-Path $stagingDir $bundleName
-$stagingChecksumPath = "$stagingBundlePath.sha256.txt"
-
-$previousPassword = $env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD
-$previousJavaHome = $env:JAVA_HOME
-$env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD = $signingPassword
-$env:JAVA_HOME = $javaHome
+$lockFilePath = Join-Path $artifactRoot "publish.lock"
+$lockFileStream = $null
+$stagingDir = $null
+$previousPassword = $null
+$previousJavaHome = $null
 $finalFilesCreated = @()
-$failureMessage = $null
+$failureRecord = $null
 
 try {
+    try {
+        $lockFileStream = [System.IO.File]::Open($lockFilePath, 'OpenOrCreate', 'ReadWrite', 'None')
+    }
+    catch [System.IO.IOException] {
+        throw "Another Google Play packaging process is already running."
+    }
+
+    if ((Test-Path -LiteralPath $bundlePath) -or (Test-Path -LiteralPath $checksumPath)) {
+        throw "Final artifact paths already exist. Collision protection failed closed."
+    }
+
+    if (-not (Test-Path -LiteralPath $KeystorePath -PathType Leaf)) {
+        throw "The Android beta keystore is missing at $KeystorePath. Restore the existing signing identity before publishing."
+    }
+
+    $signingPassword = $env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD
+    if ([string]::IsNullOrWhiteSpace($signingPassword)) {
+        if (-not (Test-Path -LiteralPath $PasswordFilePath -PathType Leaf)) {
+            throw "The Android beta signing password is unavailable. Set KNOWNFIRST_ANDROID_SIGNING_PASSWORD or restore $PasswordFilePath."
+        }
+
+        $signingPassword = (Get-Content -LiteralPath $PasswordFilePath -Raw).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($signingPassword)) {
+        throw "The Android beta signing password is empty."
+    }
+
+    $javaHomes = @($env:JAVA_HOME)
+    $androidOpenJdkRoot = Join-Path ([Environment]::GetFolderPath("ProgramFiles")) "Android\openjdk"
+    if (Test-Path -LiteralPath $androidOpenJdkRoot -PathType Container) {
+        $javaHomes += Get-ChildItem -LiteralPath $androidOpenJdkRoot -Directory |
+            Sort-Object Name -Descending |
+            Select-Object -ExpandProperty FullName
+    }
+    $javaHome = $javaHomes |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath (Join-Path $_ "bin\jarsigner.exe") -PathType Leaf) } |
+        Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($javaHome)) {
+        throw "An Android-compatible Java installation with jarsigner was not found."
+    }
+
+    $stagingDir = Join-Path $artifactRoot ([Guid]::NewGuid().ToString())
+    New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+    $stagingBundlePath = Join-Path $stagingDir $bundleName
+    $stagingChecksumPath = "$stagingBundlePath.sha256.txt"
+
+    $previousPassword = $env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD
+    $previousJavaHome = $env:JAVA_HOME
+    $env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD = $signingPassword
+    $env:JAVA_HOME = $javaHome
+
     & dotnet clean $projectPath `
         -f net10.0-android `
         -c Release `
@@ -107,14 +120,20 @@ try {
         throw "Android Release clean failed with exit code $LASTEXITCODE."
     }
 
-    $publishStartedUtc = [DateTime]::UtcNow
+    $releaseRoot = Join-Path $projectRoot "bin\Release\net10.0-android"
+    $preCandidates = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "*-Signed.aab")
+    if ($preCandidates.Count -gt 0) {
+        throw "Stale output prevents trustworthy selection: *-Signed.aab files remain after clean."
+    }
+
     $publishArguments = @(
         "publish",
         $projectPath,
         "-f", "net10.0-android",
         "-c", "Release",
         "-m:1",
-        "-p:TreatWarningsAsErrors=true",
+        "-warnaserror",
+        "-p:ILLinkTreatWarningsAsErrors=true",
         "-p:AndroidPackageFormats=aab",
         "-p:AndroidKeyStore=true",
         "-p:AndroidSigningKeyStore=$KeystorePath",
@@ -127,9 +146,7 @@ try {
         throw "Android Release AAB publish failed with exit code $LASTEXITCODE."
     }
 
-    $releaseRoot = Join-Path $projectRoot "bin\Release\net10.0-android"
-    $candidates = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "*-Signed.aab" |
-        Where-Object { $_.LastWriteTimeUtc -ge $publishStartedUtc.AddSeconds(-2) })
+    $candidates = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "*-Signed.aab")
     if ($candidates.Count -eq 0) {
         throw "Android Release publish completed, but no newly signed AAB was found under $releaseRoot."
     }
@@ -150,11 +167,11 @@ try {
     }
 
     $stagedSha256 = (Get-FileHash -LiteralPath $stagingBundlePath -Algorithm SHA256).Hash.ToLowerInvariant()
-    Set-Content -LiteralPath $stagingChecksumPath -Encoding utf8 -Value "$stagedSha256  $bundleName"
+    [System.IO.File]::WriteAllText($stagingChecksumPath, "$stagedSha256  $bundleName`n", (New-Object System.Text.UTF8Encoding($false)))
 
     $stagedRecomputedSha256 = (Get-FileHash -LiteralPath $stagingBundlePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $stagedSidecarContent = (Get-Content -LiteralPath $stagingChecksumPath -Raw).Trim()
-    if ($stagedSidecarContent -notmatch "^([a-f0-9]{64})\s+(.+)$") {
+    if ($stagedSidecarContent -notmatch "\A([a-f0-9]{64})[ \t]+([^\r\n]+)\r?\n?\z") {
         throw "Staged sidecar content is malformed."
     }
     $sidecarHash = $matches[1]
@@ -185,7 +202,7 @@ try {
 
     $finalSha256 = (Get-FileHash -LiteralPath $bundlePath -Algorithm SHA256).Hash.ToLowerInvariant()
     $finalSidecarContent = (Get-Content -LiteralPath $checksumPath -Raw).Trim()
-    if ($finalSidecarContent -notmatch "^([a-f0-9]{64})\s+(.+)$") {
+    if ($finalSidecarContent -notmatch "\A([a-f0-9]{64})[ \t]+([^\r\n]+)\r?\n?\z") {
         throw "Final sidecar content is malformed."
     }
     $finalSidecarHash = $matches[1]
@@ -207,16 +224,24 @@ try {
     Write-Output "Signature: strict verification passed"
 }
 catch {
-    $failureMessage = $_.Exception.Message
-    if ($null -ne $finalFilesCreated) {
-        foreach ($f in $finalFilesCreated) {
-            if (Test-Path -LiteralPath $f -PathType Leaf) {
-                Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+    $failureRecord = $_
+    try {
+        if ($null -ne $finalFilesCreated) {
+            foreach ($f in $finalFilesCreated) {
+                if (Test-Path -LiteralPath $f -PathType Leaf) {
+                    Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+                }
             }
         }
     }
+    catch {
+        # Suppress cleanup errors to avoid masking root failure
+    }
 }
 finally {
+    if ($null -ne $lockFileStream) {
+        $lockFileStream.Dispose()
+    }
     if ($null -eq $previousPassword) {
         Remove-Item Env:KNOWNFIRST_ANDROID_SIGNING_PASSWORD -ErrorAction SilentlyContinue
     }
@@ -237,7 +262,6 @@ finally {
     }
 }
 
-if ($null -ne $failureMessage) {
-    Write-Error "Release AAB publishing failed: $failureMessage" -ErrorAction Continue
-    exit 1
+if ($null -ne $failureRecord) {
+    throw $failureRecord
 }

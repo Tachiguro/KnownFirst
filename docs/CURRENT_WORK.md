@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-07-29
+2026-07-30
 
 ## Repository
 
@@ -13,45 +13,43 @@
 
 ## Verified master baseline
 
-- Master commit: `caf4221b88d25b7fa00ba01bada3b5f6e441fe2e` (PR #35 merge commit)
+- Master commit: `ad6f14567c823acc5e18a1024794c0ea07916002` (PR #37 merge commit)
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
+- Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (installed app displayed `cfbaee6a` / `DIRTY`; exact source commit unverified).
 - Active database schema: SQLite `PRAGMA user_version` 7 (unchanged)
-- Schema 8 status: dormant (schema 8 migration engine and preparation foundations merged, but not activated for normal database initialization)
+- Schema 8 status: dormant (schema 8 migration engine, archive v2 DTOs, and preparation foundations merged via PRs #31, #32, #33, but not activated for normal database initialization)
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
 - Solution: `KnownFirst.slnx`
 
 ## Completed packages on master
 
-- **Windows GUI StartupSmoke launcher package (PR #35 merged)**: added `-Action GuiTest` launcher entry point, `StartupSmoke` scenario runner (`scripts/gui-tests/windows/run-scenario-startup-smoke.ps1`), scenario configuration (`scenarios.json`), disposable profile isolation under `artifacts/`, contract tests (`UiWorkflowContractTests.cs`), and testing documentation (`docs/TESTING.md`).
-- **Verified StartupSmoke test run**:
-  - Window observed = `True`
-  - Startup event observed = `True`
-  - KnownFirst process remained alive for 12 seconds
-  - GUI Test Result: `Passed`
-  - Evidence log: `artifacts/launcher-logs/GuiTest-StartupSmoke-20260729-185521.log`
-  - Run directory: `artifacts/gui-tests/windows/runs/20260729T185521Z-StartupSmoke`
-  - No keyboard, mouse, or foreground-window interference occurred.
+- **Windows GUI StartupSmoke launcher package (PR #35 merged)**: added `-Action GuiTest` launcher entry point and profile isolation under `artifacts/`.
+- **New-Chat Bootstrap Protocol package (PR #36 merged)**: permanent dynamic new-chat bootstrap governance in `docs/NEW_CHAT_BOOTSTRAP.md`.
+- **Google Play Packaging Safeguards package (PR #37 merged)**: hardened `scripts/publish-google-play-bundle.ps1` with cross-process lock, warning escalation, candidate ownership, and sidecar verification.
 
-## Active local engineering package
+## Active local documentation package
 
-- Branch: `docs/new-chat-bootstrap-protocol`
-- Purpose: permanent dynamic new-chat bootstrap protocol (`docs/NEW_CHAT_BOOTSTRAP.md`) and governance updates (`AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, `docs/INDEX.md`).
-- Current phase: documentation implementation completed locally; uncommitted and unpushed.
+- Branch: `docs/reconcile-beta12-tested-next-merge-work`
+- Purpose: reconcile durable project state, changelog, backlog, roadmap, beta testing docs, and release records with confirmed Beta 12 distribution and current master baseline.
+- Current phase: documentation implementation in progress.
 
 ## Current blocker or pending validation
 
 - No implementation or validation blocker remains.
+- Populated-target archive import is not implemented; current import refuses populated installations.
+- The abandoned later AAB attempt is deferred to `KF-RELEASE-001` (to be revalidated before the next genuine release); no current packaging task is active.
 
 ## Exact next action
 
-- Perform `REVIEW_ONLY` review of uncommitted documentation changes on `docs/new-chat-bootstrap-protocol`.
-- Commit documentation update on `docs/new-chat-bootstrap-protocol`.
-- Push `docs/new-chat-bootstrap-protocol` to `origin`.
-- Open Pull Request against `master`.
-- Perform final review and await manual user merge on GitHub.
+- Complete review, commit, push, PR, and manual user merge of `docs/reconcile-beta12-tested-next-merge-work`.
+- After synchronization, begin `PLAN_ONLY` phase for **KF-MEANING-001 Slice 4** (direction-specific answer assignments and progress replay).
+- The merge writer must not be implemented before Meaning Slices 4 and 5, Schema-8 activation, and MergePreflight adaptation are complete.
 
 ## Concise new-chat handoff
 
-- Master baseline is `caf4221b88d25b7fa00ba01bada3b5f6e441fe2e` (PR #35 merged).
-- Active branch `docs/new-chat-bootstrap-protocol` contains the new dynamic bootstrap protocol (`docs/NEW_CHAT_BOOTSTRAP.md`).
-- Next steps: `REVIEW_ONLY`, commit, push to origin, open PR, review, and request manual user merge on GitHub.
+- Master baseline is `ad6f14567c823acc5e18a1024794c0ea07916002` (PR #37 merged).
+- Beta 12 / build 12 was distributed via Google Play Internal Testing and user-tested.
+- Active database schema is 7; Schema 8 is dormant.
+- Populated-target archive merge is not implemented.
+- Next task after this documentation package is merged and synchronized: **KF-MEANING-001 Slice 4 PLAN_ONLY**.
+- No Beta 13 or active packaging task is in progress.

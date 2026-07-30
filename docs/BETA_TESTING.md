@@ -1,6 +1,6 @@
 # KnownFirst Android beta and diagnostic testing
 
-> **Current status (2026-07-24):** Current source identity is `1.0.0-beta.9` / version code `9`. Verified Beta 8 release evidence is preserved in [releases/1.0.0-beta.8.md](releases/1.0.0-beta.8.md). For build, packaging, signing, and AAB retention rules, see [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md). For version policy, see [VERSIONING.md](VERSIONING.md).
+> **Current status (2026-07-30):** Current source identity is `1.0.0-beta.12` / build `12`. User confirmed distribution and physical Android testing of `1.0.0-beta.12` (version code `12`) via Google Play Internal Testing on 2026-07-30. The installed application displayed commit `cfbaee6a` (DIRTY); exact original rollout date and exact source commit remain unrecorded in repository evidence. See [releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md) for release evidence boundaries. No build 13 or Beta 13 validation is currently active. For build, packaging, signing, and AAB retention rules, see [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md). For version policy, see [VERSIONING.md](VERSIONING.md).
 
 ## Scope
 

@@ -6,9 +6,9 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
-## [1.0.0-beta.12] - Unreleased
+## [1.0.0-beta.12] - 2026-07-30 (confirmed distributed)
 
-**Beta 12 source changes are merged into `master` (`b5e4b05` / `b405aa4`). This changelog does not claim that Beta 12 has been packaged, uploaded, promoted, installed, or distributed through Google Play.**
+**Beta 12 distribution through Google Play Internal Testing and physical Android testing were confirmed by the user on 2026-07-30. The exact original rollout date is unknown. The installed package displayed commit `cfbaee6a` and `DIRTY`, so the exact source commit is unverified. See [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) for details.**
 
 ### Fixed
 

@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-07-29
-**State source:** `master` (`b405aa49001538ac60f45dc9697d9308e48e9eb2`, PR #33 merge commit)
-**Next product milestone:** Beta 12 Internal Testing validation and packaging
+**Status date:** 2026-07-30
+**State source:** `master` (`ad6f14567c823acc5e18a1024794c0ea07916002`, PR #37 merge commit)
+**Next product milestone:** KF-MEANING-001 Slice 4 — direction-specific answer assignments and progress replay
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -11,10 +11,12 @@ This document is the authoritative snapshot of verified current state. Update it
 | Field | Verified value |
 | --- | --- |
 | Project | KnownFirst |
-| Source Version | `1.0.0-beta.12` (build 12, merged PR #32 `b5e4b05` / PR #33 `b405aa4`) |
+| Source Version | `1.0.0-beta.12` (build 12) |
 | Package ID | `com.tachiguro.knownfirst` |
 | Target Distribution | Google Play Internal Testing |
-| Distribution Note | Source version is `1.0.0-beta.12` on `master`. Merged source code does not imply that a Beta 12 AAB package has been compiled, signed, uploaded, or distributed. |
+| Distributed Status | Distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)) |
+| Installed Displayed Identity | `1.0.0-beta.12` / Release / Build 12 / Commit `cfbaee6a` (DIRTY) |
+| Exact Distributed Commit | Unverified |
 
 ## Supported platforms
 
@@ -57,6 +59,9 @@ The `master` branch includes the following merged technical foundations:
 - **Meaning Slice 1 (PR #31):** dormant Schema-8 migration engine (`Schema8DormantMigration`).
 - **Meaning Slice 2 (PR #32):** archive format v2 and dual-schema backup support.
 - **Meaning Slice 3 (PR #33):** dormant multi-Sense preparation foundation (`PreparationServiceSchema8`).
+- **Windows GUI StartupSmoke Launcher (PR #35):** `-Action GuiTest` launcher entry point and profile isolation under `artifacts/`.
+- **New-Chat Bootstrap Protocol (PR #36):** permanent dynamic bootstrap governance in `docs/NEW_CHAT_BOOTSTRAP.md`.
+- **Google Play Packaging Safeguards (PR #37):** hardened `scripts/publish-google-play-bundle.ps1` with cross-process lock, warning escalation, candidate ownership, and sidecar verification.
 
 **Dormancy Boundaries:**
 - The active database schema remains **7** (`PRAGMA user_version = 7`).
@@ -67,13 +72,12 @@ The `master` branch includes the following merged technical foundations:
 
 ### Automated
 
-- **Beta 10 Release Candidate:** 698 passing tests (historical evidence pre-580bdcd).
-- **PR #33 Validation:** 1190 passing tests recorded on feature branch prior to master merge (historical evidence for PR #33).
-- Note: Automated tests cover Core policies, text analysis, temporary SQLite persistence, workflow logic, localization, diagnostics, lookup providers with offline fixtures, and archive contracts. Automated tests do not make live network requests.
+- **Contract & Regression Suite:** All unit, contract, and service tests pass on `master`.
+- Note: Automated tests cover Core policies, text analysis, temporary SQLite persistence, workflow logic, localization, diagnostics, lookup providers with offline fixtures, script contract invariants, and archive contracts. Automated tests do not make live network requests.
 
 ### Platform builds
 
-- **Windows / Android Debug & Release:** Build readiness verified during Beta 10 and Beta 11 release preparation. Fresh master verification is performed per prompt authorization.
+- **Windows / Android Debug & Release:** Build readiness verified during Beta 10, Beta 11, and Beta 12 release preparation.
 
 ## Database status
 
@@ -90,16 +94,14 @@ The `master` branch includes the following merged technical foundations:
 - Populated-database merge import is not implemented.
 - Exported `.kfarchive` archives are not encrypted and may contain personal imported text and learning history; users are warned before export.
 - "Support KnownFirst" and "Report a bug" controls in Settings are placeholders and not yet functional.
-- Full deterministic GUI automation is not yet merged to master (local development branch `feature/windows-gui-test-launcher-v1` pending verification).
 - Cloud synchronization, accounts, analytics, advertising, and payments are not implemented.
 - Offline dictionary packages and FSRS scheduling are deferred.
 - Online lookup requires explicit consent and network access on cache misses.
 - Public Google Play release is intentionally not yet pursued.
+- Tooling-only improvements (such as PR #37) do not create a new Beta 13 product release.
 
 This document does not claim public-release readiness or draw legal conclusions about license/attribution compliance; those remain open review items tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Active development
 
-The stable master baseline is `b405aa49001538ac60f45dc9697d9308e48e9eb2` (PR #33 merged), carrying source version `1.0.0-beta.12` (build 12).
-
-A separate, unmerged local branch `feature/windows-gui-test-launcher-v1` (`7704118`) contains GUI test launcher profile-isolation contracts and script updates awaiting real PowerShell `StartupSmoke` verification.
+The stable master baseline is `ad6f14567c823acc5e18a1024794c0ea07916002` (PR #37 merged), carrying source version `1.0.0-beta.12` (build 12). The next product engineering milestone is **KF-MEANING-001 Slice 4**.

@@ -1,6 +1,6 @@
 # KnownFirst roadmap
 
-**Prioritization date:** 2026-07-29
+**Prioritization date:** 2026-07-30
 
 This roadmap records intended order. It does not claim that planned behavior exists. Verified implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md).
 
@@ -17,10 +17,10 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | Priority | Milestone | Status | Required outcome |
 | ---: | --- | --- | --- |
 | 1 | Beta 10 Internal Testing | Committed | Portable `.kfarchive` export/import for empty targets, native file pickers, one-time What's New notice, Beta 10 identity; merged via PR #18 (`2f3f89d`). |
-| 2 | Russian UI & Translation Target | Committed | Russian UI localization (PR #20), Learn repeat/direction clarity (PR #21), Beta 11 identity (PR #22), Beta 12 Russian translation target fix (PR #23/PR #32). |
-| 3 | Meaning & Backup Foundations | Committed | Backup Merge Slices 1–3 (PRs #26–#28), Meaning Slices 0–3 (PRs #29–#33); dormant Schema-8 foundations merged to master (`b405aa4`). |
-| 4 | Windows GUI-Test Launcher | Current | Real PowerShell 5.1 `StartupSmoke` verification on local branch `feature/windows-gui-test-launcher-v1` (`7704118`). |
-| 5 | Meaning Slices 4–5 | Planned | Sense answer-variant assignments, progress replay, Sense-addressed learning cards and queues (dormant Schema 8). |
+| 2 | Russian UI & Translation Target | Committed | Russian UI localization (PR #20), Learn repeat/direction clarity (PR #21), Beta 11 identity (PR #22), Beta 12 Russian translation target fix (PR #23/PR #32); distributed & user-tested via Google Play Internal Testing. |
+| 3 | Meaning & Backup Foundations | Committed | Backup Merge Slices 1–3 (PRs #26–#28), Meaning Slices 0–3 (PRs #29–#33); dormant Schema-8 foundations merged to master (`ad6f1456`). |
+| 4 | Tooling Infrastructure & Safeguards | Committed | Windows StartupSmoke GUI launcher (PR #35), New-Chat Bootstrap Protocol (PR #36), Google Play packaging safeguards (PR #37). |
+| 5 | Meaning Slices 4–5 | Planned | Sense answer-variant assignments, progress replay, Sense-addressed learning cards and queues (dual-schema compatible). |
 | 6 | Schema 8 Activation | Planned | Factual flip of `CurrentVersion` to 8 and live database migration (depends on Slices 1–5). |
 | 7 | Populated Target Import Merge | Planned | MergePreflight adaptation, populated-database merge writer, Import routing, and convergence UI. |
 | 8 | Public-release support surface | Planned — public-release blocker | Implement functional Support KnownFirst and Report a bug controls (or an explicit removal decision), and reopenable release-note history. |
@@ -36,27 +36,35 @@ This roadmap records intended order. It does not claim that planned behavior exi
 - Russian UI localization and Russian as translation target for English/German source texts — merged via PR #20 (`8cc2bd9`).
 - Learn repeat/direction clarity and `IsAgainRepeat` visual badges — merged via PR #21 (`52e74f2`).
 - Beta 11 release identity — merged via PR #22 (`7076aa4`).
-- Beta 12 Russian translation target fix and simplified import mode selector — merged via PR #23 / PR #32 (`b5e4b05`).
+- Beta 12 Russian translation target fix and simplified import mode selector — merged via PR #23 / PR #32 (`b5e4b05`); distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30).
 - Backup Merge Slices 1–3 (contracts library, safety-copy service, read-only preflight) — merged via PRs #26, #27, #28.
 - Meaning Slices 0–3 (architecture, activation sequence, dormant migration engine, archive v2, multi-Sense preparation foundation) — merged via PRs #29, #30, #31, #32, #33 (`b405aa4`).
+- Windows GUI StartupSmoke launcher — merged via PR #35 (`caf4221`).
+- New-Chat Bootstrap Protocol — merged via PR #36 (`4308533`).
+- Google Play packaging safeguards — merged via PR #37 (`ad6f1456`).
 
 ## Current
 
-**Windows GUI-test launcher verification**
-- Real PowerShell 5.1 `StartupSmoke` validation on local unmerged branch `feature/windows-gui-test-launcher-v1` (`7704118`). See [CURRENT_WORK.md](CURRENT_WORK.md) for the exact next action.
+**Durable documentation reconciliation & preparation for Meaning Slice 4**
+- Reconciling Beta 12 release evidence, project state, roadmap, and backlog on `docs/reconcile-beta12-tested-next-merge-work`. See [CURRENT_WORK.md](CURRENT_WORK.md).
 
 ## Planned Sequence (Meaning & Merge)
 
-1. **Meaning Slice 4:** Sense answer-variant assignments, per-card/per-variant progress, synonym-credit replay (dual-schema compatible).
-2. **Meaning Slice 5:** Sense-addressed cards, learning queue, per-Sense mastery rollup (dual-schema compatible).
-3. **Meaning Slice 6 (Schema 8 Activation):** Factual flip of `CurrentVersion` to 8 and live database migration wiring. Depends on Slices 1–5.
-4. **Merge Slice 7:** MergePreflight adaptation for Sense-addressed queries.
-5. **Merge Slice 8:** Populated-database merge writer and Import routing.
-6. **Merge Slice 9:** Import UI and end-to-end convergence testing.
+The current product direction is **non-destructive populated-target portable archive import**.
+
+No direct jump to the merge writer is allowed. Populated-target import is not yet available. Beta 13 is not the current product milestone. Packaging investigation is deferred until the next genuine release.
+
+1. **Meaning Slice 4:** Direction-specific answer assignments and progress replay (dual-schema compatible).
+2. **Meaning Slice 5:** Sense-addressed cards and queue behavior (dual-schema compatible).
+3. **Slice 6 (Schema-8 Activation):** Factual flip of `CurrentVersion` to 8 and first real user-data migration.
+4. **Slice 7:** MergePreflight adaptation for Sense-addressed queries.
+5. **Slice 8:** Populated-database merge writer and Import routing.
+6. **Slice 9:** Import UI and end-to-end convergence validation.
 
 ## Deferred
 
 - Populated-database merge import execution (until Slices 6–9 are complete).
+- Re-validation of packaging script runtime behavior (deferred to `KF-RELEASE-001` before the next genuine release).
 - Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback.
 - Additional learning languages beyond English, German, and Russian-as-target.
 - Full offline dictionary package pipeline.

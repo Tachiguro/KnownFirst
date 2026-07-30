@@ -72,7 +72,18 @@ All generated agent prompts must adhere to these rules:
 - Once verified, generate exactly one `POST_MERGE_SYNC_ONLY` prompt to synchronize the local repository.
 - Never delete a merged branch automatically.
 
-## 8. Permanent Minimal User Prompt
+## 8. Distinguishing External Release and Testing Facts
+
+- Live GitHub state is authoritative for repository, branch, commit, and pull-request status.
+- External facts — including Google Play store availability, Internal Testing distribution, physical device installation, and user testing — cannot be inferred from GitHub repository state alone.
+- Merging source code, compiling an AAB, uploading to Google Play, distributing to testers, installing on a device, and completing manual testing are distinct events. Never treat them as equivalent or assume one implies another.
+- When the user corrects or confirms an external release or testing fact, durable project and release documentation (`docs/PROJECT_STATE.md`, `docs/BETA_TESTING.md`, `CHANGELOG.md`, `docs/releases/`) must be reconciled before unrelated feature work continues.
+- At session bootstrap, distinguish three levels of evidence:
+  1. GitHub and repository facts (authoritative for code, branches, and PRs);
+  2. Durable external release records in `docs/releases/` and `docs/BETA_TESTING.md`;
+  3. Unrecorded conversational claims or temporary local build artifacts.
+
+## 9. Permanent Minimal User Prompt
 
 Use this permanent, evergreen prompt fragment to start new sessions when GitHub access is available:
 

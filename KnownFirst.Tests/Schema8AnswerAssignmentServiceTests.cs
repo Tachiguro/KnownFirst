@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using KnownFirst.Core.Learning;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema8;
+using KnownFirst.Models;
 using KnownFirst.Services.Study;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -428,6 +429,78 @@ public sealed class Schema8AnswerAssignmentServiceTests
     // ---- Fail-closed graph validation ----
 
     [TestMethod]
+    public async Task SetAssignment_UndefinedRequirement_FailsClosedWithoutMutation()
+    {
+        const int undefinedRequirementValue = 2;
+        var undefinedRequirement = (AnswerVariantRequirement)undefinedRequirementValue;
+        Assert.IsFalse(Enum.IsDefined(undefinedRequirement));
+
+        await using var env = await CreateServiceAsync();
+
+        await env.Fixture.InsertSenseAsync(Word10, id: Sense20, status: SenseStatus.Mastered, createdAtUtc: T0, updatedAtUtc: T0);
+        await env.Fixture.InsertAnswerVariantAsync(Sense20, "existing", id: Var70, createdAtUtc: T0);
+        await env.Fixture.InsertAnswerVariantAsync(Sense20, "candidate", id: Var71, createdAtUtc: T0);
+        await env.Fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO LearningCards
+                (Id, WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays, EaseFactor,
+                 SuccessfulReviewCount, LapseCount, LastReviewedAtUtc, LastRating, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            Card40, Word10, Sense20, 1, (int)CardDirection.MeaningToTerm, (int)CardState.Review,
+            T1, 12, 2.3, 4, 1, T0, (int)ReviewRating.Good, T0, T1);
+        await env.Fixture.InsertAssignmentAsync(
+            Sense20, CardDirection.MeaningToTerm, Var70, AnswerVariantRequirement.Required,
+            isPreferred: true, requiredSinceUtc: T0, createdAtUtc: T0, stableId: "existing-assignment");
+        await env.Fixture.InsertProgressAsync(
+            Card40, Var70, T0, LearningInteractionMode.Typing,
+            consecutiveTypingSuccessCount: 2, lastAssessedAtUtc: T1, updatedAtUtc: T1);
+        var sessionId = await env.Fixture.InsertLearningSessionAsync(
+            LearningSessionStatus.Active, totalCards: 1, completedCards: 0,
+            startedAtUtc: T0, updatedAtUtc: T1);
+        var queueItemId = await env.Fixture.InsertQueueItemAsync(sessionId, Card40, queueOrder: 0);
+        await env.Fixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessionCards SET TargetAnswerVariantId = ? WHERE Id = ?", Var70, queueItemId);
+
+        var before = await CaptureMutationPersistenceFingerprintAsync(env.Fixture);
+
+        var exception = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(() =>
+            env.Service.SetAssignmentAsync(
+                Sense20, CardDirection.MeaningToTerm, Var71, undefinedRequirement, isPreferred: true));
+
+        var after = await CaptureMutationPersistenceFingerprintAsync(env.Fixture);
+        var assignments = await env.Fixture.ReadAssignmentsAsync(Sense20, CardDirection.MeaningToTerm);
+        var progress = await env.Fixture.ReadProgressAsync();
+        var card = (await env.Fixture.ReadCardsAsync()).Single(row => row.Id == Card40);
+
+        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidAssignmentGraph, exception.Code);
+        Assert.AreEqual(before, after);
+        Assert.HasCount(1, assignments);
+        Assert.AreEqual(Var70, assignments[0].AnswerVariantId);
+        Assert.AreEqual(AnswerVariantRequirement.Required, assignments[0].Requirement);
+        Assert.IsTrue(assignments[0].IsPreferred);
+        Assert.AreEqual(T0, assignments[0].RequiredSinceUtc);
+        Assert.HasCount(1, progress);
+        Assert.AreEqual(Var70, progress[0].AnswerVariantId);
+        Assert.AreEqual(CardState.Review, card.State);
+        Assert.AreEqual(T1, card.DueAtUtc);
+        Assert.AreEqual(12, card.IntervalDays);
+        Assert.AreEqual(2.3, card.EaseFactor);
+        Assert.AreEqual(4, card.SuccessfulReviewCount);
+        Assert.AreEqual(1, card.LapseCount);
+        Assert.AreEqual(T0, card.LastReviewedAtUtc);
+        Assert.AreEqual(ReviewRating.Good, card.LastRating);
+        Assert.AreEqual(1, await env.Fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards"));
+        Assert.AreEqual(0, await env.Fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningReviews"));
+        Assert.AreEqual((int)SenseStatus.Mastered, await env.Fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT Status FROM Senses WHERE Id = ?", Sense20));
+        Assert.AreEqual(2, await env.Fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM AnswerVariants"));
+    }
+
+    [TestMethod]
     public async Task Validation_MissingCardForDirection_FailsClosed()
     {
         await using var env = await CreateServiceAsync();
@@ -465,5 +538,28 @@ public sealed class Schema8AnswerAssignmentServiceTests
         var ex = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(() => env.Service.SetAssignmentAsync(Sense20, CardDirection.MeaningToTerm, Var70, AnswerVariantRequirement.Required, false));
 
         Assert.AreEqual(Schema8LearningDataErrorCode.InvalidAssignmentGraph, ex.Code);
+    }
+
+    private static async Task<string> CaptureMutationPersistenceFingerprintAsync(Schema7Fixture fixture)
+    {
+        string? fingerprint = null;
+        await fixture.Connection.RunInTransactionAsync(connection =>
+        {
+            static string Rows(SQLite.SQLiteConnection connection, string select) =>
+                connection.ExecuteScalar<string?>($"SELECT group_concat(Value, char(10)) FROM ({select})")
+                ?? string.Empty;
+
+            fingerprint = string.Join("\n--\n",
+                Rows(connection, "SELECT quote(Id)||'|'||quote(StableId)||'|'||quote(SenseId)||'|'||quote(CardDirection)||'|'||quote(AnswerVariantId)||'|'||quote(Requirement)||'|'||quote(IsPreferred)||'|'||quote(RequiredSinceUtc)||'|'||quote(CreatedAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM SenseAnswerVariantAssignments ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(AnswerVariantId)||'|'||quote(InteractionMode)||'|'||quote(ConsecutiveReadingSuccessCount)||'|'||quote(ConsecutiveTypingSuccessCount)||'|'||quote(ConsecutiveTypingFailureCount)||'|'||quote(LastAssessedAtUtc)||'|'||quote(MasteryReviewExtensionScheduled)||'|'||quote(IsMastered)||'|'||quote(ReplayVersion)||'|'||quote(CreatedAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM AnswerVariantProgress ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SenseId)||'|'||quote(PreferredMeaningId)||'|'||quote(Direction)||'|'||quote(State)||'|'||quote(DueAtUtc)||'|'||quote(IntervalDays)||'|'||quote(EaseFactor)||'|'||quote(SuccessfulReviewCount)||'|'||quote(LapseCount)||'|'||quote(LastReviewedAtUtc)||'|'||quote(LastRating)||'|'||quote(CreatedAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM LearningCards ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(SessionId)||'|'||quote(CardId)||'|'||quote(QueueOrder)||'|'||quote(IsDueCard)||'|'||quote(IsAgainRepeat)||'|'||quote(AnswerRevealed)||'|'||quote(SpellingChecked)||'|'||quote(SpellingCorrect)||'|'||quote(IsCompleted)||'|'||quote(Rating)||'|'||quote(CompletedAtUtc)||'|'||quote(TargetAnswerVariantId) AS Value FROM LearningSessionCards ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(TotalCards)||'|'||quote(CompletedCards)||'|'||quote(AgainCount)||'|'||quote(HardCount)||'|'||quote(GoodCount)||'|'||quote(EasyCount)||'|'||quote(StartedAtUtc)||'|'||quote(UpdatedAtUtc)||'|'||quote(CompletedAtUtc) AS Value FROM LearningSessions ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(Status)||'|'||quote(DefaultMeaningId)||'|'||quote(CreatedAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM Senses ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(StableId)||'|'||quote(SenseId)||'|'||quote(AnswerLanguage)||'|'||quote(DisplayText)||'|'||quote(NormalizedText)||'|'||quote(SourceMeaningId)||'|'||quote(CreatedAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM AnswerVariants ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(AutomaticInteractionMode)||'|'||quote(ConsecutiveRecallSuccessCount)||'|'||quote(ConsecutiveTypingSuccessCount)||'|'||quote(ConsecutiveTypingFailureCount)||'|'||quote(MasteryReviewExtensionScheduled)||'|'||quote(UpdatedAt) AS Value FROM Words ORDER BY Id"),
+                Rows(connection, "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(SessionId)||'|'||quote(Rating)||'|'||quote(WasTypedAnswer)||'|'||quote(WasCorrect)||'|'||quote(ReviewedAtUtc)||'|'||quote(DueAtUtc)||'|'||quote(IntervalDays)||'|'||quote(EaseFactor)||'|'||quote(TargetAnswerVariantId)||'|'||quote(MatchedAnswerVariantId) AS Value FROM LearningReviews ORDER BY Id"));
+        });
+        return fingerprint!;
     }
 }

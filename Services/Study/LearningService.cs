@@ -1093,6 +1093,12 @@ public sealed class LearningService : ILearningService
 
         foreach (var row in assignments)
         {
+            if (row.Requirement is not (AnswerVariantRequirement.Required or AnswerVariantRequirement.AcceptedOnly))
+            {
+                throw Reject(Schema8LearningDataErrorCode.InvalidAssignmentGraph,
+                    $"Assignment {row.AssignmentId} has undefined AnswerVariantRequirement value {(int)row.Requirement}.");
+            }
+
             if (row.IsRequired != row.RequiredSinceUtc.HasValue)
             {
                 throw Reject(Schema8LearningDataErrorCode.RequirementBoundaryViolation,

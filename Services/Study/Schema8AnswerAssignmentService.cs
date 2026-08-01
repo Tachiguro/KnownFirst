@@ -79,7 +79,15 @@ public sealed class Schema8AnswerAssignmentService
         AnswerVariantRequirement requirement,
         bool isPreferred)
     {
-        // ---- 1. Capability and physical shape (fail-closed before anything is read semantically) ----
+        // ---- 1. Supplied enum value (fail-closed before any mutation or semantic interpretation) ----
+        if (requirement is not (AnswerVariantRequirement.Required or AnswerVariantRequirement.AcceptedOnly))
+        {
+            throw Schema8LearningDataException.Create(
+                Schema8LearningDataErrorCode.InvalidAssignmentGraph,
+                $"Undefined AnswerVariantRequirement value {(int)requirement}.");
+        }
+
+        // ---- 2. Capability and physical shape (fail-closed before anything is read semantically) ----
         if (LearningSchemaCapability.Resolve(connection) is not LearningSchema8CapabilityResult)
         {
             throw Schema8LearningDataException.Create(
@@ -87,7 +95,7 @@ public sealed class Schema8AnswerAssignmentService
                 "Answer assignments can only be mutated against a validated Schema-8 database.");
         }
 
-        // ---- 2. Direction and referenced rows ----
+        // ---- 3. Direction and referenced rows ----
         if (direction is not (CardDirection.TermToMeaning or CardDirection.MeaningToTerm))
         {
             throw Schema8LearningDataException.Create(
@@ -109,7 +117,7 @@ public sealed class Schema8AnswerAssignmentService
                 $"AnswerVariant {answerVariantId} belongs to Sense {variant.SenseId}, not to Sense {senseId}.");
         }
 
-        // ---- 3. Exactly one card for this (SenseId, Direction) ----
+        // ---- 4. Exactly one card for this (SenseId, Direction) ----
         var cardCount = Schema8LearningRepository.CountCardsForSenseDirection(connection, senseId, direction);
         if (cardCount != 1)
         {
@@ -121,7 +129,7 @@ public sealed class Schema8AnswerAssignmentService
         var card = Schema8LearningRepository.LoadCardsForSense(connection, senseId)
             .Single(row => row.Direction == direction);
 
-        // ---- 4. Existing assignment graph must be sound before it is changed ----
+        // ---- 5. Existing assignment graph must be sound before it is changed ----
         var assignments = Schema8LearningRepository.LoadAssignmentsForSenseDirection(connection, senseId, direction);
         ValidateAssignmentGraph(assignments, senseId, direction);
 
@@ -134,7 +142,7 @@ public sealed class Schema8AnswerAssignmentService
         var promoted = existing is not null && !wasRequired && willBeRequired;
         var demoted = existing is not null && wasRequired && !willBeRequired;
 
-        // ---- 5. Boundary transition ----
+        // ---- 6. Boundary transition ----
         DateTime? boundary;
         if (existing is null)
         {
@@ -155,7 +163,7 @@ public sealed class Schema8AnswerAssignmentService
             boundary = existing.RequiredSinceUtc;
         }
 
-        // ---- 6. Write the assignment; the partial unique index is never transiently violated ----
+        // ---- 7. Write the assignment; the partial unique index is never transiently violated ----
         int assignmentId;
         string stableId;
         bool inserted;
@@ -187,12 +195,12 @@ public sealed class Schema8AnswerAssignmentService
             inserted = false;
         }
 
-        // ---- 7. Post-mutation graph must still be sound ----
+        // ---- 8. Post-mutation graph must still be sound ----
         var updatedAssignments =
             Schema8LearningRepository.LoadAssignmentsForSenseDirection(connection, senseId, direction);
         ValidateAssignmentGraph(updatedAssignments, senseId, direction);
 
-        // ---- 8. Epoch-aware progress rebuild against the NEW assignment set ----
+        // ---- 9. Epoch-aware progress rebuild against the NEW assignment set ----
         var events = Schema8LearningRepository.LoadReviewsForCard(connection, card.Id)
             .Select(Schema8LearningReviewReplayPolicy.ToReplayEvent)
             .ToList();
@@ -203,7 +211,7 @@ public sealed class Schema8AnswerAssignmentService
             updatedAssignments, persistedProgress, replayResult);
         Schema8LearningReviewReplayPolicy.ApplyProgressPlan(connection, card.Id, plan);
 
-        // ---- 9. Reactivation / immediate retirement, always preserving every scheduling field ----
+        // ---- 10. Reactivation / immediate retirement, always preserving every scheduling field ----
         var requiredCount = updatedAssignments.Count(row => row.IsRequired);
         var allRequiredMastered = Schema8CardRetirementPolicy.AllRequiredMastered(replayResult);
         var cardStateAfter = card.State;
@@ -234,7 +242,7 @@ public sealed class Schema8AnswerAssignmentService
         // A demotion that leaves zero Required assignments never newly retires a card, and never revives an
         // already-retired one.
 
-        // ---- 10. Affected Sense only ----
+        // ---- 11. Affected Sense only ----
         var senseStatusAfter = Schema8CardRetirementPolicy.RecomputeSenseStatus(
             connection, senseId, sense.Status, now);
 
@@ -269,6 +277,13 @@ public sealed class Schema8AnswerAssignmentService
 
         foreach (var row in assignments)
         {
+            if (row.Requirement is not (AnswerVariantRequirement.Required or AnswerVariantRequirement.AcceptedOnly))
+            {
+                throw Schema8LearningDataException.Create(
+                    Schema8LearningDataErrorCode.InvalidAssignmentGraph,
+                    $"Assignment {row.AssignmentId} has undefined AnswerVariantRequirement value {(int)row.Requirement}.");
+            }
+
             if (row.IsRequired != row.RequiredSinceUtc.HasValue)
             {
                 throw Schema8LearningDataException.Create(

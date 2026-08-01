@@ -1013,6 +1013,75 @@ public sealed class LearningServiceSchema8AttributionTests
     }
 
     [TestMethod]
+    public async Task CheckSpelling_UndefinedPersistedRequirement_FailsClosedWithoutMutation()
+    {
+        const int undefinedRequirementValue = 2;
+        Assert.IsFalse(Enum.IsDefined((AnswerVariantRequirement)undefinedRequirementValue));
+
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var graph = await SeedSchema7GraphAsync(
+            fixture, "undefined-requirement-term", "undefined-requirement-answer");
+        await fixture.MigrateToSchema8Async();
+
+        var queueBeforeCorruption = (await ReadQueueRowsAsync(fixture)).Single();
+        var targetVariantId = queueBeforeCorruption.TargetAnswerVariantId
+            ?? throw new AssertFailedException("The migrated queue target is missing.");
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE SenseAnswerVariantAssignments SET Requirement = ?, RequiredSinceUtc = NULL WHERE AnswerVariantId = ?",
+            undefinedRequirementValue, targetVariantId);
+
+        var beforeFingerprint = await CapturePersistedStateAsync(fixture);
+        var before = await CapturePersistenceDetailsAsync(fixture);
+        var malformedAssignment = before.Assignments.Single(row => row.AnswerVariantId == targetVariantId);
+        var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
+        var service = CreateLearningService(database, LearningMode.Typing);
+
+        var exception = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(() =>
+            service.CheckSpellingAsync(graph.QueueItemId, "undefined-requirement-answer"));
+
+        var afterFingerprint = await CapturePersistedStateAsync(fixture);
+        var after = await CapturePersistenceDetailsAsync(fixture);
+        var queueAfter = after.Queues.Single();
+
+        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidAssignmentGraph, exception.Code);
+        Assert.AreEqual(undefinedRequirementValue, (int)malformedAssignment.Requirement);
+        Assert.IsNull(malformedAssignment.RequiredSinceUtc);
+        Assert.IsFalse(queueAfter.AnswerRevealed);
+        Assert.IsFalse(queueAfter.SpellingChecked);
+        Assert.IsFalse(queueAfter.SpellingCorrect);
+        Assert.IsFalse(queueAfter.IsCompleted);
+        Assert.IsNull(queueAfter.Rating);
+        Assert.IsNull(queueAfter.CompletedAtUtc);
+        Assert.IsEmpty(after.Reviews);
+        Assert.IsEmpty(after.Progress);
+        Assert.AreEqual(beforeFingerprint, afterFingerprint);
+        CollectionAssert.AreEqual(before.Queues, after.Queues);
+        CollectionAssert.AreEqual(before.Reviews, after.Reviews);
+        CollectionAssert.AreEqual(before.Progress, after.Progress);
+        CollectionAssert.AreEqual(before.Cards, after.Cards);
+        CollectionAssert.AreEqual(before.Sessions, after.Sessions);
+        CollectionAssert.AreEqual(before.Senses, after.Senses);
+        CollectionAssert.AreEqual(before.Words, after.Words);
+        CollectionAssert.AreEqual(before.Variants, after.Variants);
+        CollectionAssert.AreEqual(before.Assignments, after.Assignments);
+
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE SenseAnswerVariantAssignments SET Requirement = ?, RequiredSinceUtc = ? WHERE AnswerVariantId = ?",
+            (int)AnswerVariantRequirement.Required, Now, targetVariantId);
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessionCards SET AnswerRevealed = 1, SpellingChecked = 1, SpellingCorrect = 1 WHERE Id = ?",
+            graph.QueueItemId);
+        var beforeEvidenceProbe = await CapturePersistedStateAsync(fixture);
+
+        var evidenceException = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(() =>
+            service.RateAsync(graph.QueueItemId, ReviewRating.Good));
+
+        var afterEvidenceProbe = await CapturePersistedStateAsync(fixture);
+        Assert.AreEqual(Schema8LearningDataErrorCode.MissingMatchEvidence, evidenceException.Code);
+        Assert.AreEqual(beforeEvidenceProbe, afterEvidenceProbe);
+    }
+
+    [TestMethod]
     public async Task CheckSpelling_WrongAnswerWithoutExistingVariant_ReturnsIncorrectAndPersistsAgainImmediately()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();

@@ -1,6 +1,6 @@
 # KnownFirst roadmap
 
-**Prioritization date:** 2026-07-30
+**Prioritization date:** 2026-08-01
 
 This roadmap records intended order. It does not claim that planned behavior exists. Verified implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md).
 
@@ -20,7 +20,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 2 | Russian UI & Translation Target | Committed | Russian UI localization (PR #20), Learn repeat/direction clarity (PR #21), Beta 11 identity (PR #22), Beta 12 Russian translation target fix (PR #23/PR #32); distributed & user-tested via Google Play Internal Testing. |
 | 3 | Meaning & Backup Foundations | Committed | Backup Merge Slices 1–3 (PRs #26–#28), Meaning Slices 0–3 (PRs #29–#33); dormant Schema-8 foundations merged to master (`ad6f1456`). |
 | 4 | Tooling Infrastructure & Safeguards | Committed | Windows StartupSmoke GUI launcher (PR #35), New-Chat Bootstrap Protocol (PR #36), Google Play packaging safeguards (PR #37). |
-| 5 | Meaning Slices 4–5 | Planned | Sense answer-variant assignments, progress replay, Sense-addressed learning cards and queues (dual-schema compatible). |
+| 5 | Meaning Slices 4–5 | Current | Slice 4 merged via PR #40 and verified (1347/0/0); Slice 5 and its six-defect data-integrity correction are validated on the feature branch (1364/0/0), with final correction review and manual merge pending. |
 | 6 | Schema 8 Activation | Planned | Factual flip of `CurrentVersion` to 8 and live database migration (depends on Slices 1–5). |
 | 7 | Populated Target Import Merge | Planned | MergePreflight adaptation, populated-database merge writer, Import routing, and convergence UI. |
 | 8 | Public-release support surface | Planned — public-release blocker | Implement functional Support KnownFirst and Report a bug controls (or an explicit removal decision), and reopenable release-note history. |
@@ -42,11 +42,12 @@ This roadmap records intended order. It does not claim that planned behavior exi
 - Windows GUI StartupSmoke launcher — merged via PR #35 (`caf4221`).
 - New-Chat Bootstrap Protocol — merged via PR #36 (`4308533`).
 - Google Play packaging safeguards — merged via PR #37 (`ad6f1456`).
+- Meaning Slice 4 direction-specific answer assignments and progress replay — merged via PR #40 (`60d8f073`); full suite 1347 passed, 0 failed, 0 skipped.
 
 ## Current
 
-**Durable documentation reconciliation & preparation for Meaning Slice 4**
-- Reconciling Beta 12 release evidence, project state, roadmap, and backlog on `docs/reconcile-beta12-tested-next-merge-work`. See [CURRENT_WORK.md](CURRENT_WORK.md).
+**Meaning Slice 5 — Sense-addressed cards and queue behavior**
+- The independent PR review found six blocking data-integrity defects; the correction is implemented and validated on `feat/meaning-slice5-sense-queue` with a focused result of 58 passed, 0 failed, 0 skipped and a complete result of 1364 passed, 0 failed, 0 skipped. Final correction review and manual merge remain pending; Slice 5 is not merged. See [CURRENT_WORK.md](CURRENT_WORK.md).
 
 ## Planned Sequence (Meaning & Merge)
 
@@ -54,8 +55,8 @@ The current product direction is **non-destructive populated-target portable arc
 
 No direct jump to the merge writer is allowed. Populated-target import is not yet available. Beta 13 is not the current product milestone. Packaging investigation is deferred until the next genuine release.
 
-1. **Meaning Slice 4:** Direction-specific answer assignments and progress replay (dual-schema compatible).
-2. **Meaning Slice 5:** Sense-addressed cards and queue behavior (dual-schema compatible).
+1. **Meaning Slice 4:** Completed and merged via PR #40 (dual-schema compatible).
+2. **Meaning Slice 5:** Feature-branch implementation and six-defect correction validated; final correction review and manual merge pending (dual-schema compatible; not merged).
 3. **Slice 6 (Schema-8 Activation):** Factual flip of `CurrentVersion` to 8 and first real user-data migration.
 4. **Slice 7:** MergePreflight adaptation for Sense-addressed queries.
 5. **Slice 8:** Populated-database merge writer and Import routing.

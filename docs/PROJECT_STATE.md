@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-07-30
-**State source:** `master` (`ad6f14567c823acc5e18a1024794c0ea07916002`, PR #37 merge commit)
-**Next product milestone:** KF-MEANING-001 Slice 4 — direction-specific answer assignments and progress replay
+**Status date:** 2026-08-01
+**State source:** `master` (`60d8f073fc4d07cdfdc83a8d404cd606c458e321`, PR #40 merge commit)
+**Next product milestone:** KF-MEANING-001 Slice 5 — Sense-addressed learning cards and queue behavior
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -59,6 +59,7 @@ The `master` branch includes the following merged technical foundations:
 - **Meaning Slice 1 (PR #31):** dormant Schema-8 migration engine (`Schema8DormantMigration`).
 - **Meaning Slice 2 (PR #32):** archive format v2 and dual-schema backup support.
 - **Meaning Slice 3 (PR #33):** dormant multi-Sense preparation foundation (`PreparationServiceSchema8`).
+- **Meaning Slice 4 (PR #40):** dormant direction-specific answer assignments and progress replay; verified with 1347 passed, 0 failed, 0 skipped.
 - **Windows GUI StartupSmoke Launcher (PR #35):** `-Action GuiTest` launcher entry point and profile isolation under `artifacts/`.
 - **New-Chat Bootstrap Protocol (PR #36):** permanent dynamic bootstrap governance in `docs/NEW_CHAT_BOOTSTRAP.md`.
 - **Google Play Packaging Safeguards (PR #37):** hardened `scripts/publish-google-play-bundle.ps1` with cross-process lock, warning escalation, candidate ownership, and sidecar verification.
@@ -104,4 +105,4 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `ad6f14567c823acc5e18a1024794c0ea07916002` (PR #37 merged), carrying source version `1.0.0-beta.12` (build 12). The next product engineering milestone is **KF-MEANING-001 Slice 4**.
+The stable master baseline is `60d8f073fc4d07cdfdc83a8d404cd606c458e321` (PR #40 merged), carrying source version `1.0.0-beta.12` (build 12). **KF-MEANING-001 Slice 5** remains unmerged feature-branch work on `feat/meaning-slice5-sense-queue`. The independent PR review found six blocking data-integrity defects; the correction is implemented and validated with a focused result of 58 passed, 0 failed, 0 skipped and a complete result of 1364 passed, 0 failed, 0 skipped. Final correction review and manual merge remain pending. Schema 8 remains dormant, `DatabaseSchema.CurrentVersion` remains 7, and Slice 6 remains the future activation milestone after Slice 5 is merged.

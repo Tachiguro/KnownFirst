@@ -41,7 +41,13 @@ public sealed class LearningServiceSchema8AttributionTests
         Assert.AreEqual(1, before.PreferredMeaningIdColumnCount);
         Assert.AreEqual(1, before.RequiredSinceUtcColumnCount);
         Assert.AreEqual(1, before.SenseDirectionIndexCount);
-        Assert.IsNull(loadResult.Card);
+        Assert.IsNotNull(loadResult.Card);
+        Assert.AreEqual(graph.SessionId, loadResult.Card.SessionId);
+        Assert.AreEqual(graph.QueueItemId, loadResult.Card.QueueItemId);
+        Assert.AreEqual(graph.CardId, loadResult.Card.CardId);
+        Assert.AreEqual(graph.WordId, loadResult.Card.WordId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, loadResult.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Reading, loadResult.Card.InteractionMode);
         Assert.IsNull(loadResult.CompletedSummary);
         Assert.AreEqual(graph.QueueItemId, before.QueueItemId);
         Assert.AreEqual(graph.CardId, before.QueueCardId);
@@ -387,7 +393,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var originalService = CreateLearningService(database, LearningMode.Typing);
         var initialLoad = await originalService.GetOrStartAsync();
 
-        Assert.IsNull(initialLoad.Card);
+        Assert.IsNotNull(initialLoad.Card);
+        Assert.AreEqual(session.SessionId, initialLoad.Card.SessionId);
+        Assert.AreEqual(initialQueues[0].Id, initialLoad.Card.QueueItemId);
+        Assert.AreEqual(initialQueues[0].CardId, initialLoad.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, initialLoad.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, initialLoad.Card.InteractionMode);
         Assert.IsNull(initialLoad.CompletedSummary);
         Assert.HasCount(2, initialQueues);
         Assert.AreEqual(0, initialQueues[0].QueueOrder);
@@ -408,7 +419,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var afterResume = await CapturePersistedStateAsync(fixture);
         var resumedQueues = await ReadQueueRowsAsync(fixture);
 
-        Assert.IsNull(resumedLoad.Card);
+        Assert.IsNotNull(resumedLoad.Card);
+        Assert.AreEqual(session.SessionId, resumedLoad.Card.SessionId);
+        Assert.AreEqual(establishedQueues[1].Id, resumedLoad.Card.QueueItemId);
+        Assert.AreEqual(establishedQueues[1].CardId, resumedLoad.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, resumedLoad.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, resumedLoad.Card.InteractionMode);
         Assert.IsNull(resumedLoad.CompletedSummary);
         Assert.AreEqual(8, afterResume.UserVersion);
         Assert.AreEqual(session.SessionId, established.SessionId);
@@ -1316,7 +1332,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var service = CreateLearningService(database, LearningMode.Typing);
         var legitimateLoad = await service.GetOrStartAsync();
 
-        Assert.IsNull(legitimateLoad.Card);
+        Assert.IsNotNull(legitimateLoad.Card);
+        Assert.AreEqual(graph.SessionId, legitimateLoad.Card.SessionId);
+        Assert.AreEqual(graph.QueueItemId, legitimateLoad.Card.QueueItemId);
+        Assert.AreEqual(graph.CardId, legitimateLoad.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, legitimateLoad.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, legitimateLoad.Card.InteractionMode);
         Assert.IsNull(legitimateLoad.CompletedSummary);
         Assert.IsNotNull(targetVariantId);
 
@@ -1545,7 +1566,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var queueBFinal = final.Queues.Single(row => row.Id == queueB.Id);
         var session = final.Sessions.Single(row => row.Id == seededSession.SessionId);
 
-        Assert.IsNull(ratingA.Card);
+        Assert.IsNotNull(ratingA.Card);
+        Assert.AreEqual(seededSession.SessionId, ratingA.Card.SessionId);
+        Assert.AreEqual(queueB.Id, ratingA.Card.QueueItemId);
+        Assert.AreEqual(queueB.CardId, ratingA.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, ratingA.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, ratingA.Card.InteractionMode);
         Assert.IsNull(ratingA.CompletedSummary);
         Assert.HasCount(1, final.Reviews);
         Assert.AreEqual(queueA.CardId, review.CardId);
@@ -2467,6 +2493,113 @@ public sealed class LearningServiceSchema8AttributionTests
         Assert.HasCount(1, after.Queues);
         Assert.IsEmpty(after.Reviews);
         Assert.IsEmpty(after.Progress);
+    }
+
+    [TestMethod]
+    public async Task ResumeActiveSession_Schema8_CrossSenseAssignmentFailsClosedWithoutMutation()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var graph = await SeedSchema7GraphAsync(
+            fixture, "cross-sense-assignment-term", "valid-frozen-target");
+        await fixture.MigrateToSchema8Async();
+
+        var currentSenseId = await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT SenseId FROM LearningCards WHERE Id = ?", graph.CardId);
+        const int otherSenseId = 951;
+        const int crossSenseVariantId = 953;
+        await fixture.InsertSenseAsync(
+            graph.WordId, id: otherSenseId, createdAtUtc: Now, updatedAtUtc: Now);
+        await fixture.InsertAnswerVariantAsync(
+            otherSenseId, "cross-sense-variant", id: crossSenseVariantId, createdAtUtc: Now);
+        await fixture.InsertAssignmentAsync(
+            currentSenseId, CardDirection.MeaningToTerm, crossSenseVariantId,
+            AnswerVariantRequirement.AcceptedOnly, isPreferred: false, requiredSinceUtc: null,
+            createdAtUtc: Now, stableId: "cross-sense-raw-assignment");
+
+        var queue = (await ReadQueueRowsAsync(fixture)).Single();
+        var frozenTarget = queue.TargetAnswerVariantId
+            ?? throw new AssertFailedException("The valid frozen queue target is missing.");
+        Assert.AreNotEqual(crossSenseVariantId, frozenTarget);
+        Assert.AreEqual(
+            currentSenseId,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT SenseId FROM AnswerVariants WHERE Id = ?", frozenTarget));
+
+        var before = await CapturePersistedStateAsync(fixture);
+        var beforeDetails = await CapturePersistenceDetailsAsync(fixture);
+        var service = CreateLearningService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture));
+
+        var exception = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(
+            () => service.GetOrStartAsync());
+
+        var after = await CapturePersistedStateAsync(fixture);
+        var afterDetails = await CapturePersistenceDetailsAsync(fixture);
+
+        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidAssignmentGraph, exception.Code);
+        Assert.AreEqual(before, after);
+        CollectionAssert.AreEqual(beforeDetails.Queues, afterDetails.Queues);
+        CollectionAssert.AreEqual(beforeDetails.Reviews, afterDetails.Reviews);
+        CollectionAssert.AreEqual(beforeDetails.Progress, afterDetails.Progress);
+        CollectionAssert.AreEqual(beforeDetails.Cards, afterDetails.Cards);
+        CollectionAssert.AreEqual(beforeDetails.Sessions, afterDetails.Sessions);
+        CollectionAssert.AreEqual(beforeDetails.Senses, afterDetails.Senses);
+        CollectionAssert.AreEqual(beforeDetails.Words, afterDetails.Words);
+        CollectionAssert.AreEqual(beforeDetails.Variants, afterDetails.Variants);
+        CollectionAssert.AreEqual(beforeDetails.Assignments, afterDetails.Assignments);
+        Assert.IsEmpty(afterDetails.Reviews);
+        Assert.IsEmpty(afterDetails.Progress);
+        Assert.AreEqual(frozenTarget, afterDetails.Queues.Single().TargetAnswerVariantId);
+    }
+
+    [TestMethod]
+    public async Task ResumeActiveSession_Schema8_CrossWordSenseFailsClosedWithoutMutation()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var graph = await SeedSchema7GraphAsync(
+            fixture, "card-word", "cross-word-sense-target");
+        await fixture.MigrateToSchema8Async();
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT SenseId FROM LearningCards WHERE Id = ?", graph.CardId);
+        var otherWordId = await fixture.InsertWordAsync(
+            "sense-word", status: WordStatus.Prepared, createdAt: Now, updatedAt: Now);
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE Senses SET WordId = ? WHERE Id = ?", otherWordId, senseId);
+
+        Assert.AreEqual(
+            graph.WordId,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT WordId FROM LearningCards WHERE Id = ?", graph.CardId));
+        Assert.AreEqual(
+            otherWordId,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT WordId FROM Senses WHERE Id = ?", senseId));
+
+        var before = await CapturePersistedStateAsync(fixture);
+        var beforeDetails = await CapturePersistenceDetailsAsync(fixture);
+        var service = CreateLearningService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture));
+
+        var exception = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(
+            () => service.GetOrStartAsync());
+
+        var after = await CapturePersistedStateAsync(fixture);
+        var afterDetails = await CapturePersistenceDetailsAsync(fixture);
+
+        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidCardGraph, exception.Code);
+        Assert.AreEqual(before, after);
+        CollectionAssert.AreEqual(beforeDetails.Queues, afterDetails.Queues);
+        CollectionAssert.AreEqual(beforeDetails.Reviews, afterDetails.Reviews);
+        CollectionAssert.AreEqual(beforeDetails.Progress, afterDetails.Progress);
+        CollectionAssert.AreEqual(beforeDetails.Cards, afterDetails.Cards);
+        CollectionAssert.AreEqual(beforeDetails.Sessions, afterDetails.Sessions);
+        CollectionAssert.AreEqual(beforeDetails.Senses, afterDetails.Senses);
+        CollectionAssert.AreEqual(beforeDetails.Words, afterDetails.Words);
+        CollectionAssert.AreEqual(beforeDetails.Variants, afterDetails.Variants);
+        CollectionAssert.AreEqual(beforeDetails.Assignments, afterDetails.Assignments);
+        Assert.IsEmpty(afterDetails.Reviews);
+        Assert.IsEmpty(afterDetails.Progress);
     }
 
     private static LearningService CreateLearningService(

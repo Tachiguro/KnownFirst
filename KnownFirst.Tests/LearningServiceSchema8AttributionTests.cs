@@ -41,7 +41,13 @@ public sealed class LearningServiceSchema8AttributionTests
         Assert.AreEqual(1, before.PreferredMeaningIdColumnCount);
         Assert.AreEqual(1, before.RequiredSinceUtcColumnCount);
         Assert.AreEqual(1, before.SenseDirectionIndexCount);
-        Assert.IsNull(loadResult.Card);
+        Assert.IsNotNull(loadResult.Card);
+        Assert.AreEqual(graph.SessionId, loadResult.Card.SessionId);
+        Assert.AreEqual(graph.QueueItemId, loadResult.Card.QueueItemId);
+        Assert.AreEqual(graph.CardId, loadResult.Card.CardId);
+        Assert.AreEqual(graph.WordId, loadResult.Card.WordId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, loadResult.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Reading, loadResult.Card.InteractionMode);
         Assert.IsNull(loadResult.CompletedSummary);
         Assert.AreEqual(graph.QueueItemId, before.QueueItemId);
         Assert.AreEqual(graph.CardId, before.QueueCardId);
@@ -387,7 +393,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var originalService = CreateLearningService(database, LearningMode.Typing);
         var initialLoad = await originalService.GetOrStartAsync();
 
-        Assert.IsNull(initialLoad.Card);
+        Assert.IsNotNull(initialLoad.Card);
+        Assert.AreEqual(session.SessionId, initialLoad.Card.SessionId);
+        Assert.AreEqual(initialQueues[0].Id, initialLoad.Card.QueueItemId);
+        Assert.AreEqual(initialQueues[0].CardId, initialLoad.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, initialLoad.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, initialLoad.Card.InteractionMode);
         Assert.IsNull(initialLoad.CompletedSummary);
         Assert.HasCount(2, initialQueues);
         Assert.AreEqual(0, initialQueues[0].QueueOrder);
@@ -408,7 +419,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var afterResume = await CapturePersistedStateAsync(fixture);
         var resumedQueues = await ReadQueueRowsAsync(fixture);
 
-        Assert.IsNull(resumedLoad.Card);
+        Assert.IsNotNull(resumedLoad.Card);
+        Assert.AreEqual(session.SessionId, resumedLoad.Card.SessionId);
+        Assert.AreEqual(establishedQueues[1].Id, resumedLoad.Card.QueueItemId);
+        Assert.AreEqual(establishedQueues[1].CardId, resumedLoad.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, resumedLoad.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, resumedLoad.Card.InteractionMode);
         Assert.IsNull(resumedLoad.CompletedSummary);
         Assert.AreEqual(8, afterResume.UserVersion);
         Assert.AreEqual(session.SessionId, established.SessionId);
@@ -1316,7 +1332,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var service = CreateLearningService(database, LearningMode.Typing);
         var legitimateLoad = await service.GetOrStartAsync();
 
-        Assert.IsNull(legitimateLoad.Card);
+        Assert.IsNotNull(legitimateLoad.Card);
+        Assert.AreEqual(graph.SessionId, legitimateLoad.Card.SessionId);
+        Assert.AreEqual(graph.QueueItemId, legitimateLoad.Card.QueueItemId);
+        Assert.AreEqual(graph.CardId, legitimateLoad.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, legitimateLoad.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, legitimateLoad.Card.InteractionMode);
         Assert.IsNull(legitimateLoad.CompletedSummary);
         Assert.IsNotNull(targetVariantId);
 
@@ -1545,7 +1566,12 @@ public sealed class LearningServiceSchema8AttributionTests
         var queueBFinal = final.Queues.Single(row => row.Id == queueB.Id);
         var session = final.Sessions.Single(row => row.Id == seededSession.SessionId);
 
-        Assert.IsNull(ratingA.Card);
+        Assert.IsNotNull(ratingA.Card);
+        Assert.AreEqual(seededSession.SessionId, ratingA.Card.SessionId);
+        Assert.AreEqual(queueB.Id, ratingA.Card.QueueItemId);
+        Assert.AreEqual(queueB.CardId, ratingA.Card.CardId);
+        Assert.AreEqual(CardDirection.MeaningToTerm, ratingA.Card.Direction);
+        Assert.AreEqual(LearningInteractionMode.Typing, ratingA.Card.InteractionMode);
         Assert.IsNull(ratingA.CompletedSummary);
         Assert.HasCount(1, final.Reviews);
         Assert.AreEqual(queueA.CardId, review.CardId);

@@ -52,9 +52,30 @@ public static class Schema8LearningRepository
         connection.Query<Schema8QueueTargetRow>(
             $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder, Id", sessionId);
 
+    public static Schema8QueueTargetRow? LoadFirstIncompleteQueueRow(SQLiteConnection connection, int sessionId) =>
+        connection.Query<Schema8QueueTargetRow>(
+            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0 ORDER BY QueueOrder, Id LIMIT 1",
+            sessionId).FirstOrDefault();
+
+    public static List<Schema8QueueTargetRow> LoadQueueRowsForCard(SQLiteConnection connection, int cardId) =>
+        connection.Query<Schema8QueueTargetRow>(
+            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE CardId = ? ORDER BY Id", cardId);
+
     public static List<Schema8QueueTargetRow> LoadIncompleteQueueRowsForCard(SQLiteConnection connection, int cardId) =>
         connection.Query<Schema8QueueTargetRow>(
             $"SELECT {QueueColumns} FROM LearningSessionCards WHERE CardId = ? AND IsCompleted = 0 ORDER BY Id", cardId);
+
+    public static void InsertQueueRow(
+        SQLiteConnection connection, int sessionId, int cardId, int queueOrder, bool isDueCard,
+        int targetAnswerVariantId) =>
+        connection.Execute(
+            """
+            INSERT INTO LearningSessionCards
+                (SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked,
+                 SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId)
+            VALUES (?, ?, ?, ?, 0, 0, 0, 0, 0, NULL, NULL, ?)
+            """,
+            sessionId, cardId, queueOrder, isDueCard, targetAnswerVariantId);
 
     public static int CountQueueRows(SQLiteConnection connection, int sessionId) =>
         connection.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ?", sessionId);
@@ -63,10 +84,15 @@ public static class Schema8LearningRepository
         connection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0", sessionId);
 
-    public static bool HasAgainRepeat(SQLiteConnection connection, int sessionId, int cardId) =>
+    public static bool HasIncompleteAgainRepeat(
+        SQLiteConnection connection, int sessionId, int cardId, int targetAnswerVariantId) =>
         connection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ? AND CardId = ? AND IsAgainRepeat = 1",
-            sessionId, cardId) > 0;
+            """
+            SELECT COUNT(*) FROM LearningSessionCards
+            WHERE SessionId = ? AND CardId = ? AND TargetAnswerVariantId = ?
+              AND IsAgainRepeat = 1 AND IsCompleted = 0
+            """,
+            sessionId, cardId, targetAnswerVariantId) > 0;
 
     public static int MaxQueueOrder(SQLiteConnection connection, int sessionId) =>
         connection.ExecuteScalar<int?>(
@@ -88,18 +114,16 @@ public static class Schema8LearningRepository
             (int)rating, completedAtUtc, queueItemId);
 
     public static void InsertAgainRepeatQueueRow(
-        SQLiteConnection connection, int sessionId, int cardId, int queueOrder) =>
+        SQLiteConnection connection, int sourceQueueItemId, int queueOrder) =>
         connection.Execute(
             """
             INSERT INTO LearningSessionCards
                 (SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked,
                  SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId)
-            SELECT ?, ?, ?, 0, 1, 0, 0, 0, 0, NULL, NULL, TargetAnswerVariantId
-            FROM LearningSessionCards WHERE Id = (
-                SELECT Id FROM LearningSessionCards
-                WHERE SessionId = ? AND CardId = ? ORDER BY QueueOrder LIMIT 1)
+            SELECT SessionId, CardId, ?, 0, 1, 0, 0, 0, 0, NULL, NULL, TargetAnswerVariantId
+            FROM LearningSessionCards WHERE Id = ?
             """,
-            sessionId, cardId, queueOrder, sessionId, cardId);
+            queueOrder, sourceQueueItemId);
 
     public static void DeleteQueueRow(SQLiteConnection connection, int queueItemId) =>
         connection.Execute("DELETE FROM LearningSessionCards WHERE Id = ?", queueItemId);
@@ -109,6 +133,17 @@ public static class Schema8LearningRepository
     public static Schema8CardRow? LoadCard(SQLiteConnection connection, int cardId) =>
         connection.Query<Schema8CardRow>(
             $"SELECT {CardColumns} FROM LearningCards WHERE Id = ?", cardId).FirstOrDefault();
+
+    public static List<Schema8CardRow> LoadAllCards(SQLiteConnection connection) =>
+        connection.Query<Schema8CardRow>($"SELECT {CardColumns} FROM LearningCards ORDER BY Id");
+
+    public static List<Schema8CardRow> LoadCardsForWord(SQLiteConnection connection, int wordId) =>
+        connection.Query<Schema8CardRow>(
+            $"SELECT {CardColumns} FROM LearningCards WHERE WordId = ? ORDER BY Id", wordId);
+
+    public static List<Schema8QueueWordRow> LoadQueueWords(SQLiteConnection connection) =>
+        connection.Query<Schema8QueueWordRow>(
+            "SELECT Id, CanonicalTerm, TotalOccurrenceCount, CreatedAt FROM Words ORDER BY Id");
 
     public static List<Schema8CardRow> LoadCardsForSense(SQLiteConnection connection, int senseId) =>
         connection.Query<Schema8CardRow>(
@@ -143,6 +178,24 @@ public static class Schema8LearningRepository
         connection.Query<Schema8SenseStatusRow>(
             "SELECT Id, WordId, Status FROM Senses WHERE Id = ?", senseId).FirstOrDefault();
 
+    public static List<Schema8SenseStatusRow> LoadSensesForWord(SQLiteConnection connection, int wordId) =>
+        connection.Query<Schema8SenseStatusRow>(
+            "SELECT Id, WordId, Status FROM Senses WHERE WordId = ? ORDER BY Id", wordId);
+
+    // ---- Meanings and contexts ----
+
+    public static Schema8MeaningRow? LoadMeaning(SQLiteConnection connection, int meaningId) =>
+        connection.Query<Schema8MeaningRow>(
+            "SELECT * FROM Meanings WHERE Id = ?", meaningId).FirstOrDefault();
+
+    public static List<Schema8MeaningRow> LoadMeaningsForWord(SQLiteConnection connection, int wordId) =>
+        connection.Query<Schema8MeaningRow>(
+            "SELECT * FROM Meanings WHERE WordId = ? ORDER BY Id", wordId);
+
+    public static List<Schema8ContextRow> LoadContextsForMeaning(SQLiteConnection connection, int meaningId) =>
+        connection.Query<Schema8ContextRow>(
+            "SELECT * FROM ContextSnapshots WHERE MeaningId = ? ORDER BY Id", meaningId);
+
     public static void UpdateSenseStatus(
         SQLiteConnection connection, int senseId, SenseStatus status, DateTime updatedAtUtc) =>
         connection.Execute(
@@ -171,6 +224,24 @@ public static class Schema8LearningRepository
             JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
             WHERE a.SenseId = ? AND a.CardDirection = ?
             ORDER BY a.Id
+            """,
+            senseId, (int)direction);
+
+    public static int CountAssignmentRowsForSenseDirection(
+        SQLiteConnection connection, int senseId, CardDirection direction) =>
+        connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND CardDirection = ?",
+            senseId, (int)direction);
+
+    public static int CountInvalidVariantReferencesForSenseDirection(
+        SQLiteConnection connection, int senseId, CardDirection direction) =>
+        connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*)
+            FROM SenseAnswerVariantAssignments a
+            LEFT JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+            WHERE a.SenseId = ? AND a.CardDirection = ?
+              AND (v.Id IS NULL OR v.SenseId <> a.SenseId)
             """,
             senseId, (int)direction);
 
@@ -305,6 +376,21 @@ public static class Schema8LearningRepository
         connection.Query<AnswerVariantProgressRow>(
             $"SELECT {ProgressColumns} FROM AnswerVariantProgress WHERE CardId = ? ORDER BY AnswerVariantId", cardId);
 
+    public static int CountInvalidProgressRowsForCard(SQLiteConnection connection, int cardId) =>
+        connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*)
+            FROM AnswerVariantProgress p
+            JOIN LearningCards c ON c.Id = p.CardId
+            LEFT JOIN AnswerVariants v ON v.Id = p.AnswerVariantId
+            LEFT JOIN SenseAnswerVariantAssignments a
+              ON a.SenseId = c.SenseId
+             AND a.CardDirection = c.Direction
+             AND a.AnswerVariantId = p.AnswerVariantId
+            WHERE p.CardId = ? AND (v.Id IS NULL OR v.SenseId <> c.SenseId OR a.Id IS NULL)
+            """,
+            cardId);
+
     public static void InsertProgress(SQLiteConnection connection, AnswerVariantProgressRow row)
     {
         ArgumentNullException.ThrowIfNull(row);
@@ -349,6 +435,19 @@ public static class Schema8LearningRepository
         connection.Query<Schema8SessionCounterRow>(
             $"SELECT {SessionColumns} FROM LearningSessions WHERE Id = ?", sessionId).FirstOrDefault();
 
+    public static int InsertSession(SQLiteConnection connection, DateTime startedAtUtc, int totalCards)
+    {
+        connection.Execute(
+            """
+            INSERT INTO LearningSessions
+                (Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount,
+                 StartedAtUtc, UpdatedAtUtc, CompletedAtUtc)
+            VALUES (?, ?, 0, 0, 0, 0, 0, ?, ?, NULL)
+            """,
+            (int)LearningSessionStatus.Active, totalCards, startedAtUtc, startedAtUtc);
+        return (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+    }
+
     public static List<Schema8SessionCounterRow> LoadActiveSessions(SQLiteConnection connection) =>
         connection.Query<Schema8SessionCounterRow>(
             $"SELECT {SessionColumns} FROM LearningSessions WHERE Status = ? ORDER BY Id",
@@ -382,6 +481,37 @@ public static class Schema8LearningRepository
 
     public static int CountReviewsForSession(SQLiteConnection connection, int sessionId) =>
         connection.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningReviews WHERE SessionId = ?", sessionId);
+
+    public static List<int> LoadAffectedSessionIdsForWord(SQLiteConnection connection, int wordId) =>
+        connection.Query<Schema8IdRow>(
+            """
+            SELECT DISTINCT SessionId AS Id FROM LearningSessionCards
+            WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)
+            UNION
+            SELECT DISTINCT SessionId AS Id FROM LearningReviews
+            WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)
+            ORDER BY Id
+            """,
+            wordId, wordId).Select(row => row.Id).ToList();
+
+    public static void DeleteWordLearningGraph(SQLiteConnection connection, int wordId)
+    {
+        connection.Execute(
+            "DELETE FROM ContextSnapshots WHERE MeaningId IN (SELECT Id FROM Meanings WHERE WordId = ?)", wordId);
+        connection.Execute(
+            "DELETE FROM LearningSessionCards WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)", wordId);
+        connection.Execute(
+            "DELETE FROM LearningReviews WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)", wordId);
+        connection.Execute(
+            "DELETE FROM AnswerVariantProgress WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)", wordId);
+        connection.Execute("DELETE FROM LearningCards WHERE WordId = ?", wordId);
+        connection.Execute(
+            "DELETE FROM SenseAnswerVariantAssignments WHERE SenseId IN (SELECT Id FROM Senses WHERE WordId = ?)", wordId);
+        connection.Execute(
+            "DELETE FROM AnswerVariants WHERE SenseId IN (SELECT Id FROM Senses WHERE WordId = ?)", wordId);
+        connection.Execute("DELETE FROM Meanings WHERE WordId = ?", wordId);
+        connection.Execute("DELETE FROM Senses WHERE WordId = ?", wordId);
+    }
 
     // ---- Summary projections ----
 

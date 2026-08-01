@@ -303,6 +303,11 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
+                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult)
+                {
+                    return MarkPermanentlyKnownSchema8(connection, wordId);
+                }
+
                 var word = connection.Find<WordEntity>(wordId);
                 if (word is null)
                 {
@@ -970,6 +975,8 @@ public sealed class LearningService : ILearningService
 
     private sealed record Schema8RatingOutcome(int SessionId, LearningLoadResult Result);
 
+    private sealed record Schema8QueueSelection(Schema8CardRow Card, int TargetAnswerVariantId, bool IsDueCard);
+
     /// <summary>Everything the Schema-8 paths need about one queue row, validated before any mutation.</summary>
     private sealed record Schema8Graph(
         Schema8QueueTargetRow Queue,
@@ -1322,10 +1329,11 @@ public sealed class LearningService : ILearningService
 
         if (rating == ReviewRating.Again
             && !graph.Queue.IsAgainRepeat
-            && !Schema8LearningRepository.HasAgainRepeat(connection, session.Id, graph.Card.Id))
+            && !Schema8LearningRepository.HasIncompleteAgainRepeat(
+                connection, session.Id, graph.Card.Id, graph.TargetAnswerVariantId))
         {
             var nextOrder = Schema8LearningRepository.MaxQueueOrder(connection, session.Id) + 1;
-            Schema8LearningRepository.InsertAgainRepeatQueueRow(connection, session.Id, graph.Card.Id, nextOrder);
+            Schema8LearningRepository.InsertAgainRepeatQueueRow(connection, graph.Queue.Id, nextOrder);
             session.TotalCards++;
         }
 
@@ -1475,9 +1483,159 @@ public sealed class LearningService : ILearningService
         return (true, true, reResolved.MatchedAnswerVariantId);
     }
 
+    private bool MarkPermanentlyKnownSchema8(SQLiteConnection connection, int wordId)
+    {
+        var word = connection.Find<WordEntity>(wordId);
+        if (word is null)
+        {
+            return false;
+        }
+
+        var senses = Schema8LearningRepository.LoadSensesForWord(connection, wordId);
+        var senseIds = senses.Select(sense => sense.Id).ToHashSet();
+        var meanings = Schema8LearningRepository.LoadMeaningsForWord(connection, wordId);
+        var meaningsById = meanings.ToDictionary(meaning => meaning.Id);
+        foreach (var meaning in meanings)
+        {
+            if (meaning.SenseId is null || !senseIds.Contains(meaning.SenseId.Value))
+            {
+                throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                    $"Meaning {meaning.Id} does not belong to a Sense of Word {wordId}.");
+            }
+
+            if (Schema8LearningRepository.LoadContextsForMeaning(connection, meaning.Id)
+                .Any(context => context.SenseId != meaning.SenseId || context.WordId != wordId))
+            {
+                throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                    $"A context of Meaning {meaning.Id} does not belong to its Sense and Word.");
+            }
+        }
+
+        foreach (var sense in senses)
+        {
+            foreach (var direction in new[] { CardDirection.TermToMeaning, CardDirection.MeaningToTerm })
+            {
+                var assignments = Schema8LearningRepository.LoadAssignmentsForSenseDirection(
+                    connection, sense.Id, direction);
+                ValidateSchema8AssignmentGraph(assignments, sense.Id, direction);
+                if (Schema8LearningRepository.CountInvalidVariantReferencesForSenseDirection(
+                        connection, sense.Id, direction) != 0
+                    || Schema8LearningRepository.CountAssignmentRowsForSenseDirection(
+                        connection, sense.Id, direction) != assignments.Count)
+                {
+                    throw Reject(Schema8LearningDataErrorCode.InvalidAssignmentGraph,
+                        $"Sense {sense.Id}/{direction} has an invalid AnswerVariant reference.");
+                }
+            }
+        }
+
+        var cards = Schema8LearningRepository.LoadCardsForWord(connection, wordId);
+        foreach (var card in cards)
+        {
+            if (card.SenseId is null || !senseIds.Contains(card.SenseId.Value))
+            {
+                throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                    $"Card {card.Id} does not belong to a Sense of Word {wordId}.");
+            }
+
+            if (card.Direction is not (CardDirection.TermToMeaning or CardDirection.MeaningToTerm)
+                || Schema8LearningRepository.CountCardsForSenseDirection(
+                    connection, card.SenseId.Value, card.Direction) != 1)
+            {
+                throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                    $"Card {card.Id} has an invalid direction or duplicate Sense/direction identity.");
+            }
+
+            if (!meaningsById.TryGetValue(card.PreferredMeaningId, out var preferred)
+                || preferred.SenseId != card.SenseId)
+            {
+                throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                    $"Card {card.Id} has an invalid PreferredMeaningId.");
+            }
+
+            if (Schema8LearningRepository.CountInvalidProgressRowsForCard(connection, card.Id) != 0)
+            {
+                throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                    $"Card {card.Id} has invalid progress rows.");
+            }
+
+            var assignments = Schema8LearningRepository.LoadAssignmentsForSenseDirection(
+                connection, card.SenseId.Value, card.Direction);
+            foreach (var queue in Schema8LearningRepository.LoadQueueRowsForCard(connection, card.Id))
+            {
+                _ = Schema8LearningRepository.LoadSession(connection, queue.SessionId)
+                    ?? throw Reject(Schema8LearningDataErrorCode.SessionNotFound,
+                        $"Queue row {queue.Id} references missing session {queue.SessionId}.");
+                if (queue.TargetAnswerVariantId is null)
+                {
+                    throw Reject(Schema8LearningDataErrorCode.MissingTarget,
+                        $"Queue row {queue.Id} has no frozen target.");
+                }
+
+                var assignment = assignments.SingleOrDefault(
+                    row => row.AnswerVariantId == queue.TargetAnswerVariantId.Value);
+                if (assignment is null || (!queue.IsCompleted && !assignment.IsRequired))
+                {
+                    throw Reject(Schema8LearningDataErrorCode.InvalidTarget,
+                        $"Queue row {queue.Id} has an invalid target for card {card.Id}.");
+                }
+            }
+
+            foreach (var review in Schema8LearningRepository.LoadReviewsForCard(connection, card.Id))
+            {
+                foreach (var variantId in new[] { review.TargetAnswerVariantId, review.MatchedAnswerVariantId })
+                {
+                    if (variantId.HasValue
+                        && Schema8LearningRepository.LoadAnswerVariant(connection, variantId.Value)?.SenseId
+                            != card.SenseId.Value)
+                    {
+                        throw Reject(Schema8LearningDataErrorCode.InvalidTarget,
+                            $"Review {review.Id} references a variant outside card {card.Id}'s Sense.");
+                    }
+                }
+            }
+        }
+
+        var affectedLearningSessionIds = Schema8LearningRepository
+            .LoadAffectedSessionIdsForWord(connection, wordId).ToHashSet();
+        Schema8LearningRepository.DeleteWordLearningGraph(connection, wordId);
+
+        var preparationCandidatesToDelete = connection.Table<PreparationCandidateEntity>()
+            .Where(item => item.WordId == wordId)
+            .ToList();
+        var affectedPreparationSessionIds = preparationCandidatesToDelete
+            .Select(item => item.SessionId)
+            .ToHashSet();
+        foreach (var candidate in preparationCandidatesToDelete)
+        {
+            connection.Delete(candidate);
+        }
+
+        connection.Execute("DELETE FROM WordOccurrences WHERE WordId = ?", wordId);
+        connection.Execute("DELETE FROM WordForms WHERE WordId = ?", wordId);
+        connection.Execute("DELETE FROM ReviewStates WHERE WordId = ?", wordId);
+
+        word.Status = WordStatus.Known;
+        word.PreparationState = PreparationState.Unprepared;
+        word.TotalOccurrenceCount = 0;
+        word.DocumentCount = 0;
+        word.AutomaticInteractionMode = LearningInteractionMode.Reading;
+        word.ConsecutiveRecallSuccessCount = 0;
+        word.ConsecutiveTypingSuccessCount = 0;
+        word.ConsecutiveTypingFailureCount = 0;
+        word.MasteryReviewExtensionScheduled = false;
+        word.UpdatedAt = clock.UtcNow;
+        connection.Update(word);
+
+        NormalizePreparationSessions(connection, affectedPreparationSessionIds, clock.UtcNow);
+        NormalizeLearningSessions(connection, affectedLearningSessionIds, clock.UtcNow);
+        DocumentCleanupOperations.CleanupEligibleDocuments(connection);
+        return true;
+    }
+
     /// <summary>
-    /// The Schema-8 <c>GetOrStartAsync</c> loader. Never produces a queue row, a target, or a card view — queue
-    /// production and presentation belong to Slice 5.
+    /// The Schema-8 <c>GetOrStartAsync</c> loader. Package 1 creates and freezes the queue atomically but
+    /// deliberately does not construct a card view; presentation and continuation belong to Package 2.
     /// </summary>
     private LearningLoadResult GetOrStartSchema8(SQLiteConnection connection)
     {
@@ -1494,7 +1652,7 @@ public sealed class LearningService : ILearningService
             if (Schema8LearningRepository.CountIncompleteQueueRows(connection, active.Id) > 0)
             {
                 // An incomplete active session suppresses every older completed summary.
-                return new LearningLoadResult(null, null);
+                return BuildSchema8ResultForSession(connection, active.Id);
             }
 
             var totalQueueRows = Schema8LearningRepository.CountQueueRows(connection, active.Id);
@@ -1521,22 +1679,213 @@ public sealed class LearningService : ILearningService
             }
         }
 
+        var selectionNow = Schema8Utc.Normalize(clock.UtcNow);
+        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        var wordsById = Schema8LearningRepository.LoadQueueWords(connection)
+            .ToDictionary(word => word.Id);
+        var dueCards = cards
+            .Where(card => card.State is not (CardState.New or CardState.Suspended or CardState.Retired)
+                && Schema8Utc.Normalize(card.DueAtUtc) <= selectionNow)
+            .OrderBy(card => Schema8Utc.Normalize(card.DueAtUtc))
+            .ThenBy(card => card.Id)
+            .ToArray();
+        var newCards = cards
+            .Where(card => card.State == CardState.New)
+            .OrderByDescending(card => wordsById.GetValueOrDefault(card.WordId)?.TotalOccurrenceCount ?? 0)
+            .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CreatedAt ?? DateTime.MaxValue)
+            .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CanonicalTerm, StringComparer.Ordinal)
+            .ThenBy(card => card.Direction)
+            .ThenBy(card => card.Id)
+            .ToArray();
+        var dueIds = dueCards.Select(card => card.Id).ToHashSet();
+        var selections = new List<Schema8QueueSelection>();
+        foreach (var card in dueCards.Concat(newCards))
+        {
+            var target = SelectSchema8QueueTarget(connection, card, wordsById);
+            if (target.HasValue)
+            {
+                selections.Add(new Schema8QueueSelection(card, target.Value, dueIds.Contains(card.Id)));
+            }
+        }
+
+        if (selections.Count > 0)
+        {
+            var sessionId = Schema8LearningRepository.InsertSession(connection, selectionNow, selections.Count);
+            for (var index = 0; index < selections.Count; index++)
+            {
+                var selection = selections[index];
+                Schema8LearningRepository.InsertQueueRow(
+                    connection, sessionId, selection.Card.Id, index, selection.IsDueCard,
+                    selection.TargetAnswerVariantId);
+            }
+
+            return BuildSchema8ResultForSession(connection, sessionId);
+        }
+
         var latestCompleted = Schema8LearningRepository.LoadLatestCompletedSession(connection);
         return latestCompleted is null
             ? new LearningLoadResult(null, null)
             : new LearningLoadResult(null, BuildSchema8Summary(connection, latestCompleted));
     }
 
+    private static int? SelectSchema8QueueTarget(
+        SQLiteConnection connection,
+        Schema8CardRow card,
+        IReadOnlyDictionary<int, Schema8QueueWordRow> wordsById)
+    {
+        if (card.Direction is not (CardDirection.TermToMeaning or CardDirection.MeaningToTerm))
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Card {card.Id} has undefined CardDirection value {(int)card.Direction}.");
+        }
+
+        if (!wordsById.ContainsKey(card.WordId))
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Card {card.Id} references missing word {card.WordId}.");
+        }
+
+        if (card.SenseId is null)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph, $"Card {card.Id} has no SenseId.");
+        }
+
+        var senseId = card.SenseId.Value;
+        var sense = Schema8LearningRepository.LoadSense(connection, senseId)
+            ?? throw Reject(Schema8LearningDataErrorCode.SenseNotFound, $"Sense {senseId} does not exist.");
+        if (sense.WordId != card.WordId)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Card {card.Id} and Sense {senseId} belong to different Words.");
+        }
+
+        var cardCount = Schema8LearningRepository.CountCardsForSenseDirection(
+            connection, senseId, card.Direction);
+        if (cardCount != 1)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Sense {senseId} has {cardCount} cards for direction {card.Direction}; exactly one is required.");
+        }
+
+        var assignments = Schema8LearningRepository.LoadAssignmentsForSenseDirection(
+            connection, senseId, card.Direction);
+        ValidateSchema8AssignmentGraph(assignments, senseId, card.Direction);
+        var rawAssignmentCount = Schema8LearningRepository.CountAssignmentRowsForSenseDirection(
+            connection, senseId, card.Direction);
+        var invalidVariantReferences = Schema8LearningRepository.CountInvalidVariantReferencesForSenseDirection(
+            connection, senseId, card.Direction);
+        if (invalidVariantReferences != 0 || rawAssignmentCount != assignments.Count)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidAssignmentGraph,
+                $"Sense {senseId}/{card.Direction} has an assignment whose variant is missing or belongs to another Sense.");
+        }
+
+        var events = Schema8LearningRepository.LoadReviewsForCard(connection, card.Id)
+            .Select(Schema8LearningReviewReplayPolicy.ToReplayEvent)
+            .ToList();
+        var progress = Schema8LearningRepository.LoadProgressForCard(connection, card.Id);
+        if (Schema8LearningRepository.CountInvalidProgressRowsForCard(connection, card.Id) != 0)
+        {
+            throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                $"Card {card.Id} has progress that cannot be attributed to its Sense and direction.");
+        }
+
+        var replay = Schema8LearningReviewReplayPolicy.Replay(card, assignments, events, progress);
+
+        var candidates = new List<(Schema8AttributionCandidateRow Assignment, DateTime RequiredSinceUtc)>();
+        foreach (var assignment in assignments.Where(row => row.IsRequired))
+        {
+            var outcome = replay.FindOutcome(assignment.AnswerVariantId)
+                ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                    $"No replayed outcome exists for Required variant {assignment.AnswerVariantId} on card {card.Id}.");
+            if (!outcome.IsMastered)
+            {
+                candidates.Add((assignment, Schema8Utc.Normalize(assignment.RequiredSinceUtc!.Value)));
+            }
+        }
+
+        return candidates
+            .OrderByDescending(candidate => candidate.Assignment.IsPreferred)
+            .ThenBy(candidate => candidate.RequiredSinceUtc)
+            .ThenBy(candidate => candidate.Assignment.AssignmentId)
+            .ThenBy(candidate => candidate.Assignment.AnswerVariantId)
+            .Select(candidate => (int?)candidate.Assignment.AnswerVariantId)
+            .FirstOrDefault();
+    }
+
     /// <summary>The result of exactly the owning session — never another session's summary.</summary>
-    private static LearningLoadResult BuildSchema8ResultForSession(SQLiteConnection connection, int sessionId)
+    private LearningLoadResult BuildSchema8ResultForSession(SQLiteConnection connection, int sessionId)
     {
         var session = Schema8LearningRepository.LoadSession(connection, sessionId)
             ?? throw Reject(Schema8LearningDataErrorCode.SessionMissingForRatedQueueItem,
                 $"Session {sessionId} does not exist at result time.");
 
-        return session.Status == LearningSessionStatus.Completed
-            ? new LearningLoadResult(null, BuildSchema8Summary(connection, session))
-            : new LearningLoadResult(null, null);
+        if (session.Status == LearningSessionStatus.Completed)
+        {
+            return new LearningLoadResult(null, BuildSchema8Summary(connection, session));
+        }
+
+        var queue = Schema8LearningRepository.LoadFirstIncompleteQueueRow(connection, session.Id)
+            ?? throw Reject(Schema8LearningDataErrorCode.InvalidQueueState,
+                $"Active session {session.Id} has no incomplete queue row.");
+        return new LearningLoadResult(BuildSchema8CardView(connection, queue.Id), null);
+    }
+
+    private LearningCardView BuildSchema8CardView(SQLiteConnection connection, int queueItemId)
+    {
+        var (graph, _, interaction, _) = LoadSchema8RatingState(connection, queueItemId);
+        var meaning = Schema8LearningRepository.LoadMeaning(connection, graph.Card.PreferredMeaningId)
+            ?? throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Card {graph.Card.Id} references missing preferred Meaning {graph.Card.PreferredMeaningId}.");
+        if (meaning.SenseId != graph.SenseId || meaning.WordId != graph.Word.Id)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Preferred Meaning {meaning.Id} does not belong to card {graph.Card.Id}'s Sense and Word.");
+        }
+
+        var contexts = Schema8LearningRepository.LoadContextsForMeaning(connection, meaning.Id)
+            .Where(snapshot => snapshot.SenseId == graph.SenseId
+                && snapshot.WordId == graph.Word.Id
+                && snapshot.TargetStart >= 0
+                && snapshot.TargetLength >= 0
+                && snapshot.TargetStart + snapshot.TargetLength <= snapshot.Text.Length)
+            .Select(snapshot => new LearningContext(
+                snapshot.SourceDocumentTitle,
+                snapshot.Text[..snapshot.TargetStart],
+                snapshot.Text.Substring(snapshot.TargetStart, snapshot.TargetLength),
+                snapshot.Text[(snapshot.TargetStart + snapshot.TargetLength)..]))
+            .ToArray();
+
+        return new LearningCardView(
+            graph.Session.Id,
+            graph.Queue.Id,
+            graph.Card.Id,
+            graph.Word.Id,
+            graph.Card.Direction,
+            interaction,
+            graph.Card.State,
+            meaning.DisplayTerm,
+            graph.Word.TokenKind,
+            meaning.SourceLanguage,
+            meaning.ExplanationLanguage,
+            EmptyToNull(meaning.AcronymExpansion),
+            EmptyToNull(meaning.Translation),
+            meaning.Definition,
+            EmptyToNull(meaning.DictionaryExample),
+            meaning.Source,
+            meaning.SourceProject,
+            meaning.SourcePageTitle,
+            meaning.Attribution,
+            DeserializeAliases(meaning.AcceptedAliasesJson),
+            contexts,
+            graph.Word.TotalOccurrenceCount,
+            graph.Queue.AnswerRevealed,
+            graph.Session.CompletedCards,
+            graph.Session.TotalCards,
+            EmptyToNull(meaning.EncounteredSurfaceForm),
+            EmptyToNull(meaning.GrammaticalRelationship),
+            meaning.SourceRevisionId,
+            graph.Queue.IsAgainRepeat);
     }
 
     private static LearningSessionSummary BuildSchema8Summary(

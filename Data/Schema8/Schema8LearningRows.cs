@@ -99,6 +99,15 @@ public sealed class Schema8SessionCounterRow
     public DateTime? CompletedAtUtc { get; set; }
 }
 
+/// <summary>Word fields required to preserve the Schema-7 new-card ordering for Schema-8 cards.</summary>
+public sealed class Schema8QueueWordRow
+{
+    public int Id { get; set; }
+    public string CanonicalTerm { get; set; } = string.Empty;
+    public int TotalOccurrenceCount { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 /// <summary>Minimal Sense projection for the affected-Sense status rollup.</summary>
 public sealed class Schema8SenseStatusRow
 {
@@ -111,4 +120,10 @@ public sealed class Schema8SenseStatusRow
 public sealed class Schema8NullableTimestampRow
 {
     public DateTime? Value { get; set; }
+}
+
+/// <summary>Scalar integer projection for raw Schema-8 relationship queries.</summary>
+public sealed class Schema8IdRow
+{
+    public int Id { get; set; }
 }

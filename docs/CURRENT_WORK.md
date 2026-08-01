@@ -33,19 +33,19 @@
 
 - Branch: `feat/meaning-slice5-sense-queue`
 - Purpose: Complete dormant Schema-8 Sense-addressed learning cards, frozen queue targets, continuation, and permanent-known cleanup while preserving Schema 7 behavior.
-- Current phase: Meaning Slice 5 Packages 1 and 2 implementation and validation complete on the feature branch.
-- Complete Slice-5 validation: 1358 passed, 0 failed, 0 skipped.
-- Note: PR review, manual merge, and post-merge synchronization remain pending.
+- Current phase: Meaning Slice 5 implementation and the six-defect data-integrity correction are complete and validated on the feature branch.
+- Complete Slice-5 validation: 1364 passed, 0 failed, 0 skipped.
+- Note: The independent PR review found six blocking data-integrity defects; the correction is implemented and validated. Final correction review, manual merge, and post-merge synchronization remain pending. Slice 5 is not merged.
 
 ## Current blocker or pending validation
 
-- No implementation or validation blocker remains.
+- No implementation or validation blocker remains; final correction review and manual merge are pending.
 - Populated-target archive import is not implemented; current import refuses populated installations.
 - No current packaging or release task is active.
 
 ## Exact next action
 
-- Review the Slice-5 pull request after creation.
+- Perform the final correction review of the existing Slice-5 pull request.
 - After user review: manual merge and separately authorized post-merge synchronization for **KF-MEANING-001 Slice 5**.
 - The merge writer must not be implemented before Meaning Slices 4 and 5, Schema-8 activation, and MergePreflight adaptation are complete.
 
@@ -56,6 +56,6 @@
 - Active database schema is 7; Schema 8 is dormant.
 - Populated-target archive merge is not implemented.
 - Meaning Slice 4 is merged and verified (1347 passed, 0 failed, 0 skipped).
-- Active branch: `feat/meaning-slice5-sense-queue`; Packages 1 and 2 are implemented and fully validated (1358 passed, 0 failed, 0 skipped).
-- Exact next action: PR review; manual merge and post-merge synchronization remain pending.
+- Active branch: `feat/meaning-slice5-sense-queue`; the six data-integrity defects found by the independent PR review are corrected and the complete suite passes (1364 passed, 0 failed, 0 skipped).
+- Exact next action: final correction review; manual merge and post-merge synchronization remain pending. Slice 5 is not merged.
 - No Beta 13 or active packaging task is in progress.

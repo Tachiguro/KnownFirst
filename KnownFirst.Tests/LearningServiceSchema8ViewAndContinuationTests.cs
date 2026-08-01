@@ -229,6 +229,151 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
             "SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ? AND CardId = ?", sessionId, retained.CardId));
     }
 
+    [TestMethod]
+    public async Task CardView_Schema8_MalformedContextFailsClosedWithoutMutation()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var seeded = await SeedSchema7CardAsync(fixture, 40, "context", "context-target");
+        await fixture.MigrateToSchema8Async();
+        var service = CreateService(fixture);
+        var created = await service.GetOrStartAsync();
+        Assert.IsNotNull(created.Card);
+
+        var contextId = await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT Id FROM ContextSnapshots WHERE MeaningId = ?", seeded.MeaningId);
+        var textLength = await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT length(Text) FROM ContextSnapshots WHERE Id = ?", contextId);
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE ContextSnapshots SET TargetStart = ?, TargetLength = 1 WHERE Id = ?",
+            textLength + 1, contextId);
+        var before = await CaptureStateAsync(fixture);
+
+        var exception = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(
+            () => service.GetOrStartAsync());
+
+        var after = await CaptureStateAsync(fixture);
+        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidCardGraph, exception.Code);
+        Assert.AreEqual(before, after);
+        Assert.AreEqual(1, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM ContextSnapshots WHERE Id = ? AND TargetStart = ? AND TargetLength = 1",
+            contextId, textLength + 1));
+        Assert.AreEqual(1, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessions"));
+        Assert.AreEqual(1, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM AnswerVariantProgress"));
+    }
+
+    [TestMethod]
+    public async Task MarkPermanentlyKnown_Schema8_PreservesImportedWordEvidence()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var selected = await SeedSchema7CardAsync(
+            fixture, 40, "evidence", "selected-target", frequency: 2);
+        var unrelated = await SeedSchema7CardAsync(
+            fixture, 41, "retained", "retained-target", frequency: 1);
+
+        var selectedDocumentId = await fixture.InsertDocumentAsync(
+            title: "Selected evidence", content: "Evidence evidence", wordCount: 2, importedAt: Now);
+        await InsertImportedEvidenceAsync(
+            fixture, selected.WordId, selectedDocumentId, "Evidence evidence",
+            ("Evidence", 0), ("evidence", 9));
+        var unrelatedDocumentId = await fixture.InsertDocumentAsync(
+            title: "Unrelated evidence", content: "retained", wordCount: 1, importedAt: Now.AddMinutes(1));
+        await InsertImportedEvidenceAsync(
+            fixture, unrelated.WordId, unrelatedDocumentId, "retained", ("retained", 0));
+
+        await fixture.MigrateToSchema8Async();
+        await AddSecondSenseGraphAsync(
+            fixture, selected.WordId, selected.MeaningId, 200, 42, 901, "selected-second");
+        var selectedSenseIds = (await fixture.Connection.QueryAsync<IdRow>(
+            "SELECT Id FROM Senses WHERE WordId = ? ORDER BY Id", selected.WordId))
+            .Select(row => row.Id)
+            .ToArray();
+        Assert.HasCount(2, selectedSenseIds);
+
+        var service = CreateService(fixture);
+        await service.GetOrStartAsync();
+        var queues = await ReadQueueAsync(fixture);
+        var selectedQueue = queues.First(row => row.CardId == selected.CardId);
+        var sessionId = selectedQueue.SessionId;
+        await fixture.InsertProgressAsync(
+            selectedQueue.CardId, selectedQueue.TargetAnswerVariantId!.Value, Now);
+        var reviewId = await fixture.InsertReviewAsync(
+            selectedQueue.CardId, sessionId, reviewedAtUtc: Now);
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE LearningReviews SET TargetAnswerVariantId = ? WHERE Id = ?",
+            selectedQueue.TargetAnswerVariantId, reviewId);
+
+        var selectedOccurrencesBefore = await RowsAsync(
+            fixture,
+            $"SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(DocumentId)||'|'||quote(SentenceSpanId)||'|'||quote(StartPosition)||'|'||quote(Length)||'|'||quote(SurfaceForm)||'|'||quote(TechnicalFamily)||'|'||quote(TechnicalInstanceYear)||'|'||quote(TechnicalInstanceIdentifier)||'|'||quote(TechnicalVariant)||'|'||quote(\"Order\") AS Value FROM WordOccurrences WHERE WordId = {selected.WordId} ORDER BY Id");
+        var selectedFormsBefore = await RowsAsync(
+            fixture,
+            $"SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SurfaceForm)||'|'||quote(OccurrenceCount) AS Value FROM WordForms WHERE WordId = {selected.WordId} ORDER BY Id");
+        var selectedCountersBefore = await RowsAsync(
+            fixture,
+            $"SELECT quote(TotalOccurrenceCount)||'|'||quote(DocumentCount) AS Value FROM Words WHERE Id = {selected.WordId}");
+        var selectedDocumentBefore = await CaptureDocumentEvidenceAsync(fixture, selectedDocumentId);
+        var unrelatedBefore = await CaptureWordEvidenceAsync(fixture, unrelated.WordId);
+
+        Assert.IsTrue(await service.MarkPermanentlyKnownAsync(selected.WordId, confirmed: true));
+
+        Assert.AreEqual(
+            (int)WordStatus.Known,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT Status FROM Words WHERE Id = ?", selected.WordId));
+        Assert.AreEqual(selectedOccurrencesBefore, await RowsAsync(
+            fixture,
+            $"SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(DocumentId)||'|'||quote(SentenceSpanId)||'|'||quote(StartPosition)||'|'||quote(Length)||'|'||quote(SurfaceForm)||'|'||quote(TechnicalFamily)||'|'||quote(TechnicalInstanceYear)||'|'||quote(TechnicalInstanceIdentifier)||'|'||quote(TechnicalVariant)||'|'||quote(\"Order\") AS Value FROM WordOccurrences WHERE WordId = {selected.WordId} ORDER BY Id"));
+        Assert.AreEqual(selectedFormsBefore, await RowsAsync(
+            fixture,
+            $"SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SurfaceForm)||'|'||quote(OccurrenceCount) AS Value FROM WordForms WHERE WordId = {selected.WordId} ORDER BY Id"));
+        Assert.AreEqual(selectedCountersBefore, await RowsAsync(
+            fixture,
+            $"SELECT quote(TotalOccurrenceCount)||'|'||quote(DocumentCount) AS Value FROM Words WHERE Id = {selected.WordId}"));
+        Assert.AreEqual(selectedDocumentBefore, await CaptureDocumentEvidenceAsync(fixture, selectedDocumentId));
+        Assert.AreEqual(unrelatedBefore, await CaptureWordEvidenceAsync(fixture, unrelated.WordId));
+
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM Senses WHERE WordId = ?", selected.WordId));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM Meanings WHERE WordId = ?", selected.WordId));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM ContextSnapshots WHERE WordId = ?", selected.WordId));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningCards WHERE WordId = ?", selected.WordId));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM AnswerVariants WHERE SenseId IN (?, ?)", selectedSenseIds[0], selectedSenseIds[1]));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId IN (?, ?)", selectedSenseIds[0], selectedSenseIds[1]));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningReviews WHERE CardId IN (?, ?)", selected.CardId, 42));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM AnswerVariantProgress WHERE CardId IN (?, ?)", selected.CardId, 42));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE CardId IN (?, ?)", selected.CardId, 42));
+
+        var normalizedSession = (await fixture.Connection.QueryAsync<SessionRow>(
+            "SELECT Id, Status, TotalCards, CompletedCards FROM LearningSessions WHERE Id = ?", sessionId)).Single();
+        Assert.AreEqual(LearningSessionStatus.Active, normalizedSession.Status);
+        Assert.AreEqual(1, normalizedSession.TotalCards);
+        Assert.AreEqual(0, normalizedSession.CompletedCards);
+        Assert.AreEqual(1, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ? AND CardId = ?",
+            sessionId, unrelated.CardId));
+
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards q LEFT JOIN LearningCards c ON c.Id = q.CardId WHERE c.Id IS NULL"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningReviews r LEFT JOIN LearningCards c ON c.Id = r.CardId WHERE c.Id IS NULL"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM AnswerVariantProgress p LEFT JOIN LearningCards c ON c.Id = p.CardId WHERE c.Id IS NULL"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM SenseAnswerVariantAssignments a LEFT JOIN Senses s ON s.Id = a.SenseId LEFT JOIN AnswerVariants v ON v.Id = a.AnswerVariantId WHERE s.Id IS NULL OR v.Id IS NULL"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningCards c LEFT JOIN Senses s ON s.Id = c.SenseId LEFT JOIN Meanings m ON m.Id = c.PreferredMeaningId WHERE s.Id IS NULL OR m.Id IS NULL"));
+    }
+
     private static LearningService CreateService(Schema7Fixture fixture) => new(
         new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture),
         new SimpleSpacedRepetitionScheduler(), new SpellingAnswerComparer(), new FakeClock(Now));
@@ -316,16 +461,60 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
 
     private static async Task<string> CaptureStateAsync(Schema7Fixture fixture) => string.Join("\n", new[]
     {
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(UpdatedAt) AS Value FROM Words ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(Status)||'|'||quote(UpdatedAtUtc) AS Value FROM Senses ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SenseId)||'|'||quote(UpdatedAt) AS Value FROM Meanings ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(State)||'|'||quote(DueAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM LearningCards ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(SenseId)||'|'||quote(Requirement)||'|'||quote(IsPreferred)||'|'||quote(UpdatedAtUtc) AS Value FROM SenseAnswerVariantAssignments ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(SessionId)||'|'||quote(CardId)||'|'||quote(QueueOrder)||'|'||quote(TargetAnswerVariantId) AS Value FROM LearningSessionCards ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(TotalCards)||'|'||quote(CompletedCards)||'|'||quote(UpdatedAtUtc) AS Value FROM LearningSessions ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(AnswerVariantId)||'|'||quote(IsMastered)||'|'||quote(UpdatedAtUtc) AS Value FROM AnswerVariantProgress ORDER BY Id"),
-        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(TargetAnswerVariantId)||'|'||quote(MatchedAnswerVariantId) AS Value FROM LearningReviews ORDER BY Id")
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(PreparationState)||'|'||quote(TotalOccurrenceCount)||'|'||quote(DocumentCount)||'|'||quote(AutomaticInteractionMode)||'|'||quote(ConsecutiveRecallSuccessCount)||'|'||quote(ConsecutiveTypingSuccessCount)||'|'||quote(ConsecutiveTypingFailureCount)||'|'||quote(MasteryReviewExtensionScheduled)||'|'||quote(UpdatedAt) AS Value FROM Words ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(Status)||'|'||quote(DefaultMeaningId)||'|'||quote(UpdatedAtUtc) AS Value FROM Senses ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SenseId)||'|'||quote(StableId)||'|'||quote(DisplayTerm)||'|'||quote(UpdatedAt) AS Value FROM Meanings ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(MeaningId)||'|'||quote(SenseId)||'|'||quote(WordId)||'|'||quote(SourceDocumentId)||'|'||quote(Text)||'|'||quote(TargetStart)||'|'||quote(TargetLength)||'|'||quote(CreatedAtUtc) AS Value FROM ContextSnapshots ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SenseId)||'|'||quote(PreferredMeaningId)||'|'||quote(Direction)||'|'||quote(State)||'|'||quote(DueAtUtc)||'|'||quote(IntervalDays)||'|'||quote(EaseFactor)||'|'||quote(SuccessfulReviewCount)||'|'||quote(LapseCount)||'|'||quote(LastReviewedAtUtc)||'|'||quote(LastRating)||'|'||quote(UpdatedAtUtc) AS Value FROM LearningCards ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(SenseId)||'|'||quote(DisplayText)||'|'||quote(NormalizedText)||'|'||quote(UpdatedAtUtc) AS Value FROM AnswerVariants ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(SenseId)||'|'||quote(CardDirection)||'|'||quote(AnswerVariantId)||'|'||quote(Requirement)||'|'||quote(IsPreferred)||'|'||quote(RequiredSinceUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM SenseAnswerVariantAssignments ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(SessionId)||'|'||quote(CardId)||'|'||quote(QueueOrder)||'|'||quote(IsDueCard)||'|'||quote(IsAgainRepeat)||'|'||quote(AnswerRevealed)||'|'||quote(SpellingChecked)||'|'||quote(SpellingCorrect)||'|'||quote(IsCompleted)||'|'||quote(Rating)||'|'||quote(CompletedAtUtc)||'|'||quote(TargetAnswerVariantId) AS Value FROM LearningSessionCards ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(TotalCards)||'|'||quote(CompletedCards)||'|'||quote(AgainCount)||'|'||quote(HardCount)||'|'||quote(GoodCount)||'|'||quote(EasyCount)||'|'||quote(StartedAtUtc)||'|'||quote(UpdatedAtUtc)||'|'||quote(CompletedAtUtc) AS Value FROM LearningSessions ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(AnswerVariantId)||'|'||quote(InteractionMode)||'|'||quote(ConsecutiveReadingSuccessCount)||'|'||quote(ConsecutiveTypingSuccessCount)||'|'||quote(ConsecutiveTypingFailureCount)||'|'||quote(IsMastered)||'|'||quote(ReplayVersion)||'|'||quote(CreatedAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM AnswerVariantProgress ORDER BY Id"),
+        await RowsAsync(fixture, "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(SessionId)||'|'||quote(Rating)||'|'||quote(WasTypedAnswer)||'|'||quote(WasCorrect)||'|'||quote(ReviewedAtUtc)||'|'||quote(TargetAnswerVariantId)||'|'||quote(MatchedAnswerVariantId) AS Value FROM LearningReviews ORDER BY Id")
     });
+
+    private static async Task InsertImportedEvidenceAsync(
+        Schema7Fixture fixture,
+        int wordId,
+        int documentId,
+        string content,
+        params (string SurfaceForm, int Start)[] occurrences)
+    {
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO SentenceSpans (DocumentId, StartPosition, Length, \"Order\") VALUES (?, 0, ?, 0)",
+            documentId, content.Length);
+        var sentenceId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+        for (var index = 0; index < occurrences.Length; index++)
+        {
+            var occurrence = occurrences[index];
+            await fixture.Connection.ExecuteAsync(
+                "INSERT INTO WordOccurrences (WordId, DocumentId, SentenceSpanId, StartPosition, Length, SurfaceForm, TechnicalFamily, TechnicalInstanceYear, TechnicalInstanceIdentifier, TechnicalVariant, \"Order\") VALUES (?, ?, ?, ?, ?, ?, 0, NULL, '', '', ?)",
+                wordId, documentId, sentenceId, occurrence.Start, occurrence.SurfaceForm.Length,
+                occurrence.SurfaceForm, index);
+            await fixture.Connection.ExecuteAsync(
+                "INSERT INTO WordForms (WordId, SurfaceForm, OccurrenceCount) VALUES (?, ?, 1)",
+                wordId, occurrence.SurfaceForm);
+        }
+    }
+
+    private static async Task<string> CaptureDocumentEvidenceAsync(Schema7Fixture fixture, int documentId) =>
+        string.Join("\n", new[]
+        {
+            await RowsAsync(fixture, $"SELECT quote(Id)||'|'||quote(Title)||'|'||quote(Content)||'|'||quote(ContentFingerprint)||'|'||quote(ImportedAt)||'|'||quote(WordCount) AS Value FROM Documents WHERE Id = {documentId}"),
+            await RowsAsync(fixture, $"SELECT quote(Id)||'|'||quote(DocumentId)||'|'||quote(StartPosition)||'|'||quote(Length)||'|'||quote(\"Order\") AS Value FROM SentenceSpans WHERE DocumentId = {documentId} ORDER BY Id"),
+            await RowsAsync(fixture, $"SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(DocumentId)||'|'||quote(SentenceSpanId)||'|'||quote(StartPosition)||'|'||quote(Length)||'|'||quote(SurfaceForm)||'|'||quote(\"Order\") AS Value FROM WordOccurrences WHERE DocumentId = {documentId} ORDER BY Id")
+        });
+
+    private static async Task<string> CaptureWordEvidenceAsync(Schema7Fixture fixture, int wordId) =>
+        string.Join("\n", new[]
+        {
+            await CaptureWordGraphAsync(fixture, wordId),
+            await RowsAsync(fixture, $"SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SurfaceForm)||'|'||quote(OccurrenceCount) AS Value FROM WordForms WHERE WordId = {wordId} ORDER BY Id"),
+            await RowsAsync(fixture, $"SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(DocumentId)||'|'||quote(SentenceSpanId)||'|'||quote(StartPosition)||'|'||quote(Length)||'|'||quote(SurfaceForm)||'|'||quote(\"Order\") AS Value FROM WordOccurrences WHERE WordId = {wordId} ORDER BY Id"),
+            await RowsAsync(fixture, $"SELECT quote(d.Id)||'|'||quote(d.Title)||'|'||quote(d.Content)||'|'||quote(d.ContentFingerprint)||'|'||quote(d.ImportedAt)||'|'||quote(d.WordCount) AS Value FROM Documents d WHERE d.Id IN (SELECT DocumentId FROM WordOccurrences WHERE WordId = {wordId}) ORDER BY d.Id"),
+            await RowsAsync(fixture, $"SELECT quote(s.Id)||'|'||quote(s.DocumentId)||'|'||quote(s.StartPosition)||'|'||quote(s.Length)||'|'||quote(s.\"Order\") AS Value FROM SentenceSpans s WHERE s.Id IN (SELECT SentenceSpanId FROM WordOccurrences WHERE WordId = {wordId}) ORDER BY s.Id")
+        });
 
     private static async Task<string> CaptureWordGraphAsync(Schema7Fixture fixture, int wordId) => string.Join("\n", new[]
     {
@@ -360,4 +549,5 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
         public int CompletedCards { get; set; }
     }
     private sealed class ValueRow { public string Value { get; set; } = string.Empty; }
+    private sealed class IdRow { public int Id { get; set; } }
 }

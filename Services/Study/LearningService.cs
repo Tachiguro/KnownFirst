@@ -1025,6 +1025,7 @@ public sealed class LearningService : ILearningService
         var card = Schema8LearningRepository.LoadCard(connection, queue.CardId)
             ?? throw Reject(Schema8LearningDataErrorCode.CardNotFound,
                 $"Queue row {queueItemId} references missing card {queue.CardId}.");
+        ValidateSchema8CardState(card);
 
         if (card.SenseId is null)
         {
@@ -1053,10 +1054,24 @@ public sealed class LearningService : ILearningService
         var word = connection.Find<WordEntity>(card.WordId)
             ?? throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
                 $"Card {card.Id} references missing word {card.WordId}.");
+        if (sense.WordId != card.WordId)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Card {card.Id} and Sense {senseId} belong to different Words.");
+        }
 
         var assignments =
             Schema8LearningRepository.LoadAssignmentsForSenseDirection(connection, senseId, card.Direction);
         ValidateSchema8AssignmentGraph(assignments, senseId, card.Direction);
+        var rawAssignmentCount = Schema8LearningRepository.CountAssignmentRowsForSenseDirection(
+            connection, senseId, card.Direction);
+        var invalidVariantReferences = Schema8LearningRepository.CountInvalidVariantReferencesForSenseDirection(
+            connection, senseId, card.Direction);
+        if (invalidVariantReferences != 0 || rawAssignmentCount != assignments.Count)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidAssignmentGraph,
+                $"Sense {senseId}/{card.Direction} has an assignment whose variant is missing or belongs to another Sense.");
+        }
 
         if (queue.TargetAnswerVariantId is null)
         {
@@ -1111,6 +1126,33 @@ public sealed class LearningService : ILearningService
                 throw Reject(Schema8LearningDataErrorCode.RequirementBoundaryViolation,
                     $"Assignment {row.AssignmentId} violates 'Requirement = Required if and only if RequiredSinceUtc is not null'.");
             }
+        }
+    }
+
+    private static void ValidateSchema8CardState(Schema8CardRow card)
+    {
+        if (card.State is not (CardState.New
+            or CardState.Learning
+            or CardState.Review
+            or CardState.Relearning
+            or CardState.Suspended
+            or CardState.Retired))
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Card {card.Id} has undefined CardState value {(int)card.State}.");
+        }
+    }
+
+    private static void ValidateSchema8PreferredMeaning(
+        SQLiteConnection connection, Schema8CardRow card, int senseId)
+    {
+        var meaning = Schema8LearningRepository.LoadMeaning(connection, card.PreferredMeaningId)
+            ?? throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Card {card.Id} references missing preferred Meaning {card.PreferredMeaningId}.");
+        if (meaning.SenseId != senseId || meaning.WordId != card.WordId)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Preferred Meaning {meaning.Id} does not belong to card {card.Id}'s Sense and Word.");
         }
     }
 
@@ -1611,14 +1653,10 @@ public sealed class LearningService : ILearningService
             connection.Delete(candidate);
         }
 
-        connection.Execute("DELETE FROM WordOccurrences WHERE WordId = ?", wordId);
-        connection.Execute("DELETE FROM WordForms WHERE WordId = ?", wordId);
         connection.Execute("DELETE FROM ReviewStates WHERE WordId = ?", wordId);
 
         word.Status = WordStatus.Known;
         word.PreparationState = PreparationState.Unprepared;
-        word.TotalOccurrenceCount = 0;
-        word.DocumentCount = 0;
         word.AutomaticInteractionMode = LearningInteractionMode.Reading;
         word.ConsecutiveRecallSuccessCount = 0;
         word.ConsecutiveTypingSuccessCount = 0;
@@ -1681,6 +1719,11 @@ public sealed class LearningService : ILearningService
 
         var selectionNow = Schema8Utc.Normalize(clock.UtcNow);
         var cards = Schema8LearningRepository.LoadAllCards(connection);
+        foreach (var card in cards)
+        {
+            ValidateSchema8CardState(card);
+        }
+
         var wordsById = Schema8LearningRepository.LoadQueueWords(connection)
             .ToDictionary(word => word.Id);
         var dueCards = cards
@@ -1704,6 +1747,7 @@ public sealed class LearningService : ILearningService
             var target = SelectSchema8QueueTarget(connection, card, wordsById);
             if (target.HasValue)
             {
+                ValidateSchema8PreferredMeaning(connection, card, card.SenseId!.Value);
                 selections.Add(new Schema8QueueSelection(card, target.Value, dueIds.Contains(card.Id)));
             }
         }
@@ -1843,12 +1887,22 @@ public sealed class LearningService : ILearningService
                 $"Preferred Meaning {meaning.Id} does not belong to card {graph.Card.Id}'s Sense and Word.");
         }
 
-        var contexts = Schema8LearningRepository.LoadContextsForMeaning(connection, meaning.Id)
-            .Where(snapshot => snapshot.SenseId == graph.SenseId
-                && snapshot.WordId == graph.Word.Id
-                && snapshot.TargetStart >= 0
-                && snapshot.TargetLength >= 0
-                && snapshot.TargetStart + snapshot.TargetLength <= snapshot.Text.Length)
+        var contextRows = Schema8LearningRepository.LoadContextsForMeaning(connection, meaning.Id);
+        foreach (var snapshot in contextRows)
+        {
+            if (snapshot.SenseId != graph.SenseId
+                || snapshot.WordId != graph.Word.Id
+                || snapshot.TargetStart < 0
+                || snapshot.TargetLength < 0
+                || snapshot.TargetStart > snapshot.Text.Length
+                || snapshot.TargetLength > snapshot.Text.Length - snapshot.TargetStart)
+            {
+                throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                    $"Context {snapshot.Id} has invalid ownership or target coordinates for card {graph.Card.Id}.");
+            }
+        }
+
+        var contexts = contextRows
             .Select(snapshot => new LearningContext(
                 snapshot.SourceDocumentTitle,
                 snapshot.Text[..snapshot.TargetStart],

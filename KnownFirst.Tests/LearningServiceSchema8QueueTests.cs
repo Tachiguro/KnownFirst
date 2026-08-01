@@ -193,6 +193,73 @@ public sealed class LearningServiceSchema8QueueTests
         Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards"));
     }
 
+    [TestMethod]
+    public async Task GetOrStart_Schema8_UndefinedCardStateFailsClosedWithoutSessionMutation()
+    {
+        const int undefinedCardState = 99;
+        Assert.IsFalse(Enum.IsDefined((CardState)undefinedCardState));
+
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var seeded = await SeedSchema7CardAsync(
+            fixture, 40, "undefined-state", 1, CardState.Review, Now.AddMinutes(-1));
+        await fixture.MigrateToSchema8Async();
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE LearningCards SET State = ? WHERE Id = ?", undefinedCardState, seeded.CardId);
+        var before = await CaptureStateAsync(fixture);
+
+        var exception = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(
+            () => CreateService(fixture).GetOrStartAsync());
+
+        var after = await CaptureStateAsync(fixture);
+        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidCardGraph, exception.Code);
+        Assert.AreEqual(before, after);
+        Assert.AreEqual(
+            undefinedCardState,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT State FROM LearningCards WHERE Id = ?", seeded.CardId));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessions"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM AnswerVariantProgress"));
+    }
+
+    [TestMethod]
+    public async Task GetOrStart_Schema8_InvalidLaterPreferredMeaningRollsBackSessionCreation()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var first = await SeedSchema7CardAsync(
+            fixture, 40, "first-valid", 1, CardState.New, Now, frequency: 20);
+        var later = await SeedSchema7CardAsync(
+            fixture, 41, "later-invalid", 2, CardState.New, Now, frequency: 1);
+        await fixture.MigrateToSchema8Async();
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE LearningCards SET PreferredMeaningId = ? WHERE Id = ?",
+            first.MeaningId, later.CardId);
+
+        Assert.AreEqual(
+            2,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE Requirement = ?",
+                (int)AnswerVariantRequirement.Required));
+        Assert.AreEqual(
+            first.WordId,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT WordId FROM Meanings WHERE Id = ?", first.MeaningId));
+        Assert.AreNotEqual(first.WordId, later.WordId);
+
+        var before = await CaptureStateAsync(fixture);
+        var exception = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(
+            () => CreateService(fixture).GetOrStartAsync());
+        var after = await CaptureStateAsync(fixture);
+
+        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidCardGraph, exception.Code);
+        Assert.AreEqual(before, after);
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessions"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews"));
+        Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM AnswerVariantProgress"));
+    }
+
     private static LearningService CreateService(Schema7Fixture fixture) => new(
         new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture),
         new SimpleSpacedRepetitionScheduler(),
@@ -260,16 +327,17 @@ public sealed class LearningServiceSchema8QueueTests
     {
         var queries = new[]
         {
-            "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(PreparationState)||'|'||quote(TotalOccurrenceCount)||'|'||quote(UpdatedAt) AS Value FROM Words ORDER BY Id",
+            "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(PreparationState)||'|'||quote(TotalOccurrenceCount)||'|'||quote(DocumentCount)||'|'||quote(AutomaticInteractionMode)||'|'||quote(ConsecutiveRecallSuccessCount)||'|'||quote(ConsecutiveTypingSuccessCount)||'|'||quote(ConsecutiveTypingFailureCount)||'|'||quote(MasteryReviewExtensionScheduled)||'|'||quote(UpdatedAt) AS Value FROM Words ORDER BY Id",
             "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(Status)||'|'||quote(DefaultMeaningId)||'|'||quote(UpdatedAtUtc) AS Value FROM Senses ORDER BY Id",
             "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SenseId)||'|'||quote(StableId)||'|'||quote(DisplayTerm)||'|'||quote(UpdatedAt) AS Value FROM Meanings ORDER BY Id",
             "SELECT quote(Id)||'|'||quote(WordId)||'|'||quote(SenseId)||'|'||quote(PreferredMeaningId)||'|'||quote(Direction)||'|'||quote(State)||'|'||quote(DueAtUtc)||'|'||quote(IntervalDays)||'|'||quote(EaseFactor)||'|'||quote(SuccessfulReviewCount)||'|'||quote(LapseCount)||'|'||quote(LastReviewedAtUtc)||'|'||quote(LastRating)||'|'||quote(UpdatedAtUtc) AS Value FROM LearningCards ORDER BY Id",
             "SELECT quote(Id)||'|'||quote(SenseId)||'|'||quote(DisplayText)||'|'||quote(NormalizedText)||'|'||quote(UpdatedAtUtc) AS Value FROM AnswerVariants ORDER BY Id",
             "SELECT quote(Id)||'|'||quote(SenseId)||'|'||quote(CardDirection)||'|'||quote(AnswerVariantId)||'|'||quote(Requirement)||'|'||quote(IsPreferred)||'|'||quote(RequiredSinceUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM SenseAnswerVariantAssignments ORDER BY Id",
             "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(AnswerVariantId)||'|'||quote(InteractionMode)||'|'||quote(ConsecutiveReadingSuccessCount)||'|'||quote(ConsecutiveTypingSuccessCount)||'|'||quote(ConsecutiveTypingFailureCount)||'|'||quote(IsMastered)||'|'||quote(ReplayVersion)||'|'||quote(CreatedAtUtc)||'|'||quote(UpdatedAtUtc) AS Value FROM AnswerVariantProgress ORDER BY Id",
-            "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(SessionId)||'|'||quote(Rating)||'|'||quote(TargetAnswerVariantId)||'|'||quote(MatchedAnswerVariantId) AS Value FROM LearningReviews ORDER BY Id",
-            "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(TotalCards)||'|'||quote(CompletedCards)||'|'||quote(UpdatedAtUtc)||'|'||quote(CompletedAtUtc) AS Value FROM LearningSessions ORDER BY Id",
-            "SELECT quote(Id)||'|'||quote(SessionId)||'|'||quote(CardId)||'|'||quote(QueueOrder)||'|'||quote(IsCompleted)||'|'||quote(TargetAnswerVariantId) AS Value FROM LearningSessionCards ORDER BY Id"
+            "SELECT quote(Id)||'|'||quote(CardId)||'|'||quote(SessionId)||'|'||quote(Rating)||'|'||quote(WasTypedAnswer)||'|'||quote(WasCorrect)||'|'||quote(ReviewedAtUtc)||'|'||quote(DueAtUtc)||'|'||quote(IntervalDays)||'|'||quote(EaseFactor)||'|'||quote(TargetAnswerVariantId)||'|'||quote(MatchedAnswerVariantId) AS Value FROM LearningReviews ORDER BY Id",
+            "SELECT quote(Id)||'|'||quote(Status)||'|'||quote(TotalCards)||'|'||quote(CompletedCards)||'|'||quote(AgainCount)||'|'||quote(HardCount)||'|'||quote(GoodCount)||'|'||quote(EasyCount)||'|'||quote(StartedAtUtc)||'|'||quote(UpdatedAtUtc)||'|'||quote(CompletedAtUtc) AS Value FROM LearningSessions ORDER BY Id",
+            "SELECT quote(Id)||'|'||quote(SessionId)||'|'||quote(CardId)||'|'||quote(QueueOrder)||'|'||quote(IsDueCard)||'|'||quote(IsAgainRepeat)||'|'||quote(AnswerRevealed)||'|'||quote(SpellingChecked)||'|'||quote(SpellingCorrect)||'|'||quote(IsCompleted)||'|'||quote(Rating)||'|'||quote(CompletedAtUtc)||'|'||quote(TargetAnswerVariantId) AS Value FROM LearningSessionCards ORDER BY Id",
+            "SELECT quote(Id)||'|'||quote(MeaningId)||'|'||quote(SenseId)||'|'||quote(WordId)||'|'||quote(SourceDocumentId)||'|'||quote(Text)||'|'||quote(TargetStart)||'|'||quote(TargetLength)||'|'||quote(CreatedAtUtc) AS Value FROM ContextSnapshots ORDER BY Id"
         };
         var parts = new List<string>();
         foreach (var query in queries)

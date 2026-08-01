@@ -47,7 +47,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 ## Current
 
 **Meaning Slice 5 — Sense-addressed cards and queue behavior**
-- The independent PR review found six blocking data-integrity defects; the correction is implemented and validated on `feat/meaning-slice5-sense-queue` (1364 passed, 0 failed, 0 skipped). Final correction review and manual merge remain pending; Slice 5 is not merged. See [CURRENT_WORK.md](CURRENT_WORK.md).
+- The independent PR review found six blocking data-integrity defects; the correction is implemented and validated on `feat/meaning-slice5-sense-queue` with a focused result of 58 passed, 0 failed, 0 skipped and a complete result of 1364 passed, 0 failed, 0 skipped. Final correction review and manual merge remain pending; Slice 5 is not merged. See [CURRENT_WORK.md](CURRENT_WORK.md).
 
 ## Planned Sequence (Meaning & Merge)
 

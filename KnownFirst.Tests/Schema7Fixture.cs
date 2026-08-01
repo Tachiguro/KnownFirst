@@ -2,6 +2,7 @@ using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
+using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Models;
 using SQLite;
 
@@ -43,7 +44,6 @@ internal sealed class Schema7Fixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Connection.CloseAsync();
-        SQLiteAsyncConnection.ResetPool();
         foreach (var file in new[] { DatabasePath, $"{DatabasePath}-wal", $"{DatabasePath}-shm" })
         {
             if (File.Exists(file))
@@ -158,6 +158,10 @@ internal sealed class Schema7Fixture : IAsyncDisposable
         return await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
     }
 
+    /// <summary>
+    /// Inserts a Schema-7 learning card. <paramref name="id"/> writes an explicit primary key so a test can
+    /// use the approved fixed card ids (40/41/42) instead of depending on autoincrement order.
+    /// </summary>
     public async Task<int> InsertCardAsync(
         int wordId,
         int meaningId,
@@ -171,9 +175,24 @@ internal sealed class Schema7Fixture : IAsyncDisposable
         DateTime? lastReviewedAtUtc = null,
         ReviewRating? lastRating = null,
         DateTime? createdAtUtc = null,
-        DateTime? updatedAtUtc = null)
+        DateTime? updatedAtUtc = null,
+        int? id = null)
     {
         var now = DateTime.UtcNow;
+        if (id.HasValue)
+        {
+            await Connection.ExecuteAsync(
+                """
+                INSERT INTO LearningCards
+                    (Id, WordId, MeaningId, Direction, State, DueAtUtc, IntervalDays, EaseFactor, SuccessfulReviewCount,
+                     LapseCount, LastReviewedAtUtc, LastRating, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                id.Value, wordId, meaningId, (int)direction, (int)state, dueAtUtc ?? now, intervalDays, easeFactor,
+                successfulReviewCount, lapseCount, lastReviewedAtUtc, (int?)lastRating, createdAtUtc ?? now, updatedAtUtc ?? now);
+            return id.Value;
+        }
+
         await Connection.ExecuteAsync(
             """
             INSERT INTO LearningCards
@@ -281,4 +300,289 @@ internal sealed class Schema7Fixture : IAsyncDisposable
 
         return await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
     }
+
+    // ---- KF-MEANING-001 Slice 4: Schema-8 helpers ----
+    // Policy-free raw-SQL conveniences only. No production policy lives here: every helper writes or reads
+    // exactly what the caller supplies, so a test can construct arbitrary — including deliberately corrupt —
+    // Schema-8 fixtures without going through a production service.
+
+    /// <summary>Runs the dormant migration against this fixture and asserts nothing; callers assert.</summary>
+    public Task<Schema8MigrationResult> MigrateToSchema8Async(Schema8MigrationOptions? options = null) =>
+        Schema8DormantMigration.ApplyAsync(Connection, options);
+
+    public Task<int> ReadUserVersionAsync() =>
+        Connection.ExecuteScalarAsync<int>("PRAGMA user_version");
+
+    public async Task<int> InsertSenseAsync(
+        int wordId,
+        int? id = null,
+        string sourceLanguage = "en",
+        string explanationLanguage = "de",
+        string providerSenseId = "",
+        int? defaultMeaningId = null,
+        SenseStatus status = SenseStatus.Learning,
+        DateTime? createdAtUtc = null,
+        DateTime? updatedAtUtc = null)
+    {
+        var now = createdAtUtc ?? DateTime.UtcNow;
+        var columns = id.HasValue ? "Id, " : string.Empty;
+        var placeholders = id.HasValue ? "?, " : string.Empty;
+        var args = new List<object?>();
+        if (id.HasValue)
+        {
+            args.Add(id.Value);
+        }
+
+        args.AddRange([
+            Guid.NewGuid().ToString("N"), wordId, sourceLanguage, explanationLanguage, providerSenseId,
+            defaultMeaningId, (int)status, now, updatedAtUtc ?? now
+        ]);
+
+        await Connection.ExecuteAsync(
+            $"""
+            INSERT INTO Senses
+                ({columns}StableId, WordId, SourceLanguage, ExplanationLanguage, ProviderSenseId, TopicOrDomain,
+                 PartOfSpeech, GrammaticalRelationship, AcronymExpansion, DefaultMeaningId, Status,
+                 CreatedAtUtc, UpdatedAtUtc)
+            VALUES ({placeholders}?, ?, ?, ?, ?, '', '', '', '', ?, ?, ?, ?)
+            """,
+            [.. args]);
+
+        return id ?? await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+    }
+
+    public async Task<int> InsertAnswerVariantAsync(
+        int senseId,
+        string displayText,
+        string answerLanguage = "en",
+        int? id = null,
+        string? normalizedText = null,
+        int? sourceMeaningId = null,
+        DateTime? createdAtUtc = null)
+    {
+        var now = createdAtUtc ?? DateTime.UtcNow;
+        var columns = id.HasValue ? "Id, " : string.Empty;
+        var placeholders = id.HasValue ? "?, " : string.Empty;
+        var args = new List<object?>();
+        if (id.HasValue)
+        {
+            args.Add(id.Value);
+        }
+
+        args.AddRange([
+            Guid.NewGuid().ToString("N"), senseId, answerLanguage, displayText,
+            normalizedText ?? displayText, sourceMeaningId, now, now
+        ]);
+
+        await Connection.ExecuteAsync(
+            $"""
+            INSERT INTO AnswerVariants
+                ({columns}StableId, SenseId, AnswerLanguage, DisplayText, NormalizedText, SourceMeaningId,
+                 CreatedAtUtc, UpdatedAtUtc)
+            VALUES ({placeholders}?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [.. args]);
+
+        return id ?? await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+    }
+
+    /// <summary>
+    /// Inserts an assignment exactly as supplied — including a deliberately invariant-violating combination —
+    /// so fail-closed behaviour can be tested.
+    /// </summary>
+    public async Task<int> InsertAssignmentAsync(
+        int senseId,
+        CardDirection direction,
+        int answerVariantId,
+        AnswerVariantRequirement requirement,
+        bool isPreferred,
+        DateTime? requiredSinceUtc,
+        DateTime? createdAtUtc = null,
+        string? stableId = null)
+    {
+        var now = createdAtUtc ?? DateTime.UtcNow;
+        await Connection.ExecuteAsync(
+            """
+            INSERT INTO SenseAnswerVariantAssignments
+                (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, RequiredSinceUtc,
+                 CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            stableId ?? Guid.NewGuid().ToString("N"), senseId, (int)direction, answerVariantId,
+            (int)requirement, isPreferred, requiredSinceUtc, now, now);
+
+        return await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+    }
+
+    public async Task<int> InsertProgressAsync(
+        int cardId,
+        int answerVariantId,
+        DateTime createdAtUtc,
+        LearningInteractionMode interactionMode = LearningInteractionMode.Reading,
+        int consecutiveReadingSuccessCount = 0,
+        int consecutiveTypingSuccessCount = 0,
+        int consecutiveTypingFailureCount = 0,
+        DateTime? lastAssessedAtUtc = null,
+        bool masteryReviewExtensionScheduled = false,
+        bool isMastered = false,
+        int replayVersion = 1,
+        DateTime? updatedAtUtc = null)
+    {
+        await Connection.ExecuteAsync(
+            """
+            INSERT INTO AnswerVariantProgress
+                (CardId, AnswerVariantId, InteractionMode, ConsecutiveReadingSuccessCount,
+                 ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount, LastAssessedAtUtc,
+                 MasteryReviewExtensionScheduled, IsMastered, ReplayVersion, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            cardId, answerVariantId, (int)interactionMode, consecutiveReadingSuccessCount,
+            consecutiveTypingSuccessCount, consecutiveTypingFailureCount, lastAssessedAtUtc,
+            masteryReviewExtensionScheduled, isMastered, replayVersion, createdAtUtc,
+            updatedAtUtc ?? createdAtUtc);
+
+        return await Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+    }
+
+    public Task<List<Schema8AssignmentReadRow>> ReadAssignmentsAsync(int senseId, CardDirection direction) =>
+        Connection.QueryAsync<Schema8AssignmentReadRow>(
+            """
+            SELECT a.Id, a.StableId, a.SenseId, a.CardDirection, a.AnswerVariantId, a.Requirement,
+                   a.IsPreferred, a.RequiredSinceUtc, a.CreatedAtUtc, a.UpdatedAtUtc, v.NormalizedText,
+                   v.AnswerLanguage
+            FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+            WHERE a.SenseId = ? AND a.CardDirection = ?
+            ORDER BY a.Id
+            """,
+            senseId, (int)direction);
+
+    public Task<List<Schema8CardReadRow>> ReadCardsAsync() =>
+        Connection.QueryAsync<Schema8CardReadRow>(
+            """
+            SELECT Id, WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays, EaseFactor,
+                   SuccessfulReviewCount, LapseCount, LastReviewedAtUtc, LastRating, CreatedAtUtc, UpdatedAtUtc
+            FROM LearningCards ORDER BY Id
+            """);
+
+    public Task<List<Schema8ProgressReadRow>> ReadProgressAsync() =>
+        Connection.QueryAsync<Schema8ProgressReadRow>(
+            """
+            SELECT Id, CardId, AnswerVariantId, InteractionMode, ConsecutiveReadingSuccessCount,
+                   ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount, LastAssessedAtUtc,
+                   MasteryReviewExtensionScheduled, IsMastered, ReplayVersion, CreatedAtUtc, UpdatedAtUtc
+            FROM AnswerVariantProgress ORDER BY CardId, AnswerVariantId
+            """);
+
+    public Task<int> GetTableCountAsync(string tableName) =>
+        Connection.ExecuteScalarAsync<int>("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", tableName);
+
+    public Task<Data.Entities.LearningCardEntity> ReadCardAsync(int id) =>
+        Connection.Table<Data.Entities.LearningCardEntity>().FirstAsync(x => x.Id == id);
+
+    public Task<Data.Entities.LearningSessionEntity> ReadSessionAsync(int id) =>
+        Connection.Table<Data.Entities.LearningSessionEntity>().FirstAsync(x => x.Id == id);
+
+    public Task<Data.Entities.LearningSessionCardEntity> ReadQueueRowAsync(int id) =>
+        Connection.Table<Data.Entities.LearningSessionCardEntity>().FirstAsync(x => x.Id == id);
+
+    public Task<List<Data.Entities.LearningReviewEntity>> ReadReviewsAsync(int cardId) =>
+        Connection.Table<Data.Entities.LearningReviewEntity>().Where(x => x.CardId == cardId).ToListAsync();
+
+
+    /// <summary>
+    /// Portably rebuilds <c>SenseAnswerVariantAssignments</c> without the <c>RequiredSinceUtc</c> column, so an
+    /// incomplete <c>user_version = 8</c> physical shape can be constructed without depending on
+    /// <c>ALTER TABLE ... DROP COLUMN</c> (SQLite 3.35+). Copies every compatible row, drops the original,
+    /// renames the replacement and recreates the required indexes.
+    /// </summary>
+    public async Task RebuildAssignmentsTableWithoutRequiredSinceUtcAsync()
+    {
+        await Connection.ExecuteAsync(
+            """
+            CREATE TABLE SenseAnswerVariantAssignments_NoBoundary (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                StableId TEXT NOT NULL,
+                SenseId INTEGER NOT NULL,
+                CardDirection INTEGER NOT NULL,
+                AnswerVariantId INTEGER NOT NULL,
+                Requirement INTEGER NOT NULL,
+                IsPreferred INTEGER NOT NULL,
+                CreatedAtUtc TEXT NOT NULL,
+                UpdatedAtUtc TEXT NOT NULL
+            )
+            """);
+        await Connection.ExecuteAsync(
+            """
+            INSERT INTO SenseAnswerVariantAssignments_NoBoundary
+                (Id, StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, CreatedAtUtc, UpdatedAtUtc)
+            SELECT Id, StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, CreatedAtUtc, UpdatedAtUtc
+            FROM SenseAnswerVariantAssignments
+            """);
+        await Connection.ExecuteAsync("DROP TABLE SenseAnswerVariantAssignments");
+        await Connection.ExecuteAsync(
+            "ALTER TABLE SenseAnswerVariantAssignments_NoBoundary RENAME TO SenseAnswerVariantAssignments");
+        await Connection.ExecuteAsync(
+            "CREATE UNIQUE INDEX IX_SenseAnswerVariantAssignments_StableId ON SenseAnswerVariantAssignments (StableId)");
+        await Connection.ExecuteAsync(
+            "CREATE UNIQUE INDEX IX_SenseAnswerVariantAssignments_Sense_Direction_Variant ON SenseAnswerVariantAssignments (SenseId, CardDirection, AnswerVariantId)");
+        await Connection.ExecuteAsync(
+            """
+            CREATE UNIQUE INDEX IX_SenseAnswerVariantAssignments_Sense_Direction_Preferred
+            ON SenseAnswerVariantAssignments (SenseId, CardDirection)
+            WHERE IsPreferred = 1
+            """);
+    }
+}
+
+/// <summary>Assignment projection joined with its variant text, for Slice-4 migration and preparation tests.</summary>
+internal sealed class Schema8AssignmentReadRow
+{
+    public int Id { get; set; }
+    public string StableId { get; set; } = string.Empty;
+    public int SenseId { get; set; }
+    public CardDirection CardDirection { get; set; }
+    public int AnswerVariantId { get; set; }
+    public AnswerVariantRequirement Requirement { get; set; }
+    public bool IsPreferred { get; set; }
+    public DateTime? RequiredSinceUtc { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+    public string NormalizedText { get; set; } = string.Empty;
+    public string AnswerLanguage { get; set; } = string.Empty;
+}
+
+internal sealed class Schema8CardReadRow
+{
+    public int Id { get; set; }
+    public int WordId { get; set; }
+    public int? SenseId { get; set; }
+    public int PreferredMeaningId { get; set; }
+    public CardDirection Direction { get; set; }
+    public CardState State { get; set; }
+    public DateTime DueAtUtc { get; set; }
+    public int IntervalDays { get; set; }
+    public double EaseFactor { get; set; }
+    public int SuccessfulReviewCount { get; set; }
+    public int LapseCount { get; set; }
+    public DateTime? LastReviewedAtUtc { get; set; }
+    public ReviewRating? LastRating { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+}
+
+internal sealed class Schema8ProgressReadRow
+{
+    public int Id { get; set; }
+    public int CardId { get; set; }
+    public int AnswerVariantId { get; set; }
+    public LearningInteractionMode InteractionMode { get; set; }
+    public int ConsecutiveReadingSuccessCount { get; set; }
+    public int ConsecutiveTypingSuccessCount { get; set; }
+    public int ConsecutiveTypingFailureCount { get; set; }
+    public DateTime? LastAssessedAtUtc { get; set; }
+    public bool MasteryReviewExtensionScheduled { get; set; }
+    public bool IsMastered { get; set; }
+    public int ReplayVersion { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
 }

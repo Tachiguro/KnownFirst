@@ -162,7 +162,21 @@ public static class BackupArchiveV1UpgradePolicy
                     return variantStableId;
                 }
 
-                void EnsureAssignmentLocal(string variantId, BackupCardDirection direction, bool isPreferred, BackupPreparedItem sourceMeaning)
+                // KF-MEANING-001 Slice 4: the deterministic primary assignment of a direction becomes
+                // Required with RequiredSinceUtc = that direction's card CreatedAtUtc, exactly as the live
+                // migration does, so the upgraded graph keeps the card's full legacy history inside its first
+                // Required epoch. Every other assignment stays AcceptedOnly with a null boundary.
+                DateTime? DirectionBoundary(BackupCardDirection direction) =>
+                    cardsForGroup.Where(c => c.Direction == direction)
+                        .Select(c => (DateTime?)c.CreatedAtUtc)
+                        .FirstOrDefault();
+
+                void EnsureAssignmentLocal(
+                    string variantId,
+                    BackupCardDirection direction,
+                    bool isPreferred,
+                    BackupPreparedItem sourceMeaning,
+                    DateTime? requiredSinceUtc = null)
                 {
                     if (!assignmentKeys.Add((variantId, direction)))
                     {
@@ -173,8 +187,11 @@ public static class BackupArchiveV1UpgradePolicy
                     var assignmentStableId = DeterministicStableId.Generate(assignmentSeed);
                     assignmentsOut.Add(new BackupSenseAnswerVariantAssignment(
                         assignmentStableId, assignmentStableId, senseArchiveId, direction, variantId,
-                        BackupAnswerVariantRequirement.AcceptedOnly, isPreferred,
-                        sourceMeaning.CreatedAtUtc, sourceMeaning.UpdatedAtUtc));
+                        requiredSinceUtc.HasValue
+                            ? BackupAnswerVariantRequirement.Required
+                            : BackupAnswerVariantRequirement.AcceptedOnly,
+                        isPreferred,
+                        sourceMeaning.CreatedAtUtc, sourceMeaning.UpdatedAtUtc, requiredSinceUtc));
                     if (isPreferred)
                     {
                         directionVariantId[(senseArchiveId, direction)] = variantId;
@@ -189,7 +206,9 @@ public static class BackupArchiveV1UpgradePolicy
                     {
                         var chosenV1 = rowToV1[chosen.Id];
                         var variantId = GetOrCreateVariant(chosen.SourceLanguage, chosen.DisplayTerm, chosenV1);
-                        EnsureAssignmentLocal(variantId, BackupCardDirection.MeaningToTerm, isPreferred: true, chosenV1);
+                        EnsureAssignmentLocal(
+                            variantId, BackupCardDirection.MeaningToTerm, isPreferred: true, chosenV1,
+                            DirectionBoundary(BackupCardDirection.MeaningToTerm));
                     }
                 }
 
@@ -200,7 +219,9 @@ public static class BackupArchiveV1UpgradePolicy
                     {
                         var chosenV1 = rowToV1[chosen.Id];
                         var variantId = GetOrCreateVariant(chosen.ExplanationLanguage, chosen.Translation, chosenV1);
-                        EnsureAssignmentLocal(variantId, BackupCardDirection.TermToMeaning, isPreferred: true, chosenV1);
+                        EnsureAssignmentLocal(
+                            variantId, BackupCardDirection.TermToMeaning, isPreferred: true, chosenV1,
+                            DirectionBoundary(BackupCardDirection.TermToMeaning));
                     }
                 }
 

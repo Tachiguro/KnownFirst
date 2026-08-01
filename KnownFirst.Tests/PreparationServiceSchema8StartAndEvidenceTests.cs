@@ -286,6 +286,45 @@ public sealed class PreparationServiceSchema8StartAndEvidenceTests
         return wordId;
     }
 
+    /// <summary>
+    /// KF-MEANING-001 Slice 4 regression: the accept-side answer-variant/assignment initialization must not
+    /// change any Slice-3 selection or ledger behaviour. Selection still finds the word, the accept still
+    /// completes the candidate and the session, the evidence ledger still marks the processed evidence, and a
+    /// fully processed word is not re-offered — while the Slice-4 assignment rows now exist alongside it.
+    /// </summary>
+    [TestMethod]
+    public async Task Slice4AssignmentInitialization_DoesNotChangeStartSelectionOrEvidenceLedger()
+    {
+        var wordId = await ImportAndEstablishAsync("bank protects money.", "bank", "slice4");
+
+        await PrepareWordCompletelyAsync(wordId, "bank");
+
+        // The candidate/session lifecycle is unchanged: the word is Prepared and no candidate stays pending.
+        var preparationState = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+            "SELECT PreparationState FROM Words WHERE Id = ?", wordId));
+        Assert.AreEqual((int)PreparationState.Prepared, preparationState);
+
+        var pendingCandidates = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM PreparationCandidates WHERE WordId = ? AND Status = ?",
+            wordId, (int)PreparationCandidateStatus.Pending));
+        Assert.AreEqual(0, pendingCandidates);
+
+        // The Slice-4 rows exist, but they are additive: no Sense, Meaning or card was duplicated.
+        Assert.AreEqual(
+            1, await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Senses WHERE WordId = ?", wordId)));
+        Assert.IsTrue(
+            await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM SenseAnswerVariantAssignments")) > 0);
+
+        // A fully processed word is still not re-offered by the unchanged evidence ledger.
+        var reselected = await _preparation.StartAsync(PreparationMethod.Manual, 5);
+        if (reselected != 0)
+        {
+            var next = await _preparation.GetCurrentAsync();
+            Assert.AreNotEqual(wordId, next?.WordId, "an already fully processed word must not be re-offered");
+        }
+    }
+
     private async Task PrepareWordCompletelyAsync(int wordId, string term)
     {
         _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];

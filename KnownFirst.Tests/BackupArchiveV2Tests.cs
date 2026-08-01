@@ -411,6 +411,187 @@ public sealed class BackupArchiveV2Tests
         }
     }
 
+    // ---- KF-MEANING-001 Slice 4: the assignment RequiredSinceUtc boundary through the real v2 codec and
+    // through the deterministic v1→v2 upgrade. No archive format-version increment is involved — the field
+    // is an optional, defaulted trailing member of the existing v2 assignment contract. ----
+
+    [TestMethod]
+    public void V2Assignment_RequiredSinceUtc_RoundTrips()
+    {
+        // Sub-second precision proves the 7-fractional-digit UTC wire format, not merely whole seconds.
+        var boundary = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc).AddTicks(1234567);
+        var payload = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.Required, boundary);
+
+        var bytes = BackupJsonCodecV2.SerializeData(payload);
+        var roundTripped = BackupJsonCodecV2.DeserializeData(bytes);
+
+        var assignment = roundTripped.SenseAnswerVariantAssignments.Single();
+        Assert.AreEqual(BackupAnswerVariantRequirement.Required, assignment.Requirement);
+        Assert.IsNotNull(assignment.RequiredSinceUtc);
+        Assert.AreEqual(boundary.Ticks, assignment.RequiredSinceUtc!.Value.Ticks);
+        Assert.AreEqual(DateTimeKind.Utc, assignment.RequiredSinceUtc.Value.Kind);
+
+        // Re-serializing the decoded payload reproduces the original bytes exactly — the boundary survives
+        // encode/decode without any normalization drift.
+        CollectionAssert.AreEqual(bytes, BackupJsonCodecV2.SerializeData(roundTripped));
+    }
+
+    [TestMethod]
+    public void V2Assignment_MissingRequiredSinceUtcProperty_DeserializesAsNull()
+    {
+        // 1. Valid v2 JSON whose single assignment is AcceptedOnly (null boundary is correct for it).
+        var acceptedOnly = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.AcceptedOnly, requiredSinceUtc: null);
+        var acceptedOnlyJson = Encoding.UTF8.GetString(BackupJsonCodecV2.SerializeData(acceptedOnly));
+        Assert.Contains(",\"requiredSinceUtc\":null", acceptedOnlyJson, StringComparison.Ordinal);
+
+        // 2. Remove only the RequiredSinceUtc property from that one assignment object.
+        var withoutProperty = acceptedOnlyJson.Replace(
+            ",\"requiredSinceUtc\":null", string.Empty, StringComparison.Ordinal);
+        Assert.DoesNotContain("requiredSinceUtc", withoutProperty, StringComparison.Ordinal);
+
+        // 3./4. It still decodes — the property is optional and defaulted, never a required constructor
+        // parameter — and the DTO value is null.
+        var decoded = BackupJsonCodecV2.DeserializeData(Encoding.UTF8.GetBytes(withoutProperty));
+        Assert.IsNull(decoded.SenseAnswerVariantAssignments.Single().RequiredSinceUtc);
+
+        // 5a. Contract validation accepts it, because the assignment is AcceptedOnly.
+        BackupModelContractV2.ValidatePayload(decoded);
+
+        // 5b. The identical omission on a Required assignment is rejected instead — an archive written
+        // before the field existed can never silently import a Required row with no replay boundary.
+        var required = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.Required,
+            Schema8BackupFixtureBuilders.Slice4Boundary.RequiredSinceUtc);
+        var requiredJson = Encoding.UTF8.GetString(BackupJsonCodecV2.SerializeData(required));
+        var requiredWithoutProperty = new System.Text.RegularExpressions.Regex(",\"requiredSinceUtc\":\"[^\"]*\"")
+            .Replace(requiredJson, string.Empty, 1);
+        Assert.DoesNotContain("requiredSinceUtc", requiredWithoutProperty, StringComparison.Ordinal);
+
+        var exception = Assert.ThrowsExactly<BackupFormatException>(
+            () => BackupJsonCodecV2.DeserializeData(Encoding.UTF8.GetBytes(requiredWithoutProperty)));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+    }
+
+    [TestMethod]
+    public void V2Assignment_RequiredMissingBoundary_FailsContractValidation()
+    {
+        var payload = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.Required, requiredSinceUtc: null);
+
+        var validation = Assert.ThrowsExactly<BackupFormatException>(
+            () => BackupModelContractV2.ValidatePayload(payload));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, validation.Code);
+
+        // The codec validates before writing, so such an assignment can never reach an archive at all.
+        var serialization = Assert.ThrowsExactly<BackupFormatException>(
+            () => BackupJsonCodecV2.SerializeData(payload));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, serialization.Code);
+    }
+
+    [TestMethod]
+    public void V2Assignment_AcceptedOnlyWithBoundary_FailsContractValidation()
+    {
+        var payload = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.AcceptedOnly,
+            Schema8BackupFixtureBuilders.Slice4Boundary.RequiredSinceUtc);
+
+        var validation = Assert.ThrowsExactly<BackupFormatException>(
+            () => BackupModelContractV2.ValidatePayload(payload));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, validation.Code);
+
+        var serialization = Assert.ThrowsExactly<BackupFormatException>(
+            () => BackupJsonCodecV2.SerializeData(payload));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, serialization.Code);
+    }
+
+    /// <summary>
+    /// Minimal v1 payload for the upgrade-boundary tests: one Vocabulary, one Meaning carrying a
+    /// DisplayTerm, a Translation and one accepted alias, and one card per direction whose
+    /// <c>CreatedAtUtc</c> is supplied per direction — so the upgraded primary assignment's boundary can be
+    /// asserted against an exact, direction-specific source value rather than a shared timestamp.
+    /// </summary>
+    private static BackupPayload BuildV1BoundaryUpgradePayload(
+        DateTime meaningToTermCardCreatedAtUtc,
+        DateTime termToMeaningCardCreatedAtUtc)
+    {
+        var ts = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var vocabulary = new BackupVocabularyItem(
+            "v-000001", "en", "boundary", "boundary", BackupTokenKind.Word, BackupKnowledgeState.Unreviewed,
+            BackupPreparationState.Prepared, 1, 1, ts, ts, [],
+            new BackupAutomaticLearningState(BackupLearningInteractionMode.Reading, 0, 0, 0, false), []);
+
+        var meaning = new BackupPreparedItem(
+            "m-000001", "v-000001", "en", "de", "boundary", null, null, BackupTokenKind.Word,
+            "slice4-1", null, "Grenze", "a dividing line", null, null, null, ["frontier"], true,
+            new BackupSourceReference("Manual", "", "", null, ""), ts, ts, ts, []);
+
+        BackupLearningCard Card(string id, BackupCardDirection direction, DateTime createdAtUtc) =>
+            new(id, "v-000001", "m-000001", direction, BackupCardState.Review, ts, 3, 2.5, 1, 0, ts,
+                BackupReviewRating.Good, createdAtUtc, ts);
+
+        return new BackupPayload(
+            [], [vocabulary], [meaning],
+            new BackupLearningData(
+                [
+                    Card("c-000001", BackupCardDirection.MeaningToTerm, meaningToTermCardCreatedAtUtc),
+                    Card("c-000002", BackupCardDirection.TermToMeaning, termToMeaningCardCreatedAtUtc)
+                ],
+                []),
+            new BackupWorkflowData([], [], []),
+            new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
+    }
+
+    private static readonly DateTime V1UpgradeMeaningToTermCardCreatedAtUtc = new(2025, 5, 6, 7, 8, 9, DateTimeKind.Utc);
+    private static readonly DateTime V1UpgradeTermToMeaningCardCreatedAtUtc = new(2025, 9, 10, 11, 12, 13, DateTimeKind.Utc);
+
+    [TestMethod]
+    public void V1Upgrade_PrimaryRequiredAssignment_GetsCardCreatedAtUtcBoundary()
+    {
+        var upgraded = BackupArchiveV1UpgradePolicy.Upgrade(BuildV1BoundaryUpgradePayload(
+            V1UpgradeMeaningToTermCardCreatedAtUtc, V1UpgradeTermToMeaningCardCreatedAtUtc));
+
+        foreach (var (direction, expectedBoundary) in new[]
+                 {
+                     (BackupCardDirection.MeaningToTerm, V1UpgradeMeaningToTermCardCreatedAtUtc),
+                     (BackupCardDirection.TermToMeaning, V1UpgradeTermToMeaningCardCreatedAtUtc)
+                 })
+        {
+            var primary = upgraded.SenseAnswerVariantAssignments
+                .Single(assignment => assignment.CardDirection == direction && assignment.IsPreferred);
+            Assert.AreEqual(BackupAnswerVariantRequirement.Required, primary.Requirement);
+            Assert.IsNotNull(primary.RequiredSinceUtc);
+            Assert.AreEqual(expectedBoundary.Ticks, primary.RequiredSinceUtc!.Value.Ticks);
+            Assert.AreEqual(DateTimeKind.Utc, primary.RequiredSinceUtc.Value.Kind);
+        }
+
+        // The upgraded graph is a writable v2 archive: the invariant holds across every assignment.
+        BackupModelContractV2.ValidatePayload(upgraded);
+        BackupArchiveWriterV2.ValidatePayloadGraphV2(upgraded);
+    }
+
+    [TestMethod]
+    public void V1Upgrade_AcceptedOnlyAssignments_HaveNullBoundary()
+    {
+        var upgraded = BackupArchiveV1UpgradePolicy.Upgrade(BuildV1BoundaryUpgradePayload(
+            V1UpgradeMeaningToTermCardCreatedAtUtc, V1UpgradeTermToMeaningCardCreatedAtUtc));
+
+        var acceptedOnly = upgraded.SenseAnswerVariantAssignments
+            .Where(assignment => assignment.Requirement == BackupAnswerVariantRequirement.AcceptedOnly)
+            .ToList();
+
+        // The accepted alias is a real, non-primary answer expression — the upgraded graph is genuinely
+        // mixed-role, never Required everywhere merely to satisfy the invariant.
+        Assert.IsGreaterThan(0, acceptedOnly.Count);
+        foreach (var assignment in acceptedOnly)
+        {
+            Assert.IsNull(assignment.RequiredSinceUtc);
+            Assert.IsFalse(assignment.IsPreferred);
+        }
+    }
+
     // ---- Per-entity v2 record-count mismatch, source-material checksum mismatch, and
     // validation-before-mutation (KF-MEANING-001 Slice 2 correction) ----
 
@@ -859,12 +1040,14 @@ public sealed class BackupArchiveV2Tests
         }
 
         // ---- Three Assignments (order reversed when scrambled) ----
+        // Every assignment here is AcceptedOnly, so RequiredSinceUtc is written as an explicit NULL
+        // (KF-MEANING-001 Slice 4 invariant I1) rather than left to the column default.
         async Task InsertAssignmentAsync(string stableId, CardDirection direction, int variantId, bool isPreferred)
         {
             await conn.ExecuteAsync(
                 """
-                INSERT INTO SenseAnswerVariantAssignments (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, CreatedAtUtc, UpdatedAtUtc)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO SenseAnswerVariantAssignments (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)
                 """,
                 stableId, senseId, (int)direction, variantId, (int)AnswerVariantRequirement.AcceptedOnly, isPreferred, ts, ts);
         }
@@ -1045,9 +1228,10 @@ public sealed class BackupArchiveV2Tests
             var variant = new BackupAnswerVariant(
                 "av-000001", "av-stable-1", "se-000001", "de", "Bank", "bank", "m-000001", now, now);
 
+            // AcceptedOnly, so the Slice-4 boundary is explicitly null rather than defaulted silently.
             var assignment = new BackupSenseAnswerVariantAssignment(
                 "sa-000001", "sa-stable-1", "se-000001", BackupCardDirection.TermToMeaning, "av-000001",
-                BackupAnswerVariantRequirement.AcceptedOnly, true, now, now);
+                BackupAnswerVariantRequirement.AcceptedOnly, true, now, now, RequiredSinceUtc: null);
 
             var card = new BackupLearningCardV2(
                 "c-000001", "v-000001", "se-000001", "m-000001", BackupCardDirection.TermToMeaning,
@@ -1080,7 +1264,7 @@ public sealed class BackupArchiveV2Tests
                 "av-000002", "av-stable-2", "se-000001", "de", "Kreditinstitut", "kreditinstitut", "m-000001", now, now);
             var secondAssignment = new BackupSenseAnswerVariantAssignment(
                 "sa-000002", "sa-stable-2", "se-000001", BackupCardDirection.TermToMeaning, "av-000002",
-                BackupAnswerVariantRequirement.AcceptedOnly, false, now, now);
+                BackupAnswerVariantRequirement.AcceptedOnly, false, now, now, RequiredSinceUtc: null);
             return payload with
             {
                 AnswerVariants = [.. payload.AnswerVariants, secondVariant],

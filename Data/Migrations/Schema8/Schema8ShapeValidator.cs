@@ -45,6 +45,15 @@ internal static class Schema8ShapeValidator
             return false;
         }
 
+        // KF-MEANING-001 Slice 4: RequiredSinceUtc is a binding Schema-8 column carrying the durable
+        // Required-epoch boundary. A user_version = 8 database without it must fail here — at the shared
+        // capability/shape boundary — rather than later through a raw "no such column" SQL error.
+        if (!HasColumn(connection, "SenseAnswerVariantAssignments", Schema8Ddl.AssignmentRequiredSinceUtcColumn))
+        {
+            failureDetail = "SenseAnswerVariantAssignments is missing the RequiredSinceUtc column.";
+            return false;
+        }
+
         failureDetail = null;
         return true;
     }

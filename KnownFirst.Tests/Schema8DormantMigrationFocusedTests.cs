@@ -2,6 +2,7 @@ using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Models;
+using KnownFirst.Services.Study;
 
 namespace KnownFirst.Tests;
 
@@ -82,22 +83,29 @@ public sealed class Schema8DormantMigrationFocusedTests
             1, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM AnswerVariants WHERE SenseId = ? AND NormalizedText = 'Kreditinstitut'", senseId));
         Assert.AreEqual(3, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM AnswerVariants WHERE SenseId = ?", senseId));
 
-        // Both Translation-sourced variants are assigned (usable) for TermToMeaning, both AcceptedOnly.
-        // Exactly one is preferred (Focused invariant 2) — the representative Meaning's own "Bank", since
-        // meaningA is the group's lowest-Id (representative) Meaning; "Kreditinstitut" (meaningB) is
-        // accepted but not preferred.
+        // Both Translation-sourced variants are assigned (usable) for TermToMeaning. Exactly one is preferred
+        // (Focused invariant 2) — the representative Meaning's own "Bank", since meaningA is the group's
+        // lowest-Id (representative) Meaning. KF-MEANING-001 Slice 4: that single primary assignment is now
+        // Required with a boundary; "Kreditinstitut" (meaningB) stays AcceptedOnly with a null boundary.
         var termToMeaningAssignments = await fixture.Connection.QueryAsync<AssignmentTextRow>(
             """
-            SELECT a.Requirement, a.IsPreferred, v.NormalizedText
+            SELECT a.Requirement, a.IsPreferred, a.RequiredSinceUtc, v.NormalizedText
             FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
             WHERE a.SenseId = ? AND a.CardDirection = ?
             """,
             senseId, (int)CardDirection.TermToMeaning);
         Assert.HasCount(2, termToMeaningAssignments);
-        Assert.IsTrue(termToMeaningAssignments.All(a => a.Requirement == (int)AnswerVariantRequirement.AcceptedOnly));
         Assert.HasCount(1, termToMeaningAssignments.Where(a => a.IsPreferred).ToList());
-        Assert.AreEqual("Bank", termToMeaningAssignments.Single(a => a.IsPreferred).NormalizedText);
-        Assert.AreEqual("Kreditinstitut", termToMeaningAssignments.Single(a => !a.IsPreferred).NormalizedText);
+
+        var preferredTermToMeaning = termToMeaningAssignments.Single(a => a.IsPreferred);
+        Assert.AreEqual("Bank", preferredTermToMeaning.NormalizedText);
+        Assert.AreEqual((int)AnswerVariantRequirement.Required, preferredTermToMeaning.Requirement);
+        Assert.IsNotNull(preferredTermToMeaning.RequiredSinceUtc);
+
+        var acceptedTermToMeaning = termToMeaningAssignments.Single(a => !a.IsPreferred);
+        Assert.AreEqual("Kreditinstitut", acceptedTermToMeaning.NormalizedText);
+        Assert.AreEqual((int)AnswerVariantRequirement.AcceptedOnly, acceptedTermToMeaning.Requirement);
+        Assert.IsNull(acceptedTermToMeaning.RequiredSinceUtc);
 
         // The single deduped term-side variant still has exactly one MeaningToTerm assignment, and it is
         // still the preferred one — the representative Meaning's existing preferred assignment is untouched.
@@ -107,9 +115,10 @@ public sealed class Schema8DormantMigrationFocusedTests
         Assert.HasCount(1, meaningToTermAssignments);
         Assert.IsTrue(meaningToTermAssignments[0].IsPreferred);
 
-        // Never invents Required (Decision 12), and never more than one preferred assignment per direction.
+        // Exactly one Required assignment per existing card direction (Slice 4) — never more, never invented
+        // for a direction without a card — and never more than one preferred assignment per direction.
         Assert.AreEqual(
-            0, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND Requirement = ?", senseId, (int)AnswerVariantRequirement.Required));
+            2, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND Requirement = ?", senseId, (int)AnswerVariantRequirement.Required));
         Assert.AreEqual(
             2, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND IsPreferred = 1", senseId));
     }
@@ -118,6 +127,7 @@ public sealed class Schema8DormantMigrationFocusedTests
     {
         public int Requirement { get; set; }
         public bool IsPreferred { get; set; }
+        public DateTime? RequiredSinceUtc { get; set; }
         public string NormalizedText { get; set; } = string.Empty;
     }
 
@@ -222,11 +232,23 @@ public sealed class Schema8DormantMigrationFocusedTests
             fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND CardDirection = ?", senseId, (int)CardDirection.MeaningToTerm);
         Assert.AreEqual(2, assignmentCount); // preferred "color" + accepted-only "colour"
 
+        // KF-MEANING-001 Slice 4: exactly one Required assignment — the deterministic primary of the single
+        // existing MeaningToTerm card direction. The alias stays AcceptedOnly (Decision 12).
         var requiredCount = await Schema8MigrationAssertHelpers.CountAsync(
             fixture.Connection,
             "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND Requirement = ?",
             senseId, (int)AnswerVariantRequirement.Required);
-        Assert.AreEqual(0, requiredCount); // never invented Required (Decision 12)
+        Assert.AreEqual(1, requiredCount);
+
+        var aliasRequiredCount = await Schema8MigrationAssertHelpers.CountAsync(
+            fixture.Connection,
+            """
+            SELECT COUNT(*) FROM SenseAnswerVariantAssignments a
+            JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+            WHERE a.SenseId = ? AND v.NormalizedText = 'colour' AND a.Requirement = ?
+            """,
+            senseId, (int)AnswerVariantRequirement.Required);
+        Assert.AreEqual(0, aliasRequiredCount);
     }
 
     [TestMethod]
@@ -472,7 +494,7 @@ public sealed class Schema8DormantMigrationFocusedTests
         var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", representativeId);
         var assignments = await fixture.Connection.QueryAsync<AssignmentTextRow>(
             """
-            SELECT a.Requirement, a.IsPreferred, v.NormalizedText
+            SELECT a.Requirement, a.IsPreferred, a.RequiredSinceUtc, v.NormalizedText
             FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
             WHERE a.SenseId = ? AND a.CardDirection = ?
             """,
@@ -480,7 +502,9 @@ public sealed class Schema8DormantMigrationFocusedTests
 
         Assert.HasCount(1, assignments);
         Assert.IsTrue(assignments[0].IsPreferred);
-        Assert.AreEqual((int)AnswerVariantRequirement.AcceptedOnly, assignments[0].Requirement);
+        // Slice 4: the deterministic primary of an existing card direction is Required with a boundary.
+        Assert.AreEqual((int)AnswerVariantRequirement.Required, assignments[0].Requirement);
+        Assert.IsNotNull(assignments[0].RequiredSinceUtc);
         Assert.AreEqual("Kreditinstitut", assignments[0].NormalizedText);
 
         var variantSourceMeaningId = await fixture.Connection.ExecuteScalarAsync<int>(
@@ -509,16 +533,22 @@ public sealed class Schema8DormantMigrationFocusedTests
         var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", representativeId);
         var assignments = await fixture.Connection.QueryAsync<AssignmentTextRow>(
             """
-            SELECT a.Requirement, a.IsPreferred, v.NormalizedText
+            SELECT a.Requirement, a.IsPreferred, a.RequiredSinceUtc, v.NormalizedText
             FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
             WHERE a.SenseId = ? AND a.CardDirection = ?
             """,
             senseId, (int)CardDirection.TermToMeaning);
 
-        Assert.HasCount(2, assignments); // both translations are usable (AcceptedOnly)
+        Assert.HasCount(2, assignments); // both translations are usable
         var preferred = assignments.Single(a => a.IsPreferred);
         Assert.AreEqual("Option-Eins", preferred.NormalizedText); // lower legacy Meaning.Id wins deterministically
-        Assert.IsFalse(assignments.Single(a => a.NormalizedText == "Option-Zwei").IsPreferred);
+        Assert.AreEqual((int)AnswerVariantRequirement.Required, preferred.Requirement); // Slice 4 primary
+        Assert.IsNotNull(preferred.RequiredSinceUtc);
+
+        var runnerUp = assignments.Single(a => a.NormalizedText == "Option-Zwei");
+        Assert.IsFalse(runnerUp.IsPreferred);
+        Assert.AreEqual((int)AnswerVariantRequirement.AcceptedOnly, runnerUp.Requirement);
+        Assert.IsNull(runnerUp.RequiredSinceUtc);
 
         // The partial unique index still rejects a second preferred assignment for this same
         // (SenseId, CardDirection), even for the code path this fallback selection newly introduces.
@@ -550,7 +580,7 @@ public sealed class Schema8DormantMigrationFocusedTests
         var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", representativeId);
         var preferred = await fixture.Connection.QueryAsync<AssignmentTextRow>(
             """
-            SELECT a.Requirement, a.IsPreferred, v.NormalizedText
+            SELECT a.Requirement, a.IsPreferred, a.RequiredSinceUtc, v.NormalizedText
             FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
             WHERE a.SenseId = ? AND a.CardDirection = ? AND a.IsPreferred = 1
             """,
@@ -599,7 +629,7 @@ public sealed class Schema8DormantMigrationFocusedTests
         var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", representativeId);
         var assignments = await fixture.Connection.QueryAsync<AssignmentTextRow>(
             """
-            SELECT a.Requirement, a.IsPreferred, v.NormalizedText
+            SELECT a.Requirement, a.IsPreferred, a.RequiredSinceUtc, v.NormalizedText
             FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
             WHERE a.SenseId = ? AND a.CardDirection = ?
             """,
@@ -609,10 +639,509 @@ public sealed class Schema8DormantMigrationFocusedTests
 
         var aliasAssignment = assignments.Single(a => a.NormalizedText == "quick");
         Assert.AreEqual((int)AnswerVariantRequirement.AcceptedOnly, aliasAssignment.Requirement);
+        Assert.IsNull(aliasAssignment.RequiredSinceUtc);
         Assert.IsFalse(aliasAssignment.IsPreferred);
 
         var termAssignment = assignments.Single(a => a.NormalizedText == "swift");
         Assert.IsTrue(termAssignment.IsPreferred);
+        // Slice 4: the preferred primary of the existing MeaningToTerm card is Required with a boundary.
+        Assert.AreEqual((int)AnswerVariantRequirement.Required, termAssignment.Requirement);
+        Assert.IsNotNull(termAssignment.RequiredSinceUtc);
+    }
+
+    // ================= KF-MEANING-001 Slice 4: RequiredSinceUtc, epochs and compatibility progress =========
+    // Fixed fixture values: T0 = 2026-01-01Z, T1 = 2026-01-02Z, T2 = 2027-01-02Z; Word 10, Sense A 20,
+    // Sense B 21, Meaning 30, MeaningToTerm card 40, TermToMeaning card 41, other-Sense card 42.
+
+    private static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime T1 = new(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime T2 = new(2027, 1, 2, 0, 0, 0, DateTimeKind.Utc);
+
+    private static DateTime Utc(DateTime value) =>
+        value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static void AssertSameInstant(DateTime? expected, DateTime? actual, string because)
+    {
+        if (expected is null || actual is null)
+        {
+            Assert.AreEqual(expected is null, actual is null, because);
+            return;
+        }
+
+        Assert.AreEqual(Utc(expected.Value).Ticks, Utc(actual.Value).Ticks, because);
+    }
+
+    [TestMethod]
+    public async Task PrimaryAssignment_IsRequiredAndPreferred()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("bank");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "bank", translation: "Bank");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+        Assert.AreEqual(8, await fixture.ReadUserVersionAsync());
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
+        var assignments = await fixture.ReadAssignmentsAsync(senseId, CardDirection.MeaningToTerm);
+
+        var primary = assignments.Single(a => a.IsPreferred);
+        Assert.AreEqual(AnswerVariantRequirement.Required, primary.Requirement);
+        Assert.IsTrue(primary.IsPreferred);
+        Assert.IsNotNull(primary.RequiredSinceUtc);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(primary.StableId));
+
+        var duplicateStableIds = await Schema8MigrationAssertHelpers.CountAsync(
+            fixture.Connection,
+            "SELECT COUNT(*) FROM (SELECT StableId FROM SenseAnswerVariantAssignments GROUP BY StableId HAVING COUNT(*) > 1)");
+        Assert.AreEqual(0, duplicateStableIds);
+    }
+
+    [TestMethod]
+    public async Task PrimaryAssignment_RequiredSinceUtcEqualsCardCreatedAtUtc()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("bank");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "bank", translation: "Bank");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
+        var primary = (await fixture.ReadAssignmentsAsync(senseId, CardDirection.MeaningToTerm)).Single(a => a.IsPreferred);
+
+        AssertSameInstant(T0, primary.RequiredSinceUtc, "the boundary is the affected card's own CreatedAtUtc");
+    }
+
+    [TestMethod]
+    public async Task PrimaryAssignment_PerDirection_UsesOwnCardCreatedAtUtc()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("bank");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "bank", translation: "Bank");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.TermToMeaning, createdAtUtc: T1, id: 41);
+
+        await fixture.MigrateToSchema8Async();
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
+
+        var termSide = (await fixture.ReadAssignmentsAsync(senseId, CardDirection.MeaningToTerm)).Single(a => a.IsPreferred);
+        var meaningSide = (await fixture.ReadAssignmentsAsync(senseId, CardDirection.TermToMeaning)).Single(a => a.IsPreferred);
+
+        AssertSameInstant(T0, termSide.RequiredSinceUtc, "MeaningToTerm uses card 40's CreatedAtUtc");
+        AssertSameInstant(T1, meaningSide.RequiredSinceUtc, "TermToMeaning uses card 41's own CreatedAtUtc");
+        Assert.AreEqual(AnswerVariantRequirement.Required, termSide.Requirement);
+        Assert.AreEqual(AnswerVariantRequirement.Required, meaningSide.Requirement);
+    }
+
+    [TestMethod]
+    public async Task Aliases_RemainAcceptedOnlyWithNullBoundary()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("color");
+        var meaningId = await fixture.InsertMeaningAsync(
+            wordId, displayTerm: "color", translation: "Farbe", acceptedAliasesJson: """["colour","hue"]""");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
+        var assignments = await fixture.ReadAssignmentsAsync(senseId, CardDirection.MeaningToTerm);
+
+        foreach (var alias in new[] { "colour", "hue" })
+        {
+            var row = assignments.Single(a => a.NormalizedText == alias);
+            Assert.AreEqual(AnswerVariantRequirement.AcceptedOnly, row.Requirement);
+            Assert.IsFalse(row.IsPreferred);
+            Assert.IsNull(row.RequiredSinceUtc);
+            Assert.AreEqual("en", row.AnswerLanguage); // aliases are always term-side
+        }
+    }
+
+    [TestMethod]
+    public async Task AlternativeVariants_RemainAcceptedOnlyWithNullBoundary()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("bank");
+        var first = await fixture.InsertMeaningAsync(
+            wordId, displayTerm: "bank", translation: "Bank", selectedMeaningId: "fin");
+        await fixture.InsertMeaningAsync(
+            wordId, displayTerm: "bank", translation: "Kreditinstitut", selectedMeaningId: "fin");
+        await fixture.InsertCardAsync(wordId, first, CardDirection.TermToMeaning, createdAtUtc: T0, id: 41);
+
+        await fixture.MigrateToSchema8Async();
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", first);
+        var alternative = (await fixture.ReadAssignmentsAsync(senseId, CardDirection.TermToMeaning))
+            .Single(a => a.NormalizedText == "Kreditinstitut");
+
+        Assert.AreEqual(AnswerVariantRequirement.AcceptedOnly, alternative.Requirement);
+        Assert.IsFalse(alternative.IsPreferred);
+        Assert.IsNull(alternative.RequiredSinceUtc);
+    }
+
+    [TestMethod]
+    public async Task NoValidPrimaryExpression_CreatesNoAssignment()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("empty");
+        // No Translation at all: the TermToMeaning direction has no assignable expression.
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "empty", translation: "");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.TermToMeaning, createdAtUtc: T0, id: 41);
+
+        await fixture.MigrateToSchema8Async();
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
+        var assignments = await fixture.ReadAssignmentsAsync(senseId, CardDirection.TermToMeaning);
+
+        Assert.IsEmpty(assignments); // nothing invented, no fallback text
+    }
+
+    [TestMethod]
+    public async Task RetiredCardWithNonDefaultCounters_ProgressIsMastered()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync(
+            "mastered", consecutiveTypingSuccessCount: 2, automaticInteractionMode: LearningInteractionMode.Typing);
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "mastered", translation: "gemeistert");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm, state: CardState.Retired,
+            createdAtUtc: T0, lastReviewedAtUtc: T1, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+
+        var progress = (await fixture.ReadProgressAsync()).Single(p => p.CardId == 40);
+        Assert.IsTrue(progress.IsMastered);
+        Assert.AreEqual(1, progress.ReplayVersion);
+        Assert.AreEqual(2, progress.ConsecutiveTypingSuccessCount);
+    }
+
+    [TestMethod]
+    public async Task RetiredCardWithZeroCounters_ReceivesMasteredCompatibilityRow()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("legacy"); // all-default automatic counters
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "legacy", translation: "alt");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm, state: CardState.Retired,
+            createdAtUtc: T0, lastReviewedAtUtc: T1, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+
+        var progress = (await fixture.ReadProgressAsync()).Single(p => p.CardId == 40);
+        Assert.IsTrue(progress.IsMastered);
+        Assert.AreEqual(1, progress.ReplayVersion);
+        Assert.AreEqual(LearningInteractionMode.Typing, progress.InteractionMode);
+        Assert.AreEqual(
+            KnownFirst.Core.Learning.AutomaticLearningPolicy.RequiredConsecutiveAssessments,
+            progress.ConsecutiveTypingSuccessCount);
+        Assert.AreEqual(0, progress.ConsecutiveReadingSuccessCount);
+        Assert.AreEqual(0, progress.ConsecutiveTypingFailureCount);
+        Assert.IsFalse(progress.MasteryReviewExtensionScheduled);
+    }
+
+    [TestMethod]
+    public async Task NonRetiredSiblingCard_RemainsUnmastered()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("pair");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "pair", translation: "Paar");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm, state: CardState.Retired, createdAtUtc: T0, id: 40);
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.TermToMeaning, state: CardState.Review, createdAtUtc: T0,
+            intervalDays: 5, id: 41);
+
+        await fixture.MigrateToSchema8Async();
+
+        var cards = await fixture.ReadCardsAsync();
+        Assert.AreEqual(CardState.Retired, cards.Single(c => c.Id == 40).State);
+        Assert.AreEqual(CardState.Review, cards.Single(c => c.Id == 41).State);
+
+        var progress = await fixture.ReadProgressAsync();
+        Assert.IsTrue(progress.Single(p => p.CardId == 40).IsMastered);
+        Assert.IsFalse(progress.Any(p => p.CardId == 41 && p.IsMastered));
+    }
+
+    [TestMethod]
+    public async Task WordStatusAlone_DoesNotMasterEveryCard()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("done", status: WordStatus.Mastered);
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "done", translation: "fertig");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm, state: CardState.Retired, createdAtUtc: T0, id: 40);
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.TermToMeaning, state: CardState.Review, createdAtUtc: T0, id: 41);
+
+        await fixture.MigrateToSchema8Async();
+
+        var cards = await fixture.ReadCardsAsync();
+        Assert.AreEqual(CardState.Review, cards.Single(c => c.Id == 41).State);
+        Assert.IsFalse((await fixture.ReadProgressAsync()).Any(p => p.CardId == 41 && p.IsMastered));
+
+        // WordStatus itself is reset out of the frozen learning tiers.
+        Assert.AreEqual(
+            (int)WordStatus.UnknownBacklog,
+            await fixture.Connection.ExecuteScalarAsync<int>("SELECT Status FROM Words WHERE Id = ?", wordId));
+    }
+
+    [TestMethod]
+    public async Task CardIdsStatesAndSchedules_ArePreserved()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("keep");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "keep", translation: "behalten");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm, state: CardState.Review, dueAtUtc: T2,
+            intervalDays: 365, easeFactor: 2.35, successfulReviewCount: 7, lapseCount: 2,
+            lastReviewedAtUtc: T1, lastRating: ReviewRating.Good, createdAtUtc: T0, updatedAtUtc: T1, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+
+        var card = (await fixture.ReadCardsAsync()).Single();
+        Assert.AreEqual(40, card.Id);
+        Assert.AreEqual(CardState.Review, card.State);
+        AssertSameInstant(T2, card.DueAtUtc, "DueAtUtc preserved");
+        Assert.AreEqual(365, card.IntervalDays);
+        Assert.AreEqual(2.35, card.EaseFactor);
+        Assert.AreEqual(7, card.SuccessfulReviewCount);
+        Assert.AreEqual(2, card.LapseCount);
+        AssertSameInstant(T1, card.LastReviewedAtUtc, "LastReviewedAtUtc preserved");
+        Assert.AreEqual(ReviewRating.Good, card.LastRating);
+        AssertSameInstant(T0, card.CreatedAtUtc, "CreatedAtUtc preserved");
+        AssertSameInstant(T1, card.UpdatedAtUtc, "UpdatedAtUtc preserved");
+    }
+
+    [TestMethod]
+    public async Task MigrationIsDeterministic_TwoRunsOnIdenticalFixturesAgree()
+    {
+        static async Task<List<string>> ProjectAsync(Schema7Fixture fixture)
+        {
+            var wordId = await fixture.InsertWordAsync("bank");
+            var meaningId = await fixture.InsertMeaningAsync(
+                wordId, displayTerm: "bank", translation: "Bank", acceptedAliasesJson: """["banc"]""");
+            await fixture.InsertMeaningAsync(
+                wordId, displayTerm: "bank", translation: "Kreditinstitut", selectedMeaningId: "");
+            await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+            await fixture.InsertCardAsync(wordId, meaningId, CardDirection.TermToMeaning, createdAtUtc: T1, id: 41);
+
+            await fixture.MigrateToSchema8Async();
+
+            var rows = await fixture.Connection.QueryAsync<DeterminismRow>(
+                """
+                SELECT a.CardDirection, a.Requirement, a.IsPreferred, a.RequiredSinceUtc, v.NormalizedText, v.AnswerLanguage
+                FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+                ORDER BY a.CardDirection, v.AnswerLanguage, v.NormalizedText
+                """);
+            return rows
+                .Select(r => $"{r.CardDirection}|{r.Requirement}|{r.IsPreferred}|{r.RequiredSinceUtc?.Ticks}|{r.AnswerLanguage}|{r.NormalizedText}")
+                .ToList();
+        }
+
+        await using var first = await Schema7Fixture.CreateAsync();
+        await using var second = await Schema7Fixture.CreateAsync();
+
+        var firstProjection = await ProjectAsync(first);
+        var secondProjection = await ProjectAsync(second);
+
+        Assert.IsNotEmpty(firstProjection);
+        CollectionAssert.AreEqual(firstProjection, secondProjection);
+    }
+
+    [TestMethod]
+    public async Task MigrationIsIdempotent_SecondApplyReportsAlreadyApplied()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("idem");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "idem", translation: "gleich");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+
+        var firstResult = await fixture.MigrateToSchema8Async();
+        Assert.AreEqual(Schema8MigrationOutcome.Migrated, firstResult.Outcome);
+
+        var assignmentsBefore = await Schema8MigrationAssertHelpers.CountAsync(
+            fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments");
+
+        var secondResult = await fixture.MigrateToSchema8Async();
+        Assert.AreEqual(Schema8MigrationOutcome.AlreadyApplied, secondResult.Outcome);
+        Assert.AreEqual(8, await fixture.ReadUserVersionAsync());
+        Assert.AreEqual(
+            assignmentsBefore,
+            await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments"));
+    }
+
+    [TestMethod]
+    public async Task InvariantFailure_RequiredWithNullBoundary_FailsClosed()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("bad");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "bad", translation: "schlecht");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+
+        var options = new Schema8MigrationOptions
+        {
+            FaultInjectionHook = checkpoint =>
+            {
+                if (checkpoint != "after-backfill")
+                {
+                    return;
+                }
+
+                // Break invariant I1 in the direction "Required without a boundary" before the final gate.
+                fixture.Connection.GetConnection().Execute(
+                    "UPDATE SenseAnswerVariantAssignments SET RequiredSinceUtc = NULL WHERE Requirement = ?",
+                    (int)AnswerVariantRequirement.Required);
+            }
+        };
+
+        await Assert.ThrowsExactlyAsync<Schema8MigrationException>(() => fixture.MigrateToSchema8Async(options));
+        Assert.AreEqual(7, await fixture.ReadUserVersionAsync());
+        Assert.IsFalse(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "SenseAnswerVariantAssignments"));
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
+    }
+
+    [TestMethod]
+    public async Task InvariantFailure_AcceptedOnlyWithNonNullBoundary_FailsClosed()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("bad2");
+        var meaningId = await fixture.InsertMeaningAsync(
+            wordId, displayTerm: "bad2", translation: "schlecht", acceptedAliasesJson: """["schlimm"]""");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+
+        var options = new Schema8MigrationOptions
+        {
+            FaultInjectionHook = checkpoint =>
+            {
+                if (checkpoint != "after-backfill")
+                {
+                    return;
+                }
+
+                // Break invariant I1 in the opposite direction: AcceptedOnly carrying a boundary.
+                fixture.Connection.GetConnection().Execute(
+                    "UPDATE SenseAnswerVariantAssignments SET RequiredSinceUtc = ? WHERE Requirement = ?",
+                    T1, (int)AnswerVariantRequirement.AcceptedOnly);
+            }
+        };
+
+        await Assert.ThrowsExactlyAsync<Schema8MigrationException>(() => fixture.MigrateToSchema8Async(options));
+        Assert.AreEqual(7, await fixture.ReadUserVersionAsync());
+        Assert.IsFalse(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "SenseAnswerVariantAssignments"));
+    }
+
+    [TestMethod]
+    public async Task CompatibilityRow_TimestampsComeFromCardNotMigrationTime()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("timestamps");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "timestamps", translation: "Zeitstempel");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm, state: CardState.Retired,
+            createdAtUtc: T0, lastReviewedAtUtc: T1, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+
+        var progress = (await fixture.ReadProgressAsync()).Single(p => p.CardId == 40);
+        AssertSameInstant(T0, progress.CreatedAtUtc, "CreatedAtUtc = card.CreatedAtUtc");
+        AssertSameInstant(T1, progress.LastAssessedAtUtc, "LastAssessedAtUtc = card.LastReviewedAtUtc");
+        AssertSameInstant(T1, progress.UpdatedAtUtc, "UpdatedAtUtc = card.LastReviewedAtUtc");
+
+        // Nothing is derived from migration execution time.
+        Assert.IsTrue(Utc(progress.CreatedAtUtc) < DateTime.UtcNow.AddDays(-1));
+    }
+
+    [TestMethod]
+    public async Task CompatibilityRow_CreatedAtUtcEqualsAssignmentRequiredSinceUtc()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("epoch");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "epoch", translation: "Epoche");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm, state: CardState.Retired, createdAtUtc: T0, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
+        var primary = (await fixture.ReadAssignmentsAsync(senseId, CardDirection.MeaningToTerm)).Single(a => a.IsPreferred);
+        var progress = (await fixture.ReadProgressAsync()).Single(p => p.CardId == 40);
+
+        Assert.AreEqual(primary.AnswerVariantId, progress.AnswerVariantId);
+        AssertSameInstant(
+            primary.RequiredSinceUtc, progress.CreatedAtUtc,
+            "the seeded row must be current-Required-epoch progress, otherwise replay would reset it");
+    }
+
+    [TestMethod]
+    public async Task ShapeValidator_MissingRequiredSinceUtcColumn_IsInvalidShape()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("shape");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "shape", translation: "Form");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, createdAtUtc: T0, id: 40);
+
+        await fixture.MigrateToSchema8Async();
+        var meaningsBefore = await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM Meanings");
+        var cardsBefore = await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM LearningCards");
+        var assignmentsBefore = await Schema8MigrationAssertHelpers.CountAsync(
+            fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments");
+
+        // Portable rebuild — never ALTER TABLE ... DROP COLUMN.
+        await fixture.RebuildAssignmentsTableWithoutRequiredSinceUtcAsync();
+        Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(
+            fixture.Connection, "SenseAnswerVariantAssignments", "RequiredSinceUtc"));
+        Assert.AreEqual(8, await fixture.ReadUserVersionAsync());
+
+        // Schema8ShapeValidator is internal to the production assembly and the test project has no
+        // InternalsVisibleTo, so the shared shape verdict is proven through the two public surfaces that
+        // delegate to it. Both must reject, and both must name the missing column.
+        var capabilityException = await Assert.ThrowsExactlyAsync<LearningSchemaCapabilityException>(
+            () => fixture.Connection.RunInTransactionAsync(
+                connection => LearningSchemaCapability.Resolve(connection)));
+        Assert.IsTrue(capabilityException.ShapeMismatch);
+        Assert.AreEqual("learning-schema-capability-shape-mismatch", capabilityException.ErrorCode);
+        Assert.Contains("RequiredSinceUtc", capabilityException.ShapeDetail ?? string.Empty);
+
+        var migrationException = await Assert.ThrowsExactlyAsync<Schema8MigrationException>(
+            () => fixture.MigrateToSchema8Async());
+        Assert.AreEqual("schema8-migration-already-applied-shape-invalid", migrationException.ErrorCode);
+        Assert.Contains("RequiredSinceUtc", migrationException.Message);
+
+        // No unrelated data changed.
+        Assert.AreEqual(meaningsBefore, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM Meanings"));
+        Assert.AreEqual(cardsBefore, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM LearningCards"));
+        Assert.AreEqual(
+            assignmentsBefore,
+            await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM SenseAnswerVariantAssignments"));
+    }
+
+    private sealed class DeterminismRow
+    {
+        public int CardDirection { get; set; }
+        public int Requirement { get; set; }
+        public bool IsPreferred { get; set; }
+        public DateTime? RequiredSinceUtc { get; set; }
+        public string NormalizedText { get; set; } = string.Empty;
+        public string AnswerLanguage { get; set; } = string.Empty;
     }
 
     private static async Task AssertFailsClosedAsync(Schema7Fixture fixture)

@@ -52,6 +52,14 @@ internal sealed class LegacyCardRow
     public int WordId { get; set; }
     public int PreferredMeaningId { get; set; }
     public CardDirection Direction { get; set; }
+
+    // KF-MEANING-001 Slice 4: State drives the mastered compatibility row for a legacy Retired card;
+    // CreatedAtUtc is the Required-epoch boundary of the migration-created primary assignment; both
+    // CreatedAtUtc and LastReviewedAtUtc are the deterministic (never migration-execution-time) source of
+    // the compatibility row's own timestamps.
+    public CardState State { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? LastReviewedAtUtc { get; set; }
 }
 
 internal sealed class LegacyContextRow
@@ -134,6 +142,15 @@ public sealed class SenseAnswerVariantAssignmentRow
     public int AnswerVariantId { get; set; }
     public AnswerVariantRequirement Requirement { get; set; }
     public bool IsPreferred { get; set; }
+
+    /// <summary>
+    /// KF-MEANING-001 Slice 4. Non-null exactly when <see cref="Requirement"/> is
+    /// <see cref="AnswerVariantRequirement.Required"/>. Doubles as the Required-epoch identity: a
+    /// replay-owned progress row belongs to the current epoch only when its own <c>CreatedAtUtc</c> is
+    /// tick-equal to this value after UTC normalization.
+    /// </summary>
+    public DateTime? RequiredSinceUtc { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 }

@@ -92,6 +92,15 @@ public sealed record BackupAnswerVariant(
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
 
+/// <summary>
+/// Direction-specific requirement/preference for one answer variant. <paramref name="RequiredSinceUtc"/>
+/// (KF-MEANING-001 Slice 4) is the durable Requirement-effective boundary and Required-epoch identity:
+/// non-null exactly when <paramref name="Requirement"/> is
+/// <see cref="BackupAnswerVariantRequirement.Required"/>. Declared last and defaulted to
+/// <see langword="null"/> so an archive written before this field existed deserializes it as null (the v2
+/// codec sets <c>RespectRequiredConstructorParameters</c>) and is then accepted or rejected by
+/// <c>BackupModelContractV2</c> rather than failing during deserialization.
+/// </summary>
 public sealed record BackupSenseAnswerVariantAssignment(
     string Id,
     string StableId,
@@ -101,7 +110,8 @@ public sealed record BackupSenseAnswerVariantAssignment(
     BackupAnswerVariantRequirement Requirement,
     bool IsPreferred,
     DateTime CreatedAtUtc,
-    DateTime UpdatedAtUtc);
+    DateTime UpdatedAtUtc,
+    DateTime? RequiredSinceUtc = null);
 
 /// <summary>Unique by <c>(CardId, AnswerVariantId)</c>. Not a StableId-bearing entity.</summary>
 public sealed record BackupAnswerVariantProgress(

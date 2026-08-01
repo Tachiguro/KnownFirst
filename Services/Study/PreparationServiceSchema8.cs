@@ -181,9 +181,15 @@ public sealed partial class PreparationService
 
         Trip(PreparationSchema8Checkpoints.AfterContextLink);
 
-        EnsureCardsForDirections(connection, word.Id, senseId, meaningId, cardDirectionPreference, now);
+        var newDirections = EnsureCardsForDirections(
+            connection, word.Id, senseId, meaningId, cardDirectionPreference, now);
 
         Trip(PreparationSchema8Checkpoints.AfterCardInsert);
+
+        // KF-MEANING-001 Slice 4: initialize answer variants and direction-specific assignments for exactly the
+        // directions this acceptance just created. Runs inside the same transaction and adds no checkpoint, so
+        // every existing preparation checkpoint keeps its documented meaning and ordering.
+        EnsureAnswerAssignmentsForNewDirections(connection, senseId, newDirections, now);
 
         resolved.Add(targetIndex);
 
@@ -511,7 +517,13 @@ public sealed partial class PreparationService
         }
     }
 
-    private static void EnsureCardsForDirections(
+    /// <summary>
+    /// Inserts a card for every requested direction that does not already have one, and returns exactly the
+    /// directions this call newly created. KF-MEANING-001 Slice 4 uses that list so answer-variant and
+    /// assignment initialization touches only newly created directions and never alters an existing
+    /// direction's assignment graph.
+    /// </summary>
+    private static List<CardDirection> EnsureCardsForDirections(
         SQLiteConnection connection,
         int wordId,
         int senseId,
@@ -519,6 +531,7 @@ public sealed partial class PreparationService
         CardDirectionPreference cardDirectionPreference,
         DateTime now)
     {
+        var created = new List<CardDirection>();
         foreach (var direction in CardDirectionPreferencePolicy.GetDirections(cardDirectionPreference))
         {
             var exists = connection.ExecuteScalar<int>(
@@ -538,11 +551,197 @@ public sealed partial class PreparationService
                 """,
                 wordId, senseId, meaningId, (int)direction, (int)CardState.New, now,
                 SimpleSpacedRepetitionScheduler.DefaultEaseFactor, now, now);
+            created.Add(direction);
         }
+
+        return created;
+    }
+
+    /// <summary>
+    /// KF-MEANING-001 Slice 4: initializes answer variants and direction-specific assignments for exactly the
+    /// card directions this acceptance created.
+    /// <para>
+    /// Each such direction receives exactly one deterministic primary assignment with
+    /// <see cref="AnswerVariantRequirement.Required"/>, <c>IsPreferred = true</c> and
+    /// <c>RequiredSinceUtc = CreatedAtUtc</c> (the existing transaction timestamp). Every remaining
+    /// expression — the other Meanings' term/translation text and every accepted alias — becomes an
+    /// <see cref="AnswerVariantRequirement.AcceptedOnly"/>, non-preferred assignment with a null boundary
+    /// (Decision 12). Nothing is invented when a direction has no valid expression, aliases stay term-side and
+    /// therefore <see cref="CardDirection.MeaningToTerm"/>-only, and <c>AnswerLanguage</c> is never used to
+    /// infer or reject a direction.
+    /// </para>
+    /// </summary>
+    private static void EnsureAnswerAssignmentsForNewDirections(
+        SQLiteConnection connection,
+        int senseId,
+        IReadOnlyList<CardDirection> newDirections,
+        DateTime now)
+    {
+        if (newDirections.Count == 0)
+        {
+            return;
+        }
+
+        // Ascending Meaning.Id is the single deterministic ordering key, exactly as in the dormant migration.
+        var meanings = connection.Query<PreparationMeaningExpressionRow>(
+            """
+            SELECT Id, SourceLanguage, ExplanationLanguage, DisplayTerm, Translation, AcceptedAliasesJson
+            FROM Meanings WHERE SenseId = ? ORDER BY Id
+            """,
+            senseId);
+        if (meanings.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var direction in newDirections)
+        {
+            var isTermSide = direction == CardDirection.MeaningToTerm;
+
+            var primary = isTermSide
+                ? meanings.FirstOrDefault(m => !string.IsNullOrWhiteSpace(m.DisplayTerm))
+                : meanings.FirstOrDefault(m => !string.IsNullOrWhiteSpace(m.Translation));
+            if (primary is null)
+            {
+                // No valid primary expression: no variant, no assignment, no invented fallback text.
+                continue;
+            }
+
+            var primaryVariantId = GetOrCreatePreparationAnswerVariant(
+                connection, senseId,
+                isTermSide ? primary.SourceLanguage : primary.ExplanationLanguage,
+                isTermSide ? primary.DisplayTerm : primary.Translation,
+                primary.Id, now);
+            EnsurePreparationAssignment(
+                connection, senseId, direction, primaryVariantId,
+                AnswerVariantRequirement.Required, isPreferred: true, requiredSinceUtc: now, now);
+
+            foreach (var meaning in meanings)
+            {
+                var alternativeText = isTermSide ? meaning.DisplayTerm : meaning.Translation;
+                if (!string.IsNullOrWhiteSpace(alternativeText))
+                {
+                    var alternativeId = GetOrCreatePreparationAnswerVariant(
+                        connection, senseId,
+                        isTermSide ? meaning.SourceLanguage : meaning.ExplanationLanguage,
+                        alternativeText, meaning.Id, now);
+                    EnsurePreparationAssignment(
+                        connection, senseId, direction, alternativeId,
+                        AnswerVariantRequirement.AcceptedOnly, isPreferred: false, requiredSinceUtc: null, now);
+                }
+
+                if (!isTermSide)
+                {
+                    continue;
+                }
+
+                foreach (var alias in Schema8SemanticUpgradePolicy
+                             .DeserializeAliases(meaning.AcceptedAliasesJson)
+                             .Distinct(StringComparer.Ordinal))
+                {
+                    if (string.IsNullOrWhiteSpace(alias))
+                    {
+                        continue;
+                    }
+
+                    var aliasVariantId = GetOrCreatePreparationAnswerVariant(
+                        connection, senseId, meaning.SourceLanguage, alias, meaning.Id, now);
+                    EnsurePreparationAssignment(
+                        connection, senseId, direction, aliasVariantId,
+                        AnswerVariantRequirement.AcceptedOnly, isPreferred: false, requiredSinceUtc: null, now);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deduplicates by the exact <c>(SenseId, AnswerLanguage, NormalizedText)</c> triple the table's own unique
+    /// index enforces, and never overwrites an already-recorded <c>SourceMeaningId</c>.
+    /// </summary>
+    private static int GetOrCreatePreparationAnswerVariant(
+        SQLiteConnection connection,
+        int senseId,
+        string answerLanguage,
+        string displayText,
+        int sourceMeaningId,
+        DateTime now)
+    {
+        var normalized = CanonicalText.NormalizeOptional(displayText);
+        var existingId = connection.ExecuteScalar<int?>(
+            "SELECT Id FROM AnswerVariants WHERE SenseId = ? AND AnswerLanguage = ? AND NormalizedText = ?",
+            senseId, answerLanguage, normalized);
+        if (existingId is int found)
+        {
+            return found;
+        }
+
+        connection.Execute(
+            """
+            INSERT INTO AnswerVariants
+                (StableId, SenseId, AnswerLanguage, DisplayText, NormalizedText, SourceMeaningId, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            Guid.NewGuid().ToString("N"), senseId, answerLanguage, displayText, normalized, sourceMeaningId, now, now);
+        return (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+    }
+
+    /// <summary>
+    /// Adds an assignment for the exact triple unless one already exists. Never downgrades, never duplicates,
+    /// and therefore can never displace the primary Required assignment created first for that direction.
+    /// Enforces invariant I1 before writing.
+    /// </summary>
+    private static void EnsurePreparationAssignment(
+        SQLiteConnection connection,
+        int senseId,
+        CardDirection direction,
+        int answerVariantId,
+        AnswerVariantRequirement requirement,
+        bool isPreferred,
+        DateTime? requiredSinceUtc,
+        DateTime now)
+    {
+        var exists = connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*) FROM SenseAnswerVariantAssignments
+            WHERE SenseId = ? AND CardDirection = ? AND AnswerVariantId = ?
+            """,
+            senseId, (int)direction, answerVariantId) > 0;
+        if (exists)
+        {
+            return;
+        }
+
+        if ((requirement == AnswerVariantRequirement.Required) != requiredSinceUtc.HasValue)
+        {
+            throw new InvalidOperationException(
+                "Assignment violates 'Requirement = Required if and only if RequiredSinceUtc is not null'.");
+        }
+
+        connection.Execute(
+            """
+            INSERT INTO SenseAnswerVariantAssignments
+                (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, RequiredSinceUtc,
+                 CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            Guid.NewGuid().ToString("N"), senseId, (int)direction, answerVariantId, (int)requirement, isPreferred,
+            requiredSinceUtc, now, now);
     }
 
     private sealed class FingerprintRow
     {
         public string NormalizedFingerprint { get; set; } = string.Empty;
     }
+
+    /// <summary>Meaning expressions used to derive Slice-4 answer variants during preparation.</summary>
+    private sealed class PreparationMeaningExpressionRow
+    {
+        public int Id { get; set; }
+        public string SourceLanguage { get; set; } = string.Empty;
+        public string ExplanationLanguage { get; set; } = string.Empty;
+        public string DisplayTerm { get; set; } = string.Empty;
+        public string Translation { get; set; } = string.Empty;
+        public string AcceptedAliasesJson { get; set; } = "[]";
+    }
+
 }

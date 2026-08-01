@@ -275,13 +275,13 @@ public static class Schema8BackupImportRepository
                 connection,
                 """
                 INSERT INTO SenseAnswerVariantAssignments
-                    (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, CreatedAtUtc, UpdatedAtUtc)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 cancellationToken, failureInjector, ref mutationCount,
                 source.StableId, RequireId(senseIds, source.SenseId), (int)BackupEnumMappings.ToPersistence(source.CardDirection),
                 RequireId(variantIds, source.AnswerVariantId), (int)source.Requirement, source.IsPreferred,
-                source.CreatedAtUtc, source.UpdatedAtUtc);
+                source.RequiredSinceUtc, source.CreatedAtUtc, source.UpdatedAtUtc);
             failureInjector?.AtCheckpoint(Checkpoints.DuringMeaningVariantAssignmentInsertion);
         }
 

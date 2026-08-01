@@ -54,10 +54,17 @@ public sealed record LearningLoadResult(
     LearningCardView? Card,
     LearningSessionSummary? CompletedSummary);
 
+/// <summary>
+/// The outcome of a typed-answer check. <paramref name="MatchedAnswerVariantId"/> (KF-MEANING-001 Slice 4) is
+/// the Schema-8 answer-variant identity handoff a subsequent rating consumes; it is always
+/// <see langword="null"/> on the unchanged Schema-7 path. Declared last and defaulted so every existing
+/// caller and test stays source-compatible.
+/// </summary>
 public sealed record SpellingSubmissionResult(
     bool IsCorrect,
     string EnteredAnswer,
     string CorrectAnswer,
     string Difference,
     string? MatchedAlias,
-    bool RatingWasPersisted);
+    bool RatingWasPersisted,
+    int? MatchedAnswerVariantId = null);

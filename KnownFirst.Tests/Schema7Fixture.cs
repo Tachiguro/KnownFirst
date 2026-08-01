@@ -2,6 +2,7 @@ using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
+using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Models;
 using SQLite;
@@ -9,8 +10,8 @@ using SQLite;
 namespace KnownFirst.Tests;
 
 /// <summary>
-/// Builds an isolated, temporary, real Schema-7 SQLite database (via the unmodified
-/// <see cref="DatabaseSchema.InitializeAsync"/>) for KF-MEANING-001 Slice 1 migration tests. Every insert
+/// Builds an isolated, temporary Schema-7 SQLite migration source without invoking the now-active
+/// <see cref="DatabaseSchema.InitializeAsync"/>. Every insert
 /// helper writes raw parameterized SQL matching the live Schema-7 shape so tests can construct arbitrary
 /// — including deliberately corrupt — fixtures without depending on production service classes.
 /// </summary>
@@ -30,8 +31,30 @@ internal sealed class Schema7Fixture : IAsyncDisposable
     {
         var path = Path.Combine(Path.GetTempPath(), $"knownfirst-schema8-migration-{Guid.NewGuid():N}.db3");
         var connection = new SQLiteAsyncConnection(path);
-        await DatabaseSchema.InitializeAsync(connection);
+        await InitializeEmptyAsync(connection);
         return new Schema7Fixture(path, connection);
+    }
+
+    internal static async Task InitializeEmptyAsync(SQLiteAsyncConnection connection)
+    {
+        await connection.CreateTableAsync<DocumentEntity>();
+        await connection.CreateTableAsync<WordEntity>();
+        await connection.CreateTableAsync<WordFormEntity>();
+        await connection.CreateTableAsync<SentenceSpanEntity>();
+        await connection.CreateTableAsync<WordOccurrenceEntity>();
+        await connection.CreateTableAsync<MeaningEntity>();
+        await connection.CreateTableAsync<ReviewStateEntity>();
+        await connection.CreateTableAsync<ReviewSessionEntity>();
+        await connection.CreateTableAsync<ReviewCandidateEntity>();
+        await connection.CreateTableAsync<LexicalCacheEntity>();
+        await connection.CreateTableAsync<PreparationSessionEntity>();
+        await connection.CreateTableAsync<PreparationCandidateEntity>();
+        await connection.CreateTableAsync<ContextSnapshotEntity>();
+        await connection.CreateTableAsync<LearningCardEntity>();
+        await connection.CreateTableAsync<LearningReviewEntity>();
+        await connection.CreateTableAsync<LearningSessionEntity>();
+        await connection.CreateTableAsync<LearningSessionCardEntity>();
+        await connection.ExecuteAsync($"PRAGMA user_version = {Schema8DormantMigration.SourceVersion}");
     }
 
     /// <summary>Closes and reopens the connection against the same file — simulates app restart / retry.</summary>
@@ -41,16 +64,117 @@ internal sealed class Schema7Fixture : IAsyncDisposable
         Connection = new SQLiteAsyncConnection(DatabasePath);
     }
 
-    public async ValueTask DisposeAsync()
+    public async Task<string[]> CapturePersistentStateAsync()
     {
-        await Connection.CloseAsync();
-        foreach (var file in new[] { DatabasePath, $"{DatabasePath}-wal", $"{DatabasePath}-shm" })
+        string[]? snapshot = null;
+        await Connection.RunInTransactionAsync(connection => snapshot = CapturePersistentState(connection));
+        return snapshot!;
+    }
+
+    private static string[] CapturePersistentState(SQLiteConnection connection)
+    {
+        var result = new List<string>
         {
-            if (File.Exists(file))
+            $"user_version|{connection.ExecuteScalar<int>("PRAGMA user_version")}",
+        };
+        var tables = connection.Query<PersistentTableRow>(
+            "SELECT name, COALESCE(sql, '') AS Sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+
+        foreach (var table in tables)
+        {
+            result.Add($"table|{table.Name}|{table.Sql}");
+            var escapedTable = EscapeIdentifier(table.Name);
+            var columns = connection.Query<PersistentColumnRow>($"PRAGMA table_info(\"{escapedTable}\")")
+                .OrderBy(column => column.ColumnId)
+                .ToArray();
+            result.AddRange(columns.Select(column =>
+                $"column|{table.Name}|{column.ColumnId}|{column.Name}|{column.Type}|{column.NotNull}|{column.DefaultValue}|{column.PrimaryKey}"));
+
+            if (columns.Length > 0)
             {
-                File.Delete(file);
+                var rowExpression = string.Join(
+                    " || char(31) || ",
+                    columns.Select(column => $"COALESCE(quote(\"{EscapeIdentifier(column.Name)}\"), 'NULL')"));
+                var rows = connection.Query<PersistentValueRow>(
+                    $"SELECT {rowExpression} AS Value FROM \"{escapedTable}\" ORDER BY rowid");
+                result.AddRange(rows.Select((row, ordinal) => $"row|{table.Name}|{ordinal}|{row.Value}"));
+            }
+
+            var indexes = connection.Query<PersistentIndexListRow>($"PRAGMA index_list(\"{escapedTable}\")")
+                .OrderBy(index => index.Name, StringComparer.Ordinal)
+                .ToArray();
+            foreach (var index in indexes)
+            {
+                var sql = connection.ExecuteScalar<string?>(
+                    "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?", index.Name) ?? string.Empty;
+                result.Add($"index|{table.Name}|{index.Name}|{index.Unique}|{index.Origin}|{index.Partial}|{sql}");
+                var escapedIndex = EscapeIdentifier(index.Name);
+                var indexColumns = connection.Query<PersistentIndexColumnRow>($"PRAGMA index_xinfo(\"{escapedIndex}\")")
+                    .OrderBy(column => column.SequenceNumber);
+                result.AddRange(indexColumns.Select(column =>
+                    $"index-column|{index.Name}|{column.SequenceNumber}|{column.ColumnId}|{column.Name}|{column.Descending}|{column.Collation}|{column.Key}"));
             }
         }
+
+        return [.. result];
+    }
+
+    private static string EscapeIdentifier(string identifier) => identifier.Replace("\"", "\"\"");
+
+    public async ValueTask DisposeAsync()
+    {
+        await TemporaryDatabaseFiles.CloseAndDeleteAsync(Connection, DatabasePath);
+    }
+
+    private sealed class PersistentTableRow
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Sql { get; set; } = string.Empty;
+    }
+
+    private sealed class PersistentColumnRow
+    {
+        [Column("cid")]
+        public int ColumnId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        [Column("notnull")]
+        public int NotNull { get; set; }
+        [Column("dflt_value")]
+        public string? DefaultValue { get; set; }
+        [Column("pk")]
+        public int PrimaryKey { get; set; }
+    }
+
+    private sealed class PersistentIndexListRow
+    {
+        public string Name { get; set; } = string.Empty;
+        [Column("unique")]
+        public int Unique { get; set; }
+        [Column("origin")]
+        public string Origin { get; set; } = string.Empty;
+        [Column("partial")]
+        public int Partial { get; set; }
+    }
+
+    private sealed class PersistentIndexColumnRow
+    {
+        [Column("seqno")]
+        public int SequenceNumber { get; set; }
+        [Column("cid")]
+        public int ColumnId { get; set; }
+        public string? Name { get; set; }
+        [Column("desc")]
+        public int Descending { get; set; }
+        [Column("coll")]
+        public string? Collation { get; set; }
+        [Column("key")]
+        public int Key { get; set; }
+    }
+
+    private sealed class PersistentValueRow
+    {
+        public string Value { get; set; } = string.Empty;
     }
 
     public async Task<int> InsertDocumentAsync(

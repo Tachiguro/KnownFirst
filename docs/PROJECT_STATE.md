@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-08-01
-**State source:** `master` (`60d8f073fc4d07cdfdc83a8d404cd606c458e321`, PR #40 merge commit)
-**Next product milestone:** KF-MEANING-001 Slice 5 — Sense-addressed learning cards and queue behavior
+**State source:** `master` (`e1724651dd7d4d3ed427b84a96da3d909d0c72ed`, PR #41 merge commit)
+**Next product milestone:** KF-MEANING-001 Slice 7 — Schema-8 MergePreflight adaptation
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -60,14 +60,16 @@ The `master` branch includes the following merged technical foundations:
 - **Meaning Slice 2 (PR #32):** archive format v2 and dual-schema backup support.
 - **Meaning Slice 3 (PR #33):** dormant multi-Sense preparation foundation (`PreparationServiceSchema8`).
 - **Meaning Slice 4 (PR #40):** dormant direction-specific answer assignments and progress replay; verified with 1347 passed, 0 failed, 0 skipped.
+- **Meaning Slice 5 (PR #41):** dormant Sense-addressed learning cards, frozen queue targets, and permanent-known cleanup; verified with 1364 passed, 0 failed, 0 skipped.
 - **Windows GUI StartupSmoke Launcher (PR #35):** `-Action GuiTest` launcher entry point and profile isolation under `artifacts/`.
 - **New-Chat Bootstrap Protocol (PR #36):** permanent dynamic bootstrap governance in `docs/NEW_CHAT_BOOTSTRAP.md`.
 - **Google Play Packaging Safeguards (PR #37):** hardened `scripts/publish-google-play-bundle.ps1` with cross-process lock, warning escalation, candidate ownership, and sidecar verification.
 
-**Dormancy Boundaries:**
-- The active database schema remains **7** (`PRAGMA user_version = 7`).
-- Schema 8 is dormant and is not invoked during normal application initialization.
-- Populated-target merge writing, import routing to populated databases, and Schema-8 activation remain unexecuted future work.
+**Dormancy Boundaries (master):**
+- On `master` the active database schema remains **7** (`PRAGMA user_version = 7`).
+- On `master` Schema 8 is dormant and is not invoked during normal application initialization.
+- Schema-8 activation is implemented on the unmerged Slice-6 branch (see [Active development](#active-development)).
+- Populated-target merge writing and import routing to populated databases remain unexecuted future work.
 
 ## Confirmed verification
 
@@ -83,9 +85,10 @@ The `master` branch includes the following merged technical foundations:
 ## Database status
 
 - Storage is local SQLite in the application data directory (`knownfirst.db3`).
-- Current `PRAGMA user_version` is **7** (unchanged).
+- On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **7**.
+- On the unmerged Slice-6 branch, `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active.
 - Initialization is forward-oriented and preserves existing rows while adding supported tables or columns.
-- Initialization reads `PRAGMA user_version` first and rejects a version greater than 7 before modifying tables or cache.
+- Initialization reads `PRAGMA user_version` first and rejects any version greater than the current version before modifying tables or cache.
 - Complete persisted-data rules are in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md).
 - Portable recovery format v1 is documented in [architecture/backup-format-v1.md](architecture/backup-format-v1.md).
 
@@ -105,4 +108,21 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `60d8f073fc4d07cdfdc83a8d404cd606c458e321` (PR #40 merged), carrying source version `1.0.0-beta.12` (build 12). **KF-MEANING-001 Slice 5** remains unmerged feature-branch work on `feat/meaning-slice5-sense-queue`. The independent PR review found six blocking data-integrity defects; the correction is implemented and validated with a focused result of 58 passed, 0 failed, 0 skipped and a complete result of 1364 passed, 0 failed, 0 skipped. Final correction review and manual merge remain pending. Schema 8 remains dormant, `DatabaseSchema.CurrentVersion` remains 7, and Slice 6 remains the future activation milestone after Slice 5 is merged.
+The stable master baseline is `e1724651dd7d4d3ed427b84a96da3d909d0c72ed` (PR #41 merged), carrying source version `1.0.0-beta.12` (build 12). **KF-MEANING-001 Slice 6 — Schema-8 activation** is implemented and validated as unmerged feature-branch work on `feature/meaning-slice6-schema8-activation`, with a focused result of 466 passed, 0 failed, 0 skipped and a complete result of 1542 passed, 0 failed, 0 skipped. Manual merge is pending.
+
+Verified Slice-6 behavior on that branch:
+
+- `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases.
+- A fresh database initializes directly to a validated Schema 8.
+- Supported versions 0–6 reach the Schema-7 baseline boundary and are then migrated to Schema 8 in the same initialization; a version-7 database migrates to Schema 8 directly.
+- A valid version-8 database is validation-only on reopen and is never mutated.
+- Malformed Schema-8 databases and databases newer than version 8 fail closed without repair.
+- The migration is transactional, rollback-safe, cancellation-safe, and retryable; a failed attempt leaves the source database byte-for-byte unchanged.
+- Structural validation covers tables, columns, declared nullability and primary-key semantics, legacy artifacts, index definitions, enum domains, ownership, queue/review answer-variant targets, and persisted relationships.
+- Legacy enum backfills normalize pre-Schema-7 rows to deterministic supported values before activation.
+- `DashboardService` and `TextReviewService` use Schema-8 semantics via validated schema-capability resolution.
+- Schema-8 archive export and merge safety copies use archive format v2; format v1 remains readable and can restore into an empty Schema-8 target.
+- Import into a populated target remains refused.
+- `MergePreflightService` intentionally fails closed on a Schema-8 target with `merge-preflight-schema8-adaptation-required`, pending Slice 7.
+
+The populated-target merge writer and Import routing remain unimplemented.

@@ -86,6 +86,39 @@ public sealed class MergePreflightServiceTests
     }
 
     [TestMethod]
+    public async Task ActiveSchema8Target_ReturnsAdaptationRequiredBeforeLegacyCapture()
+    {
+        await using var sourceDatabase = new TemporaryKnownFirstDatabase("preflight-schema7-source");
+        await using var targetDatabase = new TemporarySchema8Database("preflight-schema8-target");
+        await sourceDatabase.InitializeAsync();
+        await targetDatabase.InitializeAsync();
+        await sourceDatabase.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = "guard",
+                NormalizedTerm = "guard"
+            });
+            return true;
+        });
+        var archiveBytes = await BuildValidPortableArchiveAsync(sourceDatabase);
+        var before = await targetDatabase.ReadAsync(connection =>
+            connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Words"));
+        var service = new MergePreflightService(targetDatabase);
+        using var archiveStream = new MemoryStream(archiveBytes);
+
+        var plan = await service.CreatePreflightPlanAsync(archiveStream, CancellationToken.None);
+
+        Assert.AreEqual(MergePreflightStatus.BlockedByPrerequisite, plan.Status);
+        Assert.AreEqual(MergePreflightErrorCodes.Schema8AdaptationRequired, plan.ErrorCode);
+        Assert.IsFalse(plan.IsExecutable);
+        Assert.IsTrue(plan.ChecksumVerified);
+        Assert.AreEqual(before, await targetDatabase.ReadAsync(connection =>
+            connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Words")));
+    }
+
+    [TestMethod]
     public async Task ActiveWorkflowOnTarget_ReturnsBlockedByActiveWorkflow()
     {
         var sourceDatabase = new TemporaryKnownFirstDatabase();
@@ -310,6 +343,7 @@ public sealed class MergePreflightServiceTests
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private SQLite.SQLiteAsyncConnection? _connection;
+        private bool _initialized;
 
         public IsolatedTargetDatabase(string directory)
         {
@@ -320,8 +354,14 @@ public sealed class MergePreflightServiceTests
 
         public async Task InitializeAsync()
         {
+            if (_initialized)
+            {
+                return;
+            }
+
             _connection ??= new SQLite.SQLiteAsyncConnection(DatabasePath);
-            await DatabaseSchema.InitializeAsync(_connection);
+            await Schema7Fixture.InitializeEmptyAsync(_connection);
+            _initialized = true;
         }
 
         public async Task<T> ReadAsync<T>(Func<SQLite.SQLiteAsyncConnection, Task<T>> operation)

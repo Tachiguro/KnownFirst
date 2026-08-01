@@ -86,6 +86,9 @@
     <Compile Include="..\Data\Schema8\*.cs" Link="Production\Data\Schema8\%(Filename)%(Extension)" />
     <Compile Include="..\Models\*.cs" Link="Production\Models\%(Filename)%(Extension)" />
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />
+    <Compile Include="..\Services\IDashboardService.cs" Link="Production\Services\IDashboardService.cs" />
+    <Compile Include="..\Services\DashboardStatistics.cs" Link="Production\Services\DashboardStatistics.cs" />
+    <Compile Include="..\Services\DashboardService.cs" Link="Production\Services\DashboardService.cs" />
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
     <Compile Include="..\Services\IAppSettingsService.cs" Link="Production\Services\IAppSettingsService.cs" />

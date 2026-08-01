@@ -6,9 +6,8 @@ using SQLite;
 namespace KnownFirst.Data.Migrations.Schema8;
 
 /// <summary>
-/// The dormant Schema 7 -&gt; 8 migration engine (KF-MEANING-001 Slice 1, architecture doc §4). Callable
-/// only by tests against synthetic Schema-7 fixtures — never referenced by
-/// <c>DatabaseSchema.InitializeAsync</c> or any normal service (architecture doc §4.8.1). Runs the
+/// The Schema 7 -&gt; 8 migration engine (KF-MEANING-001 Slice 1, architecture doc §4), activated by
+/// <c>DatabaseSchema.InitializeAsync</c> after all dual-schema foundations were completed. Runs the
 /// complete transformation inside one real SQLite transaction; any failure rolls back the schema,
 /// indexes, version, and row data to the original Schema-7 state.
 /// </summary>
@@ -194,19 +193,26 @@ public static class Schema8DormantMigration
 
         foreach (var word in words)
         {
+            var hasLegacyLearningStatus = word.Status is WordStatus.Prepared or WordStatus.Learning or WordStatus.Mastered;
             if (!meaningsByWord.TryGetValue(word.Id, out var meanings) || meanings.Count == 0)
             {
+                if (hasLegacyLearningStatus)
+                {
+                    throw Schema8MigrationException.ReferentialCorruption(
+                        $"Word {word.Id} has legacy learning status {word.Status} but no migratable Meaning.");
+                }
+
                 continue;
+            }
+
+            var initialSenseStatus = Schema8SemanticUpgradePolicy.TranslateInitialSenseStatus(word.Status);
+            if (hasLegacyLearningStatus)
+            {
+                connection.Execute("UPDATE Words SET Status = ? WHERE Id = ?", (int)WordStatus.UnknownBacklog, word.Id);
             }
 
             var vocabularyIdentity = Schema8SemanticUpgradePolicy.ComputeVocabularyIdentity(word);
             var groups = Schema8SemanticUpgradePolicy.GroupMeaningsIntoSenses(meanings, vocabularyIdentity);
-            var initialSenseStatus = Schema8SemanticUpgradePolicy.TranslateInitialSenseStatus(word.Status);
-
-            if (word.Status is WordStatus.Prepared or WordStatus.Learning or WordStatus.Mastered)
-            {
-                connection.Execute("UPDATE Words SET Status = ? WHERE Id = ?", (int)WordStatus.UnknownBacklog, word.Id);
-            }
 
             cardsByWord.TryGetValue(word.Id, out var wordCards);
 
@@ -799,6 +805,11 @@ public static class Schema8DormantMigration
         {
             throw Schema8MigrationException.InvariantViolation("LearningCards.MeaningId column still exists after migration.");
         }
+
+        if (!Schema8ShapeValidator.IsValidDatabase(connection, out var failureDetail))
+        {
+            throw Schema8MigrationException.InvariantViolation(failureDetail!);
+        }
     }
 
     private static void ValidateStableIdsNonEmpty(SQLiteConnection connection, string table)
@@ -825,7 +836,7 @@ public static class Schema8DormantMigration
     // physically valid Schema-8 shape looks like.
     private static void ValidateAlreadyMigratedShape(SQLiteConnection connection)
     {
-        if (!Schema8ShapeValidator.IsValidShape(connection, out var failureDetail))
+        if (!Schema8ShapeValidator.IsValidDatabase(connection, out var failureDetail))
         {
             throw Schema8MigrationException.AlreadyAppliedShapeInvalid(failureDetail!);
         }

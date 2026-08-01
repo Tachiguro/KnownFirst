@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
@@ -125,6 +126,7 @@ public sealed class MergeSafetyCopyServiceTests
         private readonly SemaphoreSlim _gate = new(1, 1);
         private readonly string _testRoot;
         private SQLite.SQLiteAsyncConnection? _connection;
+        private bool _initialized;
 
         public IsolatedDatabase(params string[] extraSegments)
         {
@@ -140,8 +142,14 @@ public sealed class MergeSafetyCopyServiceTests
 
         public async Task InitializeAsync()
         {
+            if (_initialized)
+            {
+                return;
+            }
+
             _connection ??= new SQLite.SQLiteAsyncConnection(DatabasePath);
-            await DatabaseSchema.InitializeAsync(_connection);
+            await Schema7Fixture.InitializeEmptyAsync(_connection);
+            _initialized = true;
         }
 
         public async Task<T> ReadAsync<T>(Func<SQLite.SQLiteAsyncConnection, Task<T>> operation)
@@ -1249,9 +1257,13 @@ public sealed class MergeSafetyCopyServiceTests
 
     [TestMethod]
     [DoNotParallelize]
-    public async Task CreateSafetyCopy_FromSyntheticSchema8Database_ProducesValidV2Archive()
+    public async Task CreateSafetyCopy_FromNormallyMigratedSchema8Database_ProducesValidV2Archive()
     {
-        await using var fixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var wordId = await fixture.InsertWordAsync("safety-copy");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "safety-copy", translation: "Sicherungskopie");
+        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
+        await DatabaseSchema.InitializeAsync(fixture.Connection);
         var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
         try
         {

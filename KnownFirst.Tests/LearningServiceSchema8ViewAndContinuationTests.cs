@@ -60,6 +60,8 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
         var explanationMeaningId = await fixture.InsertMeaningAsync(
             wordId, displayTerm: "bank-other-term", translation: "bank-other-answer", definition: "other-definition",
             selectedMeaningId: "shared-sense", createdAt: Now.AddSeconds(1), updatedAt: Now.AddSeconds(1));
+        await EnsureSourceDocumentAsync(fixture, 1, "Term doc");
+        await EnsureSourceDocumentAsync(fixture, 2, "Meaning doc");
         await fixture.InsertContextAsync(termMeaningId, wordId, sourceDocumentId: 1, sourceDocumentTitle: "Term doc", text: "term context", targetStart: 0, targetLength: 4);
         await fixture.InsertContextAsync(explanationMeaningId, wordId, sourceDocumentId: 2, sourceDocumentTitle: "Meaning doc", text: "meaning context", targetStart: 0, targetLength: 7);
         const int termToMeaningCardId = 40;
@@ -99,6 +101,18 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
         Assert.AreEqual("Meaning doc", second.Contexts.Single().DocumentTitle);
         Assert.IsTrue(second.IsAgainRepeat);
         Assert.AreEqual(meaningTarget, (await ReadQueueAsync(fixture)).Single(row => row.Id == second.QueueItemId).TargetAnswerVariantId);
+
+        await AssertContextOwnershipAsync(fixture);
+        Assert.AreEqual(
+            1,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM ContextSnapshots x JOIN Documents d ON d.Id = x.SourceDocumentId WHERE x.MeaningId = ? AND d.Id = 1 AND d.Title = 'Term doc' AND x.SourceDocumentTitle = 'Term doc'",
+                termMeaningId));
+        Assert.AreEqual(
+            1,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM ContextSnapshots x JOIN Documents d ON d.Id = x.SourceDocumentId WHERE x.MeaningId = ? AND d.Id = 2 AND d.Title = 'Meaning doc' AND x.SourceDocumentTitle = 'Meaning doc'",
+                explanationMeaningId));
     }
 
     [TestMethod]
@@ -238,6 +252,7 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
         var service = CreateService(fixture);
         var created = await service.GetOrStartAsync();
         Assert.IsNotNull(created.Card);
+        await AssertContextOwnershipAsync(fixture);
 
         var contextId = await fixture.Connection.ExecuteScalarAsync<int>(
             "SELECT Id FROM ContextSnapshots WHERE MeaningId = ?", seeded.MeaningId);
@@ -383,9 +398,51 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
     {
         var wordId = await fixture.InsertWordAsync(term, totalOccurrenceCount: frequency, createdAt: Now, updatedAt: Now);
         var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: answer, translation: $"meaning-{answer}", definition: $"definition-{answer}", createdAt: Now, updatedAt: Now);
+        await EnsureSourceDocumentAsync(fixture, cardId, $"doc-{term}");
         await fixture.InsertContextAsync(meaningId, wordId, sourceDocumentId: cardId, sourceDocumentTitle: $"doc-{term}", text: $"{term} context", targetStart: 0, targetLength: term.Length);
         await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, id: cardId, createdAtUtc: Now, updatedAtUtc: Now);
         return new SeededCard(wordId, meaningId, cardId);
+    }
+
+    /// <summary>
+    /// Every ContextSnapshot in these fixtures is document-backed, and Schema 8 validates
+    /// <c>ContextSnapshots.SourceDocumentId</c> against a real <c>Documents</c> row. Seeds exactly the
+    /// referenced Document with deterministic content and a real content fingerprint, so the ownership
+    /// invariant holds without weakening the fixture or nulling the reference. <c>INSERT OR IGNORE</c> keeps
+    /// the call idempotent when several snapshots legitimately share one source document.
+    /// </summary>
+    private static Task EnsureSourceDocumentAsync(Schema7Fixture fixture, int documentId, string title)
+    {
+        var content = $"{title} content";
+        var fingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content)))
+            .ToLowerInvariant();
+        return fixture.Connection.ExecuteAsync(
+            """
+            INSERT OR IGNORE INTO Documents
+                (Id, Title, TextLanguage, ExplanationLanguage, LookupMode, TargetLanguage, Content,
+                 ContentFingerprint, ImportedAt, WordCount)
+            VALUES (?, ?, 'en', 'de', 0, '', ?, ?, ?, 1)
+            """,
+            documentId, title, content, fingerprint, Now);
+    }
+
+    /// <summary>
+    /// Asserts the two Schema-8 ContextSnapshot ownership invariants: every snapshot resolves to its source
+    /// Document, and to a Meaning belonging to the snapshot's own Word and Sense.
+    /// </summary>
+    private static async Task AssertContextOwnershipAsync(Schema7Fixture fixture)
+    {
+        Assert.AreEqual(
+            0,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM ContextSnapshots x LEFT JOIN Documents d ON d.Id = x.SourceDocumentId WHERE d.Id IS NULL"),
+            "Every ContextSnapshot must resolve to its source Document.");
+        Assert.AreEqual(
+            0,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM ContextSnapshots x LEFT JOIN Meanings m ON m.Id = x.MeaningId WHERE m.Id IS NULL OR m.WordId <> x.WordId OR m.SenseId <> x.SenseId"),
+            "Every ContextSnapshot must be owned by a Meaning of the same Word and Sense.");
     }
 
     private static async Task AddSecondSenseGraphAsync(
@@ -426,6 +483,7 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
         var meaningId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
         await fixture.Connection.ExecuteAsync(
             "UPDATE Senses SET DefaultMeaningId = ? WHERE Id = ?", meaningId, senseId);
+        await EnsureSourceDocumentAsync(fixture, meaningId, $"doc-{displayTerm}");
         await fixture.Connection.ExecuteAsync(
             """
             INSERT INTO ContextSnapshots

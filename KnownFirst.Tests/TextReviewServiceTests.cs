@@ -1,3 +1,4 @@
+using KnownFirst.Core.Learning;
 using KnownFirst.Core.Review;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
@@ -29,6 +30,23 @@ public sealed class TextReviewServiceTests
     public async Task CleanupAsync()
     {
         await _database.DisposeAsync();
+    }
+
+    [TestMethod]
+    public async Task GetDiagnosticsAsync_ActiveSchema8UsesPreferredMeaningId()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var wordId = await fixture.InsertWordAsync("diagnostic");
+        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "diagnostic", translation: "Diagnose");
+        var cardId = await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
+        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        var database = new ExistingFixtureDatabase(fixture);
+        var service = new TextReviewService(database, new TextAnalyzer());
+
+        var diagnostics = await service.GetDiagnosticsAsync();
+
+        var card = diagnostics.LearningCards.Single(item => item.Id == cardId);
+        Assert.AreEqual(meaningId, card.MeaningId);
     }
 
     [TestMethod]
@@ -880,13 +898,22 @@ public sealed class TextReviewServiceTests
         var path = Path.Combine(Path.GetTempPath(), $"knownfirst-migration-{Guid.NewGuid():N}.db3");
         var connection = new SQLiteAsyncConnection(path);
 
+        // The legacy occurrence has to describe a real slice of the legacy document: its range must fit
+        // inside the document and inside its SentenceSpan, and the exact substring it points at must be its
+        // SurfaceForm. "Unchanged systems" carries the unchanged-content marker and the 'systems' surface
+        // form of Word 42 at offset 10.
+        const string documentContent = "Unchanged systems";
+        const string surfaceForm = "systems";
+        const int occurrenceStart = 10;
+        const int occurrenceLength = 7;
+
         try
         {
             await connection.CreateTableAsync<DocumentEntity>();
             var document = new DocumentEntity
             {
                 Title = "Existing",
-                Content = "Unchanged",
+                Content = documentContent,
                 TextLanguage = "en",
                 ExplanationLanguage = "de"
             };
@@ -896,6 +923,10 @@ public sealed class TextReviewServiceTests
                 "INSERT INTO AppSettings (SettingKey, SettingValue) VALUES (?, ?)",
                 "theme_preference",
                 "2");
+            await connection.ExecuteAsync(
+                "CREATE TABLE Words (Id INTEGER PRIMARY KEY AUTOINCREMENT, Language TEXT, CanonicalTerm TEXT, NormalizedTerm TEXT, Status INTEGER, TotalOccurrenceCount INTEGER, DocumentCount INTEGER, CreatedAt INTEGER, UpdatedAt INTEGER)");
+            await connection.ExecuteAsync(
+                "INSERT INTO Words (Id, Language, CanonicalTerm, NormalizedTerm, Status, TotalOccurrenceCount, DocumentCount, CreatedAt, UpdatedAt) VALUES (42, 'en', 'systems', 'systems', 2, 1, 1, 0, 0)");
             await connection.CreateTableAsync<LegacyMeaningEntity>();
             var legacyMeaning = new LegacyMeaningEntity
             {
@@ -904,15 +935,31 @@ public sealed class TextReviewServiceTests
                 Definition = "Legacy definition"
             };
             await connection.InsertAsync(legacyMeaning);
+            await connection.CreateTableAsync<SentenceSpanEntity>();
+            var legacySentence = new SentenceSpanEntity
+            {
+                Id = 7,
+                DocumentId = document.Id,
+                StartPosition = 0,
+                Length = document.Content.Length,
+                Order = 0
+            };
+            await connection.ExecuteAsync(
+                "INSERT INTO SentenceSpans (Id, DocumentId, StartPosition, Length, \"Order\") VALUES (?, ?, ?, ?, ?)",
+                legacySentence.Id,
+                legacySentence.DocumentId,
+                legacySentence.StartPosition,
+                legacySentence.Length,
+                legacySentence.Order);
             await connection.CreateTableAsync<LegacyWordOccurrenceEntity>();
             var legacyOccurrence = new LegacyWordOccurrenceEntity
             {
                 WordId = 42,
                 DocumentId = document.Id,
                 SentenceSpanId = 7,
-                StartPosition = 3,
-                Length = 7,
-                SurfaceForm = "systems",
+                StartPosition = occurrenceStart,
+                Length = occurrenceLength,
+                SurfaceForm = surfaceForm,
                 Order = 1
             };
             await connection.InsertAsync(legacyOccurrence);
@@ -925,16 +972,47 @@ public sealed class TextReviewServiceTests
                 "theme_preference");
             var version = await connection.ExecuteScalarAsync<int>("PRAGMA user_version");
             var migratedMeaning = await connection.FindAsync<MeaningEntity>(legacyMeaning.Id);
+            var migratedSentence = await connection.FindAsync<SentenceSpanEntity>(legacySentence.Id);
             var migratedOccurrence = await connection.FindAsync<WordOccurrenceEntity>(legacyOccurrence.Id);
 
-            Assert.AreEqual("Unchanged", preservedDocument!.Content);
+            Assert.AreEqual(documentContent, preservedDocument!.Content);
+            Assert.AreEqual(LexicalLookupMode.Definition, preservedDocument.LookupMode);
             Assert.AreEqual("2", preservedSetting);
             Assert.AreEqual(DatabaseSchema.CurrentVersion, version);
             Assert.AreEqual("systems", migratedMeaning!.DisplayTerm);
+            Assert.AreEqual(TokenKind.Word, migratedMeaning.TokenKind);
             Assert.AreEqual(string.Empty, migratedMeaning.EncounteredSurfaceForm);
             Assert.AreEqual(string.Empty, migratedMeaning.GrammaticalRelationship);
-            Assert.AreEqual("systems", migratedOccurrence!.SurfaceForm);
+            Assert.IsNotNull(migratedSentence);
+            Assert.AreEqual(7, migratedSentence.Id);
+            Assert.AreEqual(document.Id, migratedSentence.DocumentId);
+            Assert.AreEqual(0, migratedSentence.StartPosition);
+            Assert.AreEqual(documentContent.Length, migratedSentence.Length);
+            Assert.AreEqual(0, migratedSentence.Order);
+
+            // Full coordinate evidence: identity, ownership, offsets and the exact text the offsets address.
+            Assert.IsNotNull(migratedOccurrence);
+            Assert.AreEqual(legacyOccurrence.Id, migratedOccurrence.Id);
+            Assert.AreEqual(42, migratedOccurrence.WordId);
+            Assert.AreEqual(document.Id, migratedOccurrence.DocumentId);
+            Assert.AreEqual(migratedSentence.DocumentId, migratedOccurrence.DocumentId);
+            Assert.AreEqual(migratedSentence.Id, migratedOccurrence.SentenceSpanId);
+            Assert.AreEqual(occurrenceStart, migratedOccurrence.StartPosition);
+            Assert.AreEqual(occurrenceLength, migratedOccurrence.Length);
+            Assert.AreEqual(surfaceForm, migratedOccurrence.SurfaceForm);
+            Assert.AreEqual(1, migratedOccurrence.Order);
             Assert.AreEqual(TechnicalTokenFamily.None, migratedOccurrence.TechnicalFamily);
+
+            var occurrenceEnd = migratedOccurrence.StartPosition + migratedOccurrence.Length;
+            var sentenceEnd = migratedSentence.StartPosition + migratedSentence.Length;
+            Assert.IsTrue(migratedOccurrence.StartPosition >= 0);
+            Assert.IsTrue(occurrenceEnd <= preservedDocument.Content.Length);
+            Assert.IsTrue(migratedOccurrence.StartPosition >= migratedSentence.StartPosition);
+            Assert.IsTrue(occurrenceEnd <= sentenceEnd);
+            Assert.IsTrue(sentenceEnd <= preservedDocument.Content.Length);
+            Assert.AreEqual(
+                migratedOccurrence.SurfaceForm,
+                preservedDocument.Content.Substring(migratedOccurrence.StartPosition, migratedOccurrence.Length));
         }
         finally
         {
@@ -1029,6 +1107,7 @@ public sealed class TextReviewServiceTests
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private SQLiteAsyncConnection? _connection;
+        private bool _initialized;
 
         public TemporaryDatabase()
         {
@@ -1041,8 +1120,14 @@ public sealed class TextReviewServiceTests
 
         public async Task InitializeAsync()
         {
+            if (_initialized)
+            {
+                return;
+            }
+
             _connection ??= new SQLiteAsyncConnection(DatabasePath);
-            await DatabaseSchema.InitializeAsync(_connection);
+            await Schema7Fixture.InitializeEmptyAsync(_connection);
+            _initialized = true;
         }
 
         public async Task<T> ReadAsync<T>(Func<SQLiteAsyncConnection, Task<T>> operation)
@@ -1095,6 +1180,7 @@ public sealed class TextReviewServiceTests
         {
             await DisposeConnectionAsync();
             File.Delete(DatabasePath);
+            _initialized = false;
             await InitializeAsync();
         }
 
@@ -1115,5 +1201,25 @@ public sealed class TextReviewServiceTests
             await _connection.CloseAsync();
             _connection = null;
         }
+    }
+
+    private sealed class ExistingFixtureDatabase(Schema7Fixture fixture) : IKnownFirstDatabase
+    {
+        public string DatabasePath => fixture.DatabasePath;
+
+        public Task InitializeAsync() => Task.CompletedTask;
+
+        public Task<T> ReadAsync<T>(Func<SQLiteAsyncConnection, Task<T>> operation) => operation(fixture.Connection);
+
+        public async Task<T> RunInTransactionAsync<T>(Func<SQLiteConnection, T> operation)
+        {
+            T? result = default;
+            await fixture.Connection.RunInTransactionAsync(connection => result = operation(connection));
+            return result!;
+        }
+
+        public Task<T> ExecuteSnapshotAsync<T>(Func<SQLiteConnection, T> operation) => RunInTransactionAsync(operation);
+
+        public Task ResetAsync() => throw new NotSupportedException("Not used by this test.");
     }
 }

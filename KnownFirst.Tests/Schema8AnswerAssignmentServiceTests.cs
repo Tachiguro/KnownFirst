@@ -525,19 +525,36 @@ public sealed class Schema8AnswerAssignmentServiceTests
         await env.Fixture.Connection.ExecuteAsync("INSERT INTO LearningCards (Id, WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays, EaseFactor, SuccessfulReviewCount, LapseCount, CreatedAtUtc, UpdatedAtUtc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             Card40, Word10, Sense20, 1, (int)CardDirection.MeaningToTerm, 0, T0, 0, 2.5, 0, 0, T0, T0);
 
-        // Wait, SetAssignmentAsync atomically clears prior preferred, so calling it won't trigger DuplicatePreferred.
-        // To trigger the duplicate preferred check, we must insert it maliciously behind its back, and then read it.
+        // SetAssignmentAsync atomically clears the prior preferred row, so calling it can never create a
+        // duplicate. The corrupt state has to be written behind the service's back.
         await env.Fixture.InsertAssignmentAsync(Sense20, CardDirection.MeaningToTerm, Var70, AnswerVariantRequirement.Required, isPreferred: true, requiredSinceUtc: T0);
 
-        // SQLite physically prevents two preferred assignments via IX_SenseAnswerVariantAssignments_Sense_Direction_Preferred.
-        // We must drop it transiently to test the service's fail-closed corruption check.
+        // A second preferred row is physically impossible while
+        // IX_SenseAnswerVariantAssignments_Sense_Direction_Preferred exists, so the index must be dropped to
+        // construct it. That drop is itself a Schema-8 physical-shape violation: since Schema-8 activation,
+        // LearningSchemaCapability validates required index definitions and is deliberately the *first* gate,
+        // so it fails closed before the logical assignment-graph check is ever reached. Both gates refuse the
+        // database; this test pins the outer one and proves the duplicate really exists underneath it.
         await env.Fixture.Connection.ExecuteAsync("DROP INDEX IX_SenseAnswerVariantAssignments_Sense_Direction_Preferred");
         await env.Fixture.InsertAssignmentAsync(Sense20, CardDirection.MeaningToTerm, Var71, AnswerVariantRequirement.Required, isPreferred: true, requiredSinceUtc: T0);
 
-        // Now attempt any mutation, which will trigger the graph validation.
-        var ex = await Assert.ThrowsExactlyAsync<Schema8LearningDataException>(() => env.Service.SetAssignmentAsync(Sense20, CardDirection.MeaningToTerm, Var70, AnswerVariantRequirement.Required, false));
+        Assert.AreEqual(
+            2,
+            await env.Fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND CardDirection = ? AND IsPreferred = 1",
+                Sense20,
+                (int)CardDirection.MeaningToTerm),
+            "The fixture must actually hold two preferred assignments for one (Sense, Direction).");
+        var before = await CaptureMutationPersistenceFingerprintAsync(env.Fixture);
 
-        Assert.AreEqual(Schema8LearningDataErrorCode.InvalidAssignmentGraph, ex.Code);
+        var ex = await Assert.ThrowsExactlyAsync<LearningSchemaCapabilityException>(
+            () => env.Service.SetAssignmentAsync(Sense20, CardDirection.MeaningToTerm, Var70, AnswerVariantRequirement.Required, false));
+
+        Assert.IsTrue(ex.ShapeMismatch);
+        Assert.AreEqual(8, ex.FoundVersion);
+        Assert.AreEqual("learning-schema-capability-shape-mismatch", ex.ErrorCode);
+        StringAssert.Contains(ex.ShapeDetail, "IX_SenseAnswerVariantAssignments_Sense_Direction_Preferred");
+        Assert.AreEqual(before, await CaptureMutationPersistenceFingerprintAsync(env.Fixture));
     }
 
     private static async Task<string> CaptureMutationPersistenceFingerprintAsync(Schema7Fixture fixture)

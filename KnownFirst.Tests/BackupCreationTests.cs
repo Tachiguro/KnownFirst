@@ -182,6 +182,175 @@ public class BackupCreationTests
         }
     }
 
+    /// <summary>
+    /// Regression guard for the temporary-fixture reset path. sqlite-net keeps closed connections in a
+    /// shared pool keyed by connection string, so deleting the database file without draining that pool can
+    /// hand a stale native handle to the next open of the same path — which faulted the whole test host
+    /// inside <c>sqlite3_changes</c> during <c>CreateTable</c>. Several cycles are run because the defect
+    /// only appears once a pooled handle from a previous cycle survives.
+    /// </summary>
+    [TestMethod]
+    public async Task RepeatedResetAndRecreate_LeavesNoStaleSchemaStateOrPooledHandles()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-reset-cycle");
+        await database.InitializeAsync();
+
+        for (var cycle = 0; cycle < 5; cycle++)
+        {
+            await database.RunInTransactionAsync(conn =>
+            {
+                conn.Insert(BuildCycleDocument(cycle));
+                return true;
+            });
+            Assert.AreEqual(
+                1,
+                await database.ReadAsync(conn => conn.Table<DocumentEntity>().CountAsync()),
+                $"Cycle {cycle} should observe exactly the document it just seeded.");
+
+            await database.ResetAsync();
+
+            Assert.AreEqual(
+                0,
+                await database.ReadAsync(conn => conn.Table<DocumentEntity>().CountAsync()),
+                $"Cycle {cycle} retained stale rows across the reset.");
+            Assert.AreEqual(
+                7,
+                await database.ReadAsync(conn => conn.ExecuteScalarAsync<int>("PRAGMA user_version")),
+                $"Cycle {cycle} did not rebuild the expected fixture schema version.");
+        }
+    }
+
+    /// <summary>
+    /// The disposal counterpart: a released fixture must leave no handle holding its file open. On Windows a
+    /// surviving pooled handle makes the delete fail with a sharing violation, so the assertion below is a
+    /// direct probe for a leaked connection rather than an indirect one.
+    /// </summary>
+    [TestMethod]
+    public async Task RepeatedCreateDisposeRecreate_ReleasesEveryDatabaseFile()
+    {
+        for (var cycle = 0; cycle < 5; cycle++)
+        {
+            var database = new TemporaryKnownFirstDatabase("knownfirst-dispose-cycle");
+            await using (database)
+            {
+                await database.InitializeAsync();
+                await database.RunInTransactionAsync(conn =>
+                {
+                    conn.Insert(BuildCycleDocument(cycle));
+                    return true;
+                });
+                Assert.AreEqual(1, await database.ReadAsync(conn => conn.Table<DocumentEntity>().CountAsync()));
+            }
+
+            Assert.IsFalse(
+                File.Exists(database.DatabasePath),
+                $"Cycle {cycle} left the database file behind, so a handle still referenced it.");
+            Assert.IsFalse(
+                File.Exists($"{database.DatabasePath}-wal"),
+                $"Cycle {cycle} left a write-ahead log behind.");
+            Assert.IsFalse(
+                File.Exists($"{database.DatabasePath}-shm"),
+                $"Cycle {cycle} left a shared-memory sidecar behind.");
+        }
+    }
+
+    /// <summary>
+    /// The exact shape of the crash observed in the complete suite: an operation faults while a sqlite-net
+    /// transaction is open, the fixture is reset in the caller's <c>finally</c>, and the same path is opened
+    /// again. Without draining the connection pool before deleting the file, the reopened database receives a
+    /// stale native handle and <c>CreateTable</c> faults the test host.
+    /// </summary>
+    [TestMethod]
+    public async Task ResetAfterFaultedTransaction_RemainsUsableAcrossCycles()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-faulted-reset");
+        await database.InitializeAsync();
+
+        for (var cycle = 0; cycle < 5; cycle++)
+        {
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+                database.RunInTransactionAsync<bool>(conn =>
+                {
+                    conn.Insert(BuildCycleDocument(cycle));
+                    throw new InvalidOperationException($"injected-cycle-{cycle}");
+                }));
+
+            await database.ResetAsync();
+
+            await database.RunInTransactionAsync(conn =>
+            {
+                conn.Insert(BuildCycleDocument(cycle));
+                return true;
+            });
+            Assert.AreEqual(
+                1,
+                await database.ReadAsync(conn => conn.Table<DocumentEntity>().CountAsync()),
+                $"Cycle {cycle} did not recover a usable database after the faulted transaction.");
+
+            await database.ResetAsync();
+        }
+    }
+
+    /// <summary>
+    /// Concurrent temporary databases on distinct paths must be able to create tables, write, close, and
+    /// delete independently. This is the shape a process-wide <c>SQLiteAsyncConnection.ResetPool()</c>
+    /// breaks: one worker's drain closes the native handles the other workers are still using, which faults
+    /// the host inside <c>sqlite3_changes</c> instead of failing cleanly. Kept deliberately small — a handful
+    /// of workers doing real work concurrently is enough to expose a global drain.
+    /// </summary>
+    [TestMethod]
+    public async Task ConcurrentTemporaryDatabases_OnDistinctPaths_DoNotDisturbEachOther()
+    {
+        var workers = Enumerable.Range(0, 8).Select(async worker =>
+        {
+            var database = new TemporaryKnownFirstDatabase($"knownfirst-parallel-{worker}");
+            await using (database)
+            {
+                await database.InitializeAsync();
+
+                for (var round = 0; round < 3; round++)
+                {
+                    await database.RunInTransactionAsync(conn =>
+                    {
+                        conn.Insert(BuildCycleDocument(worker * 10 + round));
+                        return true;
+                    });
+                }
+
+                Assert.AreEqual(
+                    3,
+                    await database.ReadAsync(conn => conn.Table<DocumentEntity>().CountAsync()),
+                    $"Worker {worker} lost writes to a concurrently running database.");
+                Assert.AreEqual(
+                    $"Cycle {worker * 10}",
+                    await database.ReadAsync(conn =>
+                        conn.ExecuteScalarAsync<string>("SELECT Title FROM Documents ORDER BY Id LIMIT 1")),
+                    $"Worker {worker} observed another worker's rows.");
+            }
+
+            Assert.IsFalse(
+                File.Exists(database.DatabasePath),
+                $"Worker {worker} left its database file behind.");
+        });
+
+        await Task.WhenAll(workers);
+    }
+
+    private static DocumentEntity BuildCycleDocument(int cycle)
+    {
+        var content = $"Cycle {cycle} content.";
+        return new DocumentEntity
+        {
+            Title = $"Cycle {cycle}",
+            TextLanguage = "en",
+            ExplanationLanguage = "de",
+            Content = content,
+            ContentFingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content))).ToLowerInvariant(),
+            LookupMode = KnownFirst.Core.Preparation.LexicalLookupMode.Definition
+        };
+    }
+
     [TestMethod]
     public async Task CreateBackup_WithExcessiveRecordCount_RefusesBeforeFullMaterialization()
     {

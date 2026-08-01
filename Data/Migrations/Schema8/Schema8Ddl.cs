@@ -51,6 +51,13 @@ internal static class Schema8Ddl
     public const string IndexAnswerVariantsSenseLanguageText =
         "CREATE UNIQUE INDEX IX_AnswerVariants_Sense_Language_Text ON AnswerVariants (SenseId, AnswerLanguage, NormalizedText)";
 
+    /// <summary>
+    /// KF-MEANING-001 Slice 4: <c>RequiredSinceUtc</c> is the durable Requirement-effective boundary and
+    /// the Required-epoch identity. Binding invariant: <c>Requirement = Required</c> if and only if
+    /// <c>RequiredSinceUtc IS NOT NULL</c>. Replay may only consume reviews whose <c>ReviewedAtUtc</c> is at
+    /// or after this boundary, so reviews from an earlier AcceptedOnly period can never retroactively grant
+    /// Required progress or mastery.
+    /// </summary>
     public const string CreateSenseAnswerVariantAssignments = """
         CREATE TABLE SenseAnswerVariantAssignments (
             Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,10 +67,14 @@ internal static class Schema8Ddl
             AnswerVariantId INTEGER NOT NULL,
             Requirement INTEGER NOT NULL,
             IsPreferred INTEGER NOT NULL,
+            RequiredSinceUtc TEXT NULL,
             CreatedAtUtc TEXT NOT NULL,
             UpdatedAtUtc TEXT NOT NULL
         )
         """;
+
+    /// <summary>The exact column name the Schema-8 physical shape must carry (Slice 4).</summary>
+    public const string AssignmentRequiredSinceUtcColumn = "RequiredSinceUtc";
 
     public const string IndexAssignmentsStableId =
         "CREATE UNIQUE INDEX IX_SenseAnswerVariantAssignments_StableId ON SenseAnswerVariantAssignments (StableId)";

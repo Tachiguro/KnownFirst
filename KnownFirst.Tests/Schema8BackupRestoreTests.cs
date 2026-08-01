@@ -1,9 +1,13 @@
+using System.IO.Compression;
+using System.Text;
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
+using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
 using SQLite;
+using Slice4 = KnownFirst.Tests.Schema8BackupFixtureBuilders.Slice4Boundary;
 
 namespace KnownFirst.Tests;
 
@@ -140,6 +144,296 @@ public sealed class Schema8BackupRestoreTests
 
         var afterVersion = await targetFixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version");
         Assert.AreEqual(8, afterVersion);
+    }
+
+    // ---- KF-MEANING-001 Slice 4: the assignment RequiredSinceUtc boundary through a real empty Schema-8
+    // restore. The source fixture (Schema8BackupFixtureBuilders.CreateSlice4BoundarySchema8FixtureAsync) is
+    // fully deterministic, so every assertion below is an exact identity/tick comparison rather than a
+    // tolerance window, and the graph stays mixed-role: one Required + preferred assignment, one
+    // AcceptedOnly assignment in the same direction, and one AcceptedOnly + preferred assignment in the
+    // other. ----
+
+    private sealed class RestoredAssignmentRow
+    {
+        public string StableId { get; set; } = string.Empty;
+        public AnswerVariantRequirement Requirement { get; set; }
+        public bool IsPreferred { get; set; }
+        public DateTime? RequiredSinceUtc { get; set; }
+        public CardDirection CardDirection { get; set; }
+        public string AnswerVariantStableId { get; set; } = string.Empty;
+    }
+
+    private sealed class RestoredProgressRow
+    {
+        public string AnswerVariantStableId { get; set; } = string.Empty;
+        public DateTime CreatedAtUtc { get; set; }
+    }
+
+    private static Task<List<RestoredAssignmentRow>> ReadRestoredAssignmentsAsync(Schema7Fixture fixture) =>
+        fixture.Connection.QueryAsync<RestoredAssignmentRow>(
+            """
+            SELECT a.StableId, a.Requirement, a.IsPreferred, a.RequiredSinceUtc, a.CardDirection,
+                   v.StableId AS AnswerVariantStableId
+            FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+            ORDER BY a.StableId
+            """);
+
+    private static Task<List<RestoredProgressRow>> ReadRestoredProgressAsync(Schema7Fixture fixture) =>
+        fixture.Connection.QueryAsync<RestoredProgressRow>(
+            """
+            SELECT v.StableId AS AnswerVariantStableId, p.CreatedAtUtc
+            FROM AnswerVariantProgress p JOIN AnswerVariants v ON v.Id = p.AnswerVariantId
+            ORDER BY v.StableId
+            """);
+
+    /// <summary>sqlite-net returns persisted timestamps with <see cref="DateTimeKind.Unspecified"/>; the
+    /// boundary comparisons normalize to UTC first and then compare exact ticks.</summary>
+    private static DateTime AsUtc(DateTime value) =>
+        value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static async Task<byte[]> BuildSlice4BoundaryArchiveBytesAsync()
+    {
+        await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSlice4BoundarySchema8FixtureAsync();
+        return await BuildV2ArchiveBytesAsync(sourceFixture);
+    }
+
+    private static async Task RestoreIntoEmptyTargetAsync(Schema7Fixture targetFixture, byte[] archiveBytes)
+    {
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
+            new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        using var stream = new MemoryStream(archiveBytes);
+        var result = await service.ImportPortableArchiveAsync(stream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status);
+    }
+
+    /// <summary>Proves no unrelated row was added, dropped, or duplicated by the restore.</summary>
+    private static async Task AssertSlice4RowCountsAsync(Schema7Fixture fixture)
+    {
+        async Task AssertCountAsync(string table, int expected) =>
+            Assert.AreEqual(
+                expected,
+                await fixture.Connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {table}"),
+                table);
+
+        await AssertCountAsync("Words", Slice4.WordRowCount);
+        await AssertCountAsync("Senses", Slice4.SenseRowCount);
+        await AssertCountAsync("Meanings", Slice4.MeaningRowCount);
+        await AssertCountAsync("AnswerVariants", Slice4.AnswerVariantRowCount);
+        await AssertCountAsync("SenseAnswerVariantAssignments", Slice4.AssignmentRowCount);
+        await AssertCountAsync("LearningCards", Slice4.CardRowCount);
+        await AssertCountAsync("AnswerVariantProgress", Slice4.ProgressRowCount);
+        await AssertCountAsync("Documents", 0);
+        await AssertCountAsync("ContextSnapshots", 0);
+        await AssertCountAsync("LearningReviews", 0);
+        await AssertCountAsync("LearningSessions", 0);
+        await AssertCountAsync("LearningSessionCards", 0);
+    }
+
+    [TestMethod]
+    public async Task Restore_RequiredSinceUtc_SurvivesRoundTripWithTickEquality()
+    {
+        var archiveBytes = await BuildSlice4BoundaryArchiveBytesAsync();
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await RestoreIntoEmptyTargetAsync(targetFixture, archiveBytes);
+
+        Assert.AreEqual(8, await targetFixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+
+        var assignments = await ReadRestoredAssignmentsAsync(targetFixture);
+        Assert.AreEqual(Slice4.AssignmentRowCount, assignments.Count);
+
+        var required = assignments.Single(row => row.StableId == Slice4.RequiredAssignmentStableId);
+        Assert.AreEqual(AnswerVariantRequirement.Required, required.Requirement);
+        Assert.IsTrue(required.IsPreferred);
+        Assert.AreEqual(CardDirection.TermToMeaning, required.CardDirection);
+        Assert.AreEqual(Slice4.RequiredVariantStableId, required.AnswerVariantStableId);
+        Assert.IsNotNull(required.RequiredSinceUtc);
+        Assert.AreEqual(Slice4.RequiredSinceUtc.Ticks, AsUtc(required.RequiredSinceUtc!.Value).Ticks);
+
+        var acceptedOnly = assignments.Single(row => row.StableId == Slice4.AcceptedOnlyAssignmentStableId);
+        Assert.AreEqual(AnswerVariantRequirement.AcceptedOnly, acceptedOnly.Requirement);
+        Assert.IsFalse(acceptedOnly.IsPreferred);
+        Assert.AreEqual(Slice4.AcceptedOnlyVariantStableId, acceptedOnly.AnswerVariantStableId);
+        Assert.IsNull(acceptedOnly.RequiredSinceUtc);
+
+        var term = assignments.Single(row => row.StableId == Slice4.TermAssignmentStableId);
+        Assert.AreEqual(AnswerVariantRequirement.AcceptedOnly, term.Requirement);
+        Assert.IsTrue(term.IsPreferred);
+        Assert.AreEqual(CardDirection.MeaningToTerm, term.CardDirection);
+        Assert.IsNull(term.RequiredSinceUtc);
+
+        var progress = await ReadRestoredProgressAsync(targetFixture);
+        Assert.AreEqual(Slice4.ProgressRowCount, progress.Count);
+        Assert.AreEqual(Slice4.RequiredVariantStableId, progress[0].AnswerVariantStableId);
+        Assert.AreEqual(Slice4.RequiredSinceUtc.Ticks, AsUtc(progress[0].CreatedAtUtc).Ticks);
+
+        await AssertSlice4RowCountsAsync(targetFixture);
+    }
+
+    [TestMethod]
+    public async Task Restore_RequiredAssignment_PreservesBoundaryInvariant()
+    {
+        var archiveBytes = await BuildSlice4BoundaryArchiveBytesAsync();
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await RestoreIntoEmptyTargetAsync(targetFixture, archiveBytes);
+
+        // Invariant I1 across every restored row, asserted in the destination database itself: Required if
+        // and only if RequiredSinceUtc is non-null.
+        var violations = await targetFixture.Connection.ExecuteScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SenseAnswerVariantAssignments
+            WHERE (Requirement = ? AND RequiredSinceUtc IS NULL)
+               OR (Requirement <> ? AND RequiredSinceUtc IS NOT NULL)
+            """,
+            (int)AnswerVariantRequirement.Required, (int)AnswerVariantRequirement.Required);
+        Assert.AreEqual(0, violations);
+
+        var assignments = await ReadRestoredAssignmentsAsync(targetFixture);
+        var required = assignments.Single(row => row.Requirement == AnswerVariantRequirement.Required);
+        Assert.AreEqual(Slice4.RequiredAssignmentStableId, required.StableId);
+        Assert.IsNotNull(required.RequiredSinceUtc);
+        Assert.AreEqual(Slice4.RequiredSinceUtc.Ticks, AsUtc(required.RequiredSinceUtc!.Value).Ticks);
+    }
+
+    [TestMethod]
+    public async Task Restore_AcceptedOnlyAssignment_PreservesNullBoundary()
+    {
+        var archiveBytes = await BuildSlice4BoundaryArchiveBytesAsync();
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await RestoreIntoEmptyTargetAsync(targetFixture, archiveBytes);
+
+        var assignments = await ReadRestoredAssignmentsAsync(targetFixture);
+        var rows = assignments
+            .Where(row => row.Requirement == AnswerVariantRequirement.AcceptedOnly)
+            .ToList();
+
+        Assert.AreEqual(2, rows.Count);
+        foreach (var row in rows)
+        {
+            Assert.IsNull(row.RequiredSinceUtc, row.StableId);
+        }
+
+        // One of the two is preferred: a null boundary follows from Requirement alone, never from a row
+        // happening to be non-preferred.
+        Assert.AreEqual(1, rows.Count(row => row.IsPreferred));
+    }
+
+    [TestMethod]
+    public async Task Restore_ProgressCreatedAtUtc_RemainsEqualToRequiredSinceUtcForCurrentEpoch()
+    {
+        var archiveBytes = await BuildSlice4BoundaryArchiveBytesAsync();
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await RestoreIntoEmptyTargetAsync(targetFixture, archiveBytes);
+
+        // Required-epoch identity: a replay-owned progress row belongs to the current epoch only while its
+        // CreatedAtUtc is tick-equal to its assignment's RequiredSinceUtc. Asserted first as a join over the
+        // restored rows, then as an explicit tick comparison against the fixture's own fixed instant.
+        var drifted = await targetFixture.Connection.ExecuteScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM AnswerVariantProgress p
+            JOIN LearningCards c ON c.Id = p.CardId
+            JOIN SenseAnswerVariantAssignments a
+                ON a.SenseId = c.SenseId AND a.CardDirection = c.Direction AND a.AnswerVariantId = p.AnswerVariantId
+            WHERE a.Requirement = ? AND (a.RequiredSinceUtc IS NULL OR p.CreatedAtUtc <> a.RequiredSinceUtc)
+            """,
+            (int)AnswerVariantRequirement.Required);
+        Assert.AreEqual(0, drifted);
+
+        var progress = await ReadRestoredProgressAsync(targetFixture);
+        Assert.AreEqual(Slice4.ProgressRowCount, progress.Count);
+        Assert.AreEqual(Slice4.RequiredVariantStableId, progress[0].AnswerVariantStableId);
+        Assert.AreEqual(Slice4.RequiredSinceUtc.Ticks, AsUtc(progress[0].CreatedAtUtc).Ticks);
+    }
+
+    private static (byte[] Manifest, byte[] Data) ReadArchiveEntries(byte[] archiveBytes)
+    {
+        using var input = new MemoryStream(archiveBytes);
+        using var archive = new ZipArchive(input, ZipArchiveMode.Read);
+
+        using var manifestMemory = new MemoryStream();
+        using (var manifestStream = archive.GetEntry("manifest.json")!.Open())
+        {
+            manifestStream.CopyTo(manifestMemory);
+        }
+
+        using var dataMemory = new MemoryStream();
+        using (var dataStream = archive.GetEntry("data.json")!.Open())
+        {
+            dataStream.CopyTo(dataMemory);
+        }
+
+        return (manifestMemory.ToArray(), dataMemory.ToArray());
+    }
+
+    private static byte[] RepackArchive(byte[] manifestBytes, byte[] dataBytes)
+    {
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var manifestStream = archive.CreateEntry("manifest.json", CompressionLevel.Optimal).Open())
+            {
+                manifestStream.Write(manifestBytes);
+            }
+
+            using (var dataStream = archive.CreateEntry("data.json", CompressionLevel.Optimal).Open())
+            {
+                dataStream.Write(dataBytes);
+            }
+        }
+
+        return output.ToArray();
+    }
+
+    [TestMethod]
+    public async Task Restore_InvalidRequiredBoundaryContract_FailsBeforeDatabaseMutation()
+    {
+        var (manifestBytes, dataBytes) = ReadArchiveEntries(await BuildSlice4BoundaryArchiveBytesAsync());
+        var dataJson = Encoding.UTF8.GetString(dataBytes);
+
+        // Strip only the Required assignment's boundary; Requirement stays Required, so the archive now
+        // violates invariant I1 while remaining structurally well-formed, correctly-counted v2 JSON.
+        var boundaryLiteral = "\"requiredSinceUtc\":\""
+            + Slice4.RequiredSinceUtc.ToString(
+                "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", System.Globalization.CultureInfo.InvariantCulture)
+            + "\"";
+        Assert.Contains(boundaryLiteral, dataJson, StringComparison.Ordinal);
+        var mutatedDataJson = dataJson.Replace(boundaryLiteral, "\"requiredSinceUtc\":null", StringComparison.Ordinal);
+        var mutatedDataBytes = Encoding.UTF8.GetBytes(mutatedDataJson);
+
+        // Recompute the archive-level checksum so the contract invariant — never an incidental checksum or
+        // record-count mismatch — is what actually rejects the archive.
+        var newChecksum = "sha256:" + Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(mutatedDataBytes)).ToLowerInvariant();
+        var manifestJson = Encoding.UTF8.GetString(manifestBytes);
+        var checksumPattern = new System.Text.RegularExpressions.Regex("\"dataChecksum\":\"sha256:[0-9a-f]{64}\"");
+        Assert.IsTrue(checksumPattern.IsMatch(manifestJson), "Expected a dataChecksum field in the manifest JSON.");
+        var mutatedManifestJson = checksumPattern.Replace(manifestJson, $"\"dataChecksum\":\"{newChecksum}\"", 1);
+
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        var injector = new CountingFailureInjector();
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
+            new Schema8BackupFixtureBuilders.FakePlatformInfo(),
+            injector);
+
+        using var stream = new MemoryStream(
+            RepackArchive(Encoding.UTF8.GetBytes(mutatedManifestJson), mutatedDataBytes));
+        var result = await service.ImportPortableArchiveAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.ValidationFailed, result.Status);
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, result.ErrorCode);
+
+        // Validation ran entirely before the restore transaction: not one durable mutation was attempted,
+        // so no partial assignment or progress row can exist.
+        Assert.AreEqual(0, injector.Count);
+        Assert.IsFalse(await HasAnyDurableSchema8RowAsync(targetFixture));
+        Assert.AreEqual(
+            0,
+            await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SenseAnswerVariantAssignments"));
+        Assert.AreEqual(
+            0,
+            await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM AnswerVariantProgress"));
+        Assert.AreEqual(8, await targetFixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
     }
 
     // ---- PRAGMA user_version is read once (capability), never written, on success or failure ----

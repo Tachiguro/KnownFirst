@@ -17,6 +17,15 @@ public static class Schema8DormantMigration
     public const int SourceVersion = 7;
     public const int TargetVersion = 8;
 
+    /// <summary>
+    /// KF-MEANING-001 Slice 4: the legacy card projection additionally carries <c>State</c> (mastered
+    /// compatibility row for a legacy Retired card), <c>CreatedAtUtc</c> (the Required-epoch boundary of the
+    /// migration-created primary assignment) and <c>LastReviewedAtUtc</c> (deterministic compatibility-row
+    /// timestamps — never migration-execution time).
+    /// </summary>
+    private const string LegacyCardSelect =
+        "SELECT Id, WordId, PreferredMeaningId, Direction, State, CreatedAtUtc, LastReviewedAtUtc FROM LearningCards";
+
     public static async Task<Schema8MigrationResult> ApplyAsync(
         SQLiteAsyncConnection connection,
         Schema8MigrationOptions? options = null)
@@ -175,7 +184,7 @@ public static class Schema8DormantMigration
 
         var words = connection.Query<LegacyWordRow>("SELECT Id, Language, CanonicalTerm, TokenKind, Status FROM Words");
         var cardsByWord = connection
-            .Query<LegacyCardRow>("SELECT Id, WordId, PreferredMeaningId, Direction FROM LearningCards")
+            .Query<LegacyCardRow>(LegacyCardSelect)
             .GroupBy(c => c.WordId)
             .ToDictionary(g => g.Key, g => g.ToList());
         var meaningsByWord = connection
@@ -236,14 +245,14 @@ public static class Schema8DormantMigration
                 if (directionsPresent.Contains(CardDirection.MeaningToTerm))
                 {
                     CreatePreferredAssignmentForDirection(
-                        connection, senseId, CardDirection.MeaningToTerm, group,
+                        connection, senseId, CardDirection.MeaningToTerm, group, cardsForGroup,
                         static m => m.DisplayTerm, static m => m.SourceLanguage, context, now);
                 }
 
                 if (directionsPresent.Contains(CardDirection.TermToMeaning))
                 {
                     CreatePreferredAssignmentForDirection(
-                        connection, senseId, CardDirection.TermToMeaning, group,
+                        connection, senseId, CardDirection.TermToMeaning, group, cardsForGroup,
                         static m => m.Translation, static m => m.ExplanationLanguage, context, now);
                 }
 
@@ -262,17 +271,15 @@ public static class Schema8DormantMigration
                     if (directionsPresent.Contains(CardDirection.MeaningToTerm) && !string.IsNullOrEmpty(meaning.DisplayTerm))
                     {
                         var termVariantId = GetOrCreateAnswerVariant(connection, senseId, meaning.SourceLanguage, meaning.DisplayTerm, meaning.Id, now);
-                        EnsureAssignment(
-                            connection, senseId, CardDirection.MeaningToTerm, termVariantId,
-                            AnswerVariantRequirement.AcceptedOnly, isPreferred: false, now);
+                        EnsureAcceptedOnlyAssignment(
+                            connection, senseId, CardDirection.MeaningToTerm, termVariantId, now);
                     }
 
                     if (directionsPresent.Contains(CardDirection.TermToMeaning) && !string.IsNullOrEmpty(meaning.Translation))
                     {
                         var explanationVariantId = GetOrCreateAnswerVariant(connection, senseId, meaning.ExplanationLanguage, meaning.Translation, meaning.Id, now);
-                        EnsureAssignment(
-                            connection, senseId, CardDirection.TermToMeaning, explanationVariantId,
-                            AnswerVariantRequirement.AcceptedOnly, isPreferred: false, now);
+                        EnsureAcceptedOnlyAssignment(
+                            connection, senseId, CardDirection.TermToMeaning, explanationVariantId, now);
                     }
 
                     if (directionsPresent.Contains(CardDirection.MeaningToTerm))
@@ -285,9 +292,8 @@ public static class Schema8DormantMigration
                             }
 
                             var aliasVariantId = GetOrCreateAnswerVariant(connection, senseId, meaning.SourceLanguage, alias, meaning.Id, now);
-                            EnsureAssignment(
-                                connection, senseId, CardDirection.MeaningToTerm, aliasVariantId,
-                                AnswerVariantRequirement.AcceptedOnly, isPreferred: false, now);
+                            EnsureAcceptedOnlyAssignment(
+                                connection, senseId, CardDirection.MeaningToTerm, aliasVariantId, now);
                         }
                     }
                 }
@@ -344,50 +350,72 @@ public static class Schema8DormantMigration
         return (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
     }
 
+    /// <summary>
+    /// Inserts one assignment row. KF-MEANING-001 Slice 4 binding invariant, enforced by the caller
+    /// contract and re-asserted in <see cref="Step7_ValidateFinalInvariants"/>:
+    /// <paramref name="requiredSinceUtc"/> is non-null exactly when
+    /// <paramref name="requirement"/> is <see cref="AnswerVariantRequirement.Required"/>.
+    /// </summary>
     private static void CreateAssignment(
         SQLiteConnection connection, int senseId, CardDirection direction, int answerVariantId,
-        AnswerVariantRequirement requirement, bool isPreferred, DateTime now)
+        AnswerVariantRequirement requirement, bool isPreferred, DateTime? requiredSinceUtc, DateTime now)
     {
+        if ((requirement == AnswerVariantRequirement.Required) != requiredSinceUtc.HasValue)
+        {
+            throw Schema8MigrationException.InvariantViolation(
+                $"Assignment for Sense {senseId}/{direction}/variant {answerVariantId} violates " +
+                "'Requirement = Required if and only if RequiredSinceUtc is not null'.");
+        }
+
         connection.Execute(
             """
             INSERT INTO SenseAnswerVariantAssignments
-                (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, CreatedAtUtc, UpdatedAtUtc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            NewStableId(), senseId, (int)direction, answerVariantId, (int)requirement, isPreferred, now, now);
+            NewStableId(), senseId, (int)direction, answerVariantId, (int)requirement, isPreferred,
+            requiredSinceUtc, now, now);
     }
 
-    private static void EnsureAssignment(
-        SQLiteConnection connection, int senseId, CardDirection direction, int answerVariantId,
-        AnswerVariantRequirement requirement, bool isPreferred, DateTime now)
+    /// <summary>
+    /// Adds an <see cref="AnswerVariantRequirement.AcceptedOnly"/>, non-preferred, null-boundary assignment
+    /// unless the exact <c>(SenseId, CardDirection, AnswerVariantId)</c> triple already exists. Never
+    /// downgrades or duplicates an existing row — in particular it can never displace or demote the primary
+    /// Required assignment created by <see cref="CreatePreferredAssignmentForDirection"/> (Decision 12).
+    /// </summary>
+    private static void EnsureAcceptedOnlyAssignment(
+        SQLiteConnection connection, int senseId, CardDirection direction, int answerVariantId, DateTime now)
     {
         var exists = connection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM SenseAnswerVariantAssignments WHERE SenseId = ? AND CardDirection = ? AND AnswerVariantId = ?",
             senseId, (int)direction, answerVariantId) > 0;
         if (exists)
         {
-            // Never downgrade or duplicate an existing assignment (e.g. the preferred term assignment
-            // already created for the same variant text) — Decision 12 only ever adds AcceptedOnly rows.
             return;
         }
 
-        CreateAssignment(connection, senseId, direction, answerVariantId, requirement, isPreferred, now);
+        CreateAssignment(
+            connection, senseId, direction, answerVariantId,
+            AnswerVariantRequirement.AcceptedOnly, isPreferred: false, requiredSinceUtc: null, now);
     }
 
     /// <summary>
-    /// Focused invariant 2: creates the single preferred (AcceptedOnly, <c>IsPreferred = true</c>)
-    /// assignment for one <paramref name="direction"/> of a Sense, or does nothing if no Meaning in the
-    /// group carries an assignable expression for that direction (never invents one). The candidate is
-    /// chosen deterministically — lowest legacy Meaning.Id first, then lowest normalized text (ordinal) —
-    /// which always selects the representative Meaning when it contributes, since the representative is
-    /// itself always the group's lowest-Id Meaning (Focused invariant 1). Must be called before any other
-    /// assignment is created for this exact (SenseId, CardDirection) pair.
+    /// Focused invariant 2, corrected by KF-MEANING-001 Slice 4: creates the single primary assignment for
+    /// one <paramref name="direction"/> of a Sense as <see cref="AnswerVariantRequirement.Required"/> and
+    /// preferred, with <c>RequiredSinceUtc</c> set to the affected card's own <c>CreatedAtUtc</c> so the
+    /// card's entire legacy review history stays inside the first Required epoch. Does nothing when no
+    /// Meaning in the group carries an assignable expression for that direction (never invents one). The
+    /// candidate is chosen deterministically — lowest legacy Meaning.Id first, then lowest normalized text
+    /// (ordinal) — which always selects the representative Meaning when it contributes, since the
+    /// representative is itself always the group's lowest-Id Meaning (Focused invariant 1). Must be called
+    /// before any other assignment is created for this exact (SenseId, CardDirection) pair.
     /// </summary>
     private static void CreatePreferredAssignmentForDirection(
         SQLiteConnection connection,
         int senseId,
         CardDirection direction,
         List<LegacyMeaningRow> group,
+        List<LegacyCardRow> cardsForGroup,
         Func<LegacyMeaningRow, string> textSelector,
         Func<LegacyMeaningRow, string> languageSelector,
         MigrationContext context,
@@ -399,8 +427,18 @@ public static class Schema8DormantMigration
             return;
         }
 
+        // IX_LearningCards_Word_Direction is unique on (WordId, Direction), so at most one legacy card of
+        // this Word — and therefore of this Sense group — can exist per direction.
+        var card = cardsForGroup.SingleOrDefault(c => c.Direction == direction);
+        if (card is null)
+        {
+            return;
+        }
+
         var variantId = GetOrCreateAnswerVariant(connection, senseId, languageSelector(chosen), textSelector(chosen), chosen.Id, now);
-        CreateAssignment(connection, senseId, direction, variantId, AnswerVariantRequirement.AcceptedOnly, isPreferred: true, now);
+        CreateAssignment(
+            connection, senseId, direction, variantId,
+            AnswerVariantRequirement.Required, isPreferred: true, requiredSinceUtc: card.CreatedAtUtc, now);
         context.DirectionVariantId[(senseId, direction)] = variantId;
     }
 
@@ -430,7 +468,7 @@ public static class Schema8DormantMigration
         }
 
         var cardDirectionById = connection
-            .Query<LegacyCardRow>("SELECT Id, WordId, PreferredMeaningId, Direction FROM LearningCards")
+            .Query<LegacyCardRow>(LegacyCardSelect)
             .ToDictionary(c => c.Id, c => c.Direction);
 
         var reviews = connection.Query<LegacyReviewRow>("SELECT Id, CardId, WasTypedAnswer, WasCorrect FROM LearningReviews");
@@ -465,57 +503,80 @@ public static class Schema8DormantMigration
         BackfillAutomaticProgress(connection, context, cardDirectionById, now);
     }
 
+    /// <summary>
+    /// Migrates word-level automatic counters into per-<c>(CardId, AnswerVariantId)</c> progress rows, and —
+    /// KF-MEANING-001 Slice 4 — additionally seeds a mastered compatibility row for every legacy
+    /// <see cref="CardState.Retired"/> card whose word carries only default counters, so activation never
+    /// reactivates an already-mastered legacy card.
+    /// <para>
+    /// Every timestamp is derived from the card, never from migration-execution time, so the migration stays
+    /// deterministic and the seeded row is tick-equal to its assignment's <c>RequiredSinceUtc</c>
+    /// (both are <c>card.CreatedAtUtc</c>) and therefore counts as current-Required-epoch progress.
+    /// </para>
+    /// </summary>
     private static void BackfillAutomaticProgress(
         SQLiteConnection connection,
         MigrationContext context,
         Dictionary<int, CardDirection> cardDirectionById,
         DateTime now)
     {
-        var words = connection.Query<LegacyWordAutomaticStateRow>(
-            """
-            SELECT Id, AutomaticInteractionMode, ConsecutiveRecallSuccessCount, ConsecutiveTypingSuccessCount,
-                   ConsecutiveTypingFailureCount, MasteryReviewExtensionScheduled, CreatedAt, UpdatedAt
-            FROM Words
-            """);
+        var words = connection
+            .Query<LegacyWordAutomaticStateRow>(
+                """
+                SELECT Id, AutomaticInteractionMode, ConsecutiveRecallSuccessCount, ConsecutiveTypingSuccessCount,
+                       ConsecutiveTypingFailureCount, MasteryReviewExtensionScheduled, CreatedAt, UpdatedAt
+                FROM Words
+                """)
+            .ToDictionary(w => w.Id);
 
-        var cardsByWordId = connection
-            .Query<LegacyCardRow>("SELECT Id, WordId, PreferredMeaningId, Direction FROM LearningCards")
-            .GroupBy(c => c.WordId)
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var cards = connection
+            .Query<LegacyCardRow>(LegacyCardSelect)
+            .OrderBy(c => c.Id)
+            .ToList();
 
-        foreach (var word in words)
+        foreach (var card in cards)
         {
+            if (!context.SenseIdByCardId.TryGetValue(card.Id, out var senseId)
+                || !context.DirectionVariantId.TryGetValue((senseId, card.Direction), out var variantId)
+                || !words.TryGetValue(card.WordId, out var word))
+            {
+                continue;
+            }
+
             var hasNonDefaultState =
                 word.ConsecutiveRecallSuccessCount != 0
                 || word.ConsecutiveTypingSuccessCount != 0
                 || word.ConsecutiveTypingFailureCount != 0
                 || word.MasteryReviewExtensionScheduled;
+            var isRetired = card.State == CardState.Retired;
 
-            if (!hasNonDefaultState || !cardsByWordId.TryGetValue(word.Id, out var wordCards))
+            if (!hasNonDefaultState && !isRetired)
             {
                 continue;
             }
 
-            foreach (var card in wordCards)
-            {
-                if (!context.SenseIdByCardId.TryGetValue(card.Id, out var senseId)
-                    || !context.DirectionVariantId.TryGetValue((senseId, card.Direction), out var variantId))
-                {
-                    continue;
-                }
+            var interactionMode = hasNonDefaultState
+                ? word.AutomaticInteractionMode
+                : LearningInteractionMode.Typing;
+            var readingSuccesses = hasNonDefaultState ? word.ConsecutiveRecallSuccessCount : 0;
+            var typingSuccesses = hasNonDefaultState
+                ? word.ConsecutiveTypingSuccessCount
+                : AutomaticLearningPolicy.RequiredConsecutiveAssessments;
+            var typingFailures = hasNonDefaultState ? word.ConsecutiveTypingFailureCount : 0;
+            var extensionScheduled = hasNonDefaultState && word.MasteryReviewExtensionScheduled;
 
-                connection.Execute(
-                    """
-                    INSERT INTO AnswerVariantProgress
-                        (CardId, AnswerVariantId, InteractionMode, ConsecutiveReadingSuccessCount,
-                         ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount, LastAssessedAtUtc,
-                         MasteryReviewExtensionScheduled, IsMastered, ReplayVersion, CreatedAtUtc, UpdatedAtUtc)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1, ?, ?)
-                    """,
-                    card.Id, variantId, (int)word.AutomaticInteractionMode, word.ConsecutiveRecallSuccessCount,
-                    word.ConsecutiveTypingSuccessCount, word.ConsecutiveTypingFailureCount, word.UpdatedAt,
-                    word.MasteryReviewExtensionScheduled, word.CreatedAt, now);
-            }
+            connection.Execute(
+                """
+                INSERT INTO AnswerVariantProgress
+                    (CardId, AnswerVariantId, InteractionMode, ConsecutiveReadingSuccessCount,
+                     ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount, LastAssessedAtUtc,
+                     MasteryReviewExtensionScheduled, IsMastered, ReplayVersion, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                """,
+                card.Id, variantId, (int)interactionMode, readingSuccesses,
+                typingSuccesses, typingFailures, card.LastReviewedAtUtc,
+                extensionScheduled, isRetired, card.CreatedAtUtc,
+                card.LastReviewedAtUtc ?? card.CreatedAtUtc);
         }
     }
 
@@ -670,6 +731,40 @@ public static class Schema8DormantMigration
         {
             throw Schema8MigrationException.InvariantViolation(
                 "Duplicate (SenseId, CardDirection, AnswerVariantId) assignment rows exist.");
+        }
+
+        // KF-MEANING-001 Slice 4 invariant I1: Requirement = Required if and only if RequiredSinceUtc is
+        // non-null. Re-asserted explicitly here, before PRAGMA user_version becomes 8.
+        var badBoundary = connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*) FROM SenseAnswerVariantAssignments
+            WHERE (Requirement = ? AND RequiredSinceUtc IS NULL)
+               OR (Requirement <> ? AND RequiredSinceUtc IS NOT NULL)
+            """,
+            (int)AnswerVariantRequirement.Required, (int)AnswerVariantRequirement.Required);
+        if (badBoundary > 0)
+        {
+            throw Schema8MigrationException.InvariantViolation(
+                $"{badBoundary} assignment row(s) violate 'Requirement = Required if and only if RequiredSinceUtc is not null'.");
+        }
+
+        // Every progress row created by this migration must be current-Required-epoch progress, i.e. its
+        // CreatedAtUtc must equal its assignment's RequiredSinceUtc, otherwise replay would reset it and an
+        // already-mastered legacy card would reactivate at activation time.
+        var seedOutsideEpoch = connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*) FROM AnswerVariantProgress p
+            JOIN LearningCards c ON c.Id = p.CardId
+            JOIN SenseAnswerVariantAssignments a
+              ON a.SenseId = c.SenseId AND a.CardDirection = c.Direction AND a.AnswerVariantId = p.AnswerVariantId
+            WHERE a.Requirement = ? AND (a.RequiredSinceUtc IS NULL OR p.CreatedAtUtc <> a.RequiredSinceUtc)
+            """,
+            (int)AnswerVariantRequirement.Required);
+        if (seedOutsideEpoch > 0)
+        {
+            throw Schema8MigrationException.InvariantViolation(
+                $"{seedOutsideEpoch} migrated progress row(s) are not current-Required-epoch progress " +
+                "(CreatedAtUtc does not match the assignment's RequiredSinceUtc).");
         }
 
         var badWordStatus = connection.ExecuteScalar<int>(

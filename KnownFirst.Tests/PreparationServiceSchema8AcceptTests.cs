@@ -315,6 +315,260 @@ public sealed class PreparationServiceSchema8AcceptTests
         Assert.AreEqual(PreparationCandidateStatus.Prepared, retriedCandidate.Status);
     }
 
+    // ========== KF-MEANING-001 Slice 4: answer-variant and assignment initialization on accept ==========
+
+    private sealed class AssignmentProbeRow
+    {
+        public int Id { get; set; }
+        public string StableId { get; set; } = string.Empty;
+        public int SenseId { get; set; }
+        public int CardDirection { get; set; }
+        public int AnswerVariantId { get; set; }
+        public int Requirement { get; set; }
+        public bool IsPreferred { get; set; }
+        public DateTime? RequiredSinceUtc { get; set; }
+        public DateTime CreatedAtUtc { get; set; }
+        public string NormalizedText { get; set; } = string.Empty;
+        public string AnswerLanguage { get; set; } = string.Empty;
+    }
+
+    private Task<List<AssignmentProbeRow>> ReadAssignmentsAsync(int senseId) =>
+        _database.ReadAsync(connection => connection.QueryAsync<AssignmentProbeRow>(
+            """
+            SELECT a.Id, a.StableId, a.SenseId, a.CardDirection, a.AnswerVariantId, a.Requirement,
+                   a.IsPreferred, a.RequiredSinceUtc, a.CreatedAtUtc, v.NormalizedText, v.AnswerLanguage
+            FROM SenseAnswerVariantAssignments a JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+            WHERE a.SenseId = ?
+            ORDER BY a.CardDirection, a.Id
+            """,
+            senseId));
+
+    private Task<int> ReadSenseIdAsync(int wordId) =>
+        _database.ReadAsync(connection =>
+            connection.ExecuteScalarAsync<int>("SELECT Id FROM Senses WHERE WordId = ? ORDER BY Id LIMIT 1", wordId));
+
+    [TestMethod]
+    public async Task AcceptSchema8_CreatesOnePrimaryRequiredPreferredAssignmentPerCreatedDirection()
+    {
+        var wordId = await ImportSingleUnknownAsync("bank protects money.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.Both);
+
+        Assert.AreEqual(8, await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("PRAGMA user_version")));
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var assignments = await ReadAssignmentsAsync(senseId);
+
+        foreach (var direction in new[] { CardDirection.MeaningToTerm, CardDirection.TermToMeaning })
+        {
+            var forDirection = assignments.Where(a => a.CardDirection == (int)direction).ToList();
+            var primaries = forDirection
+                .Where(a => a.Requirement == (int)AnswerVariantRequirement.Required)
+                .ToList();
+
+            Assert.HasCount(1, primaries, $"{direction} must have exactly one Required primary");
+            Assert.IsTrue(primaries[0].IsPreferred);
+            Assert.IsNotNull(primaries[0].RequiredSinceUtc);
+            Assert.HasCount(1, forDirection.Where(a => a.IsPreferred).ToList());
+            Assert.MatchesRegex("^[0-9a-f]{32}$", primaries[0].StableId);
+        }
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema8_PrimaryAssignment_RequiredSinceUtcEqualsCreatedAtUtc()
+    {
+        var wordId = await ImportSingleUnknownAsync("bank protects money.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.MeaningToTerm);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var primary = (await ReadAssignmentsAsync(senseId))
+            .Single(a => a.Requirement == (int)AnswerVariantRequirement.Required);
+
+        Assert.IsNotNull(primary.RequiredSinceUtc);
+        Assert.AreEqual(
+            DateTime.SpecifyKind(primary.CreatedAtUtc, DateTimeKind.Utc).Ticks,
+            DateTime.SpecifyKind(primary.RequiredSinceUtc!.Value, DateTimeKind.Utc).Ticks);
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema8_ProviderAlternatives_AreAcceptedOnlyWithNullBoundary()
+    {
+        var wordId = await ImportSingleUnknownAsync("bank protects money.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.Both);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var accepted = (await ReadAssignmentsAsync(senseId))
+            .Where(a => a.Requirement == (int)AnswerVariantRequirement.AcceptedOnly)
+            .ToList();
+
+        foreach (var row in accepted)
+        {
+            Assert.IsNull(row.RequiredSinceUtc);
+            Assert.IsFalse(row.IsPreferred);
+        }
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema8_Aliases_AreAcceptedOnlyMeaningToTermOnly()
+    {
+        // PreparationSelectionPolicy tie-breaks equal-occurrence candidates by ordinal CanonicalTerm, so the
+        // fixture text must keep "color" ordinally first among its unknown words for this Sense to be the one
+        // the session actually prepares.
+        var wordId = await ImportSingleUnknownAsync("color is vivid.", "color");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-color")];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        Assert.AreEqual(wordId, item!.WordId, "the session must prepare the aliased word, not another candidate");
+        var input = InputFrom(item) with { AcceptedAliases = ["colour"] };
+        await _preparation.AcceptAsync(item.CandidateId, input, CardDirectionPreference.Both);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var assignments = await ReadAssignmentsAsync(senseId);
+
+        var aliasRows = assignments.Where(a => a.NormalizedText == "colour").ToList();
+        Assert.IsNotEmpty(aliasRows);
+        foreach (var row in aliasRows)
+        {
+            Assert.AreEqual((int)CardDirection.MeaningToTerm, row.CardDirection, "aliases are term-side only");
+            Assert.AreEqual((int)AnswerVariantRequirement.AcceptedOnly, row.Requirement);
+            Assert.IsFalse(row.IsPreferred);
+            Assert.IsNull(row.RequiredSinceUtc);
+        }
+
+        Assert.IsFalse(
+            assignments.Any(a => a.NormalizedText == "colour" && a.CardDirection == (int)CardDirection.TermToMeaning));
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema8_NoValidPrimaryExpression_CreatesNoAssignment()
+    {
+        var wordId = await ImportSingleUnknownAsync("silent word here.", "silent");
+        // Definition-only provider meaning: no Translation, so TermToMeaning has no assignable expression.
+        _provider.MeaningsFactory = _ => [new LexicalMeaning("wikt-silent", "noun", "A definition", null, null, [])];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.TermToMeaning);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var termToMeaning = (await ReadAssignmentsAsync(senseId))
+            .Where(a => a.CardDirection == (int)CardDirection.TermToMeaning)
+            .ToList();
+
+        Assert.IsEmpty(termToMeaning); // no invented fallback variant and no primary assignment
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema8_ExistingDirectionCard_DoesNotAlterExistingAssignment()
+    {
+        var wordId = await ImportSingleUnknownAsync("bank protects money.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var first = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(first!.CandidateId, InputFrom(first), CardDirectionPreference.MeaningToTerm);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var before = (await ReadAssignmentsAsync(senseId))
+            .Where(a => a.CardDirection == (int)CardDirection.MeaningToTerm)
+            .OrderBy(a => a.Id)
+            .ToList();
+        Assert.IsNotEmpty(before);
+
+        // A second acceptance for the same Sense adds the missing direction only.
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var second = await _preparation.LookupCurrentAsync();
+        if (second is not null)
+        {
+            await _preparation.AcceptAsync(second.CandidateId, InputFrom(second), CardDirectionPreference.Both);
+        }
+
+        var after = (await ReadAssignmentsAsync(senseId))
+            .Where(a => a.CardDirection == (int)CardDirection.MeaningToTerm)
+            .OrderBy(a => a.Id)
+            .ToList();
+
+        Assert.HasCount(before.Count, after);
+        for (var index = 0; index < before.Count; index++)
+        {
+            Assert.AreEqual(before[index].Id, after[index].Id);
+            Assert.AreEqual(before[index].StableId, after[index].StableId);
+            Assert.AreEqual(before[index].Requirement, after[index].Requirement);
+            Assert.AreEqual(before[index].IsPreferred, after[index].IsPreferred);
+            Assert.AreEqual(before[index].RequiredSinceUtc, after[index].RequiredSinceUtc);
+        }
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema8_AnswerVariantDedup_ByNormalizedTriple()
+    {
+        // Same ordinal-first fixture requirement as AcceptSchema8_Aliases_AreAcceptedOnlyMeaningToTermOnly:
+        // "color" must be the prepared word for the alias to collide with the term-side primary at all.
+        var wordId = await ImportSingleUnknownAsync("color is vivid.", "color");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-color")];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        Assert.AreEqual(wordId, item!.WordId, "the session must prepare the aliased word, not another candidate");
+        // The alias normalizes to the same text as the term-side primary: it must dedupe onto one variant.
+        var input = InputFrom(item) with { AcceptedAliases = ["color"] };
+        await _preparation.AcceptAsync(item.CandidateId, input, CardDirectionPreference.Both);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+
+        var duplicateVariants = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM (
+                SELECT SenseId, AnswerLanguage, NormalizedText FROM AnswerVariants WHERE SenseId = ?
+                GROUP BY SenseId, AnswerLanguage, NormalizedText HAVING COUNT(*) > 1)
+            """,
+            senseId));
+        Assert.AreEqual(0, duplicateVariants);
+
+        var duplicateTriples = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM (
+                SELECT SenseId, CardDirection, AnswerVariantId FROM SenseAnswerVariantAssignments WHERE SenseId = ?
+                GROUP BY SenseId, CardDirection, AnswerVariantId HAVING COUNT(*) > 1)
+            """,
+            senseId));
+        Assert.AreEqual(0, duplicateTriples);
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema7_AssignmentInitialization_IsNotReached()
+    {
+        await using var schema7 = new TemporaryKnownFirstDatabase("knownfirst-schema7-accept-slice4");
+        await schema7.InitializeAsync();
+
+        Assert.AreEqual(7, await schema7.ReadAsync(c => c.ExecuteScalarAsync<int>("PRAGMA user_version")));
+
+        // The Schema-8-only tables do not exist at all, so no assignment initialization can have run.
+        foreach (var table in new[] { "Senses", "AnswerVariants", "SenseAnswerVariantAssignments", "AnswerVariantProgress" })
+        {
+            var exists = await schema7.ReadAsync(c => c.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table));
+            Assert.AreEqual(0, exists, $"{table} must not exist at Schema 7");
+        }
+
+        Assert.AreEqual(
+            1,
+            await schema7.ReadAsync(c => c.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM pragma_table_info('LearningCards') WHERE name = 'MeaningId'")));
+    }
+
     private PreparationService CreatePreparationService(
         MutableProvider provider, IPreparationFaultInjector? faultInjector = null) => new(
         _database,

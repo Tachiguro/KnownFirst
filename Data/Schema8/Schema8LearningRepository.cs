@@ -1,0 +1,413 @@
+using KnownFirst.Core.Learning;
+using KnownFirst.Core.Preparation;
+using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Models;
+using SQLite;
+
+namespace KnownFirst.Data.Schema8;
+
+/// <summary>
+/// Policy-free raw-SQL access to the Schema-8 learning graph (KF-MEANING-001 Slice 4).
+/// <para>
+/// Binding boundary rules: every method receives the caller-owned <see cref="SQLiteConnection"/>; this type
+/// never opens a connection, never begins or commits a transaction, and contains no product-policy decision.
+/// Every statement uses an explicit physical column list, so a shape drift surfaces as a missing-column
+/// failure rather than as a silently reordered projection. No reflection and no dynamic JSON is used, so the
+/// whole type stays AOT/trimming safe.
+/// </para>
+/// </summary>
+public static class Schema8LearningRepository
+{
+    private const string QueueColumns =
+        "Id, SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked, " +
+        "SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId";
+
+    private const string CardColumns =
+        "Id, WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays, EaseFactor, " +
+        "SuccessfulReviewCount, LapseCount, LastReviewedAtUtc, LastRating, CreatedAtUtc, UpdatedAtUtc";
+
+    private const string ReviewColumns =
+        "Id, CardId, SessionId, Rating, WasTypedAnswer, WasCorrect, ReviewedAtUtc, DueAtUtc, IntervalDays, " +
+        "EaseFactor, TargetAnswerVariantId, MatchedAnswerVariantId";
+
+    private const string SessionColumns =
+        "Id, Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StartedAtUtc, " +
+        "UpdatedAtUtc, CompletedAtUtc";
+
+    private const string ProgressColumns =
+        "Id, CardId, AnswerVariantId, InteractionMode, ConsecutiveReadingSuccessCount, " +
+        "ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount, LastAssessedAtUtc, " +
+        "MasteryReviewExtensionScheduled, IsMastered, ReplayVersion, CreatedAtUtc, UpdatedAtUtc";
+
+    private const string VariantColumns =
+        "Id, StableId, SenseId, AnswerLanguage, DisplayText, NormalizedText, SourceMeaningId, CreatedAtUtc, UpdatedAtUtc";
+
+    // ---- Queue ----
+
+    public static Schema8QueueTargetRow? LoadQueueRow(SQLiteConnection connection, int queueItemId) =>
+        connection.Query<Schema8QueueTargetRow>(
+            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE Id = ?", queueItemId).FirstOrDefault();
+
+    public static List<Schema8QueueTargetRow> LoadQueueRowsForSession(SQLiteConnection connection, int sessionId) =>
+        connection.Query<Schema8QueueTargetRow>(
+            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder, Id", sessionId);
+
+    public static List<Schema8QueueTargetRow> LoadIncompleteQueueRowsForCard(SQLiteConnection connection, int cardId) =>
+        connection.Query<Schema8QueueTargetRow>(
+            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE CardId = ? AND IsCompleted = 0 ORDER BY Id", cardId);
+
+    public static int CountQueueRows(SQLiteConnection connection, int sessionId) =>
+        connection.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ?", sessionId);
+
+    public static int CountIncompleteQueueRows(SQLiteConnection connection, int sessionId) =>
+        connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0", sessionId);
+
+    public static bool HasAgainRepeat(SQLiteConnection connection, int sessionId, int cardId) =>
+        connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ? AND CardId = ? AND IsAgainRepeat = 1",
+            sessionId, cardId) > 0;
+
+    public static int MaxQueueOrder(SQLiteConnection connection, int sessionId) =>
+        connection.ExecuteScalar<int?>(
+            "SELECT MAX(QueueOrder) FROM LearningSessionCards WHERE SessionId = ?", sessionId) ?? -1;
+
+    public static void SetQueueAnswerRevealed(SQLiteConnection connection, int queueItemId) =>
+        connection.Execute("UPDATE LearningSessionCards SET AnswerRevealed = 1 WHERE Id = ?", queueItemId);
+
+    public static void SetQueueSpellingResult(
+        SQLiteConnection connection, int queueItemId, bool spellingCorrect) =>
+        connection.Execute(
+            "UPDATE LearningSessionCards SET SpellingChecked = 1, SpellingCorrect = ?, AnswerRevealed = 1 WHERE Id = ?",
+            spellingCorrect, queueItemId);
+
+    public static void CompleteQueueRow(
+        SQLiteConnection connection, int queueItemId, ReviewRating rating, DateTime completedAtUtc) =>
+        connection.Execute(
+            "UPDATE LearningSessionCards SET IsCompleted = 1, Rating = ?, CompletedAtUtc = ? WHERE Id = ?",
+            (int)rating, completedAtUtc, queueItemId);
+
+    public static void InsertAgainRepeatQueueRow(
+        SQLiteConnection connection, int sessionId, int cardId, int queueOrder) =>
+        connection.Execute(
+            """
+            INSERT INTO LearningSessionCards
+                (SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked,
+                 SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId)
+            SELECT ?, ?, ?, 0, 1, 0, 0, 0, 0, NULL, NULL, TargetAnswerVariantId
+            FROM LearningSessionCards WHERE Id = (
+                SELECT Id FROM LearningSessionCards
+                WHERE SessionId = ? AND CardId = ? ORDER BY QueueOrder LIMIT 1)
+            """,
+            sessionId, cardId, queueOrder, sessionId, cardId);
+
+    public static void DeleteQueueRow(SQLiteConnection connection, int queueItemId) =>
+        connection.Execute("DELETE FROM LearningSessionCards WHERE Id = ?", queueItemId);
+
+    // ---- Cards ----
+
+    public static Schema8CardRow? LoadCard(SQLiteConnection connection, int cardId) =>
+        connection.Query<Schema8CardRow>(
+            $"SELECT {CardColumns} FROM LearningCards WHERE Id = ?", cardId).FirstOrDefault();
+
+    public static List<Schema8CardRow> LoadCardsForSense(SQLiteConnection connection, int senseId) =>
+        connection.Query<Schema8CardRow>(
+            $"SELECT {CardColumns} FROM LearningCards WHERE SenseId = ? ORDER BY Id", senseId);
+
+    public static int CountCardsForSenseDirection(SQLiteConnection connection, int senseId, CardDirection direction) =>
+        connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM LearningCards WHERE SenseId = ? AND Direction = ?", senseId, (int)direction);
+
+    public static void UpdateCardSchedule(
+        SQLiteConnection connection, int cardId, CardSchedule schedule, DateTime updatedAtUtc) =>
+        connection.Execute(
+            """
+            UPDATE LearningCards
+            SET State = ?, DueAtUtc = ?, IntervalDays = ?, EaseFactor = ?, SuccessfulReviewCount = ?,
+                LapseCount = ?, LastReviewedAtUtc = ?, LastRating = ?, UpdatedAtUtc = ?
+            WHERE Id = ?
+            """,
+            (int)schedule.State, schedule.DueAtUtc, schedule.IntervalDays, schedule.EaseFactor,
+            schedule.SuccessfulReviewCount, schedule.LapseCount, schedule.LastReviewedAtUtc,
+            schedule.LastRating.HasValue ? (int?)schedule.LastRating.Value : null, updatedAtUtc, cardId);
+
+    /// <summary>Changes only <c>State</c> and <c>UpdatedAtUtc</c>; every scheduling field is preserved.</summary>
+    public static void UpdateCardState(
+        SQLiteConnection connection, int cardId, CardState state, DateTime updatedAtUtc) =>
+        connection.Execute(
+            "UPDATE LearningCards SET State = ?, UpdatedAtUtc = ? WHERE Id = ?", (int)state, updatedAtUtc, cardId);
+
+    // ---- Senses ----
+
+    public static Schema8SenseStatusRow? LoadSense(SQLiteConnection connection, int senseId) =>
+        connection.Query<Schema8SenseStatusRow>(
+            "SELECT Id, WordId, Status FROM Senses WHERE Id = ?", senseId).FirstOrDefault();
+
+    public static void UpdateSenseStatus(
+        SQLiteConnection connection, int senseId, SenseStatus status, DateTime updatedAtUtc) =>
+        connection.Execute(
+            "UPDATE Senses SET Status = ?, UpdatedAtUtc = ? WHERE Id = ?", (int)status, updatedAtUtc, senseId);
+
+    // ---- Answer variants and assignments ----
+
+    public static AnswerVariantRow? LoadAnswerVariant(SQLiteConnection connection, int answerVariantId) =>
+        connection.Query<AnswerVariantRow>(
+            $"SELECT {VariantColumns} FROM AnswerVariants WHERE Id = ?", answerVariantId).FirstOrDefault();
+
+    /// <summary>
+    /// Every assignment of one <c>(SenseId, CardDirection)</c> joined with its variant text, ordered
+    /// deterministically by assignment Id. This is the complete attribution surface of one card direction.
+    /// </summary>
+    public static List<Schema8AttributionCandidateRow> LoadAssignmentsForSenseDirection(
+        SQLiteConnection connection, int senseId, CardDirection direction) =>
+        connection.Query<Schema8AttributionCandidateRow>(
+            """
+            SELECT a.Id AS AssignmentId, a.StableId AS AssignmentStableId, a.SenseId AS SenseId,
+                   a.CardDirection AS CardDirection, a.AnswerVariantId AS AnswerVariantId,
+                   a.Requirement AS Requirement, a.IsPreferred AS IsPreferred,
+                   a.RequiredSinceUtc AS RequiredSinceUtc, v.AnswerLanguage AS AnswerLanguage,
+                   v.DisplayText AS DisplayText, v.NormalizedText AS NormalizedText
+            FROM SenseAnswerVariantAssignments a
+            JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+            WHERE a.SenseId = ? AND a.CardDirection = ?
+            ORDER BY a.Id
+            """,
+            senseId, (int)direction);
+
+    public static Schema8AttributionCandidateRow? LoadAssignment(
+        SQLiteConnection connection, int senseId, CardDirection direction, int answerVariantId) =>
+        LoadAssignmentsForSenseDirection(connection, senseId, direction)
+            .SingleOrDefault(row => row.AnswerVariantId == answerVariantId);
+
+    public static int CountAssignments(
+        SQLiteConnection connection, int senseId, CardDirection direction, int answerVariantId) =>
+        connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*) FROM SenseAnswerVariantAssignments
+            WHERE SenseId = ? AND CardDirection = ? AND AnswerVariantId = ?
+            """,
+            senseId, (int)direction, answerVariantId);
+
+    public static int CountPreferredAssignments(
+        SQLiteConnection connection, int senseId, CardDirection direction) =>
+        connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*) FROM SenseAnswerVariantAssignments
+            WHERE SenseId = ? AND CardDirection = ? AND IsPreferred = 1
+            """,
+            senseId, (int)direction);
+
+    public static void InsertAssignment(
+        SQLiteConnection connection,
+        string stableId,
+        int senseId,
+        CardDirection direction,
+        int answerVariantId,
+        AnswerVariantRequirement requirement,
+        bool isPreferred,
+        DateTime? requiredSinceUtc,
+        DateTime timestampUtc) =>
+        connection.Execute(
+            """
+            INSERT INTO SenseAnswerVariantAssignments
+                (StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred, RequiredSinceUtc,
+                 CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            stableId, senseId, (int)direction, answerVariantId, (int)requirement, isPreferred,
+            requiredSinceUtc, timestampUtc, timestampUtc);
+
+    /// <summary>Inserts an assignment and returns its new physical Id, so no caller has to issue raw SQL.</summary>
+    public static int InsertAssignmentAndGetId(
+        SQLiteConnection connection,
+        string stableId,
+        int senseId,
+        CardDirection direction,
+        int answerVariantId,
+        AnswerVariantRequirement requirement,
+        bool isPreferred,
+        DateTime? requiredSinceUtc,
+        DateTime timestampUtc)
+    {
+        InsertAssignment(
+            connection, stableId, senseId, direction, answerVariantId, requirement, isPreferred,
+            requiredSinceUtc, timestampUtc);
+        return (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+    }
+
+    /// <summary>Updates only requirement, preference, boundary and <c>UpdatedAtUtc</c>. <c>StableId</c> and <c>CreatedAtUtc</c> are never touched.</summary>
+    public static void UpdateAssignment(
+        SQLiteConnection connection,
+        int assignmentId,
+        AnswerVariantRequirement requirement,
+        bool isPreferred,
+        DateTime? requiredSinceUtc,
+        DateTime updatedAtUtc) =>
+        connection.Execute(
+            """
+            UPDATE SenseAnswerVariantAssignments
+            SET Requirement = ?, IsPreferred = ?, RequiredSinceUtc = ?, UpdatedAtUtc = ?
+            WHERE Id = ?
+            """,
+            (int)requirement, isPreferred, requiredSinceUtc, updatedAtUtc, assignmentId);
+
+    /// <summary>
+    /// Clears every preferred flag of one <c>(SenseId, CardDirection)</c> except <paramref name="exceptAssignmentId"/>.
+    /// Must run before setting a new preferred row so the partial unique index is never transiently violated.
+    /// </summary>
+    public static void ClearPreferredForSenseDirection(
+        SQLiteConnection connection, int senseId, CardDirection direction, int exceptAssignmentId, DateTime updatedAtUtc) =>
+        connection.Execute(
+            """
+            UPDATE SenseAnswerVariantAssignments
+            SET IsPreferred = 0, UpdatedAtUtc = ?
+            WHERE SenseId = ? AND CardDirection = ? AND IsPreferred = 1 AND Id <> ?
+            """,
+            updatedAtUtc, senseId, (int)direction, exceptAssignmentId);
+
+    // ---- Reviews ----
+
+    public static List<Schema8ReviewRow> LoadReviewsForCard(SQLiteConnection connection, int cardId) =>
+        connection.Query<Schema8ReviewRow>(
+            $"SELECT {ReviewColumns} FROM LearningReviews WHERE CardId = ? ORDER BY ReviewedAtUtc, Id", cardId);
+
+    public static int InsertReview(
+        SQLiteConnection connection,
+        int cardId,
+        int sessionId,
+        ReviewRating rating,
+        bool wasTypedAnswer,
+        bool wasCorrect,
+        DateTime reviewedAtUtc,
+        CardSchedule postReviewSchedule)
+    {
+        connection.Execute(
+            """
+            INSERT INTO LearningReviews
+                (CardId, SessionId, Rating, WasTypedAnswer, WasCorrect, ReviewedAtUtc, DueAtUtc, IntervalDays,
+                 EaseFactor, TargetAnswerVariantId, MatchedAnswerVariantId)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+            """,
+            cardId, sessionId, (int)rating, wasTypedAnswer, wasCorrect, reviewedAtUtc,
+            postReviewSchedule.DueAtUtc, postReviewSchedule.IntervalDays, postReviewSchedule.EaseFactor);
+        return (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+    }
+
+    public static void UpdateReviewAttribution(
+        SQLiteConnection connection, int reviewId, int? targetAnswerVariantId, int? matchedAnswerVariantId) =>
+        connection.Execute(
+            "UPDATE LearningReviews SET TargetAnswerVariantId = ?, MatchedAnswerVariantId = ? WHERE Id = ?",
+            targetAnswerVariantId, matchedAnswerVariantId, reviewId);
+
+    // ---- Progress ----
+
+    public static List<AnswerVariantProgressRow> LoadProgressForCard(SQLiteConnection connection, int cardId) =>
+        connection.Query<AnswerVariantProgressRow>(
+            $"SELECT {ProgressColumns} FROM AnswerVariantProgress WHERE CardId = ? ORDER BY AnswerVariantId", cardId);
+
+    public static void InsertProgress(SQLiteConnection connection, AnswerVariantProgressRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        connection.Execute(
+            """
+            INSERT INTO AnswerVariantProgress
+                (CardId, AnswerVariantId, InteractionMode, ConsecutiveReadingSuccessCount,
+                 ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount, LastAssessedAtUtc,
+                 MasteryReviewExtensionScheduled, IsMastered, ReplayVersion, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            row.CardId, row.AnswerVariantId, (int)row.InteractionMode, row.ConsecutiveReadingSuccessCount,
+            row.ConsecutiveTypingSuccessCount, row.ConsecutiveTypingFailureCount, row.LastAssessedAtUtc,
+            row.MasteryReviewExtensionScheduled, row.IsMastered, row.ReplayVersion, row.CreatedAtUtc,
+            row.UpdatedAtUtc);
+    }
+
+    public static void UpdateProgress(SQLiteConnection connection, AnswerVariantProgressRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        connection.Execute(
+            """
+            UPDATE AnswerVariantProgress
+            SET InteractionMode = ?, ConsecutiveReadingSuccessCount = ?, ConsecutiveTypingSuccessCount = ?,
+                ConsecutiveTypingFailureCount = ?, LastAssessedAtUtc = ?, MasteryReviewExtensionScheduled = ?,
+                IsMastered = ?, ReplayVersion = ?, CreatedAtUtc = ?, UpdatedAtUtc = ?
+            WHERE CardId = ? AND AnswerVariantId = ?
+            """,
+            (int)row.InteractionMode, row.ConsecutiveReadingSuccessCount, row.ConsecutiveTypingSuccessCount,
+            row.ConsecutiveTypingFailureCount, row.LastAssessedAtUtc, row.MasteryReviewExtensionScheduled,
+            row.IsMastered, row.ReplayVersion, row.CreatedAtUtc, row.UpdatedAtUtc,
+            row.CardId, row.AnswerVariantId);
+    }
+
+    public static void DeleteProgress(SQLiteConnection connection, int cardId, int answerVariantId) =>
+        connection.Execute(
+            "DELETE FROM AnswerVariantProgress WHERE CardId = ? AND AnswerVariantId = ?", cardId, answerVariantId);
+
+    // ---- Sessions ----
+
+    public static Schema8SessionCounterRow? LoadSession(SQLiteConnection connection, int sessionId) =>
+        connection.Query<Schema8SessionCounterRow>(
+            $"SELECT {SessionColumns} FROM LearningSessions WHERE Id = ?", sessionId).FirstOrDefault();
+
+    public static List<Schema8SessionCounterRow> LoadActiveSessions(SQLiteConnection connection) =>
+        connection.Query<Schema8SessionCounterRow>(
+            $"SELECT {SessionColumns} FROM LearningSessions WHERE Status = ? ORDER BY Id",
+            (int)LearningSessionStatus.Active);
+
+    public static Schema8SessionCounterRow? LoadLatestCompletedSession(SQLiteConnection connection) =>
+        connection.Query<Schema8SessionCounterRow>(
+            $"SELECT {SessionColumns} FROM LearningSessions WHERE Status = ? ORDER BY Id DESC LIMIT 1",
+            (int)LearningSessionStatus.Completed).FirstOrDefault();
+
+    public static void UpdateSessionCounters(SQLiteConnection connection, Schema8SessionCounterRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        connection.Execute(
+            """
+            UPDATE LearningSessions
+            SET Status = ?, TotalCards = ?, CompletedCards = ?, AgainCount = ?, HardCount = ?, GoodCount = ?,
+                EasyCount = ?, UpdatedAtUtc = ?, CompletedAtUtc = ?
+            WHERE Id = ?
+            """,
+            (int)row.Status, row.TotalCards, row.CompletedCards, row.AgainCount, row.HardCount, row.GoodCount,
+            row.EasyCount, row.UpdatedAtUtc, row.CompletedAtUtc, row.Id);
+    }
+
+    public static void DeleteSession(SQLiteConnection connection, int sessionId) =>
+        connection.Execute("DELETE FROM LearningSessions WHERE Id = ?", sessionId);
+
+    public static int CountReviewsWithRating(SQLiteConnection connection, int sessionId, ReviewRating rating) =>
+        connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM LearningReviews WHERE SessionId = ? AND Rating = ?", sessionId, (int)rating);
+
+    public static int CountReviewsForSession(SQLiteConnection connection, int sessionId) =>
+        connection.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningReviews WHERE SessionId = ?", sessionId);
+
+    // ---- Summary projections ----
+
+    /// <summary>
+    /// The approved Schema-8 meaning of <c>RemainingUnpreparedCount</c>: distinct Words in the Unknown
+    /// backlog that carry no Sense at all. Deliberately a stable lower bound — it never reads
+    /// <c>PreparationCandidates.ResultJson</c>, never scans evidence and never counts provider-meaning
+    /// indexes.
+    /// </summary>
+    public static int CountRemainingUnprepared(SQLiteConnection connection) =>
+        connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*)
+            FROM Words w
+            WHERE w.Status = ?
+              AND w.PreparationState <> ?
+              AND NOT EXISTS (SELECT 1 FROM Senses s WHERE s.WordId = w.Id)
+            """,
+            (int)WordStatus.UnknownBacklog, (int)PreparationState.Prepared);
+
+    /// <summary>Earliest due date across cards that are neither retired nor suspended; <see langword="null"/> when none exist.</summary>
+    public static DateTime? SelectNextDueAtUtc(SQLiteConnection connection) =>
+        connection.Query<Schema8NullableTimestampRow>(
+            """
+            SELECT MIN(DueAtUtc) AS Value FROM LearningCards
+            WHERE State <> ? AND State <> ?
+            """,
+            (int)CardState.Retired, (int)CardState.Suspended).FirstOrDefault()?.Value;
+}

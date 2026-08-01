@@ -325,6 +325,17 @@ public static class BackupModelContractV2
         BackupEnumMappings.ToExternalString(assignment.Requirement);
         ValidateUtc(assignment.CreatedAtUtc);
         ValidateUtc(assignment.UpdatedAtUtc);
+
+        // KF-MEANING-001 Slice 4 invariant I1: Required iff RequiredSinceUtc is non-null. A v2 archive that
+        // predates the field deserializes it as null and is therefore rejected here whenever it claims a
+        // Required assignment, rather than silently importing a Required row with no replay boundary.
+        var isRequired = assignment.Requirement == BackupAnswerVariantRequirement.Required;
+        if (isRequired != assignment.RequiredSinceUtc.HasValue)
+        {
+            throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+        }
+
+        ValidateOptionalUtc(assignment.RequiredSinceUtc);
     }
 
     private static void ValidateProgress(BackupAnswerVariantProgress progress)

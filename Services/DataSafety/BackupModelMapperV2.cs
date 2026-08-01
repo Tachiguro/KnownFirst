@@ -283,7 +283,8 @@ public static class BackupModelMapperV2
             BackupEnumMappings.ToBackup(assignment.CardDirection),
             variantIdMap.TryGetValue(assignment.AnswerVariantId, out var vId) ? vId : "av-000000-missing",
             (BackupAnswerVariantRequirement)(int)assignment.Requirement, assignment.IsPreferred,
-            EnsureUtc(assignment.CreatedAtUtc), EnsureUtc(assignment.UpdatedAtUtc));
+            EnsureUtc(assignment.CreatedAtUtc), EnsureUtc(assignment.UpdatedAtUtc),
+            EnsureUtc(assignment.RequiredSinceUtc));
     }
 
     private static BackupLearningCardV2 MapCard(

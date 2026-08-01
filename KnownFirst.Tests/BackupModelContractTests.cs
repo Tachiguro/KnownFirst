@@ -601,6 +601,70 @@ public sealed class BackupModelContractTests
         Assert.IsFalse(exception.Message.Contains(privatePath, StringComparison.Ordinal));
     }
 
+    // ---- KF-MEANING-001 Slice 4: the archive-level RequiredSinceUtc invariant (I1) —
+    // Requirement = Required if and only if RequiredSinceUtc is non-null. ValidateAssignment is a private
+    // step of BackupModelContractV2.ValidatePayload, so it is exercised through the public entry point
+    // using a payload whose only meaningful variable is the assignment's (Requirement, RequiredSinceUtc)
+    // pair; every other field is fixed and already valid. ----
+
+    [TestMethod]
+    public void ValidateAssignment_RequiredWithNullRequiredSinceUtc_IsRejected()
+    {
+        var payload = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.Required, requiredSinceUtc: null);
+
+        var exception = Assert.ThrowsExactly<BackupFormatException>(
+            () => BackupModelContractV2.ValidatePayload(payload));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Message);
+    }
+
+    [TestMethod]
+    public void ValidateAssignment_AcceptedOnlyWithRequiredSinceUtc_IsRejected()
+    {
+        var payload = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.AcceptedOnly,
+            Schema8BackupFixtureBuilders.Slice4Boundary.RequiredSinceUtc);
+
+        var exception = Assert.ThrowsExactly<BackupFormatException>(
+            () => BackupModelContractV2.ValidatePayload(payload));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Message);
+    }
+
+    [TestMethod]
+    public void ValidateAssignment_RequiredWithUtcBoundary_IsAccepted()
+    {
+        var boundary = Schema8BackupFixtureBuilders.Slice4Boundary.RequiredSinceUtc;
+        var payload = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.Required, boundary);
+
+        BackupModelContractV2.ValidatePayload(payload);
+
+        // No unrelated validation behaviour changed: the same payload still counts and validates exactly
+        // as it did before the boundary field existed, and the DTO value itself is untouched.
+        var counts = BackupModelContractV2.CountRecords(payload);
+        Assert.AreEqual(1, counts.SenseAnswerVariantAssignments);
+        Assert.AreEqual(1, counts.Senses);
+        Assert.AreEqual(1, counts.AnswerVariants);
+        Assert.AreEqual(0, counts.AnswerVariantProgress);
+        Assert.AreEqual(boundary.Ticks, payload.SenseAnswerVariantAssignments[0].RequiredSinceUtc!.Value.Ticks);
+        Assert.AreEqual(DateTimeKind.Utc, payload.SenseAnswerVariantAssignments[0].RequiredSinceUtc!.Value.Kind);
+    }
+
+    [TestMethod]
+    public void ValidateAssignment_AcceptedOnlyWithNullBoundary_IsAccepted()
+    {
+        var payload = Schema8BackupFixtureBuilders.BuildSingleAssignmentPayloadV2(
+            BackupAnswerVariantRequirement.AcceptedOnly, requiredSinceUtc: null);
+
+        BackupModelContractV2.ValidatePayload(payload);
+
+        var counts = BackupModelContractV2.CountRecords(payload);
+        Assert.AreEqual(1, counts.SenseAnswerVariantAssignments);
+        Assert.IsNull(payload.SenseAnswerVariantAssignments[0].RequiredSinceUtc);
+    }
+
     private static void AssertPersistenceRoundTrips<TPersistence, TBackup>(
         Func<TPersistence, TBackup> toBackup,
         Func<TBackup, TPersistence> toPersistence)

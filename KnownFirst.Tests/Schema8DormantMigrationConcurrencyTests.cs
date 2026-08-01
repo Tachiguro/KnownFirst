@@ -63,10 +63,10 @@ public sealed class Schema8DormantMigrationConcurrencyTests
         var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
         var databasePath = fixture.DatabasePath;
 
-        // Release the pooled async connection so the two raw connections below race for the file lock
-        // instead of contending with it.
+        // Release this fixture's pooled async connection so the two raw connections below race for the file
+        // lock instead of contending with it. CloseAsync removes exactly this connection string's pooled
+        // entry; a process-wide pool reset would also close handles owned by concurrently running tests.
         await fixture.Connection.CloseAsync();
-        SQLiteAsyncConnection.ResetPool();
 
         using var barrier = new Barrier(2);
 

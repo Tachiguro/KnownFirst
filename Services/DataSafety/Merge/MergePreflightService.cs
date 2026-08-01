@@ -47,6 +47,33 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             validated.Manifest.CreatedAtUtc,
             validated.Manifest.SourcePlatform);
 
+        BackupSchemaCapabilityResult targetCapability;
+        try
+        {
+            targetCapability = await database.ExecuteSnapshotAsync(BackupSchemaCapability.Resolve);
+        }
+        catch (OperationCanceledException)
+        {
+            return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Cancelled, manifestInfo, true, BackupErrorCodes.OperationCancelled);
+        }
+        catch (BackupSchemaCapabilityException exception)
+        {
+            return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, exception.ErrorCode);
+        }
+        catch (Exception)
+        {
+            return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+        }
+
+        if (targetCapability is Schema8CapabilityResult)
+        {
+            return MergePreflightPlan.ForEarlyExit(
+                MergePreflightStatus.BlockedByPrerequisite,
+                manifestInfo,
+                true,
+                MergePreflightErrorCodes.Schema8AdaptationRequired);
+        }
+
         PortableSnapshotCaptureResult captureResult;
         try
         {

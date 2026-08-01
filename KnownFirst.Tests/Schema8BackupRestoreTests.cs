@@ -146,6 +146,48 @@ public sealed class Schema8BackupRestoreTests
         Assert.AreEqual(8, afterVersion);
     }
 
+    [TestMethod]
+    public async Task V2NullableTargets_EmptyRestoreReopensAndInitializesWithoutMutation()
+    {
+        await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        await sourceFixture.Connection.ExecuteAsync("UPDATE LearningReviews SET TargetAnswerVariantId = NULL");
+        await sourceFixture.Connection.ExecuteAsync("UPDATE LearningSessionCards SET TargetAnswerVariantId = NULL");
+        var archiveBytes = await BuildV2ArchiveBytesAsync(sourceFixture);
+
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await RestoreIntoEmptyTargetAsync(targetFixture, archiveBytes);
+
+        Assert.IsGreaterThan(0, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews"));
+        Assert.IsGreaterThan(0, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards"));
+        Assert.AreEqual(0, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews WHERE TargetAnswerVariantId IS NOT NULL"));
+        Assert.AreEqual(0, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE TargetAnswerVariantId IS NOT NULL"));
+        await AssertNormalReopenPreservesCompleteStateAsync(targetFixture);
+    }
+
+    [TestMethod]
+    public async Task V1NullableHistoricalTargets_UpgradeRestoreReopensAndInitializesWithoutMutation()
+    {
+        await using var sourceFixture = await Schema7Fixture.CreateAsync();
+        var wordId = await sourceFixture.InsertWordAsync("unattributed");
+        var meaningId = await sourceFixture.InsertMeaningAsync(
+            wordId,
+            displayTerm: "unattributed",
+            translation: string.Empty,
+            definition: "historical definition without a direction-specific answer");
+        var cardId = await sourceFixture.InsertCardAsync(wordId, meaningId, CardDirection.TermToMeaning);
+        var sessionId = await sourceFixture.InsertLearningSessionAsync();
+        await sourceFixture.InsertReviewAsync(cardId, sessionId, wasTypedAnswer: false, wasCorrect: true);
+        await sourceFixture.InsertQueueItemAsync(sessionId, cardId, 0, isCompleted: true);
+        var archiveBytes = await BuildV1ArchiveBytesAsync(sourceFixture);
+
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await RestoreIntoEmptyTargetAsync(targetFixture, archiveBytes);
+
+        Assert.AreEqual(1, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews WHERE TargetAnswerVariantId IS NULL"));
+        Assert.AreEqual(1, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE TargetAnswerVariantId IS NULL"));
+        await AssertNormalReopenPreservesCompleteStateAsync(targetFixture);
+    }
+
     // ---- KF-MEANING-001 Slice 4: the assignment RequiredSinceUtc boundary through a real empty Schema-8
     // restore. The source fixture (Schema8BackupFixtureBuilders.CreateSlice4BoundarySchema8FixtureAsync) is
     // fully deterministic, so every assertion below is an exact identity/tick comparison rather than a
@@ -205,6 +247,19 @@ public sealed class Schema8BackupRestoreTests
         using var stream = new MemoryStream(archiveBytes);
         var result = await service.ImportPortableArchiveAsync(stream, CancellationToken.None);
         Assert.AreEqual(PortableImportStatus.Success, result.Status);
+    }
+
+    private static async Task AssertNormalReopenPreservesCompleteStateAsync(Schema7Fixture fixture)
+    {
+        await fixture.Connection.CloseAsync();
+        var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.DatabasePath);
+
+        var reopened = new SQLiteAsyncConnection(fixture.DatabasePath);
+        await DatabaseSchema.InitializeAsync(reopened);
+        await reopened.CloseAsync();
+        var after = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.DatabasePath);
+
+        CollectionAssert.AreEqual(before, after);
     }
 
     /// <summary>Proves no unrelated row was added, dropped, or duplicated by the restore.</summary>

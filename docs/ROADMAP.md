@@ -20,9 +20,9 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 2 | Russian UI & Translation Target | Committed | Russian UI localization (PR #20), Learn repeat/direction clarity (PR #21), Beta 11 identity (PR #22), Beta 12 Russian translation target fix (PR #23/PR #32); distributed & user-tested via Google Play Internal Testing. |
 | 3 | Meaning & Backup Foundations | Committed | Backup Merge Slices 1–3 (PRs #26–#28), Meaning Slices 0–3 (PRs #29–#33); dormant Schema-8 foundations merged to master (`ad6f1456`). |
 | 4 | Tooling Infrastructure & Safeguards | Committed | Windows StartupSmoke GUI launcher (PR #35), New-Chat Bootstrap Protocol (PR #36), Google Play packaging safeguards (PR #37). |
-| 5 | Meaning Slices 4–5 | Current | Slice 4 merged via PR #40 and verified (1347/0/0); Slice 5 and its six-defect data-integrity correction are validated on the feature branch (1364/0/0), with final correction review and manual merge pending. |
-| 6 | Schema 8 Activation | Planned | Factual flip of `CurrentVersion` to 8 and live database migration (depends on Slices 1–5). |
-| 7 | Populated Target Import Merge | Planned | MergePreflight adaptation, populated-database merge writer, Import routing, and convergence UI. |
+| 5 | Meaning Slices 4–5 | Committed | Slice 4 merged via PR #40 and verified (1347/0/0); Slice 5 merged via PR #41 and verified (1364/0/0). |
+| 6 | Schema 8 Activation | Current | `CurrentVersion` is 8 and live database migration is active; implemented and validated on `feature/meaning-slice6-schema8-activation` (1542/0/0), manual merge pending. |
+| 7 | Populated Target Import Merge | Planned | Slice 7 MergePreflight adaptation, Slice 8 populated-database merge writer and Import routing, Slice 9 Import UI and end-to-end convergence validation. |
 | 8 | Public-release support surface | Planned — public-release blocker | Implement functional Support KnownFirst and Report a bug controls (or an explicit removal decision), and reopenable release-note history. |
 | 9 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation launcher integration. |
 | 10 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
@@ -43,11 +43,13 @@ This roadmap records intended order. It does not claim that planned behavior exi
 - New-Chat Bootstrap Protocol — merged via PR #36 (`4308533`).
 - Google Play packaging safeguards — merged via PR #37 (`ad6f1456`).
 - Meaning Slice 4 direction-specific answer assignments and progress replay — merged via PR #40 (`60d8f073`); full suite 1347 passed, 0 failed, 0 skipped.
+- Meaning Slice 5 Sense-addressed cards and queue behavior — merged via PR #41 (`e1724651`); full suite 1364 passed, 0 failed, 0 skipped.
 
 ## Current
 
-**Meaning Slice 5 — Sense-addressed cards and queue behavior**
-- The independent PR review found six blocking data-integrity defects; the correction is implemented and validated on `feat/meaning-slice5-sense-queue` with a focused result of 58 passed, 0 failed, 0 skipped and a complete result of 1364 passed, 0 failed, 0 skipped. Final correction review and manual merge remain pending; Slice 5 is not merged. See [CURRENT_WORK.md](CURRENT_WORK.md).
+**Meaning Slice 6 — Schema-8 activation and the first real user-data migration**
+- Implemented and validated on `feature/meaning-slice6-schema8-activation` with a focused result of 466 passed, 0 failed, 0 skipped and a complete result of 1542 passed, 0 failed, 0 skipped. Manual merge is pending; Slice 6 is not merged.
+- `DatabaseSchema.CurrentVersion` is 8, fresh databases initialize directly to valid Schema 8, supported versions 0–6 reach the Schema-7 boundary and then migrate, version 7 migrates, and a valid version 8 is validation-only on reopen. Malformed and future databases fail closed. See [CURRENT_WORK.md](CURRENT_WORK.md).
 
 ## Planned Sequence (Meaning & Merge)
 
@@ -56,15 +58,15 @@ The current product direction is **non-destructive populated-target portable arc
 No direct jump to the merge writer is allowed. Populated-target import is not yet available. Beta 13 is not the current product milestone. Packaging investigation is deferred until the next genuine release.
 
 1. **Meaning Slice 4:** Completed and merged via PR #40 (dual-schema compatible).
-2. **Meaning Slice 5:** Feature-branch implementation and six-defect correction validated; final correction review and manual merge pending (dual-schema compatible; not merged).
-3. **Slice 6 (Schema-8 Activation):** Factual flip of `CurrentVersion` to 8 and first real user-data migration.
-4. **Slice 7:** MergePreflight adaptation for Sense-addressed queries.
-5. **Slice 8:** Populated-database merge writer and Import routing.
+2. **Meaning Slice 5:** Completed and merged via PR #41 (dual-schema compatible).
+3. **Slice 6 (Schema-8 Activation):** Implemented and validated on the feature branch; `CurrentVersion` is 8 and the first real user-data migration is live. Manual merge pending.
+4. **Slice 7:** Schema-8 MergePreflight adaptation. MergePreflight currently fails closed on a Schema-8 target with `merge-preflight-schema8-adaptation-required`.
+5. **Slice 8:** Populated-target merge writer and Import routing.
 6. **Slice 9:** Import UI and end-to-end convergence validation.
 
 ## Deferred
 
-- Populated-database merge import execution (until Slices 6–9 are complete).
+- Populated-database merge import execution (until Slices 7–9 are complete).
 - Re-validation of packaging script runtime behavior (deferred to `KF-RELEASE-001` before the next genuine release).
 - Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback.
 - Additional learning languages beyond English, German, and Russian-as-target.

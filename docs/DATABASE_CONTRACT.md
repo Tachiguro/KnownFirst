@@ -5,7 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version 7. It does not define a
+It describes the current SQLite model at schema version 8. It does not define a
 backup file format or claim that backup and restore exist.
 
 ## Storage boundary
@@ -20,7 +20,7 @@ backup file format or claim that backup and restore exist.
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **7**.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **8**.
 
 | Table | Responsibility |
 | --- | --- |
@@ -37,14 +37,22 @@ backup file format or claim that backup and restore exist.
 | `PreparationSessions` | Resumable preparation batches |
 | `PreparationCandidates` | Ordered lookup results and preparation outcomes |
 | `ContextSnapshots` | Deduplicated learning contexts with exact target coordinates |
-| `LearningCards` | Independent card-direction scheduling state |
-| `LearningReviews` | Persisted rating history |
+| `LearningCards` | Independent Sense-addressed card-direction scheduling state |
+| `LearningReviews` | Persisted rating history including target and matched answer variant |
 | `LearningSessions` | Resumable learning-session summary state |
-| `LearningSessionCards` | Ordered persisted session queue and reveal/check state |
+| `LearningSessionCards` | Ordered persisted session queue, frozen answer target, and reveal/check state |
+| `Senses` | Meaning-centric Sense identity, provenance, and status per vocabulary identity |
+| `AnswerVariants` | Distinct accepted answer expressions per Sense and answer language |
+| `SenseAnswerVariantAssignments` | Direction-specific Required/AcceptedOnly assignment, preferred flag, and Required-epoch boundary |
+| `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` mastery progress |
+
+At schema 8 `LearningCards.MeaningId` no longer exists; the card's own preferred
+meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
+`SenseId`.
 
 Relationships are represented by entity IDs and enforced by transactional
 service operations and tests. Do not introduce a competing representation of
-the same document, vocabulary, meaning, context, card, or session.
+the same document, vocabulary, meaning, sense, context, card, or session.
 
 ## Required invariants
 
@@ -86,13 +94,58 @@ not report success before the transaction commits.
 - Tests must cover at least the oldest explicitly supported source shape and
   the immediately preceding production schema.
 
-Current initialization creates or updates all registered tables and then sets
-`PRAGMA user_version = 7`. The checked-in migration regression constructs an
-older `Words` table in a temporary database, preserves its existing row, and
-verifies defaults for `AutomaticInteractionMode` and
-`ConsecutiveRecallSuccessCount`.
+### Schema-8 activation behavior
 
-That single fixture is not a complete historical migration audit. Expanding the migration fixture matrix remains separately planned work.
+Initialization reads `PRAGMA user_version` before touching any table and then
+follows exactly one path:
+
+| Source version | Behavior |
+| --- | --- |
+| Fresh / empty database | Initializes directly to a validated schema 8. |
+| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8 in the same initialization. |
+| 7 | Migrates to schema 8. |
+| 8 (valid) | Validation only. The database is inspected and never mutated. |
+| 8 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
+| Greater than 8 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
+
+The legacy enum backfills assign deterministic supported values for
+`Words.TokenKind`, `Words.PreparationState`, `Words.AutomaticInteractionMode`,
+`Meanings.TokenKind`, `WordOccurrences.TechnicalFamily`, and the
+`Documents`/`LexicalCache` lookup mode before activation.
+
+The 7 → 8 migration runs inside one real SQLite transaction. It is rollback-safe,
+cancellation-safe, and retryable: a failed or cancelled attempt leaves a
+byte-for-byte unchanged schema-7 database that can be retried on the next start.
+Row IDs are preserved; the single `LearningCards.MeaningId → PreferredMeaningId`
+rename is the only non-additive step, and it uses a column-rebuild fallback when
+the runtime SQLite lacks `ALTER TABLE ... RENAME COLUMN`.
+
+### Structural validation
+
+Before a schema-8 database is exposed to services it must pass structural and
+logical validation covering:
+
+- required tables and required columns;
+- declared column nullability and primary-key semantics as the real DDL declares
+  them (an `INTEGER PRIMARY KEY` rowid alias is validated by primary-key position
+  and affinity, not by the reported `notnull` flag);
+- absence of legacy artifacts such as `LearningCards.MeaningId` and the retired
+  `IX_LearningCards_Word_Direction` index;
+- index definitions including ordered columns, collation, uniqueness, and partial
+  predicates;
+- enum domains for every persisted enum column;
+- ownership relationships (Meaning → Sense → Word, card → Sense, snapshot →
+  Document/Meaning, assignment → Sense/AnswerVariant, progress → card/assignment);
+- queue and review answer-variant targets; and
+- persisted relationship integrity for every foreign entity ID.
+
+Validation never repairs a malformed database and never writes to a valid one.
+
+The checked-in migration regressions construct older table shapes in temporary
+databases, preserve their existing rows, and verify both the legacy defaults and
+the resulting schema-8 shape. That fixture set is not a complete historical
+migration audit; expanding the migration fixture matrix remains separately
+planned work.
 
 ## Lexical-cache compatibility
 
@@ -115,18 +168,18 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 
 ## Backup and restore boundary
 
-No supported backup, restore, export, synchronization, or cloud format exists in the current KnownFirst source state. Future work must not infer a format directly from the physical SQLite file.
+The supported portable format is the `.kfarchive` archive. A schema-8 database
+exports archive format **v2**, and merge safety copies are captured as v2.
+Archive format **v1** remains readable and can still be restored into an **empty**
+schema-8 target. No format may be inferred directly from the physical SQLite file.
 
-Before implementation, Data Safety v1 must define:
+Import into a **populated** target is refused, never merged or overwritten. The
+populated-target merge writer and Import routing are not implemented.
+`MergePreflightService` deliberately fails closed on a schema-8 target with
+`merge-preflight-schema8-adaptation-required` until the preflight adaptation
+lands.
 
-- included and excluded data;
-- format and schema versioning;
-- integrity and authenticity checks;
-- compatibility and downgrade behavior;
-- atomic restore and failure recovery;
-- conflict and overwrite semantics;
-- free-space and interruption handling; and
-- privacy-safe automated fixtures.
+Synchronization and cloud formats do not exist.
 
 Any accepted decision that changes these rules requires an ADR and an update to
 this contract, `PROJECT_STATE.md`, tests, and user-facing documentation.

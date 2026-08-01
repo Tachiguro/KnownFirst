@@ -333,6 +333,12 @@ public sealed record MergePreflightPlan(
 public static class MergePreflightErrorCodes
 {
     public const string UnexpectedFailure = "merge-preflight-unexpected-failure";
+
+    /// <summary>
+    /// Schema 8 is active, but the read-only target projection and planner adaptation intentionally remain
+    /// owned by Meaning Slice 7. Slice 6 returns this stable fail-closed result before legacy capture runs.
+    /// </summary>
+    public const string Schema8AdaptationRequired = "merge-preflight-schema8-adaptation-required";
 }
 
 /// <summary>

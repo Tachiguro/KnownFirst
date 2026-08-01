@@ -1,11 +1,15 @@
+using KnownFirst.Core.Learning;
+using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Text;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Migrations.Schema8;
 using SQLite;
 
 namespace KnownFirst.Data;
 
 public static class DatabaseSchema
 {
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 
     public static async Task InitializeAsync(SQLiteAsyncConnection connection)
     {
@@ -17,6 +21,19 @@ public static class DatabaseSchema
             throw new DatabaseSchemaCompatibilityException(existingVersion, CurrentVersion);
         }
 
+        if (existingVersion <= 6)
+        {
+            await InitializeSchema7BaselineAsync(connection, existingVersion);
+        }
+
+        await Schema8DormantMigration.ApplyAsync(connection);
+        await connection.ExecuteAsync("DELETE FROM LexicalCache WHERE CacheKey NOT LIKE 'v2|%'");
+    }
+
+    private static async Task InitializeSchema7BaselineAsync(
+        SQLiteAsyncConnection connection,
+        int existingVersion)
+    {
         await connection.CreateTableAsync<DocumentEntity>();
         await connection.CreateTableAsync<WordEntity>();
         await connection.CreateTableAsync<WordFormEntity>();
@@ -34,7 +51,47 @@ public static class DatabaseSchema
         await connection.CreateTableAsync<LearningReviewEntity>();
         await connection.CreateTableAsync<LearningSessionEntity>();
         await connection.CreateTableAsync<LearningSessionCardEntity>();
-        await connection.ExecuteAsync("DELETE FROM LexicalCache WHERE CacheKey NOT LIKE 'v2|%'");
-        await connection.ExecuteAsync($"PRAGMA user_version = {CurrentVersion}");
+
+        await connection.RunInTransactionAsync(transaction =>
+        {
+            if (existingVersion < 3)
+            {
+                transaction.Execute(
+                    "UPDATE Words SET TokenKind = ? WHERE TokenKind IS NULL",
+                    (int)TokenKind.Word);
+            }
+
+            if (existingVersion < 4)
+            {
+                transaction.Execute(
+                    "UPDATE Words SET PreparationState = ? WHERE PreparationState IS NULL",
+                    (int)PreparationState.Unprepared);
+                transaction.Execute(
+                    "UPDATE Meanings SET TokenKind = ? WHERE TokenKind IS NULL",
+                    (int)TokenKind.Word);
+            }
+
+            if (existingVersion < 5)
+            {
+                transaction.Execute(
+                    "UPDATE WordOccurrences SET TechnicalFamily = ? WHERE TechnicalFamily IS NULL",
+                    (int)TechnicalTokenFamily.None);
+            }
+
+            if (existingVersion < 6)
+            {
+                transaction.Execute(
+                    "UPDATE Documents SET LookupMode = ? WHERE LookupMode IS NULL",
+                    (int)LexicalLookupMode.Definition);
+                transaction.Execute(
+                    "UPDATE LexicalCache SET LookupMode = ? WHERE LookupMode IS NULL",
+                    (int)LexicalLookupMode.Definition);
+            }
+
+            transaction.Execute(
+                "UPDATE Words SET AutomaticInteractionMode = ? WHERE AutomaticInteractionMode IS NULL",
+                (int)LearningInteractionMode.Reading);
+            transaction.Execute($"PRAGMA user_version = {Schema8DormantMigration.SourceVersion}");
+        });
     }
 }

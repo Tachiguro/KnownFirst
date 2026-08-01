@@ -83,7 +83,23 @@ All generated agent prompts must adhere to these rules:
   2. Durable external release records in `docs/releases/` and `docs/BETA_TESTING.md`;
   3. Unrecorded conversational claims or temporary local build artifacts.
 
-## 9. Permanent Minimal User Prompt
+## 9. Manual PowerShell Command Contract
+
+Prefer GitHub or an authorized agent over asking the user to run manual PowerShell. Request a manual command only when no authorized automated path exists.
+
+When manual execution is genuinely required:
+
+- One simple command may be presented as one line.
+- Two or more commands must be supplied as one self-contained PowerShell script.
+- Scripts assume the repository path `C:\Dev\KnownFirst`.
+- Scripts set `$ErrorActionPreference = 'Stop'`.
+- Scripts validate preconditions before any mutation.
+- Scripts abort on unexpected state.
+- Scripts use exact paths and avoid wildcard or recursive deletion unless explicitly authorized.
+- Scripts print a compact labeled summary.
+- Scripts end with `Read-Host 'Press Enter to close'`.
+
+## 10. Permanent Minimal User Prompt
 
 Use this permanent, evergreen prompt fragment to start new sessions when GitHub access is available:
 

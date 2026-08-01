@@ -1,6 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
+using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Services.Lexical;
 using System.Net;
@@ -583,6 +584,20 @@ public sealed class WiktionaryProviderTests
     {
         await using var database = new TemporaryKnownFirstDatabase("knownfirst-legacy-cache");
         await database.InitializeAsync();
+        var cache = new LexicalCacheRepository(database);
+        var request = new LexicalLookupRequest(
+            "en",
+            LexicalLookupMode.Definition,
+            null,
+            "network",
+            TokenKind.Word,
+            WiktionaryLookupProvider.Name,
+            "network",
+            "network");
+        var currentKey = LexicalCacheRepository.CreateCacheKey(
+            request, WiktionaryLookupProvider.Name, WiktionaryLookupProvider.SchemaVersion);
+        await cache.SaveAsync(request, SuccessResult(request), WiktionaryLookupProvider.SchemaVersion);
+
         await database.RunInTransactionAsync(connection =>
         {
             connection.Insert(new LexicalCacheEntity
@@ -597,11 +612,24 @@ public sealed class WiktionaryProviderTests
             });
             return true;
         });
+        Assert.AreEqual(2, await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().CountAsync()));
 
-        await database.InitializeAsync();
+        // Run real production startup initialization so its own cache cleanup executes — the test must never
+        // reproduce the cleanup SQL or delete the legacy row itself.
+        await database.ReadAsync(async connection =>
+        {
+            await DatabaseSchema.InitializeAsync(connection);
+            return true;
+        });
 
-        var count = await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().CountAsync());
-        Assert.AreEqual(0, count);
+        var remaining = await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().ToListAsync());
+        Assert.HasCount(1, remaining);
+        Assert.AreEqual(currentKey, remaining[0].CacheKey);
+        Assert.AreEqual(
+            0,
+            await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>()
+                .Where(row => row.CacheKey == "en|network|0|de|wiktionary|2").CountAsync()),
+            "The legacy incomplete cache key must be removed by startup initialization.");
     }
 
     [TestMethod]

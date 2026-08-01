@@ -376,7 +376,7 @@ public sealed class Schema8DormantMigrationFocusedTests
     }
 
     [TestMethod]
-    public async Task NormalInitializeAsync_PopulatedDatabase_StillReportsVersion7AndSchema7Shape()
+    public async Task NormalInitializeAsync_PopulatedDatabase_ReportsVersion8AndSchema8Shape()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var wordId = await fixture.InsertWordAsync("populated");
@@ -385,13 +385,13 @@ public sealed class Schema8DormantMigrationFocusedTests
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
-        Assert.AreEqual(7, await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection));
-        Assert.IsFalse(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "Senses"));
-        Assert.IsFalse(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "AnswerVariants"));
-        Assert.IsFalse(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "SenseAnswerVariantAssignments"));
-        Assert.IsFalse(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "AnswerVariantProgress"));
-        Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
-        Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "SenseId"));
+        Assert.AreEqual(8, await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection));
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "Senses"));
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "AnswerVariants"));
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "SenseAnswerVariantAssignments"));
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "AnswerVariantProgress"));
+        Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "SenseId"));
     }
 
     // ---- Focused invariant 1: deterministic SourceMeaningId ----

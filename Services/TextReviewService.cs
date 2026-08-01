@@ -1,8 +1,10 @@
+using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Models;
+using KnownFirst.Services.DataSafety;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SQLite;
@@ -315,8 +317,11 @@ public sealed class TextReviewService(
         });
 #endif
 
-    public Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync() => database.ReadAsync(async connection =>
+    public async Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync()
     {
+        var schemaCapability = await database.ExecuteSnapshotAsync(BackupSchemaCapability.Resolve);
+        return await database.ReadAsync(async connection =>
+        {
         var documents = await connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToListAsync();
         var sentences = await connection.Table<SentenceSpanEntity>().OrderBy(item => item.Id).ToListAsync();
         var words = await connection.Table<WordEntity>().OrderBy(item => item.Id).ToListAsync();
@@ -327,7 +332,23 @@ public sealed class TextReviewService(
         var preparationSessions = await connection.Table<PreparationSessionEntity>().OrderBy(item => item.Id).ToListAsync();
         var preparationCandidates = await connection.Table<PreparationCandidateEntity>().OrderBy(item => item.Id).ToListAsync();
         var meanings = await connection.Table<MeaningEntity>().OrderBy(item => item.Id).ToListAsync();
-        var learningCards = await connection.Table<LearningCardEntity>().OrderBy(item => item.Id).ToListAsync();
+        var learningCards = schemaCapability switch
+        {
+            Schema7CapabilityResult => (await connection.Table<LearningCardEntity>()
+                    .OrderBy(item => item.Id)
+                    .ToListAsync())
+                .Select(card => DiagnosticLearningCardRow.FromSchema7(card))
+                .ToArray(),
+            Schema8CapabilityResult => (await connection.QueryAsync<DiagnosticLearningCardRow>(
+                """
+                SELECT Id, WordId, PreferredMeaningId AS MeaningId, Direction, State, DueAtUtc,
+                       IntervalDays, EaseFactor, LastRating
+                FROM LearningCards
+                ORDER BY Id
+                """))
+                .ToArray(),
+            _ => throw new InvalidOperationException("Unsupported backup schema capability result.")
+        };
         var learningReviews = await connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToListAsync();
         var learningSessions = await connection.Table<LearningSessionEntity>().OrderBy(item => item.Id).ToListAsync();
         var contextSnapshots = await connection.Table<ContextSnapshotEntity>().OrderBy(item => item.Id).ToListAsync();
@@ -515,7 +536,34 @@ public sealed class TextReviewService(
                     !hasActiveReview && !hasOccurrences && !hasActiveSnapshots);
             }).ToArray(),
             activeSummary);
-    });
+        });
+    }
+
+    private sealed class DiagnosticLearningCardRow
+    {
+        public int Id { get; set; }
+        public int WordId { get; set; }
+        public int MeaningId { get; set; }
+        public CardDirection Direction { get; set; }
+        public CardState State { get; set; }
+        public DateTime DueAtUtc { get; set; }
+        public int IntervalDays { get; set; }
+        public double EaseFactor { get; set; }
+        public ReviewRating? LastRating { get; set; }
+
+        public static DiagnosticLearningCardRow FromSchema7(LearningCardEntity card) => new()
+        {
+            Id = card.Id,
+            WordId = card.WordId,
+            MeaningId = card.MeaningId,
+            Direction = card.Direction,
+            State = card.State,
+            DueAtUtc = card.DueAtUtc,
+            IntervalDays = card.IntervalDays,
+            EaseFactor = card.EaseFactor,
+            LastRating = card.LastRating
+        };
+    }
 
     private static IReadOnlyList<string> CreateDiagnosticMeanings(string resultJson)
     {

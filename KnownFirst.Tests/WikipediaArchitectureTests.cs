@@ -75,11 +75,11 @@ public class WikipediaArchitectureTests
 
 
     [TestMethod]
-    public void Architecture_SchemaVersionIs7()
+    public void Architecture_SchemaVersionIs8()
     {
         var text = File.ReadAllText(Path.Combine(RepositoryDir, "Data", "DatabaseSchema.cs"));
 
-        Assert.IsTrue(text.Contains("public const int CurrentVersion = 7;", StringComparison.Ordinal));
+        Assert.IsTrue(text.Contains("public const int CurrentVersion = 8;", StringComparison.Ordinal));
     }
 
     private static void AssertForbidden(IEnumerable<(string Path, string Text)> files, string forbidden)

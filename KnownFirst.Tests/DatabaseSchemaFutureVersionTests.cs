@@ -1,4 +1,7 @@
+using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Text;
 using KnownFirst.Data;
+using KnownFirst.Data.Entities;
 using SQLite;
 
 namespace KnownFirst.Tests;
@@ -74,8 +77,24 @@ public sealed class DatabaseSchemaFutureVersionTests
                 "CREATE TABLE CurrentSentinel (Id INTEGER PRIMARY KEY, Value TEXT NOT NULL)");
             await connection.ExecuteAsync(
                 "INSERT INTO CurrentSentinel (Id, Value) VALUES (1, 'unchanged')");
-            await connection.ExecuteAsync(
-                "INSERT INTO LexicalCache (CacheKey) VALUES ('v2|synthetic')");
+            await connection.InsertAsync(new LexicalCacheEntity
+            {
+                CacheKey = "v2|synthetic",
+                SourceLanguage = "en",
+                ExplanationLanguage = "en",
+                NormalizedLemma = "synthetic",
+                LookupMode = LexicalLookupMode.Definition,
+                TargetLanguage = string.Empty,
+                CanonicalLookupTerm = "synthetic",
+                TokenKind = TokenKind.Word,
+                Provider = "synthetic-provider",
+                ProviderSchemaVersion = 1,
+                ResultJson = "{}",
+                SourceProject = "synthetic-project",
+                PageTitle = "Synthetic",
+                Attribution = "synthetic-attribution",
+                FetchedAtUtc = new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
             var tableCount = await connection.ExecuteScalarAsync<int>(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'");
 
@@ -110,22 +129,6 @@ public sealed class DatabaseSchemaFutureVersionTests
         path,
         SQLiteOpenFlags.ReadWrite | SQLiteOpenFlags.Create | SQLiteOpenFlags.SharedCache);
 
-    private static async Task CloseAndDeleteAsync(
-        SQLiteAsyncConnection? connection,
-        string path)
-    {
-        if (connection is not null)
-        {
-            await connection.CloseAsync();
-        }
-
-        SQLiteAsyncConnection.ResetPool();
-        foreach (var file in new[] { path, $"{path}-wal", $"{path}-shm" })
-        {
-            if (File.Exists(file))
-            {
-                File.Delete(file);
-            }
-        }
-    }
+    private static Task CloseAndDeleteAsync(SQLiteAsyncConnection? connection, string path) =>
+        TemporaryDatabaseFiles.CloseAndDeleteAsync(connection, path);
 }

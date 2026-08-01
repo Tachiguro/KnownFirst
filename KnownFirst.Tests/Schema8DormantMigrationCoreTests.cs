@@ -1,11 +1,12 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Models;
 
 namespace KnownFirst.Tests;
 
 /// <summary>
-/// KF-MEANING-001 Slice 1 — the eight core required test scenarios for the dormant Schema 7 -&gt; 8
+/// KF-MEANING-001 Slice 1 — the eight core required test scenarios for the Schema 7 -&gt; 8
 /// migration engine (<see cref="Schema8DormantMigration"/>). Every fixture is a synthetic, isolated,
 /// temporary SQLite file built directly in test code via <see cref="Schema7Fixture"/> — never a real user
 /// database, and the migration is invoked only via its explicit entry point, never through
@@ -20,17 +21,56 @@ public sealed class Schema8DormantMigrationCoreTests
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
 
+        const int sourceDocumentId = 1;
+        const string documentTitle = "Doc";
+        const string documentContent = "some context text";
+        const string documentFingerprint = "core1-context-document";
+        var documentImportedAt = new DateTime(2030, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO Documents (Id, Title, TextLanguage, ExplanationLanguage, LookupMode, TargetLanguage, Content, ContentFingerprint, ImportedAt, WordCount) VALUES (?, ?, 'en', 'de', 0, '', ?, ?, ?, 3)",
+            sourceDocumentId,
+            documentTitle,
+            documentContent,
+            documentFingerprint,
+            documentImportedAt);
+        const int learningSessionId = 1;
+        var sessionTimestamp = new DateTime(2030, 1, 2, 4, 0, 0, DateTimeKind.Utc);
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO LearningSessions (Id, Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StartedAtUtc, UpdatedAtUtc, CompletedAtUtc) VALUES (?, 1, 2, 0, 0, 0, 0, 0, ?, ?, ?)",
+            learningSessionId,
+            sessionTimestamp,
+            sessionTimestamp,
+            sessionTimestamp);
+
         var wordId = await fixture.InsertWordAsync("network");
         var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "network", translation: "Netzwerk");
         var meaningToTermCardId = await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, intervalDays: 3);
         var termToMeaningCardId = await fixture.InsertCardAsync(wordId, meaningId, CardDirection.TermToMeaning, intervalDays: 5);
-        var contextId = await fixture.InsertContextAsync(meaningId, wordId);
+
+        // Every pre-existing ContextSnapshot field carries a distinct deterministic value, and the target
+        // range addresses the real "context" slice of the source document, so a silently rewritten column
+        // cannot hide behind a default.
+        const string contextFingerprint = "core1-context-fingerprint";
+        const int contextTargetStart = 5;
+        const int contextTargetLength = 7;
+        var contextCreatedAt = new DateTime(2030, 1, 2, 5, 6, 7, DateTimeKind.Utc);
+        var contextId = await fixture.InsertContextAsync(
+            meaningId,
+            wordId,
+            sourceDocumentId: sourceDocumentId,
+            sourceDocumentTitle: documentTitle,
+            text: documentContent,
+            targetStart: contextTargetStart,
+            targetLength: contextTargetLength,
+            normalizedFingerprint: contextFingerprint,
+            createdAtUtc: contextCreatedAt);
         var review1Id = await fixture.InsertReviewAsync(meaningToTermCardId);
         var review2Id = await fixture.InsertReviewAsync(termToMeaningCardId);
         var queue1Id = await fixture.InsertQueueItemAsync(sessionId: 1, cardId: meaningToTermCardId, queueOrder: 1);
         var queue2Id = await fixture.InsertQueueItemAsync(sessionId: 1, cardId: termToMeaningCardId, queueOrder: 2);
 
         var result = await Schema8DormantMigration.ApplyAsync(fixture.Connection);
+        await fixture.ReopenAsync();
 
         Assert.AreEqual(Schema8MigrationOutcome.Migrated, result.Outcome);
         Assert.AreEqual(8, await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection));
@@ -41,6 +81,19 @@ public sealed class Schema8DormantMigrationCoreTests
         Assert.AreEqual(1, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM LearningCards WHERE Id = ?", meaningToTermCardId));
         Assert.AreEqual(1, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM LearningCards WHERE Id = ?", termToMeaningCardId));
         Assert.AreEqual(1, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM ContextSnapshots WHERE Id = ?", contextId));
+        Assert.AreEqual(1, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM Documents WHERE Id = ?", sourceDocumentId));
+        Assert.AreEqual(1, await Schema8MigrationAssertHelpers.CountAsync(fixture.Connection, "SELECT COUNT(*) FROM LearningSessions WHERE Id = ?", learningSessionId));
+        Assert.AreEqual(
+            sourceDocumentId,
+            await fixture.Connection.ExecuteScalarAsync<int>("SELECT SourceDocumentId FROM ContextSnapshots WHERE Id = ?", contextId));
+        Assert.AreEqual(
+            1,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM ContextSnapshots x JOIN Meanings m ON m.Id = x.MeaningId JOIN Senses s ON s.Id = x.SenseId JOIN Words w ON w.Id = x.WordId WHERE x.Id = ? AND x.SourceDocumentId = ? AND m.WordId = x.WordId AND s.WordId = x.WordId AND m.SenseId = x.SenseId AND w.Id = x.WordId",
+                contextId,
+                sourceDocumentId));
+        Assert.AreEqual(2, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ?", learningSessionId));
+        Assert.AreEqual(2, await fixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews WHERE SessionId = ?", learningSessionId));
 
         // Relationships preserved: review.CardId and queue.CardId untouched.
         Assert.AreEqual(meaningToTermCardId, await fixture.Connection.ExecuteScalarAsync<int>("SELECT CardId FROM LearningReviews WHERE Id = ?", review1Id));
@@ -58,6 +111,129 @@ public sealed class Schema8DormantMigrationCoreTests
 
         var meaningSenseId = await fixture.Connection.ExecuteScalarAsync<int?>("SELECT SenseId FROM Meanings WHERE Id = ?", meaningId);
         Assert.AreEqual(card1[0].SenseId, meaningSenseId);
+
+        // Every pre-existing ContextSnapshot field survives the migration and a reopen byte for byte.
+        var snapshots = await fixture.Connection.QueryAsync<Core1ContextSnapshotRow>(
+            "SELECT Id, MeaningId, WordId, SourceDocumentId, SourceDocumentTitle, Text, TargetStart, TargetLength, NormalizedFingerprint, CreatedAtUtc, SenseId FROM ContextSnapshots ORDER BY Id");
+        Assert.AreEqual(1, snapshots.Count);
+        var snapshot = snapshots[0];
+        Assert.AreEqual(contextId, snapshot.Id);
+        Assert.AreEqual(meaningId, snapshot.MeaningId);
+        Assert.AreEqual(wordId, snapshot.WordId);
+        Assert.AreEqual(sourceDocumentId, snapshot.SourceDocumentId);
+        Assert.AreEqual(documentTitle, snapshot.SourceDocumentTitle);
+        Assert.AreEqual(documentContent, snapshot.Text);
+        Assert.AreEqual(contextTargetStart, snapshot.TargetStart);
+        Assert.AreEqual(contextTargetLength, snapshot.TargetLength);
+        Assert.AreEqual(contextFingerprint, snapshot.NormalizedFingerprint);
+        Assert.AreEqual(contextCreatedAt, snapshot.CreatedAtUtc);
+        Assert.AreEqual(meaningSenseId, snapshot.SenseId);
+
+        // Source Document identity and metadata.
+        var documents = await fixture.Connection.QueryAsync<Core1DocumentRow>(
+            "SELECT Id, Title, TextLanguage, ExplanationLanguage, LookupMode, TargetLanguage, Content, ContentFingerprint, ImportedAt, WordCount FROM Documents ORDER BY Id");
+        Assert.AreEqual(1, documents.Count);
+        var sourceDocument = documents[0];
+        Assert.AreEqual(sourceDocumentId, sourceDocument.Id);
+        Assert.AreEqual(documentTitle, sourceDocument.Title);
+        Assert.AreEqual("en", sourceDocument.TextLanguage);
+        Assert.AreEqual("de", sourceDocument.ExplanationLanguage);
+        Assert.AreEqual(0, sourceDocument.LookupMode);
+        Assert.AreEqual(string.Empty, sourceDocument.TargetLanguage);
+        Assert.AreEqual(documentContent, sourceDocument.Content);
+        Assert.AreEqual(documentFingerprint, sourceDocument.ContentFingerprint);
+        Assert.AreEqual(documentImportedAt, sourceDocument.ImportedAt);
+        Assert.AreEqual(3, sourceDocument.WordCount);
+
+        // ContextSnapshot -> Document ownership, and the snapshot's target range still addresses the exact
+        // slice of the source document it was created from.
+        Assert.AreEqual(sourceDocument.Id, snapshot.SourceDocumentId);
+        Assert.AreEqual(sourceDocument.Title, snapshot.SourceDocumentTitle);
+        Assert.IsTrue(snapshot.TargetStart >= 0);
+        Assert.IsTrue(snapshot.TargetStart + snapshot.TargetLength <= sourceDocument.Content.Length);
+        Assert.AreEqual("context", sourceDocument.Content.Substring(snapshot.TargetStart, snapshot.TargetLength));
+
+        // ContextSnapshot -> Meaning and Meaning -> Sense -> Word ownership.
+        Assert.AreEqual(
+            1,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM ContextSnapshots x JOIN Meanings m ON m.Id = x.MeaningId JOIN Senses s ON s.Id = m.SenseId JOIN Words w ON w.Id = s.WordId JOIN Documents d ON d.Id = x.SourceDocumentId WHERE x.Id = ? AND m.WordId = x.WordId AND s.Id = x.SenseId AND s.WordId = x.WordId AND w.Id = ? AND d.Id = ?",
+                contextId,
+                wordId,
+                sourceDocumentId));
+
+        // LearningSession identity, ownership and timestamps.
+        var sessions = await fixture.Connection.QueryAsync<Core1LearningSessionRow>(
+            "SELECT Id, Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StartedAtUtc, UpdatedAtUtc, CompletedAtUtc FROM LearningSessions ORDER BY Id");
+        Assert.AreEqual(1, sessions.Count);
+        var session = sessions[0];
+        Assert.AreEqual(learningSessionId, session.Id);
+        Assert.AreEqual(1, session.Status);
+        Assert.AreEqual(2, session.TotalCards);
+        Assert.AreEqual(0, session.CompletedCards);
+        Assert.AreEqual(0, session.AgainCount);
+        Assert.AreEqual(0, session.HardCount);
+        Assert.AreEqual(0, session.GoodCount);
+        Assert.AreEqual(0, session.EasyCount);
+        Assert.AreEqual(sessionTimestamp, session.StartedAtUtc);
+        Assert.AreEqual(sessionTimestamp, session.UpdatedAtUtc);
+        Assert.AreEqual(sessionTimestamp, session.CompletedAtUtc);
+
+        // Review and queue rows still belong to that session and to their original cards.
+        Assert.AreEqual(learningSessionId, await fixture.Connection.ExecuteScalarAsync<int>("SELECT SessionId FROM LearningReviews WHERE Id = ?", review1Id));
+        Assert.AreEqual(learningSessionId, await fixture.Connection.ExecuteScalarAsync<int>("SELECT SessionId FROM LearningReviews WHERE Id = ?", review2Id));
+        Assert.AreEqual(learningSessionId, await fixture.Connection.ExecuteScalarAsync<int>("SELECT SessionId FROM LearningSessionCards WHERE Id = ?", queue1Id));
+        Assert.AreEqual(learningSessionId, await fixture.Connection.ExecuteScalarAsync<int>("SELECT SessionId FROM LearningSessionCards WHERE Id = ?", queue2Id));
+        Assert.AreEqual(
+            4,
+            await fixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT (SELECT COUNT(*) FROM LearningReviews r JOIN LearningSessions s ON s.Id = r.SessionId JOIN LearningCards c ON c.Id = r.CardId WHERE c.WordId = ?) + (SELECT COUNT(*) FROM LearningSessionCards q JOIN LearningSessions s ON s.Id = q.SessionId JOIN LearningCards c ON c.Id = q.CardId WHERE c.WordId = ?)",
+                wordId,
+                wordId));
+    }
+
+    private sealed class Core1ContextSnapshotRow
+    {
+        public int Id { get; set; }
+        public int MeaningId { get; set; }
+        public int WordId { get; set; }
+        public int SourceDocumentId { get; set; }
+        public string SourceDocumentTitle { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+        public int TargetStart { get; set; }
+        public int TargetLength { get; set; }
+        public string NormalizedFingerprint { get; set; } = string.Empty;
+        public DateTime CreatedAtUtc { get; set; }
+        public int? SenseId { get; set; }
+    }
+
+    private sealed class Core1DocumentRow
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string TextLanguage { get; set; } = string.Empty;
+        public string ExplanationLanguage { get; set; } = string.Empty;
+        public int LookupMode { get; set; }
+        public string TargetLanguage { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string ContentFingerprint { get; set; } = string.Empty;
+        public DateTime ImportedAt { get; set; }
+        public int WordCount { get; set; }
+    }
+
+    private sealed class Core1LearningSessionRow
+    {
+        public int Id { get; set; }
+        public int Status { get; set; }
+        public int TotalCards { get; set; }
+        public int CompletedCards { get; set; }
+        public int AgainCount { get; set; }
+        public int HardCount { get; set; }
+        public int GoodCount { get; set; }
+        public int EasyCount { get; set; }
+        public DateTime StartedAtUtc { get; set; }
+        public DateTime UpdatedAtUtc { get; set; }
+        public DateTime? CompletedAtUtc { get; set; }
     }
 
     [TestMethod]
@@ -212,27 +388,62 @@ public sealed class Schema8DormantMigrationCoreTests
     }
 
     [TestMethod]
-    public async Task Core8_OrdinaryInitializeAsync_ProducesNoSchema8Change()
+    public async Task Core8_OrdinaryInitializeAsync_ActivatesSchema8()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
-        await fixture.InsertWordAsync("dormant");
+        await fixture.InsertWordAsync("dormant", status: WordStatus.Unreviewed);
 
-        var tablesBefore = await Schema8MigrationAssertHelpers.GetTableNamesAsync(fixture.Connection);
-        var indexesBefore = await Schema8MigrationAssertHelpers.GetIndexNamesAsync(fixture.Connection);
-        var versionBefore = await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection);
-
-        // Ordinary re-initialization (what every normal app startup does) — the migration is never invoked.
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
-        var tablesAfter = await Schema8MigrationAssertHelpers.GetTableNamesAsync(fixture.Connection);
-        var indexesAfter = await Schema8MigrationAssertHelpers.GetIndexNamesAsync(fixture.Connection);
         var versionAfter = await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection);
 
-        CollectionAssert.AreEqual(tablesBefore, tablesAfter);
-        CollectionAssert.AreEqual(indexesBefore, indexesAfter);
-        Assert.AreEqual(versionBefore, versionAfter);
-        Assert.AreEqual(7, versionAfter);
-        Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
-        Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "PreferredMeaningId"));
+        Assert.AreEqual(8, versionAfter);
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "Senses"));
+        Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
+        Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "PreferredMeaningId"));
+    }
+
+    [TestMethod]
+    public Task PreparedWordWithoutMeaning_RollsBackPersistentState() =>
+        AssertLegacyLearningStatusWithoutMeaningRollsBackAsync(WordStatus.Prepared);
+
+    [TestMethod]
+    public Task LearningWordWithoutMeaning_RollsBackPersistentState() =>
+        AssertLegacyLearningStatusWithoutMeaningRollsBackAsync(WordStatus.Learning);
+
+    [TestMethod]
+    public Task MasteredWordWithoutMeaning_RollsBackPersistentState() =>
+        AssertLegacyLearningStatusWithoutMeaningRollsBackAsync(WordStatus.Mastered);
+
+    private static async Task AssertLegacyLearningStatusWithoutMeaningRollsBackAsync(WordStatus status)
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var createdAt = new DateTime(2032, 3, 4, 5, 6, 7, DateTimeKind.Utc);
+        var wordId = await fixture.InsertWordAsync(
+            $"missing-{status}",
+            status: status,
+            totalOccurrenceCount: 19,
+            documentCount: 4,
+            consecutiveRecallSuccessCount: 3,
+            consecutiveTypingSuccessCount: 2,
+            consecutiveTypingFailureCount: 1,
+            masteryReviewExtensionScheduled: true,
+            createdAt: createdAt,
+            updatedAt: createdAt.AddMinutes(1));
+        var before = await fixture.CapturePersistentStateAsync();
+
+        var exception = await Assert.ThrowsExactlyAsync<Schema8MigrationException>(
+            () => Schema8DormantMigration.ApplyAsync(fixture.Connection));
+        Assert.AreEqual("schema8-migration-referential-corruption", exception.ErrorCode);
+
+        await fixture.ReopenAsync();
+        var after = await fixture.CapturePersistentStateAsync();
+        CollectionAssert.AreEqual(before, after);
+        Assert.AreEqual(7, await fixture.ReadUserVersionAsync());
+        Assert.AreEqual((int)status, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT Status FROM Words WHERE Id = ?", wordId));
+        Assert.AreEqual(19, await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT TotalOccurrenceCount FROM Words WHERE Id = ?", wordId));
+        Assert.AreEqual(0, await fixture.GetTableCountAsync("Senses"));
     }
 }

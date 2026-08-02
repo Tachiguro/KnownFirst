@@ -5,6 +5,34 @@ namespace KnownFirst.Services.DataSafety.Merge;
 
 public static class MergePreflightPlannerV2
 {
+    /// <summary>
+    /// LearningWorkflow session identity (KF-MEANING-001 Slice 8 extraction): a content fingerprint of the
+    /// ordered-by-value set of <see cref="FutureCardIdentity"/> values among a session's queue items.
+    /// Deliberately distinct from <see cref="LearningWorkflowIdentityPolicy"/> (which matches by the older,
+    /// physical <see cref="LearningCardMatchIdentity"/> plus Rating) — this is the meaning-aware scheme the
+    /// V2 planner actually uses. Extracted to a reusable method so the merge writer can resolve the exact
+    /// same session identity the planner already computed, without duplicating the hash logic.
+    /// </summary>
+    internal static string ComputeLearningWorkflowIdentity(IEnumerable<FutureCardIdentity> queueItemCardIdentities)
+    {
+        var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.LearningWorkflow.v1");
+        foreach (var cardIdentity in queueItemCardIdentities.OrderBy(c => c.Value, StringComparer.Ordinal))
+        {
+            builder.WriteString(cardIdentity.Value);
+        }
+
+        return builder.ComputeSha256Hex();
+    }
+
+    /// <summary>Companion identity to <see cref="ComputeLearningWorkflowIdentity"/> for one queue item.</summary>
+    internal static string ComputeLearningQueueItemIdentity(string sessionIdentity, FutureCardIdentity cardIdentity)
+    {
+        var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.LearningQueueItem.v1")
+            .WriteString(sessionIdentity)
+            .WriteString(cardIdentity.Value);
+        return builder.ComputeSha256Hex();
+    }
+
     public static MergePreflightPlan CreatePlan(BackupPayloadV2 target, BackupPayloadV2 archive, MergeManifestInfo archiveManifest)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -730,27 +758,11 @@ public static class MergePreflightPlannerV2
         }
 
         // LearningWorkflow + LearningQueueItem
-        string ComputeLearningSessionIdentity(BackupLearningWorkflowV2 session, IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByLocalId)
-        {
-            var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.LearningWorkflow.v1");
-            var itemCards = session.QueueItems
-                .Select(qi => MergePreflightPlanner.Resolve(cardIdentitiesByLocalId, qi.CardId, "learning session queue card"))
-                .OrderBy(c => c.Value, StringComparer.Ordinal);
-            foreach (var c in itemCards)
-            {
-                builder.WriteString(c.Value);
-            }
-            return builder.ComputeSha256Hex();
-        }
+        string ComputeLearningSessionIdentity(BackupLearningWorkflowV2 session, IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByLocalId) =>
+            ComputeLearningWorkflowIdentity(session.QueueItems.Select(qi => MergePreflightPlanner.Resolve(cardIdentitiesByLocalId, qi.CardId, "learning session queue card")));
 
-        string ComputeSessionCardIdentity(BackupLearningQueueItemV2 item, string sessionIdentity, IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByLocalId)
-        {
-            var futureCardId = MergePreflightPlanner.Resolve(cardIdentitiesByLocalId, item.CardId, "learning session card");
-            var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.LearningQueueItem.v1")
-                .WriteString(sessionIdentity)
-                .WriteString(futureCardId.Value);
-            return builder.ComputeSha256Hex();
-        }
+        string ComputeSessionCardIdentity(BackupLearningQueueItemV2 item, string sessionIdentity, IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByLocalId) =>
+            ComputeLearningQueueItemIdentity(sessionIdentity, MergePreflightPlanner.Resolve(cardIdentitiesByLocalId, item.CardId, "learning session card"));
 
         bool LearningQueueItemContentEqualsV2(BackupLearningQueueItemV2 a, BackupLearningQueueItemV2 b) =>
             a.IsDueCard == b.IsDueCard

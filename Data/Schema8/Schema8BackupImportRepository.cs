@@ -497,7 +497,10 @@ public static class Schema8BackupImportRepository
         }
     }
 
-    private static string SerializeLookupDraft(BackupLookupDraft source)
+    /// <summary>Internal (not private) so the Slice 8 populated-target merge writer can reuse the exact
+    /// same field mapping when re-inserting a preserved-divergent-history PreparationCandidate — avoids a
+    /// second, drifting copy of this mechanical projection.</summary>
+    internal static string SerializeLookupDraft(BackupLookupDraft source)
     {
         var result = new Core.Preparation.LexicalResult(
             BackupEnumMappings.ToPersistence(source.Status),
@@ -529,7 +532,9 @@ public static class Schema8BackupImportRepository
         return id;
     }
 
-    private static void Insert(
+    /// <summary>Internal (not private) so the Slice 8 populated-target merge writer can reuse the exact
+    /// same cancellation/mutation-count/failure-injector plumbing for its own inserts.</summary>
+    internal static void Insert(
         SQLiteConnection connection, object entity, CancellationToken cancellationToken,
         IBackupImportFailureInjector? failureInjector, ref int mutationCount)
     {
@@ -539,7 +544,8 @@ public static class Schema8BackupImportRepository
         failureInjector?.AfterMutation(mutationCount);
     }
 
-    private static int InsertRaw(
+    /// <summary>Internal (not private) — see <see cref="Insert"/>.</summary>
+    internal static int InsertRaw(
         SQLiteConnection connection, string sql, CancellationToken cancellationToken,
         IBackupImportFailureInjector? failureInjector, ref int mutationCount, params object?[] args)
     {

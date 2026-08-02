@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-08-02
-**State source:** `master` (`3debd7a1b1d300ea08586b1b6d8570db72cf6138`, PR #42 merge commit)
-**Next product milestone:** KF-MEANING-001 Slice 8 — populated-target merge writer and Import routing
+**State source:** `master` (`d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc`, PR #43 merge commit)
+**Next product milestone:** KF-MEANING-001 Slice 9 — Import UI, localized preview/result handling, and final release validation
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -42,7 +42,9 @@ The current product source implements:
 - Learn screen card direction indicators and visual "Repeat" badges for `IsAgainRepeat` cards;
 - resumable learning sessions and permanent-known cleanup;
 - portable `.kfarchive` data export (native Save dialog on Windows and Android);
-- portable recovery import of a `.kfarchive` archive into an empty installation only (native Open dialog on Windows and Android); populated targets are refused, not merged or overwritten;
+- portable recovery import of a `.kfarchive` archive into empty installations (native Open dialog on Windows and Android);
+- transactional populated-target import with validated safety copy, merge plan validation, and atomic commit-or-rollback; stale plans are rejected; reimport converges without duplicates;
+- card scheduling replay through the existing scheduler in deterministic order (ReviewedAtUtc, then review fingerprint); replay preserves Sense, PreferredMeaning, and Direction;
 - a one-time localized What's New notice shown once per version;
 - transactional local persistence, startup maintenance, and bounded structured diagnostics;
 - responsive Windows and Android layouts with localized workflow gating.
@@ -59,17 +61,19 @@ The `master` branch includes the following merged technical foundations:
 - **Meaning Slice 1 (PR #31):** dormant Schema-8 migration engine (`Schema8DormantMigration`).
 - **Meaning Slice 2 (PR #32):** archive format v2 and dual-schema backup support.
 - **Meaning Slice 3 (PR #33):** dormant multi-Sense preparation foundation (`PreparationServiceSchema8`).
-- **Meaning Slice 4 (PR #40):** dormant direction-specific answer assignments and progress replay; verified with 1347 passed, 0 failed, 0 skipped.
-- **Meaning Slice 5 (PR #41):** dormant Sense-addressed learning cards, frozen queue targets, and permanent-known cleanup; verified with 1364 passed, 0 failed, 0 skipped.
+- **Meaning Slice 4 (PR #40):** direction-specific answer assignments and progress replay; verified with 1347 passed, 0 failed, 0 skipped.
+- **Meaning Slice 5 (PR #41):** Sense-addressed learning cards, frozen queue targets, and permanent-known cleanup; verified with 1364 passed, 0 failed, 0 skipped.
+- **Meaning Slice 6 (PR #42):** Schema-8 activation and first real user-data migration; verified with 1542 passed, 0 failed, 0 skipped.
+- **Meaning Slice 7 (PR #43):** Schema-8 MergePreflight adaptation for merge planning; verified with 1551 passed, 0 failed, 0 skipped.
 - **Windows GUI StartupSmoke Launcher (PR #35):** `-Action GuiTest` launcher entry point and profile isolation under `artifacts/`.
 - **New-Chat Bootstrap Protocol (PR #36):** permanent dynamic bootstrap governance in `docs/NEW_CHAT_BOOTSTRAP.md`.
 - **Google Play Packaging Safeguards (PR #37):** hardened `scripts/publish-google-play-bundle.ps1` with cross-process lock, warning escalation, candidate ownership, and sidecar verification.
 
-**Dormancy Boundaries (master):**
-- On `master` the active database schema remains **7** (`PRAGMA user_version = 7`).
-- On `master` Schema 8 is dormant and is not invoked during normal application initialization.
-- Schema-8 activation is implemented on the unmerged Slice-6 branch (see [Active development](#active-development)).
-- Populated-target merge writing and import routing to populated databases remain unexecuted future work.
+**Current Status (master):**
+- The active database schema is **8** (`PRAGMA user_version = 8`).
+- Schema 8 is active during normal application initialization on master.
+- Slices 1–7 are merged and verified on master.
+- Slice 8 (populated-target merge writer and Import routing) is awaiting manual merge.
 
 ## Confirmed verification
 
@@ -94,30 +98,35 @@ The `master` branch includes the following merged technical foundations:
 
 ## Known limitations
 
-- Portable recovery import is accepted only into an empty installation; a populated target is refused, never merged or overwritten.
-- Populated-database merge import is not implemented.
 - Exported `.kfarchive` archives are not encrypted and may contain personal imported text and learning history; users are warned before export.
 - "Support KnownFirst" and "Report a bug" controls in Settings are placeholders and not yet functional.
 - Cloud synchronization, accounts, analytics, advertising, and payments are not implemented.
 - Offline dictionary packages and FSRS scheduling are deferred.
 - Online lookup requires explicit consent and network access on cache misses.
 - Public Google Play release is intentionally not yet pursued.
+- Import UI, localized preview/result handling, and final end-to-end release validation are deferred to Slice 9.
 - Tooling-only improvements (such as PR #37) do not create a new Beta 13 product release.
 
 This document does not claim public-release readiness or draw legal conclusions about license/attribution compliance; those remain open review items tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Active development
 
-The stable master baseline is `3debd7a1b1d300ea08586b1b6d8570db72cf6138` (PR #42 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
+The stable master baseline is `d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc` (PR #43 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
 
-**KF-MEANING-001 Slice 7 — Schema-8 MergePreflight adaptation** is implemented and validated as unmerged feature-branch work on `feature/meaning-slice7-schema8-merge-preflight` (checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`), with a focused result of 135 passed, 0 failed, 0 skipped and a complete result of 1551 passed, 0 failed, 0 skipped. Manual merge is pending.
+**KF-MEANING-001 Slice 8 — transactional Schema-8 populated-target merge writer and Import routing** is implemented and validated as unmerged feature-branch work on `feature/meaning-slice8-core-merge-writer` (checkpoint commit `783f83c9df99de6fa016f1260f95616ca96d7699`), with a complete result of 1593 passed, 0 failed, 0 skipped. Manual merge is pending.
 
-Verified Slice-7 behavior on that branch:
+Verified Slice-8 behavior on that branch:
 
-- `MergePreflightService`/`MergePreflightPlannerV2` plan merges for active Schema-8 targets against archive-v2 (Schema-8) sources, and against archive-v1 sources through the existing in-memory upgrade path.
-- Preflight is deterministic and strictly read-only: no target mutation, no safety copy, no writer invocation.
-- Multiple Senses of the same Word remain independent in the plan.
-- Sense-addressed meanings, answer variants, `SenseAnswerVariantAssignment`s, `AnswerVariantProgress`, learning cards, reviews, queue items, and vocabulary/preparation workflows are all covered.
-- Import into a populated target remains refused.
+- `PortableMergeWriter` — transactional populated-target merge writer that validates the merge plan, rejects stale or non-executable plans, and atomically commits or rolls back.
+- Stable identity resolution using explicit source-local-ID-to-target-ID maps; source integer IDs are never target identities.
+- Existing domain entities are reused; missing entities and preserved variants are inserted; enrichment policies are applied.
+- Sense-addressed meanings, contexts, answer variants, assignments, progress, cards, reviews, sessions, queues, and review/preparation workflows are merged and preserved.
+- Multiple Senses for one Word remain independent.
+- Failure and cancellation roll back the complete merge; reimport converges without duplicates; merged review history becomes authoritative.
+- Card scheduling is replayed through the existing scheduler in deterministic order (ReviewedAtUtc, then fingerprint ordinally); replay changes only derived fields and does not repoint Sense, PreferredMeaning, or Direction.
+- Import routing: empty targets use restore-into-empty; populated Schema-8 targets use validation → preflight → validated safety copy → transactional writer.
+- Archive-v1 upgrades in memory for Schema 8; archive-v2 is supported natively; archive-v2 into Schema 7 remains rejected.
+- Fully duplicate imports return successful no-change without safety copy or writer invocation.
+- Non-seekable source streams are supported; stable errors are preserved; `PortableImportResult` exposes backward-compatible disposition and summary.
 
-The populated-target merge writer (Slice 8) and Import routing remain unimplemented.
+Slice 9 (Import UI, localized preview/result handling, and final end-to-end release validation) remains unimplemented.

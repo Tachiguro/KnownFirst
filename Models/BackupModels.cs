@@ -454,6 +454,32 @@ public enum PortableImportStatus
     Failed
 }
 
+/// <summary>What actually happened on a <see cref="PortableImportStatus.Success"/> import
+/// (KF-MEANING-001 Slice 8 Import integration). Never populated for a non-success result.</summary>
+public enum PortableImportDisposition
+{
+    RestoredIntoEmpty,
+    MergeApplied,
+    MergeNoChange
+}
+
+/// <summary>
+/// Deterministic, UI-safe summary of one successful import — never a raw exception, a database integer
+/// id, the complete archive payload, or the complete preflight plan. <see cref="InsertedCount"/>,
+/// <see cref="EnrichedCount"/>, and <see cref="PreservedVariantCount"/> are aggregated directly from the
+/// preflight plan's own per-entity classification counts (never derived by comparing database row counts
+/// before/after); all three are zero for <see cref="PortableImportDisposition.RestoredIntoEmpty"/>, since
+/// that path never computes a preflight plan.
+/// </summary>
+public sealed record PortableImportSummary(
+    PortableImportDisposition Disposition,
+    bool SafetyCopyCreated,
+    int InsertedCount,
+    int EnrichedCount,
+    int PreservedVariantCount,
+    int SkippedCount);
+
 public sealed record PortableImportResult(
     PortableImportStatus Status,
-    string? ErrorCode);
+    string? ErrorCode,
+    PortableImportSummary? Summary = null);

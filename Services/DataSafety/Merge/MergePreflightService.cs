@@ -6,6 +6,13 @@ namespace KnownFirst.Services.DataSafety.Merge;
 public interface IMergePreflightService
 {
     Task<MergePreflightPlan> CreatePreflightPlanAsync(Stream archiveStream, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Computes the plan directly from an already-validated archive envelope. Used by orchestration (Import
+    /// routing) that has already consumed the caller's source stream exactly once and must never rewind or
+    /// re-validate it — the caller's stream may not even be seekable.
+    /// </summary>
+    Task<MergePreflightPlan> CreatePreflightPlanAsync(ValidatedBackupArchiveEnvelope validated, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -40,6 +47,13 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
         {
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, null, false, MergePreflightErrorCodes.UnexpectedFailure);
         }
+
+        return await CreatePreflightPlanAsync(validated, cancellationToken);
+    }
+
+    public async Task<MergePreflightPlan> CreatePreflightPlanAsync(ValidatedBackupArchiveEnvelope validated, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(validated);
 
         string sourceAppVersion;
         int sourceDatabaseSchemaVersion;

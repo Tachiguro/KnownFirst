@@ -62,13 +62,13 @@
 
 ## Current blocker or pending validation
 
-- No implementation or validation blocker remains; Slice-9 PR creation and manual merge to master are pending.
+- No implementation or validation blocker remains.
+- PR #45 is open and ready for manual merge to master.
 - No Beta 13, packaging, device, or store task is active.
 
 ## Exact next action
 
-- Manual merge of the Slice-9 pull request on GitHub.
-- Completion of the full portable archive export/import implementation milestone.
+- Manual merge of PR #45 to master.
 
 ## Concise new-chat handoff
 

@@ -2,7 +2,7 @@
 
 **Status date:** 2026-08-02
 **State source:** `master` (`cf1b0995415dc858357f0a5c9e90e7c0aefb327c`, PR #44 merge commit)
-**Next product milestone:** KF-MEANING-001 Slice 9 — Import UI, localized preview/result handling, and final release validation
+**Next repository action:** Manual merge of PR #45; no subsequent product milestone has been selected.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 

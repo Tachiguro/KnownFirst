@@ -341,65 +341,83 @@ finally {
         [Environment]::SetEnvironmentVariable('KNOWNFIRST_GUI_TEST_ROOT', $previousEnvValue, [EnvironmentVariableTarget]::Process)
     }
 
-    $completedAtUtc = [DateTime]::UtcNow
-    $durationMs = [int]($completedAtUtc - $startedAtUtc).TotalMilliseconds
+    # Evidence writing (summary.json/report.zip) is deliberately wrapped in its own try/catch:
+    # the scenario's pass/fail result and $exitCode were already determined above, and a failure
+    # writing evidence (e.g. a locked/full disk) must never prevent the single, authoritative
+    # $host.SetShouldExit($exitCode) call below from running with that already-correct value.
+    # Without this guard, an unhandled exception here (Set-Content/ConvertTo-Json under
+    # $ErrorActionPreference = 'Stop') would terminate the script before that line is ever
+    # reached, leaving the process exit code to whatever the host happens to default to instead
+    # of the scenario's real result - exactly the "launcher must expose one unambiguous final
+    # process exit code" contract this script must uphold.
+    try {
+        $completedAtUtc = [DateTime]::UtcNow
+        $durationMs = [int]($completedAtUtc - $startedAtUtc).TotalMilliseconds
 
-    # Only create artifacts if we created the run directory
-    if (Test-Path -LiteralPath $runDir -PathType Container) {
-        # Create environment snapshot
-        $env = Get-EnvironmentSnapshot
-        $env | ConvertTo-Json | Set-Content -LiteralPath $envPath -Encoding UTF8
+        # Only create artifacts if we created the run directory
+        if (Test-Path -LiteralPath $runDir -PathType Container) {
+            # Create environment snapshot
+            $env = Get-EnvironmentSnapshot
+            $env | ConvertTo-Json | Set-Content -LiteralPath $envPath -Encoding UTF8
 
-        # Create summary with run-specific paths
-        $summary = [ordered]@{
-            schemaVersion         = '1.0'
-            scenarioId            = 'StartupSmoke'
-            displayName           = 'Startup smoke test'
-            startedAtUtc          = $startedAtUtc.ToString('o')
-            completedAtUtc        = $completedAtUtc.ToString('o')
-            durationMilliseconds  = $durationMs
-            configuration         = $Configuration
-            branch                = $env.gitBranch
-            commitHead            = $env.gitHead
-            dirtyWorktree         = -not $env.gitWorktreeClean
-            result                = $result
-            exitCode              = $exitCode
-            failedStep            = $failedStep
-            errorMessage          = $errorMessage
-            runnerLogPath         = $runnerLogPath
-            appLogPaths           = @()
-            screenshotPaths       = @()
-            profileRoot           = $resolvedProfileDir
-            invokedCommand        = "powershell -File scripts/gui-tests/windows/run-scenario-startup-smoke.ps1 -Configuration $Configuration"
+            # Create summary with run-specific paths
+            $summary = [ordered]@{
+                schemaVersion         = '1.0'
+                scenarioId            = 'StartupSmoke'
+                displayName           = 'Startup smoke test'
+                startedAtUtc          = $startedAtUtc.ToString('o')
+                completedAtUtc        = $completedAtUtc.ToString('o')
+                durationMilliseconds  = $durationMs
+                configuration         = $Configuration
+                branch                = $env.gitBranch
+                commitHead            = $env.gitHead
+                dirtyWorktree         = -not $env.gitWorktreeClean
+                result                = $result
+                exitCode              = $exitCode
+                failedStep            = $failedStep
+                errorMessage          = $errorMessage
+                runnerLogPath         = $runnerLogPath
+                appLogPaths           = @()
+                screenshotPaths       = @()
+                profileRoot           = $resolvedProfileDir
+                invokedCommand        = "powershell -File scripts/gui-tests/windows/run-scenario-startup-smoke.ps1 -Configuration $Configuration"
+            }
+
+            # Add captured application logs to summary
+            if ($capturedAppLogs.Count -gt 0) {
+                $summary['appLogPaths'] = @($capturedAppLogs)
+            }
+
+            Log-Step -Name 'SummaryWritten' -Status 'Completed'
+
+            $summary | ConvertTo-Json | Set-Content -LiteralPath $summaryPath -Encoding UTF8
+
+            # Create report zip with allowlist
+            if (New-ReportZip -SourceDir $runDir -OutputPath $reportZipPath) {
+                Log-Step -Name 'ReportPackaged' -Status 'Completed'
+            }
+
+            # Print results
+            Write-Host ''
+            $resultColor = if ($result -eq 'Passed') { 'Green' } else { 'Red' }
+            Write-Host "GUI Test Result: $result" -ForegroundColor $resultColor
+            Write-Host "Run directory: $runDir"
+            Write-Host "Summary: $summaryPath"
+            if (Test-Path -LiteralPath $reportZipPath) {
+                Write-Host "Report package: $reportZipPath"
+            }
+            if ($failedStep) {
+                Write-Host "Failed step: $failedStep"
+            }
         }
-
-        # Add captured application logs to summary
-        if ($capturedAppLogs.Count -gt 0) {
-            $summary['appLogPaths'] = @($capturedAppLogs)
-        }
-
-        Log-Step -Name 'SummaryWritten' -Status 'Completed'
-
-        $summary | ConvertTo-Json | Set-Content -LiteralPath $summaryPath -Encoding UTF8
-
-        # Create report zip with allowlist
-        if (New-ReportZip -SourceDir $runDir -OutputPath $reportZipPath) {
-            Log-Step -Name 'ReportPackaged' -Status 'Completed'
-        }
-
-        # Print results
-        Write-Host ''
-        $resultColor = if ($result -eq 'Passed') { 'Green' } else { 'Red' }
-        Write-Host "GUI Test Result: $result" -ForegroundColor $resultColor
-        Write-Host "Run directory: $runDir"
-        Write-Host "Summary: $summaryPath"
-        if (Test-Path -LiteralPath $reportZipPath) {
-            Write-Host "Report package: $reportZipPath"
-        }
-        if ($failedStep) {
-            Write-Host "Failed step: $failedStep"
-        }
+    }
+    catch {
+        # Evidence writing failed after the scenario's own result was already determined: report
+        # it, but do not let it change the authoritative exit code below.
+        Write-Host "Warning: evidence writing failed after the scenario result was determined: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 }
 
+# The single, authoritative process exit code: always reached, always reflects the scenario's
+# actual result (never overridden by an evidence-writing failure above).
 $host.SetShouldExit($exitCode)

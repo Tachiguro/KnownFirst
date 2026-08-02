@@ -49,7 +49,11 @@
 
 [CmdletBinding()]
 param(
-    [ValidateSet('001-import-definition-reset')]
+    [ValidateSet(
+        '001-import-definition-reset',
+        'PreparationSelectedMeaning',
+        'PreparationAcceptFailureRecovery',
+        'PreparationInvalidContextRecovery')]
     [string]$Scenario = '001-import-definition-reset',
 
     [ValidateSet('Debug')]
@@ -106,6 +110,18 @@ try {
             $result = Invoke-Scenario001 -Context $context -ExecutablePath $executablePath `
                 -MonitorTarget $MonitorTarget -MonitorDeviceName $MonitorDeviceName
         }
+        'PreparationSelectedMeaning' {
+            $result = Invoke-ScenarioPreparationSelectedMeaning -Context $context -ExecutablePath $executablePath `
+                -MonitorTarget $MonitorTarget -MonitorDeviceName $MonitorDeviceName
+        }
+        'PreparationAcceptFailureRecovery' {
+            $result = Invoke-ScenarioPreparationAcceptFailureRecovery -Context $context -ExecutablePath $executablePath `
+                -MonitorTarget $MonitorTarget -MonitorDeviceName $MonitorDeviceName
+        }
+        'PreparationInvalidContextRecovery' {
+            $result = Invoke-ScenarioPreparationInvalidContextRecovery -Context $context -ExecutablePath $executablePath `
+                -MonitorTarget $MonitorTarget -MonitorDeviceName $MonitorDeviceName
+        }
         default {
             throw "No dispatcher registered for scenario '$Scenario'."
         }
@@ -113,26 +129,37 @@ try {
     $succeeded = [bool]$result.Succeeded
 }
 finally {
-    $metadata = @{
-        Commit                 = $commit
-        Branch                 = $branch
-        MonitorTarget          = $MonitorTarget
-        MonitorDeviceNameArg   = $MonitorDeviceName
-        Monitors               = if ($result) { $result.AllMonitors } else { $null }
-        SelectedMonitor        = if ($result) { $result.Monitor } else { $null }
-        MonitorSelectionReason = if ($result) { $result.MonitorSelectionReason } else { $null }
-        Placement              = if ($result) { $result.Placement } else { $null }
-        FinalWindowBounds      = if ($result) { $result.FinalWindowBounds } else { $null }
-        RealDataUnchanged      = if ($result) { $result.RealDataUnchanged } else { $false }
-        RealDataDifferences    = if ($result) { $result.RealDataDifferences } else { @('Scenario did not complete far enough to compare real data.') }
-    }
-    Write-GuiTestReport -Context $context -Metadata $metadata -OverallSucceeded $succeeded
+    # Evidence writing is deliberately wrapped in its own try/catch: $succeeded was already
+    # determined above, and a failure writing the report/summary (e.g. a locked/full disk) must
+    # never prevent the single, authoritative exit-code statement below from running with that
+    # already-correct value - the launcher must expose one unambiguous final process exit code.
+    try {
+        $metadata = @{
+            Commit                 = $commit
+            Branch                 = $branch
+            MonitorTarget          = $MonitorTarget
+            MonitorDeviceNameArg   = $MonitorDeviceName
+            Monitors               = if ($result) { $result.AllMonitors } else { $null }
+            SelectedMonitor        = if ($result) { $result.Monitor } else { $null }
+            MonitorSelectionReason = if ($result) { $result.MonitorSelectionReason } else { $null }
+            Placement              = if ($result) { $result.Placement } else { $null }
+            FinalWindowBounds      = if ($result) { $result.FinalWindowBounds } else { $null }
+            RealDataUnchanged      = if ($result) { $result.RealDataUnchanged } else { $false }
+            RealDataDifferences    = if ($result) { $result.RealDataDifferences } else { @('Scenario did not complete far enough to compare real data.') }
+        }
+        Write-GuiTestReport -Context $context -Metadata $metadata -OverallSucceeded $succeeded
 
-    Write-RunnerLog "Run finished. Succeeded = $succeeded"
-    Write-RunnerLog "Report: $($context.ReportPath)"
-    Write-RunnerLog "Summary: $($context.SummaryPath)"
+        Write-RunnerLog "Run finished. Succeeded = $succeeded"
+        Write-RunnerLog "Report: $($context.ReportPath)"
+        Write-RunnerLog "Summary: $($context.SummaryPath)"
+    }
+    catch {
+        Write-Host "Warning: evidence writing failed after the scenario result was determined: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
 }
 
+# The single, authoritative process exit code: always reached, always reflects the scenario's
+# actual result (never overridden by an evidence-writing failure above).
 if (-not $succeeded) {
     $host.SetShouldExit(1)
 }

@@ -11,6 +11,46 @@
       "timeoutSeconds": 120,
       "expectsScreenshots": false,
       "status": "Implemented"
+    },
+    {
+      "id": "001-import-definition-reset",
+      "displayName": "Import, definition lookup, and full reset",
+      "description": "Imports a short German text in Definition mode, confirms the review workflow advanced, then resets all application data from Settings and confirms Home returns to the empty state.",
+      "implementationScript": "scripts/gui-tests/windows/scenarios/001-import-definition-reset.ps1",
+      "supportedConfigurations": ["Debug"],
+      "timeoutSeconds": 300,
+      "expectsScreenshots": true,
+      "status": "Implemented"
+    },
+    {
+      "id": "PreparationSelectedMeaning",
+      "displayName": "Preparation: selected meaning only",
+      "description": "Opens the Other meaning picker on a deterministically seeded candidate, selects a non-default meaning, accepts it with the real Accept button, and proves the workflow advances and the isolated database persists exactly the selected Sense and Meaning.",
+      "implementationScript": "scripts/gui-tests/windows/scenarios/PreparationSelectedMeaning.ps1",
+      "supportedConfigurations": ["Debug"],
+      "timeoutSeconds": 300,
+      "expectsScreenshots": true,
+      "status": "Implemented"
+    },
+    {
+      "id": "PreparationAcceptFailureRecovery",
+      "displayName": "Preparation: acceptance failure recovery",
+      "description": "Injects a deterministic single-shot in-transaction acceptance failure and proves the page stays usable with an inline save error, the acceptance rolls back completely, and a retry succeeds and advances.",
+      "implementationScript": "scripts/gui-tests/windows/scenarios/PreparationAcceptFailureRecovery.ps1",
+      "supportedConfigurations": ["Debug"],
+      "timeoutSeconds": 300,
+      "expectsScreenshots": true,
+      "status": "Implemented"
+    },
+    {
+      "id": "PreparationInvalidContextRecovery",
+      "displayName": "Preparation: invalid context recovery",
+      "description": "Seeds a candidate carrying a misattributed occurrence and proves the misattributed context is never rendered, the candidate is still acceptable, and neither a blank page nor the global ErrorBoundary appears.",
+      "implementationScript": "scripts/gui-tests/windows/scenarios/PreparationInvalidContextRecovery.ps1",
+      "supportedConfigurations": ["Debug"],
+      "timeoutSeconds": 300,
+      "expectsScreenshots": true,
+      "status": "Implemented"
     }
   ]
 }

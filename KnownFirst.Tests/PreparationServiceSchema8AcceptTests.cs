@@ -296,7 +296,6 @@ public sealed class PreparationServiceSchema8AcceptTests
     [DataRow(PreparationSchema8Checkpoints.AfterContextLink)]
     [DataRow(PreparationSchema8Checkpoints.AfterCardInsert)]
     [DataRow(PreparationSchema8Checkpoints.AfterResolvedIndexPersist)]
-    [DataRow(PreparationSchema8Checkpoints.DuringAutoExactVariantLinking)]
     [DataRow(PreparationSchema8Checkpoints.BeforeCandidateCompletion)]
     [DataRow(PreparationSchema8Checkpoints.BeforeAutomaticCandidateCompletion)]
     public async Task Accept_FaultInjectedAtCheckpoint_RollsBackCompletelyAndPreservesUserVersion(string checkpoint)

@@ -25,8 +25,10 @@ public interface IPreparationFaultInjector
 }
 
 /// <summary>
-/// The nine required, stable Schema-8 preparation-accept fault-injection checkpoints (KF-MEANING-001
-/// Slice 3). Every checkpoint fires inside the same <c>RunInTransactionAsync</c> transaction as
+/// The eight required, stable Schema-8 preparation-accept fault-injection checkpoints (KF-MEANING-001
+/// Slice 3; reduced from nine by KF-MEANING-002's independent review — see the removal note on the
+/// former <c>DuringAutoExactVariantLinking</c> checkpoint). Every checkpoint fires inside the same
+/// <c>RunInTransactionAsync</c> transaction as
 /// <see cref="PreparationService.AcceptAsync"/>'s Schema-8 branch, so an injected exception at any one of
 /// them rolls back every mutation made so far in that call, leaves <c>PRAGMA user_version</c> unchanged,
 /// and leaves the candidate retryable.
@@ -51,11 +53,11 @@ public static class PreparationSchema8Checkpoints
     /// <summary>Right after the explicitly accepted provider index is added to the in-memory resolved set.</summary>
     public const string AfterResolvedIndexPersist = "AfterResolvedIndexPersist";
 
-    /// <summary>
-    /// Fires unconditionally right after the accepted index is recorded (KF-MEANING-002). Kept as a stable
-    /// checkpoint for fault-injection coverage; no other provider meaning is inspected or linked here.
-    /// </summary>
-    public const string DuringAutoExactVariantLinking = "DuringAutoExactVariantLinking";
+    // KF-MEANING-002 independent review: the former DuringAutoExactVariantLinking checkpoint was removed
+    // here. After the all-exact auto-linking loop it named was deleted, it fired with zero statements
+    // between it and AfterResolvedIndexPersist — an identical, redundant rollback boundary under a name
+    // that no longer described anything real. Kept as a code comment (not a checkpoint) so a future
+    // reader does not wonder where checkpoint 6 of 9 went.
 
     /// <summary>Right before this call's final candidate-state (ledger) commit.</summary>
     public const string BeforeCandidateCompletion = "BeforeCandidateCompletion";
@@ -204,9 +206,7 @@ public sealed partial class PreparationService
 
         // KF-MEANING-002: candidate completion no longer requires every provider meaning to be resolved.
         // Unselected provider meanings are suggestions only — they are never inspected, matched, auto-
-        // linked, or required to reach any resolution state. This checkpoint fires unconditionally to
-        // preserve the existing fault-injection checkpoint sequence.
-        Trip(PreparationSchema8Checkpoints.DuringAutoExactVariantLinking);
+        // linked, or required to reach any resolution state.
 
         // §4/§5: FrozenEvidence is carried forward byte-identical — only ResolvedProviderMeaningIndexes changes.
         var updatedEnvelope = envelope with

@@ -94,9 +94,34 @@ public static class MauiProgram
         builder.Services.AddSingleton<WiktionaryHtmlParser>();
         builder.Services.AddSingleton<IAsyncDelay, SystemAsyncDelay>();
         builder.Services.AddSingleton(new HttpClient());
+#if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
+        if (GuiTestScenarioSeed.IsActive)
+        {
+            // GUI-test seed scenarios need deterministic, in-process, network-free meanings —
+            // never the real Wiktionary/Wikipedia providers — so this substitutes the entire
+            // provider set instead of adding to it.
+            builder.Services.AddSingleton<GuiTestSeedLookupProvider>();
+            builder.Services.AddSingleton<IDictionaryLookupProvider>(sp => sp.GetRequiredService<GuiTestSeedLookupProvider>());
+            builder.Services.AddSingleton<ILexicalLookupProvider>(sp => sp.GetRequiredService<GuiTestSeedLookupProvider>());
+            builder.Services.AddSingleton<ILexicalLookupProviderResolver, LexicalLookupProviderResolver>();
+        }
+        else
+        {
+            builder.Services.AddLexicalProviders();
+        }
+#else
         builder.Services.AddLexicalProviders();
-        
+#endif
+
         builder.Services.AddSingleton<ILexicalEnrichmentService, LexicalEnrichmentService>();
+#if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
+        if (GuiTestFaultInjection.IsActive)
+        {
+            var checkpoint = GuiTestFaultInjection.Resolve()!;
+            builder.Services.AddSingleton<IPreparationFaultInjector>(
+                _ => new GuiTestFaultInjection.SingleShotInjector(checkpoint));
+        }
+#endif
         builder.Services.AddSingleton<IPreparationService, PreparationService>();
         builder.Services.AddSingleton<ILearningService, LearningService>();
         builder.Services.AddSingleton<IWorkflowStateService, WorkflowStateService>();
@@ -120,6 +145,19 @@ public static class MauiProgram
                 .CreateLogger("KnownFirst.Startup");
             app.Services.GetRequiredService<RuntimeExceptionMonitor>().Start();
             app.Services.GetRequiredService<ILanguageSelectionService>().Initialize();
+#if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
+            if (GuiTestScenarioSeed.IsActive)
+            {
+                startupLogger.LogWarning(
+                    "GUI test scenario seeding is active ({SeedScenario}); seeding deterministic data before first render.",
+                    Environment.GetEnvironmentVariable(GuiTestScenarioSeed.EnvironmentVariableName));
+                // CreateMauiApp runs on the UI thread with a synchronization context installed, so
+                // awaiting the seed inline and blocking on it deadlocks: its continuations would be
+                // posted back to the very thread that is waiting. Running it on the thread pool keeps
+                // every continuation off the UI thread while still completing before the first render.
+                Task.Run(() => GuiTestScenarioSeed.SeedAsync(app.Services)).GetAwaiter().GetResult();
+            }
+#endif
             startupLogger.LogDebug(
                 "Application services were built and startup services were resolved. Session = {SessionId}",
                 fileLoggerProvider.SessionId);

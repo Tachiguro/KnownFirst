@@ -87,7 +87,7 @@
                 <progress value="@(_item.Position - 1)" max="@_item.TotalItems"></progress>
             </div>
             <p class="eyebrow">@Localizer["Prepare_Candidate"]</p>
-            <h2 tabindex="-1" @ref="_candidateHeading">@_item.LearningTerm</h2>
+            <h2 id="preparation-candidate-term" tabindex="-1" @ref="_candidateHeading">@_item.LearningTerm</h2>
             @if (_item.EncounteredSurfaceForm is { } encounteredSurfaceForm)
             {
                 <p class="encountered-form">@Localizer["Prepare_InText", encounteredSurfaceForm]</p>
@@ -218,6 +218,7 @@
                     {
                         <p>@Localizer["Prepare_SeveralMeanings"]</p>
                         <button type="button"
+                                id="meaning-picker-trigger"
                                 class="meaning-picker-trigger"
                                 aria-haspopup="dialog"
                                 aria-expanded="@_isMeaningPickerOpen"
@@ -287,13 +288,13 @@
             }
             @if (_saveFailed)
             {
-                <p class="inline-message inline-message-error" role="alert">@Localizer["Prepare_SaveError"]</p>
+                <p id="preparation-save-error" class="inline-message inline-message-error" role="alert">@Localizer["Prepare_SaveError"]</p>
             }
         </article>
     }
     else
     {
-        <section class="preparation-card" role="status">
+        <section id="preparation-batch-complete" class="preparation-card" role="status">
             <h2>@Localizer["Prepare_BatchCompleteTitle"]</h2>
             <p>@Localizer["Prepare_BatchComplete", _overview.LastCompletedPreparedItems]</p>
             <div class="button-row">
@@ -322,7 +323,7 @@
                 else if (_item.Result?.HasUsableData == true)
                 {
                     <div class="button-row">
-                        <button type="button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">
+                        <button type="button" id="preparation-accept-button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">
                             @if (_showTransitionSpinner)
                             {
                                 <span class="transition-spinner" aria-hidden="true"></span>
@@ -344,7 +345,8 @@
 @if (_isMeaningPickerOpen && _item?.Result is { Meanings.Count: > 1 } result)
 {
     <div class="meaning-picker-backdrop" @onclick="CloseMeaningPickerAsync">
-        <section class="meaning-picker"
+        <section id="meaning-picker-dialog"
+                 class="meaning-picker"
                  role="dialog"
                  aria-modal="true"
                  aria-labelledby="meaning-picker-title"
@@ -362,6 +364,7 @@
                     var meaningIndex = selectableMeaning.OriginalIndex;
                     <li role="none" class="meaning-option @(_selectedMeaningIndex == meaningIndex ? "selected" : null)">
                         <button type="button"
+                                id="meaning-option-@meaningIndex"
                                 role="option"
                                 aria-selected="@(_selectedMeaningIndex == meaningIndex)"
                                 @onclick="() => SelectMeaningAsync(meaningIndex)">

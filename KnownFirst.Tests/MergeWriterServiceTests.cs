@@ -38,6 +38,84 @@ public sealed class MergeWriterServiceTests
         }
     }
 
+    /// <summary>Cancels at a named, semantically-stable writer checkpoint rather than a raw mutation
+    /// count — used to prove rollback exactly at the scheduler-replay boundary.</summary>
+    private sealed class CancelAtCheckpointInjector(CancellationTokenSource source, string checkpointName) : IBackupImportFailureInjector
+    {
+        public void AfterMutation(int mutationCount)
+        {
+        }
+
+        public void AtCheckpoint(string checkpointName2)
+        {
+            if (string.Equals(checkpointName2, checkpointName, StringComparison.Ordinal))
+            {
+                source.Cancel();
+            }
+        }
+    }
+
+    /// <summary>Throws the first time the named checkpoint fires — mirrors
+    /// <c>Schema8BackupRestoreTests.ThrowAtCheckpointInjector</c>.</summary>
+    private sealed class ThrowAtCheckpointInjector(string checkpointName) : IBackupImportFailureInjector
+    {
+        private bool _fired;
+
+        public void AfterMutation(int mutationCount)
+        {
+        }
+
+        public void AtCheckpoint(string checkpointName2)
+        {
+            if (!_fired && string.Equals(checkpointName2, checkpointName, StringComparison.Ordinal))
+            {
+                _fired = true;
+                throw new InvalidOperationException($"Injected failure at checkpoint '{checkpointName2}'.");
+            }
+        }
+    }
+
+    // Fixed anchor for every scheduler-replay test below — never DateTime.UtcNow, so expected schedules
+    // are computed the same way on every run.
+    private static readonly DateTime SchedulerTestCardCreatedAtUtc = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private const string DuringSchedulerReplayCheckpoint = "MergeWriter.DuringSchedulerReplay";
+
+    /// <summary>Builds a single-word, single-Sense, single-card fixture ("bank"/"finance-1"/MeaningToTerm)
+    /// with the card left at the real creation-time defaults (<see cref="CardSchedule.New"/>) and no
+    /// reviews. Building this same helper twice yields byte-identical content on both sides, so the two
+    /// databases' Word/Sense/Meaning/Card all match by stable merge identity.</summary>
+    private static async Task<Schema7Fixture> BuildBankCardFixtureAsync()
+    {
+        var fixture = await Schema7Fixture.CreateAsync();
+        var wordId = await fixture.InsertWordAsync("bank", status: WordStatus.Learning);
+        var meaningId = await fixture.InsertMeaningAsync(
+            wordId, displayTerm: "bank", translation: "Bank", selectedMeaningId: "finance-1", definition: "financial institution");
+        await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.MeaningToTerm,
+            state: CardState.New, dueAtUtc: SchedulerTestCardCreatedAtUtc, intervalDays: 0,
+            easeFactor: SimpleSpacedRepetitionScheduler.DefaultEaseFactor, successfulReviewCount: 0, lapseCount: 0,
+            lastReviewedAtUtc: null, lastRating: null,
+            createdAtUtc: SchedulerTestCardCreatedAtUtc, updatedAtUtc: SchedulerTestCardCreatedAtUtc);
+        return fixture;
+    }
+
+    /// <summary>Adds one review (plus its owning, otherwise-empty completed LearningSession) to the
+    /// fixture's single card, with every scheduling snapshot field supplied explicitly (never a wall-clock
+    /// default) so fingerprint/content comparisons across two independently-built fixtures stay exact.</summary>
+    private static async Task AddReviewAsync(
+        Schema7Fixture fixture, ReviewRating rating, DateTime reviewedAtUtc, DateTime dueAtUtc, int intervalDays, double easeFactor)
+    {
+        var cardId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM LearningCards LIMIT 1");
+        var sessionId = await fixture.InsertLearningSessionAsync(
+            startedAtUtc: reviewedAtUtc, updatedAtUtc: reviewedAtUtc, completedAtUtc: reviewedAtUtc);
+        await fixture.InsertReviewAsync(
+            cardId, sessionId: sessionId, rating: rating, wasTypedAnswer: true, wasCorrect: rating != ReviewRating.Again,
+            reviewedAtUtc: reviewedAtUtc, dueAtUtc: dueAtUtc, intervalDays: intervalDays, easeFactor: easeFactor);
+    }
+
+    private static async Task<Schema8CardRow> SingleCardAsync(Schema7Fixture fixture) =>
+        (await fixture.Connection.QueryAsync<Schema8CardRow>("SELECT * FROM LearningCards")).Single();
+
     private static MergeManifestInfo DummyManifest() =>
         new(BackupFormatLimits.CurrentArchiveFormatVersion, "1.0.0-test", 8, DateTime.UtcNow, BackupSourcePlatform.Windows);
 
@@ -447,5 +525,209 @@ public sealed class MergeWriterServiceTests
         {
             await targetDb.DisposeAsync();
         }
+    }
+
+    // ==== Scheduler-replay correction (KF-MEANING-001 Slice 8) ====
+
+    // ---- An existing target card plus an archive-only review event inserts the event and recomputes
+    // every derived scheduling field; the result matches the ordinary scheduler transition; ownership
+    // fields (PreferredMeaningId/SenseId/Direction) stay untouched. ----
+    [TestMethod]
+    public async Task EnrichedCard_ArchiveOnlyReviewEvent_InsertsEventAndRecomputesDerivedFields()
+    {
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+        var cardBefore = await SingleCardAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        var reviewedAt = SchedulerTestCardCreatedAtUtc.AddDays(1);
+        await AddReviewAsync(sourceFixture, ReviewRating.Good, reviewedAt, dueAtUtc: reviewedAt.AddDays(3), intervalDays: 3, easeFactor: 2.5);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.IsTrue(plan.RequiresSchedulerReplay);
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status);
+
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningReviews"));
+
+        var cardAfter = await SingleCardAsync(targetFixture);
+        var expected = new SimpleSpacedRepetitionScheduler().Schedule(
+            CardSchedule.New(SchedulerTestCardCreatedAtUtc), ReviewRating.Good, reviewedAt);
+
+        Assert.AreEqual(expected.State, cardAfter.State);
+        Assert.AreEqual(expected.DueAtUtc, cardAfter.DueAtUtc);
+        Assert.AreEqual(expected.IntervalDays, cardAfter.IntervalDays);
+        Assert.AreEqual(expected.EaseFactor, cardAfter.EaseFactor);
+        Assert.AreEqual(expected.SuccessfulReviewCount, cardAfter.SuccessfulReviewCount);
+        Assert.AreEqual(expected.LapseCount, cardAfter.LapseCount);
+        Assert.AreEqual(expected.LastReviewedAtUtc, cardAfter.LastReviewedAtUtc);
+        Assert.AreEqual(expected.LastRating, cardAfter.LastRating);
+
+        // Ownership fields are never touched by replay.
+        Assert.AreEqual(cardBefore.PreferredMeaningId, cardAfter.PreferredMeaningId);
+        Assert.AreEqual(cardBefore.SenseId, cardAfter.SenseId);
+        Assert.AreEqual(cardBefore.Direction, cardAfter.Direction);
+    }
+
+    // ---- An exact duplicate review event causes no duplicate row and no card-state change ----
+    [TestMethod]
+    public async Task ExactDuplicateReviewEvent_NoDuplicateRow_NoCardStateChange()
+    {
+        var reviewedAt = SchedulerTestCardCreatedAtUtc.AddDays(1);
+        var dueAt = reviewedAt.AddDays(3);
+
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await AddReviewAsync(targetFixture, ReviewRating.Good, reviewedAt, dueAtUtc: dueAt, intervalDays: 3, easeFactor: 2.5);
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+        var cardBefore = await SingleCardAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        await AddReviewAsync(sourceFixture, ReviewRating.Good, reviewedAt, dueAtUtc: dueAt, intervalDays: 3, easeFactor: 2.5);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.IsFalse(plan.RequiresSchedulerReplay);
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status);
+
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningReviews"));
+
+        var cardAfter = await SingleCardAsync(targetFixture);
+        Assert.AreEqual(cardBefore.State, cardAfter.State);
+        Assert.AreEqual(cardBefore.DueAtUtc, cardAfter.DueAtUtc);
+        Assert.AreEqual(cardBefore.IntervalDays, cardAfter.IntervalDays);
+        Assert.AreEqual(cardBefore.EaseFactor, cardAfter.EaseFactor);
+        Assert.AreEqual(cardBefore.SuccessfulReviewCount, cardAfter.SuccessfulReviewCount);
+        Assert.AreEqual(cardBefore.LapseCount, cardAfter.LapseCount);
+        Assert.AreEqual(cardBefore.LastReviewedAtUtc, cardAfter.LastReviewedAtUtc);
+        Assert.AreEqual(cardBefore.LastRating, cardAfter.LastRating);
+    }
+
+    // ---- Reapplying the same source is a complete no-op for review rows and card scheduling fields ----
+    [TestMethod]
+    public async Task ReapplyingSameSource_CardSchedulingFieldsRemainUnchanged()
+    {
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        var reviewedAt = SchedulerTestCardCreatedAtUtc.AddDays(1);
+        await AddReviewAsync(sourceFixture, ReviewRating.Good, reviewedAt, dueAtUtc: reviewedAt.AddDays(3), intervalDays: 3, easeFactor: 2.5);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+
+        var plan1 = await ComputePlanAsync(targetFixture, archive);
+        var result1 = await writer.ApplyAsync(archive, plan1, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, result1.Status);
+        var cardAfterFirst = await SingleCardAsync(targetFixture);
+
+        var plan2 = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.NoChanges, plan2.Status);
+        var result2 = await writer.ApplyAsync(archive, plan2, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, result2.Status);
+
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningReviews"));
+        var cardAfterSecond = await SingleCardAsync(targetFixture);
+
+        Assert.AreEqual(cardAfterFirst.State, cardAfterSecond.State);
+        Assert.AreEqual(cardAfterFirst.DueAtUtc, cardAfterSecond.DueAtUtc);
+        Assert.AreEqual(cardAfterFirst.IntervalDays, cardAfterSecond.IntervalDays);
+        Assert.AreEqual(cardAfterFirst.EaseFactor, cardAfterSecond.EaseFactor);
+        Assert.AreEqual(cardAfterFirst.SuccessfulReviewCount, cardAfterSecond.SuccessfulReviewCount);
+        Assert.AreEqual(cardAfterFirst.LapseCount, cardAfterSecond.LapseCount);
+        Assert.AreEqual(cardAfterFirst.LastReviewedAtUtc, cardAfterSecond.LastReviewedAtUtc);
+        Assert.AreEqual(cardAfterFirst.LastRating, cardAfterSecond.LastRating);
+    }
+
+    // ---- Cancellation during replay rolls back both inserted reviews and card updates ----
+    [TestMethod]
+    public async Task Cancellation_DuringSchedulerReplay_RollsBackReviewsAndCardUpdate()
+    {
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        var reviewedAt = SchedulerTestCardCreatedAtUtc.AddDays(1);
+        await AddReviewAsync(sourceFixture, ReviewRating.Good, reviewedAt, dueAtUtc: reviewedAt.AddDays(3), intervalDays: 3, easeFactor: 2.5);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.IsTrue(plan.RequiresSchedulerReplay);
+
+        var beforeState = await targetFixture.CapturePersistentStateAsync();
+
+        using var cts = new CancellationTokenSource();
+        var injector = new CancelAtCheckpointInjector(cts, DuringSchedulerReplayCheckpoint);
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture), injector);
+        var result = await writer.ApplyAsync(archive, plan, cts.Token);
+
+        Assert.AreEqual(MergeWriteStatus.Cancelled, result.Status);
+        var afterState = await targetFixture.CapturePersistentStateAsync();
+        CollectionAssert.AreEqual(beforeState, afterState);
+    }
+
+    // ---- An injected mid-operation failure rolls back both review history and card state ----
+    [TestMethod]
+    public async Task InjectedFailure_DuringSchedulerReplay_RollsBackReviewsAndCardUpdate()
+    {
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        var reviewedAt = SchedulerTestCardCreatedAtUtc.AddDays(1);
+        await AddReviewAsync(sourceFixture, ReviewRating.Good, reviewedAt, dueAtUtc: reviewedAt.AddDays(3), intervalDays: 3, easeFactor: 2.5);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.IsTrue(plan.RequiresSchedulerReplay);
+
+        var beforeState = await targetFixture.CapturePersistentStateAsync();
+
+        var injector = new ThrowAtCheckpointInjector(DuringSchedulerReplayCheckpoint);
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture), injector);
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Failed, result.Status);
+        var afterState = await targetFixture.CapturePersistentStateAsync();
+        CollectionAssert.AreEqual(beforeState, afterState);
+    }
+
+    // ---- A plan with RequiresSchedulerReplay = true cannot report success with stale derived fields ----
+    [TestMethod]
+    public async Task PlanRequiringSchedulerReplay_NeverReportsSuccessWithStaleDerivedFields()
+    {
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+        var cardBefore = await SingleCardAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        var reviewedAt = SchedulerTestCardCreatedAtUtc.AddDays(1);
+        await AddReviewAsync(sourceFixture, ReviewRating.Good, reviewedAt, dueAtUtc: reviewedAt.AddDays(3), intervalDays: 3, easeFactor: 2.5);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.IsTrue(plan.RequiresSchedulerReplay);
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status);
+
+        var cardAfter = await SingleCardAsync(targetFixture);
+        Assert.AreNotEqual(cardBefore.State, cardAfter.State);
+        Assert.AreNotEqual(cardBefore.DueAtUtc, cardAfter.DueAtUtc);
+        Assert.IsNotNull(cardAfter.LastReviewedAtUtc);
     }
 }

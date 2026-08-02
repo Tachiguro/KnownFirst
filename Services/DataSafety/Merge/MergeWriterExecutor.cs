@@ -1,4 +1,5 @@
 using System.Globalization;
+using KnownFirst.Core.Learning;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
@@ -33,6 +34,9 @@ internal sealed class MergeWriterExecutor
     private readonly Dictionary<(MergeEntityKind Kind, string ArchiveLocalId), MergePlanAction> _actionsByKey;
     private readonly Dictionary<int, WordEntity> _targetWordsById;
     private readonly Dictionary<int, PreparationSessionEntity> _targetPreparationSessionsById;
+    private readonly Dictionary<int, Schema8CardRow> _targetCardsById;
+    private readonly HashSet<int> _cardsNeedingScheduleReplay = [];
+    private static readonly ISpacedRepetitionScheduler ReplayScheduler = new SimpleSpacedRepetitionScheduler();
 
     private int _mutationCount;
     private readonly Dictionary<string, int> _documentIds = new(StringComparer.Ordinal);
@@ -62,6 +66,7 @@ internal sealed class MergeWriterExecutor
         _failureInjector = failureInjector;
         _targetWordsById = targetSnapshot.Words.ToDictionary(w => w.Id);
         _targetPreparationSessionsById = targetSnapshot.PreparationSessions.ToDictionary(s => s.Id);
+        _targetCardsById = targetSnapshot.LearningCards.ToDictionary(c => c.Id);
 
         _actionsByKey = new Dictionary<(MergeEntityKind, string), MergePlanAction>();
         foreach (var action in plan.Actions)
@@ -75,6 +80,8 @@ internal sealed class MergeWriterExecutor
         public const string AfterSenseInsertion = "MergeWriter.AfterSenseInsertion";
         public const string AfterDefaultMeaningBackfill = "MergeWriter.AfterDefaultMeaningBackfill";
         public const string AfterCardsBeforeLearningHistory = "MergeWriter.AfterCardsBeforeLearningHistory";
+        public const string DuringSchedulerReplay = "MergeWriter.DuringSchedulerReplay";
+        public const string AfterSchedulerReplay = "MergeWriter.AfterSchedulerReplay";
         public const string BeforeCompletion = "MergeWriter.BeforeCompletion";
     }
 
@@ -108,6 +115,7 @@ internal sealed class MergeWriterExecutor
         WritePreparationWorkflows();
         WriteLearningWorkflows();
         WriteLearningReviews();
+        ReplayCardSchedules();
         WriteAnswerVariantProgress();
 
         _failureInjector?.AtCheckpoint(Checkpoints.BeforeCompletion);
@@ -545,10 +553,16 @@ internal sealed class MergeWriterExecutor
             }
             else
             {
-                // Enriched or ExactDuplicateSkipped: the matched card's own scheduling fields and preferred
-                // meaning are left untouched — scheduler replay for new review events is out of scope for
-                // this writer (see MergePreflightPlan.RequiresSchedulerReplay).
+                // Enriched or ExactDuplicateSkipped: the matched card is reused as-is — PreferredMeaningId,
+                // SenseId, and Direction are never touched. Enriched means "this matched card gained at
+                // least one archive-only review event" (see MergePreflightPlan.RequiresSchedulerReplay); its
+                // derived scheduling fields are recomputed by ReplayCardSchedules() after every surviving
+                // review row for it has been written, never left stale.
                 cardId = ResolveExisting(_targetIndex.CardIdByIdentity, new FutureCardIdentity(action.StableIdentity));
+                if (action.Classification == MergeEntityClassification.Enriched)
+                {
+                    _cardsNeedingScheduleReplay.Add(cardId);
+                }
             }
 
             _cardIds[source.Id] = cardId;
@@ -761,6 +775,83 @@ internal sealed class MergeWriterExecutor
                 source.TargetAnswerVariantId is null ? null : (int?)RequireId(_variantIds, source.TargetAnswerVariantId),
                 source.MatchedAnswerVariantId is null ? null : (int?)RequireId(_variantIds, source.MatchedAnswerVariantId));
         }
+    }
+
+    private sealed class ReplayReviewRow
+    {
+        public ReviewRating Rating { get; set; }
+        public bool WasTypedAnswer { get; set; }
+        public bool WasCorrect { get; set; }
+        public DateTime ReviewedAtUtc { get; set; }
+        public DateTime DueAtUtc { get; set; }
+        public int IntervalDays { get; set; }
+        public double EaseFactor { get; set; }
+    }
+
+    /// <summary>
+    /// Recomputes the derived scheduling fields (State, DueAtUtc, IntervalDays, EaseFactor,
+    /// SuccessfulReviewCount, LapseCount, LastReviewedAtUtc, LastRating) for every matched card whose
+    /// surviving review-event set changed during this merge (<see cref="_cardsNeedingScheduleReplay"/>,
+    /// populated only for <see cref="MergeEntityClassification.Enriched"/> cards in <see cref="WriteCards"/>).
+    /// Review history is authoritative and these fields are derived from it — never carried over from
+    /// either side's stale snapshot. Loads the card's <em>complete</em> current review set (target rows
+    /// already present plus every archive-only row <see cref="WriteLearningReviews"/> just inserted — both
+    /// visible on this same connection/transaction), deduplicates by the existing review fingerprint
+    /// contract (<see cref="LearningReviewFingerprintPolicy"/>), and replays via
+    /// <see cref="CardScheduleReplayer"/> from the card's own creation-time default
+    /// (<see cref="CardSchedule.New"/>) — the same initial state <see cref="Schema8LearningReviewReplayPolicy.FirstPreEventSchedule"/>
+    /// already uses for the analogous per-variant progress replay. Never touches PreferredMeaningId,
+    /// SenseId, or Direction.
+    /// </summary>
+    private void ReplayCardSchedules()
+    {
+        foreach (var cardId in _cardsNeedingScheduleReplay.OrderBy(id => id))
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            _failureInjector?.AtCheckpoint(Checkpoints.DuringSchedulerReplay);
+
+            var rows = _connection.Query<ReplayReviewRow>(
+                "SELECT Rating, WasTypedAnswer, WasCorrect, ReviewedAtUtc, DueAtUtc, IntervalDays, EaseFactor FROM LearningReviews WHERE CardId = ?",
+                cardId);
+
+            // A fixed per-card identity: fingerprints are only ever compared within this one card's own
+            // event list, so any constant value distinguishes events correctly here.
+            var cardIdentity = new LearningCardMatchIdentity(cardId.ToString(CultureInfo.InvariantCulture));
+
+            // sqlite-net returns every DateTime with DateTimeKind.Unspecified regardless of how it was
+            // written (see Schema8Utc's own doc comment) — normalized to Utc here before use, exactly like
+            // every other reader of a raw Schema-8 timestamp in this codebase. Left un-normalized, a
+            // Kind=Unspecified value fed to ISpacedRepetitionScheduler.Schedule would be silently
+            // reinterpreted as local time and shifted by the host machine's UTC offset.
+            var events = rows.Select(row =>
+            {
+                var reviewedAtUtc = Schema8Utc.Normalize(row.ReviewedAtUtc);
+                var dueAtUtc = Schema8Utc.Normalize(row.DueAtUtc);
+                return new CardScheduleReplayer.ReviewEvent(
+                    reviewedAtUtc,
+                    row.Rating,
+                    LearningReviewFingerprintPolicy.Compute(
+                        cardIdentity, reviewedAtUtc, BackupEnumMappings.ToBackup(row.Rating),
+                        row.WasTypedAnswer, row.WasCorrect, dueAtUtc, row.IntervalDays, row.EaseFactor).Value);
+            });
+
+            var initial = CardSchedule.New(Schema8Utc.Normalize(_targetCardsById[cardId].CreatedAtUtc));
+            var final = CardScheduleReplayer.Replay(initial, events, ReplayScheduler, _cancellationToken);
+
+            ExecuteRaw(
+                """
+                UPDATE LearningCards
+                SET State = ?, DueAtUtc = ?, IntervalDays = ?, EaseFactor = ?, SuccessfulReviewCount = ?,
+                    LapseCount = ?, LastReviewedAtUtc = ?, LastRating = ?
+                WHERE Id = ?
+                """,
+                (int)final.State, final.DueAtUtc, final.IntervalDays, final.EaseFactor,
+                final.SuccessfulReviewCount, final.LapseCount, final.LastReviewedAtUtc,
+                final.LastRating is null ? null : (int?)final.LastRating.Value,
+                cardId);
+        }
+
+        _failureInjector?.AtCheckpoint(Checkpoints.AfterSchedulerReplay);
     }
 
     // ---- 11e. AnswerVariantProgress ----

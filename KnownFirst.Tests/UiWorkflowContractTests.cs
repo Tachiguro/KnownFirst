@@ -147,6 +147,44 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Preparation_HasNoPerItemDirectionCheckboxesAndKeepsSingleSelectMeaningPicker()
+    {
+        // KF-MEANING-002 runtime/source consistency guard: the tracked preparation page must never grow a
+        // per-item direction checkbox pair, or the associated "at least one direction" validation message,
+        // that a previously observed runtime did not derive from this repository. Card direction stays a
+        // single global AppSettings.CardDirection value fed straight into PreparationService.AcceptAsync.
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.DoesNotContain("Auf Karteikarten verwenden", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Use on flashcards", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Begriff → Definition", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Definition → Begriff", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Term → Definition", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Definition → Term", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("mindestens eine Richtung", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("at least one direction", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("type=\"checkbox\"", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectAllMeanings", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("select all meanings", markup, StringComparison.OrdinalIgnoreCase);
+
+        var acceptCallStart = markup.IndexOf("await PreparationService.AcceptAsync(", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, acceptCallStart);
+        var acceptCallEnd = markup.IndexOf(");", acceptCallStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(acceptCallStart, acceptCallEnd);
+        var acceptCall = markup[acceptCallStart..acceptCallEnd];
+        Assert.Contains("AppSettings.CardDirection", acceptCall);
+
+        // The meaning picker remains single-select: one selected index, applied through ApplyMeaning.
+        Assert.Contains("private int _selectedMeaningIndex", markup);
+        Assert.Contains("_selectedMeaningIndex = meaningIndex", markup);
+        Assert.Contains("ApplyMeaning(_item.Result.Meanings[meaningIndex])", markup);
+
+        // A concise explanation near the alternative-meaning control states that only the selected
+        // meaning is saved.
+        Assert.Contains("Prepare_ChooseOneMeaningExplanation", markup);
+    }
+
+    [TestMethod]
     public void Preparation_ActionsRequireConfirmationAndRetryIsConditional()
     {
         var markup = LoadUi("PrepareWords.razor");
@@ -195,6 +233,21 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("FindCurrentCandidateAsync", service);
         Assert.Contains("FirstOrDefaultAsync", service);
         Assert.DoesNotContain("candidates = await connection.Table<PreparationCandidateEntity>().ToListAsync", service);
+    }
+
+    [TestMethod]
+    public void Preparation_ContextStateResetsOnItemChangeAndCannotThrowOrGoStale()
+    {
+        // KF-MEANING-002 UI state-safety regression: _contextIndex must reset whenever a new candidate is
+        // loaded, a stale in-flight lookup must never overwrite the page with a superseded result, and
+        // context slicing must never throw on invalid coordinates.
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.AreEqual(4, CountOccurrences(markup, "_contextIndex = 0;"));
+        Assert.Contains("Math.Clamp(_contextIndex, 0, _item.Contexts.Count - 1)", markup);
+        Assert.Contains("private static bool IsContextBoundsValid(PreparationContext context)", markup);
+        Assert.Contains("CurrentContext is not null && IsContextBoundsValid(CurrentContext)", markup);
+        Assert.Contains("ReferenceEquals(_lookupCancellation, cancellation)", markup);
     }
 
     [TestMethod]

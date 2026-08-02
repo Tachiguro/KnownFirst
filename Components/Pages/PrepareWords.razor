@@ -97,7 +97,7 @@
                 <div><dt>@Localizer["Review_OccurrenceCount"]</dt><dd>@_item.AcceptedOccurrenceCount</dd></div>
             </dl>
 
-            @if (CurrentContext is not null)
+            @if (CurrentContext is not null && IsContextBoundsValid(CurrentContext))
             {
                 <section class="context-card">
                     <p><span>@CurrentContext.Text[..CurrentContext.TargetStart]</span><mark>@CurrentContext.Text.Substring(CurrentContext.TargetStart, CurrentContext.TargetLength)</mark><span>@CurrentContext.Text[(CurrentContext.TargetStart + CurrentContext.TargetLength)..]</span></p>
@@ -226,6 +226,7 @@
                                 @onclick="OpenMeaningPickerAsync">
                             <span>@MeaningPreviewPolicy.CreateClosedPreview(MeaningPreviewPolicy.GetPrimaryTextForMode(_definition, _translation, _item.Result.LookupMode))</span>
                         </button>
+                        <small class="meaning-selection-explanation">@Localizer["Prepare_ChooseOneMeaningExplanation"]</small>
                     }
                     <SourceDetails ProviderName="@_item.Result.ProviderName"
                                    SourceProject="@_item.Result.SourceProject"
@@ -477,7 +478,12 @@
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
         ? null
-        : _item.Contexts[_contextIndex];
+        : _item.Contexts[Math.Clamp(_contextIndex, 0, _item.Contexts.Count - 1)];
+
+    private static bool IsContextBoundsValid(PreparationContext context) =>
+        context.TargetStart >= 0
+        && context.TargetLength >= 0
+        && context.TargetStart + context.TargetLength <= context.Text.Length;
 
     private bool CanRetryLookup => _item?.Result is { } result
         && LexicalLookupOutcomePolicy.CanRetry(result.Status, result.ErrorCode);
@@ -492,6 +498,7 @@
         {
             _overview = await PreparationService.GetOverviewAsync();
             _item = await PreparationService.GetCurrentAsync();
+            _contextIndex = 0;
             InitializeFields();
             if (_item is { Method: PreparationMethod.AutomaticOnline, Status: PreparationCandidateStatus.Pending })
             {
@@ -555,6 +562,7 @@
             await PreparationService.StartAsync(method, AppSettings.PreparationLimit);
             _overview = await PreparationService.GetOverviewAsync();
             _item = await PreparationService.GetCurrentAsync();
+            _contextIndex = 0;
             InitializeFields();
             if (method == PreparationMethod.AutomaticOnline && _item is not null)
             {
@@ -588,9 +596,13 @@
         try
         {
             var item = await PreparationService.LookupCurrentAsync(cancellation.Token);
-            if (!_isDisposed)
+            // A newer LookupAsync call may have superseded this one while the request was in flight;
+            // only the still-current call may apply its result, so a stale completion for a candidate
+            // that is no longer the active one can never overwrite the page.
+            if (!_isDisposed && ReferenceEquals(_lookupCancellation, cancellation))
             {
                 _item = item;
+                _contextIndex = 0;
                 InitializeFields();
             }
         }

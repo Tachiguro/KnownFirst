@@ -1103,6 +1103,7 @@ public sealed partial class PreparationService(
             .OrderBy(item => item.DocumentId)
             .ThenBy(item => item.Order)
             .ToListAsync();
+        var recognizedSurfaceForms = await LoadRecognizedSurfaceFormsAsync(connection, word.Id);
         var contexts = new List<PreparationContext>();
         var fingerprints = new HashSet<string>(StringComparer.Ordinal);
         string explanationLanguage = word.Language;
@@ -1113,7 +1114,8 @@ public sealed partial class PreparationService(
         {
             var document = await connection.FindAsync<DocumentEntity>(occurrence.DocumentId);
             var sentence = await connection.FindAsync<SentenceSpanEntity>(occurrence.SentenceSpanId);
-            if (document is null || sentence is null || !TryCreateContext(document, sentence, occurrence, out var context))
+            if (document is null || sentence is null || !TryCreateContext(document, sentence, occurrence, out var context)
+                || !IsAttributableToCandidate(word.Id, context.Text, context.TargetStart, context.TargetLength, recognizedSurfaceForms))
             {
                 continue;
             }
@@ -1160,13 +1162,15 @@ public sealed partial class PreparationService(
             .OrderBy(item => item.DocumentId)
             .ThenBy(item => item.Order)
             .ToListAsync();
+        var recognizedSurfaceForms = await LoadRecognizedSurfaceFormsAsync(connection, word.Id);
 
         var byKey = new Dictionary<KnownFirst.Core.Preparation.ContextEvidenceKey, (PreparationContext Context, DocumentEntity Document)>();
         foreach (var occurrence in occurrences)
         {
             var document = await connection.FindAsync<DocumentEntity>(occurrence.DocumentId);
             var sentence = await connection.FindAsync<SentenceSpanEntity>(occurrence.SentenceSpanId);
-            if (document is null || sentence is null || !TryCreateContext(document, sentence, occurrence, out var context))
+            if (document is null || sentence is null || !TryCreateContext(document, sentence, occurrence, out var context)
+                || !IsAttributableToCandidate(word.Id, context.Text, context.TargetStart, context.TargetLength, recognizedSurfaceForms))
             {
                 continue;
             }
@@ -1239,6 +1243,44 @@ public sealed partial class PreparationService(
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// KF-MEANING-002 context-integrity fail-safe. Loads the existing surface-form registry
+    /// (<c>WordForms</c>, populated at import/tokenization time) for one Word — the set of surface
+    /// strings already recorded as belonging to this candidate.
+    /// </summary>
+    private static async Task<HashSet<string>> LoadRecognizedSurfaceFormsAsync(SQLiteAsyncConnection connection, int wordId) =>
+        (await connection.Table<WordFormEntity>().Where(form => form.WordId == wordId).ToListAsync())
+            .Select(form => form.SurfaceForm)
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// KF-MEANING-002 context-integrity fail-safe. A context is attributable to the current candidate only
+    /// when the exact text at its own recorded coordinates is a surface form already registered for that
+    /// Word in <c>WordForms</c> — the existing registry that already supports every documented inflection,
+    /// compound, abbreviation, and acronym relationship, populated once at import time. This is exact-set
+    /// membership, never loose substring matching. A mismatch is logged as a bounded, content-free warning
+    /// (Word id and coordinates only — never document or context text) so the caller can exclude the
+    /// context instead of displaying or persisting evidence that does not belong to this candidate.
+    /// </summary>
+    private static bool IsAttributableToCandidate(
+        int wordId, string text, int targetStart, int targetLength, IReadOnlySet<string> recognizedSurfaceForms)
+    {
+        if (targetStart < 0 || targetLength < 0 || targetStart + targetLength > text.Length)
+        {
+            return false;
+        }
+
+        var targetText = text.Substring(targetStart, targetLength);
+        if (recognizedSurfaceForms.Contains(targetText))
+        {
+            return true;
+        }
+
+        Trace.TraceWarning(
+            $"preparation.context.attribution-mismatch wordId={wordId} targetStart={targetStart} targetLength={targetLength}");
+        return false;
     }
 
     internal static bool TryCreateContext(

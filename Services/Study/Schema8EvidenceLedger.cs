@@ -16,11 +16,12 @@ namespace KnownFirst.Services.Study;
 /// for the Word. <c>allKeysMentionedByAnyValidEnvelope</c> = keys from every genuine EnvelopeV1 for the
 /// Word, regardless of candidate status (Empty/LegacyLexicalResult candidates own no envelope evidence).
 /// <c>fullyResolvedPreparedEnvelopeKeys</c> = keys from EnvelopeV1 rows whose candidate status is
-/// <see cref="Models.PreparationCandidateStatus.Prepared"/> and whose provider indexes are fully resolved.
+/// <see cref="Models.PreparationCandidateStatus.Prepared"/> (KF-MEANING-002: a Prepared candidate's
+/// evidence is fully processed regardless of how many other provider meanings were never selected).
 /// <c>legacyBaselineKeys</c> = <c>existingContextSnapshotKeys</c> minus <c>allKeysMentionedByAnyValidEnvelope</c>
 /// (grandfathered evidence predating the envelope ledger). The result is the union of the legacy baseline
 /// and the fully-resolved-Prepared keys — evidence owned only by a Skipped/Cancelled/Failed/Pending/
-/// ResultReady/partially-resolved envelope is neither, and is therefore still available for re-offering.
+/// ResultReady envelope is neither, and is therefore still available for re-offering.
 /// </para>
 /// </remarks>
 internal static class Schema8EvidenceLedger
@@ -47,8 +48,9 @@ internal static class Schema8EvidenceLedger
     /// Walks every <see cref="PreparationCandidateEntity"/> ever created for the Word. Empty and
     /// LegacyLexicalResult history own no envelope evidence (skipped). A genuine EnvelopeV1's frozen
     /// evidence keys are always added to <c>allMentioned</c>; they are additionally added to
-    /// <c>fullyResolvedPrepared</c> only when the candidate is Prepared and every provider index has been
-    /// resolved. Unsupported/malformed history throws <see cref="PreparationCandidateStateException"/>
+    /// <c>fullyResolvedPrepared</c> only when the candidate is Prepared (KF-MEANING-002: no longer
+    /// conditioned on every provider index being resolved). Unsupported/malformed history throws
+    /// <see cref="PreparationCandidateStateException"/>
     /// before the caller can proceed to any session/candidate mutation.
     /// </summary>
     private static (HashSet<ContextEvidenceKey> AllMentioned, HashSet<ContextEvidenceKey> FullyResolvedPrepared) ScanCandidateEnvelopes(
@@ -79,9 +81,10 @@ internal static class Schema8EvidenceLedger
                         .ToArray();
                     allMentioned.UnionWith(keys);
 
-                    var fullyResolved = envelope.Result is not null
-                        && envelope.ResolvedProviderMeaningIndexes.Count == envelope.Result.Meanings.Count;
-                    if (candidate.Status == PreparationCandidateStatus.Prepared && fullyResolved)
+                    // KF-MEANING-002: a Prepared candidate's frozen evidence is fully processed once the
+                    // candidate completes — completion no longer requires every provider meaning to be
+                    // resolved, so it is no longer a condition here either.
+                    if (candidate.Status == PreparationCandidateStatus.Prepared)
                     {
                         fullyResolvedPrepared.UnionWith(keys);
                     }

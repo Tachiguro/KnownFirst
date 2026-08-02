@@ -146,6 +146,50 @@ public sealed class PreparationServiceSchema8StartAndEvidenceTests
     }
 
     [TestMethod]
+    public async Task LookupCurrentAsync_OccurrenceMisattributedToAnotherWord_IsExcludedAndWarningLogsNoPrivateText()
+    {
+        // KF-MEANING-002 context-integrity fail-safe regression: an occurrence whose own text and bounds
+        // are internally consistent (TryCreateContext's existing checks pass) but whose WordId does not
+        // match any surface form registered for that Word in WordForms must never be displayed as this
+        // candidate's context — the class of bug that let a candidate display an unrelated sentence.
+        var bankWordId = await ImportAndEstablishAsync("Bank fees apply here.", "bank", "n1");
+        var urgentWordId = await ImportAndEstablishAsync("List these urgent items now.", "urgent", "n2");
+
+        var urgentOccurrence = await _database.ReadAsync(c => c.Table<WordOccurrenceEntity>()
+            .Where(o => o.WordId == urgentWordId).FirstAsync());
+        await _database.ReadAsync(async connection =>
+        {
+            await connection.ExecuteAsync("UPDATE WordOccurrences SET WordId = ? WHERE Id = ?", bankWordId, urgentOccurrence.Id);
+            return true;
+        });
+
+        var writer = new StringWriter();
+        var listener = new System.Diagnostics.TextWriterTraceListener(writer);
+        System.Diagnostics.Trace.Listeners.Add(listener);
+        try
+        {
+            await _preparation.StartAsync(PreparationMethod.Manual, 1);
+            var item = await _preparation.GetCurrentAsync();
+
+            Assert.IsNotNull(item);
+            Assert.AreEqual(bankWordId, item!.WordId);
+            Assert.IsTrue(item.Contexts.Count >= 1, "the genuine bank occurrence must still be included");
+            Assert.IsTrue(item.Contexts.All(context => context.Text.Contains("Bank", StringComparison.Ordinal)));
+            Assert.IsFalse(item.Contexts.Any(context => context.Text.Contains("urgent", StringComparison.Ordinal)));
+
+            listener.Flush();
+            var log = writer.ToString();
+            Assert.DoesNotContain("urgent", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("List these urgent items now", log, StringComparison.Ordinal);
+        }
+        finally
+        {
+            System.Diagnostics.Trace.Listeners.Remove(listener);
+            listener.Dispose();
+        }
+    }
+
+    [TestMethod]
     public async Task Accept_EvidenceRemainsByteIdenticalAfterFirstMeaningAccepted()
     {
         var wordId = await ImportAndEstablishAsync(

@@ -147,6 +147,44 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Preparation_HasNoPerItemDirectionCheckboxesAndKeepsSingleSelectMeaningPicker()
+    {
+        // KF-MEANING-002 runtime/source consistency guard: the tracked preparation page must never grow a
+        // per-item direction checkbox pair, or the associated "at least one direction" validation message,
+        // that a previously observed runtime did not derive from this repository. Card direction stays a
+        // single global AppSettings.CardDirection value fed straight into PreparationService.AcceptAsync.
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.DoesNotContain("Auf Karteikarten verwenden", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Use on flashcards", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Begriff → Definition", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Definition → Begriff", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Term → Definition", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Definition → Term", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("mindestens eine Richtung", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("at least one direction", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("type=\"checkbox\"", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectAllMeanings", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("select all meanings", markup, StringComparison.OrdinalIgnoreCase);
+
+        var acceptCallStart = markup.IndexOf("await PreparationService.AcceptAsync(", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, acceptCallStart);
+        var acceptCallEnd = markup.IndexOf(");", acceptCallStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(acceptCallStart, acceptCallEnd);
+        var acceptCall = markup[acceptCallStart..acceptCallEnd];
+        Assert.Contains("AppSettings.CardDirection", acceptCall);
+
+        // The meaning picker remains single-select: one selected index, applied through ApplyMeaning.
+        Assert.Contains("private int _selectedMeaningIndex", markup);
+        Assert.Contains("_selectedMeaningIndex = meaningIndex", markup);
+        Assert.Contains("ApplyMeaning(_item.Result.Meanings[meaningIndex])", markup);
+
+        // A concise explanation near the alternative-meaning control states that only the selected
+        // meaning is saved.
+        Assert.Contains("Prepare_ChooseOneMeaningExplanation", markup);
+    }
+
+    [TestMethod]
     public void Preparation_ActionsRequireConfirmationAndRetryIsConditional()
     {
         var markup = LoadUi("PrepareWords.razor");
@@ -195,6 +233,21 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("FindCurrentCandidateAsync", service);
         Assert.Contains("FirstOrDefaultAsync", service);
         Assert.DoesNotContain("candidates = await connection.Table<PreparationCandidateEntity>().ToListAsync", service);
+    }
+
+    [TestMethod]
+    public void Preparation_ContextStateResetsOnItemChangeAndCannotThrowOrGoStale()
+    {
+        // KF-MEANING-002 UI state-safety regression: _contextIndex must reset whenever a new candidate is
+        // loaded, a stale in-flight lookup must never overwrite the page with a superseded result, and
+        // context slicing must never throw on invalid coordinates.
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.AreEqual(4, CountOccurrences(markup, "_contextIndex = 0;"));
+        Assert.Contains("Math.Clamp(_contextIndex, 0, _item.Contexts.Count - 1)", markup);
+        Assert.Contains("private static bool IsContextBoundsValid(PreparationContext context)", markup);
+        Assert.Contains("CurrentContext is not null && IsContextBoundsValid(CurrentContext)", markup);
+        Assert.Contains("ReferenceEquals(_lookupCancellation, cancellation)", markup);
     }
 
     [TestMethod]
@@ -565,6 +618,164 @@ public sealed class UiWorkflowContractTests
 
         Assert.DoesNotContain("LexicalLookupMode.DefinitionAndTranslation", markup);
         Assert.DoesNotContain("Import_LookupDefinitionAndTranslation", markup);
+    }
+
+    [TestMethod]
+    public void StartupSmokeLauncher_ExposesOneUnambiguousExitCodeEvenWhenEvidenceWritingFails()
+    {
+        // Part 2 review finding: the launcher's evidence-writing (summary.json/report.zip) must
+        // never be able to prevent the single, authoritative $host.SetShouldExit($exitCode) call
+        // from running with the already-determined scenario result.
+        var script = LoadUi("run-scenario-startup-smoke.ps1");
+
+        var finallyStart = script.IndexOf("finally {", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, finallyStart);
+        var setShouldExitIndex = script.IndexOf("$host.SetShouldExit($exitCode)", StringComparison.Ordinal);
+        Assert.IsGreaterThan(finallyStart, setShouldExitIndex);
+
+        var evidenceTryIndex = script.IndexOf("try {", finallyStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, evidenceTryIndex);
+        Assert.IsGreaterThan(evidenceTryIndex, setShouldExitIndex);
+        var evidenceCatchIndex = script.IndexOf("catch {", evidenceTryIndex, StringComparison.Ordinal);
+        Assert.IsGreaterThan(evidenceTryIndex, evidenceCatchIndex);
+        Assert.IsGreaterThan(evidenceCatchIndex, setShouldExitIndex);
+
+        // The script's final non-empty line is the single, authoritative exit-code statement,
+        // reached only after the finally block (including its own try/catch) has closed.
+        Assert.EndsWith("$host.SetShouldExit($exitCode)", script.TrimEnd());
+    }
+
+    [TestMethod]
+    public void GuiTestScenarioRegistry_RegistersEveryScenarioAndKeepsTheLauncherDispatchInSync()
+    {
+        // scenarios.json is the scenario registry. A scenario that exists as a script but is not
+        // registered - or is registered but not dispatchable - is invisible to the launcher and can
+        // never be run through the canonical entry point.
+        var registry = LoadUi("gui-test-scenarios.json");
+        var launcher = LoadUi("Invoke-GuiTestRun.ps1");
+
+        // StartupSmoke is dispatched by knownfirst.ps1 through its own standalone script, not by
+        // the scenario runner, so it is registered with that script as its implementation.
+        Assert.Contains("\"id\": \"StartupSmoke\"", registry);
+        Assert.Contains(
+            "\"implementationScript\": \"scripts/gui-tests/windows/run-scenario-startup-smoke.ps1\"",
+            registry);
+        Assert.Contains("[ValidateSet('StartupSmoke')]", LoadUi("knownfirst.ps1"));
+
+        // Every scenario dispatched by the scenario runner must be registered, allowed by the
+        // runner's own ValidateSet, and reachable through its dispatch switch.
+        foreach (var scenarioId in new[]
+                 {
+                     "001-import-definition-reset",
+                     "PreparationSelectedMeaning",
+                     "PreparationAcceptFailureRecovery",
+                     "PreparationInvalidContextRecovery",
+                 })
+        {
+            Assert.Contains($"\"id\": \"{scenarioId}\"", registry);
+            Assert.Contains(
+                $"\"implementationScript\": \"scripts/gui-tests/windows/scenarios/{scenarioId}.ps1\"",
+                registry);
+            Assert.Contains($"'{scenarioId}'", launcher);
+            Assert.Contains($"'{scenarioId}' {{", launcher);
+        }
+
+        // Each preparation scenario script must define the dispatcher function the runner calls.
+        foreach (var scenarioId in PreparationScenarioIds)
+        {
+            Assert.Contains($"function Invoke-Scenario{scenarioId}", LoadUi($"{scenarioId}.ps1"));
+            Assert.Contains($"Invoke-Scenario{scenarioId} -Context $context", launcher);
+        }
+
+        // Debug is the only configuration any GUI scenario may declare.
+        Assert.DoesNotContain("\"Release\"", registry);
+    }
+
+    [TestMethod]
+    public void GuiTestRunLauncher_ExposesOneUnambiguousExitCodeEvenWhenEvidenceWritingFails()
+    {
+        // Same contract as run-scenario-startup-smoke.ps1: the scenario result is decided first,
+        // evidence writing runs inside its own try/catch, and the exit-code statements are the very
+        // last thing the script does - so a failed report/summary write can never change or suppress
+        // the process exit code the scenario actually earned.
+        var script = LoadUi("Invoke-GuiTestRun.ps1");
+
+        var finallyStart = script.IndexOf("finally {", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, finallyStart);
+
+        var evidenceTryIndex = script.IndexOf("try {", finallyStart, StringComparison.Ordinal);
+        var evidenceCatchIndex = script.IndexOf("catch {", evidenceTryIndex, StringComparison.Ordinal);
+        Assert.IsGreaterThan(finallyStart, evidenceTryIndex);
+        Assert.IsGreaterThan(evidenceTryIndex, evidenceCatchIndex);
+
+        var failureExitIndex = script.IndexOf("$host.SetShouldExit(1)", StringComparison.Ordinal);
+        var successExitIndex = script.IndexOf("$host.SetShouldExit(0)", StringComparison.Ordinal);
+        Assert.IsGreaterThan(evidenceCatchIndex, failureExitIndex);
+        Assert.IsGreaterThan(failureExitIndex, successExitIndex);
+
+        // Nothing that could fail, log, or re-decide the result may run after the exit code is set.
+        var tail = script[successExitIndex..];
+        Assert.DoesNotContain("Write-GuiTestReport", tail);
+        Assert.DoesNotContain("Invoke-Scenario", tail);
+        Assert.DoesNotContain("Write-RunnerLog", tail);
+    }
+
+    [TestMethod]
+    public void GuiTestRunnerCore_BlankScreenInvariantChecksProcessErrorBoundaryAndRouteMarker()
+    {
+        var core = LoadUi("GuiTestRunnerCore.ps1");
+
+        var start = core.IndexOf("function Assert-NoBlankOrErrorState", StringComparison.Ordinal);
+        var end = core.IndexOf("function Assert-UiaCondition", start, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start);
+        Assert.IsGreaterThan(start, end);
+        var body = core[start..end];
+
+        // The shared invariant must fail on an unexpected process exit, on the global ErrorBoundary,
+        // and on a missing route/page marker within the bounded transition timeout (which is also how
+        // an indefinitely stuck transition spinner is caught - the marker never arrives).
+        Assert.Contains("Get-Process -Id $script:TargetPid", body);
+        Assert.Contains("'app-error-boundary'", body);
+        Assert.Contains("Invoke-UiaWaitFor -Selector $RouteMarkerSelector -TimeoutMs $TransitionTimeoutMs", body);
+        Assert.Contains("$processAlive -and (-not $errorBoundaryVisible) -and $routeMarkerPresent", body);
+
+        // Failures must route through Assert-UiaCondition so the standard failure screenshot and
+        // assertion record are always produced.
+        Assert.Contains("return Assert-UiaCondition", body);
+
+        // Every preparation scenario must actually use the shared invariant.
+        foreach (var scenarioId in PreparationScenarioIds)
+        {
+            Assert.Contains("Assert-NoBlankOrErrorState", LoadUi($"{scenarioId}.ps1"));
+        }
+    }
+
+    [TestMethod]
+    public void PreparationGuiScenarios_StayIsolatedAndScopeFaultInjectionToTheRequestingScenario()
+    {
+        foreach (var scenarioId in PreparationScenarioIds)
+        {
+            var script = LoadUi($"{scenarioId}.ps1");
+
+            // The app under test is always pointed at this run's isolated profile, every database
+            // assertion reads only that profile's database, and the real data files are fingerprinted
+            // before and after the run.
+            Assert.Contains("-GuiTestRoot $Context.LiveProfileDir", script);
+            Assert.Contains("Join-Path $Context.LiveProfileDir 'knownfirst.db3'", script);
+            Assert.Contains("Get-RealKnownFirstDataFingerprint", script);
+            Assert.Contains("Test-RealDataUnchanged", script);
+
+            // The seed marker is removed from the runner's own environment as soon as the app has
+            // been launched, so it can never leak into a later process.
+            Assert.Contains("Remove-Item Env:KNOWNFIRST_GUI_TEST_SEED_SCENARIO", script);
+        }
+
+        // Fault injection is requested by exactly one scenario, and is likewise scoped to launch.
+        var faultScenario = LoadUi("PreparationAcceptFailureRecovery.ps1");
+        Assert.Contains("$env:KNOWNFIRST_GUI_TEST_FAULT_CHECKPOINT = 'AfterCardInsert'", faultScenario);
+        Assert.Contains("Remove-Item Env:KNOWNFIRST_GUI_TEST_FAULT_CHECKPOINT", faultScenario);
+        Assert.DoesNotContain("KNOWNFIRST_GUI_TEST_FAULT_CHECKPOINT", LoadUi("PreparationSelectedMeaning.ps1"));
+        Assert.DoesNotContain("KNOWNFIRST_GUI_TEST_FAULT_CHECKPOINT", LoadUi("PreparationInvalidContextRecovery.ps1"));
     }
 
     [TestMethod]
@@ -1242,6 +1453,17 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("Never confirm an automated full-data reset", matrix);
         Assert.Contains("outside the repository", matrix);
     }
+
+    /// <summary>
+    /// The preparation GUI scenarios dispatched by Invoke-GuiTestRun.ps1. Each id is simultaneously
+    /// the registry id, the scenario script's file name, and the suffix of its dispatcher function.
+    /// </summary>
+    private static readonly string[] PreparationScenarioIds =
+    [
+        "PreparationSelectedMeaning",
+        "PreparationAcceptFailureRecovery",
+        "PreparationInvalidContextRecovery",
+    ];
 
     private static string LoadUi(string fileName) => File.ReadAllText(Path.Combine(
         AppContext.BaseDirectory,

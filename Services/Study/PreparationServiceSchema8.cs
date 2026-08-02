@@ -25,8 +25,10 @@ public interface IPreparationFaultInjector
 }
 
 /// <summary>
-/// The nine required, stable Schema-8 preparation-accept fault-injection checkpoints (KF-MEANING-001
-/// Slice 3). Every checkpoint fires inside the same <c>RunInTransactionAsync</c> transaction as
+/// The eight required, stable Schema-8 preparation-accept fault-injection checkpoints (KF-MEANING-001
+/// Slice 3; reduced from nine by KF-MEANING-002's independent review — see the removal note on the
+/// former <c>DuringAutoExactVariantLinking</c> checkpoint). Every checkpoint fires inside the same
+/// <c>RunInTransactionAsync</c> transaction as
 /// <see cref="PreparationService.AcceptAsync"/>'s Schema-8 branch, so an injected exception at any one of
 /// them rolls back every mutation made so far in that call, leaves <c>PRAGMA user_version</c> unchanged,
 /// and leaves the candidate retryable.
@@ -51,20 +53,31 @@ public static class PreparationSchema8Checkpoints
     /// <summary>Right after the explicitly accepted provider index is added to the in-memory resolved set.</summary>
     public const string AfterResolvedIndexPersist = "AfterResolvedIndexPersist";
 
-    /// <summary>Fires once, at the start of the opportunistic all-exact auto-linking pass over every other unresolved index.</summary>
-    public const string DuringAutoExactVariantLinking = "DuringAutoExactVariantLinking";
+    // KF-MEANING-002 independent review: the former DuringAutoExactVariantLinking checkpoint was removed
+    // here. After the all-exact auto-linking loop it named was deleted, it fired with zero statements
+    // between it and AfterResolvedIndexPersist — an identical, redundant rollback boundary under a name
+    // that no longer described anything real. Kept as a code comment (not a checkpoint) so a future
+    // reader does not wonder where checkpoint 6 of 9 went.
 
-    /// <summary>Right before this call's final candidate-state (ledger) commit, regardless of completion outcome.</summary>
+    /// <summary>Right before this call's final candidate-state (ledger) commit.</summary>
     public const string BeforeCandidateCompletion = "BeforeCandidateCompletion";
 
-    /// <summary>Right before a candidate that has just become fully resolved is marked Prepared and the session/word counters update.</summary>
+    /// <summary>
+    /// Right before the candidate is marked Prepared and the session/word counters update (KF-MEANING-002:
+    /// every successful accept reaches this point — there is no partial-acceptance branch).
+    /// </summary>
     public const string BeforeAutomaticCandidateCompletion = "BeforeAutomaticCandidateCompletion";
 }
 
 public sealed partial class PreparationService
 {
     /// <summary>
-    /// Schema-8 multi-Sense AcceptAsync (KF-MEANING-001 Slice 3). May write only Senses, Meanings,
+    /// Schema-8 AcceptAsync (KF-MEANING-001 Slice 3; completion rule corrected by KF-MEANING-002).
+    /// Accepting one explicitly selected provider meaning completes the preparation of the current
+    /// candidate: the selected Sense/Meaning is created or reused, cards/answer-variant assignments are
+    /// created only for that Sense, and the candidate reaches <see cref="PreparationCandidateStatus.Prepared"/>
+    /// immediately. Every other provider meaning is a suggestion the user did not choose — it is never
+    /// reviewed, matched, or persisted, and it never gates completion. May write only Senses, Meanings,
     /// ContextSnapshots, LearningCards, PreparationCandidate/PreparationSession workflow rows, and
     /// Word.PreparationState — never WordStatus.Prepared/Learning/Mastered and never the frozen
     /// automatic-progress columns. Existing (SenseId, Direction) cards are never repointed.
@@ -132,9 +145,9 @@ public sealed partial class PreparationService
         var vocabularyIdentityKey = KnownFirst.Core.Text.VocabularyIdentityPolicy
             .Resolve(word.CanonicalTerm, word.TokenKind, word.Language).Identity;
 
-        // The explicitly accepted index: full content review, Sense match/create, exact-variant dedup,
-        // card creation. Every other still-unresolved index is only auto-linked when it independently
-        // classifies Equal against an existing Sense (never given content it was never reviewed for).
+        // KF-MEANING-002: only the explicitly accepted index is ever reviewed or persisted. Every other
+        // provider meaning is a suggestion the user did not choose — it is never inspected, matched, or
+        // auto-linked here, and never gates candidate completion.
         var targetMeaning = envelope.Result.Meanings[targetIndex];
         var existingSenses = LoadSenses(connection, word.Id);
         var targetFacts = ResolveDiscriminatorFacts(word, envelope.Result, targetMeaning, normalizedTopicOrDomain, input, explanationLanguage);
@@ -147,10 +160,6 @@ public sealed partial class PreparationService
             ? normalizedExplicitPartOfSpeech
             : PreparationMetadataPolicy.NormalizePartOfSpeech(targetMeaning.PartOfSpeech);
         var senseId = matchedSense?.Id ?? InsertSense(connection, word.Id, targetFacts, partOfSpeech, now);
-        if (matchedSense is null)
-        {
-            existingSenses = [.. existingSenses, LoadSense(connection, senseId)];
-        }
 
         Trip(PreparationSchema8Checkpoints.AfterSenseInsert);
 
@@ -195,27 +204,9 @@ public sealed partial class PreparationService
 
         Trip(PreparationSchema8Checkpoints.AfterResolvedIndexPersist);
 
-        // All-exact automatic completion (§9): opportunistically auto-link every other still-unresolved
-        // index that independently classifies Equal against an existing Sense for this Word — recognized
-        // as more evidence for a Sense the word already has, never a silent loss (the ledger still records
-        // it as resolved) and never a new Sense/Meaning/Card for content nobody reviewed.
-        Trip(PreparationSchema8Checkpoints.DuringAutoExactVariantLinking);
-        for (var index = 0; index < envelope.Result.Meanings.Count; index++)
-        {
-            if (resolved.Contains(index))
-            {
-                continue;
-            }
-
-            var meaning = envelope.Result.Meanings[index];
-            var facts = ProviderOnlyDiscriminatorFacts(word, envelope.Result, meaning, explanationLanguage);
-            var (_, outcome) = PreparationSenseClassifier.ClassifyAgainstExisting(
-                word.Language, vocabularyIdentityKey, facts, existingSenses);
-            if (outcome == SenseMatchOutcome.Equal)
-            {
-                resolved.Add(index);
-            }
-        }
+        // KF-MEANING-002: candidate completion no longer requires every provider meaning to be resolved.
+        // Unselected provider meanings are suggestions only — they are never inspected, matched, auto-
+        // linked, or required to reach any resolution state.
 
         // §4/§5: FrozenEvidence is carried forward byte-identical — only ResolvedProviderMeaningIndexes changes.
         var updatedEnvelope = envelope with
@@ -225,21 +216,15 @@ public sealed partial class PreparationService
         candidate.ResultJson = PreparationCandidatePayloadCodec.Write(updatedEnvelope);
         candidate.UpdatedAtUtc = now;
 
-        var isFullyResolved = resolved.Count >= envelope.Result.Meanings.Count;
+        // KF-MEANING-002: accepting the one explicitly selected meaning completes the candidate. There is
+        // no partial-acceptance state — every successful AcceptSchema8 call ends here.
         Trip(PreparationSchema8Checkpoints.BeforeCandidateCompletion);
-        if (isFullyResolved)
-        {
-            Trip(PreparationSchema8Checkpoints.BeforeAutomaticCandidateCompletion);
-            word.PreparationState = PreparationState.Prepared;
-            word.UpdatedAt = now;
-            connection.Update(word);
-            connection.Update(candidate);
-            CompleteCandidate(connection, session, candidate, PreparationCandidateStatus.Prepared, now);
-        }
-        else
-        {
-            connection.Update(candidate);
-        }
+        Trip(PreparationSchema8Checkpoints.BeforeAutomaticCandidateCompletion);
+        word.PreparationState = PreparationState.Prepared;
+        word.UpdatedAt = now;
+        connection.Update(word);
+        connection.Update(candidate);
+        CompleteCandidate(connection, session, candidate, PreparationCandidateStatus.Prepared, now);
 
         return true;
     }
@@ -461,9 +446,17 @@ public sealed partial class PreparationService
             return [];
         }
 
+        // KF-MEANING-002 context-integrity fail-safe: never persist a ContextSnapshot whose target text at
+        // its own recorded coordinates is not a surface form already registered for this Word.
+        var recognizedSurfaceForms = LoadRecognizedSurfaceForms(connection, wordId);
         var byKey = new Dictionary<KnownFirst.Core.Preparation.ContextEvidenceKey, ContextData>();
         foreach (var context in Schema8EvidenceScanner.EnumerateAllValidContexts(connection, wordId))
         {
+            if (!IsAttributableToCandidate(wordId, context.Text, context.TargetStart, context.TargetLength, recognizedSurfaceForms))
+            {
+                continue;
+            }
+
             var key = KnownFirst.Core.Preparation.PreparationContextEvidencePolicy.CreateKey(
                 context.DocumentId, context.Text, context.TargetStart, context.TargetLength);
             byKey.TryAdd(key, context);
@@ -482,6 +475,15 @@ public sealed partial class PreparationService
 
         return result;
     }
+
+    /// <summary>KF-MEANING-002 context-integrity fail-safe: the sync counterpart of the display-path's
+    /// surface-form registry lookup, used inside the same transaction as AcceptSchema8.</summary>
+    private static HashSet<string> LoadRecognizedSurfaceForms(SQLiteConnection connection, int wordId) =>
+        connection.Table<WordFormEntity>()
+            .Where(form => form.WordId == wordId)
+            .ToList()
+            .Select(form => form.SurfaceForm)
+            .ToHashSet(StringComparer.Ordinal);
 
     private void InsertNewContextSnapshots(
         SQLiteConnection connection,

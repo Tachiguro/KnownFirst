@@ -1038,6 +1038,15 @@ function Save-DedupedScreenshot {
         [Parameter(Mandatory = $true)][string]$StepId
     )
 
+    # A failure before the window was ever detected leaves $script:TargetHwnd empty, which would
+    # otherwise be passed as an empty -w value and make winapp reject the whole command line (so the
+    # failure evidence for the earliest, most interesting failures would be lost along with a
+    # misleading parser error in the runner log). There is simply no window to capture yet.
+    if (-not $script:TargetHwnd) {
+        Write-RunnerLog "Screenshot for step '$StepId' skipped: no target window has been detected yet." -Level Warn
+        return $null
+    }
+
     $script:ScreenshotSequence++
     $candidateName = ('{0:D3}-{1}.png' -f $script:ScreenshotSequence, $StepId)
     $candidatePath = Join-Path $script:ScreenshotsDir $candidateName
@@ -1126,6 +1135,41 @@ function Add-Assertion {
     return $entry
 }
 
+function Assert-NoBlankOrErrorState {
+    # Shared blank-screen/global-failure invariant (KF-MEANING-002 GUI hardening, Part 3), callable by
+    # every workflow scenario. Fails the assertion (and captures the standard failure screenshot via
+    # Assert-UiaCondition) when: the global ErrorBoundary is visible; the expected route/page marker does
+    # not appear within the bounded transition timeout (this also catches a transition spinner that never
+    # resolves, since the marker can only appear once loading truly finishes); or the app process has
+    # already exited. Never records document or context text - only selector names and booleans.
+    param(
+        [Parameter(Mandatory = $true)][int]$Number,
+        [Parameter(Mandatory = $true)][string]$Description,
+        [Parameter(Mandatory = $true)][string]$RouteMarkerSelector,
+        [int]$TransitionTimeoutMs = 8000
+    )
+
+    $processAlive = $false
+    if ($script:TargetPid) {
+        $processAlive = $null -ne (Get-Process -Id $script:TargetPid -ErrorAction SilentlyContinue)
+    }
+
+    $errorBoundaryWait = Invoke-UiaWaitFor -Selector 'app-error-boundary' -TimeoutMs 500
+    $errorBoundaryVisible = $errorBoundaryWait.Succeeded
+
+    $routeMarkerWait = Invoke-UiaWaitFor -Selector $RouteMarkerSelector -TimeoutMs $TransitionTimeoutMs
+    $routeMarkerPresent = $routeMarkerWait.Succeeded
+
+    $passed = $processAlive -and (-not $errorBoundaryVisible) -and $routeMarkerPresent
+    $detail = "processAlive=$processAlive errorBoundaryVisible=$errorBoundaryVisible routeMarkerPresent=$routeMarkerPresent (routeMarkerSelector='$RouteMarkerSelector', transitionTimeoutMs=$TransitionTimeoutMs)"
+
+    if (-not $passed) {
+        Write-RunnerLog "Blank-screen/error-boundary invariant FAILED: $detail" -Level Error
+    }
+
+    return Assert-UiaCondition -Number $Number -Description $Description -Condition $passed -Detail $detail
+}
+
 function Assert-UiaCondition {
     param(
         [Parameter(Mandatory = $true)][int]$Number,
@@ -1139,6 +1183,149 @@ function Assert-UiaCondition {
         $failureScreenshot = Save-DedupedScreenshot -StepId ("assertion-{0}-failure" -f $Number)
     }
     return Add-Assertion -Number $Number -Description $Description -Passed $Condition -Detail $Detail -FailureScreenshot $failureScreenshot
+}
+
+# --- Isolated-database scalar queries (read-only, integer-scalar only) -----------------
+#
+# Scenarios must prove durable database outcomes (candidate status, Sense/Meaning/Card/Variant
+# counts, PRAGMA user_version) directly, not only from the UI. Every assertion this framework
+# needs is a simple integer COUNT/scalar, so this stays deliberately narrow: a raw P/Invoke
+# wrapper around the app's own e_sqlite3.dll (already present next to the built executable —
+# no new managed dependency, no network, read-only). It is never used to write to the isolated
+# database, and it is never pointed at anything but a path under the isolated GUI-test profile
+# (enforced by the caller passing a path already validated via GuiTestProfile-style checks).
+
+$script:GuiTestSqliteTypeLoaded = $false
+
+function Initialize-GuiTestSqliteType {
+    param([Parameter(Mandatory = $true)][string]$NativeLibraryDirectory)
+
+    if ($script:GuiTestSqliteTypeLoaded) {
+        return
+    }
+
+    # e_sqlite3.dll must be discoverable on the process search path for the DllImport below to
+    # resolve it (it sits next to the built KnownFirst.exe, not on the system PATH).
+    $env:PATH = "$NativeLibraryDirectory;$env:PATH"
+
+    Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class GuiTestSqlite
+{
+    private const int SQLITE_ROW = 100;
+    private const int SQLITE_DONE = 101;
+
+    [DllImport("e_sqlite3.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int sqlite3_open(byte[] filename, out IntPtr db);
+
+    [DllImport("e_sqlite3.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int sqlite3_close(IntPtr db);
+
+    [DllImport("e_sqlite3.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int sqlite3_prepare_v2(IntPtr db, byte[] sql, int nBytes, out IntPtr stmt, IntPtr tail);
+
+    [DllImport("e_sqlite3.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int sqlite3_step(IntPtr stmt);
+
+    [DllImport("e_sqlite3.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int sqlite3_finalize(IntPtr stmt);
+
+    [DllImport("e_sqlite3.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern long sqlite3_column_int64(IntPtr stmt, int col);
+
+    [DllImport("e_sqlite3.dll", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr sqlite3_errmsg(IntPtr db);
+
+    private static byte[] ToUtf8NulTerminated(string value)
+    {
+        byte[] encoded = Encoding.UTF8.GetBytes(value);
+        byte[] result = new byte[encoded.Length + 1];
+        Array.Copy(encoded, result, encoded.Length);
+        result[encoded.Length] = 0;
+        return result;
+    }
+
+    private static string ReadUtf8String(IntPtr ptr)
+    {
+        if (ptr == IntPtr.Zero) { return string.Empty; }
+        int length = 0;
+        while (Marshal.ReadByte(ptr, length) != 0) { length++; }
+        byte[] buffer = new byte[length];
+        Marshal.Copy(ptr, buffer, 0, length);
+        return Encoding.UTF8.GetString(buffer);
+    }
+
+    // Returns 0 when the query produces no row (COUNT(*) always produces exactly one row, so
+    // this only applies to the rare scalar query that genuinely finds nothing).
+    public static long QueryScalarInt(string databasePath, string sql)
+    {
+        IntPtr db;
+        int openResult = sqlite3_open(ToUtf8NulTerminated(databasePath), out db);
+        if (openResult != 0)
+        {
+            throw new InvalidOperationException("sqlite3_open failed (" + openResult + ") for '" + databasePath + "'.");
+        }
+
+        try
+        {
+            IntPtr stmt;
+            byte[] sqlBytes = ToUtf8NulTerminated(sql);
+            int prepareResult = sqlite3_prepare_v2(db, sqlBytes, sqlBytes.Length, out stmt, IntPtr.Zero);
+            if (prepareResult != 0)
+            {
+                string message = ReadUtf8String(sqlite3_errmsg(db));
+                throw new InvalidOperationException("sqlite3_prepare_v2 failed (" + prepareResult + "): " + message + " SQL: " + sql);
+            }
+
+            try
+            {
+                int stepResult = sqlite3_step(stmt);
+                if (stepResult == SQLITE_ROW)
+                {
+                    return sqlite3_column_int64(stmt, 0);
+                }
+                if (stepResult == SQLITE_DONE)
+                {
+                    return 0;
+                }
+                throw new InvalidOperationException("sqlite3_step failed (" + stepResult + "). SQL: " + sql);
+            }
+            finally
+            {
+                sqlite3_finalize(stmt);
+            }
+        }
+        finally
+        {
+            sqlite3_close(db);
+        }
+    }
+}
+'@ -ErrorAction Stop
+
+    $script:GuiTestSqliteTypeLoaded = $true
+}
+
+function Get-GuiTestSqliteScalarInt {
+    # Read-only integer-scalar query against an isolated GUI-test SQLite database. $DatabasePath
+    # must already be under the isolated profile root; callers are responsible for that (this
+    # function performs no path validation of its own, since it has no notion of "the current
+    # run" - GuiTestProfile-style validation happens where the path is first resolved).
+    param(
+        [Parameter(Mandatory = $true)][string]$DatabasePath,
+        [Parameter(Mandatory = $true)][string]$Sql,
+        [Parameter(Mandatory = $true)][string]$NativeLibraryDirectory
+    )
+
+    Initialize-GuiTestSqliteType -NativeLibraryDirectory $NativeLibraryDirectory
+    if (-not (Test-Path -LiteralPath $DatabasePath -PathType Leaf)) {
+        throw "Isolated GUI-test database not found at '$DatabasePath'."
+    }
+    return [GuiTestSqlite]::QueryScalarInt($DatabasePath, $Sql)
 }
 
 # --- Real-data guard -------------------------------------------------------------------
@@ -1317,7 +1504,15 @@ function Write-GuiTestReport {
     if ($Metadata.Monitors) { $lines.Add((Format-DisplayMonitorTable -Monitors $Metadata.Monitors)) | Out-Null }
     $lines.Add('```') | Out-Null
     $lines.Add('') | Out-Null
-    $lines.Add("Selected monitor: $($Metadata.SelectedMonitor.FriendlyName) ($($Metadata.SelectedMonitor.DeviceName))") | Out-Null
+    # A scenario that fails before monitor selection leaves SelectedMonitor null; under
+    # Set-StrictMode -Version Latest, dotting into it would throw and lose the whole report for
+    # exactly the runs whose evidence matters most.
+    if ($Metadata.SelectedMonitor) {
+        $lines.Add("Selected monitor: $($Metadata.SelectedMonitor.FriendlyName) ($($Metadata.SelectedMonitor.DeviceName))") | Out-Null
+    }
+    else {
+        $lines.Add('Selected monitor: (none - the scenario failed before a monitor was selected)') | Out-Null
+    }
     $lines.Add("Selection reason: $($Metadata.MonitorSelectionReason)") | Out-Null
     $lines.Add('') | Out-Null
     if ($Metadata.Placement) {

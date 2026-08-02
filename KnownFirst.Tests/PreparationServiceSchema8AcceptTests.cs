@@ -81,9 +81,12 @@ public sealed class PreparationServiceSchema8AcceptTests
     }
 
     [TestMethod]
-    public async Task Accept_FourProviderMeanings_ResolvedOneAtATimeWithoutSilentLoss()
+    public async Task Accept_OneOfFourProviderMeanings_CompletesCandidateImmediately_OtherMeaningsNeverPersisted()
     {
-        await ImportSingleUnknownAsync("bank text here.", "bank");
+        // KF-MEANING-002 regression coverage: accepting one explicitly selected meaning must complete the
+        // candidate immediately. Before this fix, the candidate required every provider meaning to be
+        // resolved and stayed active after a single accept.
+        var wordId = await ImportSingleUnknownAsync("bank text here.", "bank");
         _provider.MeaningsFactory = _ =>
         [
             Meaning("wikt-financial-institution"),
@@ -96,27 +99,41 @@ public sealed class PreparationServiceSchema8AcceptTests
         var item = await _preparation.LookupCurrentAsync();
         var candidateId = item!.CandidateId;
 
-        for (var index = 0; index < 4; index++)
+        // Only the first provider meaning is ever explicitly selected and accepted.
+        await _preparation.AcceptAsync(candidateId, InputFrom(item, 0), CardDirectionPreference.Both);
+
+        var candidate = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.PreparationCandidateEntity>()
+            .Where(x => x.Id == candidateId).FirstAsync());
+        Assert.AreEqual(PreparationCandidateStatus.Prepared, candidate.Status, "the candidate must complete after one accepted meaning");
+        var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope!;
+        CollectionAssert.AreEqual(new[] { 0 }, envelope.ResolvedProviderMeaningIndexes.ToArray());
+
+        var word = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.WordEntity>().Where(w => w.Id == wordId).FirstAsync());
+        Assert.AreEqual(PreparationState.Prepared, word.PreparationState);
+
+        // The three unselected provider meanings were never inspected, matched, or persisted.
+        var senseCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Senses WHERE WordId = ?", wordId));
+        Assert.AreEqual(1, senseCount);
+        var meaningCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Meanings WHERE WordId = ?", wordId));
+        Assert.AreEqual(1, meaningCount);
+        // MeaningRanker may reorder the provider's meanings, so the persisted meaning is whichever one
+        // ended up at index 0 for this candidate — not necessarily the first one the provider returned.
+        var selectedProviderMeaningId = item.Result!.Meanings[0].MeaningId;
+        var persistedProviderMeaningId = await _database.ReadAsync(c =>
+            c.ExecuteScalarAsync<string>("SELECT SelectedMeaningId FROM Meanings WHERE WordId = ?", wordId));
+        Assert.AreEqual(selectedProviderMeaningId, persistedProviderMeaningId);
+        foreach (var unselected in item.Result.Meanings.Skip(1))
         {
-            await _preparation.SelectMeaningAsync(candidateId, index);
-            var current = await _preparation.GetCurrentAsync();
-            var toAccept = current ?? await ReloadCompletedItemAsync(candidateId);
-            await _preparation.AcceptAsync(candidateId, InputFrom(toAccept, index), CardDirectionPreference.Both);
+            Assert.AreNotEqual(unselected.MeaningId, persistedProviderMeaningId);
         }
 
-        var senseCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Senses"));
-        Assert.AreEqual(4, senseCount);
-        var meaningCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Meanings"));
-        Assert.AreEqual(4, meaningCount);
-
-        var candidate = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.PreparationCandidateEntity>().FirstAsync());
-        Assert.AreEqual(PreparationCandidateStatus.Prepared, candidate.Status);
-        var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope!;
-        CollectionAssert.AreEqual(new[] { 0, 1, 2, 3 }, envelope.ResolvedProviderMeaningIndexes.ToArray());
+        var senseId = await ReadSenseIdAsync(wordId);
+        var cardCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningCards WHERE SenseId = ?", senseId));
+        Assert.AreEqual(2, cardCount, "Both directions requested -> exactly two cards for the one selected Sense");
     }
 
     [TestMethod]
-    public async Task Accept_AllExactAgainstExistingSense_AutoCompletesAfterOneAccept()
+    public async Task Accept_MeaningExactAgainstExistingSense_ReusesSenseAndCompletesAfterOneAccept()
     {
         var wordId = await ImportSingleUnknownAsync("bank text here.", "bank");
         _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
@@ -125,8 +142,9 @@ public sealed class PreparationServiceSchema8AcceptTests
         await _preparation.AcceptAsync(firstItem!.CandidateId, InputFrom(firstItem), CardDirectionPreference.Both);
 
         // A second, independent candidate for the same already-prepared word (simulating new context
-        // surfacing it again), whose provider now returns two meanings that both classify Equal against
-        // the already-known Sense.
+        // surfacing it again), whose provider now returns two meanings; only the first is ever selected
+        // and accepted. KF-MEANING-002: the second, unselected meaning is never inspected or auto-linked —
+        // it is simply never resolved, since resolving it is no longer required for completion.
         var sessionId = await InsertSessionAsync();
         var candidateId = await InsertCandidateAsync(sessionId, wordId, order: 0);
         var duplicateLookup = new LexicalResult(
@@ -152,9 +170,10 @@ public sealed class PreparationServiceSchema8AcceptTests
             .Where(item => item.Id == candidateId).FirstAsync());
         Assert.AreEqual(PreparationCandidateStatus.Prepared, candidate.Status);
         var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope!;
-        CollectionAssert.AreEqual(new[] { 0, 1 }, envelope.ResolvedProviderMeaningIndexes.ToArray());
+        CollectionAssert.AreEqual(new[] { 0 }, envelope.ResolvedProviderMeaningIndexes.ToArray());
 
-        // No new Sense/Meaning was created for the auto-linked duplicate — still exactly one Sense.
+        // The selected meaning matched the existing Sense exactly (reused, not duplicated) — still
+        // exactly one Sense for the Word.
         var senseCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Senses WHERE WordId = ?", wordId));
         Assert.AreEqual(1, senseCount);
     }
@@ -277,7 +296,6 @@ public sealed class PreparationServiceSchema8AcceptTests
     [DataRow(PreparationSchema8Checkpoints.AfterContextLink)]
     [DataRow(PreparationSchema8Checkpoints.AfterCardInsert)]
     [DataRow(PreparationSchema8Checkpoints.AfterResolvedIndexPersist)]
-    [DataRow(PreparationSchema8Checkpoints.DuringAutoExactVariantLinking)]
     [DataRow(PreparationSchema8Checkpoints.BeforeCandidateCompletion)]
     [DataRow(PreparationSchema8Checkpoints.BeforeAutomaticCandidateCompletion)]
     public async Task Accept_FaultInjectedAtCheckpoint_RollsBackCompletelyAndPreservesUserVersion(string checkpoint)
@@ -547,6 +565,164 @@ public sealed class PreparationServiceSchema8AcceptTests
         Assert.AreEqual(0, duplicateTriples);
     }
 
+    // ========== KF-MEANING-002: selected-meaning-only completion regression coverage ==========
+
+    [TestMethod]
+    public async Task Accept_TermToMeaningDirectionOnly_CreatesExactlyOneCard()
+    {
+        var wordId = await ImportSingleUnknownAsync("bank protects money.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.TermToMeaning);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var cardCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningCards WHERE SenseId = ?", senseId));
+        Assert.AreEqual(1, cardCount);
+        var direction = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT Direction FROM LearningCards WHERE SenseId = ?", senseId));
+        Assert.AreEqual((int)CardDirection.TermToMeaning, direction);
+    }
+
+    [TestMethod]
+    public async Task Accept_MeaningToTermDirectionOnly_CreatesExactlyOneCard()
+    {
+        var wordId = await ImportSingleUnknownAsync("bank protects money.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.MeaningToTerm);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var cardCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningCards WHERE SenseId = ?", senseId));
+        Assert.AreEqual(1, cardCount);
+        var direction = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT Direction FROM LearningCards WHERE SenseId = ?", senseId));
+        Assert.AreEqual((int)CardDirection.MeaningToTerm, direction);
+    }
+
+    [TestMethod]
+    public async Task Accept_MultipleAliases_RemainAnswerVariantsOfSameSense_WithoutAdditionalCards()
+    {
+        // Same ordinal-first fixture requirement as the other "color" tests in this file.
+        var wordId = await ImportSingleUnknownAsync("color is vivid.", "color");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-color")];
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        Assert.AreEqual(wordId, item!.WordId, "the session must prepare the aliased word, not another candidate");
+        var input = InputFrom(item) with { AcceptedAliases = ["colour", "hue", "shade"] };
+        await _preparation.AcceptAsync(item.CandidateId, input, CardDirectionPreference.Both);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var assignments = await ReadAssignmentsAsync(senseId);
+        foreach (var alias in new[] { "colour", "hue", "shade" })
+        {
+            Assert.IsTrue(assignments.Any(a => a.NormalizedText == alias), $"expected an assignment for alias '{alias}'");
+        }
+
+        var cardCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningCards WHERE SenseId = ?", senseId));
+        Assert.AreEqual(2, cardCount, "aliases must not create additional cards");
+    }
+
+    [TestMethod]
+    public async Task Accept_DuplicateSubmittedAliases_DeduplicateDeterministically()
+    {
+        var wordId = await ImportSingleUnknownAsync("color is vivid.", "color");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-color")];
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        Assert.AreEqual(wordId, item!.WordId, "the session must prepare the aliased word, not another candidate");
+        var input = InputFrom(item) with { AcceptedAliases = ["colour", "colour", "colour"] };
+        await _preparation.AcceptAsync(item.CandidateId, input, CardDirectionPreference.Both);
+
+        var senseId = await ReadSenseIdAsync(wordId);
+        var variantCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM AnswerVariants WHERE SenseId = ? AND NormalizedText = ?", senseId, "colour"));
+        Assert.AreEqual(1, variantCount);
+        var assignmentCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM SenseAnswerVariantAssignments a
+            JOIN AnswerVariants v ON v.Id = a.AnswerVariantId
+            WHERE a.SenseId = ? AND v.NormalizedText = ?
+            """,
+            senseId, "colour"));
+        Assert.AreEqual(1, assignmentCount);
+    }
+
+    [TestMethod]
+    public async Task Accept_CandidateWhoseOnlyOccurrenceIsMisattributed_CompletesWithoutContextSnapshot()
+    {
+        // KF-MEANING-002 context-integrity fail-safe: when every occurrence available to a candidate is
+        // excluded by the WordForms attribution check, the candidate must still be acceptable — just
+        // without a context snapshot, never blocked and never crashed.
+        var bankWordId = await ImportSingleUnknownAsync("bank text here.", "bank");
+        var otherWordId = await ImportSingleUnknownAsync("urgent notice today.", "urgent");
+
+        var bankOccurrence = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.WordOccurrenceEntity>()
+            .Where(o => o.WordId == bankWordId).FirstAsync());
+        var urgentOccurrence = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.WordOccurrenceEntity>()
+            .Where(o => o.WordId == otherWordId).FirstAsync());
+        await _database.ReadAsync(async connection =>
+        {
+            // Swap: "bank" keeps only the misattributed "urgent" occurrence — its own genuine occurrence
+            // moves away, so every context available to the "bank" candidate is invalid.
+            await connection.ExecuteAsync("UPDATE WordOccurrences SET WordId = ? WHERE Id = ?", otherWordId, bankOccurrence.Id);
+            await connection.ExecuteAsync("UPDATE WordOccurrences SET WordId = ? WHERE Id = ?", bankWordId, urgentOccurrence.Id);
+            return true;
+        });
+
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        Assert.AreEqual(bankWordId, item!.WordId);
+        Assert.IsEmpty(item.Contexts, "every available occurrence is misattributed, so no context is displayed");
+
+        await _preparation.AcceptAsync(item.CandidateId, InputFrom(item), CardDirectionPreference.Both);
+
+        var candidate = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.PreparationCandidateEntity>()
+            .Where(x => x.Id == item.CandidateId).FirstAsync());
+        Assert.AreEqual(PreparationCandidateStatus.Prepared, candidate.Status, "acceptance must still succeed without any valid context");
+
+        var senseId = await ReadSenseIdAsync(bankWordId);
+        var snapshotCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM ContextSnapshots WHERE SenseId = ?", senseId));
+        Assert.AreEqual(0, snapshotCount);
+    }
+
+    [TestMethod]
+    public async Task Accept_ManualPreparation_AdvancesToNextCandidateImmediately()
+    {
+        var firstWordId = await ImportWithOnlyThisWordUnknownAsync("bank protects money.", "bank");
+        var secondWordId = await ImportWithOnlyThisWordUnknownAsync("truck carries goods.", "truck");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-generic")];
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 2);
+        var first = await _preparation.LookupCurrentAsync();
+        Assert.IsTrue(first!.WordId == firstWordId || first.WordId == secondWordId);
+        await _preparation.AcceptAsync(first.CandidateId, InputFrom(first), CardDirectionPreference.Both);
+
+        var next = await _preparation.GetCurrentAsync();
+        Assert.IsNotNull(next);
+        Assert.AreNotEqual(first.WordId, next!.WordId);
+        Assert.IsTrue(next.WordId == firstWordId || next.WordId == secondWordId);
+    }
+
+    [TestMethod]
+    public async Task Accept_AutomaticPreparation_AdvancesToNextCandidateImmediately()
+    {
+        var firstWordId = await ImportWithOnlyThisWordUnknownAsync("bank protects money.", "bank");
+        var secondWordId = await ImportWithOnlyThisWordUnknownAsync("truck carries goods.", "truck");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-generic")];
+
+        await _preparation.StartAsync(PreparationMethod.AutomaticOnline, 2);
+        var first = await _preparation.LookupCurrentAsync();
+        Assert.IsTrue(first!.WordId == firstWordId || first.WordId == secondWordId);
+        await _preparation.AcceptAsync(first.CandidateId, InputFrom(first), CardDirectionPreference.Both);
+
+        var next = await _preparation.LookupCurrentAsync();
+        Assert.IsNotNull(next);
+        Assert.AreNotEqual(first.WordId, next!.WordId);
+        Assert.IsTrue(next.WordId == firstWordId || next.WordId == secondWordId);
+    }
+
     [TestMethod]
     public async Task AcceptSchema7_AssignmentInitialization_IsNotReached()
     {
@@ -601,6 +777,32 @@ public sealed class PreparationServiceSchema8AcceptTests
         return wordId;
     }
 
+    /// <summary>Like <see cref="ImportSingleUnknownAsync"/>, but every discovered candidate other than
+    /// <paramref name="unknownTerm"/> is explicitly marked Known — so a multi-candidate batch test gets
+    /// exactly the intended unknown words regardless of what else the fixture text happens to contain.</summary>
+    private async Task<int> ImportWithOnlyThisWordUnknownAsync(string content, string unknownTerm)
+    {
+        var request = new ImportTextRequest($"Document {Guid.NewGuid():N}", content, "en", LexicalLookupMode.Definition, null);
+        var result = await _review.ImportAsync(request);
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+        var wordId = -1;
+        while (await _review.GetCurrentCandidateAsync() is { } candidate)
+        {
+            if (string.Equals(candidate.Candidate, unknownTerm, StringComparison.OrdinalIgnoreCase))
+            {
+                wordId = candidate.WordId;
+                await _review.DecideAsync(candidate.WordId, WordStatus.UnknownBacklog);
+            }
+            else
+            {
+                await _review.DecideAsync(candidate.WordId, WordStatus.Known);
+            }
+        }
+
+        Assert.AreNotEqual(-1, wordId);
+        return wordId;
+    }
+
     private async Task<int> InsertSessionAsync()
     {
         await _database.ReadAsync(async connection =>
@@ -629,16 +831,6 @@ public sealed class PreparationServiceSchema8AcceptTests
             return true;
         });
         return await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT last_insert_rowid()"));
-    }
-
-    private async Task<PreparationItem> ReloadCompletedItemAsync(int candidateId)
-    {
-        var candidate = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.PreparationCandidateEntity>()
-            .Where(item => item.Id == candidateId).FirstAsync());
-        var result = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).AnyResult!;
-        return new PreparationItem(
-            candidate.SessionId, candidate.Id, candidate.WordId, "bank", TokenKind.Word, "en", "de",
-            1, 1, 1, PreparationMethod.Manual, candidate.Status, [], result, candidate.SelectedMeaningIndex, null);
     }
 
     private static LexicalMeaning Meaning(string providerMeaningId, string partOfSpeech = "noun") =>

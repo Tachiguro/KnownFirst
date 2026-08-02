@@ -278,6 +278,7 @@ public sealed class LocalizationResourceTests
         "Prepare_Source",
         "Prepare_AcceptAndContinue",
         "Prepare_ChooseAnotherMeaning",
+        "Prepare_ChooseOneMeaningExplanation",
         "Prepare_Edit",
         "Prepare_CancelPreparation",
         "Prepare_SaveError",

@@ -735,6 +735,9 @@
   <data name="Prepare_ChooseAnotherMeaning" xml:space="preserve">
     <value>Andere Bedeutung wählen</value>
   </data>
+  <data name="Prepare_ChooseOneMeaningExplanation" xml:space="preserve">
+    <value>Wähle die eine Bedeutung, die zu diesem Text passt. Nur die ausgewählte Bedeutung wird gespeichert.</value>
+  </data>
   <data name="Prepare_Edit" xml:space="preserve">
     <value>Bearbeiten</value>
   </data>

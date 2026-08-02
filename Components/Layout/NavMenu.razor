@@ -27,7 +27,7 @@
             }
             @if (_workflow?.CanPrepare == true)
             {
-                <NavLink class="nav-link" href="prepare-words" @onclick="NotifyNavigationAsync">
+                <NavLink id="nav-prepare-words" class="nav-link" href="prepare-words" @onclick="NotifyNavigationAsync">
                     @Localizer[_workflow.HasActivePreparation ? "Home_ContinuePreparation" : "Navigation_PrepareWords"]
                 </NavLink>
             }

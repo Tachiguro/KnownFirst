@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-02
+2026-08-03
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Verified master baseline
 
-- Master commit: `d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc` (PR #43 merged, Slice 7 Schema-8 MergePreflight)
+- Master commit: `cf1b0995415dc858357f0a5c9e90e7c0aefb327c` (PR #44 merged, Slice 8 transactional Schema-8 merge writer)
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested.
 - Active database schema on master: SQLite `PRAGMA user_version` 8 (Slice 6 activation merged)
@@ -31,53 +31,56 @@
 - **Meaning Slice 5 Sense-addressed cards and queue behavior (PR #41 merged; full suite 1364 passed, 0 failed, 0 skipped)**
 - **Meaning Slice 6 Schema-8 activation and first real user-data migration (PR #42 merged; full suite 1542 passed, 0 failed, 0 skipped)**
 - **Meaning Slice 7 Schema-8 MergePreflight adaptation (PR #43 merged; full suite 1551 passed, 0 failed, 0 skipped)**
+- **Meaning Slice 8 transactional Schema-8 merge writer and Import routing (PR #44 merged; full suite 1593 passed, 0 failed, 0 skipped)**
 
 ## Active local implementation package
 
-- Branch: `feature/meaning-slice8-core-merge-writer`
-- Purpose: **KF-MEANING-001 Slice 8 — transactional Schema-8 populated-target merge writer and Import routing.**
-- Current phase: implementation and validation are complete; awaiting documentation and PR creation.
+- Branch: `feature/meaning-slice9-import-preview-ui`
+- Purpose: **KF-MEANING-001 Slice 9 — portable import preview UI, localized handling, and end-to-end convergence validation.**
+- Current phase: implementation and validation are complete; awaiting manual PR merge to master.
 - Build: 0 errors.
-- Complete Slice-8 validation: **1593 passed, 0 failed, 0 skipped** (3 m 5 s).
-  - 108 writer-focused tests pass.
-  - 42 scheduler-replay tests pass.
-  - 177 Import-integration tests pass.
+- Complete full-suite validation: **1626 passed, 0 failed, 0 skipped** (3 m 11 s).
+  - 160 preview/UI focused tests pass.
+  - 267 end-to-end convergence focused tests pass.
+  - 91 LearningSession identity correction focused tests pass.
 
-### Implemented Slice-8 behavior
+### Implemented Slice-9 behavior
 
-- `PortableMergeWriter` — transactional Schema-8 populated-target merge writer that validates the incoming plan against the current target state, rejects stale or non-executable plans, and atomically commits the merge or rolls back completely on any error.
-- Stable identity resolution using explicit source-local-ID-to-target-ID maps; source integer IDs are never target identities.
-- Existing domain entities are reused; missing entities and preserved variants are inserted; defined enrichment policies are applied.
-- Sense-addressed meanings, contexts, answer variants, assignments, progress, cards, reviews, sessions, queues, and review/preparation workflows are merged and preserved.
-- Card scheduling is replayed through the existing scheduler in deterministic order (ReviewedAtUtc, then review fingerprint ordinally); replay changes only derived scheduling fields and does not repoint Sense, PreferredMeaning, or Direction.
-- Multiple Senses for one Word remain independent; each Sense is merged separately.
-- Failure and cancellation roll back the complete merge.
-- Reimport converges without duplicate domain entities or deduplicated history; merged review history becomes authoritative.
-- Import routing: empty targets use restore-into-empty; populated Schema-8 targets use validation → preflight → validated safety copy → transactional writer.
-- Archive-v1 upgrades in memory for Schema 8; archive-v2 is supported natively; archive-v2 into Schema 7 remains rejected.
-- Fully duplicate imports return successful no-change without safety copy or writer invocation.
-- Non-seekable source streams are supported.
-- Stable errors are preserved; `PortableImportResult` exposes backward-compatible disposition and aggregate summary.
+- **Import preview UI** — read-only preview before confirmation distinguishes restore (empty target), merge (populated Schema-8 target), and no-change (all portable data already present) cases.
+- **Preview safety** — no database mutation, safety copy, or writer invocation during preview; supports non-seekable caller streams.
+- **Confirmation** — distinct labels for restore or merge; no-change presents success without a mutating action; re-validates and re-evaluates the operation independently on confirmation.
+- **Import workflow** — one unified Import data operation; no separate Merge button or separate merge workflow.
+- **Merge preview and results** — expose aggregate inserted, enriched, preserved-variant, and skipped counts; explain that local data is preserved and a validated private safety copy is created before mutation.
+- **Disposition classification** — RestoredIntoEmpty, MergeApplied, MergeNoChange; workflow-change notifications occur only for RestoredIntoEmpty and MergeApplied; no notification for no-change.
+- **Localization** — complete EN/DE/RU coverage for preview, result, and failure handling.
+- **Corrected LearningSession identity** — distinct real sessions using the same card set no longer collapse; identity now includes StartedAtUtc, CompletedAtUtc, ordered queue digest, and Rating per item; planner and target-index share the same implementation; reimport converges without duplicates.
+- **End-to-end convergence validation** — real automated tests exercise archive creation → validation → preview → preflight → validated safety copy → transactional writer → deterministic scheduler replay → result summary → repeated-import no-change; bidirectional divergent Schema-8 databases converge semantically.
+- **Archive-v1 upgrade and convergence** — Schema-8 populated-target Import upgrades archive-v1 in memory and converges on reimport.
+- **Safety-copy validation** — safety copies are reopened and validated from final paths; represent the pre-merge target state; remain available after later writer failure.
+- **Rollback-after-safety-copy validation** — real injected writer failure after safety-copy success rolls back all target mutations, retains the valid safety copy, leaves no staging artifact, exposes no raw exception text.
+- **Corrupt-archive fail-closed validation** — corrupt archives fail closed before safety-copy creation or mutation.
 
 ## Current blocker or pending validation
 
-- No implementation or validation blocker remains; Slice-8 PR creation and documentation finalization are pending.
-- Slice 9 (Import UI, localized preview/result handling, and final end-to-end release-readiness validation) remains unimplemented and out of scope for this slice.
+- No implementation or validation blocker remains; Slice-9 PR creation and manual merge to master are pending.
 - No Beta 13, packaging, device, or store task is active.
 
 ## Exact next action
 
-- Manual merge of the Slice-8 pull request on GitHub.
-- **KF-MEANING-001 Slice 9 — Import UI, localized preview/result handling, and final end-to-end release-readiness validation.**
+- Manual merge of the Slice-9 pull request on GitHub.
+- Completion of the full portable archive export/import implementation milestone.
 
 ## Concise new-chat handoff
 
-- Master baseline is `d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc` (PR #43 merged); `DatabaseSchema.CurrentVersion` is 8 and Schema 8 is active on master.
+- Master baseline is `cf1b0995415dc858357f0a5c9e90e7c0aefb327c` (PR #44 merged); `DatabaseSchema.CurrentVersion` is 8 and Schema 8 is active on master.
 - Beta 12 / build 12 was distributed via Google Play Internal Testing and user-tested.
-- Meaning Slices 1–7 are merged on master. Slice 8 (transactional Schema-8 populated-target merge writer) is implemented and validated on `feature/meaning-slice8-core-merge-writer`.
-- Populated-target import now validates the merge plan, creates a validated safety copy of the target, and applies the merge transactionally; stale or non-executable plans are rejected; reimport converges without duplicates.
+- Meaning Slices 1–9 are complete on master. Slice 9 (portable import preview UI, localized handling, and full end-to-end convergence validation) is implemented and validated on `feature/meaning-slice9-import-preview-ui`.
+- Import workflow: single unified operation with read-only preview distinguishing restore, merge, and no-change; confirmation revalidates independently; localized EN/DE/RU; mutations notify only on RestoredIntoEmpty or MergeApplied.
+- Populated-target import validates the merge plan, creates a validated safety copy of the target, and applies the merge transactionally; stale or non-executable plans are rejected; reimport converges without duplicates.
+- LearningSession identity now includes timestamps, queue order, and ratings; distinct sessions using the same card set remain separate.
 - Card scheduling is replayed deterministically through the existing scheduler; replay preserves Sense, PreferredMeaning, and Direction.
-- Slice 8 is validated with 1593 passed, 0 failed, 0 skipped and has an open pull request awaiting manual merge.
-- Slice 9 (Import UI, localized handling, release validation) remains unimplemented and out of scope.
-- Exact next action: manual merge of the Slice-8 pull request.
+- Real end-to-end tests exercise archive creation through reimport no-change; bidirectional divergent databases converge semantically; safety copies are validated.
+- Complete full suite: 1626 passed, 0 failed, 0 skipped.
+- Slice 9 is validated and has an open pull request awaiting manual merge.
+- Exact next action: manual merge of the Slice-9 pull request.
 - No Beta 13, packaging, device, or store task is active.

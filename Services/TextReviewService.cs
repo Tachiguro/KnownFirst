@@ -5,13 +5,13 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Models;
 using KnownFirst.Services.DataSafety;
+using KnownFirst.Services.Study;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SQLite;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 
 namespace KnownFirst.Services;
 
@@ -567,26 +567,20 @@ public sealed class TextReviewService(
 
     private static IReadOnlyList<string> CreateDiagnosticMeanings(string resultJson)
     {
-        if (string.IsNullOrWhiteSpace(resultJson))
+        var read = PreparationCandidatePayloadCodec.Read(resultJson);
+        var result = read.AnyResult;
+        if (result is not null)
         {
-            return [];
-        }
-
-        try
-        {
-            var result = JsonSerializer.Deserialize(
-                resultJson,
-                LexicalJsonSerializerContext.Default.LexicalResult);
-            return result?.Meanings
+            return result.Meanings
                 .Select(meaning => string.IsNullOrWhiteSpace(meaning.Translation)
                     ? meaning.Definition
                     : $"{meaning.Translation} — {meaning.Definition}")
-                .ToArray() ?? [];
+                .ToArray();
         }
-        catch (JsonException)
-        {
-            return ["The stored lookup result could not be parsed."];
-        }
+
+        return read.Kind == PreparationCandidatePayloadKind.Empty
+            ? []
+            : ["The stored lookup result could not be parsed."];
     }
 
     private static ImportAnalysisResult CreateImport(

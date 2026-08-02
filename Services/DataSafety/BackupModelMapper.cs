@@ -2,6 +2,7 @@ using System.Text.Json;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Models.Backup;
+using KnownFirst.Services.Study;
 
 namespace KnownFirst.Services.DataSafety;
 
@@ -606,9 +607,7 @@ public static class BackupModelMapper
     {
         try
         {
-            var internalResult = JsonSerializer.Deserialize(
-                resultJson,
-                KnownFirst.Core.Preparation.LexicalJsonSerializerContext.Default.LexicalResult)
+            var internalResult = PreparationCandidatePayloadCodec.Read(resultJson).AnyResult
                 ?? throw new BackupFormatException(BackupErrorCodes.DataJsonInvalid);
 
             var meanings = internalResult.Meanings.Select(m => new BackupLookupMeaning(

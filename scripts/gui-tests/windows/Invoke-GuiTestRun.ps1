@@ -53,7 +53,9 @@ param(
         '001-import-definition-reset',
         'PreparationSelectedMeaning',
         'PreparationAcceptFailureRecovery',
-        'PreparationInvalidContextRecovery')]
+        'PreparationInvalidContextRecovery',
+        'DiagnosticsPopulated',
+        'PortableDataExportSelfImport')]
     [string]$Scenario = '001-import-definition-reset',
 
     [ValidateSet('Debug')]
@@ -120,6 +122,14 @@ try {
         }
         'PreparationInvalidContextRecovery' {
             $result = Invoke-ScenarioPreparationInvalidContextRecovery -Context $context -ExecutablePath $executablePath `
+                -MonitorTarget $MonitorTarget -MonitorDeviceName $MonitorDeviceName
+        }
+        'DiagnosticsPopulated' {
+            $result = Invoke-ScenarioDiagnosticsPopulated -Context $context -ExecutablePath $executablePath `
+                -MonitorTarget $MonitorTarget -MonitorDeviceName $MonitorDeviceName
+        }
+        'PortableDataExportSelfImport' {
+            $result = Invoke-ScenarioPortableDataExportSelfImport -Context $context -ExecutablePath $executablePath `
                 -MonitorTarget $MonitorTarget -MonitorDeviceName $MonitorDeviceName
         }
         default {

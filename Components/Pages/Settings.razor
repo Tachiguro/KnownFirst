@@ -217,12 +217,14 @@
         {
             <div class="support-actions">
                 <button type="button"
+                        id="portable-data-export-button"
                         class="button button-secondary"
                         disabled="@_isPortableDataOperation"
                         @onclick="ExportPortableDataAsync">
                     @Localizer["Settings_DataExport"]
                 </button>
                 <button type="button"
+                        id="portable-data-import-button"
                         class="button button-secondary"
                         disabled="@_isPortableDataOperation"
                         @ref="_dataImportButton"
@@ -234,7 +236,8 @@
 
         @if (_portableImportPreview is { } preview && _portableImportSelection is not null)
         {
-            <div class="import-preview-panel"
+            <div id="portable-import-preview-panel"
+                 class="import-preview-panel"
                  role="alertdialog"
                  aria-labelledby="portable-import-preview-title"
                  @ref="_importPreviewElement"
@@ -259,6 +262,7 @@
                     @if (preview.CanConfirm)
                     {
                         <button type="button"
+                                id="portable-import-cancel-button"
                                 class="button button-secondary"
                                 disabled="@_isPortableDataOperation"
                                 @ref="_cancelImportPreviewButton"
@@ -266,6 +270,7 @@
                             @Localizer["Common_Cancel"]
                         </button>
                         <button type="button"
+                                id="portable-import-confirm-button"
                                 class="button button-primary"
                                 disabled="@_isPortableDataOperation"
                                 @onclick="ConfirmPortableImportAsync">
@@ -275,6 +280,7 @@
                     else
                     {
                         <button type="button"
+                                id="portable-import-cancel-button"
                                 class="button button-secondary"
                                 disabled="@_isPortableDataOperation"
                                 @ref="_cancelImportPreviewButton"
@@ -288,7 +294,8 @@
 
         @if (_portableDataMessageKey is not null)
         {
-            <p class="setting-feedback @(_portableDataOperationFailed ? "setting-feedback-error" : "setting-feedback-success")"
+            <p id="@(_portableDataOperationFailed ? "portable-data-result-message-error" : "portable-data-result-message-success")"
+               class="setting-feedback @(_portableDataOperationFailed ? "setting-feedback-error" : "setting-feedback-success")"
                role="@(_portableDataOperationFailed ? "alert" : "status")"
                aria-live="polite">
                 @Localizer[_portableDataMessageKey]

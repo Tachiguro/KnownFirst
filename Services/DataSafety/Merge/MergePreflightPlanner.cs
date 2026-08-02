@@ -915,7 +915,7 @@ public static class MergePreflightPlanner
         return builder.ComputeSha256Hex();
     }
 
-    private static string ComputeSentenceRangeIdentity(SourceMaterialIdentity documentIdentity, BackupSentenceRange sentence)
+    internal static string ComputeSentenceRangeIdentity(SourceMaterialIdentity documentIdentity, BackupSentenceRange sentence)
     {
         var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.SentenceRange.v1")
             .WriteString(documentIdentity.Value)
@@ -926,7 +926,7 @@ public static class MergePreflightPlanner
         return builder.ComputeSha256Hex();
     }
 
-    private static string ComputeOccurrenceIdentity(
+    internal static string ComputeOccurrenceIdentity(
         SourceMaterialIdentity documentIdentity, string sentenceIdentity, VocabularyIdentity vocabularyIdentity, BackupOccurrence occurrence)
     {
         var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.Occurrence.v1")
@@ -945,7 +945,7 @@ public static class MergePreflightPlanner
         return builder.ComputeSha256Hex();
     }
 
-    private static string ComputeEncounteredFormIdentity(VocabularyIdentity vocabularyIdentity, string surfaceForm)
+    internal static string ComputeEncounteredFormIdentity(VocabularyIdentity vocabularyIdentity, string surfaceForm)
     {
         var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.EncounteredForm.v1")
             .WriteString(vocabularyIdentity.Value)
@@ -954,7 +954,7 @@ public static class MergePreflightPlanner
         return builder.ComputeSha256Hex();
     }
 
-    private static string ComputeLegacyReviewSummaryIdentity(VocabularyIdentity vocabularyIdentity)
+    internal static string ComputeLegacyReviewSummaryIdentity(VocabularyIdentity vocabularyIdentity)
     {
         var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.LegacyReviewSummary.v1")
             .WriteString(vocabularyIdentity.Value);
@@ -962,7 +962,7 @@ public static class MergePreflightPlanner
         return builder.ComputeSha256Hex();
     }
 
-    private static string ComputeContextSnapshotIdentity(
+    internal static string ComputeContextSnapshotIdentity(
         SemanticMeaningIdentity semanticMeaningIdentity, SourceMaterialIdentity sourceMaterialIdentity, BackupContextSnapshot context)
     {
         var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.ContextSnapshot.v1")
@@ -975,7 +975,7 @@ public static class MergePreflightPlanner
         return builder.ComputeSha256Hex();
     }
 
-    private static bool ReviewWorkflowContentEquals(BackupVocabularyReviewWorkflow a, BackupVocabularyReviewWorkflow b) =>
+    internal static bool ReviewWorkflowContentEquals(BackupVocabularyReviewWorkflow a, BackupVocabularyReviewWorkflow b) =>
         a.Status == b.Status
         && a.TotalCandidates == b.TotalCandidates
         && a.ReviewedCount == b.ReviewedCount
@@ -987,7 +987,7 @@ public static class MergePreflightPlanner
         && a.CompletedAtUtc == b.CompletedAtUtc;
 
     /// <summary>Order is intentionally excluded — positional, not semantically meaningful (proven safe to renumber).</summary>
-    private static bool ReviewItemContentEquals(BackupVocabularyReviewItem a, BackupVocabularyReviewItem b) =>
+    internal static bool ReviewItemContentEquals(BackupVocabularyReviewItem a, BackupVocabularyReviewItem b) =>
         a.Status == b.Status
         && a.PreviousKnowledgeState == b.PreviousKnowledgeState
         && a.PreviousTotalOccurrenceCount == b.PreviousTotalOccurrenceCount
@@ -1003,7 +1003,7 @@ public static class MergePreflightPlanner
     /// fields do not have structural equality, and it is not itself the "historical decision" content this
     /// comparison protects — the fields compared are.
     /// </summary>
-    private static bool PreparationItemContentEquals(BackupPreparationItem a, BackupPreparationItem b) =>
+    internal static bool PreparationItemContentEquals(BackupPreparationItem a, BackupPreparationItem b) =>
         a.Status == b.Status
         && a.SelectedMeaningIndex == b.SelectedMeaningIndex
         && a.LastErrorCode == b.LastErrorCode
@@ -1020,10 +1020,10 @@ public static class MergePreflightPlanner
         && a.Rating == b.Rating
         && a.CompletedAtUtc == b.CompletedAtUtc;
 
-    private static Dictionary<MergeEntityKind, MergeEntityPlanCounts> CreateEmptyCounts() =>
+    internal static Dictionary<MergeEntityKind, MergeEntityPlanCounts> CreateEmptyCounts() =>
         Enum.GetValues<MergeEntityKind>().ToDictionary(kind => kind, _ => MergeEntityPlanCounts.Zero);
 
-    private static Dictionary<string, TIdentity> BuildIdentityMap<TItem, TIdentity>(
+    internal static Dictionary<string, TIdentity> BuildIdentityMap<TItem, TIdentity>(
         IEnumerable<TItem> items,
         Func<TItem, string> idSelector,
         Func<TItem, TIdentity> identityFn,
@@ -1045,7 +1045,7 @@ public static class MergePreflightPlanner
         return map;
     }
 
-    private static Dictionary<TKey, TValue> ToUniqueDictionary<TValue, TKey>(
+    internal static Dictionary<TKey, TValue> ToUniqueDictionary<TValue, TKey>(
         IEnumerable<TValue> items, Func<TValue, TKey> keySelector, string context)
         where TKey : notnull
     {
@@ -1064,7 +1064,7 @@ public static class MergePreflightPlanner
         return result;
     }
 
-    private static TValue Resolve<TKey, TValue>(IReadOnlyDictionary<TKey, TValue> map, TKey localId, string context)
+    internal static TValue Resolve<TKey, TValue>(IReadOnlyDictionary<TKey, TValue> map, TKey localId, string context)
         where TKey : notnull
     {
         if (!map.TryGetValue(localId, out var value))

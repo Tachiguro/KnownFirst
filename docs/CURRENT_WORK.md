@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-01
+2026-08-02
 
 ## Repository
 
@@ -13,11 +13,11 @@
 
 ## Verified master baseline
 
-- Master commit: `e1724651dd7d4d3ed427b84a96da3d909d0c72ed` (PR #41 merged)
+- Master commit: `3debd7a1b1d300ea08586b1b6d8570db72cf6138` (PR #42 merged, Slice 6 Schema-8 activation)
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested.
-- Active database schema on master: SQLite `PRAGMA user_version` 7
-- Schema 8 status on master: dormant (Slices 1–5 merged as dual-schema foundations)
+- Active database schema on master: SQLite `PRAGMA user_version` 8 (Slice 6 activation merged)
+- Schema 8 status on master: active
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
 - Solution: `KnownFirst.slnx`
 
@@ -29,31 +29,25 @@
 - **Reconcile Beta 12 and Next Merge Work (PR #38 merged)**
 - **Meaning Slice 4 answer assignments and progress replay (PR #40 merged; full suite 1347 passed, 0 failed, 0 skipped)**
 - **Meaning Slice 5 Sense-addressed cards and queue behavior (PR #41 merged; full suite 1364 passed, 0 failed, 0 skipped)**
+- **Meaning Slice 6 Schema-8 activation and first real user-data migration (PR #42 merged; full suite 1542 passed, 0 failed, 0 skipped)**
 
 ## Active local implementation package
 
-- Branch: `feature/meaning-slice6-schema8-activation`
-- Purpose: **KF-MEANING-001 Slice 6 — Schema-8 activation and the first real user-data migration.**
-- Current phase: implementation, the review corrections, and full validation are complete on the feature branch; the pull request is open and awaits manual merge.
-- Focused Slice-6 validation: 466 passed, 0 failed, 0 skipped.
-- Complete Slice-6 validation: **1542 passed, 0 failed, 0 skipped** (3 m 15 s).
+- Branch: `feature/meaning-slice7-schema8-merge-preflight`
+- Purpose: **KF-MEANING-001 Slice 7 — Schema-8 MergePreflight adaptation.**
+- Current phase: implementation and validation are complete; checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675` is pushed and a pull request is open awaiting manual merge.
+- Build: 0 errors.
+- Focused Slice-7 validation (MergePreflightServiceTests + safety suite): 135 passed, 0 failed, 0 skipped.
+- Complete Slice-7 validation: **1551 passed, 0 failed, 0 skipped** (2 m 53 s).
 
-### Implemented Slice-6 behavior
+### Implemented Slice-7 behavior
 
-- `DatabaseSchema.CurrentVersion` is **8**; Schema 8 is active for real application databases.
-- A fresh database initializes directly to a validated Schema 8.
-- Supported versions 0–6 first reach the Schema-7 baseline boundary and are then migrated to Schema 8 in the same initialization.
-- A version-7 database is migrated to Schema 8 on its next initialization.
-- A valid version-8 database is validation-only on reopen: it is inspected and never mutated.
-- A malformed Schema-8 database and any database whose version is greater than 8 fail closed; nothing is repaired and nothing is written.
-- The migration runs inside one real SQLite transaction and is rollback-safe, cancellation-safe, and retryable: a failed attempt leaves a byte-for-byte unchanged Schema-7 database that can be retried.
-- Structural validation covers required tables, required columns, declared column nullability and primary-key semantics, absence of legacy artifacts, index definitions (columns, order, uniqueness, partial predicates), enum domains, ownership relationships, queue/review answer-variant targets, and persisted relationships.
-- Legacy enum backfills bring pre-Schema-7 rows to deterministic supported values before activation.
-- `DashboardService` and `TextReviewService` use Schema-8 semantics through validated schema-capability resolution.
-- Schema-8 archive export and merge safety copies use archive format **v2**.
-- Archive format **v1** remains readable and can still restore into an empty Schema-8 target.
-- Import into a populated target remains refused.
-- `MergePreflightService` intentionally fails closed on a Schema-8 target with `merge-preflight-schema8-adaptation-required`, pending the Slice-7 adaptation.
+- `MergePreflightService`/`MergePreflightPlannerV2` plan merges for active Schema-8 target databases against archive-format-v2 (Schema-8) sources.
+- Archive-format-v1 sources remain supported into a Schema-8 target through the existing in-memory upgrade path (`BackupArchiveV1UpgradePolicy`).
+- Preflight is deterministic and strictly read-only: no target mutation, no safety copy, no writer invocation, no persistent import artifact.
+- Multiple Senses of the same Word are planned independently (identity now includes the persisted `Sense.TopicOrDomain` field).
+- Sense-addressed meanings, answer variants, `SenseAnswerVariantAssignment`s, `AnswerVariantProgress`, learning cards, reviews, queue items, and vocabulary/preparation workflows are all covered by the plan.
+- Import into a populated target and the merge writer remain unimplemented; this slice is preflight planning only.
 
 ### Test-infrastructure corrections made during Slice-6 validation
 
@@ -65,24 +59,23 @@
 
 ## Current blocker or pending validation
 
-- No implementation or validation blocker remains; manual merge of the Slice-6 pull request is pending.
+- No implementation or validation blocker remains; manual merge of the Slice-7 pull request is pending.
 - Populated-target archive import is not implemented; current import refuses populated installations.
-- The populated-target merge writer and Import routing are not implemented.
+- The populated-target merge writer (Slice 8) and Import routing are not implemented.
 - No current packaging or release task is active.
 
 ## Exact next action
 
-- User-manual merge of the Slice-6 pull request on GitHub, then a separately authorized post-merge synchronization.
-- After merge: **KF-MEANING-001 Slice 7 — Schema-8 MergePreflight adaptation.**
-- The merge writer (Slice 8) must not be implemented before Slice 7 is complete.
+- User-manual merge of the Slice-7 pull request on GitHub, then a separately authorized post-merge synchronization.
+- After merge: **KF-MEANING-001 Slice 8 — populated-target merge writer and Import routing.**
+- Slice 9 (Import UI and end-to-end convergence validation) follows Slice 8.
 
 ## Concise new-chat handoff
 
-- Master baseline is `e1724651dd7d4d3ed427b84a96da3d909d0c72ed` (PR #41 merged).
+- Master baseline is `3debd7a1b1d300ea08586b1b6d8570db72cf6138` (PR #42 merged); `DatabaseSchema.CurrentVersion` is 8 and Schema 8 is active on master.
 - Beta 12 / build 12 was distributed via Google Play Internal Testing and user-tested.
-- Meaning Slices 1–5 are merged; Slice 6 activates Schema 8 on the feature branch `feature/meaning-slice6-schema8-activation`.
-- On the Slice-6 branch `DatabaseSchema.CurrentVersion` is 8 and Schema 8 is active; on master it is still 7.
-- MergePreflight rejects Schema-8 targets until Slice 7; populated-target archive merge remains unimplemented.
-- Slice 6 is validated with 1542 passed, 0 failed, 0 skipped and has an open pull request awaiting manual merge.
-- Exact next action: manual merge of the Slice-6 pull request, then Slice 7.
+- Meaning Slices 1–6 are merged. Slice 7 (Schema-8 MergePreflight adaptation) is implemented and validated on `feature/meaning-slice7-schema8-merge-preflight`, checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`.
+- MergePreflight now supports Schema-8 targets against archive-v2 and archive-v1 (upgraded) sources, read-only and deterministic; populated-target archive merge (the writer) remains unimplemented.
+- Slice 7 is validated with 1551 passed, 0 failed, 0 skipped and has an open pull request awaiting manual merge.
+- Exact next action: manual merge of the Slice-7 pull request, then Slice 8.
 - No Beta 13 or active packaging task is in progress.

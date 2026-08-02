@@ -44,12 +44,13 @@ This roadmap records intended order. It does not claim that planned behavior exi
 - Google Play packaging safeguards — merged via PR #37 (`ad6f1456`).
 - Meaning Slice 4 direction-specific answer assignments and progress replay — merged via PR #40 (`60d8f073`); full suite 1347 passed, 0 failed, 0 skipped.
 - Meaning Slice 5 Sense-addressed cards and queue behavior — merged via PR #41 (`e1724651`); full suite 1364 passed, 0 failed, 0 skipped.
+- Meaning Slice 6 Schema-8 activation and the first real user-data migration — merged via PR #42 (`3debd7a1`); full suite 1542 passed, 0 failed, 0 skipped.
 
 ## Current
 
-**Meaning Slice 6 — Schema-8 activation and the first real user-data migration**
-- Implemented and validated on `feature/meaning-slice6-schema8-activation` with a focused result of 466 passed, 0 failed, 0 skipped and a complete result of 1542 passed, 0 failed, 0 skipped. Manual merge is pending; Slice 6 is not merged.
-- `DatabaseSchema.CurrentVersion` is 8, fresh databases initialize directly to valid Schema 8, supported versions 0–6 reach the Schema-7 boundary and then migrate, version 7 migrates, and a valid version 8 is validation-only on reopen. Malformed and future databases fail closed. See [CURRENT_WORK.md](CURRENT_WORK.md).
+**Meaning Slice 7 — Schema-8 MergePreflight adaptation**
+- Implemented and validated on `feature/meaning-slice7-schema8-merge-preflight` (checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`) with a focused result of 135 passed, 0 failed, 0 skipped and a complete result of 1551 passed, 0 failed, 0 skipped. Manual merge is pending.
+- `MergePreflightService`/`MergePreflightPlannerV2` plan merges for active Schema-8 targets against archive-v2 sources and, through the existing in-memory upgrade path, archive-v1 sources. Preflight is deterministic and read-only: no target mutation, no safety copy, no writer invocation. Multiple Senses of the same Word remain independent; Sense-addressed meanings, variants, assignments, progress, cards, queue items, and reviews are all covered. See [CURRENT_WORK.md](CURRENT_WORK.md).
 
 ## Planned Sequence (Meaning & Merge)
 
@@ -59,14 +60,14 @@ No direct jump to the merge writer is allowed. Populated-target import is not ye
 
 1. **Meaning Slice 4:** Completed and merged via PR #40 (dual-schema compatible).
 2. **Meaning Slice 5:** Completed and merged via PR #41 (dual-schema compatible).
-3. **Slice 6 (Schema-8 Activation):** Implemented and validated on the feature branch; `CurrentVersion` is 8 and the first real user-data migration is live. Manual merge pending.
-4. **Slice 7:** Schema-8 MergePreflight adaptation. MergePreflight currently fails closed on a Schema-8 target with `merge-preflight-schema8-adaptation-required`.
-5. **Slice 8:** Populated-target merge writer and Import routing.
+3. **Slice 6 (Schema-8 Activation):** Completed and merged via PR #42; `CurrentVersion` is 8 and the first real user-data migration is live.
+4. **Slice 7 (Schema-8 MergePreflight adaptation):** Implemented and validated on the feature branch (checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`). Manual merge pending.
+5. **Slice 8:** Populated-target merge writer and Import routing. Out of scope for Slice 7.
 6. **Slice 9:** Import UI and end-to-end convergence validation.
 
 ## Deferred
 
-- Populated-database merge import execution (until Slices 7–9 are complete).
+- Populated-database merge import execution (until Slices 8–9 are complete).
 - Re-validation of packaging script runtime behavior (deferred to `KF-RELEASE-001` before the next genuine release).
 - Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback.
 - Additional learning languages beyond English, German, and Russian-as-target.

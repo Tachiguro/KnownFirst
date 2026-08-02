@@ -1,0 +1,921 @@
+using System.Globalization;
+using KnownFirst.Models.Backup;
+
+namespace KnownFirst.Services.DataSafety.Merge;
+
+public static class MergePreflightPlannerV2
+{
+    public static MergePreflightPlan CreatePlan(BackupPayloadV2 target, BackupPayloadV2 archive, MergeManifestInfo archiveManifest)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(archive);
+        ArgumentNullException.ThrowIfNull(archiveManifest);
+
+        var counts = MergePreflightPlanner.CreateEmptyCounts();
+        var actions = new List<MergePlanAction>();
+        var warningCodes = new SortedSet<string>(StringComparer.Ordinal);
+        var blockingPrerequisites = new SortedSet<string>(StringComparer.Ordinal);
+        var knowledgeStateDecisions = new List<KnowledgeStateConflictDecision>();
+        var workflowStatusDecisions = new List<WorkflowStatusConflictDecision>();
+        var preferredVariantSelectionDecisions = new List<PreferredVariantSelectionDecision>();
+
+        void Record(MergeEntityKind kind, string stableIdentity, string archiveLocalId, MergeEntityClassification classification, string reason, DecisionId? decisionId = null)
+        {
+            counts[kind] = counts[kind].Increment(classification);
+            actions.Add(new MergePlanAction(kind, stableIdentity, archiveLocalId, classification, reason, decisionId));
+        }
+
+        static DecisionId MakeDecisionId(string domain, string keyValue) =>
+            new(new CanonicalFingerprintBuilder(domain).WriteString(keyValue).ComputeSha256Hex());
+
+        // Identity maps
+        var targetVocabByLocalId = MergePreflightPlanner.BuildIdentityMap(target.Vocabulary, v => v.Id, VocabularyMergeIdentityPolicy.Compute, "target vocabulary");
+        var archiveVocabByLocalId = MergePreflightPlanner.BuildIdentityMap(archive.Vocabulary, v => v.Id, VocabularyMergeIdentityPolicy.Compute, "archive vocabulary");
+        var targetVocabIdentitySet = new HashSet<VocabularyIdentity>(targetVocabByLocalId.Values);
+        var targetVocabularyByIdentity = MergePreflightPlanner.ToUniqueDictionary(target.Vocabulary, v => targetVocabByLocalId[v.Id], "target vocabulary identity");
+
+        var targetDocByLocalId = MergePreflightPlanner.BuildIdentityMap(target.SourceMaterials, d => d.Id, SourceMaterialIdentityPolicy.Compute, "target source material");
+        var archiveDocByLocalId = MergePreflightPlanner.BuildIdentityMap(archive.SourceMaterials, d => d.Id, SourceMaterialIdentityPolicy.Compute, "archive source material");
+        var targetDocIdentitySet = new HashSet<SourceMaterialIdentity>(targetDocByLocalId.Values);
+
+        var targetSenseByLocalId = MergePreflightPlanner.BuildIdentityMap(target.Senses, s => s.Id, s => SemanticMeaningIdentityPolicy.Compute(s, MergePreflightPlanner.Resolve(targetVocabByLocalId, s.VocabularyId, "target sense vocab")), "target sense");
+        var archiveSenseByLocalId = MergePreflightPlanner.BuildIdentityMap(archive.Senses, s => s.Id, s => SemanticMeaningIdentityPolicy.Compute(s, MergePreflightPlanner.Resolve(archiveVocabByLocalId, s.VocabularyId, "archive sense vocab")), "archive sense");
+        var targetSenseIdentitySet = new HashSet<SemanticMeaningIdentity>(targetSenseByLocalId.Values);
+
+        var targetSenseByLocalIdMap = target.Senses.ToDictionary(s => s.Id, StringComparer.Ordinal);
+        var archiveSenseByLocalIdMap = archive.Senses.ToDictionary(s => s.Id, StringComparer.Ordinal);
+
+        var targetExactVariantByLocalId = MergePreflightPlanner.BuildIdentityMap(target.PreparedLearning, m => m.Id, m => ExactMeaningVariantIdentityPolicy.Compute(m, MergePreflightPlanner.Resolve(targetSenseByLocalId, m.SenseId, "target meaning sense")), "target prepared item exact variant");
+        var archiveExactVariantByLocalId = MergePreflightPlanner.BuildIdentityMap(archive.PreparedLearning, m => m.Id, m => ExactMeaningVariantIdentityPolicy.Compute(m, MergePreflightPlanner.Resolve(archiveSenseByLocalId, m.SenseId, "archive meaning sense")), "archive prepared item exact variant");
+        var targetExactVariantIdentitySet = new HashSet<ExactMeaningVariantIdentity>(targetExactVariantByLocalId.Values);
+
+        var targetPreparedByLocalId = MergePreflightPlanner.ToUniqueDictionary(target.PreparedLearning, m => m.Id, "target prepared item id");
+        var archivePreparedByLocalId = MergePreflightPlanner.ToUniqueDictionary(archive.PreparedLearning, m => m.Id, "archive prepared item id");
+
+        var targetAnswerVariantByLocalId = MergePreflightPlanner.BuildIdentityMap(target.AnswerVariants, a => a.Id, a => AnswerVariantIdentityPolicy.Compute(MergePreflightPlanner.Resolve(targetSenseByLocalId, a.SenseId, "target answer variant sense"), a.NormalizedText, a.AnswerLanguage), "target answer variant");
+        var archiveAnswerVariantByLocalId = MergePreflightPlanner.BuildIdentityMap(archive.AnswerVariants, a => a.Id, a => AnswerVariantIdentityPolicy.Compute(MergePreflightPlanner.Resolve(archiveSenseByLocalId, a.SenseId, "archive answer variant sense"), a.NormalizedText, a.AnswerLanguage), "archive answer variant");
+        var targetAnswerVariantIdentitySet = new HashSet<AnswerVariantIdentity>(targetAnswerVariantByLocalId.Values);
+
+        var targetAnswerVariantsById = target.AnswerVariants.ToDictionary(a => a.Id, StringComparer.Ordinal);
+        var archiveAnswerVariantsById = archive.AnswerVariants.ToDictionary(a => a.Id, StringComparer.Ordinal);
+
+        var targetFutureCardIdByLocalId = new Dictionary<string, FutureCardIdentity>(StringComparer.Ordinal);
+        foreach (var card in target.Learning.Cards)
+        {
+            var semanticIdentity = MergePreflightPlanner.Resolve(targetSenseByLocalId, card.SenseId, "target learning card semantic meaning");
+            targetFutureCardIdByLocalId[card.Id] = FutureCardIdentityPolicy.Compute(semanticIdentity, card.Direction);
+        }
+
+        var archiveFutureCardIdByLocalId = new Dictionary<string, FutureCardIdentity>(StringComparer.Ordinal);
+        foreach (var card in archive.Learning.Cards)
+        {
+            var semanticIdentity = MergePreflightPlanner.Resolve(archiveSenseByLocalId, card.SenseId, "archive learning card semantic meaning");
+            archiveFutureCardIdByLocalId[card.Id] = FutureCardIdentityPolicy.Compute(semanticIdentity, card.Direction);
+        }
+
+        var targetCardsByLocalId = target.Learning.Cards.ToDictionary(c => c.Id, StringComparer.Ordinal);
+        var archiveCardsByLocalId = archive.Learning.Cards.ToDictionary(c => c.Id, StringComparer.Ordinal);
+
+        var targetCardsByFutureCardIdentity = MergePreflightPlanner.ToUniqueDictionary(target.Learning.Cards, c => targetFutureCardIdByLocalId[c.Id], "target learning card future-card identity");
+
+        // Vocabulary
+        var targetFormOccurrenceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        var targetLegacySummariesByWord = new Dictionary<string, HashSet<BackupLegacyReviewSummary>>(StringComparer.Ordinal);
+        foreach (var word in target.Vocabulary)
+        {
+            var vocabIdentity = targetVocabByLocalId[word.Id];
+            foreach (var form in word.EncounteredForms)
+            {
+                targetFormOccurrenceCounts[MergePreflightPlanner.ComputeEncounteredFormIdentity(vocabIdentity, form.SurfaceForm)] = form.OccurrenceCount;
+            }
+
+            if (word.LegacyReviewSummaries.Count > 0)
+            {
+                targetLegacySummariesByWord[vocabIdentity.Value] = new HashSet<BackupLegacyReviewSummary>(word.LegacyReviewSummaries);
+            }
+        }
+
+        foreach (var archiveWord in archive.Vocabulary)
+        {
+            var identity = archiveVocabByLocalId[archiveWord.Id];
+            MergeEntityClassification classification;
+            string reason;
+            DecisionId? decisionId = null;
+
+            if (!targetVocabularyByIdentity.TryGetValue(identity, out var targetWord))
+            {
+                classification = MergeEntityClassification.New;
+                reason = "vocabulary-new";
+            }
+            else
+            {
+                var knowledgeResult = KnowledgeStateConflictPolicy.Resolve(targetWord.KnowledgeState, archiveWord.KnowledgeState);
+                var preparationResult = PreparationStateConflictPolicy.Resolve(targetWord.PreparationState, archiveWord.PreparationState);
+
+                if (knowledgeResult.Classification == MergeConflictClassification.UnresolvedKeepTargetWithWarning)
+                {
+                    classification = MergeEntityClassification.UnresolvedConflict;
+                    reason = knowledgeResult.ReasonCode;
+                    warningCodes.Add(knowledgeResult.ReasonCode);
+                    decisionId = MakeDecisionId("KnownFirst.Merge.Decision.KnowledgeState.v1", identity.Value);
+                    knowledgeStateDecisions.Add(new KnowledgeStateConflictDecision(
+                        decisionId.Value, identity, archiveWord.Id, targetWord.KnowledgeState, archiveWord.KnowledgeState, knowledgeResult.ReasonCode));
+                }
+                else
+                {
+                    var advanced = knowledgeResult.ResolvedState != targetWord.KnowledgeState
+                        || preparationResult.ResolvedState != targetWord.PreparationState;
+                    classification = advanced ? MergeEntityClassification.Enriched : MergeEntityClassification.ExactDuplicateSkipped;
+                    reason = advanced ? "vocabulary-progress-advanced" : "vocabulary-progress-equal";
+                }
+            }
+
+            var wordIsNewForChildren = classification == MergeEntityClassification.New;
+            Record(MergeEntityKind.Vocabulary, identity.Value, archiveWord.Id, classification, reason, decisionId);
+
+            foreach (var form in archiveWord.EncounteredForms)
+            {
+                var formIdentity = MergePreflightPlanner.ComputeEncounteredFormIdentity(identity, form.SurfaceForm);
+                MergeEntityClassification formClassification;
+                string formReason;
+                if (wordIsNewForChildren || !targetFormOccurrenceCounts.TryGetValue(formIdentity, out var targetCount))
+                {
+                    formClassification = MergeEntityClassification.New;
+                    formReason = "encountered-form-new";
+                }
+                else
+                {
+                    formClassification = MergeEntityClassification.ExactDuplicateSkipped;
+                    formReason = targetCount == form.OccurrenceCount
+                        ? "encountered-form-exact-duplicate"
+                        : "encountered-form-count-recompute-required";
+                }
+
+                Record(MergeEntityKind.EncounteredForm, formIdentity, archiveWord.Id + ":" + form.SurfaceForm, formClassification, formReason);
+            }
+
+            if (archiveWord.LegacyReviewSummaries.Count > 0)
+            {
+                var summaryIdentity = MergePreflightPlanner.ComputeLegacyReviewSummaryIdentity(identity);
+                var hasTargetSummaries = targetLegacySummariesByWord.TryGetValue(identity.Value, out var targetSummarySet);
+                for (var i = 0; i < archiveWord.LegacyReviewSummaries.Count; i++)
+                {
+                    var summary = archiveWord.LegacyReviewSummaries[i];
+                    MergeEntityClassification summaryClassification;
+                    string summaryReason;
+                    if (wordIsNewForChildren)
+                    {
+                        summaryClassification = MergeEntityClassification.New;
+                        summaryReason = "legacy-review-summary-new";
+                    }
+                    else if (hasTargetSummaries && targetSummarySet!.Contains(summary))
+                    {
+                        summaryClassification = MergeEntityClassification.ExactDuplicateSkipped;
+                        summaryReason = "legacy-review-summary-exact-duplicate";
+                    }
+                    else
+                    {
+                        summaryClassification = MergeEntityClassification.Enriched;
+                        summaryReason = "legacy-review-summary-recompute-required";
+                    }
+
+                    Record(
+                        MergeEntityKind.LegacyReviewSummary,
+                        summaryIdentity,
+                        archiveWord.Id + ":" + i.ToString(CultureInfo.InvariantCulture),
+                        summaryClassification,
+                        summaryReason);
+                }
+            }
+        }
+
+        // SourceMaterials
+        var targetSentenceIdentitySet = new HashSet<string>(StringComparer.Ordinal);
+        var targetSentenceIdentityByDocAndLocalId = new Dictionary<(string DocLocalId, string SentenceLocalId), string>();
+        foreach (var doc in target.SourceMaterials)
+        {
+            var docIdentity = targetDocByLocalId[doc.Id];
+            foreach (var sentence in doc.Sentences)
+            {
+                var sentenceIdentity = MergePreflightPlanner.ComputeSentenceRangeIdentity(docIdentity, sentence);
+                targetSentenceIdentitySet.Add(sentenceIdentity);
+                targetSentenceIdentityByDocAndLocalId[(doc.Id, sentence.Id)] = sentenceIdentity;
+            }
+        }
+
+        var targetOccurrenceIdentitySet = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var doc in target.SourceMaterials)
+        {
+            var docIdentity = targetDocByLocalId[doc.Id];
+            foreach (var occurrence in doc.Occurrences)
+            {
+                var vocabIdentity = MergePreflightPlanner.Resolve(targetVocabByLocalId, occurrence.VocabularyId, "target occurrence vocabulary");
+                var sentenceIdentity = MergePreflightPlanner.Resolve(targetSentenceIdentityByDocAndLocalId, (doc.Id, occurrence.SentenceId), "target occurrence sentence");
+                targetOccurrenceIdentitySet.Add(MergePreflightPlanner.ComputeOccurrenceIdentity(docIdentity, sentenceIdentity, vocabIdentity, occurrence));
+            }
+        }
+
+        var targetReviewSessionByIdentity = MergePreflightPlanner.ToUniqueDictionary(
+            target.Workflows.VocabularyReviews,
+            s => ReviewWorkflowIdentityPolicy.ComputeSessionIdentity(s, targetDocByLocalId),
+            "target review session identity");
+
+        foreach (var archiveDoc in archive.SourceMaterials)
+        {
+            var docIdentity = archiveDocByLocalId[archiveDoc.Id];
+            var docClassification = targetDocIdentitySet.Contains(docIdentity) ? MergeEntityClassification.ExactDuplicateSkipped : MergeEntityClassification.New;
+            var docReason = docClassification == MergeEntityClassification.New ? "source-material-new" : "source-material-exact-duplicate";
+            Record(MergeEntityKind.SourceMaterial, docIdentity.Value, archiveDoc.Id, docClassification, docReason);
+
+            var archiveDocSentenceIdentityByLocalId = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var sentence in archiveDoc.Sentences)
+            {
+                var sentenceIdentity = MergePreflightPlanner.ComputeSentenceRangeIdentity(docIdentity, sentence);
+                archiveDocSentenceIdentityByLocalId[sentence.Id] = sentenceIdentity;
+                var sentenceClassification = targetSentenceIdentitySet.Contains(sentenceIdentity) ? MergeEntityClassification.ExactDuplicateSkipped : MergeEntityClassification.New;
+                var sentenceReason = sentenceClassification == MergeEntityClassification.New ? "sentence-range-new" : "sentence-range-exact-duplicate";
+                Record(MergeEntityKind.SentenceRange, sentenceIdentity, sentence.Id, sentenceClassification, sentenceReason);
+            }
+
+            foreach (var occurrence in archiveDoc.Occurrences)
+            {
+                var vocabIdentity = MergePreflightPlanner.Resolve(archiveVocabByLocalId, occurrence.VocabularyId, "archive occurrence vocabulary");
+                var sentenceIdentity = MergePreflightPlanner.Resolve(archiveDocSentenceIdentityByLocalId, occurrence.SentenceId, "archive occurrence sentence");
+                var occurrenceIdentity = MergePreflightPlanner.ComputeOccurrenceIdentity(docIdentity, sentenceIdentity, vocabIdentity, occurrence);
+                var occurrenceClassification = targetOccurrenceIdentitySet.Contains(occurrenceIdentity) ? MergeEntityClassification.ExactDuplicateSkipped : MergeEntityClassification.New;
+                var occurrenceReason = occurrenceClassification == MergeEntityClassification.New ? "occurrence-new" : "occurrence-exact-duplicate";
+                Record(MergeEntityKind.Occurrence, occurrenceIdentity, occurrence.SentenceId + ":" + occurrence.VocabularyId, occurrenceClassification, occurrenceReason);
+            }
+        }
+
+        // Senses
+        foreach (var archiveSense in archive.Senses)
+        {
+            var vocabIdentity = MergePreflightPlanner.Resolve(archiveVocabByLocalId, archiveSense.VocabularyId, "archive sense vocabulary");
+            var identity = archiveSenseByLocalId[archiveSense.Id];
+            var wordIsNew = !targetVocabIdentitySet.Contains(vocabIdentity);
+
+            MergeEntityClassification classification;
+            string reason;
+            if (wordIsNew)
+            {
+                classification = MergeEntityClassification.New;
+                reason = "sense-new-with-new-word";
+            }
+            else if (targetSenseIdentitySet.Contains(identity))
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "sense-exact-duplicate";
+            }
+            else
+            {
+                classification = MergeEntityClassification.Enriched;
+                reason = "sense-new-semantic-sense-existing-word";
+            }
+
+            Record(MergeEntityKind.Sense, identity.Value, archiveSense.Id, classification, reason);
+        }
+
+        // PreparedLearning (Meanings)
+        var targetContextIdentitySet = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var meaning in target.PreparedLearning)
+        {
+            var semanticIdentity = MergePreflightPlanner.Resolve(targetSenseByLocalId, meaning.SenseId, "target meaning sense");
+            foreach (var context in meaning.Contexts)
+            {
+                if (context.SenseId != meaning.SenseId)
+                {
+                    throw new MergePlanningException(
+                        BackupErrorCodes.InvariantViolation,
+                        $"Target context snapshot sense '{context.SenseId}' does not match parent meaning sense '{meaning.SenseId}'.");
+                }
+                var docIdentity = MergePreflightPlanner.Resolve(targetDocByLocalId, context.SourceMaterialId, "target context snapshot source material");
+                targetContextIdentitySet.Add(MergePreflightPlanner.ComputeContextSnapshotIdentity(semanticIdentity, docIdentity, new BackupContextSnapshot(context.SourceMaterialId, context.SourceTitle, context.Text, context.TargetStart, context.TargetLength, context.NormalizedFingerprint, context.CreatedAtUtc)));
+            }
+        }
+
+        foreach (var archiveMeaning in archive.PreparedLearning)
+        {
+            var semanticIdentity = MergePreflightPlanner.Resolve(archiveSenseByLocalId, archiveMeaning.SenseId, "archive meaning sense");
+            var exactVariantIdentity = archiveExactVariantByLocalId[archiveMeaning.Id];
+
+            MergeEntityClassification classification;
+            string reason;
+
+            if (targetExactVariantIdentitySet.Contains(exactVariantIdentity))
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "meaning-exact-duplicate";
+            }
+            else if (targetSenseIdentitySet.Contains(semanticIdentity))
+            {
+                classification = MergeEntityClassification.PreservedVariant;
+                reason = "meaning-preserved-content-variant-same-sense";
+            }
+            else
+            {
+                classification = MergeEntityClassification.New;
+                reason = "meaning-new-with-new-sense";
+            }
+
+            Record(MergeEntityKind.PreparedMeaning, exactVariantIdentity.Value, archiveMeaning.Id, classification, reason);
+
+            // ContextSnapshot
+            foreach (var context in archiveMeaning.Contexts)
+            {
+                if (context.SenseId != archiveMeaning.SenseId)
+                {
+                    throw new MergePlanningException(
+                        BackupErrorCodes.InvariantViolation,
+                        $"Archive context snapshot sense '{context.SenseId}' does not match parent meaning sense '{archiveMeaning.SenseId}'.");
+                }
+                var docIdentity = MergePreflightPlanner.Resolve(archiveDocByLocalId, context.SourceMaterialId, "archive context snapshot source material");
+                var contextIdentity = MergePreflightPlanner.ComputeContextSnapshotIdentity(semanticIdentity, docIdentity, new BackupContextSnapshot(context.SourceMaterialId, context.SourceTitle, context.Text, context.TargetStart, context.TargetLength, context.NormalizedFingerprint, context.CreatedAtUtc));
+                var contextClassification = targetContextIdentitySet.Contains(contextIdentity) ? MergeEntityClassification.ExactDuplicateSkipped : MergeEntityClassification.New;
+                var contextReason = contextClassification == MergeEntityClassification.New ? "context-snapshot-new" : "context-snapshot-exact-duplicate";
+                Record(MergeEntityKind.ContextSnapshot, contextIdentity, archiveMeaning.Id + ":" + context.NormalizedFingerprint, contextClassification, contextReason);
+            }
+        }
+
+        // AnswerVariants
+        foreach (var archiveVariant in archive.AnswerVariants)
+        {
+            var identity = archiveAnswerVariantByLocalId[archiveVariant.Id];
+            MergeEntityClassification classification;
+            string reason;
+            if (targetAnswerVariantIdentitySet.Contains(identity))
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "answer-variant-exact-duplicate";
+            }
+            else
+            {
+                classification = MergeEntityClassification.New;
+                reason = "answer-variant-new";
+            }
+            Record(MergeEntityKind.AnswerVariant, identity.Value, archiveVariant.Id, classification, reason);
+        }
+
+        // SenseAnswerVariantAssignments
+        var targetAssignmentIdentitySet = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var assignment in target.SenseAnswerVariantAssignments)
+        {
+            var senseId = MergePreflightPlanner.Resolve(targetSenseByLocalId, assignment.SenseId, "target assignment sense");
+            var variantIdentity = MergePreflightPlanner.Resolve(targetAnswerVariantByLocalId, assignment.AnswerVariantId, "target assignment variant");
+            var variant = MergePreflightPlanner.Resolve(targetAnswerVariantsById, assignment.AnswerVariantId, "target assignment variant content");
+            if (variant.SenseId != assignment.SenseId)
+            {
+                throw new MergePlanningException(
+                    BackupErrorCodes.InvariantViolation,
+                    $"Target assignment sense '{assignment.SenseId}' does not match variant sense '{variant.SenseId}'.");
+            }
+            var futureCardId = FutureCardIdentityPolicy.Compute(senseId, assignment.CardDirection);
+            targetAssignmentIdentitySet.Add(futureCardId.Value + "|" + variantIdentity.Value);
+        }
+
+        foreach (var assignment in archive.SenseAnswerVariantAssignments)
+        {
+            var senseId = MergePreflightPlanner.Resolve(archiveSenseByLocalId, assignment.SenseId, "archive assignment sense");
+            var variantIdentity = MergePreflightPlanner.Resolve(archiveAnswerVariantByLocalId, assignment.AnswerVariantId, "archive assignment variant");
+            var variant = MergePreflightPlanner.Resolve(archiveAnswerVariantsById, assignment.AnswerVariantId, "archive assignment variant content");
+            if (variant.SenseId != assignment.SenseId)
+            {
+                throw new MergePlanningException(
+                    BackupErrorCodes.InvariantViolation,
+                    $"Archive assignment sense '{assignment.SenseId}' does not match variant sense '{variant.SenseId}'.");
+            }
+            var futureCardId = FutureCardIdentityPolicy.Compute(senseId, assignment.CardDirection);
+            var identity = futureCardId.Value + "|" + variantIdentity.Value;
+            
+            MergeEntityClassification classification;
+            string reason;
+            if (targetAssignmentIdentitySet.Contains(identity))
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "assignment-exact-duplicate";
+            }
+            else
+            {
+                classification = MergeEntityClassification.New;
+                reason = "assignment-new";
+            }
+            Record(MergeEntityKind.SenseAnswerVariantAssignment, identity, assignment.Id, classification, reason);
+        }
+
+        // LearningReviews
+        string ComputeReviewFingerprint(FutureCardIdentity futureCardIdentity, BackupLearningReviewV2 review)
+        {
+            var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.Preflight.MeaningAwareLearningReview.v1")
+                .WriteString(futureCardIdentity.Value)
+                .WriteUtcTimestamp(review.ReviewedAtUtc)
+                .WriteEnum(review.Rating)
+                .WriteBoolean(review.WasTypedAnswer)
+                .WriteBoolean(review.WasCorrect)
+                .WriteUtcTimestamp(review.DueAtUtc)
+                .WriteInt32(review.IntervalDays)
+                .WriteDouble(review.EaseFactor);
+
+            return builder.ComputeSha256Hex();
+        }
+
+        var targetReviewFingerprints = new HashSet<string>(
+            target.Learning.ReviewEvents.Select(r => ComputeReviewFingerprint(
+                MergePreflightPlanner.Resolve(targetFutureCardIdByLocalId, r.CardId, "target learning review card"), r)), StringComparer.Ordinal);
+        var cardsWithNewEvents = new HashSet<FutureCardIdentity>();
+
+        foreach (var review in archive.Learning.ReviewEvents)
+        {
+            var futureCardIdentity = MergePreflightPlanner.Resolve(archiveFutureCardIdByLocalId, review.CardId, "archive learning review card");
+            var archiveCard = MergePreflightPlanner.Resolve(archiveCardsByLocalId, review.CardId, "archive learning review card content");
+
+            if (review.TargetAnswerVariantId is not null)
+            {
+                var targetVariant = MergePreflightPlanner.Resolve(archiveAnswerVariantsById, review.TargetAnswerVariantId, "archive review target answer variant");
+                if (targetVariant.SenseId != archiveCard.SenseId)
+                {
+                    throw new MergePlanningException(
+                        BackupErrorCodes.InvariantViolation,
+                        $"Archive learning review target variant sense '{targetVariant.SenseId}' does not match card sense '{archiveCard.SenseId}'.");
+                }
+            }
+
+            if (review.MatchedAnswerVariantId is not null)
+            {
+                var matchedVariant = MergePreflightPlanner.Resolve(archiveAnswerVariantsById, review.MatchedAnswerVariantId, "archive review matched answer variant");
+                if (matchedVariant.SenseId != archiveCard.SenseId)
+                {
+                    throw new MergePlanningException(
+                        BackupErrorCodes.InvariantViolation,
+                        $"Archive learning review matched variant sense '{matchedVariant.SenseId}' does not match card sense '{archiveCard.SenseId}'.");
+                }
+            }
+
+            var fingerprint = ComputeReviewFingerprint(futureCardIdentity, review);
+
+            MergeEntityClassification classification;
+            string reason;
+            if (targetReviewFingerprints.Contains(fingerprint))
+            {
+                classification = MergeEntityClassification.DeduplicatedEvent;
+                reason = "learning-review-exact-duplicate-event";
+            }
+            else
+            {
+                classification = MergeEntityClassification.New;
+                reason = "learning-review-new-distinct-event";
+                cardsWithNewEvents.Add(futureCardIdentity);
+            }
+
+            var label = review.CardId + "@" + review.ReviewedAtUtc.ToString("O", CultureInfo.InvariantCulture);
+            Record(MergeEntityKind.LearningReview, fingerprint, label, classification, reason);
+        }
+
+        // LearningCards
+        foreach (var archiveCard in archive.Learning.Cards)
+        {
+            var futureCardIdentity = MergePreflightPlanner.Resolve(archiveFutureCardIdByLocalId, archiveCard.Id, "archive learning card future card identity");
+            var archivePreferredItem = MergePreflightPlanner.Resolve(archivePreparedByLocalId, archiveCard.PreferredMeaningId, "archive learning card preferred meaning");
+            if (archivePreferredItem.SenseId != archiveCard.SenseId)
+            {
+                throw new MergePlanningException(
+                    BackupErrorCodes.InvariantViolation,
+                    $"Archive learning card preferred meaning sense '{archivePreferredItem.SenseId}' does not match card sense '{archiveCard.SenseId}'.");
+            }
+
+            MergeEntityClassification classification;
+            string reason;
+
+            if (targetCardsByFutureCardIdentity.ContainsKey(futureCardIdentity))
+            {
+                classification = cardsWithNewEvents.Contains(futureCardIdentity)
+                    ? MergeEntityClassification.Enriched
+                    : MergeEntityClassification.ExactDuplicateSkipped;
+                reason = classification == MergeEntityClassification.Enriched
+                    ? "learning-card-enriched-new-review-events"
+                    : "learning-card-exact-duplicate";
+            }
+            else
+            {
+                classification = MergeEntityClassification.New;
+                reason = "learning-card-new";
+            }
+
+            Record(MergeEntityKind.LearningCard, futureCardIdentity.Value, archiveCard.Id, classification, reason);
+        }
+
+        var requiresSchedulerReplay = cardsWithNewEvents.Overlaps(targetCardsByFutureCardIdentity.Keys);
+
+        // PreferredVariantSelectionDecision
+        foreach (var archiveCard in archive.Learning.Cards.OrderBy(c => c.Id, StringComparer.Ordinal))
+        {
+            var futureCardIdentity = MergePreflightPlanner.Resolve(archiveFutureCardIdByLocalId, archiveCard.Id, "archive learning card future card identity decision");
+            if (!targetCardsByFutureCardIdentity.TryGetValue(futureCardIdentity, out var targetCard))
+            {
+                continue;
+            }
+
+            var targetExactVariantIdentity = MergePreflightPlanner.Resolve(targetExactVariantByLocalId, targetCard.PreferredMeaningId, "target preferred-variant card preferred meaning");
+            var archiveExactVariantIdentity = MergePreflightPlanner.Resolve(archiveExactVariantByLocalId, archiveCard.PreferredMeaningId, "archive preferred-variant card preferred meaning");
+            if (targetExactVariantIdentity.Equals(archiveExactVariantIdentity))
+            {
+                continue;
+            }
+
+            var semanticIdentity = MergePreflightPlanner.Resolve(archiveSenseByLocalId, archiveCard.SenseId, "archive preferred-variant card semantic meaning");
+            var targetPreparedItem = MergePreflightPlanner.Resolve(targetPreparedByLocalId, targetCard.PreferredMeaningId, "target preferred-variant card prepared item content");
+            var archivePreparedItem = MergePreflightPlanner.Resolve(archivePreparedByLocalId, archiveCard.PreferredMeaningId, "archive preferred-variant card prepared item content");
+
+            var decisionId = MakeDecisionId(
+                "KnownFirst.Merge.Decision.PreferredVariant.v2",
+                futureCardIdentity.Value + "|" + targetExactVariantIdentity.Value + "|" + archiveExactVariantIdentity.Value);
+            preferredVariantSelectionDecisions.Add(new PreferredVariantSelectionDecision(
+                decisionId,
+                futureCardIdentity,
+                semanticIdentity,
+                targetExactVariantIdentity,
+                archiveExactVariantIdentity,
+                targetPreparedItem.DisplayTerm,
+                archivePreparedItem.DisplayTerm,
+                PreferredVariantSelectionDecision.StandardChoices));
+        }
+
+        // AnswerVariantProgress
+        var targetProgressIdentitySet = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var progress in target.AnswerVariantProgress)
+        {
+            var futureCardId = MergePreflightPlanner.Resolve(targetFutureCardIdByLocalId, progress.CardId, "target progress card");
+            var variantIdentity = MergePreflightPlanner.Resolve(targetAnswerVariantByLocalId, progress.AnswerVariantId, "target progress variant");
+            var targetCard = MergePreflightPlanner.Resolve(targetCardsByLocalId, progress.CardId, "target progress card content");
+            var targetVariant = MergePreflightPlanner.Resolve(targetAnswerVariantsById, progress.AnswerVariantId, "target progress variant content");
+            if (targetCard.SenseId != targetVariant.SenseId)
+            {
+                throw new MergePlanningException(
+                    BackupErrorCodes.InvariantViolation,
+                    $"Target progress card sense '{targetCard.SenseId}' does not match answer variant sense '{targetVariant.SenseId}'.");
+            }
+            targetProgressIdentitySet.Add(futureCardId.Value + "|" + variantIdentity.Value);
+        }
+
+        foreach (var progress in archive.AnswerVariantProgress)
+        {
+            var futureCardId = MergePreflightPlanner.Resolve(archiveFutureCardIdByLocalId, progress.CardId, "archive progress card");
+            var variantIdentity = MergePreflightPlanner.Resolve(archiveAnswerVariantByLocalId, progress.AnswerVariantId, "archive progress variant");
+            var archiveCard = MergePreflightPlanner.Resolve(archiveCardsByLocalId, progress.CardId, "archive progress card content");
+            var archiveVariant = MergePreflightPlanner.Resolve(archiveAnswerVariantsById, progress.AnswerVariantId, "archive progress variant content");
+            if (archiveCard.SenseId != archiveVariant.SenseId)
+            {
+                throw new MergePlanningException(
+                    BackupErrorCodes.InvariantViolation,
+                    $"Archive progress card sense '{archiveCard.SenseId}' does not match answer variant sense '{archiveVariant.SenseId}'.");
+            }
+            var identity = futureCardId.Value + "|" + variantIdentity.Value;
+            
+            MergeEntityClassification classification;
+            string reason;
+            if (targetProgressIdentitySet.Contains(identity))
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "progress-exact-duplicate";
+            }
+            else
+            {
+                classification = MergeEntityClassification.New;
+                reason = "progress-new";
+            }
+            Record(MergeEntityKind.AnswerVariantProgress, identity, progress.CardId + ":" + progress.AnswerVariantId, classification, reason);
+        }
+
+        // VocabularyReviewWorkflow + VocabularyReviewItem
+        var targetReviewItemContentByIdentity = new Dictionary<ReviewCandidateIdentity, BackupVocabularyReviewItem>();
+        foreach (var session in target.Workflows.VocabularyReviews)
+        {
+            var docIdentity = MergePreflightPlanner.Resolve(targetDocByLocalId, session.SourceMaterialId, "target review session source material");
+            foreach (var item in session.Items)
+            {
+                var itemIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentity(item, docIdentity, targetVocabByLocalId);
+                targetReviewItemContentByIdentity.TryAdd(itemIdentity, item);
+            }
+        }
+
+        foreach (var session in archive.Workflows.VocabularyReviews)
+        {
+            var identity = ReviewWorkflowIdentityPolicy.ComputeSessionIdentity(session, archiveDocByLocalId);
+            MergeEntityClassification classification;
+            string reason;
+            DecisionId? decisionId = null;
+
+            if (!targetReviewSessionByIdentity.TryGetValue(identity, out var targetSession))
+            {
+                classification = MergeEntityClassification.New;
+                reason = "review-workflow-new";
+            }
+            else if (MergePreflightPlanner.ReviewWorkflowContentEquals(targetSession, session))
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "review-workflow-exact-duplicate";
+            }
+            else
+            {
+                classification = MergeEntityClassification.UnresolvedConflict;
+                reason = "review-workflow-history-divergence";
+                decisionId = MakeDecisionId("KnownFirst.Merge.Decision.WorkflowHistory.ReviewSession.v1", identity.Value);
+                workflowStatusDecisions.Add(new WorkflowStatusConflictDecision(decisionId.Value, MergeEntityKind.VocabularyReviewWorkflow, session.Id, reason));
+                blockingPrerequisites.Add(MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired);
+            }
+
+            Record(MergeEntityKind.VocabularyReviewWorkflow, identity.Value, session.Id, classification, reason, decisionId);
+
+            var docIdentityForItems = MergePreflightPlanner.Resolve(archiveDocByLocalId, session.SourceMaterialId, "archive review session source material");
+            foreach (var item in session.Items)
+            {
+                var itemIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentity(item, docIdentityForItems, archiveVocabByLocalId);
+                MergeEntityClassification itemClassification;
+                string itemReason;
+                if (!targetReviewItemContentByIdentity.TryGetValue(itemIdentity, out var targetItem))
+                {
+                    itemClassification = MergeEntityClassification.New;
+                    itemReason = "review-item-new";
+                }
+                else if (MergePreflightPlanner.ReviewItemContentEquals(targetItem, item))
+                {
+                    itemClassification = MergeEntityClassification.ExactDuplicateSkipped;
+                    itemReason = "review-item-exact-duplicate";
+                }
+                else
+                {
+                    itemClassification = MergeEntityClassification.New;
+                    itemReason = "review-item-preserved-divergent-history";
+                }
+
+                Record(MergeEntityKind.VocabularyReviewItem, itemIdentity.Value, item.Id, itemClassification, itemReason);
+            }
+        }
+
+        // PreparationWorkflow + PreparationItem
+        var targetPrepSessionIdByLocalId = MergePreflightPlanner.BuildIdentityMap(target.Workflows.PreparationBatches, s => s.Id, s => PreparationWorkflowIdentityPolicy.ComputeSessionIdentity(s, targetVocabByLocalId), "target preparation session");
+        var archivePrepSessionIdByLocalId = MergePreflightPlanner.BuildIdentityMap(archive.Workflows.PreparationBatches, s => s.Id, s => PreparationWorkflowIdentityPolicy.ComputeSessionIdentity(s, archiveVocabByLocalId), "archive preparation session");
+        var targetPrepSessionsByIdentity = MergePreflightPlanner.ToUniqueDictionary(target.Workflows.PreparationBatches, s => targetPrepSessionIdByLocalId[s.Id], "target preparation session identity");
+
+        var targetPrepItemContentByIdentity = new Dictionary<PreparationCandidateIdentity, BackupPreparationItem>();
+        foreach (var session in target.Workflows.PreparationBatches)
+        {
+            var sessionIdentity = MergePreflightPlanner.Resolve(targetPrepSessionIdByLocalId, session.Id, "target preparation session identity map");
+            foreach (var item in session.Items)
+            {
+                targetPrepItemContentByIdentity.TryAdd(PreparationWorkflowIdentityPolicy.ComputeCandidateIdentity(item, sessionIdentity, targetVocabByLocalId), item);
+            }
+        }
+
+        foreach (var session in archive.Workflows.PreparationBatches)
+        {
+            var identity = MergePreflightPlanner.Resolve(archivePrepSessionIdByLocalId, session.Id, "archive preparation session identity map");
+            MergeEntityClassification classification;
+            string reason;
+            DecisionId? decisionId = null;
+
+            if (!targetPrepSessionsByIdentity.TryGetValue(identity, out var targetSession))
+            {
+                classification = MergeEntityClassification.New;
+                reason = "preparation-workflow-new";
+            }
+            else if (targetSession.Status == session.Status)
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "preparation-workflow-exact-duplicate";
+            }
+            else
+            {
+                var statusResult = WorkflowSessionStateConflictPolicy.ResolvePreparationSession(targetSession.Status, session.Status);
+                if (statusResult.Classification == MergeConflictClassification.UnresolvedKeepTargetWithWarning)
+                {
+                    classification = MergeEntityClassification.UnresolvedConflict;
+                    reason = statusResult.ReasonCode;
+                    warningCodes.Add(reason);
+                    decisionId = MakeDecisionId("KnownFirst.Merge.Decision.WorkflowStatus.v1", identity.Value);
+                    workflowStatusDecisions.Add(new WorkflowStatusConflictDecision(decisionId.Value, MergeEntityKind.PreparationWorkflow, session.Id, reason));
+                }
+                else
+                {
+                    classification = MergeEntityClassification.Enriched;
+                    reason = "preparation-workflow-status-monotonic-advance";
+                }
+            }
+
+            Record(MergeEntityKind.PreparationWorkflow, identity.Value, session.Id, classification, reason, decisionId);
+
+            var sessionIdentity = identity;
+            foreach (var item in session.Items)
+            {
+                var itemIdentity = PreparationWorkflowIdentityPolicy.ComputeCandidateIdentity(item, sessionIdentity, archiveVocabByLocalId);
+                MergeEntityClassification itemClassification;
+                string itemReason;
+                if (!targetPrepItemContentByIdentity.TryGetValue(itemIdentity, out var targetItem))
+                {
+                    itemClassification = MergeEntityClassification.New;
+                    itemReason = "preparation-item-new";
+                }
+                else if (MergePreflightPlanner.PreparationItemContentEquals(targetItem, item))
+                {
+                    itemClassification = MergeEntityClassification.ExactDuplicateSkipped;
+                    itemReason = "preparation-item-exact-duplicate";
+                }
+                else
+                {
+                    itemClassification = MergeEntityClassification.New;
+                    itemReason = "preparation-item-preserved-divergent-history";
+                }
+
+                Record(MergeEntityKind.PreparationItem, itemIdentity.Value, item.Id, itemClassification, itemReason);
+            }
+        }
+
+        // LearningWorkflow + LearningQueueItem
+        string ComputeLearningSessionIdentity(BackupLearningWorkflowV2 session, IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByLocalId)
+        {
+            var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.LearningWorkflow.v1");
+            var itemCards = session.QueueItems
+                .Select(qi => MergePreflightPlanner.Resolve(cardIdentitiesByLocalId, qi.CardId, "learning session queue card"))
+                .OrderBy(c => c.Value, StringComparer.Ordinal);
+            foreach (var c in itemCards)
+            {
+                builder.WriteString(c.Value);
+            }
+            return builder.ComputeSha256Hex();
+        }
+
+        string ComputeSessionCardIdentity(BackupLearningQueueItemV2 item, string sessionIdentity, IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByLocalId)
+        {
+            var futureCardId = MergePreflightPlanner.Resolve(cardIdentitiesByLocalId, item.CardId, "learning session card");
+            var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.LearningQueueItem.v1")
+                .WriteString(sessionIdentity)
+                .WriteString(futureCardId.Value);
+            return builder.ComputeSha256Hex();
+        }
+
+        bool LearningQueueItemContentEqualsV2(BackupLearningQueueItemV2 a, BackupLearningQueueItemV2 b) =>
+            a.IsDueCard == b.IsDueCard
+            && a.IsAgainRepeat == b.IsAgainRepeat
+            && a.AnswerRevealed == b.AnswerRevealed
+            && a.SpellingChecked == b.SpellingChecked
+            && a.SpellingCorrect == b.SpellingCorrect
+            && a.IsCompleted == b.IsCompleted
+            && a.Rating == b.Rating
+            && a.CompletedAtUtc == b.CompletedAtUtc;
+
+        var targetLearningSessionIdByLocalId = MergePreflightPlanner.BuildIdentityMap(target.Workflows.LearningSessions, s => s.Id, s => ComputeLearningSessionIdentity(s, targetFutureCardIdByLocalId), "target learning session");
+        var archiveLearningSessionIdByLocalId = MergePreflightPlanner.BuildIdentityMap(archive.Workflows.LearningSessions, s => s.Id, s => ComputeLearningSessionIdentity(s, archiveFutureCardIdByLocalId), "archive learning session");
+        var targetLearningSessionIdentitySet = new HashSet<string>(targetLearningSessionIdByLocalId.Values, StringComparer.Ordinal);
+
+        var targetLearningQueueItemContentByIdentity = new Dictionary<string, BackupLearningQueueItemV2>(StringComparer.Ordinal);
+        foreach (var session in target.Workflows.LearningSessions)
+        {
+            var sessionIdentity = MergePreflightPlanner.Resolve(targetLearningSessionIdByLocalId, session.Id, "target learning session identity map");
+            foreach (var item in session.QueueItems)
+            {
+                if (item.TargetAnswerVariantId is not null)
+                {
+                    var card = MergePreflightPlanner.Resolve(targetCardsByLocalId, item.CardId, "target learning queue card");
+                    var variant = MergePreflightPlanner.Resolve(targetAnswerVariantsById, item.TargetAnswerVariantId, "target learning queue target answer variant");
+                    if (variant.SenseId != card.SenseId)
+                    {
+                        throw new MergePlanningException(
+                            BackupErrorCodes.InvariantViolation,
+                            $"Target learning queue item target variant sense '{variant.SenseId}' does not match card sense '{card.SenseId}'.");
+                    }
+                }
+
+                targetLearningQueueItemContentByIdentity.TryAdd(ComputeSessionCardIdentity(item, sessionIdentity, targetFutureCardIdByLocalId), item);
+            }
+        }
+
+        foreach (var session in archive.Workflows.LearningSessions)
+        {
+            var identity = MergePreflightPlanner.Resolve(archiveLearningSessionIdByLocalId, session.Id, "archive learning session identity map");
+            MergeEntityClassification classification;
+            string reason;
+
+            if (targetLearningSessionIdentitySet.Contains(identity))
+            {
+                classification = MergeEntityClassification.ExactDuplicateSkipped;
+                reason = "learning-workflow-exact-duplicate";
+            }
+            else
+            {
+                classification = MergeEntityClassification.New;
+                reason = "learning-workflow-new";
+            }
+
+            Record(MergeEntityKind.LearningWorkflow, identity, session.Id, classification, reason);
+
+            var sessionIdentity = identity;
+            foreach (var item in session.QueueItems)
+            {
+                if (item.TargetAnswerVariantId is not null)
+                {
+                    var card = MergePreflightPlanner.Resolve(archiveCardsByLocalId, item.CardId, "archive learning queue card");
+                    var variant = MergePreflightPlanner.Resolve(archiveAnswerVariantsById, item.TargetAnswerVariantId, "archive learning queue target answer variant");
+                    if (variant.SenseId != card.SenseId)
+                    {
+                        throw new MergePlanningException(
+                            BackupErrorCodes.InvariantViolation,
+                            $"Archive learning queue item target variant sense '{variant.SenseId}' does not match card sense '{card.SenseId}'.");
+                    }
+                }
+
+                var itemIdentity = ComputeSessionCardIdentity(item, sessionIdentity, archiveFutureCardIdByLocalId);
+                MergeEntityClassification itemClassification;
+                string itemReason;
+                if (!targetLearningQueueItemContentByIdentity.TryGetValue(itemIdentity, out var targetItem))
+                {
+                    itemClassification = MergeEntityClassification.New;
+                    itemReason = "learning-queue-item-new";
+                }
+                else if (LearningQueueItemContentEqualsV2(targetItem, item))
+                {
+                    itemClassification = MergeEntityClassification.ExactDuplicateSkipped;
+                    itemReason = "learning-queue-item-exact-duplicate";
+                }
+                else
+                {
+                    itemClassification = MergeEntityClassification.New;
+                    itemReason = "learning-queue-item-preserved-divergent-history";
+                }
+
+                Record(MergeEntityKind.LearningQueueItem, itemIdentity, item.Id, itemClassification, itemReason);
+            }
+        }
+
+        var sortedActions = actions
+            .OrderBy(a => (int)a.EntityKind)
+            .ThenBy(a => a.StableIdentity, StringComparer.Ordinal)
+            .ThenBy(a => a.ArchiveLocalId, StringComparer.Ordinal)
+            .ToList();
+
+        var sampleDetails = new Dictionary<MergeEntityClassification, List<string>>();
+        foreach (var action in sortedActions)
+        {
+            if (!sampleDetails.TryGetValue(action.Classification, out var list))
+            {
+                list = new List<string>();
+                sampleDetails[action.Classification] = list;
+            }
+
+            if (list.Count < MergePreflightPlan.MaxSampleDetailsPerCategory)
+            {
+                list.Add($"{action.EntityKind}:{action.ArchiveLocalId}:{action.ReasonCode}");
+            }
+        }
+
+        var sampleDetailsReadOnly = sampleDetails.ToDictionary(
+            entry => entry.Key,
+            entry => (IReadOnlyList<string>)entry.Value);
+
+        var sortedKnowledgeStateDecisions = knowledgeStateDecisions
+            .OrderBy(d => d.DecisionId.Value, StringComparer.Ordinal)
+            .ToList();
+        var sortedWorkflowStatusDecisions = workflowStatusDecisions
+            .OrderBy(d => d.DecisionId.Value, StringComparer.Ordinal)
+            .ToList();
+        var sortedPreferredVariantSelectionDecisions = preferredVariantSelectionDecisions
+            .OrderBy(d => d.DecisionId.Value, StringComparer.Ordinal)
+            .ToList();
+        var sortedBlockingPrerequisites = blockingPrerequisites
+            .OrderBy(p => p, StringComparer.Ordinal)
+            .ToList();
+
+        var status = MergePreflightStatus.Ready;
+        if (sortedBlockingPrerequisites.Count > 0)
+        {
+            status = MergePreflightStatus.BlockedByPrerequisite;
+        }
+        else if (sortedKnowledgeStateDecisions.Count > 0 || sortedWorkflowStatusDecisions.Count > 0 ||
+                 sortedPreferredVariantSelectionDecisions.Count > 0)
+        {
+            status = MergePreflightStatus.RequiresUserDecision;
+        }
+        else if (sortedActions.All(a => a.Classification == MergeEntityClassification.ExactDuplicateSkipped || a.Classification == MergeEntityClassification.DeduplicatedEvent))
+        {
+            status = MergePreflightStatus.NoChanges;
+        }
+
+        var isExecutable = status is MergePreflightStatus.Ready or MergePreflightStatus.NoChanges;
+
+        return new MergePreflightPlan(
+            status,
+            isExecutable,
+            archiveManifest,
+            true,
+            counts,
+            sortedActions,
+            Array.Empty<DerivedAnswerVariantPlan>(),
+            sortedKnowledgeStateDecisions,
+            sortedWorkflowStatusDecisions,
+            Array.Empty<SemanticMeaningGroupingDecision>(),
+            sortedPreferredVariantSelectionDecisions,
+            sortedBlockingPrerequisites,
+            sampleDetailsReadOnly,
+            warningCodes.ToList(),
+            requiresSchedulerReplay,
+            null);
+    }
+}

@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-01
-**State source:** `master` (`e1724651dd7d4d3ed427b84a96da3d909d0c72ed`, PR #41 merge commit)
-**Next product milestone:** KF-MEANING-001 Slice 7 — Schema-8 MergePreflight adaptation
+**Status date:** 2026-08-02
+**State source:** `master` (`3debd7a1b1d300ea08586b1b6d8570db72cf6138`, PR #42 merge commit)
+**Next product milestone:** KF-MEANING-001 Slice 8 — populated-target merge writer and Import routing
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -108,21 +108,16 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `e1724651dd7d4d3ed427b84a96da3d909d0c72ed` (PR #41 merged), carrying source version `1.0.0-beta.12` (build 12). **KF-MEANING-001 Slice 6 — Schema-8 activation** is implemented and validated as unmerged feature-branch work on `feature/meaning-slice6-schema8-activation`, with a focused result of 466 passed, 0 failed, 0 skipped and a complete result of 1542 passed, 0 failed, 0 skipped. Manual merge is pending.
+The stable master baseline is `3debd7a1b1d300ea08586b1b6d8570db72cf6138` (PR #42 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
 
-Verified Slice-6 behavior on that branch:
+**KF-MEANING-001 Slice 7 — Schema-8 MergePreflight adaptation** is implemented and validated as unmerged feature-branch work on `feature/meaning-slice7-schema8-merge-preflight` (checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`), with a focused result of 135 passed, 0 failed, 0 skipped and a complete result of 1551 passed, 0 failed, 0 skipped. Manual merge is pending.
 
-- `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases.
-- A fresh database initializes directly to a validated Schema 8.
-- Supported versions 0–6 reach the Schema-7 baseline boundary and are then migrated to Schema 8 in the same initialization; a version-7 database migrates to Schema 8 directly.
-- A valid version-8 database is validation-only on reopen and is never mutated.
-- Malformed Schema-8 databases and databases newer than version 8 fail closed without repair.
-- The migration is transactional, rollback-safe, cancellation-safe, and retryable; a failed attempt leaves the source database byte-for-byte unchanged.
-- Structural validation covers tables, columns, declared nullability and primary-key semantics, legacy artifacts, index definitions, enum domains, ownership, queue/review answer-variant targets, and persisted relationships.
-- Legacy enum backfills normalize pre-Schema-7 rows to deterministic supported values before activation.
-- `DashboardService` and `TextReviewService` use Schema-8 semantics via validated schema-capability resolution.
-- Schema-8 archive export and merge safety copies use archive format v2; format v1 remains readable and can restore into an empty Schema-8 target.
+Verified Slice-7 behavior on that branch:
+
+- `MergePreflightService`/`MergePreflightPlannerV2` plan merges for active Schema-8 targets against archive-v2 (Schema-8) sources, and against archive-v1 sources through the existing in-memory upgrade path.
+- Preflight is deterministic and strictly read-only: no target mutation, no safety copy, no writer invocation.
+- Multiple Senses of the same Word remain independent in the plan.
+- Sense-addressed meanings, answer variants, `SenseAnswerVariantAssignment`s, `AnswerVariantProgress`, learning cards, reviews, queue items, and vocabulary/preparation workflows are all covered.
 - Import into a populated target remains refused.
-- `MergePreflightService` intentionally fails closed on a Schema-8 target with `merge-preflight-schema8-adaptation-required`, pending Slice 7.
 
-The populated-target merge writer and Import routing remain unimplemented.
+The populated-target merge writer (Slice 8) and Import routing remain unimplemented.

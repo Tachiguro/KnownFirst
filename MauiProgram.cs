@@ -70,7 +70,21 @@ public static class MauiProgram
         builder.Services.AddSingleton<IBackupPlatformInfo, MauiBackupPlatformInfo>();
         builder.Services.AddSingleton<IBackupService, BackupService>();
 #if WINDOWS
+#if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
+        if (GuiTestPortableArchive.IsActive)
+        {
+            // GUI-test-only: replaces only the interactive native Save/Open picker boundary. Real
+            // archive capture, mapping, writing, validation, and import still run through the
+            // genuine BackupService — see GuiTestPortableArchiveFileService.
+            builder.Services.AddSingleton<IPortableArchiveFileService, GuiTestPortableArchiveFileService>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<IPortableArchiveFileService, WindowsPortableArchiveFileService>();
+        }
+#else
         builder.Services.AddSingleton<IPortableArchiveFileService, WindowsPortableArchiveFileService>();
+#endif
 #elif ANDROID
         builder.Services.AddSingleton<IPortableArchiveFileService, AndroidPortableArchiveFileService>();
 #endif

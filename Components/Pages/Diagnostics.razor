@@ -86,7 +86,7 @@
     else if (_snapshot is not null)
     {
         <section class="settings-card diagnostic-section">
-            <h2>@Localizer["Diagnostics_ExplanationTitle"]</h2>
+            <h2 id="diagnostics-loaded">@Localizer["Diagnostics_ExplanationTitle"]</h2>
             <p>@Localizer["Diagnostics_ExplanationIntro"]</p>
             <dl class="diagnostic-definitions">
                 <div>
@@ -561,7 +561,7 @@
                                 <td>@candidate.Order</td>
                                 <td>@candidate.Status</td>
                                 <td>@candidate.SelectedMeaningIndex</td>
-                                <td class="preview-cell">@(string.Join(" | ", candidate.AvailableMeanings))</td>
+                                <td class="preview-cell" id="diagnostics-candidate-meanings">@(string.Join(" | ", candidate.AvailableMeanings))</td>
                                 <td>@candidate.LookupAttemptCount</td>
                                 <td>@candidate.LastErrorCode</td>
                             </tr>

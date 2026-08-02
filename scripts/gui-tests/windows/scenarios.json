@@ -51,6 +51,26 @@
       "timeoutSeconds": 300,
       "expectsScreenshots": true,
       "status": "Implemented"
+    },
+    {
+      "id": "DiagnosticsPopulated",
+      "displayName": "Diagnostics: populated after real Schema-8 acceptance",
+      "description": "Accepts a seeded candidate with the real Accept button, then opens Debug diagnostics and proves it loads successfully and shows the prepared candidate's real meaning (regression coverage for the diagnostics-export-import stale-reader repair).",
+      "implementationScript": "scripts/gui-tests/windows/scenarios/DiagnosticsPopulated.ps1",
+      "supportedConfigurations": ["Debug"],
+      "timeoutSeconds": 300,
+      "expectsScreenshots": true,
+      "status": "Implemented"
+    },
+    {
+      "id": "PortableDataExportSelfImport",
+      "displayName": "Data: export success and self-import",
+      "description": "Accepts a seeded candidate with the real Accept button, exports it via Settings and proves success is reported, then self-imports the exact exported bytes and proves no validation-failure message appears (regression coverage for the diagnostics-export-import stale-reader repair). Uses the GUI-test-only KNOWNFIRST_GUI_TEST_ARCHIVE_SEAM picker seam instead of automating the native file picker.",
+      "implementationScript": "scripts/gui-tests/windows/scenarios/PortableDataExportSelfImport.ps1",
+      "supportedConfigurations": ["Debug"],
+      "timeoutSeconds": 300,
+      "expectsScreenshots": true,
+      "status": "Implemented"
     }
   ]
 }

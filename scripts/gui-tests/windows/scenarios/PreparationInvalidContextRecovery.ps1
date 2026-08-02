@@ -13,6 +13,28 @@
     used, via the wrappers in GuiTestRunnerCore.ps1.
 #>
 
+# Counts elements in the rendered UI Automation tree whose name matches a text query, using
+# `winapp ui search` (see Invoke-UiaSearch in GuiTestRunnerCore.ps1). Unlike `ui inspect -d N`,
+# search is not bounded to a fixed number of tree levels from the window root, so it can reach
+# text rendered deep inside the WebView2 content and prove a marker's presence or absence
+# instead of only whether inspection itself succeeded.
+function Get-UiaTextMatchCount {
+    param([Parameter(Mandatory = $true)][string]$Query)
+
+    $result = Invoke-UiaSearch -Selector $Query -Max 5
+    if (-not $result.Succeeded) {
+        return 0
+    }
+    try {
+        $parsed = $result.Output | Out-String | ConvertFrom-Json
+        return [int](Get-JsonProperty $parsed 'matchCount')
+    }
+    catch {
+        Write-RunnerLog "Failed to parse UIA search result count: $_" -Level Warn
+        return 0
+    }
+}
+
 function Invoke-ScenarioPreparationInvalidContextRecovery {
     param(
         [Parameter(Mandatory = $true)][object]$Context,
@@ -79,15 +101,29 @@ function Invoke-ScenarioPreparationInvalidContextRecovery {
             -RouteMarkerSelector 'preparation-candidate-term' -TransitionTimeoutMs 15000 | Out-Null
 
         # --- The misattributed context text must never appear on screen -----------------------
-        # Reads only structural page text for this one bounded check (never logged or persisted
-        # elsewhere) - "urgent" is fixture text, not real user content.
-        $pageInspect = Invoke-UiaInspect -Selector 'preparation-candidate-term' -Depth 12
-        $pageDumpPath = Save-UiaDump -Name 'prepare-words-page-dump' -Content (($pageInspect.Output | Out-String))
+        # `ui inspect -d N` only dumps the tree to a bounded depth from the window root, which
+        # never reaches this deep into the WebView2 content - it cannot prove absence, only that
+        # inspection itself did not throw. `ui search` instead matches by rendered name at any
+        # depth (the same primitive already used elsewhere in this scenario to find nav/candidate
+        # elements), so it can actually prove the fixture sentence is or is not on screen. Only a
+        # bounded match count is ever recorded in the report/summary Detail - the fixture
+        # sentences themselves are never written into summary.json, report.md, or an assertion
+        # Detail/failure message.
         $stepNumber++
         Add-RunStep -StepNumber $stepNumber -Name 'Verify the misattributed context is never displayed' -Kind 'assertion' | Out-Null
+
+        # The deliberately misattributed occurrence's sentence is the only place this token
+        # appears anywhere in this scenario's seeded content.
+        $invalidContextMatchCount = Get-UiaTextMatchCount -Query 'urgent'
         $assertionNumber++
-        Assert-UiaCondition -Number $assertionNumber -Description 'No slicing exception occurred while rendering context (page inspection itself succeeded)' `
-            -Condition $pageInspect.Succeeded -Detail "UIA dump: $pageDumpPath" | Out-Null
+        Assert-UiaCondition -Number $assertionNumber -Description 'misattributed-context-not-rendered' `
+            -Condition ($invalidContextMatchCount -eq 0) -Detail "matchCount=$invalidContextMatchCount" | Out-Null
+
+        # The genuine, correctly attributed context must still render normally alongside the fix.
+        $validContextMatchCount = Get-UiaTextMatchCount -Query 'preferred'
+        $assertionNumber++
+        Assert-UiaCondition -Number $assertionNumber -Description 'The genuine valid context remains visible when present' `
+            -Condition ($validContextMatchCount -gt 0) -Detail "matchCount=$validContextMatchCount" | Out-Null
 
         # --- Accept still works even though one of the candidate's occurrences is invalid -----
         $beforeShot = Save-DedupedScreenshot -StepId 'before-accept-invalid-context'

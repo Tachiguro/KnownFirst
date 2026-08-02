@@ -1,14 +1,25 @@
 using KnownFirst.Data;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
+using KnownFirst.Services.DataSafety.Merge;
 
 namespace KnownFirst.Services.DataSafety;
 
 public sealed class BackupService(
     IKnownFirstDatabase database,
     IBackupPlatformInfo platformInfo,
-    IBackupImportFailureInjector? failureInjector = null) : IBackupService
+    IBackupImportFailureInjector? failureInjector = null,
+    IMergePreflightService? mergePreflightService = null,
+    IMergeSafetyCopyService? mergeSafetyCopyService = null,
+    IMergeWriterService? mergeWriterService = null) : IBackupService
 {
+    private readonly IMergePreflightService _mergePreflightService =
+        mergePreflightService ?? new MergePreflightService(database);
+    private readonly IMergeSafetyCopyService _mergeSafetyCopyService =
+        mergeSafetyCopyService ?? new MergeSafetyCopyService(database, platformInfo);
+    private readonly IMergeWriterService _mergeWriterService =
+        mergeWriterService ?? new MergeWriterService(database, failureInjector);
+
     public async Task CreateBackupAsync(Stream destinationStream, CancellationToken cancellationToken)
     {
         var captured = await database.ExecuteSnapshotAsync(connection =>
@@ -81,13 +92,17 @@ public sealed class BackupService(
     }
 
     /// <summary>
-    /// Dual-schema restore-into-empty orchestration (KF-MEANING-001 Slice 2). Resolves
-    /// <see cref="BackupSchemaCapability"/> inside the same <c>RunInTransactionAsync</c> callback that
-    /// already checks emptiness — no separate connection, no TOCTOU gap — then dispatches:
-    /// v1 archive + Schema-7 target is exactly today's unchanged call; v1 archive + Schema-8 target
-    /// upgrades in memory first (<see cref="BackupArchiveV1UpgradePolicy"/>); v2 archive + Schema-8 target
-    /// restores directly; v2 archive + Schema-7 target is rejected with a stable error code and zero
-    /// mutation — never a downgrade, never an implicit migrate-then-restore.
+    /// Import routing (KF-MEANING-001 Slice 8): the caller's <paramref name="sourceStream"/> is validated
+    /// exactly once, regardless of which branch below runs — it need not be seekable, and it is never
+    /// rewound or re-validated. An empty-or-Schema-7 target restores exactly as before (unchanged
+    /// dual-schema restore-into-empty orchestration, KF-MEANING-001 Slice 2); a populated, active Schema-8
+    /// target routes through <see cref="ImportIntoPopulatedSchema8Async"/> instead — preflight, safety
+    /// copy, and the transactional merge writer, in that order. The routing read below (capability +
+    /// emptiness) is a best-effort hint only: the restore branch re-resolves capability and re-checks
+    /// emptiness itself inside its own transaction exactly as before (no weakened TOCTOU guarantee there),
+    /// and the merge branch's writer independently re-validates the plan against the target's current
+    /// state immediately before mutating (see <see cref="MergeWriterService"/>) — this routing check can
+    /// never bypass either guard, only choose which one runs.
     /// </summary>
     public async Task<PortableImportResult> ImportPortableArchiveAsync(
         Stream sourceStream,
@@ -99,12 +114,30 @@ public sealed class BackupService(
                 sourceStream,
                 cancellationToken);
 
+            var (capability, targetHasDurableData) = await database.ExecuteSnapshotAsync(connection =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var resolvedCapability = BackupSchemaCapability.Resolve(connection);
+                var hasDurableData = resolvedCapability switch
+                {
+                    Schema7CapabilityResult => BackupImportRepository.HasDurableUserData(connection),
+                    Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
+                };
+                return (resolvedCapability, hasDurableData);
+            });
+
+            if (capability is Schema8CapabilityResult && targetHasDurableData)
+            {
+                return await ImportIntoPopulatedSchema8Async(validated, cancellationToken);
+            }
+
             return await database.RunInTransactionAsync(connection =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var capability = BackupSchemaCapability.Resolve(connection);
+                var resolvedCapability = BackupSchemaCapability.Resolve(connection);
 
-                switch (capability)
+                switch (resolvedCapability)
                 {
                     case Schema7CapabilityResult:
                         if (validated.V2 is not null)
@@ -123,7 +156,10 @@ public sealed class BackupService(
 
                         BackupImportRepository.ImportIntoEmptyDatabase(
                             connection, validated.V1!.Payload, cancellationToken, failureInjector);
-                        return new PortableImportResult(PortableImportStatus.Success, null);
+                        return new PortableImportResult(
+                            PortableImportStatus.Success,
+                            null,
+                            new PortableImportSummary(PortableImportDisposition.RestoredIntoEmpty, false, 0, 0, 0, 0));
 
                     case Schema8CapabilityResult schema8:
                         if (Schema8BackupImportRepository.HasDurableUserData(connection))
@@ -137,7 +173,10 @@ public sealed class BackupService(
 
                         Schema8BackupImportRepository.ImportIntoEmptySchema8Database(
                             connection, schema8.Capability, payloadV2, cancellationToken, failureInjector);
-                        return new PortableImportResult(PortableImportStatus.Success, null);
+                        return new PortableImportResult(
+                            PortableImportStatus.Success,
+                            null,
+                            new PortableImportSummary(PortableImportDisposition.RestoredIntoEmpty, false, 0, 0, 0, 0));
 
                     default:
                         throw new InvalidOperationException("Unrecognized backup schema capability result.");
@@ -168,6 +207,107 @@ public sealed class BackupService(
                 PortableImportStatus.Failed,
                 BackupErrorCodes.RestoreFailed);
         }
+    }
+
+    /// <summary>
+    /// Populated-Schema-8-target routing (KF-MEANING-001 Slice 8): compute a current read-only preflight
+    /// plan, reject a non-executable/blocked plan before any safety-copy attempt, return a no-change
+    /// success with no safety copy and no writer invocation when the plan requires no mutation and no
+    /// scheduler replay, otherwise create and validate a safety copy and only then invoke the transactional
+    /// merge writer. The writer's own in-transaction plan recomputation remains the final stale-plan and
+    /// active-workflow guard — never bypassed or duplicated here.
+    /// </summary>
+    private async Task<PortableImportResult> ImportIntoPopulatedSchema8Async(
+        ValidatedBackupArchiveEnvelope validated,
+        CancellationToken cancellationToken)
+    {
+        var plan = await _mergePreflightService.CreatePreflightPlanAsync(validated, cancellationToken);
+
+        if (!plan.IsExecutable)
+        {
+            return new PortableImportResult(
+                MapNonExecutablePreflightStatus(plan.Status),
+                plan.ErrorCode ?? MergeWriterErrorCodes.PlanNotExecutable);
+        }
+
+        if (!RequiresWriterExecution(plan))
+        {
+            return new PortableImportResult(
+                PortableImportStatus.Success,
+                null,
+                BuildMergeSummary(plan, PortableImportDisposition.MergeNoChange, safetyCopyCreated: false));
+        }
+
+        var sourceDescription =
+            $"Merge import ({plan.Manifest!.SourcePlatform}, app {plan.Manifest.SourceAppVersion}, archived {plan.Manifest.CreatedAtUtc:O})";
+        var safetyCopyResult = await _mergeSafetyCopyService.CreateSafetyCopyAsync(sourceDescription, cancellationToken);
+        if (safetyCopyResult.Status != MergeSafetyCopyStatus.Success)
+        {
+            return new PortableImportResult(
+                MapSafetyCopyFailureStatus(safetyCopyResult.Status),
+                safetyCopyResult.ErrorCode);
+        }
+
+        var archivePayloadV2 = validated.V2?.Payload ?? BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
+        var writeResult = await _mergeWriterService.ApplyAsync(archivePayloadV2, plan, cancellationToken);
+        if (writeResult.Status != MergeWriteStatus.Success)
+        {
+            // The safety copy already created above is deliberately retained — never deleted here,
+            // regardless of why the writer refused or rolled back.
+            return new PortableImportResult(
+                MapWriterFailureStatus(writeResult.Status),
+                writeResult.ErrorCode);
+        }
+
+        return new PortableImportResult(
+            PortableImportStatus.Success,
+            null,
+            BuildMergeSummary(plan, PortableImportDisposition.MergeApplied, safetyCopyCreated: true));
+    }
+
+    /// <summary>
+    /// A plan requires the writer only when it contains at least one action requiring insertion,
+    /// enrichment, or preserved-variant handling, or requires scheduler replay — never determined by
+    /// comparing database row counts before/after.
+    /// </summary>
+    private static bool RequiresWriterExecution(MergePreflightPlan plan) =>
+        plan.PerEntity.Values.Any(counts => counts.TotalInsertableCount > 0) || plan.RequiresSchedulerReplay;
+
+    private static PortableImportStatus MapNonExecutablePreflightStatus(MergePreflightStatus status) => status switch
+    {
+        MergePreflightStatus.Cancelled => PortableImportStatus.Cancelled,
+        MergePreflightStatus.ValidationFailed => PortableImportStatus.ValidationFailed,
+        _ => PortableImportStatus.Failed
+    };
+
+    private static PortableImportStatus MapSafetyCopyFailureStatus(MergeSafetyCopyStatus status) => status switch
+    {
+        MergeSafetyCopyStatus.Cancelled => PortableImportStatus.Cancelled,
+        _ => PortableImportStatus.Failed
+    };
+
+    private static PortableImportStatus MapWriterFailureStatus(MergeWriteStatus status) => status switch
+    {
+        MergeWriteStatus.Cancelled => PortableImportStatus.Cancelled,
+        _ => PortableImportStatus.Failed
+    };
+
+    private static PortableImportSummary BuildMergeSummary(
+        MergePreflightPlan plan, PortableImportDisposition disposition, bool safetyCopyCreated)
+    {
+        var inserted = 0;
+        var enriched = 0;
+        var preserved = 0;
+        var skipped = 0;
+        foreach (var counts in plan.PerEntity.Values)
+        {
+            inserted += counts.NewCount;
+            enriched += counts.EnrichedCount;
+            preserved += counts.PreservedVariantCount;
+            skipped += counts.ExactDuplicateSkippedCount + counts.DeduplicatedEventCount;
+        }
+
+        return new PortableImportSummary(disposition, safetyCopyCreated, inserted, enriched, preserved, skipped);
     }
 
     private async Task WriteArchiveAsync(

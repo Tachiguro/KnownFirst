@@ -1,5 +1,6 @@
 @page "/settings"
 @implements IAsyncDisposable
+@using KnownFirst.Models.Backup
 @inject ILanguageSelectionService LanguageSelection
 @inject IThemeService ThemeService
 @inject IAppSettingsService AppSettings
@@ -212,7 +213,7 @@
         <h2 id="portable-data-title">@Localizer["Settings_PortableData"]</h2>
         <p>@Localizer["Settings_PortableDataDescription"]</p>
         <p class="setting-help">@Localizer["Settings_PortableDataPrivacyNotice"]</p>
-        @if (!_showImportConfirmation)
+        @if (_portableImportPreview is null)
         {
             <div class="support-actions">
                 <button type="button"
@@ -224,34 +225,63 @@
                 <button type="button"
                         class="button button-secondary"
                         disabled="@_isPortableDataOperation"
+                        @ref="_dataImportButton"
                         @onclick="ChoosePortableImportAsync">
                     @Localizer["Settings_DataImport"]
                 </button>
             </div>
         }
 
-        @if (_showImportConfirmation && _portableImportSelection is not null)
+        @if (_portableImportPreview is { } preview && _portableImportSelection is not null)
         {
-            <div class="destructive-confirmation"
+            <div class="import-preview-panel"
                  role="alertdialog"
-                 aria-labelledby="portable-import-confirmation-message">
-                <p id="portable-import-confirmation-message">
-                    @Localizer["Settings_DataImportConfirm", _portableImportSelection.DisplayName]
+                 aria-labelledby="portable-import-preview-title"
+                 @ref="_importPreviewElement"
+                 @onkeydown="HandleImportPreviewKeyDown">
+                <p id="portable-import-preview-title">
+                    @Localizer[GetImportPreviewTitleKey(preview.Disposition), _portableImportSelection.DisplayName]
                 </p>
-                <p class="setting-help">@Localizer["Settings_DataImportEmptyOnly"]</p>
+                <p class="setting-help">@Localizer[GetImportPreviewDescriptionKey(preview.Disposition)]</p>
+
+                @if (preview.Disposition == PortableImportPreviewDisposition.MergeChanges)
+                {
+                    <ul class="import-preview-counts">
+                        <li>@Localizer["Settings_DataImportPreviewCountsNew", preview.InsertedCount]</li>
+                        <li>@Localizer["Settings_DataImportPreviewCountsEnriched", preview.EnrichedCount]</li>
+                        <li>@Localizer["Settings_DataImportPreviewCountsPreserved", preview.PreservedVariantCount]</li>
+                        <li>@Localizer["Settings_DataImportPreviewCountsSkipped", preview.SkippedCount]</li>
+                    </ul>
+                    <p class="setting-help">@Localizer["Settings_DataImportPreviewMergeSafetyCopyNotice"]</p>
+                }
+
                 <div class="button-row">
-                    <button type="button"
-                            class="button button-secondary"
-                            disabled="@_isPortableDataOperation"
-                            @onclick="CancelPortableImportAsync">
-                        @Localizer["Common_Cancel"]
-                    </button>
-                    <button type="button"
-                            class="button button-primary"
-                            disabled="@_isPortableDataOperation"
-                            @onclick="ImportPortableDataAsync">
-                        @Localizer["Settings_DataImportConfirmAction"]
-                    </button>
+                    @if (preview.CanConfirm)
+                    {
+                        <button type="button"
+                                class="button button-secondary"
+                                disabled="@_isPortableDataOperation"
+                                @ref="_cancelImportPreviewButton"
+                                @onclick="CancelPortableImportAsync">
+                            @Localizer["Common_Cancel"]
+                        </button>
+                        <button type="button"
+                                class="button button-primary"
+                                disabled="@_isPortableDataOperation"
+                                @onclick="ConfirmPortableImportAsync">
+                            @Localizer[GetImportConfirmActionKey(preview.Disposition)]
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button"
+                                class="button button-secondary"
+                                disabled="@_isPortableDataOperation"
+                                @ref="_cancelImportPreviewButton"
+                                @onclick="CancelPortableImportAsync">
+                            @Localizer["Common_Close"]
+                        </button>
+                    }
                 </div>
             </div>
         }
@@ -263,6 +293,19 @@
                aria-live="polite">
                 @Localizer[_portableDataMessageKey]
             </p>
+            @if (_portableImportResultSummary is { Disposition: PortableImportDisposition.MergeApplied } mergeSummary)
+            {
+                <ul class="import-preview-counts">
+                    <li>@Localizer["Settings_DataImportPreviewCountsNew", mergeSummary.InsertedCount]</li>
+                    <li>@Localizer["Settings_DataImportPreviewCountsEnriched", mergeSummary.EnrichedCount]</li>
+                    <li>@Localizer["Settings_DataImportPreviewCountsPreserved", mergeSummary.PreservedVariantCount]</li>
+                    <li>@Localizer["Settings_DataImportPreviewCountsSkipped", mergeSummary.SkippedCount]</li>
+                </ul>
+                @if (mergeSummary.SafetyCopyCreated)
+                {
+                    <p class="setting-help">@Localizer["Settings_DataImportResultMergeAppliedSafetyCopyNotice"]</p>
+                }
+            }
         }
     </section>
 
@@ -392,9 +435,15 @@
     private bool _onlineConsentActivated;
     private bool _isPortableDataOperation;
     private bool _portableDataOperationFailed;
-    private bool _showImportConfirmation;
     private string? _portableDataMessageKey;
     private IPortableArchiveSelection? _portableImportSelection;
+    private PortableImportPreview? _portableImportPreview;
+    private PortableImportSummary? _portableImportResultSummary;
+    private bool _revealImportPreview;
+    private bool _returnFocusToImportButton;
+    private ElementReference _dataImportButton;
+    private ElementReference _importPreviewElement;
+    private ElementReference _cancelImportPreviewButton;
     private bool _hasActiveReview;
     private bool _isChangingLanguage;
     private bool _showResetConfirmation;
@@ -434,6 +483,17 @@
         {
             _returnFocusToResetButton = false;
             await _resetButton.FocusAsync();
+        }
+        else if (_revealImportPreview)
+        {
+            _revealImportPreview = false;
+            await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _importPreviewElement);
+            await _cancelImportPreviewButton.FocusAsync(preventScroll: true);
+        }
+        else if (_returnFocusToImportButton)
+        {
+            _returnFocusToImportButton = false;
+            await _dataImportButton.FocusAsync();
         }
     }
 
@@ -604,7 +664,8 @@
         _isPortableDataOperation = true;
         _portableDataOperationFailed = false;
         _portableDataMessageKey = null;
-        _showImportConfirmation = false;
+        _portableImportResultSummary = null;
+        _portableImportPreview = null;
         await DisposePortableImportSelectionAsync();
 
         try
@@ -616,14 +677,26 @@
                 return;
             }
 
-            await using var stream =
-                await _portableImportSelection.OpenReadAsync(CancellationToken.None);
-            await BackupService.ValidatePortableArchiveAsync(stream, CancellationToken.None);
-            _showImportConfirmation = true;
+            PortableImportPreview preview;
+            await using (var stream = await _portableImportSelection.OpenReadAsync(CancellationToken.None))
+            {
+                preview = await BackupService.PreviewPortableImportAsync(stream, CancellationToken.None);
+            }
+
+            if (IsPreviewPanelDisposition(preview.Disposition))
+            {
+                _portableImportPreview = preview;
+                _revealImportPreview = true;
+            }
+            else
+            {
+                (_portableDataMessageKey, _portableDataOperationFailed) = MapPreviewBlockedMessage(preview);
+                await DisposePortableImportSelectionAsync();
+            }
         }
         catch (Exception exception)
         {
-            Logger.LogWarning(exception, "The selected portable data archive is invalid.");
+            Logger.LogWarning(exception, "The selected portable data archive could not be previewed.");
             _portableDataOperationFailed = true;
             _portableDataMessageKey = "Settings_DataImportValidationFailure";
             await DisposePortableImportSelectionAsync();
@@ -634,9 +707,9 @@
         }
     }
 
-    private async Task ImportPortableDataAsync()
+    private async Task ConfirmPortableImportAsync()
     {
-        if (_portableImportSelection is null)
+        if (_portableImportSelection is null || _portableImportPreview is not { CanConfirm: true })
         {
             return;
         }
@@ -644,6 +717,7 @@
         _isPortableDataOperation = true;
         _portableDataOperationFailed = false;
         _portableDataMessageKey = null;
+        _portableImportResultSummary = null;
         try
         {
             await using var stream =
@@ -651,18 +725,11 @@
             var result = await BackupService.ImportPortableArchiveAsync(
                 stream,
                 CancellationToken.None);
-            (_portableDataMessageKey, _portableDataOperationFailed) = result.Status switch
-            {
-                KnownFirst.Models.Backup.PortableImportStatus.Success =>
-                    ("Settings_DataImportSuccess", false),
-                KnownFirst.Models.Backup.PortableImportStatus.TargetNotEmpty =>
-                    ("Settings_DataImportTargetNotEmpty", true),
-                KnownFirst.Models.Backup.PortableImportStatus.ValidationFailed =>
-                    ("Settings_DataImportValidationFailure", true),
-                _ => ("Settings_DataImportFailure", true)
-            };
+            (_portableDataMessageKey, _portableDataOperationFailed) = MapImportResultMessage(result);
+            _portableImportResultSummary = result.Summary;
 
-            if (result.Status == KnownFirst.Models.Backup.PortableImportStatus.Success)
+            if (result.Summary?.Disposition is
+                PortableImportDisposition.RestoredIntoEmpty or PortableImportDisposition.MergeApplied)
             {
                 WorkflowChangeNotifier.NotifyChanged();
             }
@@ -675,9 +742,10 @@
         }
         finally
         {
-            _showImportConfirmation = false;
+            _portableImportPreview = null;
             await DisposePortableImportSelectionAsync();
             _isPortableDataOperation = false;
+            _returnFocusToImportButton = true;
         }
     }
 
@@ -688,9 +756,80 @@
             return;
         }
 
-        _showImportConfirmation = false;
+        _portableImportPreview = null;
         await DisposePortableImportSelectionAsync();
+        _returnFocusToImportButton = true;
     }
+
+    private void HandleImportPreviewKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Escape")
+        {
+            _ = CancelPortableImportAsync();
+        }
+    }
+
+    private static bool IsPreviewPanelDisposition(PortableImportPreviewDisposition disposition) =>
+        disposition is PortableImportPreviewDisposition.RestoreIntoEmpty
+            or PortableImportPreviewDisposition.MergeChanges
+            or PortableImportPreviewDisposition.MergeNoChange;
+
+    private static string GetImportPreviewTitleKey(PortableImportPreviewDisposition disposition) => disposition switch
+    {
+        PortableImportPreviewDisposition.RestoreIntoEmpty => "Settings_DataImportPreviewRestoreTitle",
+        PortableImportPreviewDisposition.MergeChanges => "Settings_DataImportPreviewMergeTitle",
+        _ => "Settings_DataImportPreviewNoChangeTitle"
+    };
+
+    private static string GetImportPreviewDescriptionKey(PortableImportPreviewDisposition disposition) => disposition switch
+    {
+        PortableImportPreviewDisposition.RestoreIntoEmpty => "Settings_DataImportPreviewRestoreDescription",
+        PortableImportPreviewDisposition.MergeChanges => "Settings_DataImportPreviewMergeDescription",
+        _ => "Settings_DataImportPreviewNoChangeDescription"
+    };
+
+    private static string GetImportConfirmActionKey(PortableImportPreviewDisposition disposition) =>
+        disposition == PortableImportPreviewDisposition.RestoreIntoEmpty
+            ? "Settings_DataImportConfirmRestoreAction"
+            : "Settings_DataImportConfirmMergeAction";
+
+    private static (string MessageKey, bool IsError) MapPreviewBlockedMessage(PortableImportPreview preview) =>
+        preview.Disposition switch
+        {
+            PortableImportPreviewDisposition.ValidationFailed => ("Settings_DataImportValidationFailure", true),
+            PortableImportPreviewDisposition.Cancelled => ("Settings_DataImportFailureCancelled", true),
+            PortableImportPreviewDisposition.Blocked when preview.ErrorCode == BackupErrorCodes.TargetNotEmpty =>
+                ("Settings_DataImportTargetNotEmpty", true),
+            PortableImportPreviewDisposition.Blocked when preview.ErrorCode == BackupErrorCodes.ActiveWorkflowUnsupported =>
+                ("Settings_DataImportFailureActiveWorkflow", true),
+            PortableImportPreviewDisposition.Blocked => ("Settings_DataImportPreviewBlockedGeneric", true),
+            _ => ("Settings_DataImportFailure", true)
+        };
+
+    private static (string MessageKey, bool IsError) MapImportResultMessage(PortableImportResult result) => result.Status switch
+    {
+        PortableImportStatus.Success => result.Summary!.Disposition switch
+        {
+            PortableImportDisposition.RestoredIntoEmpty => ("Settings_DataImportResultRestored", false),
+            PortableImportDisposition.MergeApplied => ("Settings_DataImportResultMergeApplied", false),
+            PortableImportDisposition.MergeNoChange => ("Settings_DataImportResultMergeNoChange", false),
+            _ => ("Settings_DataImportSuccess", false)
+        },
+        PortableImportStatus.TargetNotEmpty => ("Settings_DataImportTargetNotEmpty", true),
+        PortableImportStatus.ValidationFailed => ("Settings_DataImportValidationFailure", true),
+        PortableImportStatus.Cancelled => ("Settings_DataImportFailureCancelled", true),
+        PortableImportStatus.Failed => (MapFailedErrorCodeMessageKey(result.ErrorCode), true),
+        _ => ("Settings_DataImportFailure", true)
+    };
+
+    private static string MapFailedErrorCodeMessageKey(string? errorCode) => errorCode switch
+    {
+        BackupErrorCodes.ActiveWorkflowUnsupported => "Settings_DataImportFailureActiveWorkflow",
+        KnownFirst.Services.DataSafety.Merge.MergeWriterErrorCodes.StalePlan => "Settings_DataImportFailureStalePlan",
+        BackupErrorCodes.SafetyBackupFailed or BackupErrorCodes.InsufficientSpace or BackupErrorCodes.IoFailure =>
+            "Settings_DataImportFailureSafetyCopy",
+        _ => "Settings_DataImportFailure"
+    };
 
     private async Task DisposePortableImportSelectionAsync()
     {

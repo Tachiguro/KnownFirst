@@ -1348,7 +1348,7 @@
     <value>Portable Daten</value>
   </data>
   <data name="Settings_PortableDataDescription" xml:space="preserve">
-    <value>Erstelle einen Datenexport oder stelle deine Daten mit einem Datenimport wieder her. Ein Datenimport wird nur unterstützt, wenn diese Installation noch keine gespeicherten Lerndaten enthält.</value>
+    <value>Erstelle einen Datenexport, oder nutze den Datenimport, um eine leere Installation wiederherzustellen oder Daten in eine bestehende Installation zu übernehmen.</value>
   </data>
   <data name="Settings_PortableDataPrivacyNotice" xml:space="preserve">
     <value>Das Archiv kann importierte Texte und den Lernverlauf enthalten. Es ist nicht verschlüsselt. Bewahre und teile es sorgfältig.</value>
@@ -1377,15 +1377,6 @@
   <data name="Settings_DataImportPickerTitle" xml:space="preserve">
     <value>KnownFirst-Datenimportarchiv auswählen</value>
   </data>
-  <data name="Settings_DataImportConfirm" xml:space="preserve">
-    <value>Daten aus „{0}“ importieren?</value>
-  </data>
-  <data name="Settings_DataImportEmptyOnly" xml:space="preserve">
-    <value>Der Datenimport funktioniert nur bei einer leeren Installation. Vorhandene Lerndaten werden niemals zusammengeführt, ersetzt oder gelöscht.</value>
-  </data>
-  <data name="Settings_DataImportConfirmAction" xml:space="preserve">
-    <value>Datenimport bestätigen</value>
-  </data>
   <data name="Settings_DataImportSuccess" xml:space="preserve">
     <value>Der Datenimport wurde erfolgreich abgeschlossen.</value>
   </data>
@@ -1397,6 +1388,72 @@
   </data>
   <data name="Settings_DataImportFailure" xml:space="preserve">
     <value>Der Datenimport ist fehlgeschlagen. Alle Datenbankänderungen wurden zurückgerollt.</value>
+  </data>
+  <data name="Settings_DataImportPreviewRestoreTitle" xml:space="preserve">
+    <value>Daten aus „{0}“ wiederherstellen?</value>
+  </data>
+  <data name="Settings_DataImportPreviewRestoreDescription" xml:space="preserve">
+    <value>Diese Installation enthält noch keine gespeicherten Lerndaten. Die Daten aus dem Archiv werden hier wiederhergestellt. Deine Anzeige-, Sprach- und Wörterbuch-Einstellungen sowie Diagnoseprotokolle bleiben unberührt. Eine Sicherheitskopie ist nicht nötig, da nichts Bestehendes ersetzt wird.</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeTitle" xml:space="preserve">
+    <value>Daten aus „{0}“ zusammenführen?</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeDescription" xml:space="preserve">
+    <value>Deine vorhandenen Daten bleiben erhalten. Passende Daten aus dem Archiv werden ergänzt oder angereichert.</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeSafetyCopyNotice" xml:space="preserve">
+    <value>Bevor sich etwas ändert, wird eine private Sicherheitskopie deiner aktuellen Daten erstellt. Der Import läuft transaktional: Falls etwas schiefgeht, werden alle Änderungen automatisch zurückgerollt.</value>
+  </data>
+  <data name="Settings_DataImportPreviewNoChangeTitle" xml:space="preserve">
+    <value>Nichts Neues in „{0}“</value>
+  </data>
+  <data name="Settings_DataImportPreviewNoChangeDescription" xml:space="preserve">
+    <value>Alles in diesem Archiv ist bereits vorhanden. Es werden keine Datenbankänderungen vorgenommen und keine Sicherheitskopie benötigt.</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsNew" xml:space="preserve">
+    <value>Neu: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsEnriched" xml:space="preserve">
+    <value>Angereichert: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsPreserved" xml:space="preserve">
+    <value>Als eigene Variante behalten: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsSkipped" xml:space="preserve">
+    <value>Bereits vorhanden: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewBlockedGeneric" xml:space="preserve">
+    <value>Dieses Archiv kann derzeit nicht importiert werden. Es wurde nichts geändert.</value>
+  </data>
+  <data name="Settings_DataImportConfirmRestoreAction" xml:space="preserve">
+    <value>Daten wiederherstellen</value>
+  </data>
+  <data name="Settings_DataImportConfirmMergeAction" xml:space="preserve">
+    <value>Importieren und zusammenführen</value>
+  </data>
+  <data name="Settings_DataImportResultRestored" xml:space="preserve">
+    <value>Deine Daten wurden erfolgreich wiederhergestellt.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeApplied" xml:space="preserve">
+    <value>Das Archiv wurde erfolgreich mit deinen vorhandenen Daten zusammengeführt.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeAppliedSafetyCopyNotice" xml:space="preserve">
+    <value>Vor dem Zusammenführen wurde eine Sicherheitskopie deiner vorherigen Daten gespeichert.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeNoChange" xml:space="preserve">
+    <value>Alles in diesem Archiv war bereits vorhanden. Es wurde nichts geändert.</value>
+  </data>
+  <data name="Settings_DataImportFailureActiveWorkflow" xml:space="preserve">
+    <value>Der Datenimport wurde abgelehnt, weil gerade eine Überprüfung, Vorbereitung oder Lernsitzung läuft. Schließe sie ab oder verlasse sie und versuche es dann erneut.</value>
+  </data>
+  <data name="Settings_DataImportFailureSafetyCopy" xml:space="preserve">
+    <value>Der Datenimport konnte die erforderliche Sicherheitskopie nicht erstellen, daher wurde nichts geändert.</value>
+  </data>
+  <data name="Settings_DataImportFailureStalePlan" xml:space="preserve">
+    <value>Deine Daten haben sich seit dieser Vorschau geändert, daher wurde der Import nicht angewendet. Es wurde nichts geändert. Bitte versuche es erneut.</value>
+  </data>
+  <data name="Settings_DataImportFailureCancelled" xml:space="preserve">
+    <value>Der Datenimport wurde abgebrochen. Es wurde nichts geändert.</value>
   </data>
   <data name="WhatsNew_Title" xml:space="preserve">
     <value>Neuigkeiten</value>

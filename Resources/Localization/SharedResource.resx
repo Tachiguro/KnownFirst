@@ -1348,7 +1348,7 @@
     <value>Portable data</value>
   </data>
   <data name="Settings_PortableDataDescription" xml:space="preserve">
-    <value>Create a Data Export or recover your data with a Data Import. Data Import is supported only when this installation has no saved learning data.</value>
+    <value>Create a Data Export, or use Data Import to restore an empty installation or merge into one that already has data.</value>
   </data>
   <data name="Settings_PortableDataPrivacyNotice" xml:space="preserve">
     <value>The archive may contain imported text and learning history. It is not encrypted. Store and share it carefully.</value>
@@ -1377,15 +1377,6 @@
   <data name="Settings_DataImportPickerTitle" xml:space="preserve">
     <value>Choose a KnownFirst Data Import archive</value>
   </data>
-  <data name="Settings_DataImportConfirm" xml:space="preserve">
-    <value>Import data from “{0}”?</value>
-  </data>
-  <data name="Settings_DataImportEmptyOnly" xml:space="preserve">
-    <value>Data Import works only on an empty installation. Existing learning data is never merged, replaced, or deleted.</value>
-  </data>
-  <data name="Settings_DataImportConfirmAction" xml:space="preserve">
-    <value>Confirm Data Import</value>
-  </data>
   <data name="Settings_DataImportSuccess" xml:space="preserve">
     <value>The Data Import completed successfully.</value>
   </data>
@@ -1397,6 +1388,72 @@
   </data>
   <data name="Settings_DataImportFailure" xml:space="preserve">
     <value>The Data Import failed and all database changes were rolled back.</value>
+  </data>
+  <data name="Settings_DataImportPreviewRestoreTitle" xml:space="preserve">
+    <value>Restore data from “{0}”?</value>
+  </data>
+  <data name="Settings_DataImportPreviewRestoreDescription" xml:space="preserve">
+    <value>This installation has no saved learning data yet. The archive's data will be restored here. Your appearance, language, and online-dictionary settings, and diagnostic logs are not affected. No safety copy is needed because nothing existing will be replaced.</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeTitle" xml:space="preserve">
+    <value>Merge data from “{0}”?</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeDescription" xml:space="preserve">
+    <value>Your existing data stays in place. Compatible data from the archive will be added or enriched.</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeSafetyCopyNotice" xml:space="preserve">
+    <value>A private safety copy of your current data will be created before anything changes. The import is transactional: if anything goes wrong, all changes are rolled back automatically.</value>
+  </data>
+  <data name="Settings_DataImportPreviewNoChangeTitle" xml:space="preserve">
+    <value>Nothing new in “{0}”</value>
+  </data>
+  <data name="Settings_DataImportPreviewNoChangeDescription" xml:space="preserve">
+    <value>Everything in this archive is already present. No database changes will be made and no safety copy is needed.</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsNew" xml:space="preserve">
+    <value>New: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsEnriched" xml:space="preserve">
+    <value>Enriched: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsPreserved" xml:space="preserve">
+    <value>Kept as a separate variant: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsSkipped" xml:space="preserve">
+    <value>Already present: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewBlockedGeneric" xml:space="preserve">
+    <value>This archive cannot be imported right now. Nothing was changed.</value>
+  </data>
+  <data name="Settings_DataImportConfirmRestoreAction" xml:space="preserve">
+    <value>Restore data</value>
+  </data>
+  <data name="Settings_DataImportConfirmMergeAction" xml:space="preserve">
+    <value>Import and merge</value>
+  </data>
+  <data name="Settings_DataImportResultRestored" xml:space="preserve">
+    <value>Your data was restored successfully.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeApplied" xml:space="preserve">
+    <value>The archive was merged into your existing data successfully.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeAppliedSafetyCopyNotice" xml:space="preserve">
+    <value>A safety copy of your previous data was saved before the merge.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeNoChange" xml:space="preserve">
+    <value>Everything in this archive was already present. Nothing was changed.</value>
+  </data>
+  <data name="Settings_DataImportFailureActiveWorkflow" xml:space="preserve">
+    <value>Data Import was refused because a review, preparation, or learning session is currently in progress. Finish or leave it, then try again.</value>
+  </data>
+  <data name="Settings_DataImportFailureSafetyCopy" xml:space="preserve">
+    <value>Data Import could not create the required safety copy, so nothing was changed.</value>
+  </data>
+  <data name="Settings_DataImportFailureStalePlan" xml:space="preserve">
+    <value>Your data changed since this preview was created, so the import was not applied. Nothing was changed. Please try again.</value>
+  </data>
+  <data name="Settings_DataImportFailureCancelled" xml:space="preserve">
+    <value>Data Import was cancelled. Nothing was changed.</value>
   </data>
   <data name="WhatsNew_Title" xml:space="preserve">
     <value>What's New</value>

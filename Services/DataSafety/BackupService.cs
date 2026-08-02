@@ -92,6 +92,127 @@ public sealed class BackupService(
     }
 
     /// <summary>
+    /// Read-only preview (KF-MEANING-001 Slice 9): mirrors <see cref="ImportPortableArchiveAsync"/>'s
+    /// routing decision without ever mutating the target, creating a safety copy, or invoking the merge
+    /// writer. A populated Schema-8 target reuses <see cref="_mergePreflightService"/> — the exact same
+    /// read-only planner the real import call runs — to distinguish an executable merge with mutations
+    /// from a no-op duplicate import from a blocked/non-executable plan. The subsequent
+    /// <see cref="ImportPortableArchiveAsync"/> call re-reads the caller's freshly reopened stream and
+    /// re-resolves the plan from the target's state at that later moment; this preview is informational
+    /// only and can never bypass or weaken that independent re-evaluation.
+    /// </summary>
+    public async Task<PortableImportPreview> PreviewPortableImportAsync(
+        Stream sourceStream,
+        CancellationToken cancellationToken)
+    {
+        ValidatedBackupArchiveEnvelope validated;
+        try
+        {
+            validated = await BackupArchiveReader.ValidateVersionedAsync(sourceStream, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return PortableImportPreview.ForBlocked(PortableImportPreviewDisposition.Cancelled, BackupErrorCodes.OperationCancelled);
+        }
+        catch (BackupFormatException exception)
+        {
+            return PortableImportPreview.ForBlocked(PortableImportPreviewDisposition.ValidationFailed, exception.Code);
+        }
+        catch (BackupSchemaCapabilityException exception)
+        {
+            return PortableImportPreview.ForBlocked(PortableImportPreviewDisposition.ValidationFailed, exception.ErrorCode);
+        }
+        catch
+        {
+            return PortableImportPreview.ForBlocked(PortableImportPreviewDisposition.Failed, BackupErrorCodes.RestoreFailed);
+        }
+
+        var archiveSummary = BuildSummary(validated);
+
+        try
+        {
+            var (capability, targetHasDurableData) = await database.ExecuteSnapshotAsync(connection =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var resolvedCapability = BackupSchemaCapability.Resolve(connection);
+                var hasDurableData = resolvedCapability switch
+                {
+                    Schema7CapabilityResult => BackupImportRepository.HasDurableUserData(connection),
+                    Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
+                };
+                return (resolvedCapability, hasDurableData);
+            });
+
+            if (capability is Schema7CapabilityResult)
+            {
+                if (validated.V2 is not null)
+                {
+                    return PortableImportPreview.ForBlocked(
+                        PortableImportPreviewDisposition.ValidationFailed,
+                        BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target,
+                        archiveSummary);
+                }
+
+                if (targetHasDurableData)
+                {
+                    return PortableImportPreview.ForBlocked(
+                        PortableImportPreviewDisposition.Blocked,
+                        BackupErrorCodes.TargetNotEmpty,
+                        archiveSummary);
+                }
+
+                return PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+            }
+
+            if (!targetHasDurableData)
+            {
+                return PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+            }
+
+            var plan = await _mergePreflightService.CreatePreflightPlanAsync(validated, cancellationToken);
+            if (!plan.IsExecutable)
+            {
+                var (disposition, errorCode) = MapNonExecutablePreflightPreview(plan);
+                return PortableImportPreview.ForBlocked(disposition, errorCode, archiveSummary, plan.WarningCodes);
+            }
+
+            var (inserted, enriched, preserved, skipped) = AggregateMergeCounts(plan);
+            return RequiresWriterExecution(plan)
+                ? PortableImportPreview.ForMergeChanges(archiveSummary, inserted, enriched, preserved, skipped, plan.WarningCodes)
+                : PortableImportPreview.ForMergeNoChange(archiveSummary, skipped, plan.WarningCodes);
+        }
+        catch (OperationCanceledException)
+        {
+            return PortableImportPreview.ForBlocked(PortableImportPreviewDisposition.Cancelled, BackupErrorCodes.OperationCancelled, archiveSummary);
+        }
+        catch (BackupSchemaCapabilityException exception)
+        {
+            return PortableImportPreview.ForBlocked(PortableImportPreviewDisposition.ValidationFailed, exception.ErrorCode, archiveSummary);
+        }
+        catch
+        {
+            return PortableImportPreview.ForBlocked(PortableImportPreviewDisposition.Failed, BackupErrorCodes.RestoreFailed, archiveSummary);
+        }
+    }
+
+    private static (PortableImportPreviewDisposition Disposition, string? ErrorCode) MapNonExecutablePreflightPreview(MergePreflightPlan plan) =>
+        plan.Status switch
+        {
+            MergePreflightStatus.Cancelled =>
+                (PortableImportPreviewDisposition.Cancelled, plan.ErrorCode ?? BackupErrorCodes.OperationCancelled),
+            MergePreflightStatus.ValidationFailed =>
+                (PortableImportPreviewDisposition.ValidationFailed, plan.ErrorCode ?? MergePreflightErrorCodes.UnexpectedFailure),
+            MergePreflightStatus.BlockedByActiveWorkflow =>
+                (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? BackupErrorCodes.ActiveWorkflowUnsupported),
+            MergePreflightStatus.RequiresUserDecision =>
+                (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? PortableImportPreviewErrorCodes.MergeRequiresUserDecision),
+            MergePreflightStatus.BlockedByPrerequisite =>
+                (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? PortableImportPreviewErrorCodes.MergeBlockedByPrerequisite),
+            _ => (PortableImportPreviewDisposition.Failed, plan.ErrorCode ?? MergePreflightErrorCodes.UnexpectedFailure)
+        };
+
+    /// <summary>
     /// Import routing (KF-MEANING-001 Slice 8): the caller's <paramref name="sourceStream"/> is validated
     /// exactly once, regardless of which branch below runs — it need not be seekable, and it is never
     /// rewound or re-validated. An empty-or-Schema-7 target restores exactly as before (unchanged
@@ -295,6 +416,12 @@ public sealed class BackupService(
     private static PortableImportSummary BuildMergeSummary(
         MergePreflightPlan plan, PortableImportDisposition disposition, bool safetyCopyCreated)
     {
+        var (inserted, enriched, preserved, skipped) = AggregateMergeCounts(plan);
+        return new PortableImportSummary(disposition, safetyCopyCreated, inserted, enriched, preserved, skipped);
+    }
+
+    private static (int Inserted, int Enriched, int Preserved, int Skipped) AggregateMergeCounts(MergePreflightPlan plan)
+    {
         var inserted = 0;
         var enriched = 0;
         var preserved = 0;
@@ -307,7 +434,7 @@ public sealed class BackupService(
             skipped += counts.ExactDuplicateSkippedCount + counts.DeduplicatedEventCount;
         }
 
-        return new PortableImportSummary(disposition, safetyCopyCreated, inserted, enriched, preserved, skipped);
+        return (inserted, enriched, preserved, skipped);
     }
 
     private async Task WriteArchiveAsync(

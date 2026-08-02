@@ -747,7 +747,8 @@ public sealed class PortableRecoveryTests
         StringAssert.Contains(settings, "Settings_DataExport");
         StringAssert.Contains(settings, "Settings_DataImport");
         StringAssert.Contains(settings, "Settings_PortableDataPrivacyNotice");
-        StringAssert.Contains(settings, "Settings_DataImportConfirmAction");
+        StringAssert.Contains(settings, "Settings_DataImportConfirmRestoreAction");
+        StringAssert.Contains(settings, "Settings_DataImportConfirmMergeAction");
 
         var english = LoadResources(
             Path.Combine(root, "Resources", "Localization", "SharedResource.resx"));

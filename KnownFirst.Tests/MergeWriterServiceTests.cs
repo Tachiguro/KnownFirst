@@ -730,4 +730,63 @@ public sealed class MergeWriterServiceTests
         Assert.AreNotEqual(cardBefore.DueAtUtc, cardAfter.DueAtUtc);
         Assert.IsNotNull(cardAfter.LastReviewedAtUtc);
     }
+
+    // ==== Distinct LearningSession identity (KF-MEANING-001 Slice 9) ====
+
+    // ---- Regression: a target session and an archive session sharing the same card set but a different
+    // StartedAtUtc used to collapse onto one merge identity, so the writer either lost the archive
+    // session's own queue item or hit the (SessionId, QueueOrder) uniqueness constraint. Both real
+    // sessions, their queue items, and their reviews must now be preserved, and reimporting the same
+    // archive again must be a stable no-op. ----
+    [TestMethod]
+    public async Task DistinctLearningSessions_SameCardDifferentStartedAt_BothPreservedAndReimportConverges()
+    {
+        var firstStart = SchedulerTestCardCreatedAtUtc;
+        var secondStart = SchedulerTestCardCreatedAtUtc.AddDays(1);
+
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        var targetCardId = await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM LearningCards LIMIT 1");
+        var targetSessionId = await targetFixture.InsertLearningSessionAsync(
+            startedAtUtc: firstStart, updatedAtUtc: firstStart, completedAtUtc: firstStart);
+        await targetFixture.InsertQueueItemAsync(
+            targetSessionId, targetCardId, queueOrder: 1, isCompleted: true, rating: ReviewRating.Good, completedAtUtc: firstStart);
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        var sourceCardId = await sourceFixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM LearningCards LIMIT 1");
+        var sourceSessionId = await sourceFixture.InsertLearningSessionAsync(
+            startedAtUtc: secondStart, updatedAtUtc: secondStart, completedAtUtc: secondStart);
+        await sourceFixture.InsertQueueItemAsync(
+            sourceSessionId, sourceCardId, queueOrder: 1, isCompleted: true, rating: ReviewRating.Good, completedAtUtc: secondStart);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        var sessionAction = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.LearningWorkflow);
+        Assert.AreEqual(
+            MergeEntityClassification.New, sessionAction.Classification,
+            "A distinct real session sharing the target's card set but a different StartedAtUtc must not collapse onto the existing session's identity.");
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status);
+        Assert.AreEqual(2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningSessions"));
+        Assert.AreEqual(2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningSessionCards"));
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningCards"), "The shared card must still be reused, not duplicated.");
+        await AssertReferentialIntegrityAsync(targetFixture);
+
+        // Reimport convergence: the target index must resolve the archive session by exactly the identity
+        // preflight already computed for it, so recomputing the plan against the now-merged target reports
+        // NoChanges — never a fresh insert or a false duplicate — and reapplying is a stable no-op.
+        var reimportPlan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.NoChanges, reimportPlan.Status);
+
+        var reimportResult = await writer.ApplyAsync(archive, reimportPlan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, reimportResult.Status);
+        Assert.AreEqual(2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningSessions"), "Reimporting the same archive must not create a duplicate session.");
+        Assert.AreEqual(2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningSessionCards"), "Reimporting the same archive must not create a duplicate queue item.");
+    }
 }

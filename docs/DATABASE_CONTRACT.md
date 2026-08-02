@@ -170,14 +170,18 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 
 The supported portable format is the `.kfarchive` archive. A schema-8 database
 exports archive format **v2**, and merge safety copies are captured as v2.
-Archive format **v1** remains readable and can still be restored into an **empty**
-schema-8 target. No format may be inferred directly from the physical SQLite file.
+Archive format **v1** remains readable and can still be restored into a schema-8
+target (upgraded in memory for Schema-8 targets).
 
-Import into a **populated** target is refused, never merged or overwritten. The
-populated-target merge writer and Import routing are not implemented.
-`MergePreflightService` deliberately fails closed on a schema-8 target with
-`merge-preflight-schema8-adaptation-required` until the preflight adaptation
-lands.
+Import into an **empty** target uses restore-into-empty. Import into a **populated**
+Schema-8 target is merged transactionally: validation → preflight planning →
+validated safety copy → transactional merge writer → deterministic card-schedule
+replay → atomic commit or rollback. Stale or non-executable plans are rejected.
+Multiple imports converge without duplicates. The merge writer reuses existing
+entities, inserts missing entities and preserved variants, and applies enrichment
+policies. Failure and cancellation roll back completely. See `MergePreflightPlannerV2`,
+`PortableMergeWriter`, and `MergeWriterExecutor`. Archive-v1 upgrades in memory
+for Schema-8 targets; archive-v2 into Schema 7 is rejected.
 
 Synchronization and cloud formats do not exist.
 

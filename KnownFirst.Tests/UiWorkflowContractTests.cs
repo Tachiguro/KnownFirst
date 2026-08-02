@@ -849,24 +849,128 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void Settings_PortableImportConfirmationHidesTheNormalDataActionsRowAndRestoresOnCancel()
+    public void Settings_PortableImportPreviewHidesTheNormalDataActionsRowAndRestoresOnCancel()
     {
         var markup = LoadUi("Settings.razor");
 
-        var actionsRowStart = markup.IndexOf("@if (!_showImportConfirmation)", StringComparison.Ordinal);
-        var confirmationStart = markup.IndexOf(
-            "@if (_showImportConfirmation && _portableImportSelection is not null)",
+        var actionsRowStart = markup.IndexOf("@if (_portableImportPreview is null)", StringComparison.Ordinal);
+        var previewStart = markup.IndexOf(
+            "@if (_portableImportPreview is { } preview && _portableImportSelection is not null)",
             StringComparison.Ordinal);
 
         Assert.IsGreaterThanOrEqualTo(0, actionsRowStart);
-        Assert.IsGreaterThanOrEqualTo(0, confirmationStart);
-        Assert.IsGreaterThan(actionsRowStart, confirmationStart);
+        Assert.IsGreaterThanOrEqualTo(0, previewStart);
+        Assert.IsGreaterThan(actionsRowStart, previewStart);
 
-        var actionsRow = markup[actionsRowStart..confirmationStart];
+        var actionsRow = markup[actionsRowStart..previewStart];
         Assert.Contains("Settings_DataExport", actionsRow);
         Assert.Contains("Settings_DataImport", actionsRow);
         Assert.Contains("CancelPortableImportAsync", markup);
-        Assert.Contains("_showImportConfirmation = false", markup);
+        Assert.Contains("_portableImportPreview = null", markup);
+    }
+
+    [TestMethod]
+    public void Settings_ImportNoLongerClaimsEmptyDatabaseOnlyAndOffersOnePrimaryImportAction()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.DoesNotContain("Settings_DataImportEmptyOnly", markup);
+        Assert.DoesNotContain("works only on an empty installation", markup, StringComparison.OrdinalIgnoreCase);
+
+        // Exactly one primary user-facing Import entry point: the "Data Import" picker button.
+        // There is no separate first-class "Merge" button — Import alone routes to restore or merge.
+        Assert.Contains("Settings_DataImport\"]", markup);
+        Assert.DoesNotContain("Settings_DataMerge", markup);
+        Assert.DoesNotContain(">Merge<", markup);
+    }
+
+    [TestMethod]
+    public void Settings_ImportPreviewRendersDistinctRestoreMergeAndNoChangeStates()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.Contains("GetImportPreviewTitleKey(preview.Disposition)", markup);
+        Assert.Contains("GetImportPreviewDescriptionKey(preview.Disposition)", markup);
+        Assert.Contains("PortableImportPreviewDisposition.RestoreIntoEmpty => \"Settings_DataImportPreviewRestoreTitle\"", markup);
+        Assert.Contains("PortableImportPreviewDisposition.MergeChanges => \"Settings_DataImportPreviewMergeTitle\"", markup);
+        Assert.Contains("_ => \"Settings_DataImportPreviewNoChangeTitle\"", markup);
+        Assert.Contains("PortableImportPreviewDisposition.RestoreIntoEmpty => \"Settings_DataImportPreviewRestoreDescription\"", markup);
+        Assert.Contains("PortableImportPreviewDisposition.MergeChanges => \"Settings_DataImportPreviewMergeDescription\"", markup);
+        Assert.Contains("_ => \"Settings_DataImportPreviewNoChangeDescription\"", markup);
+    }
+
+    [TestMethod]
+    public void Settings_MergePreviewExposesAllFourAggregateCountCategories()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var mergeBlockStart = markup.IndexOf(
+            "if (preview.Disposition == PortableImportPreviewDisposition.MergeChanges)",
+            StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, mergeBlockStart);
+        var mergeBlockEnd = markup.IndexOf("Settings_DataImportPreviewMergeSafetyCopyNotice", mergeBlockStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(mergeBlockStart, mergeBlockEnd);
+        var mergeBlock = markup[mergeBlockStart..mergeBlockEnd];
+
+        Assert.Contains("Settings_DataImportPreviewCountsNew", mergeBlock);
+        Assert.Contains("preview.InsertedCount", mergeBlock);
+        Assert.Contains("Settings_DataImportPreviewCountsEnriched", mergeBlock);
+        Assert.Contains("preview.EnrichedCount", mergeBlock);
+        Assert.Contains("Settings_DataImportPreviewCountsPreserved", mergeBlock);
+        Assert.Contains("preview.PreservedVariantCount", mergeBlock);
+        Assert.Contains("Settings_DataImportPreviewCountsSkipped", mergeBlock);
+        Assert.Contains("preview.SkippedCount", mergeBlock);
+    }
+
+    [TestMethod]
+    public void Settings_NoChangePreviewHasNoMutatingConfirmationButtonOnlyCloseOrDone()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var buttonRowStart = markup.IndexOf("@if (preview.CanConfirm)", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, buttonRowStart);
+        var elseStart = markup.IndexOf("else", buttonRowStart, StringComparison.Ordinal);
+        var elseBlockEnd = markup.IndexOf("</div>", elseStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(buttonRowStart, elseStart);
+        Assert.IsGreaterThan(elseStart, elseBlockEnd);
+        var noChangeBlock = markup[elseStart..elseBlockEnd];
+
+        Assert.Contains("Common_Close", noChangeBlock);
+        Assert.Contains("CancelPortableImportAsync", noChangeBlock);
+        Assert.DoesNotContain("ConfirmPortableImportAsync", noChangeBlock);
+        Assert.DoesNotContain("button-primary", noChangeBlock);
+    }
+
+    [TestMethod]
+    public void Settings_SelectionLifecycleDisposesRetainedResourcesOnEveryPath()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        // Choosing a new file always disposes the previously retained selection first.
+        var chooseStart = markup.IndexOf("private async Task ChoosePortableImportAsync()", StringComparison.Ordinal);
+        var confirmStart = markup.IndexOf("private async Task ConfirmPortableImportAsync()", chooseStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, chooseStart);
+        Assert.IsGreaterThan(chooseStart, confirmStart);
+        var chooseMethod = markup[chooseStart..confirmStart];
+        Assert.Contains("await DisposePortableImportSelectionAsync();", chooseMethod);
+
+        // Confirm always disposes the selection in its finally block.
+        var cancelStart = markup.IndexOf("private async Task CancelPortableImportAsync()", confirmStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, cancelStart);
+        var confirmMethod = markup[confirmStart..cancelStart];
+        var confirmFinallyStart = confirmMethod.IndexOf("finally", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, confirmFinallyStart);
+        Assert.Contains("await DisposePortableImportSelectionAsync();", confirmMethod[confirmFinallyStart..]);
+
+        // Cancel/Close disposes the selection.
+        var handleKeyDownStart = markup.IndexOf("private void HandleImportPreviewKeyDown", cancelStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, handleKeyDownStart);
+        var cancelMethod = markup[cancelStart..handleKeyDownStart];
+        Assert.Contains("await DisposePortableImportSelectionAsync();", cancelMethod);
+
+        // Page disposal disposes any retained selection.
+        Assert.Contains("async ValueTask IAsyncDisposable.DisposeAsync() =>", markup);
+        Assert.Contains("await DisposePortableImportSelectionAsync();", markup);
     }
 
     [TestMethod]
@@ -894,13 +998,19 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("Settings.razor");
 
-        var importStart = markup.IndexOf("private async Task ImportPortableDataAsync()", StringComparison.Ordinal);
+        var importStart = markup.IndexOf("private async Task ConfirmPortableImportAsync()", StringComparison.Ordinal);
         var importEnd = markup.IndexOf("private async Task CancelPortableImportAsync()", importStart, StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, importStart);
         Assert.IsGreaterThan(importStart, importEnd);
         var importMethod = markup[importStart..importEnd];
-        Assert.Contains("PortableImportStatus.Success", importMethod);
+
+        // Only the two mutation dispositions (restore or applied merge) publish — MergeNoChange never does.
+        Assert.Contains("result.Summary?.Disposition is", importMethod);
+        Assert.Contains(
+            "PortableImportDisposition.RestoredIntoEmpty or PortableImportDisposition.MergeApplied",
+            importMethod);
         Assert.Contains("WorkflowChangeNotifier.NotifyChanged()", importMethod);
+        Assert.DoesNotContain("PortableImportDisposition.MergeNoChange", importMethod);
 
         var resetStart = markup.IndexOf("private async Task ResetDataAsync()", StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, resetStart);
@@ -912,6 +1022,57 @@ public sealed class UiWorkflowContractTests
         Assert.IsGreaterThanOrEqualTo(0, notifyIndex);
         Assert.IsGreaterThan(successIndex, notifyIndex);
         Assert.IsGreaterThan(notifyIndex, catchIndex);
+    }
+
+    [TestMethod]
+    public void Settings_KnownImportFailureCategoriesMapToDistinctLocalizedMessages()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var mapStart = markup.IndexOf("private static (string MessageKey, bool IsError) MapImportResultMessage", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, mapStart);
+        var mapEnd = markup.IndexOf(
+            "private static string MapFailedErrorCodeMessageKey", mapStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(mapStart, mapEnd);
+        var resultMap = markup[mapStart..mapEnd];
+
+        Assert.Contains("Settings_DataImportResultRestored", resultMap);
+        Assert.Contains("Settings_DataImportResultMergeApplied", resultMap);
+        Assert.Contains("Settings_DataImportResultMergeNoChange", resultMap);
+        Assert.Contains("Settings_DataImportTargetNotEmpty", resultMap);
+        Assert.Contains("Settings_DataImportValidationFailure", resultMap);
+        Assert.Contains("Settings_DataImportFailureCancelled", resultMap);
+
+        var codeMapStart = mapEnd;
+        var codeMapEnd = markup.IndexOf("private async Task DisposePortableImportSelectionAsync", codeMapStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(codeMapStart, codeMapEnd);
+        var codeMap = markup[codeMapStart..codeMapEnd];
+
+        Assert.Contains("BackupErrorCodes.ActiveWorkflowUnsupported => \"Settings_DataImportFailureActiveWorkflow\"", codeMap);
+        Assert.Contains("MergeWriterErrorCodes.StalePlan => \"Settings_DataImportFailureStalePlan\"", codeMap);
+        Assert.Contains("Settings_DataImportFailureSafetyCopy", codeMap);
+
+        // No raw error code or exception text is ever interpolated into user-visible output.
+        Assert.DoesNotContain("@result.ErrorCode", markup);
+        Assert.DoesNotContain("exception.Message", markup);
+    }
+
+    [TestMethod]
+    public void Settings_PortableDataExportBehaviorIsUnchangedBySliceNineImportPreviewWork()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var exportStart = markup.IndexOf("private async Task ExportPortableDataAsync()", StringComparison.Ordinal);
+        var exportEnd = markup.IndexOf("private async Task ChoosePortableImportAsync()", exportStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, exportStart);
+        Assert.IsGreaterThan(exportStart, exportEnd);
+        var exportMethod = markup[exportStart..exportEnd];
+
+        Assert.Contains("PortableArchiveFiles.ExportAsync(", exportMethod);
+        Assert.Contains("BackupService.CreatePortableArchiveAsync,", exportMethod);
+        Assert.Contains("Settings_DataExportSuccess", exportMethod);
+        Assert.Contains("Settings_DataExportCancelled", exportMethod);
+        Assert.Contains("Settings_DataExportFailure", exportMethod);
     }
 
     [TestMethod]

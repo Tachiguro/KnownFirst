@@ -7,12 +7,22 @@ namespace KnownFirst.Services.DataSafety.Merge;
 /// foreign key, so its identity is a content fingerprint of (StartedAtUtc, CompletedAtUtc, SHA-256
 /// digest over the ordered list of (stable LearningCardMatchIdentity, Rating) among its queue items).
 /// LearningSessionCard identity cascades from the parent session's identity, one level down.
+///
+/// <para>The <c>ComputeSchema8*</c> overloads below implement the exact same semantic contract for the
+/// Schema-8/FutureCard merge path (KF-MEANING-001 Slice 9): a meaning-aware sibling keyed by
+/// <see cref="FutureCardIdentity"/> instead of the physical <see cref="LearningCardMatchIdentity"/>, used
+/// by <see cref="MergePreflightPlannerV2"/>, <see cref="MergeWriterTargetIndex"/>, and
+/// <see cref="MergeWriterExecutor"/> so no Schema-8 learning-workflow identity hash is ever duplicated.</para>
 /// </summary>
 public static class LearningWorkflowIdentityPolicy
 {
     private const string SessionDomain = "KnownFirst.Merge.LearningSession.v1";
     private const string ItemsDigestDomain = "KnownFirst.Merge.LearningSession.ItemsDigest.v1";
     private const string SessionCardDomain = "KnownFirst.Merge.LearningSessionCard.v1";
+
+    private const string Schema8SessionDomain = "KnownFirst.Merge.Schema8.LearningSession.v1";
+    private const string Schema8ItemsDigestDomain = "KnownFirst.Merge.Schema8.LearningSession.ItemsDigest.v1";
+    private const string Schema8QueueItemDomain = "KnownFirst.Merge.Schema8.LearningQueueItem.v1";
 
     public static LearningSessionIdentity ComputeSessionIdentity(
         DateTime startedAtUtc,
@@ -83,6 +93,83 @@ public static class LearningWorkflowIdentityPolicy
         {
             throw new KeyNotFoundException(
                 $"No stable learning-card identity supplied for archive card id '{archiveCardId}'.");
+        }
+
+        return identity;
+    }
+
+    /// <summary>Schema-8/FutureCard sibling of <see cref="ComputeSessionIdentity(DateTime, DateTime?, IReadOnlyList{ValueTuple{LearningCardMatchIdentity, BackupReviewRating?}})"/>.</summary>
+    public static string ComputeSchema8SessionIdentity(
+        DateTime startedAtUtc,
+        DateTime? completedAtUtc,
+        IReadOnlyList<(FutureCardIdentity CardIdentity, BackupReviewRating? Rating)> orderedQueueItems)
+    {
+        ArgumentNullException.ThrowIfNull(orderedQueueItems);
+
+        var digestBuilder = new CanonicalFingerprintBuilder(Schema8ItemsDigestDomain);
+        foreach (var (cardIdentity, rating) in orderedQueueItems)
+        {
+            digestBuilder.WriteString(cardIdentity.Value);
+            digestBuilder.WriteNullableEnum(rating);
+        }
+
+        var itemsDigest = digestBuilder.ComputeSha256Hex();
+
+        var builder = new CanonicalFingerprintBuilder(Schema8SessionDomain)
+            .WriteUtcTimestamp(startedAtUtc)
+            .WriteNullableUtcTimestamp(completedAtUtc)
+            .WriteString(itemsDigest);
+
+        return builder.ComputeSha256Hex();
+    }
+
+    public static string ComputeSchema8SessionIdentity(
+        BackupLearningWorkflowV2 session,
+        IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByArchiveId)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(cardIdentitiesByArchiveId);
+
+        var orderedItems = session.QueueItems
+            .OrderBy(item => item.QueueOrder)
+            .Select(item => (ResolveFutureCardIdentity(item.CardId, cardIdentitiesByArchiveId), item.Rating))
+            .ToList();
+
+        return ComputeSchema8SessionIdentity(session.StartedAtUtc, session.CompletedAtUtc, orderedItems);
+    }
+
+    /// <summary>Schema-8/FutureCard sibling of <see cref="ComputeSessionCardIdentity(LearningSessionIdentity, LearningCardMatchIdentity, int)"/>.</summary>
+    public static string ComputeSchema8QueueItemIdentity(string sessionIdentity, FutureCardIdentity cardIdentity, int queueOrder)
+    {
+        ArgumentNullException.ThrowIfNull(sessionIdentity);
+
+        var builder = new CanonicalFingerprintBuilder(Schema8QueueItemDomain)
+            .WriteString(sessionIdentity)
+            .WriteString(cardIdentity.Value)
+            .WriteInt32(queueOrder);
+
+        return builder.ComputeSha256Hex();
+    }
+
+    public static string ComputeSchema8QueueItemIdentity(
+        BackupLearningQueueItemV2 item,
+        string sessionIdentity,
+        IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByArchiveId)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        var cardIdentity = ResolveFutureCardIdentity(item.CardId, cardIdentitiesByArchiveId);
+        return ComputeSchema8QueueItemIdentity(sessionIdentity, cardIdentity, item.QueueOrder);
+    }
+
+    private static FutureCardIdentity ResolveFutureCardIdentity(
+        string archiveCardId, IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByArchiveId)
+    {
+        ArgumentNullException.ThrowIfNull(cardIdentitiesByArchiveId);
+        if (!cardIdentitiesByArchiveId.TryGetValue(archiveCardId, out var identity))
+        {
+            throw new KeyNotFoundException(
+                $"No stable FutureCardIdentity supplied for archive card id '{archiveCardId}'.");
         }
 
         return identity;

@@ -1348,7 +1348,7 @@
     <value>Переносимые данные</value>
   </data>
   <data name="Settings_PortableDataDescription" xml:space="preserve">
-    <value>Создай экспорт данных или восстанови свои данные с помощью импорта данных. Импорт данных поддерживается только тогда, когда в этой установке ещё нет сохранённых данных обучения.</value>
+    <value>Создай экспорт данных или используй импорт данных, чтобы восстановить пустую установку или объединить данные с уже существующей установкой.</value>
   </data>
   <data name="Settings_PortableDataPrivacyNotice" xml:space="preserve">
     <value>Архив может содержать импортированный текст и историю обучения. Он не зашифрован. Храни и передавай его осторожно.</value>
@@ -1377,15 +1377,6 @@
   <data name="Settings_DataImportPickerTitle" xml:space="preserve">
     <value>Выбери архив импорта данных KnownFirst</value>
   </data>
-  <data name="Settings_DataImportConfirm" xml:space="preserve">
-    <value>Импортировать данные из «{0}»?</value>
-  </data>
-  <data name="Settings_DataImportEmptyOnly" xml:space="preserve">
-    <value>Импорт данных работает только в пустой установке. Существующие данные обучения никогда не объединяются, не заменяются и не удаляются.</value>
-  </data>
-  <data name="Settings_DataImportConfirmAction" xml:space="preserve">
-    <value>Подтвердить импорт данных</value>
-  </data>
   <data name="Settings_DataImportSuccess" xml:space="preserve">
     <value>Импорт данных успешно завершён.</value>
   </data>
@@ -1397,6 +1388,72 @@
   </data>
   <data name="Settings_DataImportFailure" xml:space="preserve">
     <value>Импорт данных не удался, все изменения в базе данных отменены.</value>
+  </data>
+  <data name="Settings_DataImportPreviewRestoreTitle" xml:space="preserve">
+    <value>Восстановить данные из «{0}»?</value>
+  </data>
+  <data name="Settings_DataImportPreviewRestoreDescription" xml:space="preserve">
+    <value>В этой установке ещё нет сохранённых данных обучения. Данные из архива будут восстановлены здесь. Настройки внешнего вида, языка и онлайн-словаря, а также журналы диагностики не затрагиваются. Резервная копия не нужна, так как ничего существующего не заменяется.</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeTitle" xml:space="preserve">
+    <value>Объединить данные из «{0}»?</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeDescription" xml:space="preserve">
+    <value>Твои существующие данные сохраняются. Совместимые данные из архива будут добавлены или дополнены.</value>
+  </data>
+  <data name="Settings_DataImportPreviewMergeSafetyCopyNotice" xml:space="preserve">
+    <value>Перед любыми изменениями будет создана личная резервная копия твоих текущих данных. Импорт выполняется транзакционно: если что-то пойдёт не так, все изменения будут автоматически отменены.</value>
+  </data>
+  <data name="Settings_DataImportPreviewNoChangeTitle" xml:space="preserve">
+    <value>В «{0}» нет ничего нового</value>
+  </data>
+  <data name="Settings_DataImportPreviewNoChangeDescription" xml:space="preserve">
+    <value>Всё содержимое этого архива уже присутствует. Изменения в базе данных не будут внесены, резервная копия не нужна.</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsNew" xml:space="preserve">
+    <value>Новые: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsEnriched" xml:space="preserve">
+    <value>Дополнено: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsPreserved" xml:space="preserve">
+    <value>Сохранено как отдельный вариант: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewCountsSkipped" xml:space="preserve">
+    <value>Уже есть: {0}</value>
+  </data>
+  <data name="Settings_DataImportPreviewBlockedGeneric" xml:space="preserve">
+    <value>Этот архив сейчас нельзя импортировать. Ничего не изменено.</value>
+  </data>
+  <data name="Settings_DataImportConfirmRestoreAction" xml:space="preserve">
+    <value>Восстановить данные</value>
+  </data>
+  <data name="Settings_DataImportConfirmMergeAction" xml:space="preserve">
+    <value>Импортировать и объединить</value>
+  </data>
+  <data name="Settings_DataImportResultRestored" xml:space="preserve">
+    <value>Твои данные успешно восстановлены.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeApplied" xml:space="preserve">
+    <value>Архив успешно объединён с твоими существующими данными.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeAppliedSafetyCopyNotice" xml:space="preserve">
+    <value>Перед объединением была сохранена резервная копия твоих предыдущих данных.</value>
+  </data>
+  <data name="Settings_DataImportResultMergeNoChange" xml:space="preserve">
+    <value>Всё содержимое этого архива уже было. Ничего не изменено.</value>
+  </data>
+  <data name="Settings_DataImportFailureActiveWorkflow" xml:space="preserve">
+    <value>В импорте данных отказано, так как сейчас выполняется проверка, подготовка или сеанс обучения. Заверши его или выйди из него, затем попробуй снова.</value>
+  </data>
+  <data name="Settings_DataImportFailureSafetyCopy" xml:space="preserve">
+    <value>Импорту данных не удалось создать необходимую резервную копию, поэтому ничего не изменено.</value>
+  </data>
+  <data name="Settings_DataImportFailureStalePlan" xml:space="preserve">
+    <value>Твои данные изменились с момента создания этого предпросмотра, поэтому импорт не был применён. Ничего не изменено. Попробуй ещё раз.</value>
+  </data>
+  <data name="Settings_DataImportFailureCancelled" xml:space="preserve">
+    <value>Импорт данных отменён. Ничего не изменено.</value>
   </data>
   <data name="WhatsNew_Title" xml:space="preserve">
     <value>Что нового</value>

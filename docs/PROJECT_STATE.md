@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-08-02
-**State source:** `master` (`d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc`, PR #43 merge commit)
-**Next product milestone:** KF-MEANING-001 Slice 9 — Import UI, localized preview/result handling, and final release validation
+**State source:** `master` (`cf1b0995415dc858357f0a5c9e90e7c0aefb327c`, PR #44 merge commit)
+**Next repository action:** Manual merge of PR #45; no subsequent product milestone has been selected.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -72,8 +72,8 @@ The `master` branch includes the following merged technical foundations:
 **Current Status (master):**
 - The active database schema is **8** (`PRAGMA user_version = 8`).
 - Schema 8 is active during normal application initialization on master.
-- Slices 1–7 are merged and verified on master.
-- Slice 8 (populated-target merge writer and Import routing) is awaiting manual merge.
+- Slices 1–8 are merged and verified on master (PR #44).
+- Slice 9 (portable import preview UI, localized handling, and end-to-end convergence validation) is implemented and awaiting manual merge.
 
 ## Confirmed verification
 
@@ -89,8 +89,8 @@ The `master` branch includes the following merged technical foundations:
 ## Database status
 
 - Storage is local SQLite in the application data directory (`knownfirst.db3`).
-- On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **7**.
-- On the unmerged Slice-6 branch, `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active.
+- On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **8** (Slice 6 and later merged).
+- Schema 8 is active in real application databases on master.
 - Initialization is forward-oriented and preserves existing rows while adding supported tables or columns.
 - Initialization reads `PRAGMA user_version` first and rejects any version greater than the current version before modifying tables or cache.
 - Complete persisted-data rules are in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md).
@@ -104,29 +104,28 @@ The `master` branch includes the following merged technical foundations:
 - Offline dictionary packages and FSRS scheduling are deferred.
 - Online lookup requires explicit consent and network access on cache misses.
 - Public Google Play release is intentionally not yet pursued.
-- Import UI, localized preview/result handling, and final end-to-end release validation are deferred to Slice 9.
 - Tooling-only improvements (such as PR #37) do not create a new Beta 13 product release.
 
 This document does not claim public-release readiness or draw legal conclusions about license/attribution compliance; those remain open review items tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Active development
 
-The stable master baseline is `d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc` (PR #43 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
+The stable master baseline is `cf1b0995415dc858357f0a5c9e90e7c0aefb327c` (PR #44 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
 
-**KF-MEANING-001 Slice 8 — transactional Schema-8 populated-target merge writer and Import routing** is implemented and validated as unmerged feature-branch work on `feature/meaning-slice8-core-merge-writer` (checkpoint commit `783f83c9df99de6fa016f1260f95616ca96d7699`), with a complete result of 1593 passed, 0 failed, 0 skipped. Manual merge is pending.
+**KF-MEANING-001 Slice 8 (merged PR #44)** — transactional Schema-8 populated-target merge writer and Import routing, with complete result 1593 passed, 0 failed, 0 skipped.
 
-Verified Slice-8 behavior on that branch:
+**KF-MEANING-001 Slice 9 — portable import preview UI, localized handling, and end-to-end convergence validation** is implemented and validated on feature branch `feature/meaning-slice9-import-preview-ui` (checkpoint commit `22d7c1fa0afea5f608b0ce60f48b8a1beecd9cdd`), with complete result of **1626 passed, 0 failed, 0 skipped**. Manual PR merge is pending.
 
-- `PortableMergeWriter` — transactional populated-target merge writer that validates the merge plan, rejects stale or non-executable plans, and atomically commits or rolls back.
-- Stable identity resolution using explicit source-local-ID-to-target-ID maps; source integer IDs are never target identities.
-- Existing domain entities are reused; missing entities and preserved variants are inserted; enrichment policies are applied.
-- Sense-addressed meanings, contexts, answer variants, assignments, progress, cards, reviews, sessions, queues, and review/preparation workflows are merged and preserved.
-- Multiple Senses for one Word remain independent.
-- Failure and cancellation roll back the complete merge; reimport converges without duplicates; merged review history becomes authoritative.
-- Card scheduling is replayed through the existing scheduler in deterministic order (ReviewedAtUtc, then fingerprint ordinally); replay changes only derived fields and does not repoint Sense, PreferredMeaning, or Direction.
-- Import routing: empty targets use restore-into-empty; populated Schema-8 targets use validation → preflight → validated safety copy → transactional writer.
-- Archive-v1 upgrades in memory for Schema 8; archive-v2 is supported natively; archive-v2 into Schema 7 remains rejected.
-- Fully duplicate imports return successful no-change without safety copy or writer invocation.
-- Non-seekable source streams are supported; stable errors are preserved; `PortableImportResult` exposes backward-compatible disposition and summary.
+Verified Slice-9 behavior on that branch:
 
-Slice 9 (Import UI, localized preview/result handling, and final end-to-end release validation) remains unimplemented.
+- **Import preview UI** — read-only preview before confirmation; distinguishes restore (empty target), merge (populated Schema-8 target), and no-change (duplicate import) cases.
+- **Preview safety** — no database mutation, safety copy, or writer invocation during preview; supports non-seekable caller streams.
+- **Confirmation workflow** — distinct action labels for restore or merge; no-change presents success without a mutating action; re-validates and re-evaluates independently on confirmation.
+- **Unified import operation** — single Import data operation; no separate Merge button or separate merge workflow.
+- **Merge preview and results** — expose aggregate inserted, enriched, preserved-variant, and skipped counts; explain that local data is preserved and a validated private safety copy is created before mutation.
+- **Disposition classification** — RestoredIntoEmpty, MergeApplied, MergeNoChange; workflow notifications occur only for RestoredIntoEmpty and MergeApplied.
+- **Localization** — complete EN/DE/RU coverage for preview, result, and failure handling.
+- **Corrected LearningSession identity** — distinct real sessions using the same card set no longer collapse; identity includes StartedAtUtc, CompletedAtUtc, ordered queue digest, and Rating per item; planner and target-index share the same implementation; reimport converges without duplicates.
+- **End-to-end convergence validation** — real automated tests exercise archive creation → validation → preview → preflight → validated safety copy → transactional writer → deterministic scheduler replay → result summary → repeated-import no-change; bidirectional divergent Schema-8 databases converge semantically.
+- **Archive-v1 upgrade and convergence** — Schema-8 populated-target Import upgrades archive-v1 in memory and converges on reimport.
+- **Safety-copy validation** — safety copies are reopened and validated from final paths; represent the pre-merge target state; remain available after later writer failure.

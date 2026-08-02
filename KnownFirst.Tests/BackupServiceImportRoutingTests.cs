@@ -746,4 +746,312 @@ public sealed class BackupServiceImportRoutingTests
             await targetDb.DisposeAsync();
         }
     }
+
+    // ==== KF-MEANING-001 Slice 9: PreviewPortableImportAsync read-only preview ====
+
+    // ---- Preview 1. Empty Schema-8 target + archive v2 previews RestoreIntoEmpty ----
+    [TestMethod]
+    public async Task Preview_EmptySchema8Target_ArchiveV2_PreviewsRestoreIntoEmpty()
+    {
+        await using var targetDb = new IsolatedSchema8Database();
+        await targetDb.InitializeAsync();
+        var archiveBytes = await BuildMinimalValidV2ArchiveBytesAsync();
+
+        var service = new BackupService(targetDb, new FakePlatformInfo());
+        using var stream = new MemoryStream(archiveBytes);
+        var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.RestoreIntoEmpty, preview.Disposition);
+        Assert.IsTrue(preview.CanConfirm);
+        Assert.IsTrue(preview.WillMutate);
+        Assert.IsFalse(preview.RequiresSafetyCopy);
+        Assert.IsNotNull(preview.ArchiveSummary);
+        Assert.IsNull(preview.ErrorCode);
+        Assert.AreEqual(0, await WordCountAsync(targetDb));
+
+        var safetyCopyDirectory = Path.Combine(Path.GetDirectoryName(targetDb.DatabasePath)!, MergeSafetyCopyService.DirectoryName);
+        Assert.IsFalse(Directory.Exists(safetyCopyDirectory), "Preview must never create a safety-copy directory.");
+    }
+
+    // ---- Preview 2. Empty Schema-8 target + archive v1 previews RestoreIntoEmpty ----
+    [TestMethod]
+    public async Task Preview_EmptySchema8Target_ArchiveV1_PreviewsRestoreIntoEmpty()
+    {
+        await using var sourceFixture = await Schema7Fixture.CreateAsync();
+        var wordId = await sourceFixture.InsertWordAsync("network");
+        var meaningId = await sourceFixture.InsertMeaningAsync(wordId, displayTerm: "network", translation: "Netzwerk");
+        await sourceFixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
+        var archiveBytes = await BuildV1ArchiveBytesAsync(sourceFixture);
+
+        await using var targetDb = new IsolatedSchema8Database();
+        await targetDb.InitializeAsync();
+
+        var service = new BackupService(targetDb, new FakePlatformInfo());
+        using var stream = new MemoryStream(archiveBytes);
+        var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.RestoreIntoEmpty, preview.Disposition);
+        Assert.IsNotNull(preview.ArchiveSummary);
+        Assert.AreEqual(0, await WordCountAsync(targetDb));
+    }
+
+    // ---- Preview 3 & 6. Populated Schema-8 target + new archive data previews MergeChanges and reports a required safety copy ----
+    [TestMethod]
+    public async Task Preview_PopulatedSchema8Target_NewArchiveData_PreviewsMergeChanges_RequiresSafetyCopy()
+    {
+        await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        var archiveBytes = await BuildV2ArchiveBytesAsync(sourceFixture);
+
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+        var wordCountBefore = await WordCountAsync(targetDb);
+
+        var service = new BackupService(targetDb, new FakePlatformInfo());
+        using var stream = new MemoryStream(archiveBytes);
+        var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.MergeChanges, preview.Disposition);
+        Assert.IsTrue(preview.CanConfirm);
+        Assert.IsTrue(preview.WillMutate);
+        Assert.IsTrue(preview.RequiresSafetyCopy);
+        Assert.IsGreaterThan(0, preview.InsertedCount);
+        Assert.IsNull(preview.ErrorCode);
+
+        // Zero mutation: the preview alone never changes the target's word count.
+        Assert.AreEqual(wordCountBefore, await WordCountAsync(targetDb));
+
+        var safetyCopyDirectory = Path.Combine(Path.GetDirectoryName(targetDb.DatabasePath)!, MergeSafetyCopyService.DirectoryName);
+        Assert.IsFalse(Directory.Exists(safetyCopyDirectory), "Preview must never create a safety-copy directory.");
+    }
+
+    // ---- Preview 4 & 7. A fully duplicate archive against a populated target previews MergeNoChange without mutation or a safety copy ----
+    [TestMethod]
+    public async Task Preview_PopulatedSchema8Target_DuplicateArchive_PreviewsMergeNoChange_NoMutationNoSafetyCopy()
+    {
+        await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        var archiveBytes = await BuildV2ArchiveBytesAsync(sourceFixture);
+
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+        var service = new BackupService(targetDb, new FakePlatformInfo());
+
+        using (var firstStream = new MemoryStream(archiveBytes))
+        {
+            var firstResult = await service.ImportPortableArchiveAsync(firstStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportStatus.Success, firstResult.Status);
+            Assert.AreEqual(PortableImportDisposition.MergeApplied, firstResult.Summary!.Disposition);
+        }
+
+        var wordCountAfterMerge = await WordCountAsync(targetDb);
+        var safetyCopyDirectory = Path.Combine(Path.GetDirectoryName(targetDb.DatabasePath)!, MergeSafetyCopyService.DirectoryName);
+        var safetyCopiesAfterMerge = Directory.GetFiles(safetyCopyDirectory, "*.kfarchive").Length;
+
+        using (var secondStream = new MemoryStream(archiveBytes))
+        {
+            var preview = await service.PreviewPortableImportAsync(secondStream, CancellationToken.None);
+
+            Assert.AreEqual(PortableImportPreviewDisposition.MergeNoChange, preview.Disposition);
+            Assert.IsFalse(preview.CanConfirm);
+            Assert.IsFalse(preview.WillMutate);
+            Assert.IsFalse(preview.RequiresSafetyCopy);
+            Assert.IsGreaterThan(0, preview.SkippedCount);
+        }
+
+        Assert.AreEqual(wordCountAfterMerge, await WordCountAsync(targetDb));
+        Assert.AreEqual(safetyCopiesAfterMerge, Directory.GetFiles(safetyCopyDirectory, "*.kfarchive").Length);
+    }
+
+    // ---- Preview 5. Merge preview reports inserted/enriched/preserved/skipped aggregates from preflight ----
+    [TestMethod]
+    public async Task Preview_MergeChanges_ReportsAggregateCountsFromPreflight()
+    {
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+        var archiveBytes = await BuildMinimalValidV2ArchiveBytesAsync();
+
+        var perEntity = Enum.GetValues<MergeEntityKind>().ToDictionary(kind => kind, _ => MergeEntityPlanCounts.Zero);
+        perEntity[MergeEntityKind.Vocabulary] = new MergeEntityPlanCounts(
+            NewCount: 3, ExactDuplicateSkippedCount: 2, EnrichedCount: 1, PreservedVariantCount: 1,
+            UnresolvedConflictCount: 0, DeduplicatedEventCount: 0);
+        perEntity[MergeEntityKind.LearningReview] = new MergeEntityPlanCounts(
+            NewCount: 0, ExactDuplicateSkippedCount: 0, EnrichedCount: 0, PreservedVariantCount: 0,
+            UnresolvedConflictCount: 0, DeduplicatedEventCount: 4);
+        var plan = new MergePreflightPlan(
+            Status: MergePreflightStatus.Ready,
+            IsExecutable: true,
+            Manifest: DummyManifest(),
+            ChecksumVerified: true,
+            PerEntity: perEntity,
+            Actions: [],
+            DerivedAnswerVariantPlans: [],
+            KnowledgeStateConflictDecisions: [],
+            WorkflowStatusConflictDecisions: [],
+            SemanticMeaningGroupingDecisions: [],
+            PreferredVariantSelectionDecisions: [],
+            BlockingPrerequisites: [],
+            SampleDetails: new Dictionary<MergeEntityClassification, IReadOnlyList<string>>(),
+            WarningCodes: [],
+            RequiresSchedulerReplay: false,
+            ErrorCode: null);
+
+        var callLog = new List<string>();
+        var service = new BackupService(
+            targetDb,
+            new FakePlatformInfo(),
+            mergePreflightService: new RecordingPreflightService(plan, callLog));
+
+        using var stream = new MemoryStream(archiveBytes);
+        var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.MergeChanges, preview.Disposition);
+        Assert.AreEqual(3, preview.InsertedCount);
+        Assert.AreEqual(1, preview.EnrichedCount);
+        Assert.AreEqual(1, preview.PreservedVariantCount);
+        Assert.AreEqual(6, preview.SkippedCount);
+        CollectionAssert.AreEqual(new[] { "preflight" }, callLog);
+    }
+
+    // ---- Preview 8. Invalid archive returns ValidationFailed with zero mutation ----
+    [TestMethod]
+    public async Task Preview_InvalidArchive_ReturnsValidationFailed_ZeroMutation()
+    {
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+        var wordCountBefore = await WordCountAsync(targetDb);
+
+        var service = new BackupService(targetDb, new FakePlatformInfo());
+        using var corruptStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("not a zip archive"));
+        var preview = await service.PreviewPortableImportAsync(corruptStream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.ValidationFailed, preview.Disposition);
+        Assert.IsFalse(preview.CanConfirm);
+        Assert.IsNotNull(preview.ErrorCode);
+        Assert.IsNull(preview.ArchiveSummary);
+        Assert.AreEqual(wordCountBefore, await WordCountAsync(targetDb));
+    }
+
+    // ---- Preview 9. Blocked preflight returns Blocked with the existing stable code ----
+    [TestMethod]
+    public async Task Preview_BlockedPreflight_ReturnsBlockedWithStableCode()
+    {
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+        var archiveBytes = await BuildMinimalValidV2ArchiveBytesAsync();
+
+        var requiresDecisionPlan = BuildPlan(MergePreflightStatus.RequiresUserDecision, isExecutable: false);
+        var callLog1 = new List<string>();
+        var service1 = new BackupService(
+            targetDb, new FakePlatformInfo(), mergePreflightService: new RecordingPreflightService(requiresDecisionPlan, callLog1));
+        using (var stream1 = new MemoryStream(archiveBytes))
+        {
+            var preview1 = await service1.PreviewPortableImportAsync(stream1, CancellationToken.None);
+            Assert.AreEqual(PortableImportPreviewDisposition.Blocked, preview1.Disposition);
+            Assert.AreEqual(PortableImportPreviewErrorCodes.MergeRequiresUserDecision, preview1.ErrorCode);
+            Assert.IsFalse(preview1.CanConfirm);
+        }
+
+        var blockedByPrerequisitePlan = BuildPlan(MergePreflightStatus.BlockedByPrerequisite, isExecutable: false);
+        var callLog2 = new List<string>();
+        var service2 = new BackupService(
+            targetDb, new FakePlatformInfo(), mergePreflightService: new RecordingPreflightService(blockedByPrerequisitePlan, callLog2));
+        using (var stream2 = new MemoryStream(archiveBytes))
+        {
+            var preview2 = await service2.PreviewPortableImportAsync(stream2, CancellationToken.None);
+            Assert.AreEqual(PortableImportPreviewDisposition.Blocked, preview2.Disposition);
+            Assert.AreEqual(PortableImportPreviewErrorCodes.MergeBlockedByPrerequisite, preview2.ErrorCode);
+        }
+    }
+
+    // ---- Preview 10. Archive v2 into Schema-7 remains rejected ----
+    [TestMethod]
+    public async Task Preview_ArchiveV2IntoSchema7Target_RemainsRejected()
+    {
+        var targetDb = new TemporaryKnownFirstDatabase();
+        await targetDb.InitializeAsync();
+        try
+        {
+            var archiveBytes = await BuildMinimalValidV2ArchiveBytesAsync();
+            var service = new BackupService(targetDb, new FakePlatformInfo());
+            using var stream = new MemoryStream(archiveBytes);
+            var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+            Assert.AreEqual(PortableImportPreviewDisposition.ValidationFailed, preview.Disposition);
+            Assert.AreEqual(BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target, preview.ErrorCode);
+        }
+        finally
+        {
+            await targetDb.DisposeAsync();
+        }
+    }
+
+    // ---- Preview 11. A non-seekable source stream is supported ----
+    [TestMethod]
+    public async Task Preview_NonSeekableSourceStream_IsSupported()
+    {
+        await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        var archiveBytes = await BuildV2ArchiveBytesAsync(sourceFixture);
+
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+
+        var service = new BackupService(targetDb, new FakePlatformInfo());
+        using var stream = new NonSeekableStream(archiveBytes);
+        Assert.IsFalse(stream.CanSeek);
+
+        var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.MergeChanges, preview.Disposition);
+    }
+
+    // ---- Preview 12. Preview creates no safety-copy directory and invokes no writer ----
+    [TestMethod]
+    public async Task Preview_NeverCreatesSafetyCopyOrInvokesWriter()
+    {
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+        var archiveBytes = await BuildMinimalValidV2ArchiveBytesAsync();
+
+        var callLog = new List<string>();
+        var service = new BackupService(
+            targetDb,
+            new FakePlatformInfo(),
+            mergePreflightService: new RecordingPreflightService(
+                BuildPlan(MergePreflightStatus.Ready, isExecutable: true, hasInsertable: true), callLog),
+            mergeSafetyCopyService: new RecordingSafetyCopyService(
+                new MergeSafetyCopyResult(MergeSafetyCopyStatus.Success, "x", "y", DateTime.UtcNow, 1, null, null, null), callLog),
+            mergeWriterService: new RecordingWriterService(MergeWriteResult.SuccessResult, callLog));
+
+        using var stream = new MemoryStream(archiveBytes);
+        var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.MergeChanges, preview.Disposition);
+        CollectionAssert.AreEqual(new[] { "preflight" }, callLog);
+
+        var safetyCopyDirectory = Path.Combine(Path.GetDirectoryName(targetDb.DatabasePath)!, MergeSafetyCopyService.DirectoryName);
+        Assert.IsFalse(Directory.Exists(safetyCopyDirectory));
+    }
+
+    // ---- Preview 13. Cancellation returns a stable cancelled result without mutation ----
+    [TestMethod]
+    public async Task Preview_CancelledPreflight_ReturnsCancelledWithoutMutation()
+    {
+        await using var targetDb = new IsolatedSchema8Database();
+        await SeedOneWordAsync(targetDb);
+        var wordCountBefore = await WordCountAsync(targetDb);
+        var archiveBytes = await BuildMinimalValidV2ArchiveBytesAsync();
+
+        var callLog = new List<string>();
+        var service = new BackupService(
+            targetDb,
+            new FakePlatformInfo(),
+            mergePreflightService: new RecordingPreflightService(
+                BuildPlan(MergePreflightStatus.Cancelled, isExecutable: false), callLog));
+
+        using var stream = new MemoryStream(archiveBytes);
+        var preview = await service.PreviewPortableImportAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.Cancelled, preview.Disposition);
+        Assert.AreEqual(BackupErrorCodes.OperationCancelled, preview.ErrorCode);
+        Assert.AreEqual(wordCountBefore, await WordCountAsync(targetDb));
+    }
 }

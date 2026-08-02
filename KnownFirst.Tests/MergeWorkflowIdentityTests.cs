@@ -182,4 +182,113 @@ public sealed class MergeWorkflowIdentityTests
             LearningWorkflowIdentityPolicy.ComputeSessionIdentity(workflow1, map),
             LearningWorkflowIdentityPolicy.ComputeSessionIdentity(workflow2, map));
     }
+
+    // --- Schema-8 LearningSession / LearningQueueItem (FutureCardIdentity-based, KF-MEANING-001 Slice 9) ---
+
+    [TestMethod]
+    public void Schema8SessionIdentity_SameTimestampsQueueAndRatings_Deduplicates()
+    {
+        var items = new List<(FutureCardIdentity, BackupReviewRating?)>
+        {
+            (new FutureCardIdentity("CARD-A"), BackupReviewRating.Good),
+            (new FutureCardIdentity("CARD-B"), null),
+        };
+
+        var identity1 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, items);
+        var identity2 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, items);
+
+        Assert.AreEqual(identity1, identity2);
+    }
+
+    [TestMethod]
+    public void Schema8SessionIdentity_DifferentStartedAt_ProducesDifferentIdentity()
+    {
+        var items = new List<(FutureCardIdentity, BackupReviewRating?)> { (new FutureCardIdentity("CARD-A"), BackupReviewRating.Good) };
+
+        var identity1 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, items);
+        var identity2 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt.AddMinutes(1), CompletedAt, items);
+
+        Assert.AreNotEqual(identity1, identity2);
+    }
+
+    [TestMethod]
+    public void Schema8SessionIdentity_DifferentCompletedAt_ProducesDifferentIdentity()
+    {
+        var items = new List<(FutureCardIdentity, BackupReviewRating?)> { (new FutureCardIdentity("CARD-A"), BackupReviewRating.Good) };
+
+        var identity1 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, items);
+        var identity2 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, null, items);
+
+        Assert.AreNotEqual(identity1, identity2);
+    }
+
+    [TestMethod]
+    public void Schema8SessionIdentity_DifferentRatingForSameCard_ProducesDifferentIdentity()
+    {
+        var cardIdentity = new FutureCardIdentity("CARD-A");
+        var goodItems = new List<(FutureCardIdentity, BackupReviewRating?)> { (cardIdentity, BackupReviewRating.Good) };
+        var hardItems = new List<(FutureCardIdentity, BackupReviewRating?)> { (cardIdentity, BackupReviewRating.Hard) };
+
+        var identity1 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, goodItems);
+        var identity2 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, hardItems);
+
+        Assert.AreNotEqual(identity1, identity2);
+    }
+
+    [TestMethod]
+    public void Schema8SessionIdentity_SameCardsDifferentRelativeOrder_ProducesDifferentIdentity()
+    {
+        var cardA = new FutureCardIdentity("CARD-A");
+        var cardB = new FutureCardIdentity("CARD-B");
+        var forward = new List<(FutureCardIdentity, BackupReviewRating?)> { (cardA, null), (cardB, null) };
+        var reversed = new List<(FutureCardIdentity, BackupReviewRating?)> { (cardB, null), (cardA, null) };
+
+        var identity1 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, forward);
+        var identity2 = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(StartedAt, CompletedAt, reversed);
+
+        Assert.AreNotEqual(identity1, identity2);
+    }
+
+    [TestMethod]
+    public void Schema8QueueItemIdentity_DifferentQueueOrder_ProducesDifferentIdentity()
+    {
+        var cardIdentity = new FutureCardIdentity("CARD");
+
+        var atOrderZero = LearningWorkflowIdentityPolicy.ComputeSchema8QueueItemIdentity("SESSION-A", cardIdentity, 0);
+        var atOrderOne = LearningWorkflowIdentityPolicy.ComputeSchema8QueueItemIdentity("SESSION-A", cardIdentity, 1);
+
+        Assert.AreNotEqual(atOrderZero, atOrderOne);
+    }
+
+    [TestMethod]
+    public void Schema8QueueItemIdentity_DifferentParentSession_ProducesDifferentIdentity()
+    {
+        var cardIdentity = new FutureCardIdentity("CARD");
+
+        var underSessionA = LearningWorkflowIdentityPolicy.ComputeSchema8QueueItemIdentity("SESSION-A", cardIdentity, 0);
+        var underSessionB = LearningWorkflowIdentityPolicy.ComputeSchema8QueueItemIdentity("SESSION-B", cardIdentity, 0);
+
+        Assert.AreNotEqual(underSessionA, underSessionB);
+    }
+
+    [TestMethod]
+    public void Schema8SessionIdentity_ResolvesQueueItemsInOrderThroughMap_NotDeclarationOrder()
+    {
+        var identityA = new FutureCardIdentity("CARD-A");
+        var identityB = new FutureCardIdentity("CARD-B");
+        var map = new Dictionary<string, FutureCardIdentity> { ["card-a"] = identityA, ["card-b"] = identityB };
+
+        var workflow = new BackupLearningWorkflowV2(
+            "session-1", BackupLearningSessionStatus.Completed, 2, 2, 0, 0, 2, 0, StartedAt, StartedAt, CompletedAt,
+            [
+                new BackupLearningQueueItemV2("qi-2", "card-b", 1, true, false, true, false, false, true, BackupReviewRating.Good, CompletedAt, null),
+                new BackupLearningQueueItemV2("qi-1", "card-a", 0, true, false, true, false, false, true, BackupReviewRating.Good, CompletedAt, null),
+            ]);
+
+        var expected = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(
+            StartedAt, CompletedAt, [(identityA, BackupReviewRating.Good), (identityB, BackupReviewRating.Good)]);
+        var actual = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(workflow, map);
+
+        Assert.AreEqual(expected, actual, "Queue items must be ordered by QueueOrder, not archive declaration order.");
+    }
 }

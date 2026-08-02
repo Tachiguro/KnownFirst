@@ -17,7 +17,7 @@ namespace KnownFirst.Services.DataSafety.Merge;
 /// <see cref="SemanticMeaningIdentityPolicy"/>, <see cref="ExactMeaningVariantIdentityPolicy"/>,
 /// <see cref="AnswerVariantIdentityPolicy"/>, <see cref="FutureCardIdentityPolicy"/>,
 /// <see cref="ReviewWorkflowIdentityPolicy"/>, <see cref="PreparationWorkflowIdentityPolicy"/>, and
-/// <see cref="MergePreflightPlannerV2.ComputeLearningWorkflowIdentity"/>) — no identity computation is
+/// <see cref="LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(DateTime, DateTime?, IReadOnlyList{ValueTuple{FutureCardIdentity, BackupReviewRating?}})"/>) — no identity computation is
 /// duplicated here, only the raw-row field plumbing needed to call those policies against entities that
 /// carry a real int id instead of an archive-local string id.</para>
 /// </summary>
@@ -163,12 +163,15 @@ internal sealed class MergeWriterTargetIndex
         var learningSessionIdByIdentity = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var session in snapshot.LearningSessions)
         {
-            var orderedCardIdentities = snapshot.LearningSessionCards
+            var orderedQueueItems = snapshot.LearningSessionCards
                 .Where(item => item.SessionId == session.Id)
                 .OrderBy(item => item.QueueOrder)
-                .Select(item => cardIdentityByCardId[item.CardId])
+                .Select(item => (
+                    cardIdentityByCardId[item.CardId],
+                    item.Rating is null ? (BackupReviewRating?)null : BackupEnumMappings.ToBackup(item.Rating.Value)))
                 .ToList();
-            var identity = MergePreflightPlannerV2.ComputeLearningWorkflowIdentity(orderedCardIdentities);
+            var identity = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(
+                session.StartedAtUtc, session.CompletedAtUtc, orderedQueueItems);
             learningSessionIdByIdentity[identity] = session.Id;
         }
 

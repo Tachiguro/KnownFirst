@@ -437,6 +437,87 @@ public sealed class MergePreflightServiceTests
         }
     }
 
+    // ==== KF-MEANING-001 Slice 9: distinct LearningSession identity (StartedAtUtc/CompletedAtUtc/queue order/rating) ====
+
+    [TestMethod]
+    public void LearningSession_SameCardSetDifferentStartedAt_ClassifiedAsNewNotDuplicate()
+    {
+        var sharedCard = new BackupLearningCardV2("c1", "v1", "s1", "m1", BackupCardDirection.TermToMeaning, BackupCardState.New, DateTime.UtcNow, 0, 2.5, 0, 0, null, null, DateTime.UtcNow, DateTime.UtcNow);
+        var vocabulary = new[] { new BackupVocabularyItem("v1", "en", "test", "test", BackupTokenKind.Word, BackupKnowledgeState.Unreviewed, BackupPreparationState.Unprepared, 0, 0, DateTime.UtcNow, DateTime.UtcNow, Array.Empty<BackupEncounteredForm>(), DefaultAutoLearning(), Array.Empty<BackupLegacyReviewSummary>()) };
+        var senses = new[] { new BackupSense("s1", "st1", "v1", "en", "en", "p1", "topic", "pos", "gram", "acro", null, BackupSenseStatus.Prepared, DateTime.UtcNow, DateTime.UtcNow) };
+        var prepared = new[] { new BackupPreparedItemV2("m1", "s1", "st_m1", "v1", "en", "en", "test", null, null, BackupTokenKind.Word, null, null, "test", "def", "ex", "note", null, Array.Empty<string>(), false, new BackupSourceReference("prov", "proj", "title", null, "attr"), DateTime.UtcNow, DateTime.UtcNow, DateTime.UtcNow, Array.Empty<BackupContextSnapshotV2>()) };
+
+        var firstStart = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var secondStart = firstStart.AddDays(1);
+
+        BackupPayloadV2 BuildPayload(string sessionId, DateTime startedAtUtc) => new(
+            SourceMaterials: Array.Empty<BackupSourceMaterial>(),
+            Vocabulary: vocabulary,
+            Senses: senses,
+            PreparedLearning: prepared,
+            AnswerVariants: Array.Empty<BackupAnswerVariant>(),
+            SenseAnswerVariantAssignments: Array.Empty<BackupSenseAnswerVariantAssignment>(),
+            AnswerVariantProgress: Array.Empty<BackupAnswerVariantProgress>(),
+            Learning: new BackupLearningDataV2(new[] { sharedCard }, Array.Empty<BackupLearningReviewV2>()),
+            Workflows: new BackupWorkflowDataV2(
+                Array.Empty<BackupVocabularyReviewWorkflow>(), Array.Empty<BackupPreparationWorkflow>(),
+                new[]
+                {
+                    new BackupLearningWorkflowV2(
+                        sessionId, BackupLearningSessionStatus.Completed, 1, 1, 0, 0, 1, 0,
+                        startedAtUtc, startedAtUtc, startedAtUtc,
+                        new[] { new BackupLearningQueueItemV2("qi1", "c1", 0, true, false, true, false, false, true, BackupReviewRating.Good, startedAtUtc, TargetAnswerVariantId: null) })
+                }),
+            Extensions: EmptyExtensions());
+
+        var targetPayload = BuildPayload("target-session", firstStart);
+        var archivePayload = BuildPayload("archive-session", secondStart);
+
+        var plan = MergePreflightPlannerV2.CreatePlan(targetPayload, archivePayload, CreateDummyManifestInfo());
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        var sessionAction = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.LearningWorkflow);
+        Assert.AreEqual(
+            MergeEntityClassification.New, sessionAction.Classification,
+            "Two real sessions sharing the same card set but a different StartedAtUtc must not collapse into one merge identity.");
+
+        // Determinism: repeated preflight runs over the same inputs must reproduce the exact same identity.
+        var plan2 = MergePreflightPlannerV2.CreatePlan(targetPayload, archivePayload, CreateDummyManifestInfo());
+        Assert.AreEqual(
+            sessionAction.StableIdentity,
+            plan2.Actions.Single(a => a.EntityKind == MergeEntityKind.LearningWorkflow).StableIdentity);
+    }
+
+    [TestMethod]
+    public void LearningQueueItem_ReferencesMissingCard_FailsClosed()
+    {
+        var targetPayload = CreateEmptyV2Payload();
+        var archivePayload = new BackupPayloadV2(
+            SourceMaterials: Array.Empty<BackupSourceMaterial>(),
+            Vocabulary: Array.Empty<BackupVocabularyItem>(),
+            Senses: Array.Empty<BackupSense>(),
+            PreparedLearning: Array.Empty<BackupPreparedItemV2>(),
+            AnswerVariants: Array.Empty<BackupAnswerVariant>(),
+            SenseAnswerVariantAssignments: Array.Empty<BackupSenseAnswerVariantAssignment>(),
+            AnswerVariantProgress: Array.Empty<BackupAnswerVariantProgress>(),
+            Learning: new BackupLearningDataV2(Array.Empty<BackupLearningCardV2>(), Array.Empty<BackupLearningReviewV2>()),
+            Workflows: new BackupWorkflowDataV2(
+                Array.Empty<BackupVocabularyReviewWorkflow>(), Array.Empty<BackupPreparationWorkflow>(),
+                new[]
+                {
+                    new BackupLearningWorkflowV2(
+                        "ls1", BackupLearningSessionStatus.Completed, 1, 1, 0, 0, 1, 0,
+                        DateTime.UtcNow, DateTime.UtcNow, DateTime.UtcNow,
+                        new[] { new BackupLearningQueueItemV2("qi1", "missing-card", 0, true, false, true, false, false, true, BackupReviewRating.Good, DateTime.UtcNow, TargetAnswerVariantId: null) })
+                }),
+            Extensions: EmptyExtensions());
+
+        Assert.ThrowsExactly<KeyNotFoundException>(() =>
+        {
+            MergePreflightPlannerV2.CreatePlan(targetPayload, archivePayload, CreateDummyManifestInfo());
+        });
+    }
+
     [TestMethod]
     public async Task ActiveWorkflowOnTarget_ReturnsBlockedByActiveWorkflow()
     {

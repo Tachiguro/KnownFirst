@@ -190,26 +190,30 @@ public sealed class PortableImportEndToEndConvergenceTests
             onlyWordId, onlyMeaningId, CardDirection.TermToMeaning,
             dueAtUtc: Epoch, createdAtUtc: Epoch, updatedAtUtc: Epoch);
 
-        // The session's queue references both the shared card and this side's own-only card, so the two
-        // sides' sessions reference genuinely different card sets and are never treated as the same
-        // session by merge identity (which is keyed on the referenced card-identity set) — while the
-        // shared card's own review-event history still genuinely diverges between A and B.
-        var sessionId = await fixture.InsertLearningSessionAsync(
+        // Two independent real LearningSessions per side: one over the shared card (whose StartedAtUtc/
+        // CompletedAtUtc/Rating genuinely diverge between A and B — the corrected Schema-8 session
+        // identity contract, KF-MEANING-001 Slice 9), and one over this side's own-only card. Neither
+        // needs a different card set to stay distinct: the shared-card session on A and on B is now
+        // correctly kept apart by its own timestamps/rating, not by an artificial card-set difference.
+        var sharedSessionId = await fixture.InsertLearningSessionAsync(
             startedAtUtc: ownReviewedAt, updatedAtUtc: ownReviewedAt, completedAtUtc: ownReviewedAt);
         await fixture.InsertReviewAsync(
-            sharedCardId, sessionId: sessionId, rating: ownRating, wasTypedAnswer: true,
+            sharedCardId, sessionId: sharedSessionId, rating: ownRating, wasTypedAnswer: true,
             wasCorrect: ownRating != ReviewRating.Again,
             reviewedAtUtc: ownReviewedAt, dueAtUtc: ownReviewedAt.AddDays(1), intervalDays: 1,
             easeFactor: SimpleSpacedRepetitionScheduler.DefaultEaseFactor);
         await fixture.InsertQueueItemAsync(
-            sessionId: sessionId, cardId: sharedCardId, queueOrder: 1, isCompleted: true, rating: ownRating,
+            sessionId: sharedSessionId, cardId: sharedCardId, queueOrder: 1, isCompleted: true, rating: ownRating,
             completedAtUtc: ownReviewedAt);
+
+        var ownOnlySessionId = await fixture.InsertLearningSessionAsync(
+            startedAtUtc: ownReviewedAt, updatedAtUtc: ownReviewedAt, completedAtUtc: ownReviewedAt);
         await fixture.InsertReviewAsync(
-            onlyCardId, sessionId: sessionId, rating: ReviewRating.Good, wasTypedAnswer: true, wasCorrect: true,
+            onlyCardId, sessionId: ownOnlySessionId, rating: ReviewRating.Good, wasTypedAnswer: true, wasCorrect: true,
             reviewedAtUtc: ownReviewedAt, dueAtUtc: ownReviewedAt.AddDays(1), intervalDays: 1,
             easeFactor: SimpleSpacedRepetitionScheduler.DefaultEaseFactor);
         await fixture.InsertQueueItemAsync(
-            sessionId: sessionId, cardId: onlyCardId, queueOrder: 2, isCompleted: true, rating: ReviewRating.Good,
+            sessionId: ownOnlySessionId, cardId: onlyCardId, queueOrder: 1, isCompleted: true, rating: ReviewRating.Good,
             completedAtUtc: ownReviewedAt);
 
         // ---- Multi-Sense word: identical on both sides, two independent Senses ----

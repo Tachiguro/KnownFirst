@@ -21,8 +21,10 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 3 | Meaning & Backup Foundations | Committed | Backup Merge Slices 1–3 (PRs #26–#28), Meaning Slices 0–3 (PRs #29–#33); dormant Schema-8 foundations merged to master (`ad6f1456`). |
 | 4 | Tooling Infrastructure & Safeguards | Committed | Windows StartupSmoke GUI launcher (PR #35), New-Chat Bootstrap Protocol (PR #36), Google Play packaging safeguards (PR #37). |
 | 5 | Meaning Slices 4–5 | Committed | Slice 4 merged via PR #40 and verified (1347/0/0); Slice 5 merged via PR #41 and verified (1364/0/0). |
-| 6 | Schema 8 Activation | Current | `CurrentVersion` is 8 and live database migration is active; implemented and validated on `feature/meaning-slice6-schema8-activation` (1542/0/0), manual merge pending. |
-| 7 | Populated Target Import Merge | Planned | Slice 7 MergePreflight adaptation, Slice 8 populated-database merge writer and Import routing, Slice 9 Import UI and end-to-end convergence validation. |
+| 6 | Schema 8 Activation | Committed | `CurrentVersion` is 8 and live database migration is active; merged via PR #42 and verified (1542/0/0). |
+| 7 | Schema-8 MergePreflight | Committed | Slice 7 MergePreflight adaptation for merge planning; merged via PR #43 and verified (1551/0/0). |
+| 8 | Populated Target Merge Writer | Current | Transactional populated-target merge writer and Import routing; implemented and validated on `feature/meaning-slice8-core-merge-writer` (1593/0/0), manual merge pending. |
+| 9 | Import UI & Localization | Planned | Import UI, localized preview/result handling, and final end-to-end release-readiness validation. |
 | 8 | Public-release support surface | Planned — public-release blocker | Implement functional Support KnownFirst and Report a bug controls (or an explicit removal decision), and reopenable release-note history. |
 | 9 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation launcher integration. |
 | 10 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
@@ -45,29 +47,28 @@ This roadmap records intended order. It does not claim that planned behavior exi
 - Meaning Slice 4 direction-specific answer assignments and progress replay — merged via PR #40 (`60d8f073`); full suite 1347 passed, 0 failed, 0 skipped.
 - Meaning Slice 5 Sense-addressed cards and queue behavior — merged via PR #41 (`e1724651`); full suite 1364 passed, 0 failed, 0 skipped.
 - Meaning Slice 6 Schema-8 activation and the first real user-data migration — merged via PR #42 (`3debd7a1`); full suite 1542 passed, 0 failed, 0 skipped.
+- Meaning Slice 7 Schema-8 MergePreflight adaptation for merge planning — merged via PR #43 (`d53ffe3d`); full suite 1551 passed, 0 failed, 0 skipped.
 
 ## Current
 
-**Meaning Slice 7 — Schema-8 MergePreflight adaptation**
-- Implemented and validated on `feature/meaning-slice7-schema8-merge-preflight` (checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`) with a focused result of 135 passed, 0 failed, 0 skipped and a complete result of 1551 passed, 0 failed, 0 skipped. Manual merge is pending.
-- `MergePreflightService`/`MergePreflightPlannerV2` plan merges for active Schema-8 targets against archive-v2 sources and, through the existing in-memory upgrade path, archive-v1 sources. Preflight is deterministic and read-only: no target mutation, no safety copy, no writer invocation. Multiple Senses of the same Word remain independent; Sense-addressed meanings, variants, assignments, progress, cards, queue items, and reviews are all covered. See [CURRENT_WORK.md](CURRENT_WORK.md).
+**Meaning Slice 8 — transactional Schema-8 populated-target merge writer and Import routing**
+- Implemented and validated on `feature/meaning-slice8-core-merge-writer` (checkpoint commit `783f83c9df99de6fa016f1260f95616ca96d7699`) with a complete result of 1593 passed, 0 failed, 0 skipped. Manual merge is pending.
+- `PortableMergeWriter` is a transactional populated-target merge writer that validates the merge plan, rejects stale or non-executable plans, and atomically commits or rolls back. Stable identity resolution uses explicit source-local-ID-to-target-ID maps; existing entities are reused, missing entities and preserved variants are inserted. Failure and cancellation roll back completely; reimport converges without duplicates. Card scheduling is replayed deterministically (ReviewedAtUtc, then fingerprint ordinally); replay preserves Sense, PreferredMeaning, and Direction. Import routing: empty targets use restore-into-empty; populated Schema-8 targets use validation → preflight → validated safety copy → transactional writer. Archive-v1 upgrades in memory, archive-v2 is supported natively, archive-v2 into Schema 7 remains rejected. Fully duplicate imports return successful no-change. Non-seekable streams and stable errors are supported. See [CURRENT_WORK.md](CURRENT_WORK.md).
 
 ## Planned Sequence (Meaning & Merge)
 
 The current product direction is **non-destructive populated-target portable archive import**.
 
-No direct jump to the merge writer is allowed. Populated-target import is not yet available. Beta 13 is not the current product milestone. Packaging investigation is deferred until the next genuine release.
-
 1. **Meaning Slice 4:** Completed and merged via PR #40 (dual-schema compatible).
 2. **Meaning Slice 5:** Completed and merged via PR #41 (dual-schema compatible).
 3. **Slice 6 (Schema-8 Activation):** Completed and merged via PR #42; `CurrentVersion` is 8 and the first real user-data migration is live.
-4. **Slice 7 (Schema-8 MergePreflight adaptation):** Implemented and validated on the feature branch (checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`). Manual merge pending.
-5. **Slice 8:** Populated-target merge writer and Import routing. Out of scope for Slice 7.
-6. **Slice 9:** Import UI and end-to-end convergence validation.
+4. **Slice 7 (Schema-8 MergePreflight adaptation):** Completed and merged via PR #43; merge planning for populated targets is complete and deterministic.
+5. **Slice 8 (Populated-target merge writer):** Implemented and validated on `feature/meaning-slice8-core-merge-writer` (checkpoint commit `783f83c9df99de6fa016f1260f95616ca96d7699`); transactional writer with stale-plan refusal and atomic rollback is complete. Manual merge pending.
+6. **Slice 9:** Import UI, localized preview/result handling, and final end-to-end release validation.
 
 ## Deferred
 
-- Populated-database merge import execution (until Slices 8–9 are complete).
+- Import UI and localized preview/result handling (Slice 9 — unimplemented; the transactional merge writer core is complete).
 - Re-validation of packaging script runtime behavior (deferred to `KF-RELEASE-001` before the next genuine release).
 - Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback.
 - Additional learning languages beyond English, German, and Russian-as-target.

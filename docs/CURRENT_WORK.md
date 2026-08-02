@@ -13,7 +13,7 @@
 
 ## Verified master baseline
 
-- Master commit: `3debd7a1b1d300ea08586b1b6d8570db72cf6138` (PR #42 merged, Slice 6 Schema-8 activation)
+- Master commit: `d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc` (PR #43 merged, Slice 7 Schema-8 MergePreflight)
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested.
 - Active database schema on master: SQLite `PRAGMA user_version` 8 (Slice 6 activation merged)
@@ -30,52 +30,54 @@
 - **Meaning Slice 4 answer assignments and progress replay (PR #40 merged; full suite 1347 passed, 0 failed, 0 skipped)**
 - **Meaning Slice 5 Sense-addressed cards and queue behavior (PR #41 merged; full suite 1364 passed, 0 failed, 0 skipped)**
 - **Meaning Slice 6 Schema-8 activation and first real user-data migration (PR #42 merged; full suite 1542 passed, 0 failed, 0 skipped)**
+- **Meaning Slice 7 Schema-8 MergePreflight adaptation (PR #43 merged; full suite 1551 passed, 0 failed, 0 skipped)**
 
 ## Active local implementation package
 
-- Branch: `feature/meaning-slice7-schema8-merge-preflight`
-- Purpose: **KF-MEANING-001 Slice 7 — Schema-8 MergePreflight adaptation.**
-- Current phase: implementation and validation are complete; checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675` is pushed and a pull request is open awaiting manual merge.
+- Branch: `feature/meaning-slice8-core-merge-writer`
+- Purpose: **KF-MEANING-001 Slice 8 — transactional Schema-8 populated-target merge writer and Import routing.**
+- Current phase: implementation and validation are complete; awaiting documentation and PR creation.
 - Build: 0 errors.
-- Focused Slice-7 validation (MergePreflightServiceTests + safety suite): 135 passed, 0 failed, 0 skipped.
-- Complete Slice-7 validation: **1551 passed, 0 failed, 0 skipped** (2 m 53 s).
+- Complete Slice-8 validation: **1593 passed, 0 failed, 0 skipped** (3 m 5 s).
+  - 108 writer-focused tests pass.
+  - 42 scheduler-replay tests pass.
+  - 177 Import-integration tests pass.
 
-### Implemented Slice-7 behavior
+### Implemented Slice-8 behavior
 
-- `MergePreflightService`/`MergePreflightPlannerV2` plan merges for active Schema-8 target databases against archive-format-v2 (Schema-8) sources.
-- Archive-format-v1 sources remain supported into a Schema-8 target through the existing in-memory upgrade path (`BackupArchiveV1UpgradePolicy`).
-- Preflight is deterministic and strictly read-only: no target mutation, no safety copy, no writer invocation, no persistent import artifact.
-- Multiple Senses of the same Word are planned independently (identity now includes the persisted `Sense.TopicOrDomain` field).
-- Sense-addressed meanings, answer variants, `SenseAnswerVariantAssignment`s, `AnswerVariantProgress`, learning cards, reviews, queue items, and vocabulary/preparation workflows are all covered by the plan.
-- Import into a populated target and the merge writer remain unimplemented; this slice is preflight planning only.
-
-### Test-infrastructure corrections made during Slice-6 validation
-
-- **Future-version exception contract.** `TemporaryKnownFirstDatabase.InitializeAsync` builds its Schema-7 fixture once but re-applies the production future-version gate (`DatabaseSchema.CurrentVersion` + `DatabaseSchemaCompatibilityException`) on every gated operation, so a database written to a future version is still refused before any backup capture.
-- **Process-wide SQLite pool drains removed.** `SQLiteAsyncConnection.ResetPool()` was removed from all 16 ordinary fixture lifecycle sites across seven test files. Under `[assembly: Parallelize(Scope = ExecutionScope.MethodLevel)]` a global drain closes native handles that concurrently running tests still hold, faulting the test host inside `sqlite3_changes` instead of failing cleanly. Teardown is now scoped: `CloseAsync` releases exactly the owning connection's pooled entry, then the fixture's own database, `-wal`, and `-shm` files are deleted through the shared `TemporaryDatabaseFiles` helper. Method-level parallelization is retained.
-- **Document-backed ContextSnapshot fixtures.** `LearningServiceSchema8ViewAndContinuationTests` now seeds the exact source `Documents` row every ContextSnapshot references, so Schema-8 ownership validation holds without weakening the fixture.
-- **Capability gate ordering.** `Schema8AnswerAssignmentServiceTests.Validation_DuplicatePreferred_FailsClosed` constructs its duplicate by dropping a required unique index, which is itself a physical-shape violation; the test now pins `LearningSchemaCapabilityException` as the outer fail-closed gate and proves the duplicate exists underneath it with zero mutation.
-- **Legacy cache purge.** `WiktionaryProviderTests.Cache_InitializationInvalidatesLegacyIncompleteKeys` now runs real `DatabaseSchema.InitializeAsync` so the production startup cleanup executes, and asserts the legacy key is gone while a valid `v2|` key survives.
+- `PortableMergeWriter` — transactional Schema-8 populated-target merge writer that validates the incoming plan against the current target state, rejects stale or non-executable plans, and atomically commits the merge or rolls back completely on any error.
+- Stable identity resolution using explicit source-local-ID-to-target-ID maps; source integer IDs are never target identities.
+- Existing domain entities are reused; missing entities and preserved variants are inserted; defined enrichment policies are applied.
+- Sense-addressed meanings, contexts, answer variants, assignments, progress, cards, reviews, sessions, queues, and review/preparation workflows are merged and preserved.
+- Card scheduling is replayed through the existing scheduler in deterministic order (ReviewedAtUtc, then review fingerprint ordinally); replay changes only derived scheduling fields and does not repoint Sense, PreferredMeaning, or Direction.
+- Multiple Senses for one Word remain independent; each Sense is merged separately.
+- Failure and cancellation roll back the complete merge.
+- Reimport converges without duplicate domain entities or deduplicated history; merged review history becomes authoritative.
+- Import routing: empty targets use restore-into-empty; populated Schema-8 targets use validation → preflight → validated safety copy → transactional writer.
+- Archive-v1 upgrades in memory for Schema 8; archive-v2 is supported natively; archive-v2 into Schema 7 remains rejected.
+- Fully duplicate imports return successful no-change without safety copy or writer invocation.
+- Non-seekable source streams are supported.
+- Stable errors are preserved; `PortableImportResult` exposes backward-compatible disposition and aggregate summary.
 
 ## Current blocker or pending validation
 
-- No implementation or validation blocker remains; manual merge of the Slice-7 pull request is pending.
-- Populated-target archive import is not implemented; current import refuses populated installations.
-- The populated-target merge writer (Slice 8) and Import routing are not implemented.
-- No current packaging or release task is active.
+- No implementation or validation blocker remains; Slice-8 PR creation and documentation finalization are pending.
+- Slice 9 (Import UI, localized preview/result handling, and final end-to-end release-readiness validation) remains unimplemented and out of scope for this slice.
+- No Beta 13, packaging, device, or store task is active.
 
 ## Exact next action
 
-- User-manual merge of the Slice-7 pull request on GitHub, then a separately authorized post-merge synchronization.
-- After merge: **KF-MEANING-001 Slice 8 — populated-target merge writer and Import routing.**
-- Slice 9 (Import UI and end-to-end convergence validation) follows Slice 8.
+- Manual merge of the Slice-8 pull request on GitHub.
+- **KF-MEANING-001 Slice 9 — Import UI, localized preview/result handling, and final end-to-end release-readiness validation.**
 
 ## Concise new-chat handoff
 
-- Master baseline is `3debd7a1b1d300ea08586b1b6d8570db72cf6138` (PR #42 merged); `DatabaseSchema.CurrentVersion` is 8 and Schema 8 is active on master.
+- Master baseline is `d53ffe3d92e249e8bc2f191d1b5cc8b9e81681dc` (PR #43 merged); `DatabaseSchema.CurrentVersion` is 8 and Schema 8 is active on master.
 - Beta 12 / build 12 was distributed via Google Play Internal Testing and user-tested.
-- Meaning Slices 1–6 are merged. Slice 7 (Schema-8 MergePreflight adaptation) is implemented and validated on `feature/meaning-slice7-schema8-merge-preflight`, checkpoint commit `bea01a75ae6da2e6f7a7ea269dae0e1c7cbe3675`.
-- MergePreflight now supports Schema-8 targets against archive-v2 and archive-v1 (upgraded) sources, read-only and deterministic; populated-target archive merge (the writer) remains unimplemented.
-- Slice 7 is validated with 1551 passed, 0 failed, 0 skipped and has an open pull request awaiting manual merge.
-- Exact next action: manual merge of the Slice-7 pull request, then Slice 8.
-- No Beta 13 or active packaging task is in progress.
+- Meaning Slices 1–7 are merged on master. Slice 8 (transactional Schema-8 populated-target merge writer) is implemented and validated on `feature/meaning-slice8-core-merge-writer`.
+- Populated-target import now validates the merge plan, creates a validated safety copy of the target, and applies the merge transactionally; stale or non-executable plans are rejected; reimport converges without duplicates.
+- Card scheduling is replayed deterministically through the existing scheduler; replay preserves Sense, PreferredMeaning, and Direction.
+- Slice 8 is validated with 1593 passed, 0 failed, 0 skipped and has an open pull request awaiting manual merge.
+- Slice 9 (Import UI, localized handling, release validation) remains unimplemented and out of scope.
+- Exact next action: manual merge of the Slice-8 pull request.
+- No Beta 13, packaging, device, or store task is active.

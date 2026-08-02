@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-03
+2026-08-02
 
 ## Repository
 
@@ -74,7 +74,7 @@
 
 - Master baseline is `cf1b0995415dc858357f0a5c9e90e7c0aefb327c` (PR #44 merged); `DatabaseSchema.CurrentVersion` is 8 and Schema 8 is active on master.
 - Beta 12 / build 12 was distributed via Google Play Internal Testing and user-tested.
-- Meaning Slices 1–9 are complete on master. Slice 9 (portable import preview UI, localized handling, and full end-to-end convergence validation) is implemented and validated on `feature/meaning-slice9-import-preview-ui`.
+- Slices 1–8 are merged on master. Slice 9 (portable import preview UI, localized handling, and full end-to-end convergence validation) is complete on the feature branch and awaits manual merge of PR #45.
 - Import workflow: single unified operation with read-only preview distinguishing restore, merge, and no-change; confirmation revalidates independently; localized EN/DE/RU; mutations notify only on RestoredIntoEmpty or MergeApplied.
 - Populated-target import validates the merge plan, creates a validated safety copy of the target, and applies the merge transactionally; stale or non-executable plans are rejected; reimport converges without duplicates.
 - LearningSession identity now includes timestamps, queue order, and ratings; distinct sessions using the same card set remain separate.

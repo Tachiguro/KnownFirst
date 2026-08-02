@@ -53,7 +53,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 ## Current
 
 **Meaning Slice 9 — portable import preview UI, localized handling, and end-to-end convergence validation**
-- Implemented and validated on `feature/meaning-slice9-import-preview-ui` (checkpoint commit `bef0a05fe68d5b94d8bc5f2a1f98076fcb03e68f`) with a complete result of 1626 passed, 0 failed, 0 skipped. Manual PR merge is pending.
+- Implemented and validated on `feature/meaning-slice9-import-preview-ui` (checkpoint commit `22d7c1fa0afea5f608b0ce60f48b8a1beecd9cdd`) with a complete result of 1626 passed, 0 failed, 0 skipped. Manual PR merge is pending.
 - Read-only preview before confirmation with distinct restore, merge, and no-change cases. Preview safety: no mutations or writer invocation during preview. Confirmation re-validates independently. Unified Import operation with no separate Merge button. Merge preview and results expose aggregate counts and explain safety-copy creation. Disposition classification: RestoredIntoEmpty, MergeApplied, MergeNoChange; notifications only for RestoredIntoEmpty and MergeApplied. Complete EN/DE/RU localization. Corrected LearningSession identity: distinct sessions using the same card set no longer collapse; identity includes timestamps, queue order, and ratings. End-to-end convergence: real tests exercise archive creation through repeated-import no-change; bidirectional divergent databases converge. Archive-v1 upgrades in memory for Schema-8 targets. Safety-copy validation: copies are reopened and validated; remain available after writer failure. Corrupt archives fail closed before safety-copy creation. See [CURRENT_WORK.md](CURRENT_WORK.md).
 
 ## Planned Sequence (Meaning & Merge)
@@ -65,7 +65,7 @@ The current product direction is **non-destructive populated-target portable arc
 3. **Slice 6 (Schema-8 Activation):** Completed and merged via PR #42; `CurrentVersion` is 8 and the first real user-data migration is live.
 4. **Slice 7 (Schema-8 MergePreflight adaptation):** Completed and merged via PR #43; merge planning for populated targets is complete and deterministic.
 5. **Slice 8 (Populated-target merge writer):** Completed and merged via PR #44; transactional writer with stale-plan refusal, atomic rollback, and full import routing is complete.
-6. **Slice 9 (Import preview and localization):** Implemented and validated on `feature/meaning-slice9-import-preview-ui` (checkpoint commit `bef0a05`); read-only preview UI, localized EN/DE/RU handling, corrected LearningSession identity, and end-to-end convergence validation complete. Manual merge pending.
+6. **Slice 9 (Import preview and localization):** Implemented and validated on `feature/meaning-slice9-import-preview-ui` (checkpoint commit `22d7c1fa`); read-only preview UI, localized EN/DE/RU handling, corrected LearningSession identity, and end-to-end convergence validation complete. Manual merge pending.
 
 ## Deferred
 

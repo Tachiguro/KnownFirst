@@ -1,6 +1,6 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-03
+**Status date:** 2026-08-02
 **State source:** `master` (`cf1b0995415dc858357f0a5c9e90e7c0aefb327c`, PR #44 merge commit)
 **Next product milestone:** KF-MEANING-001 Slice 9 — Import UI, localized preview/result handling, and final release validation
 
@@ -114,7 +114,7 @@ The stable master baseline is `cf1b0995415dc858357f0a5c9e90e7c0aefb327c` (PR #44
 
 **KF-MEANING-001 Slice 8 (merged PR #44)** — transactional Schema-8 populated-target merge writer and Import routing, with complete result 1593 passed, 0 failed, 0 skipped.
 
-**KF-MEANING-001 Slice 9 — portable import preview UI, localized handling, and end-to-end convergence validation** is implemented and validated on feature branch `feature/meaning-slice9-import-preview-ui` (checkpoint commit `bef0a05fe68d5b94d8bc5f2a1f98076fcb03e68f`), with complete result of **1626 passed, 0 failed, 0 skipped**. Manual PR merge is pending.
+**KF-MEANING-001 Slice 9 — portable import preview UI, localized handling, and end-to-end convergence validation** is implemented and validated on feature branch `feature/meaning-slice9-import-preview-ui` (checkpoint commit `22d7c1fa0afea5f608b0ce60f48b8a1beecd9cdd`), with complete result of **1626 passed, 0 failed, 0 skipped**. Manual PR merge is pending.
 
 Verified Slice-9 behavior on that branch:
 

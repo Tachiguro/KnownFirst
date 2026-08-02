@@ -172,6 +172,22 @@ public static class SemanticMeaningIdentityPolicy
         return new SemanticMeaningIdentity(builder.ComputeSha256Hex());
     }
 
+    public static SemanticMeaningIdentity Compute(BackupSense preparedSense, VocabularyIdentity vocabularyIdentity)
+    {
+        ArgumentNullException.ThrowIfNull(preparedSense);
+
+        var builder = new CanonicalFingerprintBuilder(Domain)
+            .WriteString(vocabularyIdentity.Value)
+            .WriteString(CanonicalText.CanonicalLanguageCode(preparedSense.SourceLanguage))
+            .WriteString(CanonicalText.CanonicalLanguageCode(preparedSense.ExplanationLanguage))
+            .WriteString(CanonicalText.NormalizeOptional(preparedSense.ProviderSenseId))
+            .WriteString(CanonicalText.NormalizeOptional(preparedSense.TopicOrDomain))
+            .WriteString(CanonicalText.NormalizeOptional(preparedSense.GrammaticalRelationship))
+            .WriteString(CanonicalText.NormalizeOptional(preparedSense.AcronymExpansion));
+
+        return new SemanticMeaningIdentity(builder.ComputeSha256Hex());
+    }
+
     /// <summary>
     /// True if <paramref name="preparedItem"/> carries at least one field strong enough to reliably
     /// discriminate one semantic sense from another on its own (a stable provider sense id, a persisted
@@ -194,6 +210,16 @@ public static class SemanticMeaningIdentityPolicy
             || !string.IsNullOrWhiteSpace(preparedItem.AcronymExpansion);
     }
 
+    public static bool HasReliableSenseDiscriminator(BackupSense preparedSense)
+    {
+        ArgumentNullException.ThrowIfNull(preparedSense);
+
+        return !string.IsNullOrWhiteSpace(preparedSense.ProviderSenseId)
+            || !string.IsNullOrWhiteSpace(preparedSense.TopicOrDomain)
+            || !string.IsNullOrWhiteSpace(preparedSense.GrammaticalRelationship)
+            || !string.IsNullOrWhiteSpace(preparedSense.AcronymExpansion);
+    }
+
     public static SemanticMeaningIdentity Compute(
         BackupPreparedItem preparedItem,
         IReadOnlyDictionary<string, VocabularyIdentity> vocabularyIdentitiesByArchiveId,
@@ -209,6 +235,22 @@ public static class SemanticMeaningIdentityPolicy
         }
 
         return Compute(preparedItem, vocabularyIdentity, canonicalTopicOrDomain);
+    }
+
+    public static SemanticMeaningIdentity Compute(
+        BackupSense preparedSense,
+        IReadOnlyDictionary<string, VocabularyIdentity> vocabularyIdentitiesByArchiveId)
+    {
+        ArgumentNullException.ThrowIfNull(preparedSense);
+        ArgumentNullException.ThrowIfNull(vocabularyIdentitiesByArchiveId);
+
+        if (!vocabularyIdentitiesByArchiveId.TryGetValue(preparedSense.VocabularyId, out var vocabularyIdentity))
+        {
+            throw new KeyNotFoundException(
+                $"No stable vocabulary identity supplied for archive vocabulary id '{preparedSense.VocabularyId}'.");
+        }
+
+        return Compute(preparedSense, vocabularyIdentity);
     }
 }
 
@@ -253,6 +295,37 @@ public static class ExactMeaningVariantIdentityPolicy
 
         // Order-independent: alias list order is not semantically meaningful, so the hash is computed
         // over the ordinal-sorted distinct normalized alias set, never the archive's raw input order.
+        var normalizedAliases = preparedItem.AcceptedAliases
+            .Select(CanonicalText.NormalizeOptional)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(alias => alias, StringComparer.Ordinal);
+        foreach (var alias in normalizedAliases)
+        {
+            builder.WriteString(alias);
+        }
+
+        return new ExactMeaningVariantIdentity(builder.ComputeSha256Hex());
+    }
+
+    public static ExactMeaningVariantIdentity Compute(BackupPreparedItemV2 preparedItem, SemanticMeaningIdentity semanticMeaningIdentity)
+    {
+        ArgumentNullException.ThrowIfNull(preparedItem);
+
+        var builder = new CanonicalFingerprintBuilder(Domain)
+            .WriteString(semanticMeaningIdentity.Value)
+            .WriteString(CanonicalText.NormalizeOptional(preparedItem.DisplayTerm))
+            .WriteString(CanonicalText.NormalizeOptional(preparedItem.Definition))
+            .WriteString(CanonicalText.NormalizeOptional(preparedItem.Translation))
+            .WriteString(CanonicalText.NormalizeOptional(preparedItem.EncounteredSurfaceForm))
+            .WriteString(CanonicalText.NormalizeOptional(preparedItem.DictionaryExample))
+            .WriteString(CanonicalText.NormalizeOptional(preparedItem.AdditionalNote))
+            .WriteBoolean(preparedItem.ConfirmedByUser)
+            .WriteString(preparedItem.Source.ProviderName)
+            .WriteString(preparedItem.Source.SourceProject)
+            .WriteString(preparedItem.Source.PageTitle)
+            .WriteNullableInt64(preparedItem.Source.RevisionId)
+            .WriteString(preparedItem.Source.Attribution);
+
         var normalizedAliases = preparedItem.AcceptedAliases
             .Select(CanonicalText.NormalizeOptional)
             .Distinct(StringComparer.Ordinal)

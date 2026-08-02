@@ -55,7 +55,11 @@ public enum MergeEntityKind
     LearningCard,
     LearningReview,
     LearningWorkflow,
-    LearningQueueItem
+    LearningQueueItem,
+    Sense,
+    AnswerVariant,
+    SenseAnswerVariantAssignment,
+    AnswerVariantProgress
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using KnownFirst.Data;
+using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety.Merge;
 
@@ -22,10 +23,10 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
     {
         ArgumentNullException.ThrowIfNull(archiveStream);
 
-        ValidatedBackupArchive validated;
+        ValidatedBackupArchiveEnvelope validated;
         try
         {
-            validated = await BackupArchiveReader.ValidateAsync(archiveStream, cancellationToken);
+            validated = await BackupArchiveReader.ValidateVersionedAsync(archiveStream, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -40,12 +41,32 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, null, false, MergePreflightErrorCodes.UnexpectedFailure);
         }
 
+        string sourceAppVersion;
+        int sourceDatabaseSchemaVersion;
+        DateTime createdAtUtc;
+        BackupSourcePlatform sourcePlatform;
+
+        if (validated.FormatVersion == BackupFormatLimits.FormatVersion)
+        {
+            sourceAppVersion = validated.V1!.Manifest.SourceAppVersion;
+            sourceDatabaseSchemaVersion = validated.V1!.Manifest.SourceDatabaseSchemaVersion;
+            createdAtUtc = validated.V1!.Manifest.CreatedAtUtc;
+            sourcePlatform = validated.V1!.Manifest.SourcePlatform;
+        }
+        else
+        {
+            sourceAppVersion = validated.V2!.Manifest.SourceAppVersion;
+            sourceDatabaseSchemaVersion = validated.V2!.Manifest.SourceDatabaseSchemaVersion;
+            createdAtUtc = validated.V2!.Manifest.CreatedAtUtc;
+            sourcePlatform = validated.V2!.Manifest.SourcePlatform;
+        }
+
         var manifestInfo = new MergeManifestInfo(
-            validated.Manifest.FormatVersion,
-            validated.Manifest.SourceAppVersion,
-            validated.Manifest.SourceDatabaseSchemaVersion,
-            validated.Manifest.CreatedAtUtc,
-            validated.Manifest.SourcePlatform);
+            validated.FormatVersion,
+            sourceAppVersion,
+            sourceDatabaseSchemaVersion,
+            createdAtUtc,
+            sourcePlatform);
 
         BackupSchemaCapabilityResult targetCapability;
         try
@@ -67,11 +88,75 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
 
         if (targetCapability is Schema8CapabilityResult)
         {
+            KnownFirst.Data.Schema8.Schema8PortableSnapshotCaptureResult captureResultV2;
+            try
+            {
+                captureResultV2 = await database.ExecuteSnapshotAsync(
+                    connection => Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection));
+            }
+            catch (OperationCanceledException)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Cancelled, manifestInfo, true, BackupErrorCodes.OperationCancelled);
+            }
+            catch (BackupFormatException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, exception.Code);
+            }
+            catch (Exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+            }
+
+            if (captureResultV2.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.BlockedByActiveWorkflow, manifestInfo, true, BackupErrorCodes.ActiveWorkflowUnsupported);
+            }
+
+            var snapshotV2 = captureResultV2.Snapshot
+                ?? throw new InvalidOperationException("Snapshot capture reported success without a snapshot.");
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var targetPayloadV2 = BackupModelMapperV2.MapToExternal(snapshotV2);
+
+                BackupPayloadV2 archivePayloadV2;
+                if (validated.FormatVersion == BackupFormatLimits.FormatVersion)
+                {
+                    archivePayloadV2 = BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
+                }
+                else
+                {
+                    archivePayloadV2 = validated.V2!.Payload;
+                }
+
+                return MergePreflightPlannerV2.CreatePlan(targetPayloadV2, archivePayloadV2, manifestInfo);
+            }
+            catch (OperationCanceledException)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Cancelled, manifestInfo, true, BackupErrorCodes.OperationCancelled);
+            }
+            catch (MergePlanningException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, exception.Code);
+            }
+            catch (KeyNotFoundException)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, BackupErrorCodes.MissingReference);
+            }
+            catch (Exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+            }
+        }
+
+        if (validated.FormatVersion != BackupFormatLimits.FormatVersion)
+        {
             return MergePreflightPlan.ForEarlyExit(
                 MergePreflightStatus.BlockedByPrerequisite,
                 manifestInfo,
                 true,
-                MergePreflightErrorCodes.Schema8AdaptationRequired);
+                BackupErrorCodes.UnsupportedFormat);
         }
 
         PortableSnapshotCaptureResult captureResult;
@@ -105,7 +190,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
         {
             cancellationToken.ThrowIfCancellationRequested();
             var targetPayload = BackupModelMapper.MapToExternal(snapshot);
-            return MergePreflightPlanner.CreatePlan(targetPayload, validated.Payload, validated.Manifest);
+            return MergePreflightPlanner.CreatePlan(targetPayload, validated.V1!.Payload, validated.V1!.Manifest);
         }
         catch (OperationCanceledException)
         {

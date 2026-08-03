@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-02
-**State source:** `master` (`cf1b0995415dc858357f0a5c9e90e7c0aefb327c`, PR #44 merge commit)
-**Next repository action:** Manual merge of PR #45; no subsequent product milestone has been selected.
+**Status date:** 2026-08-03
+**State source:** `master` (`092eafe46fa663b3bfebfe51d639a397bef103a1`, PR #48 merge commit)
+**Next repository action:** Review and merge the test-confidence and release-readiness documentation-governance package (branch `docs/test-confidence-release-readiness`); no product implementation is currently active.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -47,7 +47,8 @@ The current product source implements:
 - card scheduling replay through the existing scheduler in deterministic order (ReviewedAtUtc, then review fingerprint); replay preserves Sense, PreferredMeaning, and Direction;
 - a one-time localized What's New notice shown once per version;
 - transactional local persistence, startup maintenance, and bounded structured diagnostics;
-- responsive Windows and Android layouts with localized workflow gating.
+- responsive Windows and Android layouts with localized workflow gating;
+- Windows portable export stages the archive to a same-directory temporary file, validates it through the production `BackupArchiveReader.ValidateVersionedAsync` path, and only then atomically finalizes (`File.Replace` for an existing destination, `File.Move` for a nonexistent one), so a failure at any stage before finalization leaves an existing backup byte-for-byte unchanged (PR #48).
 
 ## Merged development foundations (Dormant)
 
@@ -65,15 +66,20 @@ The `master` branch includes the following merged technical foundations:
 - **Meaning Slice 5 (PR #41):** Sense-addressed learning cards, frozen queue targets, and permanent-known cleanup; verified with 1364 passed, 0 failed, 0 skipped.
 - **Meaning Slice 6 (PR #42):** Schema-8 activation and first real user-data migration; verified with 1542 passed, 0 failed, 0 skipped.
 - **Meaning Slice 7 (PR #43):** Schema-8 MergePreflight adaptation for merge planning; verified with 1551 passed, 0 failed, 0 skipped.
+- **Meaning Slice 8 (PR #44):** transactional Schema-8 populated-target merge writer and Import routing; verified with 1593 passed, 0 failed, 0 skipped.
+- **Meaning Slice 9 (PR #45):** portable import preview UI, localized EN/DE/RU handling, corrected `LearningSession` identity, and end-to-end convergence validation; checkpoint result 1626 passed, 0 failed, 0 skipped on the feature branch prior to merge.
 - **Windows GUI StartupSmoke Launcher (PR #35):** `-Action GuiTest` launcher entry point and profile isolation under `artifacts/`.
 - **New-Chat Bootstrap Protocol (PR #36):** permanent dynamic bootstrap governance in `docs/NEW_CHAT_BOOTSTRAP.md`.
 - **Google Play Packaging Safeguards (PR #37):** hardened `scripts/publish-google-play-bundle.ps1` with cross-process lock, warning escalation, candidate ownership, and sidecar verification.
+- **Preparation selected-meaning acceptance fix (PR #46):** an invalid preparation context is now hidden rather than silently accepted.
+- **Diagnostics/export stale lexical-reader fix (PR #47):** `PreparationCandidates.ResultJson` is now read via the payload codec in diagnostics and export paths.
+- **Windows portable-export atomic-replacement fix (PR #48):** see "Production capabilities" above.
 
 **Current Status (master):**
 - The active database schema is **8** (`PRAGMA user_version = 8`).
 - Schema 8 is active during normal application initialization on master.
-- Slices 1–8 are merged and verified on master (PR #44).
-- Slice 9 (portable import preview UI, localized handling, and end-to-end convergence validation) is implemented and awaiting manual merge.
+- Slices 1–9 are merged and verified on master (PR #45 is the most recent Meaning Slice merge; PRs #46-#48 are subsequent correctness and data-safety fixes).
+- No product implementation or release package is currently active. The current work package is documentation-only governance (see [CURRENT_WORK.md](CURRENT_WORK.md)).
 
 ## Confirmed verification
 
@@ -99,24 +105,30 @@ The `master` branch includes the following merged technical foundations:
 ## Known limitations
 
 - Exported `.kfarchive` archives are not encrypted and may contain personal imported text and learning history; users are warned before export.
-- "Support KnownFirst" and "Report a bug" controls in Settings are placeholders and not yet functional.
+- "Support KnownFirst" and "Report a bug" in Settings are currently nonfunctional planned features. Both controls presently render unconditionally, including in Release, bound to a shared placeholder handler (`ShowFeaturePlaceholder`); this is a recorded release blocker (see [ROADMAP.md](ROADMAP.md)), not an acceptable permanent state.
 - Cloud synchronization, accounts, analytics, advertising, and payments are not implemented.
 - Offline dictionary packages and FSRS scheduling are deferred.
 - Online lookup requires explicit consent and network access on cache misses.
 - Public Google Play release is intentionally not yet pursued.
 - Tooling-only improvements (such as PR #37) do not create a new Beta 13 product release.
 
+### Production-control and debug-UI policy
+
+- A planned but unimplemented feature must remain documented only in [ROADMAP.md](ROADMAP.md) or other planning documentation; it must not appear in Release rendering as an enabled button, a disabled button, a link, a menu entry, a card, a placeholder label, a "coming soon" control, or an inaccessible/visually hidden interactive element.
+- An unfinished control must be absent from the rendered Release component tree and accessibility tree, not merely hidden with CSS.
+- Debug-only exposure of a planned control is permitted only when it is explicitly gated by an approved diagnostic build condition, cannot be activated in a normal Release build, is clearly marked as diagnostic and unfinished, and is excluded from the Google Play Release AAB. The existing `DiagnosticsEnabled`-gated lexical-log actions in Settings are the current example of this pattern.
+- Debug-only visual diagnostics (layout outlines, element borders, bounding boxes, diagnostic overlays, developer badges, or similar visual markers) must not appear in a Release build or Google Play AAB.
+- Under this policy, Support KnownFirst and Report a bug must be implemented or removed from Release rendering before the next AAB; see the work-package sequence in [ROADMAP.md](ROADMAP.md) (P2-P4).
+
 This document does not claim public-release readiness or draw legal conclusions about license/attribution compliance; those remain open review items tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Active development
 
-The stable master baseline is `cf1b0995415dc858357f0a5c9e90e7c0aefb327c` (PR #44 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
+The stable master baseline is `092eafe46fa663b3bfebfe51d639a397bef103a1` (PR #48 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
 
-**KF-MEANING-001 Slice 8 (merged PR #44)** — transactional Schema-8 populated-target merge writer and Import routing, with complete result 1593 passed, 0 failed, 0 skipped.
+No product implementation is currently active. The current work package is the test-confidence, strict-TDD, production-UI cleanliness, pre-AAB documentation, and safe-cleanup governance program described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
-**KF-MEANING-001 Slice 9 — portable import preview UI, localized handling, and end-to-end convergence validation** is implemented and validated on feature branch `feature/meaning-slice9-import-preview-ui` (checkpoint commit `22d7c1fa0afea5f608b0ce60f48b8a1beecd9cdd`), with complete result of **1626 passed, 0 failed, 0 skipped**. Manual PR merge is pending.
-
-Verified Slice-9 behavior on that branch:
+**KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 
 - **Import preview UI** — read-only preview before confirmation; distinguishes restore (empty target), merge (populated Schema-8 target), and no-change (duplicate import) cases.
 - **Preview safety** — no database mutation, safety copy, or writer invocation during preview; supports non-seekable caller streams.
@@ -129,3 +141,5 @@ Verified Slice-9 behavior on that branch:
 - **End-to-end convergence validation** — real automated tests exercise archive creation → validation → preview → preflight → validated safety copy → transactional writer → deterministic scheduler replay → result summary → repeated-import no-change; bidirectional divergent Schema-8 databases converge semantically.
 - **Archive-v1 upgrade and convergence** — Schema-8 populated-target Import upgrades archive-v1 in memory and converges on reimport.
 - **Safety-copy validation** — safety copies are reopened and validated from final paths; represent the pre-merge target state; remain available after later writer failure.
+
+**Subsequent correctness and data-safety fixes (merged PRs #46-#48)** — see "Production capabilities" and "Merged development foundations" above.

@@ -35,6 +35,31 @@ KnownFirst development follows a strict, user-authorized phase sequence. No phas
 2. **No automatic broad validation:** Full test suite runs, Windows smoke tests, manual GUI tests, and platform builds are separate authorized operations. Refer to [docs/TESTING.md](TESTING.md) for test scopes and [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for build procedures.
 3. **Single writing agent:** Only one writing agent may operate at a time in `C:\Dev\KnownFirst`.
 
+### TDD Evidence Requirement for Behavior-Changing IMPLEMENT Packages
+
+Every `IMPLEMENT` package that changes product behavior must produce and report this exact evidence sequence:
+
+1. Write the minimum focused test(s) first, identified by exact class/method/filter.
+2. Run the exact focused scope (`FOCUSED_AUTOMATED`, see [docs/TESTING.md](TESTING.md)).
+3. Record a genuine behavioral red result: the failure must be caused by missing intended behavior. **Not acceptable as red evidence:** a syntax error, a missing test file, a fixture mistake, an environment/tooling failure, or deliberately broken compilation. Any of these must be fixed and the red result re-obtained before proceeding.
+4. Implement the minimum production change.
+5. Rerun the identical focused scope to a green result.
+6. Defer broader validation (`ALL_AUTOMATED`, `UI_CONTRACT_AUTOMATED`, GUI, platform builds) to separately authorized `TEST_ONLY` operations; do not run them automatically.
+
+**Characterization and test-hardening packages** (adding tests when no production behavior is being changed, e.g. to protect a cleanup target) may add tests that pass immediately. Such a package must explicitly identify itself as characterization/hardening and must not claim a red/green implementation cycle occurred.
+
+**Every `IMPLEMENT` report must state:**
+- which user workflow is proven by the evidence produced;
+- which runtime or platform behavior remains unproven by that evidence;
+- whether the result is source-contract, component, rendered-GUI, platform, or manual evidence (source/markup inspection alone does not prove a runtime control is clickable or produces its intended effect — see [docs/TESTING.md](TESTING.md)).
+
+**Every product/UI implementation plan must classify each new or changed control** as one of:
+- implemented in all intended builds (Debug, BetaDiagnostic, Release);
+- debug-diagnostic only (explicitly gated, absent from Release and from the Google Play AAB);
+- documentation-only and absent from production rendering (a planned feature tracked in [docs/ROADMAP.md](ROADMAP.md) with no corresponding Release-visible element).
+
+This section is additive to, and does not weaken, the existing operation-isolation model above.
+
 ## Review, Staging, and Git Operations
 
 1. **Explicit staging:** Use explicit file paths (`git add <file1> <file2>`). Never use `git add .` or stage untracked scratch files.

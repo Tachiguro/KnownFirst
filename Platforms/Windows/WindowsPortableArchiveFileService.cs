@@ -34,14 +34,14 @@ public sealed class WindowsPortableArchiveFileService(
             return PortableArchiveSaveStatus.Cancelled;
         }
 
-        await using (var output = await destinationFile.OpenStreamForWriteAsync())
-        {
-            output.SetLength(0);
-            await writeArchive(output, cancellationToken);
-            await output.FlushAsync(cancellationToken);
-        }
-
-        PortableArchiveExportGuard.VerifySavedArchive(destinationFile.Path);
+        // The native Windows FileSavePicker may already have materialized an empty (or otherwise
+        // pre-existing) entry at destinationFile.Path before this call returns it, so a File.Exists
+        // check here cannot tell a brand-new user-chosen name apart from a pre-existing file the user
+        // deliberately picked to overwrite. Do not attempt to delete this path on failure: that could
+        // destroy a legitimate pre-existing file. The guarantee that matters is provided below by
+        // StagedPortableArchiveExporter, which never opens, truncates, or deletes whatever already
+        // exists at this path until a fully validated replacement is ready for atomic finalization.
+        await StagedPortableArchiveExporter.ExportAsync(destinationFile.Path, writeArchive, cancellationToken);
         return PortableArchiveSaveStatus.Saved;
     }
 

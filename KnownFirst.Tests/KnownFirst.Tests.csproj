@@ -89,6 +89,7 @@
     <Compile Include="..\Data\BackupImportRepository.cs" Link="Production\Data\BackupImportRepository.cs" />
     <Compile Include="..\Data\Entities\*.cs" Link="Production\Data\Entities\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Migrations\Schema8\*.cs" Link="Production\Data\Migrations\Schema8\%(Filename)%(Extension)" />
+    <Compile Include="..\Data\Migrations\Schema9\*.cs" Link="Production\Data\Migrations\Schema9\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Schema8\*.cs" Link="Production\Data\Schema8\%(Filename)%(Extension)" />
     <Compile Include="..\Models\*.cs" Link="Production\Models\%(Filename)%(Extension)" />
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />

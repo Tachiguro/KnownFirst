@@ -17,7 +17,7 @@ namespace KnownFirst.Tests;
 public sealed class Schema8ActivationTests
 {
     [TestMethod]
-    public async Task FreshInitialization_FinishesAsValidatedSchema8()
+    public async Task FreshInitialization_FinishesAsValidatedCurrentSchema()
     {
         var path = TemporaryPath("fresh");
         SQLiteAsyncConnection? connection = null;
@@ -26,7 +26,7 @@ public sealed class Schema8ActivationTests
             connection = new SQLiteAsyncConnection(path);
             await DatabaseSchema.InitializeAsync(connection);
 
-            Assert.AreEqual(8, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual(0, await ColumnCountAsync(connection, "LearningCards", "MeaningId"));
             Assert.AreEqual(1, await ColumnCountAsync(connection, "LearningCards", "PreferredMeaningId"));
             Assert.AreEqual(1, await IndexCountAsync(connection, "IX_LearningCards_Sense_Direction"));
@@ -34,7 +34,7 @@ public sealed class Schema8ActivationTests
 
             BackupSchemaCapabilityResult? capability = null;
             await connection.RunInTransactionAsync(sqlite => capability = BackupSchemaCapability.Resolve(sqlite));
-            Assert.IsInstanceOfType<Schema8CapabilityResult>(capability);
+            Assert.IsInstanceOfType<Schema9CapabilityResult>(capability);
         }
         finally
         {
@@ -73,7 +73,7 @@ public sealed class Schema8ActivationTests
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
-        Assert.AreEqual(8, await fixture.ReadUserVersionAsync());
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.ReadUserVersionAsync());
         Assert.AreEqual(40, await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM LearningCards WHERE Id = 40"));
         Assert.AreEqual(meaningId, await fixture.Connection.ExecuteScalarAsync<int>("SELECT PreferredMeaningId FROM LearningCards WHERE Id = 40"));
         Assert.AreEqual(12, await fixture.Connection.ExecuteScalarAsync<int>("SELECT IntervalDays FROM LearningCards WHERE Id = 40"));
@@ -579,7 +579,7 @@ public sealed class Schema8ActivationTests
         var meaningId = await sourceFixture.InsertMeaningAsync(wordId, displayTerm: "archive", translation: "Archiv");
         var cardId = await sourceFixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm, id: 77);
         await sourceFixture.InsertContextAsync(meaningId, wordId, sourceDocumentId: documentId);
-        await DatabaseSchema.InitializeAsync(sourceFixture.Connection);
+        await Schema8DormantMigration.ApplyAsync(sourceFixture.Connection);
 
         var sourceDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(sourceFixture);
         var sourceService = new BackupService(sourceDatabase, new Schema8BackupFixtureBuilders.FakePlatformInfo());
@@ -620,7 +620,7 @@ public sealed class Schema8ActivationTests
     }
 
     [TestMethod]
-    public async Task NormallyActivatedDatabase_DispatchesLearningWorkflowAndPermanentKnownToSchema8()
+    public async Task NormallyActivatedDatabase_DispatchesLearningWorkflowAndPermanentKnown()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var wordId = await fixture.InsertWordAsync("activation");
@@ -644,8 +644,8 @@ public sealed class Schema8ActivationTests
             learningCapability = LearningSchemaCapability.Resolve(connection);
             preparationCapability = PreparationSchemaCapability.Resolve(connection);
         });
-        Assert.IsInstanceOfType<LearningSchema8CapabilityResult>(learningCapability);
-        Assert.IsInstanceOfType<PreparationSchema8CapabilityResult>(preparationCapability);
+        Assert.IsInstanceOfType<LearningSchema9CapabilityResult>(learningCapability);
+        Assert.IsInstanceOfType<PreparationSchema9CapabilityResult>(preparationCapability);
 
         var clock = new FakeClock(DateTime.UtcNow.AddDays(1));
         var learning = new LearningService(
@@ -704,9 +704,10 @@ public sealed class Schema8ActivationTests
         try
         {
             connection = new SQLiteAsyncConnection(path);
-            await DatabaseSchema.InitializeAsync(connection);
+            await Schema7Fixture.InitializeEmptyAsync(connection);
+            await Schema8DormantMigration.ApplyAsync(connection);
             await SeedRepresentativeSchema8DataAsync(connection);
-            await DatabaseSchema.InitializeAsync(connection);
+            await Schema8DormantMigration.ApplyAsync(connection);
             await connection.ExecuteAsync(
                 "INSERT INTO LexicalCache (CacheKey, SourceLanguage, ExplanationLanguage, NormalizedLemma, LookupMode, TargetLanguage, CanonicalLookupTerm, TokenKind, Provider, ProviderSchemaVersion, ResultJson, SourceProject, PageTitle, Attribution, FetchedAtUtc) "
                 + "VALUES ('legacy|malformed-preserve', 'en', 'de', 'preserve', 0, '', 'preserve', 0, 'test', 2, '{}', 'test-project', 'Preserve', 'preserve attribution', ?)",

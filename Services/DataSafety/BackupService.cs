@@ -139,6 +139,7 @@ public sealed class BackupService(
                 {
                     Schema7CapabilityResult => BackupImportRepository.HasDurableUserData(connection),
                     Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
@@ -243,12 +244,13 @@ public sealed class BackupService(
                 {
                     Schema7CapabilityResult => BackupImportRepository.HasDurableUserData(connection),
                     Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
             });
 
-            if (capability is Schema8CapabilityResult && targetHasDurableData)
+            if ((capability is Schema8CapabilityResult or Schema9CapabilityResult) && targetHasDurableData)
             {
                 return await ImportIntoPopulatedSchema8Async(validated, cancellationToken);
             }
@@ -282,7 +284,8 @@ public sealed class BackupService(
                             null,
                             new PortableImportSummary(PortableImportDisposition.RestoredIntoEmpty, false, 0, 0, 0, 0));
 
-                    case Schema8CapabilityResult schema8:
+                    case Schema8CapabilityResult:
+                    case Schema9CapabilityResult:
                         if (Schema8BackupImportRepository.HasDurableUserData(connection))
                         {
                             return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
@@ -292,8 +295,14 @@ public sealed class BackupService(
                             ? validated.V2.Payload
                             : BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
 
+                        // Schema 9 shares Schema 8's meaning-centric data model exactly (index-only
+                        // activation), so a fresh proof object satisfies the repository's Schema-8 capability
+                        // requirement identically to a resolved one.
+                        var schema8ImportCapability = resolvedCapability is Schema8CapabilityResult schema8
+                            ? schema8.Capability
+                            : new ValidatedSchema8Capability();
                         Schema8BackupImportRepository.ImportIntoEmptySchema8Database(
-                            connection, schema8.Capability, payloadV2, cancellationToken, failureInjector);
+                            connection, schema8ImportCapability, payloadV2, cancellationToken, failureInjector);
                         return new PortableImportResult(
                             PortableImportStatus.Success,
                             null,
@@ -454,6 +463,12 @@ public sealed class BackupService(
                 var payloadV2 = BackupModelMapperV2.MapToExternal(schema8.Snapshot);
                 await BackupArchiveWriterV2.WriteArchiveAsync(
                     payloadV2, platformInfo, schema8.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
+                break;
+
+            case CapturedSchema9SnapshotEnvelope schema9:
+                var payloadV2FromSchema9 = BackupModelMapperV2.MapToExternal(schema9.Snapshot);
+                await BackupArchiveWriterV2.WriteArchiveAsync(
+                    payloadV2FromSchema9, platformInfo, schema9.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
                 break;
 
             default:

@@ -1,3 +1,4 @@
+using KnownFirst.Data;
 using KnownFirst.Services.Lexical;
 using KnownFirst.Services.Lexical.Wikipedia;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -75,11 +76,9 @@ public class WikipediaArchitectureTests
 
 
     [TestMethod]
-    public void Architecture_SchemaVersionIs8()
+    public void Architecture_SchemaVersionIsCurrentSchema9()
     {
-        var text = File.ReadAllText(Path.Combine(RepositoryDir, "Data", "DatabaseSchema.cs"));
-
-        Assert.IsTrue(text.Contains("public const int CurrentVersion = 8;", StringComparison.Ordinal));
+        Assert.AreEqual(9, DatabaseSchema.CurrentVersion);
     }
 
     private static void AssertForbidden(IEnumerable<(string Path, string Text)> files, string forbidden)

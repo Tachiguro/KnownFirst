@@ -1,4 +1,5 @@
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
 using SQLite;
 
 namespace KnownFirst.Services.Study;
@@ -29,12 +30,26 @@ public sealed class ValidatedPreparationSchema8Capability
     public const int SchemaVersion = 8;
 }
 
+/// <summary>The Schema-9 counterpart of <see cref="ValidatedPreparationSchema8Capability"/> (index-only
+/// Schema 8 -&gt; 9 activation; the preparation-relevant data model is unchanged).</summary>
+public sealed class ValidatedPreparationSchema9Capability
+{
+    internal ValidatedPreparationSchema9Capability()
+    {
+    }
+
+    public const int SchemaVersion = 9;
+}
+
 public abstract record PreparationSchemaCapabilityResult;
 
 public sealed record PreparationSchema7CapabilityResult(ValidatedPreparationSchema7Capability Capability)
     : PreparationSchemaCapabilityResult;
 
 public sealed record PreparationSchema8CapabilityResult(ValidatedPreparationSchema8Capability Capability)
+    : PreparationSchemaCapabilityResult;
+
+public sealed record PreparationSchema9CapabilityResult(ValidatedPreparationSchema9Capability Capability)
     : PreparationSchemaCapabilityResult;
 
 /// <summary>
@@ -62,7 +77,7 @@ public sealed class PreparationSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
-        : $"PRAGMA user_version {foundVersion} is not a supported preparation source/target version; only 7 and 8 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported preparation source/target version; only 7, 8, and 9 are accepted.";
 }
 
 /// <summary>
@@ -99,6 +114,14 @@ public static class PreparationSchemaCapability
                 }
 
                 return new PreparationSchema8CapabilityResult(new ValidatedPreparationSchema8Capability());
+
+            case ValidatedPreparationSchema9Capability.SchemaVersion:
+                if (!Schema9ShapeValidator.IsValidDatabase(connection, out _))
+                {
+                    throw new PreparationSchemaCapabilityException(userVersion, shapeMismatch: true);
+                }
+
+                return new PreparationSchema9CapabilityResult(new ValidatedPreparationSchema9Capability());
 
             default:
                 throw new PreparationSchemaCapabilityException(userVersion, shapeMismatch: false);

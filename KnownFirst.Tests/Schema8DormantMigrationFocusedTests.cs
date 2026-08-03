@@ -1,6 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Models;
 using KnownFirst.Services.Study;
 
@@ -375,8 +376,13 @@ public sealed class Schema8DormantMigrationFocusedTests
         await AssertFailsClosedAsync(fixture);
     }
 
+    /// <summary>
+    /// Ordinary current-schema initialization against a populated database: the Schema-8 semantic upgrade
+    /// (Senses/AnswerVariants/assignments/progress) happens correctly as an internal step, then
+    /// initialization continues on to <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9).
+    /// </summary>
     [TestMethod]
-    public async Task NormalInitializeAsync_PopulatedDatabase_ReportsVersion8AndSchema8Shape()
+    public async Task NormalInitializeAsync_PopulatedDatabase_ReportsCurrentVersionAndValidSchema9Shape()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var wordId = await fixture.InsertWordAsync("populated");
@@ -385,13 +391,19 @@ public sealed class Schema8DormantMigrationFocusedTests
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
-        Assert.AreEqual(8, await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "Senses"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "AnswerVariants"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "SenseAnswerVariantAssignments"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "AnswerVariantProgress"));
         Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "SenseId"));
+
+        var validShape = false;
+        string? shapeFailureDetail = null;
+        await fixture.Connection.RunInTransactionAsync(connection =>
+            validShape = Schema9ShapeValidator.IsValidDatabase(connection, out shapeFailureDetail));
+        Assert.IsTrue(validShape, shapeFailureDetail);
     }
 
     // ---- Focused invariant 1: deterministic SourceMeaningId ----

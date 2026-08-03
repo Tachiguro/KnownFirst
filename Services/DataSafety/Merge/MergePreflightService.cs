@@ -100,7 +100,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
         }
 
-        if (targetCapability is Schema8CapabilityResult)
+        if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult)
         {
             KnownFirst.Data.Schema8.Schema8PortableSnapshotCaptureResult captureResultV2;
             try

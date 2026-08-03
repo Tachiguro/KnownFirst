@@ -211,7 +211,7 @@ public sealed class DatabaseMigrationTests
 
 
     [TestMethod]
-    public async Task LegacyBaseline_BackfillFailureRollsBackAndRetryReachesSchema8()
+    public async Task LegacyBaseline_BackfillFailureRollsBackAndRetryReachesCurrentSchema()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"knownfirst-migration-retry-{Guid.NewGuid():N}.db3");
         SQLiteAsyncConnection? asyncConnection = null;
@@ -242,7 +242,7 @@ public sealed class DatabaseMigrationTests
 
             asyncConnection = new SQLiteAsyncConnection(tempPath);
             await DatabaseSchema.InitializeAsync(asyncConnection);
-            Assert.AreEqual(8, await asyncConnection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, await asyncConnection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual((int)PreparationState.Unprepared, await asyncConnection.ExecuteScalarAsync<int>("SELECT PreparationState FROM Words WHERE Id = 42"));
             Assert.AreEqual((int)TokenKind.Word, await asyncConnection.ExecuteScalarAsync<int>("SELECT TokenKind FROM Meanings WHERE Id = 31"));
             Assert.AreEqual(1, await asyncConnection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Senses WHERE WordId = 42"));

@@ -1,6 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Models;
 using SQLite;
 
@@ -278,6 +279,12 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
         return new RepresentativeSeed(documentId, wordId, meaningId, cardId);
     }
 
+    /// <summary>
+    /// Called only after the successful retry through <see cref="DatabaseSchema.InitializeAsync"/> (never
+    /// after the pinned Schema-7 rollback assertions above, which stay pinned at version 7): ordinary
+    /// initialization advances the retried database through the Schema-8 semantic step and on to
+    /// <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9).
+    /// </summary>
     private static async Task AssertRepresentativeDataPreservedAsync(
         Schema7Fixture fixture,
         RepresentativeSeed seed,
@@ -285,12 +292,17 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
         string[] transformedRowsBefore,
         string assertionMessage)
     {
-        Assert.AreEqual(8, await fixture.ReadUserVersionAsync(), assertionMessage);
-        bool validSchema8 = false;
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.ReadUserVersionAsync(), assertionMessage);
+        bool validSchema9 = false;
         string? validationFailure = null;
         await fixture.Connection.RunInTransactionAsync(connection =>
-            validSchema8 = Schema8ShapeValidator.IsValidDatabase(connection, out validationFailure));
-        Assert.IsTrue(validSchema8, $"{assertionMessage}: {validationFailure}");
+            validSchema9 = Schema9ShapeValidator.IsValidDatabase(connection, out validationFailure));
+        Assert.IsTrue(validSchema9, $"{assertionMessage}: {validationFailure}");
+
+        var integrity = await fixture.Connection.ExecuteScalarAsync<string>("PRAGMA integrity_check");
+        Assert.AreEqual("ok", integrity, assertionMessage);
+        var foreignKeyViolations = await fixture.Connection.QueryAsync<ForeignKeyViolationRow>("PRAGMA foreign_key_check");
+        Assert.IsEmpty(foreignKeyViolations, assertionMessage);
 
         var unchangedRowsAfter = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(
             fixture.Connection,
@@ -414,6 +426,14 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
     ];
 
     private sealed record RepresentativeSeed(int DocumentId, int WordId, int MeaningId, int CardId);
+
+    private sealed class ForeignKeyViolationRow
+    {
+        public string Table { get; set; } = string.Empty;
+        public int RowId { get; set; }
+        public string Parent { get; set; } = string.Empty;
+        public int FKId { get; set; }
+    }
 
     [TestMethod]
     public async Task FailureAfterTableCreation_RollsBackCompletely()

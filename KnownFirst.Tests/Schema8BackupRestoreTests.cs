@@ -3,6 +3,7 @@ using System.Text;
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
@@ -147,7 +148,7 @@ public sealed class Schema8BackupRestoreTests
     }
 
     [TestMethod]
-    public async Task V2NullableTargets_EmptyRestoreReopensAndInitializesWithoutMutation()
+    public async Task V2NullableTargets_EmptyRestoreReopensToCurrentSchemaWithoutDataMutation()
     {
         await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
         await sourceFixture.Connection.ExecuteAsync("UPDATE LearningReviews SET TargetAnswerVariantId = NULL");
@@ -161,11 +162,11 @@ public sealed class Schema8BackupRestoreTests
         Assert.IsGreaterThan(0, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards"));
         Assert.AreEqual(0, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews WHERE TargetAnswerVariantId IS NOT NULL"));
         Assert.AreEqual(0, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE TargetAnswerVariantId IS NOT NULL"));
-        await AssertNormalReopenPreservesCompleteStateAsync(targetFixture);
+        await AssertNormalReopenPreservesCompleteUserDataAsync(targetFixture);
     }
 
     [TestMethod]
-    public async Task V1NullableHistoricalTargets_UpgradeRestoreReopensAndInitializesWithoutMutation()
+    public async Task V1NullableHistoricalTargets_UpgradeRestoreReopensToCurrentSchemaWithoutDataMutation()
     {
         await using var sourceFixture = await Schema7Fixture.CreateAsync();
         var wordId = await sourceFixture.InsertWordAsync("unattributed");
@@ -185,7 +186,7 @@ public sealed class Schema8BackupRestoreTests
 
         Assert.AreEqual(1, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews WHERE TargetAnswerVariantId IS NULL"));
         Assert.AreEqual(1, await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE TargetAnswerVariantId IS NULL"));
-        await AssertNormalReopenPreservesCompleteStateAsync(targetFixture);
+        await AssertNormalReopenPreservesCompleteUserDataAsync(targetFixture);
     }
 
     // ---- KF-MEANING-001 Slice 4: the assignment RequiredSinceUtc boundary through a real empty Schema-8
@@ -249,17 +250,68 @@ public sealed class Schema8BackupRestoreTests
         Assert.AreEqual(PortableImportStatus.Success, result.Status);
     }
 
-    private static async Task AssertNormalReopenPreservesCompleteStateAsync(Schema7Fixture fixture)
+    /// <summary>
+    /// The restored database is a valid pinned Schema-8 database. Reopening it through
+    /// <see cref="DatabaseSchema.InitializeAsync"/> is ordinary current-schema initialization and legitimately
+    /// migrates it to <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9) — so this proves the durable-data
+    /// contract (every restored row, keyed by table, survives byte-for-byte) rather than a full schema-level
+    /// snapshot, which would wrongly fail on the expected user_version bump and ReviewSessions index migration.
+    /// </summary>
+    private static async Task AssertNormalReopenPreservesCompleteUserDataAsync(Schema7Fixture fixture)
     {
+        var versionBeforeReopen = await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version");
+        Assert.AreEqual(8, versionBeforeReopen);
+
         await fixture.Connection.CloseAsync();
-        var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.DatabasePath);
+
+        string[] before;
+        var beforeConnection = new SQLiteAsyncConnection(fixture.DatabasePath);
+        try
+        {
+            before = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(beforeConnection, DurableSchema8TableNames);
+        }
+        finally
+        {
+            await beforeConnection.CloseAsync();
+        }
 
         var reopened = new SQLiteAsyncConnection(fixture.DatabasePath);
         await DatabaseSchema.InitializeAsync(reopened);
+
+        var versionAfterReopen = await reopened.ExecuteScalarAsync<int>("PRAGMA user_version");
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, versionAfterReopen);
+
+        var integrity = await reopened.ExecuteScalarAsync<string>("PRAGMA integrity_check");
+        Assert.AreEqual("ok", integrity);
+        var foreignKeyViolations = await reopened.QueryAsync<ForeignKeyViolationRow>("PRAGMA foreign_key_check");
+        Assert.IsEmpty(foreignKeyViolations);
+
+        var validShape = false;
+        string? shapeFailureDetail = null;
+        await reopened.RunInTransactionAsync(connection =>
+            validShape = Schema9ShapeValidator.IsValidDatabase(connection, out shapeFailureDetail));
+        Assert.IsTrue(validShape, shapeFailureDetail);
+
+        var after = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(reopened, DurableSchema8TableNames);
         await reopened.CloseAsync();
-        var after = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.DatabasePath);
 
         CollectionAssert.AreEqual(before, after);
+    }
+
+    private static readonly string[] DurableSchema8TableNames =
+    [
+        "Documents", "Words", "WordForms", "SentenceSpans", "WordOccurrences", "Meanings",
+        "ReviewStates", "ReviewSessions", "ReviewCandidates", "PreparationSessions", "PreparationCandidates",
+        "ContextSnapshots", "LearningCards", "LearningReviews", "LearningSessions", "LearningSessionCards",
+        "Senses", "AnswerVariants", "SenseAnswerVariantAssignments", "AnswerVariantProgress"
+    ];
+
+    private sealed class ForeignKeyViolationRow
+    {
+        public string Table { get; set; } = string.Empty;
+        public int RowId { get; set; }
+        public string Parent { get; set; } = string.Empty;
+        public int FKId { get; set; }
     }
 
     /// <summary>Proves no unrelated row was added, dropped, or duplicated by the restore.</summary>

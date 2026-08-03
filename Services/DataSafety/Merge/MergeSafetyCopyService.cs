@@ -260,6 +260,12 @@ public sealed class MergeSafetyCopyService(
                     payloadV2, platformInfo, schema8.Capability, timestampUtc, destinationStream, cancellationToken);
                 break;
 
+            case MergeSafetyCopySchema9Captured schema9:
+                var payloadV2FromSchema9 = BackupModelMapperV2.MapToExternal(schema9.Snapshot);
+                await BackupArchiveWriterV2.WriteArchiveAsync(
+                    payloadV2FromSchema9, platformInfo, schema9.Capability, timestampUtc, destinationStream, cancellationToken);
+                break;
+
             default:
                 throw new InvalidOperationException("Unrecognized merge safety-copy capture envelope.");
         }
@@ -274,6 +280,7 @@ public sealed class MergeSafetyCopyService(
         {
             MergeSafetyCopySchema7Captured schema7 => BuildExpectedCounts(schema7.Snapshot),
             MergeSafetyCopySchema8Captured schema8 => BuildExpectedCounts(schema8.Snapshot),
+            MergeSafetyCopySchema9Captured schema9 => BuildExpectedCounts(schema9.Snapshot),
             _ => throw new InvalidOperationException("Unrecognized merge safety-copy capture envelope.")
         };
 

@@ -1257,7 +1257,7 @@ public sealed class MergeSafetyCopyServiceTests
 
     [TestMethod]
     [DoNotParallelize]
-    public async Task CreateSafetyCopy_FromNormallyMigratedSchema8Database_ProducesValidV2Archive()
+    public async Task CreateSafetyCopy_FromNormallyInitializedCurrentSchemaDatabase_ProducesValidV2Archive()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var wordId = await fixture.InsertWordAsync("safety-copy");
@@ -1278,7 +1278,7 @@ public sealed class MergeSafetyCopyServiceTests
             var versioned = await BackupArchiveReader.ValidateVersionedAsync(readStream, CancellationToken.None);
             Assert.AreEqual(2, versioned.FormatVersion);
             Assert.IsNotNull(versioned.V2);
-            Assert.AreEqual(8, versioned.V2!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, versioned.V2!.Manifest.SourceDatabaseSchemaVersion);
             Assert.IsGreaterThan(0, versioned.V2.Payload.Senses.Count);
 
             Assert.AreEqual(2, result.ValidatedManifest!.FormatVersion);

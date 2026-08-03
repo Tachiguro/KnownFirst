@@ -53,7 +53,7 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var capability = BackupSchemaCapability.Resolve(connection);
-                if (capability is not Schema8CapabilityResult)
+                if (capability is not (Schema8CapabilityResult or Schema9CapabilityResult))
                 {
                     return new MergeWriteResult(MergeWriteStatus.Failed, MergeWriterErrorCodes.TargetNotSchema8);
                 }

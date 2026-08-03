@@ -29,6 +29,22 @@ public sealed partial class PreparationService(
     private CancellationTokenSource? _prefetchCancellation;
     private Task<PrefetchedLookup?>? _prefetchTask;
     private int? _prefetchOriginCandidateId;
+
+    /// <summary>
+    /// Widens every Schema-8-specific dispatch below to also accept Schema 9 (index-only activation; the
+    /// preparation-relevant data model is unchanged). Returns a Schema-8 capability proof object usable by
+    /// the unchanged Schema8-named helpers in either case — a freshly resolved one for an actual Schema-8
+    /// database, or a fresh equivalent proof object for a Schema-9 database, since both share the exact
+    /// same physical shape for every table preparation touches.
+    /// </summary>
+    private static ValidatedPreparationSchema8Capability? AsSchema8CompatibleCapability(
+        PreparationSchemaCapabilityResult capability) =>
+        capability switch
+        {
+            PreparationSchema8CapabilityResult schema8 => schema8.Capability,
+            PreparationSchema9CapabilityResult => new ValidatedPreparationSchema8Capability(),
+            _ => null
+        };
 #if DEBUG
     private const int MaximumTimingMeasurements = 200;
     private readonly object _timingSync = new();
@@ -102,9 +118,9 @@ public sealed partial class PreparationService(
                 // byte-for-byte; Schema 8 dispatches to StartSchema8 (PreparationServiceSchema8Start.cs),
                 // which never queries Schema-8-only structures until this branch is actually taken.
                 var capability = PreparationSchemaCapability.Resolve(connection);
-                if (capability is PreparationSchema8CapabilityResult schema8)
+                if (AsSchema8CompatibleCapability(capability) is { } schema8StartCapability)
                 {
-                    return StartSchema8(connection, method, requestedLimit, schema8.Capability);
+                    return StartSchema8(connection, method, requestedLimit, schema8StartCapability);
                 }
 
                 var preparedWordIds = connection.Table<MeaningEntity>()
@@ -240,7 +256,7 @@ public sealed partial class PreparationService(
         await database.RunInTransactionAsync(connection =>
         {
             var capability = PreparationSchemaCapability.Resolve(connection);
-            if (capability is not PreparationSchema8CapabilityResult)
+            if (AsSchema8CompatibleCapability(capability) is null)
             {
                 return true;
             }
@@ -371,9 +387,10 @@ public sealed partial class PreparationService(
                 // already-frozen envelope (evidence recorded at StartAsync/lazy-upgrade time is never
                 // replaced here); Schema-7 output is byte-for-byte unchanged.
                 var capability = PreparationSchemaCapability.Resolve(connection);
+                var isSchema8Compatible = AsSchema8CompatibleCapability(capability) is not null;
                 var now = clock.UtcNow;
                 var word = connection.Find<WordEntity>(candidate.WordId)!;
-                if (capability is PreparationSchema8CapabilityResult && result.HasUsableData)
+                if (isSchema8Compatible && result.HasUsableData)
                 {
                     // §9: every provider index that already matches an existing Sense is auto-resolved
                     // right away — never requiring an explicit accept first — and the candidate
@@ -403,7 +420,7 @@ public sealed partial class PreparationService(
                 }
                 else
                 {
-                    candidate.ResultJson = capability is PreparationSchema8CapabilityResult
+                    candidate.ResultJson = isSchema8Compatible
                         ? PreparationCandidatePayloadCodec.Write(MergeResultIntoEnvelope(candidate.ResultJson, result))
                         : JsonSerializer.Serialize(result, LexicalJsonSerializerContext.Default.LexicalResult);
                     candidate.SelectedMeaningIndex = 0;
@@ -458,7 +475,7 @@ public sealed partial class PreparationService(
                 // KF-MEANING-001 Slice 3 (§6/§7): lazy-upgrade before selection, then reject an
                 // already-resolved index (Schema-8 only; Schema-7 never carries a resolved-index ledger).
                 var capability = PreparationSchemaCapability.Resolve(connection);
-                if (capability is PreparationSchema8CapabilityResult)
+                if (AsSchema8CompatibleCapability(capability) is not null)
                 {
                     EnsureCandidateEnvelopeAndSelection(connection, candidate);
                     var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
@@ -518,8 +535,8 @@ public sealed partial class PreparationService(
                 // BackupSchemaCapability. The Schema-7 branch below is otherwise byte-for-byte the
                 // pre-Slice-3 behavior; the Schema-8 branch lives entirely in PreparationServiceSchema8.cs.
                 var capability = PreparationSchemaCapability.Resolve(connection);
-                return capability is PreparationSchema8CapabilityResult schema8
-                    ? AcceptSchema8(connection, candidateId, input, cardDirectionPreference, schema8.Capability)
+                return AsSchema8CompatibleCapability(capability) is { } schema8AcceptCapability
+                    ? AcceptSchema8(connection, candidateId, input, cardDirectionPreference, schema8AcceptCapability)
                     : AcceptSchema7(connection, candidateId, input, cardDirectionPreference);
             });
             RecordTiming(

@@ -10,7 +10,7 @@ namespace KnownFirst.Services.DataSafety;
 /// — so a Schema-7-derived capture can never reach this writer.</summary>
 public static class BackupArchiveWriterV2
 {
-    public static async Task WriteArchiveAsync(
+    public static Task WriteArchiveAsync(
         BackupPayloadV2 payload,
         IBackupPlatformInfo platformInfo,
         ValidatedSchema8Capability capability,
@@ -18,9 +18,39 @@ public static class BackupArchiveWriterV2
         Stream destinationStream,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(capability);
+        return WriteArchiveCoreAsync(
+            payload, platformInfo, ValidatedSchema8Capability.SchemaVersion, timestampUtc, destinationStream, cancellationToken);
+    }
+
+    /// <summary>The Schema-9 counterpart. Records
+    /// <see cref="ValidatedSchema9Capability.SchemaVersion"/> (9) as the manifest's
+    /// <c>SourceDatabaseSchemaVersion</c> — never <see cref="ValidatedSchema8Capability.SchemaVersion"/> —
+    /// even though the payload graph and validation are otherwise byte-for-byte identical to the Schema-8
+    /// overload.</summary>
+    public static Task WriteArchiveAsync(
+        BackupPayloadV2 payload,
+        IBackupPlatformInfo platformInfo,
+        ValidatedSchema9Capability capability,
+        DateTime timestampUtc,
+        Stream destinationStream,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capability);
+        return WriteArchiveCoreAsync(
+            payload, platformInfo, ValidatedSchema9Capability.SchemaVersion, timestampUtc, destinationStream, cancellationToken);
+    }
+
+    private static async Task WriteArchiveCoreAsync(
+        BackupPayloadV2 payload,
+        IBackupPlatformInfo platformInfo,
+        int sourceDatabaseSchemaVersion,
+        DateTime timestampUtc,
+        Stream destinationStream,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentNullException.ThrowIfNull(platformInfo);
-        ArgumentNullException.ThrowIfNull(capability);
         ArgumentNullException.ThrowIfNull(destinationStream);
 
         BackupModelContractV2.ValidatePayload(payload);
@@ -52,7 +82,7 @@ public static class BackupArchiveWriterV2
             var manifest = new BackupManifestV2(
                 FormatVersion: BackupFormatLimits.CurrentArchiveFormatVersion,
                 SourceAppVersion: platformInfo.SourceAppVersion,
-                SourceDatabaseSchemaVersion: ValidatedSchema8Capability.SchemaVersion,
+                SourceDatabaseSchemaVersion: sourceDatabaseSchemaVersion,
                 SourcePlatform: platformInfo.SourcePlatform,
                 CreatedAtUtc: timestampUtc,
                 RecordCounts: recordCounts,

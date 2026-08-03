@@ -1,6 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Models;
 
 namespace KnownFirst.Tests;
@@ -387,8 +388,12 @@ public sealed class Schema8DormantMigrationCoreTests
         Assert.AreEqual(meaningId, preferredMeaningId);
     }
 
+    /// <summary>
+    /// Ordinary current-schema initialization runs the Schema-8 semantic migration as an internal step,
+    /// then continues on to <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9) — never stopping at 8.
+    /// </summary>
     [TestMethod]
-    public async Task Core8_OrdinaryInitializeAsync_ActivatesSchema8()
+    public async Task Core8_OrdinaryInitializeAsync_ActivatesCurrentSchemaAfterSchema8Step()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         await fixture.InsertWordAsync("dormant", status: WordStatus.Unreviewed);
@@ -397,10 +402,16 @@ public sealed class Schema8DormantMigrationCoreTests
 
         var versionAfter = await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection);
 
-        Assert.AreEqual(8, versionAfter);
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, versionAfter);
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "Senses"));
         Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "PreferredMeaningId"));
+
+        var validShape = false;
+        string? shapeFailureDetail = null;
+        await fixture.Connection.RunInTransactionAsync(connection =>
+            validShape = Schema9ShapeValidator.IsValidDatabase(connection, out shapeFailureDetail));
+        Assert.IsTrue(validShape, shapeFailureDetail);
     }
 
     [TestMethod]

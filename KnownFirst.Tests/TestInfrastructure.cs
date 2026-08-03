@@ -226,7 +226,7 @@ internal sealed class TemporarySchema8Database : IKnownFirstDatabase, IAsyncDisp
         }
 
         _connection ??= new SQLiteAsyncConnection(DatabasePath);
-        await DatabaseSchema.InitializeAsync(_connection);
+        await Schema7Fixture.InitializeEmptyAsync(_connection);
         await Schema8DormantMigration.ApplyAsync(_connection, _migrationOptions);
         _migrated = true;
     }

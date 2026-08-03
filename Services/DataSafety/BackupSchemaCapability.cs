@@ -1,4 +1,5 @@
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
 using SQLite;
 
 namespace KnownFirst.Services.DataSafety;
@@ -32,11 +33,25 @@ public sealed class ValidatedSchema8Capability
     public const int SchemaVersion = 8;
 }
 
+/// <summary>The Schema-9 counterpart of <see cref="ValidatedSchema8Capability"/> (index-only Schema 8 -&gt;
+/// 9 activation). Schema 9 shares Schema 8's meaning-centric data model and payload-v2 code paths exactly
+/// — only the <c>ReviewSessions</c> index shape differs.</summary>
+public sealed class ValidatedSchema9Capability
+{
+    internal ValidatedSchema9Capability()
+    {
+    }
+
+    public const int SchemaVersion = 9;
+}
+
 public abstract record BackupSchemaCapabilityResult;
 
 public sealed record Schema7CapabilityResult(ValidatedSchema7Capability Capability) : BackupSchemaCapabilityResult;
 
 public sealed record Schema8CapabilityResult(ValidatedSchema8Capability Capability) : BackupSchemaCapabilityResult;
+
+public sealed record Schema9CapabilityResult(ValidatedSchema9Capability Capability) : BackupSchemaCapabilityResult;
 
 /// <summary>
 /// Thrown by <see cref="BackupSchemaCapability.Resolve"/> for every rejection case: an unsupported
@@ -62,7 +77,7 @@ public sealed class BackupSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
-        : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7 and 8 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7, 8, and 9 are accepted.";
 }
 
 /// <summary>
@@ -98,6 +113,14 @@ public static class BackupSchemaCapability
                 }
 
                 return new Schema8CapabilityResult(new ValidatedSchema8Capability());
+
+            case ValidatedSchema9Capability.SchemaVersion:
+                if (!Schema9ShapeValidator.IsValidDatabase(connection, out _))
+                {
+                    throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: true);
+                }
+
+                return new Schema9CapabilityResult(new ValidatedSchema9Capability());
 
             default:
                 throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: false);

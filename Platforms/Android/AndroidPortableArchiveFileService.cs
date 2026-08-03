@@ -14,6 +14,13 @@ public sealed class AndroidPortableArchiveFileService : IPortableArchiveFileServ
     private static TaskCompletionSource<AndroidUri?>? _pendingCreateDocument;
     private static TaskCompletionSource<AndroidUri?>? _pendingOpenDocument;
 
+    // Exclusive write/truncate mode, not a read-write mode. Per the official ContentResolver contract,
+    // opening with the exclusive "r" or "w" modes lets the returned ParcelFileDescriptor be a pipe or
+    // socket pair to enable streaming, whereas a read-write mode implies a file on disk that supports
+    // seeking. Nothing in this export path reads back through the write handle, so the exclusive mode
+    // is used to give the provider the most implementation flexibility.
+    private const string DestinationWriteMode = "wt";
+
     public async Task<PortableArchiveSaveStatus> ExportAsync(
         string suggestedFileName,
         Func<Stream, CancellationToken, Task> writeArchive,
@@ -22,6 +29,20 @@ public sealed class AndroidPortableArchiveFileService : IPortableArchiveFileServ
         ArgumentNullException.ThrowIfNull(writeArchive);
         var safeFileName = PortableArchiveExportGuard.ValidateArchiveFileName(suggestedFileName);
 
+        return await ProviderPortableArchiveExporter.ExportAsync(
+            writeArchive,
+            token => AcquireDestinationAsync(safeFileName, token),
+            cancellationToken);
+    }
+
+    // Resolves the current Activity and launches the ACTION_CREATE_DOCUMENT picker only when invoked
+    // by ProviderPortableArchiveExporter, which calls this only after the staged archive has already
+    // been strictly validated — so no Activity is captured or retained during archive generation, and
+    // the picker is never shown for a writer that failed or produced an invalid archive. Returns null
+    // (never throws) when the user cancels the picker.
+    private static async Task<IPortableArchiveExportDestination?> AcquireDestinationAsync(
+        string safeFileName, CancellationToken cancellationToken)
+    {
         var activity = Platform.CurrentActivity
             ?? throw new InvalidOperationException(
                 "No active Android activity is available for the save picker.");
@@ -44,24 +65,37 @@ public sealed class AndroidPortableArchiveFileService : IPortableArchiveFileServ
 
         if (destinationUri is null)
         {
-            return PortableArchiveSaveStatus.Cancelled;
+            return null;
         }
 
         var contentResolver = Android.App.Application.Context.ContentResolver
             ?? throw new InvalidOperationException("The content resolver is unavailable.");
 
-        await using (var output = contentResolver.OpenOutputStream(destinationUri, "rwt")
-            ?? throw new IOException("The selected destination could not be opened for writing."))
+        return new AndroidProviderDocumentDestination(contentResolver, destinationUri);
+    }
+
+    // Writes and re-reads the picker-returned document only. Deliberately exposes (and performs) no
+    // delete, rename, move, or replace operation — see IPortableArchiveExportDestination for why.
+    private sealed class AndroidProviderDocumentDestination(
+        ContentResolver contentResolver, AndroidUri uri) : IPortableArchiveExportDestination
+    {
+        public Task<Stream> OpenWriteAsync(CancellationToken cancellationToken)
         {
-            await writeArchive(output, cancellationToken);
-            await output.FlushAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            Stream stream = contentResolver.OpenOutputStream(uri, DestinationWriteMode)
+                ?? throw new IOException("The selected destination could not be opened for writing.");
+            return Task.FromResult(stream);
         }
 
-        await PortableArchiveExportGuard.VerifySavedArchiveAsync(
-            () => contentResolver.OpenInputStream(destinationUri),
-            cancellationToken);
+        public Task<Stream> OpenReadBackAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Stream stream = contentResolver.OpenInputStream(uri)
+                ?? throw new IOException("The saved archive could not be reopened for verification.");
+            return Task.FromResult(stream);
+        }
 
-        return PortableArchiveSaveStatus.Saved;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     public async Task<IPortableArchiveSelection?> PickImportAsync(CancellationToken cancellationToken)

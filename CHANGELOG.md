@@ -6,6 +6,24 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
+### Added
+
+- Portable import preview UI with read-only preview before confirmation, distinguishing restore (empty target), merge (populated target), and no-change (duplicate import) cases; localized EN/DE/RU coverage for preview, result, and failure handling (PR #45).
+
+### Fixed
+
+- Windows portable data export no longer opens or truncates the selected destination before the archive is generated. The archive is now staged to a same-directory temporary file, validated through the production archive validator, and only then atomically finalized (`File.Replace` for an existing destination, `File.Move` for a nonexistent one); a failure at any stage before finalization leaves an existing backup byte-for-byte unchanged (PR #48).
+- An invalid preparation context is now hidden rather than silently accepted during preparation selected-meaning acceptance (PR #46).
+- Diagnostics and export now read `PreparationCandidates.ResultJson` via the payload codec instead of a stale reader, correcting a defect in the diagnostics/export path (PR #47).
+
+### Changed
+
+- `LearningSession` identity now includes `StartedAtUtc`, `CompletedAtUtc`, ordered queue digest, and per-item `Rating`, so distinct real sessions using the same card set no longer collapse into one (PR #45).
+
+### Internal
+
+- Documentation-governance package (branch `docs/test-confidence-release-readiness`) reconciled `CURRENT_WORK.md`, `PROJECT_STATE.md`, and `ROADMAP.md` with the merged state of PRs #45-#48, and established a test-confidence, strict-TDD, production-UI cleanliness, and pre-AAB documentation governance program. This is a repository-governance change only; it does not describe new user-facing product behavior and does not itself constitute a release.
+
 ## [1.0.0-beta.12] - 2026-07-30 (confirmed distributed)
 
 **Beta 12 distribution through Google Play Internal Testing and physical Android testing were confirmed by the user on 2026-07-30. The exact original rollout date is unknown. The installed package displayed commit `cfbaee6a` and `DIRTY`, so the exact source commit is unverified. See [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) for details.**

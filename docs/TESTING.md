@@ -64,6 +64,42 @@ Test classes do not currently use formal MSTest category attributes; filtering r
 - **Includes:** All automated tests, Windows Debug, Windows Release, Android Debug build validation, and Android Release build validation.
 - **Does NOT include:** Rendered GUI test execution, manual interaction testing, or Android package creation.
 
+## Layered Confidence Model
+
+This model clarifies what each test layer proves and does not prove. It applies in addition to, not instead of, the concrete test scopes (A-G) above.
+
+| Layer | Proves | Does not prove |
+| --- | --- | --- |
+| Pure unit tests | Isolated logic/policy correctness for the exact inputs exercised | Integration with real persistence, UI rendering, or platform behavior |
+| Service/integration tests (isolated synthetic databases) | Correct behavior across service boundaries with real SQLite semantics | Rendered UI, native platform file/picker behavior, or real device conditions |
+| Architecture/source-contract tests | Structural invariants (e.g. AOT/trimming-safe serialization, DI registration, script contract shape) | Runtime correctness of the logic those contracts wrap |
+| Component/workflow behavior tests | A component's state transitions, service calls, and navigation given inputs, exercised in a test host | Actual browser/WebView rendering, click interaction in a running process, or visual layout |
+| Rendered GUI interaction tests | Real rendering and interaction in a running application instance | Nothing this document currently claims automated rendered GUI tests exist for KnownFirst beyond `WINDOWS_GUI_AUTOMATED` startup smoke; see scope D above |
+| Platform/manual validation | Real device/OS behavior, visual and accessibility correctness | Nothing beyond what is manually recorded for that specific run |
+| Release-script contract tests | Script argument binding, guard conditions, and static invariants | That a script's underlying build, sign, or publish operation actually succeeds end-to-end on the current toolchain |
+| Optional targeted mutation testing (critical data-safety logic) | That existing tests actually fail when specific mutations are introduced into safety-critical code paths (e.g. backup/merge/export) | General code quality outside the mutated paths |
+
+**Source or markup inspection cannot prove that a runtime button is clickable or produces its intended result.** `UI_CONTRACT_AUTOMATED` (scope C) inspects static structure only; a control can pass every markup contract check while being bound to a shared no-op or placeholder handler at runtime. Automated static detection (see "Production-Control Policy" below) narrows this gap but does not replace rendered GUI verification for controls classified as release-critical.
+
+## Production-Control Policy
+
+This policy implements the governing rule established in [docs/ROADMAP.md](ROADMAP.md) "Test-confidence and release-readiness program": every enabled and visible actionable control in a Release build must produce a meaningful implemented outcome.
+
+- Every enabled, visible Release action requires an implemented effect.
+- A planned but unfinished feature remains documentation-only (tracked in [docs/ROADMAP.md](ROADMAP.md)) and must not be represented by any Release-visible control.
+- An unfinished control must not be present in the Release DOM/component tree or accessibility tree. CSS hiding alone (e.g. `display:none`, `visibility:hidden`) is insufficient — the element must not render into the Release output at all.
+- A disabled placeholder control is not permitted in an AAB unless a later, separate, explicit product decision creates a genuine user-facing unavailable-state requirement (e.g. "this action requires an internet connection" with real conditional logic) — a disabled button that exists only because the feature is unimplemented is not that case.
+- Where practical, automated tests should detect: production `NotImplementedException` paths, empty event handlers, dead navigation targets (a `NavigateTo` target with no matching route), and known placeholder-handler bindings (e.g. a handler shared across multiple visually distinct controls with no differentiated effect).
+- Automated static detection narrows risk but does not replace rendered GUI verification — see "Layered Confidence Model" above.
+
+## Debug-Only UI Rules
+
+- A diagnostic control or visual overlay (layout outline, element border, bounding box, diagnostic overlay, developer badge, or similar) requires an explicit build or diagnostic gate (e.g. the existing `DiagnosticsEnabled`-gated lexical-log actions in `Components/Pages/Settings.razor`).
+- It must be clearly identifiable as diagnostic while visible in Debug/BetaDiagnostic (e.g. the existing `debug-label`/`button-debug` visual marking).
+- It must be absent in Release.
+- No normal Release setting may reactivate it.
+- Release-contract automated coverage should confirm, where practical: absence of unfinished controls, absence of diagnostic outlines/overlays, absence of debug-only navigation entries, and absence of placeholder handlers from rendered Release-configuration workflows. Configuration-sensitive contract tests (tests that assert differently depending on build configuration) are the appropriate mechanism; static markup inspection alone cannot fully prove Release-only absence when a control's visibility is runtime-conditional — rendered GUI verification remains necessary for release-critical controls, per "Layered Confidence Model" above.
+
 ## Test-Only Failure Policy
 
 When executing in `TEST_ONLY` mode:

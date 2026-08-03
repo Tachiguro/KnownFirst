@@ -106,7 +106,39 @@ A successful local package consists of the final AAB and its matching SHA-256 si
 - Pull-request merge is never automatic.
 - Physical-device testing and manual GUI verification are separate explicit packages.
 
-## 7. FULL_RELEASE_OUTPUT_PACKAGE
+## 7. Mandatory Pre-AAB Release-Readiness Gate
+
+**No `ANDROID_GOOGLE_PLAY_AAB` `PACKAGE_ONLY` operation may begin until this gate has passed for the exact candidate commit on `master`.** The gate is evidence to collect and record, not a formality; each item must be independently verified against that candidate commit, not inferred from an earlier commit.
+
+1. Local `master` is synchronized, clean, and equals `origin/master`.
+2. No unresolved unfinished control appears in the Release UI (see [docs/TESTING.md](TESTING.md) "Production-Control Policy").
+3. Planned but unimplemented features are present only in documentation (`docs/ROADMAP.md`), not in Release rendering.
+4. No unfinished control is merely concealed with CSS or left present in the accessibility tree.
+5. No debug-only layout outline, diagnostic border, bounding box, overlay, badge, menu item, or developer control appears in the Release candidate (see [docs/TESTING.md](TESTING.md) "Debug-Only UI Rules").
+6. `docs/PROJECT_STATE.md`, `docs/ROADMAP.md`, `docs/CURRENT_WORK.md`, `CHANGELOG.md`, the target release notes, version/build identity, and What's New content were reviewed against the candidate commit.
+7. The documentation-review outcome is recorded as either "updated and current" (with the specific edits made) or "reviewed and already current, with no content change required." A passing review does not require a textual edit when none is warranted.
+8. `ALL_AUTOMATED` passes on the exact candidate commit.
+9. `UI_CONTRACT_AUTOMATED` is explicitly accounted for (it is a subset of `ALL_AUTOMATED`, but its result is called out separately for traceability).
+10. Configuration-sensitive contract tests confirm that unfinished and diagnostic UI is absent from the Release configuration specifically, not only from the configuration under normal test execution.
+11. Critical rendered GUI scenarios (see [docs/GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md)) affected by changes since the previous candidate gate pass are executed and recorded, with an explicit rationale for the selected scenario scope. Unrelated GUI scenarios are not required when no affected workflow changed, but the scope decision itself must be recorded.
+12. A rendered or screenshot-based Release verification confirms that no diagnostic outline, overlay, or placeholder control is visible in the affected UI.
+13. `FULL_VALIDATION` (or the documented equivalent Windows/Android build matrix) passes.
+14. Android Release has zero prohibited AOT, trimming, source-generation, and warning findings (see "Build Invariants and Safeguards" above).
+15. Required manual Android validation (see [docs/BETA_TESTING.md](BETA_TESTING.md)) is completed when Android-visible behavior changed since the previous candidate.
+16. Known release blockers (see [docs/ROADMAP.md](ROADMAP.md) "Public-release blockers" and "Test-confidence and release-readiness program") are classified and resolved for the intended distribution level.
+17. Only after every applicable item above passes may a separately authorized `PACKAGE_ONLY` `ANDROID_GOOGLE_PLAY_AAB` operation begin.
+
+**Clarifications:**
+- Passing unit tests alone never authorizes packaging.
+- Building successfully alone never authorizes packaging.
+- Documentation review alone never authorizes packaging.
+- CSS-hidden unfinished controls do not satisfy this gate.
+- A control excluded only visually but still interactive or exposed to the accessibility tree does not satisfy this gate.
+- AAB creation never authorizes upload or store publication (see "Publication Boundaries" above).
+- Internal Testing and public Google Play promotion remain distinct distribution levels; passing this gate authorizes packaging, not a specific distribution level.
+- The unfinished-control and debug-UI prohibitions (items 2-5, 10, 12) apply to every future AAB candidate, not only the next one.
+
+## 8. FULL_RELEASE_OUTPUT_PACKAGE
 
 This composite operation is **never** inferred from feature completion, PR merge, synchronization, or an individual build request. It is executed **only** upon explicit user request after a milestone is reviewed, merged, and synchronized to `master`:
 

@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-08-05
-**State source:** `master` (`06b361250d99085cba1e47ad5653a2dbe503f2da`, PR #52 merge commit)
-**Next repository action:** Review and complete the D1 authoritative documentation reconciliation package (branch `docs/reconcile-authoritative-state-schema9`); no product implementation is currently active.
+**State source:** `master` (`a9c42f569b50831406ebd780b5c1c47376d4f5df`, PR #53 merge commit)
+**Next repository action:** Review and complete the D2 Agent Communication and Operation Governance package; no product implementation is currently active.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -81,12 +81,13 @@ The `master` branch includes the following merged technical foundations:
 - **Android portable export staging (PR #50):** strict validation before destination acquisition.
 - **Schema-9 review-session history storage activation (PR #51).**
 - **Package A (Schema-9 completed-review convergence) (PR #52):** identity, planner, target-index parity, and characterization coverage.
+- **D1 authoritative documentation reconciliation (PR #53).**
 
 **Current Status (master):**
 - The active database schema is **9** (`PRAGMA user_version = 9`).
 - Schema 9 is active during normal application initialization on master.
-- PR #52 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
-- No product implementation or release package is currently active. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md)).
+- PR #53 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
+- No product implementation or release package is currently active. D1 is complete, and D2 is the active documentation package. D3–D5 remain future documentation work. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md)).
 
 ## Confirmed verification
 
@@ -132,9 +133,9 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `06b361250d99085cba1e47ad5653a2dbe503f2da` (PR #52 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
+The stable master baseline is `a9c42f569b50831406ebd780b5c1c47376d4f5df` (PR #53 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
-No product implementation is currently active. The current work package is the authoritative documentation reconciliation program described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+No product implementation is currently active. The current work package is the D2 Agent Communication and Operation Governance package described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
 **KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 

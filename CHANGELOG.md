@@ -13,12 +13,15 @@ and uses the application's prerelease version identifiers.
 ### Fixed
 
 - Windows portable data export no longer opens or truncates the selected destination before the archive is generated. The archive is now staged to a same-directory temporary file, validated through the production archive validator, and only then atomically finalized (`File.Replace` for an existing destination, `File.Move` for a nonexistent one); a failure at any stage before finalization leaves an existing backup byte-for-byte unchanged (PR #48).
+- Android portable export stages and strictly validates the archive before opening the destination picker; invalid or failed staging never acquires or writes the destination (PR #50).
 - An invalid preparation context is now hidden rather than silently accepted during preparation selected-meaning acceptance (PR #46).
 - Diagnostics and export now read `PreparationCandidates.ResultJson` via the payload codec instead of a stale reader, correcting a defect in the diagnostics/export path (PR #47).
 
 ### Changed
 
 - `LearningSession` identity now includes `StartedAtUtc`, `CompletedAtUtc`, ordered queue digest, and per-item `Rating`, so distinct real sessions using the same card set no longer collapse into one (PR #45).
+- Schema 9 activates completed review-session history storage by replacing the unconditional `ReviewSessions(DocumentId)` uniqueness rule with one-Active/multiple-Completed index semantics (PR #51).
+- Package A adds deterministic Schema-9 completed-review identities, preflight classification, duplicate rejection, and target-index parity. This provides planning support only; writer-level convergence (Package B) and two-installation convergence (Package C) are not yet complete (PR #52).
 
 ### Internal
 

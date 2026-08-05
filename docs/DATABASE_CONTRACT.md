@@ -5,8 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version 8. It does not define a
-backup file format or claim that backup and restore exist.
+It describes the current SQLite model at schema version 9.
 
 ## Storage boundary
 
@@ -20,7 +19,8 @@ backup file format or claim that backup and restore exist.
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **8**.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **9**.
+A healthy initialized current database reports `PRAGMA user_version = 9`.
 
 | Table | Responsibility |
 | --- | --- |
@@ -49,6 +49,8 @@ backup file format or claim that backup and restore exist.
 At schema 8 `LearningCards.MeaningId` no longer exists; the card's own preferred
 meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
 `SenseId`.
+
+At schema 9, `ReviewSessions` index constraints change to support multiple Completed sessions per `DocumentId`, while restricting to at most one Active session per `DocumentId`. `ReviewSessionStatus.Active = 0`, `ReviewSessionStatus.Completed = 1`.
 
 Relationships are represented by entity IDs and enforced by transactional
 service operations and tests. Do not introduce a competing representation of
@@ -94,31 +96,36 @@ not report success before the transaction commits.
 - Tests must cover at least the oldest explicitly supported source shape and
   the immediately preceding production schema.
 
-### Schema-8 activation behavior
+### Schema-9 activation behavior
 
 Initialization reads `PRAGMA user_version` before touching any table and then
 follows exactly one path:
 
 | Source version | Behavior |
 | --- | --- |
-| Fresh / empty database | Initializes directly to a validated schema 8. |
-| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8 in the same initialization. |
-| 7 | Migrates to schema 8. |
-| 8 (valid) | Validation only. The database is inspected and never mutated. |
-| 8 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
-| Greater than 8 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
+| Fresh / empty database | Initializes directly to a validated schema 9. |
+| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8, and finally to schema 9. |
+| 7 | Migrates to schema 8, and then to schema 9. |
+| 8 | Validates schema-8 shape, then migrates to schema 9. |
+| 9 (valid) | Validation only. The database is inspected and never mutated. |
+| 9 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
+| Greater than 9 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
 
 The legacy enum backfills assign deterministic supported values for
 `Words.TokenKind`, `Words.PreparationState`, `Words.AutomaticInteractionMode`,
 `Meanings.TokenKind`, `WordOccurrences.TechnicalFamily`, and the
 `Documents`/`LexicalCache` lookup mode before activation.
 
-The 7 → 8 migration runs inside one real SQLite transaction. It is rollback-safe,
-cancellation-safe, and retryable: a failed or cancelled attempt leaves a
-byte-for-byte unchanged schema-7 database that can be retried on the next start.
-Row IDs are preserved; the single `LearningCards.MeaningId → PreferredMeaningId`
-rename is the only non-additive step, and it uses a column-rebuild fallback when
-the runtime SQLite lacks `ALTER TABLE ... RENAME COLUMN`.
+The 7 → 8 → 9 migrations run inside real SQLite transactions. They are rollback-safe,
+cancellation-safe, and retryable.
+
+**Schema 9 Migration (Source 8, Target 9):**
+The schema-9 migration structurally discovers and replaces the legacy unconditional unique single-column index on `ReviewSessions(DocumentId)`.
+The migration creates two new indexes:
+- `IX_ReviewSessions_DocumentId` (non-unique and non-partial)
+- `IX_ReviewSessions_DocumentId_Active` (unique and partial, predicate exactly `Status = 0`)
+
+The legacy entity-level unique index must be absent in a valid schema-9 database, though schema 7/8 bootstrap may still use it before migration. Migration is transactional and changes indexes/version only, not review rows. Schema-9 shape validation occurs after the migration or when already applied.
 
 ### Structural validation
 
@@ -130,9 +137,9 @@ logical validation covering:
   them (an `INTEGER PRIMARY KEY` rowid alias is validated by primary-key position
   and affinity, not by the reported `notnull` flag);
 - absence of legacy artifacts such as `LearningCards.MeaningId` and the retired
-  `IX_LearningCards_Word_Direction` index;
+  unconditional `ReviewSessions(DocumentId)` unique index;
 - index definitions including ordered columns, collation, uniqueness, and partial
-  predicates;
+  predicates (e.g. `IX_ReviewSessions_DocumentId_Active`);
 - enum domains for every persisted enum column;
 - ownership relationships (Meaning → Sense → Word, card → Sense, snapshot →
   Document/Meaning, assignment → Sense/AnswerVariant, progress → card/assignment);
@@ -168,20 +175,22 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 
 ## Backup and restore boundary
 
-The supported portable format is the `.kfarchive` archive. A schema-8 database
+The supported portable format is the `.kfarchive` archive. A schema-9 database
 exports archive format **v2**, and merge safety copies are captured as v2.
-Archive format **v1** remains readable and can still be restored into a schema-8
-target (upgraded in memory for Schema-8 targets).
+Archive format **v1** remains readable and can still be restored into a schema-9
+target (upgraded in memory for Schema-9 targets).
 
 Import into an **empty** target uses restore-into-empty. Import into a **populated**
-Schema-8 target is merged transactionally: validation → preflight planning →
+Schema-9 target is merged transactionally: validation → preflight planning →
 validated safety copy → transactional merge writer → deterministic card-schedule
 replay → atomic commit or rollback. Stale or non-executable plans are rejected.
 Multiple imports converge without duplicates. The merge writer reuses existing
 entities, inserts missing entities and preserved variants, and applies enrichment
 policies. Failure and cancellation roll back completely. See `MergePreflightPlannerV2`,
-`PortableMergeWriter`, and `MergeWriterExecutor`. Archive-v1 upgrades in memory
-for Schema-8 targets; archive-v2 into Schema 7 is rejected.
+`MergeWriterService`, and `MergeWriterExecutor`. Archive-v1 upgrades in memory
+for Schema-9 targets; archive-v2 into Schema 7 is rejected.
+
+This general populated-target merge support is established, but the unfinished Package-B writer evidence for divergent completed Schema-9 review histories remains pending. Complete Package-B convergence is not claimed.
 
 Synchronization and cloud formats do not exist.
 

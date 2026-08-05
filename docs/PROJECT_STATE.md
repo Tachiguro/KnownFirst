@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-03
-**State source:** `master` (`092eafe46fa663b3bfebfe51d639a397bef103a1`, PR #48 merge commit)
-**Next repository action:** Review and merge the test-confidence and release-readiness documentation-governance package (branch `docs/test-confidence-release-readiness`); no product implementation is currently active.
+**Status date:** 2026-08-05
+**State source:** `master` (`06b361250d99085cba1e47ad5653a2dbe503f2da`, PR #52 merge commit)
+**Next repository action:** Review and complete the D1 authoritative documentation reconciliation package (branch `docs/reconcile-authoritative-state-schema9`); no product implementation is currently active.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -49,6 +49,9 @@ The current product source implements:
 - transactional local persistence, startup maintenance, and bounded structured diagnostics;
 - responsive Windows and Android layouts with localized workflow gating;
 - Windows portable export stages the archive to a same-directory temporary file, validates it through the production `BackupArchiveReader.ValidateVersionedAsync` path, and only then atomically finalizes (`File.Replace` for an existing destination, `File.Move` for a nonexistent one), so a failure at any stage before finalization leaves an existing backup byte-for-byte unchanged (PR #48).
+- Android portable export stages and strictly validates the archive before opening the destination picker; invalid or failed staging never acquires or writes the destination (PR #50).
+- Schema-9 review-session history storage capability (PR #51).
+- Package A (Schema-9 completed-review convergence): identity, planner, target-index parity, and characterization coverage (PR #52).
 
 ## Merged development foundations (Dormant)
 
@@ -74,19 +77,23 @@ The `master` branch includes the following merged technical foundations:
 - **Preparation selected-meaning acceptance fix (PR #46):** an invalid preparation context is now hidden rather than silently accepted.
 - **Diagnostics/export stale lexical-reader fix (PR #47):** `PreparationCandidates.ResultJson` is now read via the payload codec in diagnostics and export paths.
 - **Windows portable-export atomic-replacement fix (PR #48):** see "Production capabilities" above.
+- **Documentation governance and release-readiness rules (PR #49).**
+- **Android portable export staging (PR #50):** strict validation before destination acquisition.
+- **Schema-9 review-session history storage activation (PR #51).**
+- **Package A (Schema-9 completed-review convergence) (PR #52):** identity, planner, target-index parity, and characterization coverage.
 
 **Current Status (master):**
-- The active database schema is **8** (`PRAGMA user_version = 8`).
-- Schema 8 is active during normal application initialization on master.
-- Slices 1–9 are merged and verified on master (PR #45 is the most recent Meaning Slice merge; PRs #46-#48 are subsequent correctness and data-safety fixes).
-- No product implementation or release package is currently active. The current work package is documentation-only governance (see [CURRENT_WORK.md](CURRENT_WORK.md)).
+- The active database schema is **9** (`PRAGMA user_version = 9`).
+- Schema 9 is active during normal application initialization on master.
+- PR #52 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
+- No product implementation or release package is currently active. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md)).
 
 ## Confirmed verification
 
 ### Automated
 
-- **Contract & Regression Suite:** All unit, contract, and service tests pass on `master`.
-- Note: Automated tests cover Core policies, text analysis, temporary SQLite persistence, workflow logic, localization, diagnostics, lookup providers with offline fixtures, script contract invariants, and archive contracts. Automated tests do not make live network requests.
+- Automated tests cover Core policies, text analysis, temporary SQLite persistence, workflow logic, localization, diagnostics, lookup providers with offline fixtures, script contract invariants, and archive contracts. Automated tests do not make live network requests.
+- Test execution and status are tied to explicit commit and scope boundaries (see `docs/TESTING.md`).
 
 ### Platform builds
 
@@ -95,9 +102,10 @@ The `master` branch includes the following merged technical foundations:
 ## Database status
 
 - Storage is local SQLite in the application data directory (`knownfirst.db3`).
-- On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **8** (Slice 6 and later merged).
-- Schema 8 is active in real application databases on master.
+- On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **9**.
+- Schema 9 is active in real application databases on master.
 - Initialization is forward-oriented and preserves existing rows while adding supported tables or columns.
+- The initialization sequence advances fresh or legacy baseline databases to Schema 7, applies the Schema 8 migration, and then applies the Schema 9 migration.
 - Initialization reads `PRAGMA user_version` first and rejects any version greater than the current version before modifying tables or cache.
 - Complete persisted-data rules are in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md).
 - Portable recovery format v1 is documented in [architecture/backup-format-v1.md](architecture/backup-format-v1.md).
@@ -124,9 +132,9 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `092eafe46fa663b3bfebfe51d639a397bef103a1` (PR #48 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **8** and Schema 8 is active for real application databases on master.
+The stable master baseline is `06b361250d99085cba1e47ad5653a2dbe503f2da` (PR #52 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
-No product implementation is currently active. The current work package is the test-confidence, strict-TDD, production-UI cleanliness, pre-AAB documentation, and safe-cleanup governance program described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+No product implementation is currently active. The current work package is the authoritative documentation reconciliation program described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
 **KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 
@@ -142,4 +150,6 @@ No product implementation is currently active. The current work package is the t
 - **Archive-v1 upgrade and convergence** — Schema-8 populated-target Import upgrades archive-v1 in memory and converges on reimport.
 - **Safety-copy validation** — safety copies are reopened and validated from final paths; represent the pre-merge target state; remain available after later writer failure.
 
-**Subsequent correctness and data-safety fixes (merged PRs #46-#48)** — see "Production capabilities" and "Merged development foundations" above.
+**Subsequent correctness and data-safety fixes (merged PRs #46-#50)** — see "Production capabilities" and "Merged development foundations" above.
+
+**Schema-9 Completed-Review Convergence (merged PRs #51-#52)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52). Package B (writer evidence) is paused. Package C (convergence hardening) is future work.

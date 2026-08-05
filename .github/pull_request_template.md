@@ -7,24 +7,28 @@ Describe the problem, the chosen scope, and the user-visible result.
 - [ ] The feature or fix scope is explicit.
 - [ ] Unrelated refactoring and generated output are excluded.
 - [ ] Existing worktrees and protected local changes were not modified.
+- [ ] The approved operation mode for this PR is stated below.
+
+### Approved operation mode
+
+(State the exact approved operation mode: e.g. `DOCUMENT_ONLY`, `TEST_ONLY`, `BUILD_ONLY`, etc.)
 
 ## Verification
 
 - [ ] Focused automated tests were added or identified.
 - [ ] All affected automated tests pass.
-- [ ] The complete required test suite passes.
-- [ ] The Windows Debug build passes, or the reason it is not applicable is
-      recorded below.
-- [ ] Android build or runtime validation was completed when required, or is
-      explicitly marked unverified.
+- [ ] Android build or runtime validation was completed when required, or is explicitly marked unverified.
 - [ ] AOT and trimming impact was reviewed.
-- [ ] Manual verification was completed when behavior cannot be proved
-      automatically.
+- [ ] Manual verification was completed when behavior cannot be proved automatically.
 
-### Commands and results
+### Commands, scopes, and results
 
-List exact commands, totals, platform, configuration, and any unverified
-boundary.
+List exact commands, totals, platform, configuration, and any unverified boundary.
+
+- **Exact test scope run:** (or `Not run — separate TEST_ONLY authorization required`)
+- **Exact build scope run:** (or `Not run — separate BUILD_ONLY authorization required`)
+- **Justification for omitted scopes:** (explain why omitted scopes are not evidence for this PR's operation mode)
+- **Pending validation:** (state whether broader validation remains pending in a future operation)
 
 ## Data and compatibility
 

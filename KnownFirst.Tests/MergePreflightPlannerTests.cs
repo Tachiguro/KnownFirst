@@ -4,6 +4,7 @@ using KnownFirst.Services.DataSafety;
 using KnownFirst.Services.DataSafety.Merge;
 using static KnownFirst.Tests.MergePreflightFixtures;
 
+
 namespace KnownFirst.Tests;
 
 /// <summary>
@@ -1392,6 +1393,404 @@ public sealed class MergePreflightPlannerTests
 
         return MergePreflightPlanner.CreatePlan(target, archive, Manifest());
     }
+
+    // ==== Package A: Schema-9 completed-ReviewSession convergence ====
+    //
+    // The Schema-7 planner (MergePreflightPlanner) keeps its v1 ReviewSession identity — document identity
+    // alone — and therefore keeps its blocking history-divergence behaviour. Only the Schema-9 planner
+    // (MergePreflightPlannerV2) adopts the full-history v2 identity.
+
+    private static MergeManifestInfo ManifestV2() => new(
+        BackupFormatLimits.CurrentArchiveFormatVersion, "1.0.0-test", 8, BaseTime, BackupSourcePlatform.Windows);
+
+    /// <summary>Minimal v2 payload: only the collections the review/preparation workflow paths need. Every
+    /// other v2 collection is empty, which the planner handles without special-casing.</summary>
+    private static BackupPayloadV2 PayloadV2(
+        IReadOnlyList<BackupSourceMaterial>? sourceMaterials = null,
+        IReadOnlyList<BackupVocabularyItem>? vocabulary = null,
+        IReadOnlyList<BackupVocabularyReviewWorkflow>? reviewWorkflows = null,
+        IReadOnlyList<BackupPreparationWorkflow>? preparationWorkflows = null) => new(
+        sourceMaterials ?? [],
+        vocabulary ?? [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        new BackupLearningDataV2([], []),
+        new BackupWorkflowDataV2(reviewWorkflows ?? [], preparationWorkflows ?? [], []),
+        new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
+
+    // ---- Stage 1 characterization: unchanged Schema-7 and unrelated-decision behaviour ----
+
+    [TestMethod]
+    public void Schema7Path_VocabularyReviewWorkflow_DivergentHistory_RemainsBlocking()
+    {
+        var target = Payload(
+            sourceMaterials: [SourceMaterial("sm-shared", "hash-shared")],
+            vocabulary: [Vocabulary("v-t", term: "shared")],
+            reviewWorkflows: [ReviewWorkflow("vr-t", "sm-shared", [ReviewItem("rc-t", "v-t")]) with { KnownCount = 3, ReviewedCount = 3 }]);
+        var archive = Payload(
+            sourceMaterials: [SourceMaterial("sm-shared", "hash-shared")],
+            vocabulary: [Vocabulary("v-a", term: "shared")],
+            reviewWorkflows: [ReviewWorkflow("vr-a", "sm-shared", [ReviewItem("rc-a", "v-a")]) with { KnownCount = 5, ReviewedCount = 5 }]);
+
+        var plan = MergePreflightPlanner.CreatePlan(target, archive, Manifest());
+
+        Assert.AreEqual(MergePreflightStatus.RequiresUserDecision, plan.Status);
+        Assert.IsFalse(plan.IsExecutable);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].UnresolvedConflictCount);
+        Assert.HasCount(1, plan.WorkflowStatusConflictDecisions);
+        Assert.IsTrue(plan.BlockingPrerequisites.Contains(MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired));
+    }
+
+    [TestMethod]
+    public void Schema9_UnrelatedWorkflowStatusConflictDecisionBehavior_IsUnchanged()
+    {
+        // PreparationWorkflow's two same-tier terminal statuses remain a WorkflowStatusConflictDecision:
+        // the review-session identity change must not touch this path.
+        var target = PayloadV2(
+            vocabulary: [Vocabulary("v-t", term: "shared")],
+            preparationWorkflows: [PreparationWorkflow("pb-t", BackupPreparationSessionStatus.Completed, [PreparationItem("pi-t", "v-t")])]);
+        var archive = PayloadV2(
+            vocabulary: [Vocabulary("v-a", term: "shared")],
+            preparationWorkflows: [PreparationWorkflow("pb-a", BackupPreparationSessionStatus.Cancelled, [PreparationItem("pi-a", "v-a")])]);
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(MergePreflightStatus.RequiresUserDecision, plan.Status);
+        Assert.IsFalse(plan.IsExecutable);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.PreparationWorkflow].UnresolvedConflictCount);
+        Assert.HasCount(1, plan.WorkflowStatusConflictDecisions);
+        Assert.AreEqual(MergeEntityKind.PreparationWorkflow, plan.WorkflowStatusConflictDecisions[0].EntityKind);
+        Assert.AreEqual("preparation-session-status-terminal-outcome-conflict", plan.WorkflowStatusConflictDecisions[0].ReasonCode);
+        Assert.IsEmpty(plan.BlockingPrerequisites);
+    }
+
+    // ---- Stage 2 intended behaviour: full-history v2 ReviewSession identity in the Schema-9 planner ----
+
+    private static BackupPayloadV2 SharedDocumentTargetV2(params BackupVocabularyReviewWorkflow[] reviewWorkflows) =>
+        PayloadV2(
+            [SourceMaterial("sm-t", "hash-shared")],
+            [Vocabulary("v-t", term: "shared"), Vocabulary("v-t2", term: "second")],
+            reviewWorkflows);
+
+    private static BackupPayloadV2 SharedDocumentArchiveV2(params BackupVocabularyReviewWorkflow[] reviewWorkflows) =>
+        PayloadV2(
+            [SourceMaterial("sm-a", "hash-shared")],
+            [Vocabulary("v-a", term: "shared"), Vocabulary("v-a2", term: "second")],
+            reviewWorkflows);
+
+    [TestMethod]
+    public void Schema9_VocabularyReviewWorkflow_ExactCompletedDuplicate_IsSkippedWithoutBlocker()
+    {
+        var target = SharedDocumentTargetV2(ReviewWorkflow("vr-t", "sm-t", [ReviewItem("rc-t", "v-t")]));
+        var archive = SharedDocumentArchiveV2(ReviewWorkflow("vr-a", "sm-a", [ReviewItem("rc-a", "v-a")]));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(MergePreflightStatus.NoChanges, plan.Status);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].ExactDuplicateSkippedCount);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewItem].ExactDuplicateSkippedCount);
+        Assert.AreEqual(
+            "review-workflow-exact-duplicate",
+            plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow).ReasonCode);
+        Assert.AreEqual(
+            "review-item-exact-duplicate",
+            plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewItem).ReasonCode);
+        Assert.IsEmpty(plan.BlockingPrerequisites);
+        Assert.IsEmpty(plan.WorkflowStatusConflictDecisions);
+    }
+
+    [TestMethod]
+    public void Schema9_VocabularyReviewWorkflow_DivergentCompletedHistories_ClassifyAsNew()
+    {
+        var target = SharedDocumentTargetV2(ReviewWorkflow("vr-t", "sm-t", [ReviewItem("rc-t", "v-t")]));
+        var archive = SharedDocumentArchiveV2(
+            ReviewWorkflow("vr-a", "sm-a", [ReviewItem("rc-a", "v-a")])
+                with { CompletedAtUtc = BaseTime.AddMinutes(9), KnownCount = 5, ReviewedCount = 5 });
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.IsTrue(plan.IsExecutable);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].NewCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].UnresolvedConflictCount);
+        Assert.AreEqual(
+            "review-workflow-new",
+            plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow).ReasonCode);
+        Assert.IsEmpty(plan.WorkflowStatusConflictDecisions);
+        Assert.IsEmpty(plan.BlockingPrerequisites);
+    }
+
+    [TestMethod]
+    public void Schema9_ReviewCandidates_ClassifyUnderTheirOwnParentSession()
+    {
+        // The archive session is a genuinely different completed history over the same document. Its
+        // candidate content is byte-identical to the target's, so only the parent session identity can
+        // keep the two candidates apart.
+        var target = SharedDocumentTargetV2(ReviewWorkflow("vr-t", "sm-t", [ReviewItem("rc-t", "v-t")]));
+        var archive = SharedDocumentArchiveV2(
+            ReviewWorkflow("vr-a", "sm-a", [ReviewItem("rc-a", "v-a")]) with { CompletedAtUtc = BaseTime.AddMinutes(9) });
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewItem].NewCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewItem].ExactDuplicateSkippedCount);
+        Assert.AreEqual(
+            "review-item-new",
+            plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewItem).ReasonCode);
+    }
+
+    [TestMethod]
+    public void Schema9_TargetWithTwoCompletedSessionsForOneDocument_PlansWithoutDuplicateIdFailure()
+    {
+        var target = SharedDocumentTargetV2(
+            ReviewWorkflow("vr-t1", "sm-t", [ReviewItem("rc-t1", "v-t")]),
+            ReviewWorkflow("vr-t2", "sm-t", [ReviewItem("rc-t2", "v-t")])
+                with { CompletedAtUtc = BaseTime.AddMinutes(9), DecisionSequence = 2 });
+        var archive = SharedDocumentArchiveV2(ReviewWorkflow("vr-a", "sm-a", [ReviewItem("rc-a", "v-a")]));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].ExactDuplicateSkippedCount,
+            "Two legal completed sessions for one document must not make planning fail.");
+        Assert.IsEmpty(plan.BlockingPrerequisites);
+    }
+
+    [TestMethod]
+    public void Schema9_ObsoleteWorkflowHistoryBlocker_IsAbsentForRepresentableCompletedHistories()
+    {
+        var target = SharedDocumentTargetV2(ReviewWorkflow("vr-t", "sm-t", [ReviewItem("rc-t", "v-t")]));
+        var archive = SharedDocumentArchiveV2(
+            ReviewWorkflow("vr-a", "sm-a", [ReviewItem("rc-a", "v-a")]) with { CompletedAtUtc = BaseTime.AddMinutes(9) });
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.IsFalse(
+            plan.BlockingPrerequisites.Contains(MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired),
+            "Two representable completed review histories are no longer a schema gap for the Schema-9 planner.");
+        Assert.IsFalse(
+            plan.WarningCodes.Contains("review-workflow-history-divergence"));
+        Assert.IsEmpty(plan.WorkflowStatusConflictDecisions);
+    }
+
+    [TestMethod]
+    public void Schema9_ReviewWorkflowPlan_IsDeterministicAcrossRepeatedInvocations()
+    {
+        var target = SharedDocumentTargetV2(
+            ReviewWorkflow("vr-t1", "sm-t", [ReviewItem("rc-t1", "v-t")]),
+            ReviewWorkflow("vr-t2", "sm-t", [ReviewItem("rc-t2", "v-t")])
+                with { CompletedAtUtc = BaseTime.AddMinutes(9), DecisionSequence = 2 });
+        var archive = SharedDocumentArchiveV2(
+            ReviewWorkflow("vr-a1", "sm-a", [ReviewItem("rc-a1", "v-a"), ReviewItem("rc-a2", "v-a2", order: 1)]));
+
+        var first = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+        var second = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        AssertPlansEquivalent(first, second);
+        CollectionAssert.AreEqual(
+            first.Actions.Where(a => a.EntityKind == MergeEntityKind.VocabularyReviewItem).Select(a => a.StableIdentity).ToList(),
+            second.Actions.Where(a => a.EntityKind == MergeEntityKind.VocabularyReviewItem).Select(a => a.StableIdentity).ToList());
+    }
+
+    [TestMethod]
+    public void Schema9_ArchiveReviewWorkflow_DuplicateCandidateVocabularyIdentity_FailsClosedWithDuplicateId()
+    {
+        // Two archive-local vocabulary rows resolving to one stable identity, both referenced by one
+        // review workflow — the planner path must fail closed with its own exception contract.
+        var archive = PayloadV2(
+            [SourceMaterial("sm-a", "hash-shared")],
+            [Vocabulary("v-a1", term: "shared"), Vocabulary("v-a2", term: "shared")],
+            [ReviewWorkflow("vr-a", "sm-a", [ReviewItem("rc-a1", "v-a1"), ReviewItem("rc-a2", "v-a2", order: 1)])]);
+
+        var exception = Assert.ThrowsExactly<MergePlanningException>(
+            () => MergePreflightPlannerV2.CreatePlan(PayloadV2(), archive, ManifestV2()));
+
+        Assert.AreEqual(BackupErrorCodes.DuplicateId, exception.Code);
+    }
+
+    // ---- Correction: retained outcome counters are the only surviving evidence once ordinary completion
+    // has deleted every ReviewCandidate row, so a counter-only divergence is a genuinely different history. ----
+
+    private static ReviewSessionIdentity SessionIdentityV2(BackupVocabularyReviewWorkflow workflow, string documentContentSha256) =>
+        ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
+            workflow,
+            new Dictionary<string, SourceMaterialIdentity>(StringComparer.Ordinal)
+            {
+                [workflow.SourceMaterialId] = SourceMaterialIdentityPolicy.Compute(
+                    SourceMaterial(workflow.SourceMaterialId, documentContentSha256))
+            },
+            new Dictionary<string, VocabularyIdentity>(StringComparer.Ordinal)).Identity;
+
+    [TestMethod]
+    public void Schema9_VocabularyReviewWorkflow_CounterOnlyDivergence_ClassifiesAsNew()
+    {
+        // The valid ordinary-output collision: both sessions completed, both exported with zero Items
+        // (completion deleted the candidate rows), identical timestamps and DecisionSequence. Only the
+        // retained outcome counters differ — 2 known / 1 unknown against 1 known / 2 unknown.
+        var targetWorkflow = ReviewWorkflow("vr-t", "sm-t")
+            with { TotalCandidates = 3, ReviewedCount = 3, KnownCount = 2, UnknownCount = 1, IgnoredCount = 0 };
+        var archiveWorkflow = ReviewWorkflow("vr-a", "sm-a")
+            with { TotalCandidates = 3, ReviewedCount = 3, KnownCount = 1, UnknownCount = 2, IgnoredCount = 0 };
+
+        Assert.IsEmpty(targetWorkflow.Items, "Precondition: a retained completed session exports with Items empty.");
+        Assert.IsEmpty(archiveWorkflow.Items);
+        Assert.AreEqual(targetWorkflow.StartedAtUtc, archiveWorkflow.StartedAtUtc);
+        Assert.AreEqual(targetWorkflow.CompletedAtUtc, archiveWorkflow.CompletedAtUtc);
+        Assert.AreEqual(targetWorkflow.DecisionSequence, archiveWorkflow.DecisionSequence);
+        Assert.AreNotEqual(
+            SessionIdentityV2(targetWorkflow, "hash-shared"),
+            SessionIdentityV2(archiveWorkflow, "hash-shared"),
+            "Two retained completed histories that differ only in their outcome counters are distinct identities.");
+
+        var plan = MergePreflightPlannerV2.CreatePlan(
+            SharedDocumentTargetV2(targetWorkflow), SharedDocumentArchiveV2(archiveWorkflow), ManifestV2());
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.IsTrue(plan.IsExecutable);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].NewCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].ExactDuplicateSkippedCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].UnresolvedConflictCount);
+        Assert.IsFalse(plan.BlockingPrerequisites.Contains(MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired));
+        Assert.AreEqual(
+            SessionIdentityV2(archiveWorkflow, "hash-shared").Value,
+            plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow).StableIdentity);
+    }
+
+    [TestMethod]
+    public void Schema9_ArchiveWithTwoIdenticalCompletedReviewHistories_FailsClosedWithDuplicateId()
+    {
+        // Two distinct archive-local workflow ids over one logical document, carrying byte-identical v2
+        // history including all five retained counters. The archive would otherwise insert two rows with
+        // one identity, so planning must fail closed before any action is recorded.
+        var archive = SharedDocumentArchiveV2(
+            ReviewWorkflow("vr-a1", "sm-a", [ReviewItem("rc-a1", "v-a")])
+                with { TotalCandidates = 3, ReviewedCount = 3, KnownCount = 2, UnknownCount = 1, IgnoredCount = 0 },
+            ReviewWorkflow("vr-a2", "sm-a", [ReviewItem("rc-a2", "v-a")])
+                with { TotalCandidates = 3, ReviewedCount = 3, KnownCount = 2, UnknownCount = 1, IgnoredCount = 0 });
+
+        var exception = Assert.ThrowsExactly<MergePlanningException>(
+            () => MergePreflightPlannerV2.CreatePlan(PayloadV2(), archive, ManifestV2()));
+
+        Assert.AreEqual(BackupErrorCodes.DuplicateId, exception.Code);
+    }
+
+    [TestMethod]
+    public void Schema9_TargetActive_ArchiveCompletedReviewHistory_ClassifiesArchiveAsNewWithoutConflict()
+    {
+        // Target active review session: Active status, no completion timestamp, zero reviewed counters
+        var targetActiveWorkflow = ReviewWorkflow("vr-t", "sm-t", [ReviewItem("rc-t", "v-t")]) with
+        {
+            Status = BackupReviewSessionStatus.Active,
+            CompletedAtUtc = null,
+            ReviewedCount = 0,
+            KnownCount = 0,
+            UnknownCount = 0,
+            IgnoredCount = 0,
+            DecisionSequence = 0
+        };
+
+        // Archive completed review session: Completed status, valid completion timestamp, outcome counters
+        var archiveCompletedWorkflow = ReviewWorkflow("vr-a", "sm-a", [ReviewItem("rc-a", "v-a")]) with
+        {
+            Status = BackupReviewSessionStatus.Completed,
+            StartedAtUtc = BaseTime,
+            CompletedAtUtc = BaseTime.AddMinutes(5),
+            TotalCandidates = 1,
+            ReviewedCount = 1,
+            KnownCount = 1,
+            UnknownCount = 0,
+            IgnoredCount = 0,
+            DecisionSequence = 1
+        };
+
+        var target = SharedDocumentTargetV2(targetActiveWorkflow);
+        var archive = SharedDocumentArchiveV2(archiveCompletedWorkflow);
+
+        // Precondition checks on document and candidate vocabulary identities
+        var targetDocIdentity = SourceMaterialIdentityPolicy.Compute(SourceMaterial("sm-t", "hash-shared"));
+        var archiveDocIdentity = SourceMaterialIdentityPolicy.Compute(SourceMaterial("sm-a", "hash-shared"));
+        Assert.AreEqual(targetDocIdentity, archiveDocIdentity, "Precondition: logical document identities match.");
+
+        var targetVocabIdentity = VocabularyMergeIdentityPolicy.Compute(Vocabulary("v-t", term: "shared"));
+        var archiveVocabIdentity = VocabularyMergeIdentityPolicy.Compute(Vocabulary("v-a", term: "shared"));
+        Assert.AreEqual(targetVocabIdentity, archiveVocabIdentity, "Precondition: candidate vocabulary identities match.");
+
+        // Compute expected independent v2 session identities for target Active vs archive Completed
+        var targetActiveSessionIdentityResult = ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
+            targetActiveWorkflow,
+            new Dictionary<string, SourceMaterialIdentity>(StringComparer.Ordinal) { ["sm-t"] = targetDocIdentity },
+            new Dictionary<string, VocabularyIdentity>(StringComparer.Ordinal) { ["v-t"] = targetVocabIdentity });
+        var targetActiveSessionIdentity = targetActiveSessionIdentityResult.Identity;
+
+        var archiveCompletedSessionIdentityResult = ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
+            archiveCompletedWorkflow,
+            new Dictionary<string, SourceMaterialIdentity>(StringComparer.Ordinal) { ["sm-a"] = archiveDocIdentity },
+            new Dictionary<string, VocabularyIdentity>(StringComparer.Ordinal) { ["v-a"] = archiveVocabIdentity });
+        var archiveCompletedSessionIdentity = archiveCompletedSessionIdentityResult.Identity;
+
+        Assert.AreNotEqual(targetActiveSessionIdentity, archiveCompletedSessionIdentity,
+            "Target Active session and Archive Completed session must have distinct v2 identities.");
+
+        // Execute preflight planning
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        // 1. Planning succeeds without MergePlanningException, plan is executable, status is Ready (not NoChanges)
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.AreNotEqual(MergePreflightStatus.NoChanges, plan.Status);
+        Assert.IsTrue(plan.IsExecutable);
+
+        // 2. Archive Completed session is classified as New, not ExactDuplicateSkipped
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].NewCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].ExactDuplicateSkippedCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewWorkflow].UnresolvedConflictCount);
+
+        var workflowAction = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow);
+        Assert.AreEqual(MergeEntityClassification.New, workflowAction.Classification);
+        Assert.AreEqual("review-workflow-new", workflowAction.ReasonCode);
+        Assert.AreEqual("vr-a", workflowAction.ArchiveLocalId);
+
+        // 3. Completed workflow action uses the expected stable v2 ReviewSession identity
+        Assert.AreEqual(archiveCompletedSessionIdentity.Value, workflowAction.StableIdentity);
+
+        // 4. Candidate actions remain bound to the archive Completed session identity rather than the target Active session identity
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.VocabularyReviewItem].NewCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewItem].ExactDuplicateSkippedCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.VocabularyReviewItem].UnresolvedConflictCount);
+
+        var itemAction = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewItem);
+        Assert.AreEqual(MergeEntityClassification.New, itemAction.Classification);
+        Assert.AreEqual("review-item-new", itemAction.ReasonCode);
+        Assert.AreEqual("rc-a", itemAction.ArchiveLocalId);
+
+        var expectedArchiveCandidateIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentityV2(archiveCompletedSessionIdentity, archiveVocabIdentity);
+        var unexpectedTargetCandidateIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentityV2(targetActiveSessionIdentity, targetVocabIdentity);
+        Assert.AreEqual(expectedArchiveCandidateIdentity.Value, itemAction.StableIdentity);
+        Assert.AreNotEqual(unexpectedTargetCandidateIdentity.Value, itemAction.StableIdentity);
+
+        // 5. Plan contains no WorkflowHistorySchemaMigrationRequired and no WorkflowStatusConflictDecision for review workflow
+        Assert.IsFalse(plan.BlockingPrerequisites.Contains(MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired));
+        Assert.IsEmpty(plan.BlockingPrerequisites);
+        Assert.IsFalse(plan.WorkflowStatusConflictDecisions.Any(d => d.EntityKind == MergeEntityKind.VocabularyReviewWorkflow));
+        Assert.IsEmpty(plan.WorkflowStatusConflictDecisions);
+
+        // 6. Planner counts are exact and deterministic
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.SourceMaterial].NewCount);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.SourceMaterial].ExactDuplicateSkippedCount);
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.Vocabulary].NewCount);
+        Assert.AreEqual(2, plan.PerEntity[MergeEntityKind.Vocabulary].ExactDuplicateSkippedCount);
+
+        // 7. Target structure before and after planning is unchanged (target still contains exactly the original Active session)
+        Assert.HasCount(1, target.Workflows.VocabularyReviews);
+        Assert.AreEqual("vr-t", target.Workflows.VocabularyReviews[0].Id);
+        Assert.AreEqual(BackupReviewSessionStatus.Active, target.Workflows.VocabularyReviews[0].Status);
+        Assert.IsNull(target.Workflows.VocabularyReviews[0].CompletedAtUtc);
+        Assert.HasCount(1, target.Workflows.VocabularyReviews[0].Items);
+        Assert.AreEqual("rc-t", target.Workflows.VocabularyReviews[0].Items[0].Id);
+    }
+
 
     private static void AssertPlansEquivalent(MergePreflightPlan left, MergePreflightPlan right)
     {

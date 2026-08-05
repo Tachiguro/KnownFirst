@@ -215,10 +215,41 @@ public static class MergePreflightPlannerV2
             }
         }
 
-        var targetReviewSessionByIdentity = MergePreflightPlanner.ToUniqueDictionary(
-            target.Workflows.VocabularyReviews,
-            s => ReviewWorkflowIdentityPolicy.ComputeSessionIdentity(s, targetDocByLocalId),
-            "target review session identity");
+        // Completed review sessions are matched by their full history (design §4.4 v2), so two independently
+        // completed sessions for one document are two distinct identities rather than one unrepresentable
+        // conflict. Fail closed on a duplicate full-history identity; never silently keep one of them.
+        static ReviewSessionIdentity ComputeReviewSessionIdentityV2(
+            BackupVocabularyReviewWorkflow session,
+            IReadOnlyDictionary<string, SourceMaterialIdentity> documentIdentitiesByLocalId,
+            IReadOnlyDictionary<string, VocabularyIdentity> vocabularyIdentitiesByLocalId,
+            string context)
+        {
+            var result = ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
+                session, documentIdentitiesByLocalId, vocabularyIdentitiesByLocalId);
+            if (result.HasDuplicateCandidateVocabularyIdentity)
+            {
+                throw new MergePlanningException(
+                    BackupErrorCodes.DuplicateId,
+                    $"Ambiguous {context}: two review candidates resolve to the same stable vocabulary identity.");
+            }
+
+            return result.Identity;
+        }
+
+        var targetReviewSessionIdentityByLocalId = new Dictionary<string, ReviewSessionIdentity>(StringComparer.Ordinal);
+        var targetReviewSessionIdentities = new HashSet<ReviewSessionIdentity>();
+        foreach (var session in target.Workflows.VocabularyReviews)
+        {
+            var sessionIdentity = ComputeReviewSessionIdentityV2(
+                session, targetDocByLocalId, targetVocabByLocalId, "target review session");
+            targetReviewSessionIdentityByLocalId[session.Id] = sessionIdentity;
+            if (!targetReviewSessionIdentities.Add(sessionIdentity))
+            {
+                throw new MergePlanningException(
+                    BackupErrorCodes.DuplicateId,
+                    "Ambiguous target review session identity: more than one completed review history resolved to the same stable identity.");
+            }
+        }
 
         foreach (var archiveDoc in archive.SourceMaterials)
         {
@@ -586,66 +617,57 @@ public static class MergePreflightPlannerV2
         }
 
         // VocabularyReviewWorkflow + VocabularyReviewItem
-        var targetReviewItemContentByIdentity = new Dictionary<ReviewCandidateIdentity, BackupVocabularyReviewItem>();
+        //
+        // Both the session and its candidates match by full-history v2 identity, so a divergent completed
+        // history is simply New — never a WorkflowStatusConflictDecision and never a
+        // WorkflowHistorySchemaMigrationRequired prerequisite (both remain valid for the Schema-7 path).
+        var targetReviewCandidateIdentities = new HashSet<ReviewCandidateIdentity>();
         foreach (var session in target.Workflows.VocabularyReviews)
         {
-            var docIdentity = MergePreflightPlanner.Resolve(targetDocByLocalId, session.SourceMaterialId, "target review session source material");
+            var sessionIdentity = MergePreflightPlanner.Resolve(
+                targetReviewSessionIdentityByLocalId, session.Id, "target review session identity map");
             foreach (var item in session.Items)
             {
-                var itemIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentity(item, docIdentity, targetVocabByLocalId);
-                targetReviewItemContentByIdentity.TryAdd(itemIdentity, item);
+                var vocabIdentity = MergePreflightPlanner.Resolve(targetVocabByLocalId, item.VocabularyId, "target review item vocabulary");
+                targetReviewCandidateIdentities.Add(
+                    ReviewWorkflowIdentityPolicy.ComputeCandidateIdentityV2(sessionIdentity, vocabIdentity));
             }
         }
 
+        // Distinct archive-local workflow ids never make two identical full histories representable: the
+        // writer would have to insert two rows carrying one v2 identity. Fail closed before recording any
+        // action for the duplicate workflow or its candidates, exactly as the target side does.
+        var archiveReviewSessionIdentities = new HashSet<ReviewSessionIdentity>();
         foreach (var session in archive.Workflows.VocabularyReviews)
         {
-            var identity = ReviewWorkflowIdentityPolicy.ComputeSessionIdentity(session, archiveDocByLocalId);
-            MergeEntityClassification classification;
-            string reason;
-            DecisionId? decisionId = null;
-
-            if (!targetReviewSessionByIdentity.TryGetValue(identity, out var targetSession))
+            var identity = ComputeReviewSessionIdentityV2(
+                session, archiveDocByLocalId, archiveVocabByLocalId, "archive review session");
+            if (!archiveReviewSessionIdentities.Add(identity))
             {
-                classification = MergeEntityClassification.New;
-                reason = "review-workflow-new";
-            }
-            else if (MergePreflightPlanner.ReviewWorkflowContentEquals(targetSession, session))
-            {
-                classification = MergeEntityClassification.ExactDuplicateSkipped;
-                reason = "review-workflow-exact-duplicate";
-            }
-            else
-            {
-                classification = MergeEntityClassification.UnresolvedConflict;
-                reason = "review-workflow-history-divergence";
-                decisionId = MakeDecisionId("KnownFirst.Merge.Decision.WorkflowHistory.ReviewSession.v1", identity.Value);
-                workflowStatusDecisions.Add(new WorkflowStatusConflictDecision(decisionId.Value, MergeEntityKind.VocabularyReviewWorkflow, session.Id, reason));
-                blockingPrerequisites.Add(MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired);
+                throw new MergePlanningException(
+                    BackupErrorCodes.DuplicateId,
+                    "Ambiguous archive review session identity: more than one completed review history resolved to the same stable identity.");
             }
 
-            Record(MergeEntityKind.VocabularyReviewWorkflow, identity.Value, session.Id, classification, reason, decisionId);
+            var classification = targetReviewSessionIdentities.Contains(identity)
+                ? MergeEntityClassification.ExactDuplicateSkipped
+                : MergeEntityClassification.New;
+            var reason = classification == MergeEntityClassification.New
+                ? "review-workflow-new"
+                : "review-workflow-exact-duplicate";
 
-            var docIdentityForItems = MergePreflightPlanner.Resolve(archiveDocByLocalId, session.SourceMaterialId, "archive review session source material");
+            Record(MergeEntityKind.VocabularyReviewWorkflow, identity.Value, session.Id, classification, reason);
+
             foreach (var item in session.Items)
             {
-                var itemIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentity(item, docIdentityForItems, archiveVocabByLocalId);
-                MergeEntityClassification itemClassification;
-                string itemReason;
-                if (!targetReviewItemContentByIdentity.TryGetValue(itemIdentity, out var targetItem))
-                {
-                    itemClassification = MergeEntityClassification.New;
-                    itemReason = "review-item-new";
-                }
-                else if (MergePreflightPlanner.ReviewItemContentEquals(targetItem, item))
-                {
-                    itemClassification = MergeEntityClassification.ExactDuplicateSkipped;
-                    itemReason = "review-item-exact-duplicate";
-                }
-                else
-                {
-                    itemClassification = MergeEntityClassification.New;
-                    itemReason = "review-item-preserved-divergent-history";
-                }
+                var vocabIdentity = MergePreflightPlanner.Resolve(archiveVocabByLocalId, item.VocabularyId, "archive review item vocabulary");
+                var itemIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentityV2(identity, vocabIdentity);
+                var itemClassification = targetReviewCandidateIdentities.Contains(itemIdentity)
+                    ? MergeEntityClassification.ExactDuplicateSkipped
+                    : MergeEntityClassification.New;
+                var itemReason = itemClassification == MergeEntityClassification.New
+                    ? "review-item-new"
+                    : "review-item-exact-duplicate";
 
                 Record(MergeEntityKind.VocabularyReviewItem, itemIdentity.Value, item.Id, itemClassification, itemReason);
             }

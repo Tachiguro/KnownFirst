@@ -139,12 +139,47 @@ internal sealed class MergeWriterTargetIndex
             cardIdentityByCardId[card.Id] = identity;
         }
 
+        // Same full-history v2 identity the Schema-9 planner records, computed from raw rows — including the
+        // five retained outcome counters, which after ordinary completion are the session's only surviving
+        // outcome summary. Raw SQLite timestamps pass through EnsureUtc first, so an Unspecified-kind row and
+        // the archive DTO's Utc-kind value with the same ticks canonicalize to byte-identical input.
         var reviewSessionIdByIdentity = new Dictionary<ReviewSessionIdentity, int>();
         foreach (var session in snapshot.ReviewSessions)
         {
             var docIdentity = documentIdentityByDocumentId[session.DocumentId];
-            var identity = ReviewWorkflowIdentityPolicy.ComputeSessionIdentity(docIdentity);
-            reviewSessionIdByIdentity[identity] = session.Id;
+            var candidates = snapshot.ReviewCandidates
+                .Where(candidate => candidate.SessionId == session.Id)
+                .Select(candidate => new ReviewSessionCandidateContent(
+                    wordIdentityByWordId[candidate.WordId],
+                    candidate.Order,
+                    BackupEnumMappings.ToBackup(candidate.Status),
+                    BackupEnumMappings.ToBackup(candidate.PreviousWordStatus),
+                    candidate.PreviousTotalOccurrenceCount,
+                    candidate.PreviousDocumentCount,
+                    EnsureUtc(candidate.PreviousUpdatedAt),
+                    candidate.DecisionSequence,
+                    candidate.WasWordCreatedForSession,
+                    EnsureUtc(candidate.DecidedAt)))
+                .ToList();
+
+            var result = ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
+                docIdentity,
+                BackupEnumMappings.ToBackup(session.Status),
+                EnsureUtc(session.StartedAt),
+                EnsureUtc(session.CompletedAt),
+                session.DecisionSequence,
+                new ReviewSessionOutcomeCounters(
+                    session.TotalCandidates, session.ReviewedCount, session.KnownCount, session.UnknownCount, session.IgnoredCount),
+                candidates);
+            if (result.HasDuplicateCandidateVocabularyIdentity)
+            {
+                throw new BackupFormatException(BackupErrorCodes.DuplicateId);
+            }
+
+            if (!reviewSessionIdByIdentity.TryAdd(result.Identity, session.Id))
+            {
+                throw new BackupFormatException(BackupErrorCodes.DuplicateId);
+            }
         }
 
         var preparationSessionIdByIdentity = new Dictionary<PreparationSessionIdentity, int>();
@@ -245,6 +280,8 @@ internal sealed class MergeWriterTargetIndex
         []);
 
     private static DateTime EnsureUtc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static DateTime? EnsureUtc(DateTime? value) => value.HasValue ? EnsureUtc(value.Value) : null;
 
     private static string? EmptyToNull(string value) => string.IsNullOrEmpty(value) ? null : value;
 

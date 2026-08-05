@@ -1,5 +1,6 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
+using KnownFirst.Data.Entities;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
@@ -788,5 +789,263 @@ public sealed class MergeWriterServiceTests
         Assert.AreEqual(MergeWriteStatus.Success, reimportResult.Status);
         Assert.AreEqual(2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningSessions"), "Reimporting the same archive must not create a duplicate session.");
         Assert.AreEqual(2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningSessionCards"), "Reimporting the same archive must not create a duplicate queue item.");
+    }
+
+    // ==== Package A: completed-ReviewSession convergence (planner and target index must agree) ====
+
+    private static readonly DateTime ReviewHistoryStartedAtUtc = new(2026, 2, 1, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime ReviewHistoryCompletedAtUtc = new(2026, 2, 1, 9, 30, 0, DateTimeKind.Utc);
+
+    /// <summary>Adds one document plus one completed review session over the fixture's existing "bank" word.
+    /// Every timestamp is supplied explicitly (never a wall clock), so two independently built fixtures
+    /// produce byte-identical review history.</summary>
+    private static async Task<int> AddCompletedBankReviewHistoryAsync(
+        Schema7Fixture fixture,
+        DateTime startedAtUtc,
+        DateTime completedAtUtc,
+        WordStatus candidateStatus = WordStatus.Known,
+        int decisionSequence = 1,
+        string content = "The bank is open.",
+        ReviewSessionOutcomeCounters? counters = null)
+    {
+        var documentId = await fixture.InsertDocumentAsync(
+            title: "Review history document", content: content, importedAt: ReviewHistoryStartedAtUtc);
+        var wordId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM Words WHERE CanonicalTerm = 'bank'");
+        var effectiveCounters = counters ?? new ReviewSessionOutcomeCounters(
+            1, 1,
+            candidateStatus == WordStatus.Known ? 1 : 0,
+            candidateStatus == WordStatus.UnknownBacklog ? 1 : 0,
+            0);
+
+        await fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewSessions
+                (DocumentId, Status, TotalCandidates, ReviewedCount, KnownCount, UnknownCount, IgnoredCount,
+                 DecisionSequence, StartedAt, CompletedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            documentId, (int)ReviewSessionStatus.Completed,
+            effectiveCounters.TotalCandidates, effectiveCounters.ReviewedCount, effectiveCounters.KnownCount,
+            effectiveCounters.UnknownCount, effectiveCounters.IgnoredCount,
+            decisionSequence, startedAtUtc, completedAtUtc);
+        var sessionId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+
+        await fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewCandidates
+                (SessionId, WordId, "Order", Status, PreviousWordStatus, PreviousTotalOccurrenceCount,
+                 PreviousDocumentCount, PreviousUpdatedAt, DecisionSequence, WasWordCreatedForSession, DecidedAt)
+            VALUES (?, ?, 0, ?, ?, 0, 0, ?, ?, 0, ?)
+            """,
+            sessionId, wordId, (int)candidateStatus, (int)WordStatus.Unreviewed,
+            startedAtUtc, decisionSequence, completedAtUtc);
+
+        return sessionId;
+    }
+
+    // ---- Stage 1 characterization: an exact-duplicate completed review workflow must resolve to the
+    // existing target row while unrelated new content is still applied. This test is the contract that
+    // keeps the planner's ReviewSession identity and MergeWriterTargetIndex's key in the same family. ----
+    [TestMethod]
+    public async Task Schema9_MixedPlan_ExactDuplicateReviewWorkflowAndUnrelatedNewEntity_ResolvesExistingSessionAndCompletes()
+    {
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(targetFixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(sourceFixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        var sourceBankWordId = await sourceFixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM Words WHERE CanonicalTerm = 'bank'");
+        // Unrelated new content attached to entities that already exist in the target.
+        await sourceFixture.InsertMeaningAsync(
+            sourceBankWordId, displayTerm: "bank", translation: "Sparkasse", selectedMeaningId: "finance-1", definition: "savings institution");
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+
+        var workflowAction = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow);
+        Assert.AreEqual(MergeEntityClassification.ExactDuplicateSkipped, workflowAction.Classification);
+        var itemAction = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewItem);
+        Assert.AreEqual(MergeEntityClassification.ExactDuplicateSkipped, itemAction.Classification);
+
+        var meaningsBefore = await CountAsync(targetFixture, "SELECT COUNT(*) FROM Meanings");
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status, $"Merge failed with error code '{result.ErrorCode}'.");
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM ReviewSessions"), "The duplicate review session must resolve to the existing row.");
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM ReviewCandidates"), "The duplicate review candidate must not be re-inserted.");
+        Assert.AreEqual(meaningsBefore + 1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM Meanings"), "Unrelated new content must still be applied.");
+        await AssertReferentialIntegrityAsync(targetFixture);
+
+        var reimportPlan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.NoChanges, reimportPlan.Status);
+        var reimportResult = await writer.ApplyAsync(archive, reimportPlan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, reimportResult.Status);
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM ReviewSessions"));
+        Assert.AreEqual(1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM ReviewCandidates"));
+    }
+
+    /// <summary>Builds a migrated Schema-8 fixture carrying exactly one completed review session over one
+    /// document, and returns both the raw snapshot and the archive DTO projection of it.</summary>
+    private static async Task<(Schema8BackupSnapshot Snapshot, BackupPayloadV2 Payload)> CaptureReviewHistoryStateAsync(
+        Schema7Fixture fixture)
+    {
+        var snapshot = await CaptureSnapshotAsync(fixture);
+        return (snapshot, BackupModelMapperV2.MapToExternal(snapshot));
+    }
+
+    private static ReviewSessionIdentity ArchiveDtoReviewSessionIdentity(BackupPayloadV2 payload)
+    {
+        var documentIdentities = MergePreflightPlanner.BuildIdentityMap(
+            payload.SourceMaterials, d => d.Id, SourceMaterialIdentityPolicy.Compute, "source material");
+        var vocabularyIdentities = MergePreflightPlanner.BuildIdentityMap(
+            payload.Vocabulary, v => v.Id, VocabularyMergeIdentityPolicy.Compute, "vocabulary");
+        var result = ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
+            payload.Workflows.VocabularyReviews.Single(), documentIdentities, vocabularyIdentities);
+        Assert.IsFalse(result.HasDuplicateCandidateVocabularyIdentity);
+        return result.Identity;
+    }
+
+    private static ReviewSessionEntity CopySession(ReviewSessionEntity source, int id) => new()
+    {
+        Id = id,
+        DocumentId = source.DocumentId,
+        Status = source.Status,
+        TotalCandidates = source.TotalCandidates,
+        ReviewedCount = source.ReviewedCount,
+        KnownCount = source.KnownCount,
+        UnknownCount = source.UnknownCount,
+        IgnoredCount = source.IgnoredCount,
+        DecisionSequence = source.DecisionSequence,
+        StartedAt = source.StartedAt,
+        CompletedAt = source.CompletedAt
+    };
+
+    private static ReviewCandidateEntity CopyCandidate(ReviewCandidateEntity source, int id, int sessionId, int order) => new()
+    {
+        Id = id,
+        SessionId = sessionId,
+        WordId = source.WordId,
+        Order = order,
+        Status = source.Status,
+        PreviousWordStatus = source.PreviousWordStatus,
+        PreviousTotalOccurrenceCount = source.PreviousTotalOccurrenceCount,
+        PreviousDocumentCount = source.PreviousDocumentCount,
+        PreviousUpdatedAt = source.PreviousUpdatedAt,
+        DecisionSequence = source.DecisionSequence,
+        WasWordCreatedForSession = source.WasWordCreatedForSession,
+        DecidedAt = source.DecidedAt
+    };
+
+    // ---- Stage 2 intended behaviour: planner and writer target index must share one identity version ----
+    [TestMethod]
+    public async Task Schema9_PlannerActionIdentity_AndWriterTargetIndexKey_UseTheSameIdentityVersion()
+    {
+        await using var fixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(fixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+
+        var (snapshot, payload) = await CaptureReviewHistoryStateAsync(fixture);
+        var expectedIdentity = ArchiveDtoReviewSessionIdentity(payload);
+
+        var plan = MergePreflightPlannerV2.CreatePlan(payload, payload, DummyManifest());
+        var action = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow);
+        Assert.AreEqual(
+            expectedIdentity.Value, action.StableIdentity,
+            "The planner must record the v2 full-history review-session identity.");
+
+        var index = MergeWriterTargetIndex.Build(snapshot);
+        Assert.IsTrue(
+            index.ReviewSessionIdByIdentity.ContainsKey(new ReviewSessionIdentity(action.StableIdentity)),
+            "The writer target index must be keyed by exactly the identity the planner recorded.");
+    }
+
+    [TestMethod]
+    public async Task ReviewSessionIdentityV2_ArchiveDtoAndRawSqliteTimestamps_WithSameTicks_ProduceSameIdentity()
+    {
+        // A tick-precise, non-round completion instant: the archive DTO carries DateTimeKind.Utc while the
+        // raw SQLite row is read back as Unspecified with the same ticks.
+        var startedAtUtc = new DateTime(2026, 5, 7, 11, 13, 17, DateTimeKind.Utc).AddTicks(1234567);
+        var completedAtUtc = startedAtUtc.AddMinutes(42).AddTicks(7654321);
+        // Five distinct non-default counters: a transposed or missing counter on either path would break
+        // the identity equality below, so this also proves counter parity across both call paths.
+        var retainedCounters = new ReviewSessionOutcomeCounters(9, 8, 7, 6, 5);
+
+        await using var fixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(fixture, startedAtUtc, completedAtUtc, counters: retainedCounters);
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+
+        var (snapshot, payload) = await CaptureReviewHistoryStateAsync(fixture);
+        Assert.AreEqual(DateTimeKind.Utc, payload.Workflows.VocabularyReviews.Single().StartedAtUtc.Kind);
+        Assert.AreEqual(startedAtUtc.Ticks, payload.Workflows.VocabularyReviews.Single().StartedAtUtc.Ticks);
+        Assert.AreNotEqual(DateTimeKind.Utc, snapshot.ReviewSessions.Single().StartedAt.Kind);
+        Assert.AreEqual(startedAtUtc.Ticks, snapshot.ReviewSessions.Single().StartedAt.Ticks);
+
+        var archiveWorkflow = payload.Workflows.VocabularyReviews.Single();
+        Assert.AreEqual(
+            retainedCounters,
+            new ReviewSessionOutcomeCounters(
+                archiveWorkflow.TotalCandidates, archiveWorkflow.ReviewedCount, archiveWorkflow.KnownCount,
+                archiveWorkflow.UnknownCount, archiveWorkflow.IgnoredCount),
+            "Precondition: the archive DTO path must carry the retained outcome counters unchanged.");
+        var rawSession = snapshot.ReviewSessions.Single();
+        Assert.AreEqual(
+            retainedCounters,
+            new ReviewSessionOutcomeCounters(
+                rawSession.TotalCandidates, rawSession.ReviewedCount, rawSession.KnownCount,
+                rawSession.UnknownCount, rawSession.IgnoredCount),
+            "Precondition: the raw SQLite path must carry the identical retained outcome counters.");
+
+        var index = MergeWriterTargetIndex.Build(snapshot);
+
+        Assert.AreEqual(
+            ArchiveDtoReviewSessionIdentity(payload),
+            index.ReviewSessionIdByIdentity.Keys.Single(),
+            "Archive DTO and raw SQLite identity computation must be byte-identical.");
+    }
+
+    [TestMethod]
+    public async Task Schema9_TargetIndex_TwoIdenticalCompletedSessionsForOneDocument_ThrowsBackupFormatDuplicateId()
+    {
+        await using var fixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(fixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+
+        var snapshot = await CaptureSnapshotAsync(fixture);
+        var session = snapshot.ReviewSessions.Single();
+        var candidate = snapshot.ReviewCandidates.Single();
+        var duplicateSession = CopySession(session, session.Id + 1000);
+        var duplicated = snapshot with
+        {
+            ReviewSessions = [session, duplicateSession],
+            ReviewCandidates = [candidate, CopyCandidate(candidate, candidate.Id + 1000, duplicateSession.Id, candidate.Order)]
+        };
+
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => MergeWriterTargetIndex.Build(duplicated));
+
+        Assert.AreEqual(BackupErrorCodes.DuplicateId, exception.Code);
+    }
+
+    [TestMethod]
+    public async Task Schema9_TargetIndex_DuplicateCandidateVocabularyIdentity_ThrowsBackupFormatDuplicateId()
+    {
+        await using var fixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(fixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+
+        var snapshot = await CaptureSnapshotAsync(fixture);
+        var candidate = snapshot.ReviewCandidates.Single();
+        var duplicated = snapshot with
+        {
+            ReviewCandidates = [candidate, CopyCandidate(candidate, candidate.Id + 1000, candidate.SessionId, candidate.Order + 1)]
+        };
+
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => MergeWriterTargetIndex.Build(duplicated));
+
+        Assert.AreEqual(BackupErrorCodes.DuplicateId, exception.Code);
     }
 }

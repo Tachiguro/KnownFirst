@@ -1428,4 +1428,107 @@ public class BackupCreationTests
 
         Assert.IsTrue(bytes1.AsSpan().SequenceEqual(bytes2.AsSpan()));
     }
+
+    // ---- Package A characterization: portable export can never emit two review items sharing one
+    // vocabulary id inside one workflow.
+    //
+    // Part 1 exercises the real import + decide creation path. It also records the verified product fact
+    // that <c>TextReviewService.CompleteSession</c> deletes every ReviewCandidate row when a session
+    // completes, so an ordinarily-completed session exports with zero items.
+    //
+    // Part 2 covers the only shape that can carry items into an export at all — a completed session whose
+    // candidate rows were written by restore/merge rather than by the live review flow. Without it the
+    // uniqueness assertion would be vacuous. ----
+    [TestMethod]
+    public async Task PortableExport_NeverEmitsTwoReviewItemsSharingOneVocabularyIdInOneWorkflow()
+    {
+        await using var database = new TemporarySchema8Database("knownfirst-review-export-invariant");
+        await database.InitializeAsync();
+        var service = new KnownFirst.Services.TextReviewService(database, new KnownFirst.Core.Text.TextAnalyzer());
+
+        var importResult = await service.ImportAsync(new KnownFirst.Models.ImportTextRequest(
+            "Repeated identity document",
+            "Bank matters. The bank is open. BANK again, and banks differ.",
+            "en",
+            "de"));
+        Assert.AreEqual(KnownFirst.Models.ImportAnalysisOutcome.Accepted, importResult.Outcome);
+
+        var orderedCandidates = await database.ReadAsync(connection => connection.Table<ReviewCandidateEntity>()
+            .Where(item => item.SessionId == importResult.SessionId)
+            .OrderBy(item => item.Order)
+            .ToListAsync());
+        Assert.IsGreaterThan(0, orderedCandidates.Count);
+        CollectionAssert.AllItemsAreUnique(
+            orderedCandidates.Select(candidate => candidate.WordId).ToList(),
+            "One review session must never hold two candidates for the same word.");
+
+        // The first decision is UnknownBacklog so the completed session (and its document) survives
+        // completion; a session whose UnknownCount is zero is pruned entirely by design.
+        for (var index = 0; index < orderedCandidates.Count; index++)
+        {
+            await service.DecideAsync(
+                orderedCandidates[index].WordId,
+                index == 0 ? KnownFirst.Models.WordStatus.UnknownBacklog : KnownFirst.Models.WordStatus.Known);
+        }
+
+        var snapshot = await database.ExecuteSnapshotAsync(
+            KnownFirst.Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshot);
+        var payload = BackupModelMapperV2.MapToExternal(snapshot);
+
+        Assert.HasCount(1, payload.Workflows.VocabularyReviews);
+        Assert.IsEmpty(
+            payload.Workflows.VocabularyReviews[0].Items,
+            "Verified product behaviour: completing a review session deletes its candidate rows.");
+        AssertReviewItemVocabularyIdsAreUnique(payload);
+
+        // Part 2 — a completed session that still carries candidate rows (restore/merge-written shape).
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        var documentId = await fixture.InsertDocumentAsync(title: "Restored", content: "bank and river");
+        var bankWordId = await fixture.InsertWordAsync(
+            "bank", status: KnownFirst.Models.WordStatus.Known, preparationState: KnownFirst.Core.Preparation.PreparationState.Unprepared);
+        var riverWordId = await fixture.InsertWordAsync(
+            "river", status: KnownFirst.Models.WordStatus.UnknownBacklog, preparationState: KnownFirst.Core.Preparation.PreparationState.Unprepared);
+        var startedAtUtc = new DateTime(2026, 3, 1, 8, 0, 0, DateTimeKind.Utc);
+        var completedAtUtc = new DateTime(2026, 3, 1, 8, 30, 0, DateTimeKind.Utc);
+        await fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewSessions
+                (DocumentId, Status, TotalCandidates, ReviewedCount, KnownCount, UnknownCount, IgnoredCount,
+                 DecisionSequence, StartedAt, CompletedAt)
+            VALUES (?, 1, 2, 2, 1, 1, 0, 2, ?, ?)
+            """,
+            documentId, startedAtUtc, completedAtUtc);
+        var restoredSessionId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+        foreach (var (wordId, order) in new[] { (bankWordId, 0), (riverWordId, 1) })
+        {
+            await fixture.Connection.ExecuteAsync(
+                """
+                INSERT INTO ReviewCandidates
+                    (SessionId, WordId, "Order", Status, PreviousWordStatus, PreviousTotalOccurrenceCount,
+                     PreviousDocumentCount, PreviousUpdatedAt, DecisionSequence, WasWordCreatedForSession, DecidedAt)
+                VALUES (?, ?, ?, 1, 0, 0, 0, ?, ?, 0, ?)
+                """,
+                restoredSessionId, wordId, order, startedAtUtc, order + 1, completedAtUtc);
+        }
+
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+        KnownFirst.Data.Schema8.Schema8BackupSnapshot? restoredSnapshot = null;
+        await fixture.Connection.RunInTransactionAsync(connection =>
+            restoredSnapshot = KnownFirst.Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshot(connection));
+        var restoredPayload = BackupModelMapperV2.MapToExternal(restoredSnapshot!);
+
+        Assert.HasCount(1, restoredPayload.Workflows.VocabularyReviews);
+        Assert.HasCount(2, restoredPayload.Workflows.VocabularyReviews[0].Items);
+        AssertReviewItemVocabularyIdsAreUnique(restoredPayload);
+    }
+
+    private static void AssertReviewItemVocabularyIdsAreUnique(BackupPayloadV2 payload)
+    {
+        foreach (var workflow in payload.Workflows.VocabularyReviews)
+        {
+            CollectionAssert.AllItemsAreUnique(
+                workflow.Items.Select(item => item.VocabularyId).ToList(),
+                "One exported review workflow must never contain two items for the same vocabulary id.");
+        }
+    }
 }

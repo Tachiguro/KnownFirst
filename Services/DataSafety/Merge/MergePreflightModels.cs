@@ -191,14 +191,20 @@ public sealed record PreferredVariantSelectionDecision(
 
 /// <summary>
 /// Required decision for a matched workflow-session/row whose full historical content diverges in a way
-/// the current schema cannot represent as two preserved rows (e.g. <c>ReviewSessionEntity</c>'s unique
-/// index on <c>DocumentId</c> permits only one session per document, so two devices' independently
-/// completed review sessions for the same document cannot both be kept — see
-/// <see cref="MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired"/>). Also covers
-/// <c>PreparationWorkflow</c>'s two same-tier terminal statuses (Completed vs. Cancelled — design §5's
+/// the current schema cannot represent as two preserved rows, and for <c>PreparationWorkflow</c>'s two
+/// same-tier terminal statuses (Completed vs. Cancelled — design §5's
 /// <c>WorkflowSessionStateConflictPolicy</c>). Kept minimal (no bespoke choice set) because no product
 /// decision has been made about how a user should choose; the target's existing content is kept
 /// unchanged until one is.
+///
+/// <para>Scope note: the review-session case applies to the Schema-7 planner
+/// (<see cref="MergePreflightPlanner"/>) only, whose v1 ReviewSession identity is the document identity
+/// alone and therefore cannot tell two completed histories apart — see
+/// <see cref="MergePreflightSchemaGapCodes.WorkflowHistorySchemaMigrationRequired"/> for the Schema-7/8
+/// versus Schema-9 physical shape. The Schema-9 planner (<see cref="MergePreflightPlannerV2"/>) matches
+/// completed review sessions by their full history, and Schema-9 storage can hold multiple Completed
+/// sessions per Document, so two representable completed histories are two distinct sessions and never
+/// produce this decision.</para>
 /// </summary>
 public sealed record WorkflowStatusConflictDecision(
     DecisionId DecisionId,
@@ -383,9 +389,20 @@ public static class MergePreflightSchemaGapCodes
 
     /// <summary>
     /// <b>Blocking.</b> A matched workflow row's full historical content diverges between target and
-    /// archive in a way the live schema's own uniqueness constraints prevent from being preserved as two
-    /// rows (verified case: <c>ReviewSessionEntity.DocumentId</c> is uniquely indexed, so two independently
-    /// completed review sessions for the same document cannot both be kept).
+    /// archive in a way the storage path in question cannot represent as two preserved rows.
+    ///
+    /// <para>Physical shape: Schema 7/8 storage carried an <i>unconditional</i> unique
+    /// <c>ReviewSessions(DocumentId)</c> index, so two independently completed review sessions for one
+    /// document could not both be kept. Schema 9 replaces that with a non-unique <c>DocumentId</c> lookup
+    /// index plus a unique <i>partial</i> index restricted to active sessions, and can therefore store
+    /// multiple Completed sessions per Document.</para>
+    ///
+    /// <para>Scope note: this code therefore stays relevant only to storage paths that still cannot
+    /// represent both histories — the Schema-7 review-session path in <see cref="MergePreflightPlanner"/>
+    /// emits it, and it remains available for unrelated existing workflow conflicts.
+    /// <see cref="MergePreflightPlannerV2"/> matches completed review sessions by full-history identity and
+    /// classifies a divergent completed history as <see cref="MergeEntityClassification.New"/>, so it never
+    /// records this code for that case.</para>
     /// </summary>
     public const string WorkflowHistorySchemaMigrationRequired = "workflow-history-schema-migration-required";
 

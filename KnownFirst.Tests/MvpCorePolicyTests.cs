@@ -4,7 +4,9 @@ using KnownFirst.Core.Review;
 using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
 using KnownFirst.Core.Workflow;
+using KnownFirst.Data.Entities;
 using KnownFirst.Models;
+using KnownFirst.Services;
 using System.Text.Json;
 
 namespace KnownFirst.Tests;
@@ -14,6 +16,53 @@ public sealed class MvpCorePolicyTests
 {
     private static readonly DateTime Now = new(2026, 7, 16, 12, 0, 0, DateTimeKind.Utc);
     private readonly SimpleSpacedRepetitionScheduler _scheduler = new();
+
+    // ---- Package A characterization: the review-creation path's duplicate-candidate invariant ----
+    //
+    // A review workflow may never contain two candidates resolving to one stable vocabulary identity.
+    // The fixture is derived from the actual analyzer normalization contract rather than assumed:
+    // VocabularyIdentityPolicy lower-cases a Word token, so case variants collapse onto one identity,
+    // while an inflected form such as "banks" deliberately does not.
+    [TestMethod]
+    public async Task ReviewCandidateCreation_NeverProducesTwoCandidatesForOneVocabularyIdentityInOneSession()
+    {
+        var bankIdentity = VocabularyIdentityPolicy.Resolve("bank", TokenKind.Word, "en").Identity;
+        Assert.AreEqual(bankIdentity, VocabularyIdentityPolicy.Resolve("Bank", TokenKind.Word, "en").Identity);
+        Assert.AreEqual(bankIdentity, VocabularyIdentityPolicy.Resolve("BANK", TokenKind.Word, "en").Identity);
+        Assert.AreNotEqual(bankIdentity, VocabularyIdentityPolicy.Resolve("banks", TokenKind.Word, "en").Identity);
+
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-review-candidate-invariant");
+        await database.InitializeAsync();
+        var service = new TextReviewService(database, new TextAnalyzer());
+
+        var result = await service.ImportAsync(new ImportTextRequest(
+            "Repeated identity document",
+            "Bank matters. The bank is open. BANK again, and banks differ.",
+            "en",
+            "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var candidates = await database.ReadAsync(connection => connection.Table<ReviewCandidateEntity>()
+            .Where(item => item.SessionId == result.SessionId)
+            .ToListAsync());
+        var normalizedTermByWordId = (await database.ReadAsync(connection => connection.Table<WordEntity>().ToListAsync()))
+            .ToDictionary(word => word.Id, word => word.NormalizedTerm);
+
+        Assert.IsGreaterThan(0, candidates.Count);
+        CollectionAssert.AllItemsAreUnique(candidates.Select(candidate => candidate.WordId).ToList());
+        CollectionAssert.AllItemsAreUnique(
+            candidates.Select(candidate => normalizedTermByWordId[candidate.WordId]).ToList());
+        Assert.AreEqual(
+            1,
+            candidates.Count(candidate => normalizedTermByWordId[candidate.WordId] == bankIdentity),
+            "Three case variants of one word must produce exactly one review candidate.");
+        Assert.AreEqual(
+            1,
+            candidates.Count(candidate => normalizedTermByWordId[candidate.WordId]
+                == VocabularyIdentityPolicy.Resolve("banks", TokenKind.Word, "en").Identity),
+            "An inflected form is a separate stable identity and therefore its own candidate.");
+    }
 
     [TestMethod]
     public void ReviewActions_OfferKnownUnknownAndUndoButNotIgnore()

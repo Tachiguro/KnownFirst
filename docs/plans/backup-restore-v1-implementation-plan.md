@@ -1,11 +1,13 @@
 # Backup and restore v1 implementation plan
 
-**Status:** Implementation in progress; Phases 1 and 2 plus the prerequisite
-future-schema refusal guard are complete. Phases 3 through 7, the remainder of
-Phase 8, and Phases 9 and 10 have not begun.
+> [!WARNING]
+> **Historical Plan**
+> This is a historical implementation plan, not an active task list. Agents must not resume its numbered phases. Its original baseline used internal Schema 7. Early format-model, generated-JSON, future-schema guard, export, validation, preview, and related foundations were implemented across later work. Subsequent current behavior evolved through the shipped restore-into-empty path and the later non-destructive populated-target merge architecture. The planned destructive `ReplaceAll` path was not adopted as current product behavior. Unfinished phase text is retained only as historical planning evidence. Current behavior must be derived from binding architecture contracts, the database contract, current source, and tests.
+
+**Status:** Historical plan (superseded).
 **Depends on:** [database audit](../architecture/database-audit.md) and
 [backup format v1](../architecture/backup-format-v1.md)
-**Current internal schema:** 7
+**Current internal schema:** 7 (historical planning baseline; active current schema is 9)
 
 This plan deliberately separates format code, archive creation, untrusted-input
 validation, preview, destructive restore, migration compatibility, verification,

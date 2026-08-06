@@ -1,6 +1,6 @@
 # KnownFirst backup format v1
 
-**Status:** Implemented and shipped in Beta 10 (PR #18) as a **portable recovery** feature — narrower in scope than the original v1 proposal. This document is the current binding contract for what is actually implemented. Any broader restore behavior (merge, overwrite, delete-then-insert `ReplaceAll` into a populated installation) is **not implemented** and is described only in the clearly marked "Future work" section at the end.
+**Status:** Format v1 was first shipped in Beta 10 for portable recovery into an empty installation. This document continues to define format v1's external layout, payload model, validation rules, resource limits, checksum behavior, privacy boundary, exclusions, and AOT/source-generated JSON requirements. The current application can also consume a valid format-v1 archive on a populated Schema-8/9 target by upgrading its payload in memory and applying the current non-destructive merge pipeline. The in-memory upgrade and later merge pipeline do not change the external format-v1 bytes or redefine format v1 as a native merge format. Schema-8/9 exports currently use format v2 and are consumed natively by the current Schema-8/9 import path. Destructive overwrite and delete-then-insert `ReplaceAll` remain unimplemented and were superseded by non-destructive merge.
 **File extension:** `.kfarchive`
 **Container:** ZIP with exactly two root entries
 
@@ -15,15 +15,15 @@ Version 1, as shipped, is designed to:
 - detect corruption before any mutation;
 - reject unsupported or malicious input within fixed resource limits;
 - validate an archive and preview its contents without changing state;
-- import strictly additively into an empty installation, refusing any populated target; and
+- import strictly additively into an empty installation (the original format-v1 empty-target recovery path); and
 - remain compatible with Android trimming and AOT by using only explicit source-generated `System.Text.Json` metadata (`BackupJsonSerializerContext`).
 
 Version 1, as shipped, does not provide:
 
 - encryption, password protection, signatures, a MAC, or proof of origin;
 - cloud synchronization, merging, conflict resolution, or cross-archive stable object identity;
-- import into a non-empty installation, in any form (no merge, no overwrite, no `ReplaceAll`);
-- an automatic safety backup before any mutation (moot today because import only ever inserts into a verified-empty database; required before any future populated-target restore);
+- import into a non-empty installation, in any form (no merge, no overwrite, no `ReplaceAll`) — this limitation applies specifically to format v1's original shipped restore-into-empty path and Beta-10 implementation stage. For current populated-target non-destructive import (including format-v2/Schema-8/9 compatibility), see [backup-merge-v1-design.md](backup-merge-v1-design.md);
+- an automatic safety backup before any mutation (moot for the empty-target path because it only inserts into a verified-empty database, but required and implemented for the later populated-target merge path);
 - free-space estimation before mutation;
 - a physical SQLite copy;
 - transfer of device preferences or online-lookup consent;
@@ -260,9 +260,9 @@ Validation is read-only and completes before any mutation. Its order is:
 
 Validation errors identify a stable code and safe path such as `vocabulary[3].language`, not private text.
 
-## Current binding Beta 10 recovery contract (import)
+## Original format-v1 empty-target restore path
 
-This is the only import behavior currently implemented and shipped. It is intentionally **not** the general-purpose `ReplaceAll` design originally proposed for v1 (see "Future work" below).
+This is the original format-v1 empty-target restore path shipped in Beta 10. The repository still retains this restore path. Current application-level routing may instead upgrade a validated v1 payload and use non-destructive merge on a populated Schema-8/9 target; this later routing does not weaken validation or mutate the archive format.
 
 1. The target installation is checked for any durable user data across all in-scope tables. If any row exists in any of them, import is refused with `target-not-empty` and **no mutation occurs**.
 2. If the target is confirmed empty, the archive is revalidated end-to-end (steps above) inside the same database transaction gate.
@@ -304,15 +304,13 @@ Errors never include original document text, meanings, aliases, or context.
 
 All manifest, data, nested DTO, enum, collection, preview, and error payload types are registered in `Services/DataSafety/BackupJsonSerializerContext.cs`. Every production serialize/deserialize call passes its generated `JsonTypeInfo` explicitly; no reflection-based fallback resolver is installed, and the test project's `JsonSerializerIsReflectionEnabledByDefault=false` constraint is enforced by dedicated tests (`KnownFirst.Tests/BackupJsonContractTests.cs`).
 
-## Future work (non-binding — requires a separate approved plan)
+## Historical future-work proposals (superseded)
 
-The following were part of the original v1 proposal and remain reasonable future directions, but are **not implemented today** and must not be described as current behavior anywhere else in the documentation set:
+The following were part of the original v1 proposal but are **superseded historical proposals**. The planned destructive overwrite or `ReplaceAll` path was not adopted. The implemented later behavior is non-destructive merge. This historical proposal must not be treated as an active implementation task:
 
-- **Merge or overwrite import into a populated installation.** Any such feature is a distinct, separately planned capability, not an extension of the current empty-install-only contract.
+- **Merge or overwrite import into a populated installation.** (The later non-destructive merge implementation is not equivalent to destructive overwrite or `ReplaceAll`).
 - **`ReplaceAll` restore** (delete all in-scope rows, then insert archive data, in one transaction) against a database that already has data.
-- **Automatic safety backup** created before any destructive mutation, validated with the normal reader before proceeding.
+- **Automatic safety backup** (implemented separately as part of non-destructive merge).
 - **Free-space estimation** before mutation (bounded input size, one safety backup, SQLite journal growth, plus margin), stopping before mutation if space cannot be established or is insufficient.
 - **Active/incomplete workflow transfer** across installations (currently deliberately excluded and rejected on import).
 - **Preference and consent transfer**, which would require either moving those settings into a transactional store or a durable recovery journal with tested compensation.
-
-Any decision to build these must update this document, be recorded in an ADR, and update [DATABASE_CONTRACT.md](../DATABASE_CONTRACT.md) and [PROJECT_STATE.md](../PROJECT_STATE.md) once implemented and verified — consistent with [ROADMAP.md](../ROADMAP.md)'s "Future recovery evolution" milestone, which is explicitly deferred until a dedicated data-model and safety plan is approved.

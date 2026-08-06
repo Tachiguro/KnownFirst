@@ -2,36 +2,57 @@
 
 This document governs the conversion of user requests into KnownFirst agent prompts. It is read before preparing any KnownFirst coding-agent prompt. Reading this guide does not authorize repository modification by itself; it enforces strict, low-context operation boundaries and prevents the automatic bundling of unrelated operations.
 
-## A. Required Prompt Header
+## A. Governance Classification
 
-Before every coding-agent prompt, the prompt author must state:
+Governance policies in KnownFirst are categorized into four exact classes:
 
-- **Agent:** [e.g. Primary Agent / Subagent]
-- **Model:** [e.g. Gemini 3.6 Flash Medium, Claude Sonnet 4.6 Thinking, etc.]
-- **Effort:** [Low / Medium / High]
+1. `DURABLE_REPOSITORY_GOVERNANCE`
+   - Repository safety, Git authorization, operation isolation, data protection, single worktree (`C:\Dev\KnownFirst`) and single writing agent rules, test boundaries, and manual user merge policy.
+   - These rules belong in tracked repository documentation (`AGENTS.md`, `docs/`).
 
-Task classification is placed inside the prompt text. Speed is always `Standard` and is omitted from the visible prompt header. Project directory is omitted unless technically necessary.
+2. `DURABLE_PROMPT_AUTHORING_GOVERNANCE`
+   - Required user-facing explanation language (German), prompt language (English), requested technical report language (English), comparison-table format, prompt-block framing (`PROMPT START` / `PROMPT ENDE`), and one-task-per-prompt rules.
+   - These rules belong in tracked repository documentation.
 
-All agent prompts must:
-- be written in English;
-- use exactly one continuous fenced code block;
-- begin exactly with `PROMPT START`;
-- end exactly with `PROMPT ENDE`;
-- never contain nested prompt blocks or nested code fences;
-- request a final report in German;
-- contain only one next agent task.
+3. `KNOWNFIRST_ORCHESTRATION_PREFERENCE`
+   - Preferred provider rows, task-to-model routing recommendations, model-cost discipline, and independent-review preferences.
+   - The fixed provider rows `Anti-Gravity`, `Claude`, and `Codex` are orchestration comparison preferences; they are not declarations that those providers or models are currently connected or available.
 
-## B. Model Routing
+4. `TRANSIENT_RUNTIME_AVAILABILITY`
+   - Current provider access, current model access, quota percentages, temporary tool availability, session-specific capability, and similar runtime facts.
+   - These facts must be discovered in the current session when relevant.
+   - They must never be persisted as authoritative repository state or treated as durable availability guarantees. Do not record any current quota percentage or provider availability claim.
+
+## B. Required Prompt Presentation
+
+Before every coding-agent prompt:
+
+1. Provide a brief user-facing explanation in German.
+2. Include exactly one Markdown comparison table with these exact columns:
+   - `Agent`
+   - `Modell`
+   - `Effort`
+   - `Präferenz/Bewertung`
+   The table must contain rows for `Anti-Gravity`, `Claude`, and `Codex` in that exact order, with the recommended choice visibly marked as the best choice.
+3. Provide exactly one contiguous copyable fenced code block per prompt block.
+4. Begin every agent prompt exactly with `PROMPT START`.
+5. End every agent prompt exactly with `PROMPT ENDE`.
+6. Place no prose or explanations after the prompt block.
+7. Do not place a fenced code block inside an agent prompt.
+8. Request technical reports from programming agents in English.
+9. Contain only one next agent task per prompt.
+
+## C. Model Routing
 
 Prompts must select the least expensive capable model:
 
-- **Mechanical (file moves, lint fixes, link audits):** Gemini 3.6 Flash Low
-- **Routine (scoped single-file features, documentation updates):** Gemini 3.6 Flash Medium
-- **Substantial (multi-file features, structured refactoring):** Gemini 3.6 Flash High
+- **Mechanical (file moves, lint fixes, link audits):** `Anti-Gravity` with Gemini 3.6 Flash Low
+- **Routine (scoped single-file features, documentation updates):** `Anti-Gravity` with Gemini 3.6 Flash Medium
+- **Substantial (multi-file features, structured refactoring):** `Anti-Gravity` with Gemini 3.6 Flash High
 - **Difficult multi-file coding (complex domain logic, intricate UI/state):** Claude Sonnet 4.6 Thinking
-- **Complex migration, data integrity, concurrency, difficult AOT/trimming, or core architecture:** Gemini 3.1 Pro High
+- **Complex migration, data integrity, concurrency, difficult AOT/trimming, or core architecture:** `Anti-Gravity` with Gemini 3.1 Pro High
 - **Emergency (only after strong models failed on a verified bug):** Claude Opus 4.6 Thinking
-- **Independent read-only review:** GPT-OSS 120B Medium or an appropriate local model
+- **Independent read-only review:** `Anti-Gravity` with GPT-OSS 120B Medium or an appropriate local model
 
 ### Escalation and User Override Rules
 - Gemini 3.1 Pro is **not** the default model.
@@ -39,8 +60,14 @@ Prompts must select the least expensive capable model:
 - Escalation occurs only after a concrete failure or newly discovered technical risk.
 - Ignore visible quota percentages when selecting the technically appropriate model, unless the user explicitly asks for quota-aware routing.
 - **Advisory nature:** Model routing is a recommendation based on technical scope and risk. The user may explicitly override the recommended model. A user override does not expand task scope or authorize additional operation modes.
+- **Transient vs Durable:** Do not claim that Anti-Gravity, Claude, Codex, or a named model is currently available merely because it appears in the routing table. Current provider access, current model access, and quotas are transient runtime facts. Do not persist quota percentages or current availability statements.
 
-## C. Operation Modes
+### Delegation and Evidence Verification Rules
+- Subagents, delegated writers, background processes, task trackers, or parallel execution require explicit user authorization.
+- One physical repository (`C:\Dev\KnownFirst`) and one writing agent remain the default.
+- An agent report is evidence to evaluate, not authoritative proof; verify GitHub, commits, branches, PR metadata, changed files, and deterministic validation directly before claiming completion when those sources are available.
+
+## D. Operation Modes
 
 The repository enforces strict mutual isolation between task phases:
 
@@ -64,7 +91,7 @@ The repository enforces strict mutual isolation between task phases:
 - The agent must not infer permission from previous work packages.
 - Every final report must explicitly state which operations were intentionally not performed.
 
-## D. Planning Approval Gate
+## E. Planning Approval Gate
 
 Every request that would modify repository files must first execute in `PLAN_ONLY` mode, unless the user explicitly states that a specific previously presented plan is approved.
 
@@ -83,7 +110,7 @@ Every request that would modify repository files must first execute in `PLAN_ONL
 
 `PLAN_ONLY` must stop without creating a branch, editing files, running builds, committing, pushing, or opening a PR. The subsequent `IMPLEMENT` prompt must reference the approved plan and may not silently expand its scope.
 
-## E. Implementation and TDD
+## F. Implementation and TDD
 
 `IMPLEMENT` mode is authorized **only** after explicit user plan approval.
 
@@ -115,7 +142,7 @@ The final `IMPLEMENT` report must explicitly state:
 
 The report must not claim or imply that unexecuted test scopes passed.
 
-## F. Test-Only Behavior
+## G. Test-Only Behavior
 
 `TEST_ONLY` mode:
 - runs only the requested test scope;
@@ -126,7 +153,7 @@ The report must not claim or imply that unexecuted test scopes passed.
 
 Refer to [docs/TESTING.md](TESTING.md) for exact test scope definitions. When the user specifies "all tests", the prompt author must clarify whether this means all automated unit tests or full validation including manual GUI/platform work.
 
-## G. Build and Package Isolation
+## H. Build and Package Isolation
 
 `BUILD_ONLY` and `PACKAGE_ONLY` modes must be exact and isolated.
 
@@ -153,7 +180,7 @@ Refer to [docs/TESTING.md](TESTING.md) for exact test scope definitions. When th
 - Normal feature completion never triggers a build automatically.
 - Refer to [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for exact commands and safety boundaries.
 
-## H. Documentation Phase
+## I. Documentation Phase
 
 `DOCUMENT_ONLY` follows verified implementation only when explicitly requested.
 
@@ -165,7 +192,7 @@ Updates only:
 
 Do not modify build documentation merely because a product feature changed. Build or package agents consume already approved release notes; they do not author feature descriptions.
 
-## I. Git and PR Phases
+## J. Git and PR Phases
 
 Keep Git and PR operations strictly separated:
 - `COMMIT_ONLY`: Inspect and commit only already reviewed changes.
@@ -177,6 +204,6 @@ Keep Git and PR operations strictly separated:
 
 No Git mode may rewrite published history or force-push.
 
-## J. New-Chat Bootstrap Protocol
+## K. New-Chat Bootstrap Protocol
 
 Dynamic discovery for new ChatGPT or prompt-authoring sessions is governed by [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Refer to that document for the complete initialization sequence, repository access gate, pull-request inspection rules, and evergreen user bootstrap prompt.

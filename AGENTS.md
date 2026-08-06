@@ -5,11 +5,12 @@ KnownFirst is a local-first vocabulary-learning application for Windows and Andr
 ## Core repository rules
 
 - **Single worktree:** `C:\Dev\KnownFirst` is the only normal working folder (see [ADR-0007](docs/decisions/ADR-0007-single-canonical-working-directory.md)). Do not create additional worktrees or repository copies without explicit user approval.
-- **Single writing agent:** Only one writing agent may operate at a time in the repository.
+- **Single writing agent:** Only one writing agent may operate at a time in the repository. Subagents, delegated writers, background processes, task trackers, or parallel execution require explicit user authorization.
 - **No direct master commits:** Never implement directly on `master`. Work on task-appropriate branches using narrow prefixes (`feature/`, `fix/`, `docs/`, `build/`, `test/`, `chore/`, `hotfix/`, `release/`).
 - **Prohibited destructive operations:** Do not use `git clean`, destructive reset, stash, rebase, amend, history rewriting, or force-push unless an explicit recovery task authorizes it.
 - **Branch and worktree safety:** Inspect branch, HEAD, status, diff, untracked files, and registered worktrees before editing. Treat all pre-existing local work as protected. Never delete a branch or worktree without verifying it is clean.
-- **Explicit authorization required:** Do not commit, push, create a pull request, merge, tag, run ADB/device commands, build APK/AAB packages, or perform release deployment unless explicitly authorized. Auto-merge and agent PR merges are strictly prohibited; pull requests are merged exclusively by the user manually through GitHub.
+- **Explicit authorization required:** Do not commit, push, create a pull request, merge, tag, run ADB/device commands, build APK/AAB packages, or perform release deployment unless explicitly authorized. Auto-merge and agent PR merges are strictly prohibited; pull requests are merged exclusively by the user manually through GitHub. Local master synchronization after a manual merge uses `POST_MERGE_SYNC_ONLY`.
+- **Direct verification required:** Verify repository, Git, and GitHub state directly before state-dependent work. Remembered chat text and pasted agent reports are not authoritative when deterministic repository or GitHub validation is possible; success must not be accepted solely from an agent report.
 - **No scope expansion:** Perform only the explicitly authorized operation. Prompt authoring and task orchestration are governed by [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md) and [docs/NEW_CHAT_BOOTSTRAP.md](docs/NEW_CHAT_BOOTSTRAP.md).
 - **Approved plan required:** Any repository-writing feature or fix requires an approved `PLAN_ONLY` phase before code implementation.
 - **Isolated operation modes:** One agent prompt has one primary operation mode. Completion of one mode never authorizes follow-up operations (tests, documentation, builds, packaging, commit, push, PR, or merge) automatically.
@@ -38,4 +39,4 @@ Do not reconstruct full repository context for routine tasks. Follow task-based 
 - No APK or AAB creation without explicit authorization.
 - Never commit secrets, signing material, private logs, real user content, databases, or generated build artifacts.
 - AOT, trimming, and source-generated JSON serialization remain binding architecture constraints.
-- All code, comments, tests, logs, documentation, commits, and PR descriptions must remain in English.
+- All code, comments, tests, logs, documentation, commits, and PR descriptions must remain in English. User-facing orchestration explanations in chat are written in German; programming-agent prompts, agent-facing instructions, and technical reports are written in English (programming-agent final reports are not required to be in German).

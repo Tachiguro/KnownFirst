@@ -10,13 +10,18 @@ The current MVP supports:
 
 - .NET 10 MAUI Blazor Hybrid on Windows and Android
 - responsive navigation and Android safe-area handling
-- English and German UI localization
+- System, English, German, and Russian UI language; System follows the supported device language and falls back to English
+- imported source text in English or German, kept independent from the UI language
+- Russian as a translation target for English or German source text; Russian source-text analysis remains deferred
 - immediate, persisted System, Light, and Dark appearance modes
 - text import with deterministic Unicode-aware analysis and exact source coordinates
 - resumable Known/Unknown vocabulary review with Undo
 - automatic and manual word preparation
 - optional online dictionary lookup (Wiktionary with automatic Wikipedia definition fallback) with explicit consent and a local SQLite cache
-- recognition and spelling learning cards with deterministic scheduling
+- recognition and spelling learning-card directions with independent deterministic scheduling
+- portable `.kfarchive` data export
+- recovery import of a `.kfarchive` archive into an empty installation
+- a read-only import preview before confirmation, and a transactional non-destructive merge into an installation that already contains data; a repeated import is reported as no-change
 - local SQLite persistence, migrations, transactions, and cleanup
 - persistent structured diagnostics with redaction and bounded retention
 - automated Core, persistence, workflow, localization, and diagnostics tests
@@ -35,7 +40,7 @@ Start with [AGENTS.md](AGENTS.md) and [docs/INDEX.md](docs/INDEX.md). They defin
 - [Changelog](CHANGELOG.md) records user-visible release changes.
 - [Database contract](docs/DATABASE_CONTRACT.md) defines persisted-data and migration rules.
 - [Architecture](docs/KNOWNFIRST_ARCHITECTURE.md), [MVP workflow](docs/MVP_WORKFLOW.md), and [word analysis](docs/WORD_ANALYSIS.md) are binding specifications.
-- [Decision records](docs/decisions/README.md), [release notes](docs/releases/1.0.0-beta.8.md), and [handoffs](docs/handoffs/2026-07-22-beta-8-release.md) preserve rationale and release evidence.
+- [Decision records](docs/decisions/README.md) and the [current release record](docs/releases/1.0.0-beta.12.md) preserve rationale and current release evidence. The [Beta 8 release notes](docs/releases/1.0.0-beta.8.md) and the [Beta 8 handoff](docs/handoffs/2026-07-22-beta-8-release.md) are retained as historical evidence only.
 
 ## Technology stack
 

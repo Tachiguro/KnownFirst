@@ -149,11 +149,17 @@ Fields:
 - required document title
 - large multiline editable text field
 - source language: English or German
-- lookup mode: Definition, Translation, or Definition and translation
-- target language: English or German, shown only for translation modes
+- lookup mode: Definition or Translation
+- target language: English, German, or Russian, shown only for translation mode and excluding the selected source language
 - Save and analyze
 
-Definition mode has no target language. Translation modes require a target language different from the source language. These lexical languages are saved with the import and never derived from the English/German UI language.
+Definition mode has no target language. Translation mode requires a target language different from the source language.
+
+Source language, translation target language, and UI language are three independent axes. The lexical languages are saved with the import and are never derived from the System/English/German/Russian UI language.
+
+Russian is a translation target only. Russian source-text import and analysis remain deferred, so the source-language choice stays English or German.
+
+`DefinitionAndTranslation` is not a currently selectable import option. It remains a readable persisted and archived model value, so existing rows, preparation state, and portable archives that already use it continue to be processed unchanged.
 
 Deterministic vocabulary normalization uses the imported-text language. English `I`, `me`, and `my` are one canonical `I` vocabulary identity; their original forms and coordinates remain unchanged. This closed rule does not enable broad stemming.
 
@@ -627,9 +633,48 @@ A card rated Again may reappear once at the end of the current session.
 
 Repeated Again ratings must not create an endless session.
 
+### 14.1 Card direction and interaction mode
+
+Card direction and interaction mode are independent axes.
+
+**Card direction** decides which cards exist and how they are scheduled:
+
+- Term to meaning
+- Meaning to term
+- Both directions (default)
+
+Each direction keeps its own schedule. Two generated directions still count as one newly prepared vocabulary item. A direction does not by itself decide how the user answers: Meaning to term is not intrinsically a typed card, and Term to meaning is not intrinsically a reveal-and-rate card.
+
+**Interaction mode** decides how the user answers the card that is presented:
+
+- Reading — reveal the answer and self-rate the recall (section 15)
+- Typing — type the expected answer and have it validated locally (section 16)
+
+The interaction mode is resolved from the Learning mode setting (section 22):
+
+- Reading resolves every card to the Reading interaction
+- Typing resolves every card to the Typing interaction
+- Automatic resolves each card from that card's own stored interaction progress
+
+Interaction progress belongs to the individual card and its required accepted answers. Both directions of the same vocabulary item do not share one progress counter: each card keeps its own schedule and its own interaction progress.
+
+Reading or Typing fixes only the interaction shown for the card in front of the user. The saved review still records what actually happened — whether the answer was typed and whether it was correct — and progress is recomputed from the card's complete review history after every rating. Selecting Automatic later may therefore resolve from reviews recorded while Reading or Typing was fixed. Changing the setting never rewrites past reviews.
+
+Automatic transition behavior, as implemented for one card:
+
+- progress starts in the Reading interaction
+- in a Reading interaction, any rating other than Again counts as one successful recall; Again resets the recall counter
+- after two consecutive successful recalls, that card's progress switches to the Typing interaction
+- in a Typing interaction, a correct typed answer increases its typing-success counter and clears its failure counter; an incorrect typed answer clears the success counter and increases the failure counter
+- after two consecutive incorrect typed answers, that card's progress returns to the Reading interaction and its counters are reset
+
+A review card that has reached the 365-day maximum interval is a mastery review. Rated better than Again without achieving mastery, its next due date is extended once to that maximum. Mastery requires a correct typed answer on a mastery review that brings that answer to two consecutive typing successes. When all required answers of the current card satisfy the mastery rule, that card is retired. The other card direction remains independent and is not retired automatically. KnownFirst never claims mastery from elapsed time alone, and mastery does not replace the explicit permanent-known decision in section 18.
+
 ---
 
-## 15. Term-to-meaning card
+## 15. Reading interaction card
+
+Shown when the resolved interaction mode is Reading.
 
 Front:
 
@@ -668,7 +713,9 @@ The user may leave the session and continue later.
 
 ---
 
-## 16. Meaning-to-term spelling card
+## 16. Typing interaction card
+
+Shown when the resolved interaction mode is Typing.
 
 Front:
 
@@ -711,7 +758,7 @@ Allow:
 - Good
 - Easy
 
-The spelling direction has its own schedule, independent from recognition.
+Each card direction keeps its own schedule, independent from the other direction and independent from the resolved interaction mode.
 
 Do not use AI to grade long free-text definitions.
 
@@ -908,8 +955,12 @@ Required settings:
 
 ### UI language
 
+- System
 - English
 - German
+- Russian
+
+System follows the supported device language and falls back to English for an unsupported device language. The UI language is independent from the imported-text source language and from the translation target language.
 
 ### Appearance
 
@@ -938,12 +989,52 @@ Help text explains that the setting limits new learning words so preparation and
 
 Default: Both directions
 
+Card direction is independent from Learning mode; see section 14.1.
+
+### Learning mode
+
+- Reading
+- Typing
+- Automatic
+
+Default: Automatic
+
+Reading resolves every card to the reveal-and-self-rate interaction. Typing resolves every card to the typed-answer interaction. Automatic resolves each card from that card's own stored interaction progress. Progress is recomputed from each card's complete review history after every rating whichever mode is selected; a fixed mode changes only the interaction that is shown. The transition rules are binding in section 14.1.
+
 ### Online dictionary lookup
 
 - saved consent status
-- revoke consent
+- when consent exists: revoke consent
+- when consent is absent: the binding online-lookup disclosure and an explicit action to activate online dictionary lookup
 
 Do not request or store a Wikimedia API key.
+
+Portable archives never carry online-lookup consent. Importing an archive or resetting local data neither grants nor restores consent; the user must grant it again explicitly.
+
+### Portable data
+
+Export writes a portable `.kfarchive` archive to a destination the user chooses.
+
+Before export, warn that an archive is not encrypted and may contain personal imported text and learning history.
+
+Import selects a `.kfarchive` archive and always shows a read-only preview before anything is changed. The preview performs no mutation, creates no safety copy, and invokes no writer. It distinguishes:
+
+- **restore** — the installation is empty and the archive would be restored into it
+- **merge** — the installation already contains data and the archive would be merged non-destructively, with the counts of new, enriched, preserved-variant, and skipped items shown together with the explanation that local data is preserved and a validated safety copy is created before any change
+- **no-change** — the archive would add nothing, for example on a repeated import; this is a successful outcome, not a failure, and it offers no mutating action
+
+From the preview the user either confirms with an action labelled for the restore or merge case, or cancels. Cancelling changes nothing.
+
+After a confirmed import, show the outcome: restored, merge applied with its counts and the safety-copy notice, or no change.
+
+Required failure and refusal behavior:
+
+- an archive that fails validation is refused and nothing is changed
+- an unsupported target state is refused with a clear reason
+- an active vocabulary review, preparation, or learning workflow blocks import
+- a merge plan that is stale or no longer executable is rejected
+- cancellation at any point leaves the installation unchanged
+- a failure during the merge rolls back completely and never presents a false success
 
 ### Reset application data
 
@@ -957,6 +1048,7 @@ Reset:
 - theme to System
 - preparation limit to default
 - card direction to Both
+- learning mode to Automatic
 
 ---
 
@@ -1082,15 +1174,14 @@ Verify:
 
 ### Scenario F: Recognition and spelling
 
-1. prepare one vocabulary item
-2. learn Term to meaning
-3. reveal answer and rate
-4. learn Meaning to term
-5. enter one wrong letter
-6. verify readable correction
-7. verify the wrong answer is Again
-8. enter the correct answer later
-9. verify the card directions retain independent schedules
+1. prepare one vocabulary item with Both directions enabled
+2. set Learning mode to Reading, then learn one card by revealing the answer and rating it
+3. set Learning mode to Typing, then learn the remaining card
+4. enter one wrong letter
+5. verify readable correction
+6. verify the wrong answer is Again
+7. enter the correct answer later
+8. verify the card directions retain independent schedules, independently of the resolved interaction mode
 
 ### Scenario G: Session resume
 

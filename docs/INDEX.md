@@ -43,8 +43,13 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 - **Normally NOT required:** UI design docs, online lookup provider specs, build/release guides.
 
 ### 6. Backup and Restore
-- **Required reading:** [architecture/backup-format-v1.md](architecture/backup-format-v1.md), [plans/backup-restore-v1-implementation-plan.md](plans/backup-restore-v1-implementation-plan.md), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [architecture/database-audit.md](architecture/database-audit.md), affected Data Safety code and tests.
-- **Normally NOT required:** UI design specs, online lookup provider specs, build/release guides.
+- **Required reading:**
+  - [architecture/backup-format-v1.md](architecture/backup-format-v1.md): required for archive-format-v1 layout, validation, compatibility, and original restore-into-empty behavior;
+  - [architecture/backup-merge-v1-design.md](architecture/backup-merge-v1-design.md): required for populated-target Import, merge preflight, safety-copy, merge-writer, no-change, convergence, and stale-plan behavior;
+  - [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md): required when schema compatibility or persisted-data behavior is affected;
+  - [architecture/database-audit.md](architecture/database-audit.md): required only for database-risk investigation or when its historical evidence is directly relevant;
+  - affected current Data Safety code and tests: required for implementation-dependent work.
+- **Normally NOT required:** UI design specs, online lookup provider specs, build/release guides, or the historical [plans/backup-restore-v1-implementation-plan.md](plans/backup-restore-v1-implementation-plan.md) (which is historical evidence, not an active implementation contract).
 
 ### 7. Test Routing and Execution
 Refer to [TESTING.md](TESTING.md) for full scope definitions and failure policies:
@@ -72,5 +77,5 @@ Refer to [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for full commands and isol
 - **Normally NOT required:** Unaffected domain code, test suites, build scripts.
 
 ### 11. Historical Investigation
-- **Required reading:** Only the specific historical document needed for investigation ([audits/](audits/), [handoffs/](handoffs/), [archive/](archive/), historical test plans).
+- **Required reading:** Only the specific historical document needed for investigation ([audits/](audits/), [handoffs/](handoffs/), [archive/](archive/), historical test plans, e.g. [plans/backup-restore-v1-implementation-plan.md](plans/backup-restore-v1-implementation-plan.md) when historical implementation evidence is specifically required).
 - **Normally NOT required:** All active implementation contracts not under investigation.

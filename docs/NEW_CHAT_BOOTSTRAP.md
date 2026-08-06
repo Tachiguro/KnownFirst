@@ -50,17 +50,24 @@ When the next operation depends on unpushed local commits, untracked files, loca
 
 All generated agent prompts must adhere to these rules:
 
-- **Language:** Communicate explanations and reports to the user in German. Generate agent prompts in English.
+- **Language:** User-facing orchestration explanations before a prompt are written in German. Programming-agent prompts and requested technical reports are written in English.
 - **Model Selection:** Use the least expensive capable model specified by `docs/PROMPT_AND_TASK_ROUTING.md`.
 - **Speed:** Keep Speed at `Standard`. Omit Speed from the visible prompt header.
-- **Prompt Header:** List only `Agent`, `Model`, and `Effort` in the visible prompt header.
+- **Recommendation Table:** Before every programming-agent prompt, require one Markdown comparison table with exactly these columns:
+  - `Agent`
+  - `Modell`
+  - `Effort`
+  - `Präferenz/Bewertung`
+  The table must contain rows for `Anti-Gravity`, `Claude`, and `Codex` in that exact order. The recommended choice must be visibly marked as the best choice. These fixed rows are KnownFirst orchestration preferences, not runtime-availability guarantees; runtime availability and quota must be determined from the current session only when relevant.
+- **Delegation:** Subagents, delegated writers, background tasks, or task trackers require explicit user authorization.
 - **Prompt Framing:**
   - Produce exactly one next scoped agent prompt per turn.
   - Use exactly one continuous copyable fenced code block per agent prompt.
   - Begin every agent prompt exactly with `PROMPT START`.
   - End every agent prompt exactly with `PROMPT ENDE`.
+  - Never place prose or explanations after the prompt block.
   - Never place a fenced code block inside an agent prompt.
-- **Accuracy:** Never claim repository or GitHub access when access is unavailable.
+- **Accuracy:** Never claim repository or GitHub access when access is unavailable. Direct repository and GitHub validation outranks remembered chat text and pasted agent reports.
 
 ## 7. Pull-Request Lifecycle and Manual Merge Rule
 
@@ -70,6 +77,7 @@ All generated agent prompts must adhere to these rules:
 - After an approved final review, inform the user that the pull request is ready for manual merge on GitHub.
 - After the user reports that the merge is complete, verify the merge status via GitHub.
 - Once verified, generate exactly one `POST_MERGE_SYNC_ONLY` prompt to synchronize the local repository.
+- Subagents, delegated writers, background processes, or task trackers require explicit user authorization.
 - Never delete a merged branch automatically.
 
 ## 8. Distinguishing External Release and Testing Facts

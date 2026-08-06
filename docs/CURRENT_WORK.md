@@ -13,7 +13,7 @@
 
 ## Verified master baseline
 
-- Master commit: `8f0e690e6737aa3b0e454809a9c12d1152cd17f5` (PR #55 merged)
+- Master commit: `35217a605b641916bb443cd646e4baeb5b82dc30` (PR #57 merged)
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android build, AAB, Internal Testing release, installation, or user test has occurred since.
 - Active database schema on master: SQLite `PRAGMA user_version` 9
@@ -29,6 +29,8 @@
 - **PR #53 — D1 authoritative state and database truth reconciliation.**
 - **PR #54 — D1 closure and D2 activation.**
 - **PR #55 — D2 Agent Communication and Operation Governance.**
+- **PR #56 — D2 closure and D3 activation.**
+- **PR #57 — D3 Backup and Import Contracts.**
 
 ## Active work package
 
@@ -36,8 +38,9 @@
 
 - **D1:** Reconcile KnownFirst's authoritative repository state, Schema-9 database contract, active roadmap, backlog, changelog, and pull-request validation language. (Completed and merged via PR #53).
 - **D2:** Agent Communication and Operation Governance. (Completed and merged via PR #55).
-- **D3 (Current active documentation package):** Backup and Import Contracts (`docs/architecture/backup-format-v1.md`, `docs/architecture/backup-merge-v1-design.md`, `docs/plans/backup-restore-v1-implementation-plan.md`, `docs/INDEX.md`).
-- D4 and D5 remain later documentation packages.
+- **D3:** Backup and Import Contracts. (Completed and merged via PR #57).
+- **D4 (Current active documentation package):** Product, Workflow, and Release-Facing Documentation (`README.md`, `docs/KNOWNFIRST_ARCHITECTURE.md`, `docs/MVP_WORKFLOW.md`, `docs/VERSIONING.md`, `docs/BETA_TESTING.md`).
+- D5 remains a later documentation package.
 - Package B implementation is not accepted and is paused pending documentation repair.
 - Package C remains future work.
 
@@ -50,13 +53,13 @@
 
 ## Exact next action
 
-- Review and complete the D3 Backup and Import Contracts package.
+- Review and complete the D4 Product, Workflow, and Release-Facing Documentation package.
 
 ## Concise new-chat handoff
 
-- Master baseline is `8f0e690e6737aa3b0e454809a9c12d1152cd17f5` (PR #55 merged); no open pull request exists.
+- Master baseline is `35217a605b641916bb443cd646e4baeb5b82dc30` (PR #57 merged); no open pull request exists.
 - `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
-- The current approved work is D3 Backup and Import Contracts.
+- The current approved work is D4 Product, Workflow, and Release-Facing Documentation.
 - Package A is merged and complete; Package B implementation is not accepted and is paused; Package C is not started.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

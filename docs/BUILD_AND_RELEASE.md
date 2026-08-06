@@ -125,7 +125,7 @@ A successful local package consists of the final AAB and its matching SHA-256 si
 13. `FULL_VALIDATION` (or the documented equivalent Windows/Android build matrix) passes.
 14. Android Release has zero prohibited AOT, trimming, source-generation, and warning findings (see "Build Invariants and Safeguards" above).
 15. Required manual Android validation (see [docs/BETA_TESTING.md](BETA_TESTING.md)) is completed when Android-visible behavior changed since the previous candidate.
-16. Known release blockers (see [docs/ROADMAP.md](ROADMAP.md) "Public-release blockers" and "Test-confidence and release-readiness program") are classified and resolved for the intended distribution level.
+16. Known release blockers (see [docs/ROADMAP.md](ROADMAP.md) "Public-release blockers" and "Documentation Reconciliation and Release-Readiness Program") are classified and resolved for the intended distribution level.
 17. Only after every applicable item above passes may a separately authorized `PACKAGE_ONLY` `ANDROID_GOOGLE_PLAY_AAB` operation begin.
 
 **Clarifications:**

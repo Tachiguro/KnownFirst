@@ -2,7 +2,7 @@
 
 ## 1. Status and scope
 
-This document is the binding UI and UX acceptance specification for the Beta 7 hardening work. It complements `KNOWNFIRST_ARCHITECTURE.md` and `MVP_WORKFLOW.md`; those documents remain authoritative for product behavior and architecture.
+This document originated as the binding UI and UX acceptance specification for the Beta 7 hardening work and remains an active regression baseline for current UI and UX work. It complements `KNOWNFIRST_ARCHITECTURE.md` and `MVP_WORKFLOW.md`; those newer binding workflow and architecture documents remain authoritative and prevail if a conflict exists.
 
 The hardening work must preserve the existing KnownFirst visual identity, color palette, typography, card style, localization, and Light, Dark, and System appearance modes. It must improve consistency and reliability without introducing a new design language.
 

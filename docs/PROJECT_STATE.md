@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-05
-**State source:** `master` (`a9c42f569b50831406ebd780b5c1c47376d4f5df`, PR #53 merge commit)
-**Next repository action:** Review and complete the D2 Agent Communication and Operation Governance package; no product implementation is currently active.
+**Status date:** 2026-08-06
+**State source:** `master` (`8f0e690e6737aa3b0e454809a9c12d1152cd17f5`, PR #55 merge commit)
+**Next repository action:** Review and complete the D3 Backup and Import Contracts package; no product implementation is currently active.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -53,7 +53,7 @@ The current product source implements:
 - Schema-9 review-session history storage capability (PR #51).
 - Package A (Schema-9 completed-review convergence): identity, planner, target-index parity, and characterization coverage (PR #52).
 
-## Merged development foundations (Dormant)
+## Merged development foundations
 
 The `master` branch includes the following merged technical foundations:
 
@@ -82,12 +82,14 @@ The `master` branch includes the following merged technical foundations:
 - **Schema-9 review-session history storage activation (PR #51).**
 - **Package A (Schema-9 completed-review convergence) (PR #52):** identity, planner, target-index parity, and characterization coverage.
 - **D1 authoritative documentation reconciliation (PR #53).**
+- **D1 closure and D2 activation (PR #54).**
+- **D2 Agent Communication and Operation Governance (PR #55).**
 
 **Current Status (master):**
 - The active database schema is **9** (`PRAGMA user_version = 9`).
 - Schema 9 is active during normal application initialization on master.
-- PR #53 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
-- No product implementation or release package is currently active. D1 is complete, and D2 is the active documentation package. D3–D5 remain future documentation work. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md)).
+- PR #55 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
+- No product implementation or release package is currently active. D1 and D2 are complete, and D3 is the active documentation package. D4 and D5 remain future documentation work. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md)).
 
 ## Confirmed verification
 
@@ -133,9 +135,9 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `a9c42f569b50831406ebd780b5c1c47376d4f5df` (PR #53 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
+The stable master baseline is `8f0e690e6737aa3b0e454809a9c12d1152cd17f5` (PR #55 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
-No product implementation is currently active. The current work package is the D2 Agent Communication and Operation Governance package described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+No product implementation is currently active. The current work package is the D3 Backup and Import Contracts package described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
 **KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 
@@ -154,3 +156,9 @@ No product implementation is currently active. The current work package is the D
 **Subsequent correctness and data-safety fixes (merged PRs #46-#50)** — see "Production capabilities" and "Merged development foundations" above.
 
 **Schema-9 Completed-Review Convergence (merged PRs #51-#52)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52). Package B (writer evidence) is paused. Package C (convergence hardening) is future work.
+
+**D1 Authoritative State and Database Truth (merged PR #53)** — reconciled repository baseline, roadmap, and changelog context.
+
+**D1 Closure and D2 Activation (merged PR #54)** — recorded D1 closure and activated D2 governance package.
+
+**D2 Agent Communication and Operation Governance (merged PR #55)** — established agent communication governance and operation isolation rules.

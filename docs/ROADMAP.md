@@ -1,6 +1,6 @@
 # KnownFirst roadmap
 
-**Prioritization date:** 2026-08-03
+**Prioritization date:** 2026-08-06
 
 This roadmap records intended order. It does not claim that planned behavior exists. Verified implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md).
 
@@ -27,7 +27,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 9 | Import UI & Localization | Committed | Import UI, localized preview/result handling, and end-to-end convergence validation; merged via PR #45 (checkpoint result 1626/0/0 prior to merge). Follow-up correctness and data-safety fixes merged via PR #46 (preparation selected-meaning acceptance), PR #47 (diagnostics/export stale lexical-reader), and PR #48 (Windows portable-export atomic replacement). |
 | 10 | Documentation governance and portable export validation | Committed | PR #49 (documentation governance and release-readiness rules) and PR #50 (Android portable export staging and strict validation). |
 | 11 | Schema-9 Review-Session History and Package A | Committed | PR #51 (Schema-9 review-session history storage) and PR #52 Package A (Schema-9 completed-review identity, planner, target-index parity, and characterization coverage). |
-| 12 | Authoritative Documentation Reconciliation | Current | Documentation-governance packages D1-D5 establishing truth and safe agent operation. D1 merged via PR #53. D2 is current. |
+| 12 | Authoritative Documentation Reconciliation | Current | Documentation-governance packages D1-D5 establishing truth and safe agent operation. D1 merged via PR #53. D2 merged via PR #55. D3 is current. |
 | 13 | Schema-9 Completed-Review Convergence (Package B and C) | Planned | Package B (writer evidence) and Package C (convergence hardening). |
 | 14 | Public-release support surface | Planned — every-AAB blocker (see policy below) and public-release blocker | Implement functional Support KnownFirst and Report a bug controls, or explicitly remove them from Release rendering; and add reopenable release-note history. |
 | 15 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation launcher integration. |
@@ -62,12 +62,14 @@ This roadmap records intended order. It does not claim that planned behavior exi
 - Schema-9 review-session history storage activation — merged via PR #51.
 - Package A (Schema-9 completed-review convergence) — merged via PR #52. Adds deterministic Schema-9 completed-review identities, preflight classification, duplicate rejection, target-index parity, and characterization coverage.
 - D1 Authoritative State and Database Truth — merged via PR #53.
+- D1 closure and D2 activation — merged via PR #54.
+- D2 Agent Communication and Operation Governance — merged via PR #55.
 
 ## Current
 
-**D2 Agent Communication and Operation Governance**
+**D3 Backup and Import Contracts**
 
-This program establishes safe agent operation and reconciles stale facts. See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package.
+This package reconciles backup format, backup merge design, backup restore implementation planning, and backup/restore documentation routing across `docs/architecture/backup-format-v1.md`, `docs/architecture/backup-merge-v1-design.md`, `docs/plans/backup-restore-v1-implementation-plan.md`, and `docs/INDEX.md`. Activation does not authorize product implementation, database access, migration, testing, builds, packaging, archive generation, or release work. See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package.
 
 ## Planned Sequence (Meaning & Merge)
 
@@ -104,8 +106,8 @@ The current product direction is **non-destructive populated-target portable arc
 Prioritized work-package sequence:
 
 1. **D1 Authoritative state and database truth** (Completed and merged via PR #53).
-2. **D2 Agent communication and operation governance** (Current).
-3. **D3 Backup and import contracts** (backup-format-v1.md, backup-merge-v1-design.md, backup-restore-v1-implementation-plan.md, INDEX.md).
+2. **D2 Agent communication and operation governance** (Completed and merged via PR #55).
+3. **D3 Backup and import contracts** (backup-format-v1.md, backup-merge-v1-design.md, backup-restore-v1-implementation-plan.md, INDEX.md) (Current).
 4. **D4 Product, workflow, and release-facing documentation** (README.md, KNOWNFIRST_ARCHITECTURE.md, MVP_WORKFLOW.md, VERSIONING.md, BETA_TESTING.md).
 5. **D5 Testing, GUI status, historical banners, and Markdown hygiene** (TESTING.md, GUI_TEST_MATRIX.md, malformed tables, stale banners).
 6. **Resume Schema-9 completed-review Package B** only after the authoritative documentation packages needed for safe agent operation are merged.

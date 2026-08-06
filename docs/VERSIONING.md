@@ -58,38 +58,52 @@ Following `1.0.0`, KnownFirst strictly follows Semantic Versioning (`MAJOR.MINOR
 
 ## Visible identity examples
 
-The application displays the formatted build identity as follows:
+The application displays the formatted build identity as follows. These are format templates using version-neutral placeholders; they assert no current product version. The verified current source identity is recorded in [PROJECT_STATE.md](PROJECT_STATE.md).
 
-- **Debug:** `KnownFirst · 1.0.0-beta.9 · Debug · Build 9 · Commit <short-sha>`
-- **Diagnostic:** `KnownFirst · 1.0.0-beta.9 · Diagnostic · Build 9 · Commit <short-sha>`
-- **Prerelease Release:** `KnownFirst · 1.0.0-beta.9 · Release · Build 9 · Commit <short-sha>`
+- **Debug:** `KnownFirst · 1.0.0-beta.N · Debug · Build N · Commit <short-sha>`
+- **Diagnostic:** `KnownFirst · 1.0.0-beta.N · Diagnostic · Build N · Commit <short-sha>`
+- **Prerelease Release:** `KnownFirst · 1.0.0-beta.N · Release · Build N · Commit <short-sha>`
 - **Future stable Release:** `KnownFirst · 1.0.0 · Release · Build <number>`
 
-## In-app release notes (Beta 10 requirement)
+A commit is included for Debug and Diagnostic builds and for every prerelease version. A build produced from a dirty working tree additionally appends ` · DIRTY`, for example `KnownFirst · 1.0.0-beta.N · Release · Build N · Commit <short-sha> · DIRTY`.
 
-The in-app release-notes user interface is explicitly deferred from Beta 9 and targets **Beta 10** as its first release.
+## In-app release notes
 
-### Cumulative Unread Release Notes Specification
-- **Display trigger:** Shown automatically once after the first application launch following installation or update to a new version. The automatic display occurs once for the current unread release-note set.
+An in-app release-notes user interface exists. It is a **one-time per-version What's New notice**, and it is narrower than the cumulative specification below. Implemented behavior and planned behavior are kept strictly separate.
+
+### Implemented today: one-time per-version What's New notice
+
+- **Catalog:** A release-note catalog maps a product version to a localized title key and localized bullet keys. Entries exist for `1.0.0-beta.10`, `1.0.0-beta.11`, and `1.0.0-beta.12`.
+- **Selection:** Only the catalog entry whose version equals the running application version is selected. No older unread entry is collected.
+- **Display trigger:** The selected entry is shown automatically once, and stays dismissed afterwards.
+- **Acknowledgement storage:** Platform `Preferences` (not SQLite) stores the exact **seen version string**. It does not store an integer sequence.
+- **No matching entry:** A running version without a matching catalog entry shows no modal at all rather than an empty one.
+- **Clean install:** A fresh installation shows only the entry matching its own version.
+- **Localization:** Current release-note title and bullet content is localized in English, German, and Russian.
+- **Isolation:** Portable archive export and import never read or write the seen-version preference. A full application-data reset clears platform preferences, so the notice can appear again.
+- **Failure tolerance:** A failed preference read or write never throws; the notice is simply suppressed for that run.
+
+### Planned, not implemented: cumulative unread release-note history
+
+These remain binding future requirements. None of them is implemented today, and none may be described as available.
+
 - **Ordered sequence:** Every distributed version has an ordered release-note sequence.
-- **Acknowledged sequence storage:** Platform `Preferences` (not SQLite) stores the integer sequence of the highest acknowledged release.
+- **Acknowledged sequence storage:** Platform `Preferences` stores the integer sequence of the highest acknowledged release.
 - **Cumulative display on update:** Upon update, the application collects every release newer than the acknowledged sequence and displays them in a scrollable view:
   - Newest release notes appear first, followed by older unread releases.
   - *Example:* User acknowledged Beta 8, skipped Beta 9, and installed Beta 10 -> the view presents Beta 10 notes first, then Beta 9 notes below.
 - **Read confirmation:** Acknowledging or closing the completed release-note view records all displayed entries as read in platform preferences.
-- **Reopen access:** Users can reopen release notes from Settings at any time. Reopening from Settings does not alter version identity or acknowledged version state.
-- **Clean install:** A fresh installation displays only the current release notes unless a future product decision explicitly specifies full history.
+- **Reopen access:** Users can reopen release notes from Settings at any time. Reopening from Settings does not alter version identity or acknowledged version state. Settings currently exposes no such control; reopenable release-note history is a recorded public-release blocker in [ROADMAP.md](ROADMAP.md).
+- **Tester details:** Technical details may exist separately in a collapsed control for Debug/Diagnostic builds.
 
 ### User Content Guidelines
-- **Titles:** Localized German and English version title.
-- **Bullets:** Two to four concise user-facing bullet points per version.
+- **Titles:** Localized English, German, and Russian version title.
+- **Bullets:** Two to four concise user-facing bullet points per version, localized in English, German, and Russian.
 - **Length limit:** Maximum approximately 500 characters per language (excluding title).
 - **Style:** Clean, non-technical language. Do **not** include Git commit hashes, PR numbers, internal C# class names, database column names, test counts, or unverified future plans.
-- **Tester details:** Technical details may exist separately in a collapsed control for Debug/Diagnostic builds.
 
 ### Authorship Workflow
 - **Drafting:** The feature documentation phase (`DOCUMENT_ONLY`) drafts verified user-facing release notes.
 - **Freezing:** Release preparation approves and freezes release-note text before building distribution packages.
 - **Consumption:** Build and packaging agents consume pre-approved release-note content.
 - **Changelog separation:** `CHANGELOG.md` remains the complete developer/technical history and is **not** rendered directly to end users.
-- **No UI implementation:** This specification governs future implementation. No UI code is implemented in this documentation package.

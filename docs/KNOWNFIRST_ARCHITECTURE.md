@@ -48,7 +48,7 @@ KnownFirst uses:
 - SQLite for local persistent data
 - shared application logic in platform-independent projects where practical
 - English code, comments, logs, tests, documentation, and commit messages
-- localized English and German user interface resources
+- localized English, German, and Russian user-interface resources
 
 The application must remain responsive on desktop and mobile.
 
@@ -71,15 +71,19 @@ Windows requirements include:
 
 ## 4. Localization and settings
 
-The UI supports English and German.
+The UI supports English, German, and Russian, plus an explicit System selection that follows the device language.
+
+The UI language is a separate axis from the imported-text source language and from the translation target language (see section 15). A UI language is never used to build a lexical request or cache key.
 
 Rules:
 
-- first launch uses the supported device language
+- the UI language choices are System, English, German, and Russian
+- the explicit `system` selection is persisted and re-resolved from the device language on every start
+- a missing, malformed, or unsupported stored language value is treated as System rather than failing
 - unsupported device languages fall back to English
-- a user-selected language persists
+- an explicitly selected language persists
 - language changes apply immediately
-- application reset removes the saved language preference and reapplies the supported device language
+- application reset restores the System selection and reapplies the supported device language
 - theme choices are System, Light, and Dark
 - theme changes apply immediately and persist
 - the preparation limit defaults to 10
@@ -87,6 +91,9 @@ Rules:
 - 50 is the hard maximum for newly prepared vocabulary in one daily batch
 - due reviews never count against the new-vocabulary limit
 - card direction defaults to Both directions
+- the learning mode may be set to Reading, Typing, or Automatic, and defaults to Automatic
+
+The learning mode selects the *interaction mode* used while learning. It is a separate axis from card direction; see section 20.
 
 The exact user-facing setting names are defined in `docs/MVP_WORKFLOW.md`.
 
@@ -513,6 +520,8 @@ It supports where available:
 - lookup timestamp
 - ranking or confidence metadata
 
+The Import Text selector currently exposes only `Definition` or `Translation`. `DefinitionAndTranslation` remains a readable persisted and archived model value, so existing rows, preparation state, and portable archives that already use it continue to be processed unchanged. It is not a currently selectable import option.
+
 ### 13.1 Provider-supported form-to-lemma resolution
 
 The provider parser separates direct lexical senses from grammatical form relations. When the originally queried page has at least one suitable direct sense, enrichment keeps the queried canonical term, ranks only the direct senses, and does not redirect merely because a form relation is also present. This keeps ordinary modern-English `data` on the `data` entry when that page supplies direct senses.
@@ -745,7 +754,11 @@ Normal preparation and learning cards show source metadata through a collapsed *
 
 ---
 
-## 20. Learning-card directions
+## 20. Learning-card directions and interaction modes
+
+Card direction and interaction mode are two independent axes. Direction decides *which* card exists and how it is scheduled. Interaction mode decides *how* the user answers the card that is presented.
+
+### 20.1 Card direction
 
 Supported directions:
 
@@ -760,9 +773,43 @@ One vocabulary identity counts as one new vocabulary item even when it generates
 
 Each direction has independent scheduling state.
 
+A direction does not by itself determine the interaction mode. `MeaningToTerm` is not intrinsically a typed-answer card, and `TermToMeaning` is not intrinsically a reveal-and-rate card.
+
 Context navigation belongs directly below the displayed context sentence for both directions; it is not placed after the complete answer and rating area.
 
-### 20.1 Term to meaning
+### 20.2 Interaction mode
+
+The resolved interaction mode is one of:
+
+- `Reading` — the user reveals the answer and self-rates the recall
+- `Typing` — the user types the expected answer and the application validates it locally
+
+Resolution rules:
+
+- learning mode `Reading` resolves every card to the Reading interaction
+- learning mode `Typing` resolves every card to the Typing interaction
+- learning mode `Automatic` resolves each card from that card's own stored interaction progress
+
+Automatic interaction progress is persisted per learning card and required answer variant, not as one vocabulary-wide state shared by both card directions. Each progress record holds the current interaction mode, a consecutive-recall-success counter, a consecutive-typing-success counter, a consecutive-typing-failure counter, and a mastery-review-extension marker.
+
+Every persisted rating durably records the interaction that was actually presented: whether the answer was typed and whether it was correct. After each persisted rating, the card's progress is recomputed from that card's complete stored review history. This recomputation happens regardless of whether the current setting is `Reading`, `Typing`, or `Automatic`. A fixed mode overrides only which interaction is presented to the user; it does not freeze or isolate the replay-owned progress. Selecting `Automatic` later may therefore resolve from reviews recorded while a fixed mode was selected. Changing the setting never rewrites already recorded review events.
+
+Automatic transition rules, as implemented, apply to one card's required answer variant:
+
+- progress starts in the Reading interaction
+- in a resolved Reading interaction, any rating other than `Again` counts as one successful recall; `Again` resets the recall counter to zero
+- after two consecutive successful recalls the progress switches to the Typing interaction and its typing-failure counter is reset
+- in a resolved Typing interaction, a correct typed answer increases the typing-success counter and resets the typing-failure counter; an incorrect typed answer resets the typing-success counter and increases the typing-failure counter
+- after two consecutive incorrect typed answers the progress returns to the Reading interaction and all three counters are reset
+- all counters are bounded at two, so the state cannot grow without limit
+
+A review card whose interval has reached the 365-day maximum is a mastery review. When such a review is rated better than `Again` without achieving mastery, the next due date is extended once to the 365-day maximum and the extension is marked so it is not repeated. Mastery of one required answer variant is achieved only by a correct typed answer on a mastery review that brings that variant to two consecutive typing successes.
+
+Retirement is decided per card, over that card's complete current set of required answer variants. When all required answer variants of a card meet the mastery rule, that card is retired. The other card direction is not retired automatically and continues under its own schedule and progress state. Retiring a card prunes only that card's incomplete queue rows; completed queue history is retained. The affected Sense status is then recomputed and becomes mastered only when every card of that Sense is retired.
+
+Mastery is never claimed from elapsed time alone, and it does not replace the explicit permanent-known decision in section 22, which remains a separate user action with its own destructive cleanup.
+
+### 20.3 Reading interaction
 
 Front:
 
@@ -778,9 +825,9 @@ Back after reveal:
 - optional example
 - source
 
-The user self-rates the recall.
+The user self-rates the recall. An answer must be revealed before a rating is accepted.
 
-### 20.2 Meaning to term
+### 20.4 Typing interaction
 
 Front:
 
@@ -1017,6 +1064,36 @@ A failed operation must not leave partial user-visible state.
 
 Retry must not duplicate documents, candidates, occurrences, meanings, cards, or cache entries.
 
+### 25.1 Portable data architecture
+
+KnownFirst supports user-initiated portable data movement through a `.kfarchive` archive. The archive is a logical export format; it is not a copy of the SQLite file and does not make the database a public format.
+
+**Archive format version and database schema version are separate axes.** They must never be collapsed into a single "version" concept.
+
+- The archive reader accepts archive formats **v1** and **v2**.
+- A Schema 7 database writes archive format **v1**.
+- A Schema 8 and a Schema 9 database write archive format **v2**.
+- The current application runs database schema **9** and therefore exports archive format **v2**.
+- Database schema 9 is a separate version axis, governed by [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md).
+
+Import has two distinct target cases, and they are not interchangeable:
+
+- **Restore into an empty installation** — strictly additive insertion into a verified-empty database.
+- **Populated-target transactional merge** — non-destructive merge into an installation that already contains data. A format-v1 archive is upgraded in memory for this path; the external archive bytes are unchanged and format v1 is not redefined as a merge format.
+
+Before either case mutates anything, the user sees a **read-only import preview**. The preview performs no database mutation, creates no safety copy, and invokes no writer. It distinguishes the restore case, the merge case, and the **no-change** case in which a repeated import would add nothing. No-change is a successful outcome, not a failure, and it presents no mutating action.
+
+A confirmed populated-target merge re-validates independently and then runs validation, preflight planning, a validated safety copy, the transactional merge writer, and deterministic card-schedule replay, committing atomically or rolling back completely. Stale or non-executable plans are rejected. Repeated imports converge without duplicates.
+
+Portable export must never damage an existing file. The two platforms achieve this differently, and the difference is architectural:
+
+- **Windows** stages the archive to a same-directory temporary file, validates it through the production archive validator, and only then finalizes atomically — `File.Replace` for an existing destination, `File.Move` for a new one. A failure at any stage before finalization leaves an existing archive byte-for-byte unchanged.
+- **Android** stages and strictly validates the archive privately *before* the destination picker is opened, so an invalid or failed archive never acquires or writes a destination. The chosen destination is then written through the content provider and reopened for verification. The provider boundary offers no universal atomic replacement guarantee, so Android must not be documented as providing the Windows atomic-finalization guarantee.
+
+Archives are not encrypted and may contain personal imported text and learning history. The user is warned before export. Device preferences, online-lookup consent, the lexical cache, diagnostic logs, and active/incomplete workflows are outside the archive.
+
+The archive layout, validation rules, and resource limits are owned by [`architecture/backup-format-v1.md`](architecture/backup-format-v1.md). Merge identities, conflict policies, and safety-copy design are owned by [`architecture/backup-merge-v1-design.md`](architecture/backup-merge-v1-design.md). This section does not restate them.
+
 ---
 
 ## 26. Diagnostics
@@ -1118,13 +1195,13 @@ The following are explicitly deferred unless a later milestone authorizes them:
 - handwriting recognition
 - speech recognition
 - pronunciation scoring
-- backup
-- export
 - synchronization
 - Google Drive
 - accounts
 - payments
 - analytics
+
+Portable `.kfarchive` export and import are implemented and are no longer deferred; see section 25.1. Synchronization remains deferred and is a separate capability from portable export and import.
 
 Interfaces should allow future extension without speculative implementation now.
 

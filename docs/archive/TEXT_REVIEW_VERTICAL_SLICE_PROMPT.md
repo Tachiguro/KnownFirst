@@ -1,3 +1,13 @@
+# Historical text-review vertical-slice implementation prompt
+
+> **Status:** Completed historical work package. This file preserves the
+> original implementation scope and is not an instruction for current agents.
+> Start with [../../AGENTS.md](../../AGENTS.md),
+> [../PROJECT_STATE.md](../PROJECT_STATE.md), and
+> [../ROADMAP.md](../ROADMAP.md).
+
+The original prompt follows unchanged.
+
 Read and follow:
 
 docs/KNOWNFIRST_ARCHITECTURE.md

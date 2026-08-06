@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-08-06
-**State source:** `master` (`8f0e690e6737aa3b0e454809a9c12d1152cd17f5`, PR #55 merge commit)
-**Next repository action:** Review and complete the D3 Backup and Import Contracts package; no product implementation is currently active.
+**State source:** `master` (`35217a605b641916bb443cd646e4baeb5b82dc30`, PR #57 merge commit)
+**Next repository action:** Review and complete the D4 Product, Workflow, and Release-Facing Documentation package; no product implementation is currently active.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -84,12 +84,14 @@ The `master` branch includes the following merged technical foundations:
 - **D1 authoritative documentation reconciliation (PR #53).**
 - **D1 closure and D2 activation (PR #54).**
 - **D2 Agent Communication and Operation Governance (PR #55).**
+- **D2 closure and D3 activation (PR #56).**
+- **D3 Backup and Import Contracts (PR #57).**
 
 **Current Status (master):**
 - The active database schema is **9** (`PRAGMA user_version = 9`).
 - Schema 9 is active during normal application initialization on master.
-- PR #55 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
-- No product implementation or release package is currently active. D1 and D2 are complete, and D3 is the active documentation package. D4 and D5 remain future documentation work. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md)).
+- PR #57 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
+- No product implementation or release package is currently active. D1, D2, and D3 are complete, and D4 is the active documentation package. D5 remains future documentation work. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
 
 ## Confirmed verification
 
@@ -135,9 +137,9 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `8f0e690e6737aa3b0e454809a9c12d1152cd17f5` (PR #55 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
+The stable master baseline is `35217a605b641916bb443cd646e4baeb5b82dc30` (PR #57 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
-No product implementation is currently active. The current work package is the D3 Backup and Import Contracts package described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+No product implementation is currently active. The current work package is the D4 Product, Workflow, and Release-Facing Documentation package described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
 **KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 
@@ -162,3 +164,7 @@ No product implementation is currently active. The current work package is the D
 **D1 Closure and D2 Activation (merged PR #54)** — recorded D1 closure and activated D2 governance package.
 
 **D2 Agent Communication and Operation Governance (merged PR #55)** — established agent communication governance and operation isolation rules.
+
+**D2 Closure and D3 Activation (merged PR #56)** — recorded D2 closure and activated D3 backup and import contracts package.
+
+**D3 Backup and Import Contracts (merged PR #57)** — reconciled backup-format, populated-target import/merge contracts, historical restore-plan status, and documentation routing.

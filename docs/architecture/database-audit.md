@@ -77,7 +77,7 @@ Repository history exposes these version changes:
 | 3 | Initial checked-in `DatabaseSchema` | Created documents, vocabulary, forms, sentence spans, occurrences, meanings, legacy review aggregates, review sessions, and review candidates. No version 1 or 2 migration source is present in this repository history. |
 | 4 | Preparation and learning MVP | Added lexical cache, preparation sessions/items, context snapshots, learning cards/reviews/sessions/queues, expanded meanings, and added vocabulary preparation state. |
 | 5 | Form-relation and technical-token support | Added encountered form and grammatical relationship to prepared meanings and technical-family fields to occurrences. |
-| 6 | Explicit lexical language/mode support | Added document lookup mode/target language and cache request fields; began deleting cache keys outside `v2|`. |
+| 6 | Explicit lexical language/mode support | Added document lookup mode/target language and cache request fields; began deleting cache keys outside `v2\|`. |
 | 7 | Configurable automatic learning | Added interaction mode, recall/typing counters, and mastery-extension state to vocabulary. |
 
 Every transition is currently performed by the same forward `CreateTableAsync`

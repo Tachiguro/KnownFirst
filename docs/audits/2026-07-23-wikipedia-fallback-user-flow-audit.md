@@ -35,7 +35,7 @@ PR #11 was successfully merged and the local `master` branch is synchronized wit
 5. **Are Wikipedia provider name, source project, page title, attribution, or revision information visible to the user?**
    Yes. `SourceDetails.razor` renders all of these values if they are present.
 6. **Is the legally or operationally required attribution sufficiently represented?**
-   **No. Attribution sufficiency is unresolved.** 
+   **No. Attribution sufficiency is unresolved.**
    The current UI displays provider, project, page title, revision, attribution text, and a plain license name, but:
    - Wikipedia page link is absent; `SourceReferencePolicy.CreatePageUri` explicitly requires `.EndsWith(".wiktionary.org")`.
    - License URI is absent; `SourceReferencePolicy.GetLicenseReference` returns only a plain text license name, and `SourceDetails.razor` renders it as plain text.

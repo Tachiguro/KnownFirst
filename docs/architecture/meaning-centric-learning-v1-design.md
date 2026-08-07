@@ -64,7 +64,7 @@ All changes below are **additive to the existing tables** — no existing column
 - **Active preparation sessions migrate without losing queue position — trivially, by construction, not by a special migration step:** `PreparationSessionEntity`/`PreparationCandidateEntity` rows (the in-progress preparation batch, if one exists at migration time) are **never read or written by the §4.2 Sense-generation algorithm at all**, which only processes already-confirmed `MeaningEntity` rows. An active session's `Order`, `Status`, and position are therefore untouched by the migration — the user resumes exactly where they left off after the schema upgrade, with zero additional migration logic required to guarantee it.
 - **Future removal or renaming of `PreparationState`** (e.g. once multi-sense preparation makes a word-level "is anything preparing" flag need its own per-candidate scoping) **may occur only in a separately tested migration** — not decided or authorized here; this document's Schema 8 leaves the field exactly as it is today, semantics narrowed only by documentation, not by a code or schema change.
 
-### 2.2 `SenseEntity` (new) — [Decision 1](#1-senseentity-fields-natural-identity-status-timestamps-topicdomain-part-of-speech-and-preferred-exact-variant)
+### 2.2 `SenseEntity` (new) — Decision 1
 
 ```
 SenseEntity
@@ -112,11 +112,11 @@ Removed from the prior revision: `PreferredAnswerVariantId`. **Correction (this 
 - `SenseEntity.DefaultMeaningId` — a **fallback only**, defaulted to the sole `MeaningEntity` created alongside the Sense at acceptance time. Used by preparation preview/general display before any direction-specific card exists, or before a user has expressed a direction-specific preference. Never treated as authoritative once a card exists for the relevant direction.
 - `LearningCardEntity.PreferredMeaningId` (§2.7) — **authoritative**, per `(SenseId, Direction)`. This is the corrected model's answer to "which exact Meaning does this specific card display."
 
-### 2.3 Sense knowledge: directly on `SenseEntity`, no separate `SenseKnowledgeEntity` — [Decision 2](#2-whether-sense-knowledge-lives-directly-on-senseentity-or-in-a-separate-senseknowledgeentity)
+### 2.3 Sense knowledge: directly on `SenseEntity`, no separate `SenseKnowledgeEntity` — Decision 2
 
 **Decided: no `SenseKnowledgeEntity`.** Unchanged from the first pass. `SenseEntity.Status` is the entire "sense knowledge state" surface; per-`(Sense, Direction)` scheduling lives on `LearningCardEntity` (§2.7), per-`(Card, AnswerVariant)` mastery streaks live on `AnswerVariantProgressEntity` (§2.8) as a derived cache.
 
-### 2.4 `MeaningEntity` — additive extension, [Decision 3](#3-meaningentitys-future-relationship-to-senseentity-and-which-existing-fields-remain-variant-specific)
+### 2.4 `MeaningEntity` — additive extension, Decision 3
 
 Unchanged from the first correction pass. **New columns:** `SenseId` (indexed FK, non-unique), `StableId` (unique indexed, immutable, §2.11). `WordId` stays, denormalized, invariant-checked against `SenseEntity.WordId`.
 
@@ -124,7 +124,7 @@ Unchanged from the first correction pass. **New columns:** `SenseId` (indexed FK
 
 **Fields whose authority moves to `SenseEntity`:** `GrammaticalRelationship`, `AcronymExpansion`, `SelectedMeaningId`/`ProviderSenseId` — retained on `MeaningEntity` as frozen historical copies, never re-written there after migration.
 
-### 2.5 `AnswerVariantEntity` (new) — corrected: a pure normalized answer expression, no behavior of its own — [Decision 4](#4-answervariantentity-fields-and-roles)
+### 2.5 `AnswerVariantEntity` (new) — corrected: a pure normalized answer expression, no behavior of its own — Decision 4
 
 **Correction (this pass, second defect):** the first pass's `AnswerVariantEntity` still carried `Requirement` directly on the row — a Sense-wide fact. This is wrong for the same reason `PreferredAnswerVariantId` on `SenseEntity` was wrong (§2.2): whether a variant is required for mastery is a **per-direction** fact (a variant can be `Required` for `MeaningToTerm` and merely `AcceptedOnly` — or entirely unassigned — for `TermToMeaning`). `AnswerVariantEntity` is corrected to represent **only** the normalized text expression itself:
 
@@ -201,7 +201,7 @@ This makes "exactly one preferred assignment per `(SenseId, CardDirection)`" a *
 - **Providers must not automatically mark every synonym as `Required`** ([Decision 12](#12-the-rule-that-providers-must-not-automatically-make-every-synonym-mandatory)) — every assignment created by migration or by ordinary provider-driven preparation (other than the single deterministic primary answer) defaults to `Requirement = AcceptedOnly`; only a distinct, explicit, later user action creates or promotes an additional assignment to `Required`.
 - `AnswerLanguage` (on the referenced `AnswerVariantEntity`, §2.5) is **never** consulted to decide which direction(s) an assignment applies to — the assignment's own `CardDirection` column is the sole authority. This matters concretely whenever `SourceLanguage == ExplanationLanguage` (e.g. a monolingual Sense), where language-based inference would be actively wrong, not merely redundant.
 
-### 2.7 `LearningCardEntity` — corrected: direction-specific preferred Meaning — [Decision 6](#6-learningcard-identity)
+### 2.7 `LearningCardEntity` — corrected: direction-specific preferred Meaning — Decision 6
 
 ```
 LearningCardEntity (Schema 8)
@@ -240,11 +240,11 @@ LearningCardEntity (Schema 8)
 - **`WordId` retained temporarily as migration metadata**, unchanged rationale from the first pass.
 - **No `AnswerVariant`/assignment reference is stored on the card at all.** "Which variants are required/preferred for this card" is answered by querying `SenseAnswerVariantAssignmentEntity` for `(card.SenseId, card.Direction)` (§2.6) — never duplicated onto the card row.
 
-### 2.8 Context ownership — [Decision 7](#7-context-ownership)
+### 2.8 Context ownership — Decision 7
 
 Unchanged from the first correction pass. `ContextSnapshotEntity` gains `SenseId` (primary ownership key); `MeaningId` becomes optional provenance; `SourceDocumentId` unchanged; `WordId` retained as migration bridge.
 
-### 2.9 `AnswerVariantProgressEntity` (new) — corrected: direction-specific via `(CardId, AnswerVariantId)` — [Decision 5](#5-answervariantprogressentity-fields-for-reading-and-typing-streaks-failures-mastery-and-learning-mode-behavior)
+### 2.9 `AnswerVariantProgressEntity` (new) — corrected: direction-specific via `(CardId, AnswerVariantId)` — Decision 5
 
 **Correction (this pass, third defect):** the first pass keyed this table by `AnswerVariantId` alone (unique). That cannot represent independent progress on the same variant across two different directions/cards — which is now a real, structurally possible case once §2.6 allows the same variant to be `Required` in both directions independently. Corrected:
 
@@ -302,7 +302,7 @@ AnswerVariantProgressEntity
 
 **Preservation across active-session resume, archive v2, merge, and scheduler replay:** unchanged in substance from the first pass, now read as per-`(CardId, AnswerVariantId)`: `LearningSessionCardEntity.TargetAnswerVariantId` is read back unchanged on resume; archive v2 carries `TargetAnswerVariantId`/`MatchedAnswerVariantId` on reviews and `TargetAnswerVariantId` on completed queue items (§5.2); the merge planner's review-event fingerprint must include both fields; scheduler replay for the card-level SRS fields (`State`/`DueAtUtc`/`IntervalDays`/`EaseFactor`) remains per-card, computed from the full review history regardless of variant, while `AnswerVariantProgressEntity`'s replay filters by `CardId` + variant.
 
-### 2.10 Topic/domain persistence path, end to end — [Decision 8](#8-topicdomain-persistence-from-lookup-candidate-through-preparation-database-archive-learning-display-and-merge)
+### 2.10 Topic/domain persistence path, end to end — Decision 8
 
 Unchanged from the first correction pass. `PreparedMeaningInput` gains `TopicOrDomain`/`PartOfSpeech`, written onto `SenseEntity`; `BackupSense` (§5.2) carries them; `LearningCardView` gains them for display; `SemanticMeaningIdentityPolicy.Compute`'s `canonicalTopicOrDomain` parameter finally receives a real value.
 

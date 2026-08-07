@@ -15,7 +15,7 @@ The `WikipediaLookupProvider` is a concrete implementation of `ILexicalLookupPro
 
 ## Data Mapping
 
-- **Definitions**: 
+- **Definitions**:
   - An article extract is mapped exactly to `LexicalMeaning.Definition`.
   - A definition is required for a `Success` status. If an article is returned but the extract is empty or whitespace, the result is treated as `NotFound` (`no-usable-content`).
 - **Translations**:

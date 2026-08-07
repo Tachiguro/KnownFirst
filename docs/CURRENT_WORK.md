@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-07 (Package C documentation reconciliation)
+2026-08-07 (Package C post-merge closure)
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Verified product-state milestone
 
-- Most recent product-relevant milestone commit: `f560a6b7ff9109bbee6c46602a002ea8b591de49` (Package B, PR #65 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Most recent product-relevant milestone commit: `db47de3bf48b49b5258ce16acc6e3e543d96143c` (Package C, PR #68 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android build, AAB, Internal Testing release, installation, or user test has occurred since.
 - Active database schema on master: SQLite `PRAGMA user_version` 9
@@ -39,18 +39,16 @@
 - **PR #63 — D5 Mechanical Markdown Hygiene.**
 - **PR #64 — D5 closure and Package B revalidation queued.**
 - **PR #65 — Package B (Schema-9 completed-review writer evidence):** genuine Schema-9 writer evidence and a narrow deterministic `BackupModelMapperV2` `ReviewSession` ordering correction; merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`.
+- **PR #68 — Package C (Schema-9 completed-review convergence):** convergence hardening, cross-installation canonical ordering, and two-installation synchronization; merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`.
 
 ## Currently active package
 
-**Schema-9 Completed-Review Convergence — Package C (convergence hardening) — implemented, reviewed, validated on a local branch; not committed, not pushed, not merged**
+No implementation package is currently active. Package C is complete and merged to `master` (PR #68).
 
-- Package A and Package B are merged and present on `master` (PR #52, PR #65). Package C is active local work on branch `feature/schema9-completed-review-convergence-v1`; `master` itself does not yet contain Package C.
-- A Package C `PLAN_ONLY` was approved by the user, scoping two proven canonical-output defects left open by Package B: (C-1) completed `ReviewSession` ordering falling through to the local `ReviewSession.Id` when two histories tie on every session-level field and differ only through candidate content, and (C-2) `SourceMaterial` ordering not total over distinct emitted documents.
-- `IMPLEMENT` was completed on the branch: `Services/DataSafety/BackupModelMapperV2.cs` and `Services/DataSafety/Merge/MergeWriterTargetIndex.cs` were modified; a new caller-neutral `Services/DataSafety/Merge/Schema9ReviewSessionRowIdentities.cs` helper was added; regression tests were added to `KnownFirst.Tests/BackupCreationTests.cs`, `KnownFirst.Tests/MergeWriterServiceTests.cs`, and `KnownFirst.Tests/PortableImportEndToEndConvergenceTests.cs`.
-- An independent `REVIEW_ONLY` pass found exactly one MINOR finding: the new `SourceMaterial` ordering covered scalar Document fields but not the emitted child subgraph (`Sentences`/`Occurrences`), leaving `sm-*`/`ss-*` bindings installation-dependent for source materials that tie on every scalar. A RED-first correction added a deterministic content-derived child-subgraph ordering key. An independent re-review returned **`PACKAGE C MINOR-1 CORRECTION REVIEW APPROVED`** — no BLOCKER, MAJOR, or MINOR findings remain.
-- `TEST_ONLY` validation passed on the branch: `BackupCreationTests` 50/0/0, merge planner/writer/identity scope (`MergeWriterServiceTests`/`MergePreflightPlannerTests`/`MergeWorkflowIdentityTests`/`MergePreflightServiceTests`) 157/0/0, archive/restore/Schema-9 compatibility scope (`BackupArchiveV2Tests`/`PortableRecoveryTests`/`BackupServiceImportRoutingTests`/`Schema8BackupRestoreTests`/`Schema9RuntimeCompatibilityTests`) 117/0/0, `PortableImportEndToEndConvergenceTests` 6/0/0, and the full `ALL_AUTOMATED` suite **1776 passed / 0 failed / 0 skipped** (the pre-Package-C `master` baseline was 1769/0/0; the delta is exactly the seven added Package-C tests).
-- **Package C remains entirely local: uncommitted, unpushed, without a PR, and unmerged.** No remote `feature/schema9-completed-review-convergence-v1` branch exists.
-- No GUI, device, platform, standalone-build, packaging, signing, publishing, or release evidence exists for Package C.
+- Package C passed final PR review, was manually merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`), and `POST_MERGE_SYNC_ONLY` completed successfully.
+- Final local automated evidence remains: `1776 passed / 0 failed / 0 skipped`.
+- No rendered-GUI, Windows runtime, Android/device, AOT/trimming, APK/AAB, signing, publishing, store, release, or newer external-distribution evidence was produced by Package C.
+- No archive DTO/format version, SQLite schema version/migration, public merge error/status contract, or release identity was changed by Package C.
 
 ## Current blocker or pending validation
 
@@ -59,13 +57,15 @@
 
 ## Exact next action
 
-- An independently authorized complete-diff `REVIEW_ONLY` of the full uncommitted Package C diff is the next repository action, before any `COMMIT_ONLY`. This document does not authorize that review; it records the expected next lifecycle gate.
+- No Package C lifecycle step remains.
+- No repository-writing next phase is automatically authorized.
+- The next planned product milestone is selected from `ROADMAP.md` and requires a separately authorized `PLAN_ONLY` before implementation. (ROADMAP milestone 14 is the next planned milestone).
 
 ## Concise new-chat handoff
 
-- Most recent recorded product-relevant milestone on `master`: `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65, Package B merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Most recent recorded product-relevant milestone on `master`: `db47de3bf48b49b5258ce16acc6e3e543d96143c` (PR #68, Package C merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
-- D1-D5 documentation reconciliation is complete. Package A and Package B are merged and complete on master.
-- Package C (convergence hardening) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0) on local branch `feature/schema9-completed-review-convergence-v1`. It remains uncommitted, unpushed, and unmerged — `master` does not yet contain it.
+- D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are merged and complete on master.
+- Package C was implemented, MINOR-1 corrected, independently reviewed, `TEST_ONLY`-validated (1776/0/0 local automated evidence), passed final PR review, and manually merged via PR #68. `POST_MERGE_SYNC_ONLY` completed successfully.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

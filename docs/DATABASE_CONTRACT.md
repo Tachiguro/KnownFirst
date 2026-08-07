@@ -190,7 +190,14 @@ policies. Failure and cancellation roll back completely. See `MergePreflightPlan
 `MergeWriterService`, and `MergeWriterExecutor`. Archive-v1 upgrades in memory
 for Schema-9 targets; archive-v2 into Schema 7 is rejected.
 
-This general populated-target merge support is established. Package B (writer evidence for divergent completed Schema-9 review histories) is merged on `master`: divergent completed `ReviewSession` rows for one Document coexist correctly, exact duplicates are skipped, and reimport of an already-merged history converges to no change. A cross-installation canonical-ordering hardening pass (Package C: `sm-*`/`ss-*` and `vr-*`/`rc-*` archive-local id assignment independent of local SQLite row/enumeration order for the affected `SourceMaterial` and completed-`ReviewSession` subgraphs, plus focused two-installation convergence and repeated-exchange evidence) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated on local branch `feature/schema9-completed-review-convergence-v1`; it is not yet committed, pushed, or merged, and is therefore not yet part of this contract's binding `master` behavior. Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive under Schema 9; repeated merge converges/no-changes.
+This general populated-target merge support is established. Package B (writer evidence for divergent completed Schema-9 review histories) is merged on `master`: divergent completed `ReviewSession` rows for one Document coexist correctly, exact duplicates are skipped, and reimport of an already-merged history converges to no change.
+
+Package C (cross-installation canonical-ordering hardening) is merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`) and is now binding master behavior. For the affected v2 export subgraphs:
+- `SourceMaterial` archive-local `sm-*` / `ss-*` assignment is hardened against relevant cross-installation local-row/enumeration differences;
+- completed `ReviewSession` `vr-*` / `rc-*` assignment is hardened against the reviewed tied-session/candidate-history case;
+- focused two-installation convergence and repeated-exchange evidence exists.
+
+Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive under Schema 9; repeated merge converges/no-changes. This does not claim universal whole-archive byte equality.
 
 Synchronization and cloud formats do not exist.
 

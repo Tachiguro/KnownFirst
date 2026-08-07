@@ -1531,4 +1531,158 @@ public class BackupCreationTests
                 "One exported review workflow must never contain two items for the same vocabulary id.");
         }
     }
+
+    // ---- Package B: canonical v2 output for two completed review sessions over one document.
+    //
+    // Schema 9 replaced the legacy unique ReviewSessions(DocumentId) index with a non-unique index plus a
+    // partial unique index restricted to Active sessions, so two independently completed review histories
+    // for one document are a representable state for the first time. The v2 mapper must therefore order
+    // review sessions by a total key; the two sessions below are deliberately equal on every field the
+    // ordering considered before this package (Status, TotalCandidates, ReviewedCount, DecisionSequence,
+    // StartedAt) and differ only in the retained outcome counters and CompletedAt — exactly the fields the
+    // Schema-9 full-history session identity uses to tell two completed histories apart. ----
+    [TestMethod]
+    public void CreateBackup_CollidingCompletedReviewSessionSortKeys_ProducesCanonicalOutput()
+    {
+        const string content = "The bank is open.";
+        var document = new DocumentEntity
+        {
+            Id = 1,
+            Title = "Review history document",
+            TextLanguage = "en",
+            ExplanationLanguage = "de",
+            LookupMode = KnownFirst.Core.Preparation.LexicalLookupMode.Definition,
+            Content = content,
+            ContentFingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(content))).ToLowerInvariant(),
+            ImportedAt = new DateTime(2026, 2, 1, 8, 0, 0, DateTimeKind.Utc),
+            WordCount = 4
+        };
+
+        var bank = NewCanonicalOrderingWord(1, "bank", KnownFirst.Models.WordStatus.Known);
+        var river = NewCanonicalOrderingWord(2, "river", KnownFirst.Models.WordStatus.UnknownBacklog);
+
+        var startedAtUtc = new DateTime(2026, 2, 1, 9, 0, 0, DateTimeKind.Utc);
+
+        // Equal on every pre-existing v2 ordering input; genuinely distinct histories.
+        var sessionA = NewCompletedReviewSession(
+            id: 10, documentId: document.Id, startedAtUtc: startedAtUtc,
+            completedAtUtc: startedAtUtc.AddMinutes(30), knownCount: 2, unknownCount: 0, ignoredCount: 0);
+        var sessionB = NewCompletedReviewSession(
+            id: 20, documentId: document.Id, startedAtUtc: startedAtUtc,
+            completedAtUtc: startedAtUtc.AddMinutes(45), knownCount: 0, unknownCount: 2, ignoredCount: 0);
+
+        var candidatesA = NewReviewCandidates(sessionA.Id, baseId: 100, bank.Id, river.Id, startedAtUtc);
+        var candidatesB = NewReviewCandidates(sessionB.Id, baseId: 200, bank.Id, river.Id, startedAtUtc);
+
+        var snapshot1 = NewCanonicalOrderingSnapshot(
+            document, [bank, river],
+            [sessionA, sessionB],
+            [.. candidatesA, .. candidatesB]);
+        var snapshot2 = NewCanonicalOrderingSnapshot(
+            document, [river, bank],
+            [sessionB, sessionA],
+            [.. candidatesB, .. candidatesA]);
+
+        var payload1 = BackupModelMapperV2.MapToExternal(snapshot1);
+        var payload2 = BackupModelMapperV2.MapToExternal(snapshot2);
+
+        // Localizes the defect to the review-session ordering itself: every other collection in this
+        // snapshot already has a total ordering key, so only these two sessions can swap positions.
+        CollectionAssert.AreEqual(
+            payload1.Workflows.VocabularyReviews
+                .Select(workflow => (workflow.Id, workflow.KnownCount, workflow.UnknownCount, workflow.CompletedAtUtc)).ToList(),
+            payload2.Workflows.VocabularyReviews
+                .Select(workflow => (workflow.Id, workflow.KnownCount, workflow.UnknownCount, workflow.CompletedAtUtc)).ToList(),
+            "The v2 review-session ordering must assign the same archive-local id to the same completed history "
+            + "regardless of raw row enumeration order.");
+
+        var bytes1 = BackupJsonCodecV2.SerializeData(payload1);
+        var bytes2 = BackupJsonCodecV2.SerializeData(payload2);
+
+        Assert.IsTrue(
+            bytes1.AsSpan().SequenceEqual(bytes2.AsSpan()),
+            "Two completed review sessions for one document that collide on the v2 sort key must still map to "
+            + "byte-identical canonical output regardless of raw row enumeration order.");
+    }
+
+    private static WordEntity NewCanonicalOrderingWord(int id, string term, KnownFirst.Models.WordStatus status) => new()
+    {
+        Id = id,
+        Language = "en",
+        CanonicalTerm = term,
+        NormalizedTerm = term,
+        Status = status,
+        TokenKind = KnownFirst.Core.Text.TokenKind.Word,
+        PreparationState = KnownFirst.Core.Preparation.PreparationState.Unprepared,
+        CreatedAt = new DateTime(2026, 2, 1, 8, 0, 0, DateTimeKind.Utc),
+        UpdatedAt = new DateTime(2026, 2, 1, 8, 0, 0, DateTimeKind.Utc)
+    };
+
+    private static ReviewSessionEntity NewCompletedReviewSession(
+        int id, int documentId, DateTime startedAtUtc, DateTime completedAtUtc,
+        int knownCount, int unknownCount, int ignoredCount) => new()
+        {
+            Id = id,
+            DocumentId = documentId,
+            Status = KnownFirst.Models.ReviewSessionStatus.Completed,
+            TotalCandidates = 2,
+            ReviewedCount = 2,
+            KnownCount = knownCount,
+            UnknownCount = unknownCount,
+            IgnoredCount = ignoredCount,
+            DecisionSequence = 2,
+            StartedAt = startedAtUtc,
+            CompletedAt = completedAtUtc
+        };
+
+    private static ReviewCandidateEntity[] NewReviewCandidates(
+        int sessionId, int baseId, int firstWordId, int secondWordId, DateTime startedAtUtc) =>
+    [
+        NewReviewCandidate(baseId, sessionId, firstWordId, order: 0, startedAtUtc),
+        NewReviewCandidate(baseId + 1, sessionId, secondWordId, order: 1, startedAtUtc)
+    ];
+
+    private static ReviewCandidateEntity NewReviewCandidate(
+        int id, int sessionId, int wordId, int order, DateTime startedAtUtc) => new()
+        {
+            Id = id,
+            SessionId = sessionId,
+            WordId = wordId,
+            Order = order,
+            Status = KnownFirst.Models.WordStatus.Known,
+            PreviousWordStatus = KnownFirst.Models.WordStatus.Unreviewed,
+            PreviousTotalOccurrenceCount = 0,
+            PreviousDocumentCount = 0,
+            PreviousUpdatedAt = startedAtUtc,
+            DecisionSequence = order + 1,
+            WasWordCreatedForSession = false,
+            DecidedAt = startedAtUtc.AddMinutes(order + 1)
+        };
+
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewCanonicalOrderingSnapshot(
+        DocumentEntity document,
+        IReadOnlyList<WordEntity> words,
+        IReadOnlyList<ReviewSessionEntity> reviewSessions,
+        IReadOnlyList<ReviewCandidateEntity> reviewCandidates) => new(
+            [document],
+            words,
+            [],
+            [],
+            [],
+            [],
+            [],
+            reviewSessions,
+            reviewCandidates,
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            []);
 }

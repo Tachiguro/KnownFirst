@@ -1,7 +1,7 @@
 # KnownFirst project state
 
 **Status date:** 2026-08-07
-**State source:** `master` (`f560a6b7ff9109bbee6c46602a002ea8b591de49`, PR #65 merge commit)
+**State source:** most recent product-relevant milestone — `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65 merge commit, Package B). This is historical milestone evidence, not the literal current `master` HEAD; the exact current `master` HEAD and PR state are live GitHub/Git facts discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 **Next repository action:** A separately authorized Package C `PLAN_ONLY`. Package B implementation, independent review, and automated validation (`ALL_AUTOMATED` 1769/0/0) are complete on commit `d00144cd8789f5392c9fb695dac8856f992c2200` and merged via PR #65 (`fix: complete schema 9 completed-review package B`, merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`) — `master` now carries the Package B change, and `POST_MERGE_SYNC_ONLY` completed successfully. Package C remains future work and is not started; it is no longer gated by the completed Package-B merge/post-merge-sync event.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
@@ -98,7 +98,7 @@ The `master` branch includes the following merged technical foundations:
 **Current Status (master):**
 - The active database schema is **9** (`PRAGMA user_version = 9`).
 - Schema 9 is active during normal application initialization on master.
-- PR #65 is the most recent merge. D1-D5 documentation reconciliation is complete.
+- Package B was merged via PR #65. D1-D5 documentation reconciliation is complete.
 - Package A and Package B are merged to master. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
 - Package B (writer evidence) is implemented, independently reviewed (approved), validated, and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`) — see "Active development" below for its technical evidence. It is part of this `master` snapshot. Package C remains future work and is not started.
 
@@ -146,7 +146,7 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
+The most recent recorded product-relevant milestone on `master` is `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65, Package B merged), carrying source version `1.0.0-beta.12` (build 12). This is historical milestone evidence, not a claim about the literal current `master` HEAD. `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
 D1-D5 documentation reconciliation is complete. No product implementation is currently active on `master`; Package A and Package B are both merged. Package C remains future work and is not started; its next lifecycle step is a separately authorized Package C `PLAN_ONLY`. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 

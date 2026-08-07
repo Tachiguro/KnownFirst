@@ -1,8 +1,8 @@
 # KnownFirst project state
 
 **Status date:** 2026-08-07
-**State source:** most recent product-relevant milestone — `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65 merge commit, Package B). This is historical milestone evidence, not the literal current `master` HEAD; the exact current `master` HEAD and PR state are live GitHub/Git facts discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
-**Next repository action:** An independently authorized complete-diff `REVIEW_ONLY` of the full Package C diff, before any `COMMIT_ONLY`. Package B implementation, independent review, and automated validation (`ALL_AUTOMATED` 1769/0/0) are complete on commit `d00144cd8789f5392c9fb695dac8856f992c2200` and merged via PR #65 (`fix: complete schema 9 completed-review package B`, merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`) — `master` now carries the Package B change, and `POST_MERGE_SYNC_ONLY` completed successfully. Package C (convergence hardening) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0) on local branch `feature/schema9-completed-review-convergence-v1`; it remains uncommitted, unpushed, and unmerged, so it is **not** part of this `master` snapshot.
+**State source:** most recent product-relevant milestone — `db47de3bf48b49b5258ce16acc6e3e543d96143c` (PR #68 merge commit, Package C). This is historical milestone evidence, not the literal current `master` HEAD; the exact current `master` HEAD and PR state are live GitHub/Git facts discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Next repository action:** The next planned product milestone is selected from ROADMAP and requires a separately authorized `PLAN_ONLY` before implementation. Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0), passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`) — `master` now carries the Package C change, and `POST_MERGE_SYNC_ONLY` completed successfully.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -52,6 +52,8 @@ The current product source implements:
 - Android portable export stages and strictly validates the archive before opening the destination picker; invalid or failed staging never acquires or writes the destination (PR #50).
 - Schema-9 review-session history storage capability (PR #51).
 - Package A (Schema-9 completed-review convergence): identity, planner, target-index parity, and characterization coverage (PR #52).
+- Package B (Schema-9 completed-review writer evidence): genuine Schema-9 writer evidence and deterministic mapper reordering (PR #65).
+- Package C (Schema-9 completed-review convergence hardening): cross-installation canonical ordering for completed `ReviewSession` and `SourceMaterial` subgraphs, and two-installation synchronization (PR #68).
 
 ## Merged development foundations
 
@@ -82,6 +84,7 @@ The `master` branch includes the following merged technical foundations:
 - **Schema-9 review-session history storage activation (PR #51).**
 - **Package A (Schema-9 completed-review convergence) (PR #52):** identity, planner, target-index parity, and characterization coverage.
 - **Package B (Schema-9 completed-review writer evidence) (PR #65):** genuine Schema-9 writer evidence and a narrow deterministic `BackupModelMapperV2` `ReviewSession` ordering correction; no executable `MergeWriterExecutor` rewrite; no archive DTO/format, schema/migration, or public error-code expansion.
+- **Package C (Schema-9 completed-review convergence hardening) (PR #68):** completed-ReviewSession cross-installation canonical ordering for the affected Schema-9 subgraph; SourceMaterial scalar + child-subgraph canonical ordering; focused two-installation convergence and repeated-exchange evidence.
 - **D1 authoritative documentation reconciliation (PR #53).**
 - **D1 closure and D2 activation (PR #54).**
 - **D2 Agent Communication and Operation Governance (PR #55).**
@@ -98,9 +101,9 @@ The `master` branch includes the following merged technical foundations:
 **Current Status (master):**
 - The active database schema is **9** (`PRAGMA user_version = 9`).
 - Schema 9 is active during normal application initialization on master.
-- Package B was merged via PR #65. D1-D5 documentation reconciliation is complete.
-- Package A and Package B are merged to master. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
-- Package B (writer evidence) is implemented, independently reviewed (approved), validated, and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`) — see "Active development" below for its technical evidence. It is part of this `master` snapshot. Package C (convergence hardening) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated on local branch `feature/schema9-completed-review-convergence-v1`; it is not yet committed, pushed, or merged, and is therefore not part of this `master` snapshot.
+- Package C was merged via PR #68. D1-D5 documentation reconciliation is complete.
+- Package A, Package B, and Package C are merged to master. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
+- Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`) — see "Active development" below for its technical evidence. It is part of this `master` snapshot.
 
 ## Confirmed verification
 
@@ -146,9 +149,9 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The most recent recorded product-relevant milestone on `master` is `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65, Package B merged), carrying source version `1.0.0-beta.12` (build 12). This is historical milestone evidence, not a claim about the literal current `master` HEAD. `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
+The most recent recorded product-relevant milestone on `master` is `db47de3bf48b49b5258ce16acc6e3e543d96143c` (PR #68, Package C merged), carrying source version `1.0.0-beta.12` (build 12). This is historical milestone evidence, not a claim about the literal current `master` HEAD. `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
-D1-D5 documentation reconciliation is complete. Package A and Package B are both merged and present on `master`. Package C (convergence hardening) is active local work, implemented, independently reviewed and corrected, and `TEST_ONLY`-validated on branch `feature/schema9-completed-review-convergence-v1` — it is documented below for traceability but is **not** part of this `master` snapshot until committed, pushed, and merged. Its next lifecycle step is an independently authorized complete-diff `REVIEW_ONLY`, before any `COMMIT_ONLY`. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are all merged and present on `master`. No implementation package is currently active. Package C (convergence hardening) was implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and manually merged via PR #68 — it is documented below for traceability. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
 **Schema-9 Completed-Review Convergence — Package B (merged via PR #65).** Implemented, independently reviewed, validated, and merged, on the former branch `feature/schema9-completed-review-writer-evidence-v1`, published as commit `d00144cd8789f5392c9fb695dac8856f992c2200` and merged via PR #65 (`fix: complete schema 9 completed-review package B`, merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`):
 
@@ -158,9 +161,9 @@ D1-D5 documentation reconciliation is complete. Package A and Package B are both
 - A final pre-commit complete-diff review of the published commit returned **`PACKAGE B FINAL REVIEW APPROVED`**. A review of PR #65 identified exactly one documentation-currentness finding and no code/test finding; the branch documentation addressed that finding.
 - No GUI, device, build, APK/AAB, packaging, signing, publishing, or release evidence exists for this work.
 - **The repository owner merged PR #65 manually; merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49` is part of this `master` snapshot. `POST_MERGE_SYNC_ONLY` completed successfully.**
-- Package C (convergence hardening, two-installation synchronization) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated on the local branch — see below; it is not yet merged.
+- Package C (convergence hardening, two-installation synchronization) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and merged via PR #68.
 
-**Schema-9 Completed-Review Convergence — Package C (convergence hardening) — local branch `feature/schema9-completed-review-convergence-v1`, not merged.** Implemented, independently reviewed and corrected, and `TEST_ONLY`-validated; **uncommitted, unpushed, without a PR, and not part of `master`**:
+**Schema-9 Completed-Review Convergence — Package C (convergence hardening) — merged via PR #68.** Implemented, independently reviewed and corrected, `TEST_ONLY`-validated, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`):
 
 - `PLAN_ONLY` was approved, scoping two proven canonical-output defects Package B left open. **C-1 (completed `ReviewSession` ordering):** `BackupModelMapperV2` reuses the existing Schema-9 full-history identity from `ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2` — no second, competing completed-review identity was defined. Raw-row identity plumbing is shared through a new caller-neutral `Schema9ReviewSessionRowIdentities` helper; `MergeWriterTargetIndex` retains its existing fail-closed duplicate-identity behavior unchanged. Mapper ordering now continues past the session-level fields with the full identity and a content-derived candidate-content key (covering absolute candidate `Order` and every emitted item field, which the identity itself deliberately omits); a malformed duplicate-candidate session receives a deterministic content-derived fallback key rather than a shared sentinel. The local `ReviewSession.Id` comparison remains syntactically present as a final tie-break, but is proven output-neutral: it is reached only after every field two sessions could emit differently already compares equal, so which physical row is used cannot change any emitted content. Local SQLite row ids remain outside semantic identity.
 - **C-2 (SourceMaterial ordering):** the review also found that the existing `(ContentFingerprint, Title)` v2 ordering was not total over distinct emitted `SourceMaterial` rows. Ordering now compares the retained scalar `SourceMaterial` output plus a deterministic content-derived child-subgraph key covering emitted `Sentence`/`Occurrence` content, including the emitted vocabulary reference and sentence-reference semantics; no Document/SentenceSpan/WordOccurrence/Word local SQLite id participates as ordering content. An independent review found this addition itself initially covered only the scalar fields (MINOR-1); a RED-first correction closed the child-subgraph gap and an independent re-review returned **`PACKAGE C MINOR-1 CORRECTION REVIEW APPROVED`** with no BLOCKER/MAJOR/MINOR findings remaining.
@@ -168,7 +171,7 @@ D1-D5 documentation reconciliation is complete. Package A and Package B are both
 - No archive DTO, `.kfarchive` format version, database schema, migration, or public error/status code changed. No executable `MergeWriterExecutor` redesign was required.
 - `TEST_ONLY` validation on the branch: `BackupCreationTests` 50/0/0 (including the four C-1/C-2 mapper tests), merge planner/writer/identity scope 157/0/0, archive/restore/Schema-9 compatibility scope 117/0/0, `PortableImportEndToEndConvergenceTests` 6/0/0, and the full `ALL_AUTOMATED` suite **1776 passed / 0 failed / 0 skipped**.
 - No GUI, device, platform, standalone-build, packaging, signing, publishing, or release evidence exists for this work.
-- **Package C is not committed, not pushed, has no PR, and is not merged.** Its next lifecycle step is an independently authorized complete-diff `REVIEW_ONLY`, before any `COMMIT_ONLY`.
+- **The repository owner merged PR #68 manually; merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c` is part of this `master` snapshot. `POST_MERGE_SYNC_ONLY` completed successfully.** Final PR review was `PACKAGE C PR REVIEW APPROVED` with no BLOCKER, MAJOR, or MINOR findings.
 
 **KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 
@@ -186,7 +189,7 @@ D1-D5 documentation reconciliation is complete. Package A and Package B are both
 
 **Subsequent correctness and data-safety fixes (merged PRs #46-#50)** — see "Production capabilities" and "Merged development foundations" above.
 
-**Schema-9 Completed-Review Convergence (merged PRs #51-#52, #65)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52); Package B (writer evidence) merged via PR #65 (see "Active development" above). Package C (convergence hardening) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated on local branch `feature/schema9-completed-review-convergence-v1` (see above); it is not yet merged.
+**Schema-9 Completed-Review Convergence (merged PRs #51-#52, #65, #68)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52); Package B (writer evidence) merged via PR #65. Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and manually merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`).
 
 **D1 Authoritative State and Database Truth (merged PR #53)** — reconciled repository baseline, roadmap, and changelog context.
 

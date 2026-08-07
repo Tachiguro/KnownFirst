@@ -190,7 +190,7 @@ policies. Failure and cancellation roll back completely. See `MergePreflightPlan
 `MergeWriterService`, and `MergeWriterExecutor`. Archive-v1 upgrades in memory
 for Schema-9 targets; archive-v2 into Schema 7 is rejected.
 
-This general populated-target merge support is established, but the unfinished Package-B writer evidence for divergent completed Schema-9 review histories remains pending. Complete Package-B convergence is not claimed.
+This general populated-target merge support is established. Package B (writer evidence for divergent completed Schema-9 review histories) is merged on `master`: divergent completed `ReviewSession` rows for one Document coexist correctly, exact duplicates are skipped, and reimport of an already-merged history converges to no change. A cross-installation canonical-ordering hardening pass (Package C: `sm-*`/`ss-*` and `vr-*`/`rc-*` archive-local id assignment independent of local SQLite row/enumeration order for the affected `SourceMaterial` and completed-`ReviewSession` subgraphs, plus focused two-installation convergence and repeated-exchange evidence) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated on local branch `feature/schema9-completed-review-convergence-v1`; it is not yet committed, pushed, or merged, and is therefore not yet part of this contract's binding `master` behavior. Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive under Schema 9; repeated merge converges/no-changes.
 
 Synchronization and cloud formats do not exist.
 

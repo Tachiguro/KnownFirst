@@ -1606,6 +1606,466 @@ public class BackupCreationTests
             + "byte-identical canonical output regardless of raw row enumeration order.");
     }
 
+    // ---- Package C: cross-installation canonical output for two completed review histories that tie on
+    // every session-level mapper sort field and differ only through candidate-decision content.
+    //
+    // Package B proved that the v2 review-session ordering is independent of raw row enumeration order for
+    // two sessions whose session-level fields differ, and deliberately left one boundary open: when two
+    // completed histories tie on every session-level field the mapper orders by, the key falls through to the
+    // installation-local ReviewSession.Id. Two independently created installations can assign the opposite
+    // local ids to the same two histories, so the same synthetic vr-*/rc-* ids bind to different completed
+    // histories and the canonical payload stops being a pure function of exported content.
+    //
+    // The fixture deliberately contains no Sense/Meaning/AnswerVariant/Assignment rows. Those carry
+    // Guid.NewGuid()-generated StableId values that are installation-random by design, so serialized byte
+    // equality is a legitimate oracle only for a subgraph that excludes them. ----
+    [TestMethod]
+    public void CreateBackupV2_TwoInstallationsWithOppositeRowIds_CollidingCompletedReviewSessionFields_ProduceIdenticalCanonicalOutput()
+    {
+        var installationA = NewCollidingReviewHistoryInstallation(
+            documentId: 1, bankWordId: 1, riverWordId: 2,
+            bankKnownSessionId: 10, riverKnownSessionId: 20,
+            bankKnownCandidateBaseId: 100, riverKnownCandidateBaseId: 200);
+
+        // Same logical content, independently created: every local row id differs, and the two completed
+        // histories carry the opposite ReviewSession ids — and therefore the opposite raw enumeration order.
+        var installationB = NewCollidingReviewHistoryInstallation(
+            documentId: 7, bankWordId: 42, riverWordId: 41,
+            bankKnownSessionId: 20, riverKnownSessionId: 10,
+            bankKnownCandidateBaseId: 500, riverKnownCandidateBaseId: 400);
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, CanonicalReviewSubgraphProjection(payloadA)),
+            string.Join(Environment.NewLine, CanonicalReviewSubgraphProjection(payloadB)),
+            "Two installations holding the same two completed review histories must bind the same archive-local "
+            + "vr-*/rc-* ids to the same history, regardless of which local row id each installation assigned.");
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Two installations whose completed review histories tie on every session-level field and differ "
+            + "only through candidate content must still produce byte-identical canonical v2 output.");
+    }
+
+    // ---- Package C hardening: the v2 review-session ordering still ends with a local row-id comparison as a
+    // syntactic total-order guarantee. This proves that comparison is output-neutral: two sessions that are
+    // indistinguishable in every emitted field — same full Schema-9 identity AND the same absolute candidate
+    // orders and decision content, the only residual the identity itself does not encode — produce identical
+    // canonical output whichever local row id each one carries. (Two wholly identical full-history identities
+    // are rejected downstream by the merge planner and MergeWriterTargetIndex; the mapper's own job is only to
+    // stay total and deterministic, which is what this test pins.) ----
+    [TestMethod]
+    public void CreateBackupV2_TwoIndistinguishableCompletedReviewSessions_RemainByteIdenticalUnderAnyRowIdAssignment()
+    {
+        var installationA = NewIndistinguishableReviewHistoryInstallation(
+            firstSessionId: 10, secondSessionId: 20, firstCandidateBaseId: 100, secondCandidateBaseId: 200);
+        var installationB = NewIndistinguishableReviewHistoryInstallation(
+            firstSessionId: 20, secondSessionId: 10, firstCandidateBaseId: 200, secondCandidateBaseId: 100);
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+
+        Assert.HasCount(2, payloadA.Workflows.VocabularyReviews);
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Reaching the final local row-id comparison must not be observable: sessions that tie on the full "
+            + "Schema-9 identity and on their emitted candidate rows are byte-identical either way round.");
+    }
+
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewIndistinguishableReviewHistoryInstallation(
+        int firstSessionId, int secondSessionId, int firstCandidateBaseId, int secondCandidateBaseId)
+    {
+        var document = NewCollidingHistoryDocument(1);
+        var bank = NewCanonicalOrderingWord(1, "bank", KnownFirst.Models.WordStatus.Known);
+        var river = NewCanonicalOrderingWord(2, "river", KnownFirst.Models.WordStatus.UnknownBacklog);
+
+        var first = NewCompletedReviewSession(
+            id: firstSessionId, documentId: document.Id,
+            startedAtUtc: CollidingHistoryStartedAtUtc, completedAtUtc: CollidingHistoryCompletedAtUtc,
+            knownCount: 1, unknownCount: 1, ignoredCount: 0);
+        var second = NewCompletedReviewSession(
+            id: secondSessionId, documentId: document.Id,
+            startedAtUtc: CollidingHistoryStartedAtUtc, completedAtUtc: CollidingHistoryCompletedAtUtc,
+            knownCount: 1, unknownCount: 1, ignoredCount: 0);
+
+        // Identical candidate content, identical absolute Order values: nothing but the row id is left.
+        ReviewCandidateEntity[] candidates =
+        [
+            NewDecidedReviewCandidate(firstCandidateBaseId, first.Id, bank.Id, 0, KnownFirst.Models.WordStatus.Known),
+            NewDecidedReviewCandidate(firstCandidateBaseId + 1, first.Id, river.Id, 1, KnownFirst.Models.WordStatus.UnknownBacklog),
+            NewDecidedReviewCandidate(secondCandidateBaseId, second.Id, bank.Id, 0, KnownFirst.Models.WordStatus.Known),
+            NewDecidedReviewCandidate(secondCandidateBaseId + 1, second.Id, river.Id, 1, KnownFirst.Models.WordStatus.UnknownBacklog)
+        ];
+
+        return NewCanonicalOrderingSnapshot(
+            document,
+            [bank, river],
+            new[] { first, second }.OrderBy(session => session.Id).ToList(),
+            candidates.OrderBy(candidate => candidate.Id).ToList());
+    }
+
+    // ---- Package C: cross-installation canonical output for distinct source materials that collide on the
+    // v2 mapper's (ContentFingerprint, Title) key.
+    //
+    // Title is deliberately excluded from SourceMaterialIdentityPolicy (free text typed at import time) and
+    // the archive writer enforces no semantic uniqueness for source materials, so byte-identical content
+    // imported under a different TextLanguage — or, after a merge, under a different LookupMode/TargetLanguage
+    // — is a valid distinct document that ties on the whole current v2 key. The shipped v1 mapper already
+    // orders documents by every retained field before its own id fallback; the v2 mapper does not, so the
+    // positional sm-* ids (and therefore every ss-*/vr-*/rc-* id derived from them) depend on local row
+    // order. ----
+    [TestMethod]
+    public void CreateBackupV2_TwoInstallationsWithOppositeRowIds_CollidingSourceMaterialSortKeys_ProduceIdenticalCanonicalOutput()
+    {
+        var installationA = NewCollidingSourceMaterialInstallation(
+            englishDocumentId: 1, germanDocumentId: 2, translationDocumentId: 3);
+
+        // Same three logical documents, independently created, with the opposite local row ids and therefore
+        // the opposite raw enumeration order.
+        var installationB = NewCollidingSourceMaterialInstallation(
+            englishDocumentId: 30, germanDocumentId: 20, translationDocumentId: 10);
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, CanonicalSourceMaterialProjection(payloadA)),
+            string.Join(Environment.NewLine, CanonicalSourceMaterialProjection(payloadB)),
+            "Two installations holding the same distinct source materials must bind the same archive-local "
+            + "sm-* id to the same document, regardless of which local row id each installation assigned.");
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Distinct source materials that collide on (ContentFingerprint, Title) must still produce "
+            + "byte-identical canonical v2 output across installations.");
+    }
+
+    /// <summary>
+    /// Three genuinely distinct documents sharing byte-identical content and the same user-typed title, so
+    /// all three tie on the whole current v2 SourceMaterial ordering key while differing in retained logical
+    /// fields: TextLanguage (locally reachable — the live duplicate check is (ContentFingerprint,
+    /// TextLanguage)) and LookupMode/TargetLanguage (merge-reachable — design §4.1's PC/phone case).
+    /// </summary>
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewCollidingSourceMaterialInstallation(
+        int englishDocumentId, int germanDocumentId, int translationDocumentId)
+    {
+        var english = NewCollidingSourceMaterialDocument(
+            englishDocumentId, "en", "de",
+            KnownFirst.Core.Preparation.LexicalLookupMode.Definition, string.Empty);
+        var german = NewCollidingSourceMaterialDocument(
+            germanDocumentId, "de", "en",
+            KnownFirst.Core.Preparation.LexicalLookupMode.Definition, string.Empty);
+        var translation = NewCollidingSourceMaterialDocument(
+            translationDocumentId, "en", "de",
+            KnownFirst.Core.Preparation.LexicalLookupMode.DefinitionAndTranslation, "ru");
+
+        return NewSourceMaterialOrderingSnapshot(
+            new[] { english, german, translation }.OrderBy(document => document.Id).ToList());
+    }
+
+    private static DocumentEntity NewCollidingSourceMaterialDocument(
+        int id, string textLanguage, string explanationLanguage,
+        KnownFirst.Core.Preparation.LexicalLookupMode lookupMode, string targetLanguage) => new()
+        {
+            Id = id,
+            Title = "Same title",
+            TextLanguage = textLanguage,
+            ExplanationLanguage = explanationLanguage,
+            LookupMode = lookupMode,
+            TargetLanguage = targetLanguage,
+            Content = CollidingHistoryContent,
+            ContentFingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(CollidingHistoryContent))).ToLowerInvariant(),
+            ImportedAt = CollidingHistoryImportedAtUtc,
+            WordCount = 7
+        };
+
+    // ---- Package C MINOR-1: two source materials can be equal on every scalar the v2 ordering compares and
+    // still emit different child subgraphs. MapSourceMaterial selects Sentences and Occurrences through the
+    // local DocumentId foreign key, and neither collection's content participates in the document ordering
+    // key, so the positional sm-* ids — and every ss-* id derived from them — fell back to raw snapshot
+    // enumeration order for exactly this shape. The fixture below carries no Sense/Meaning/AnswerVariant/
+    // Assignment rows, so serialized byte equality remains a legitimate oracle. ----
+    [TestMethod]
+    public void CreateBackupV2_TwoInstallationsWithOppositeRowIds_ScalarIdenticalSourceMaterialsWithDifferentChildGraphs_ProduceIdenticalCanonicalOutput()
+    {
+        var installationA = NewScalarIdenticalChildGraphInstallation(
+            bankDocumentId: 1, riverDocumentId: 2, bankWordId: 1, riverWordId: 2);
+
+        // Same two logical documents, independently created: the opposite local Document row ids, therefore
+        // the opposite raw enumeration order, and different dependent child row ids.
+        var installationB = NewScalarIdenticalChildGraphInstallation(
+            bankDocumentId: 20, riverDocumentId: 10, bankWordId: 42, riverWordId: 41);
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+
+        Assert.HasCount(2, payloadA.SourceMaterials);
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, CanonicalSourceMaterialChildProjection(payloadA)),
+            string.Join(Environment.NewLine, CanonicalSourceMaterialChildProjection(payloadB)),
+            "Two source materials that tie on every scalar ordering component must still bind the same "
+            + "archive-local sm-* id — and the same dependent ss-* references — to the same child subgraph, "
+            + "regardless of which local row id each installation assigned.");
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Scalar-identical source materials whose child subgraphs differ must still produce byte-identical "
+            + "canonical v2 output across installations.");
+    }
+
+    /// <summary>
+    /// Two documents identical on every scalar the v2 SourceMaterial ordering compares (ContentFingerprint,
+    /// Title, TextLanguage, ExplanationLanguage, LookupMode, canonical TargetLanguage, Content, WordCount and
+    /// UTC-normalized ImportedAt — all supplied by the shared <see cref="NewCollidingHistoryDocument"/>), and
+    /// differing only in their exported child subgraph: one carries a single sentence spanning the whole text
+    /// with a "bank" occurrence, the other splits the same text into two sentences and carries a "river"
+    /// occurrence in the second. Every span is a valid, in-bounds range whose surface form is the exact
+    /// original substring, and each document's sentence and occurrence <c>Order</c> values are unique, so the
+    /// emitted child ordering is itself total.
+    /// </summary>
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewScalarIdenticalChildGraphInstallation(
+        int bankDocumentId, int riverDocumentId, int bankWordId, int riverWordId)
+    {
+        var bankDocument = NewCollidingHistoryDocument(bankDocumentId);
+        var riverDocument = NewCollidingHistoryDocument(riverDocumentId);
+        var bank = NewCanonicalOrderingWord(bankWordId, "bank", KnownFirst.Models.WordStatus.Known);
+        var river = NewCanonicalOrderingWord(riverWordId, "river", KnownFirst.Models.WordStatus.UnknownBacklog);
+
+        var wholeTextLength = CollidingHistoryContent.Length;
+        var halfTextLength = wholeTextLength / 2;
+
+        var bankSentence = NewChildGraphSentence(
+            id: bankDocumentId * 100 + 1, documentId: bankDocument.Id, order: 0, start: 0, length: wholeTextLength);
+        var bankOccurrence = NewChildGraphOccurrence(
+            id: bankDocumentId * 100 + 11, documentId: bankDocument.Id, sentenceSpanId: bankSentence.Id,
+            wordId: bank.Id, order: 0, start: BankSurfaceFormStart, length: BankSurfaceForm.Length,
+            surfaceForm: BankSurfaceForm);
+
+        var riverFirstSentence = NewChildGraphSentence(
+            id: riverDocumentId * 100 + 1, documentId: riverDocument.Id, order: 0, start: 0, length: halfTextLength);
+        var riverSecondSentence = NewChildGraphSentence(
+            id: riverDocumentId * 100 + 2, documentId: riverDocument.Id, order: 1,
+            start: halfTextLength, length: wholeTextLength - halfTextLength);
+        var riverOccurrence = NewChildGraphOccurrence(
+            id: riverDocumentId * 100 + 11, documentId: riverDocument.Id, sentenceSpanId: riverSecondSentence.Id,
+            wordId: river.Id, order: 0, start: RiverSurfaceFormStart, length: RiverSurfaceForm.Length,
+            surfaceForm: RiverSurfaceForm);
+
+        // A raw Schema8BackupSnapshot capture reads unordered SELECTs, so row enumeration order follows the
+        // local rowids; ordering the fixture rows by id reproduces exactly that.
+        return NewChildGraphSnapshot(
+            new[] { bankDocument, riverDocument }.OrderBy(document => document.Id).ToList(),
+            new[] { bank, river }.OrderBy(word => word.Id).ToList(),
+            new[] { bankSentence, riverFirstSentence, riverSecondSentence }.OrderBy(sentence => sentence.Id).ToList(),
+            new[] { bankOccurrence, riverOccurrence }.OrderBy(occurrence => occurrence.Id).ToList());
+    }
+
+    private const string BankSurfaceForm = "bank";
+    private const int BankSurfaceFormStart = 4;
+    private const string RiverSurfaceForm = "river";
+    private const int RiverSurfaceFormStart = 26;
+
+    private static SentenceSpanEntity NewChildGraphSentence(
+        int id, int documentId, int order, int start, int length) => new()
+        {
+            Id = id,
+            DocumentId = documentId,
+            Order = order,
+            StartPosition = start,
+            Length = length
+        };
+
+    private static WordOccurrenceEntity NewChildGraphOccurrence(
+        int id, int documentId, int sentenceSpanId, int wordId, int order, int start, int length, string surfaceForm) => new()
+        {
+            Id = id,
+            DocumentId = documentId,
+            SentenceSpanId = sentenceSpanId,
+            WordId = wordId,
+            Order = order,
+            StartPosition = start,
+            Length = length,
+            SurfaceForm = surfaceForm,
+            TechnicalFamily = KnownFirst.Core.Text.TechnicalTokenFamily.None,
+            TechnicalInstanceYear = null,
+            TechnicalInstanceIdentifier = string.Empty,
+            TechnicalVariant = string.Empty
+        };
+
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewChildGraphSnapshot(
+        IReadOnlyList<DocumentEntity> documents,
+        IReadOnlyList<WordEntity> words,
+        IReadOnlyList<SentenceSpanEntity> sentences,
+        IReadOnlyList<WordOccurrenceEntity> occurrences) => new(
+            documents,
+            words,
+            [],
+            sentences,
+            occurrences,
+            [], [], [], [], [], [], [], [], [], [], [], [], [], [], []);
+
+    /// <summary>
+    /// The installation-independent part of a v2 payload's source-material subgraph, including the child
+    /// content the scalar ordering components cannot see: which archive-local sm-* id binds to which sentence
+    /// and occurrence rows, and which ss-* id each occurrence references.
+    /// </summary>
+    private static List<string> CanonicalSourceMaterialChildProjection(BackupPayloadV2 payload) =>
+        payload.SourceMaterials
+            .Select(material => string.Join(
+                " | ",
+                material.Id,
+                string.Join(
+                    ",",
+                    material.Sentences.Select(sentence => string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "{0}/{1}/{2}/{3}",
+                        sentence.Id, sentence.Order, sentence.Start, sentence.Length))),
+                string.Join(
+                    ",",
+                    material.Occurrences.Select(occurrence => string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "{0}/{1}/{2}/{3}/{4}/{5}",
+                        occurrence.VocabularyId, occurrence.SentenceId, occurrence.Order,
+                        occurrence.Start, occurrence.Length, occurrence.SurfaceForm)))))
+            .ToList();
+
+    private static List<string> CanonicalSourceMaterialProjection(BackupPayloadV2 payload) =>
+        payload.SourceMaterials
+            .Select(material => string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0} | {1} | {2} | {3} | {4}",
+                material.Id, material.TextLanguage, material.ExplanationLanguage,
+                material.LookupMode, material.TargetLanguage ?? "<none>"))
+            .ToList();
+
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewSourceMaterialOrderingSnapshot(
+        IReadOnlyList<DocumentEntity> documents) => new(
+            documents,
+            [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []);
+
+    private const string CollidingHistoryContent = "The bank is open near the river.";
+    private static readonly DateTime CollidingHistoryImportedAtUtc = new(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime CollidingHistoryStartedAtUtc = new(2026, 4, 1, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime CollidingHistoryCompletedAtUtc = new(2026, 4, 1, 9, 30, 0, DateTimeKind.Utc);
+
+    /// <summary>
+    /// One installation holding exactly two completed review histories over one document. Both sessions are
+    /// equal on every session-level field the v2 mapper orders by (document, Status, TotalCandidates,
+    /// ReviewedCount, KnownCount, UnknownCount, IgnoredCount, DecisionSequence, StartedAt, CompletedAt); they
+    /// differ only in which word each history decided Known and which UnknownBacklog, so the two Schema-9
+    /// full-history identities are genuinely distinct and neither session repeats a vocabulary identity.
+    /// </summary>
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewCollidingReviewHistoryInstallation(
+        int documentId, int bankWordId, int riverWordId,
+        int bankKnownSessionId, int riverKnownSessionId,
+        int bankKnownCandidateBaseId, int riverKnownCandidateBaseId)
+    {
+        var document = NewCollidingHistoryDocument(documentId);
+        var bank = NewCanonicalOrderingWord(bankWordId, "bank", KnownFirst.Models.WordStatus.Known);
+        var river = NewCanonicalOrderingWord(riverWordId, "river", KnownFirst.Models.WordStatus.UnknownBacklog);
+
+        var bankKnownSession = NewCompletedReviewSession(
+            id: bankKnownSessionId, documentId: document.Id,
+            startedAtUtc: CollidingHistoryStartedAtUtc, completedAtUtc: CollidingHistoryCompletedAtUtc,
+            knownCount: 1, unknownCount: 1, ignoredCount: 0);
+        var riverKnownSession = NewCompletedReviewSession(
+            id: riverKnownSessionId, documentId: document.Id,
+            startedAtUtc: CollidingHistoryStartedAtUtc, completedAtUtc: CollidingHistoryCompletedAtUtc,
+            knownCount: 1, unknownCount: 1, ignoredCount: 0);
+
+        ReviewCandidateEntity[] candidates =
+        [
+            NewDecidedReviewCandidate(
+                bankKnownCandidateBaseId, bankKnownSession.Id, bank.Id, 0, KnownFirst.Models.WordStatus.Known),
+            NewDecidedReviewCandidate(
+                bankKnownCandidateBaseId + 1, bankKnownSession.Id, river.Id, 1, KnownFirst.Models.WordStatus.UnknownBacklog),
+            NewDecidedReviewCandidate(
+                riverKnownCandidateBaseId, riverKnownSession.Id, bank.Id, 0, KnownFirst.Models.WordStatus.UnknownBacklog),
+            NewDecidedReviewCandidate(
+                riverKnownCandidateBaseId + 1, riverKnownSession.Id, river.Id, 1, KnownFirst.Models.WordStatus.Known)
+        ];
+
+        // A raw Schema8BackupSnapshot capture reads unordered SELECTs, so row enumeration order follows the
+        // local rowids; ordering the fixture rows by id reproduces exactly that.
+        return NewCanonicalOrderingSnapshot(
+            document,
+            new[] { bank, river }.OrderBy(word => word.Id).ToList(),
+            new[] { bankKnownSession, riverKnownSession }.OrderBy(session => session.Id).ToList(),
+            candidates.OrderBy(candidate => candidate.Id).ToList());
+    }
+
+    private static DocumentEntity NewCollidingHistoryDocument(int id) => new()
+    {
+        Id = id,
+        Title = "Colliding review history document",
+        TextLanguage = "en",
+        ExplanationLanguage = "de",
+        LookupMode = KnownFirst.Core.Preparation.LexicalLookupMode.Definition,
+        Content = CollidingHistoryContent,
+        ContentFingerprint = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(CollidingHistoryContent))).ToLowerInvariant(),
+        ImportedAt = CollidingHistoryImportedAtUtc,
+        WordCount = 7
+    };
+
+    private static ReviewCandidateEntity NewDecidedReviewCandidate(
+        int id, int sessionId, int wordId, int order, KnownFirst.Models.WordStatus status) => new()
+        {
+            Id = id,
+            SessionId = sessionId,
+            WordId = wordId,
+            Order = order,
+            Status = status,
+            PreviousWordStatus = KnownFirst.Models.WordStatus.Unreviewed,
+            PreviousTotalOccurrenceCount = 0,
+            PreviousDocumentCount = 0,
+            PreviousUpdatedAt = CollidingHistoryStartedAtUtc,
+            DecisionSequence = order + 1,
+            WasWordCreatedForSession = false,
+            DecidedAt = CollidingHistoryStartedAtUtc.AddMinutes(order + 1)
+        };
+
+    /// <summary>
+    /// The installation-independent part of a v2 payload's completed-review subgraph: which archive-local
+    /// workflow/item id binds to which document, decision content, and ordinal position.
+    /// </summary>
+    private static List<string> CanonicalReviewSubgraphProjection(BackupPayloadV2 payload) =>
+        payload.Workflows.VocabularyReviews
+            .Select(workflow => string.Join(
+                " | ",
+                new[]
+                {
+                    workflow.Id,
+                    workflow.SourceMaterialId,
+                    workflow.Status.ToString(),
+                    workflow.KnownCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.UnknownCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                }.Concat(workflow.Items.Select(item =>
+                    string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "{0}/{1}/{2}/{3}",
+                        item.Id, item.VocabularyId, item.Order, item.Status)))))
+            .ToList();
+
     private static WordEntity NewCanonicalOrderingWord(int id, string term, KnownFirst.Models.WordStatus status) => new()
     {
         Id = id,

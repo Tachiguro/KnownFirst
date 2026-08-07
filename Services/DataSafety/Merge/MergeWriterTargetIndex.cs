@@ -82,7 +82,7 @@ internal sealed class MergeWriterTargetIndex
         var documentIdentityByDocumentId = new Dictionary<int, SourceMaterialIdentity>();
         foreach (var document in snapshot.Documents)
         {
-            var identity = SourceMaterialIdentityPolicy.Compute(ToBackupSourceMaterial(document));
+            var identity = Schema9ReviewSessionRowIdentities.ComputeDocumentIdentity(document);
             documentIdByIdentity[identity] = document.Id;
             documentIdentityByDocumentId[document.Id] = identity;
         }
@@ -139,38 +139,23 @@ internal sealed class MergeWriterTargetIndex
             cardIdentityByCardId[card.Id] = identity;
         }
 
-        // Same full-history v2 identity the Schema-9 planner records, computed from raw rows — including the
-        // five retained outcome counters, which after ordinary completion are the session's only surviving
-        // outcome summary. Raw SQLite timestamps pass through EnsureUtc first, so an Unspecified-kind row and
-        // the archive DTO's Utc-kind value with the same ticks canonicalize to byte-identical input.
+        // Same full-history v2 identity the Schema-9 planner records, computed from raw rows through the
+        // shared, caller-neutral Schema9ReviewSessionRowIdentities plumbing that BackupModelMapperV2's
+        // canonical ReviewSessions ordering also uses — one definition of the completed-review identity,
+        // including the five retained outcome counters, which after ordinary completion are the session's
+        // only surviving outcome summary. Reference resolution stays here, so a dangling document or
+        // vocabulary reference still surfaces exactly as it did before.
         var reviewSessionIdByIdentity = new Dictionary<ReviewSessionIdentity, int>();
         foreach (var session in snapshot.ReviewSessions)
         {
             var docIdentity = documentIdentityByDocumentId[session.DocumentId];
             var candidates = snapshot.ReviewCandidates
                 .Where(candidate => candidate.SessionId == session.Id)
-                .Select(candidate => new ReviewSessionCandidateContent(
-                    wordIdentityByWordId[candidate.WordId],
-                    candidate.Order,
-                    BackupEnumMappings.ToBackup(candidate.Status),
-                    BackupEnumMappings.ToBackup(candidate.PreviousWordStatus),
-                    candidate.PreviousTotalOccurrenceCount,
-                    candidate.PreviousDocumentCount,
-                    EnsureUtc(candidate.PreviousUpdatedAt),
-                    candidate.DecisionSequence,
-                    candidate.WasWordCreatedForSession,
-                    EnsureUtc(candidate.DecidedAt)))
+                .Select(candidate => Schema9ReviewSessionRowIdentities.BuildCandidateContent(
+                    candidate, wordIdentityByWordId[candidate.WordId]))
                 .ToList();
 
-            var result = ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
-                docIdentity,
-                BackupEnumMappings.ToBackup(session.Status),
-                EnsureUtc(session.StartedAt),
-                EnsureUtc(session.CompletedAt),
-                session.DecisionSequence,
-                new ReviewSessionOutcomeCounters(
-                    session.TotalCandidates, session.ReviewedCount, session.KnownCount, session.UnknownCount, session.IgnoredCount),
-                candidates);
+            var result = Schema9ReviewSessionRowIdentities.ComputeSessionIdentity(session, docIdentity, candidates);
             if (result.HasDuplicateCandidateVocabularyIdentity)
             {
                 throw new BackupFormatException(BackupErrorCodes.DuplicateId);
@@ -216,20 +201,6 @@ internal sealed class MergeWriterTargetIndex
             answerVariantIdByIdentity, cardIdByIdentity, reviewSessionIdByIdentity,
             preparationSessionIdByIdentity, learningSessionIdByIdentity);
     }
-
-    private static BackupSourceMaterial ToBackupSourceMaterial(DocumentEntity document) => new(
-        document.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        document.Title,
-        document.TextLanguage,
-        document.ExplanationLanguage,
-        BackupEnumMappings.ToBackup(document.LookupMode),
-        string.IsNullOrEmpty(document.TargetLanguage) ? null : document.TargetLanguage,
-        document.Content,
-        document.ContentFingerprint,
-        document.ImportedAt.Kind == DateTimeKind.Utc ? document.ImportedAt : DateTime.SpecifyKind(document.ImportedAt, DateTimeKind.Utc),
-        document.WordCount,
-        [],
-        []);
 
     private static BackupSentenceRange ToBackupSentenceRange(SentenceSpanEntity sentence) => new(
         sentence.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),

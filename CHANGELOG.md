@@ -21,7 +21,7 @@ and uses the application's prerelease version identifiers.
 
 - `LearningSession` identity now includes `StartedAtUtc`, `CompletedAtUtc`, ordered queue digest, and per-item `Rating`, so distinct real sessions using the same card set no longer collapse into one (PR #45).
 - Schema 9 activates completed review-session history storage by replacing the unconditional `ReviewSessions(DocumentId)` uniqueness rule with one-Active/multiple-Completed index semantics (PR #51).
-- Package A adds deterministic Schema-9 completed-review identities, preflight classification, duplicate rejection, and target-index parity. This provides planning support only; writer-level convergence (Package B) and two-installation convergence (Package C) are not yet complete (PR #52).
+- Package A adds deterministic Schema-9 completed-review identities, preflight classification, duplicate rejection, and target-index parity (PR #52). Writer-level convergence (Package B) is now complete, merged via PR #65; two-installation convergence (Package C) remains outstanding and planned.
 
 ### Internal
 

@@ -28,7 +28,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 10 | Documentation governance and portable export validation | Committed | PR #49 (documentation governance and release-readiness rules) and PR #50 (Android portable export staging and strict validation). |
 | 11 | Schema-9 Review-Session History and Package A | Committed | PR #51 (Schema-9 review-session history storage) and PR #52 Package A (Schema-9 completed-review identity, planner, target-index parity, and characterization coverage). |
 | 12 | Authoritative Documentation Reconciliation | Committed | Documentation-governance packages D1-D5 establishing truth and safe agent operation. D1 merged via PR #53. D2 merged via PR #55. D3 merged via PR #57. D4 merged via PR #59. D5 merged via PR #61, PR #62, and PR #63; D5 closure and Package B revalidation queued via PR #64. |
-| 13 | Schema-9 Completed-Review Convergence (Package B and C) | Current | Package B (writer evidence) is implemented, independently reviewed (approved), and validated (`ALL_AUTOMATED` 1769/0/0); committed as `d00144cd8789f5392c9fb695dac8856f992c2200`, pushed, and open as PR #65. A PR review identified one documentation-currentness finding and no code/test finding; the branch documentation addresses that finding. Package B remains unmerged. Package C (convergence hardening) remains Planned and gated behind Package B reaching `master` and post-merge synchronization. |
+| 13 | Schema-9 Completed-Review Convergence (Package B and C) | Planned | Package B (writer evidence) is committed and merged: implemented, independently reviewed (approved), validated (`ALL_AUTOMATED` 1769/0/0), and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`). Package C (convergence hardening) remains Planned and not started; it is no longer gated, since the Package-B merge and post-merge synchronization it depended on are complete — Package C is the next eligible package, pending a separately authorized `PLAN_ONLY`. |
 | 14 | Public-release support surface | Planned — every-AAB blocker (see policy below) and public-release blocker | Implement functional Support KnownFirst and Report a bug controls, or explicitly remove them from Release rendering; and add reopenable release-note history. |
 | 15 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation launcher integration. |
 | 16 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
@@ -74,7 +74,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 
 ## Current
 
-No documentation-governance package is currently active. D1-D5 documentation reconciliation is complete. Package B (Schema-9 Completed-Review Convergence writer evidence) is implemented, independently reviewed (approved), and validated on branch `feature/schema9-completed-review-writer-evidence-v1`, published as commit `d00144cd8789f5392c9fb695dac8856f992c2200` and open as PR #65; it remains unmerged. Package C remains Planned and is not started. See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package state.
+No package is currently active. D1-D5 documentation reconciliation is complete. Package B (Schema-9 Completed-Review Convergence writer evidence) is implemented, independently reviewed (approved), validated, and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); it is present on master. Package C remains Planned and is not started; it is the next eligible package, pending a separately authorized Package C `PLAN_ONLY`. See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package state.
 
 ## Planned Sequence (Meaning & Merge)
 
@@ -87,8 +87,8 @@ The current product direction is **non-destructive populated-target portable arc
 5. **Slice 8 (Populated-target merge writer):** Completed and merged via PR #44.
 6. **Slice 9 (Import preview and localization):** Completed and merged via PR #45.
 7. **Schema-9 Completed-Review Convergence (Package A):** Completed and merged via PR #52.
-8. **Schema-9 Completed-Review Convergence (Package B):** Implemented, independently reviewed and approved, and `TEST_ONLY`-validated (`ALL_AUTOMATED` 1769/0/0); committed as `d00144cd8789f5392c9fb695dac8856f992c2200` on branch `feature/schema9-completed-review-writer-evidence-v1` and open as PR #65. A PR review identified one documentation-currentness finding and no code/test finding; the branch documentation addresses that finding. PR #65 remains the active Package B integration surface pending final PR approval and a manually authorized merge, followed by `POST_MERGE_SYNC_ONLY`.
-9. **Schema-9 Completed-Review Convergence (Package C):** Planned. Convergence hardening and two-installation synchronization testing; gated behind Package B being manually merged and post-merge synchronized.
+8. **Schema-9 Completed-Review Convergence (Package B):** Completed and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); `TEST_ONLY`-validated (`ALL_AUTOMATED` 1769/0/0). `POST_MERGE_SYNC_ONLY` completed successfully.
+9. **Schema-9 Completed-Review Convergence (Package C):** Planned, not started. Convergence hardening and two-installation synchronization testing; no longer gated, since Package B is merged and post-merge synchronized. Next lifecycle step is a separately authorized Package C `PLAN_ONLY`.
 
 ## Deferred
 
@@ -115,8 +115,8 @@ Prioritized work-package sequence:
 3. **D3 Backup and import contracts** (Completed and merged via PR #57).
 4. **D4 Product, workflow, and release-facing documentation** (`README.md`, `docs/KNOWNFIRST_ARCHITECTURE.md`, `docs/MVP_WORKFLOW.md`, `docs/VERSIONING.md`, `docs/BETA_TESTING.md`) (Completed and merged via PR #59).
 5. **D5 Testing, GUI status, historical banners, and Markdown hygiene** (confirmed primary targets `docs/TESTING.md`, `docs/GUI_TEST_MATRIX.md`; historical-banner and Markdown-hygiene investigation categories) (Completed and merged via PR #61, PR #62, and PR #63).
-6. **Schema-9 completed-review Package B.** `PLAN_ONLY` was approved, `IMPLEMENT` and an independent `REVIEW_ONLY`/correction/re-review cycle completed (final verdict `PACKAGE B IMPLEMENTATION REVIEW APPROVED`), `TEST_ONLY` passed (`ALL_AUTOMATED` 1769/0/0), and a final pre-commit complete-diff review returned `PACKAGE B FINAL REVIEW APPROVED`. Committed as `d00144cd8789f5392c9fb695dac8856f992c2200` on branch `feature/schema9-completed-review-writer-evidence-v1` and open as PR #65. A PR review identified one documentation-currentness finding and no code/test finding; the branch documentation addresses that finding. Final PR approval and the manual-merge decision remain separately authorized operations.
-7. **Package C** remains gated until Package B is manually merged and post-merge synchronized.
+6. **Schema-9 completed-review Package B** (Completed and merged via PR #65, merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`). `PLAN_ONLY` was approved, `IMPLEMENT` and an independent `REVIEW_ONLY`/correction/re-review cycle completed (final verdict `PACKAGE B IMPLEMENTATION REVIEW APPROVED`), `TEST_ONLY` passed (`ALL_AUTOMATED` 1769/0/0), a final pre-commit complete-diff review returned `PACKAGE B FINAL REVIEW APPROVED`, and the published PR received `PACKAGE B PRE-PUSH REVIEW APPROVED` and `PACKAGE B FINAL PR REVIEW APPROVED`. `POST_MERGE_SYNC_ONLY` completed successfully.
+7. **Package C** remains Planned and not started; it is no longer gated, since Package B is merged and post-merge synchronized. Its next lifecycle step is a separately authorized `PLAN_ONLY`.
 
 After these packages complete, additional release-readiness packages (production UI inventory, test-first UI cleanliness, removing unfinished controls, pre-AAB documentation review) will be prioritized.
 

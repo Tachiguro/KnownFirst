@@ -11,9 +11,9 @@
 - Active rule: use the single folder; create no worktree without explicit user approval.
 - Only one writing agent may operate at a time.
 
-## Verified master baseline
+## Verified product-state milestone
 
-- Master commit: `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65 merged)
+- Most recent product-relevant milestone commit: `f560a6b7ff9109bbee6c46602a002ea8b591de49` (Package B, PR #65 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android build, AAB, Internal Testing release, installation, or user test has occurred since.
 - Active database schema on master: SQLite `PRAGMA user_version` 9
@@ -66,7 +66,7 @@
 
 ## Concise new-chat handoff
 
-- Master baseline is `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65 merged).
+- Most recent recorded product-relevant milestone: `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65, Package B merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A is merged and complete.

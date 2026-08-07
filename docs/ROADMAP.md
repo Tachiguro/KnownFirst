@@ -27,8 +27,8 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 9 | Import UI & Localization | Committed | Import UI, localized preview/result handling, and end-to-end convergence validation; merged via PR #45 (checkpoint result 1626/0/0 prior to merge). Follow-up correctness and data-safety fixes merged via PR #46 (preparation selected-meaning acceptance), PR #47 (diagnostics/export stale lexical-reader), and PR #48 (Windows portable-export atomic replacement). |
 | 10 | Documentation governance and portable export validation | Committed | PR #49 (documentation governance and release-readiness rules) and PR #50 (Android portable export staging and strict validation). |
 | 11 | Schema-9 Review-Session History and Package A | Committed | PR #51 (Schema-9 review-session history storage) and PR #52 Package A (Schema-9 completed-review identity, planner, target-index parity, and characterization coverage). |
-| 12 | Authoritative Documentation Reconciliation | Current | Documentation-governance packages D1-D5 establishing truth and safe agent operation. D1 merged via PR #53. D2 merged via PR #55. D3 merged via PR #57. D4 merged via PR #59. D5 is current. |
-| 13 | Schema-9 Completed-Review Convergence (Package B and C) | Planned | Package B (writer evidence) and Package C (convergence hardening). |
+| 12 | Authoritative Documentation Reconciliation | Committed | Documentation-governance packages D1-D5 establishing truth and safe agent operation. D1 merged via PR #53. D2 merged via PR #55. D3 merged via PR #57. D4 merged via PR #59. D5 merged via PR #61, PR #62, and PR #63. |
+| 13 | Schema-9 Completed-Review Convergence (Package B and C) | Planned | Package B (writer evidence) and Package C (convergence hardening). Package B requires a fresh, separately authorized `PLAN_ONLY` revalidation before implementation may resume. |
 | 14 | Public-release support surface | Planned — every-AAB blocker (see policy below) and public-release blocker | Implement functional Support KnownFirst and Report a bug controls, or explicitly remove them from Release rendering; and add reopenable release-note history. |
 | 15 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation launcher integration. |
 | 16 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
@@ -68,12 +68,12 @@ This roadmap records intended order. It does not claim that planned behavior exi
 - D3 Backup and Import Contracts — merged via PR #57.
 - D3 closure and D4 activation — merged via PR #58.
 - D4 Product, Workflow, and Release-Facing Documentation — merged via PR #59.
+- D4 closure and D5 activation — merged via PR #60.
+- D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene — merged via PRs #61-#63.
 
 ## Current
 
-**D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene**
-
-Confirmed primary target files: `docs/TESTING.md` and `docs/GUI_TEST_MATRIX.md`. The later D5 `PLAN_ONLY` phase must also investigate, as mandatory categories, historical status banners and Markdown hygiene (malformed tables, heading structure, relative links and local fragments, whitespace, encoding, BOM state, and line-ending preservation) across the repository. Any additional editable D5 file beyond the two confirmed targets is not yet authorized and requires concrete evidence produced in that later plan plus separate user approval. Activation does not authorize D5 document edits, tests or test implementation, GUI automation or manual GUI operations, builds or packaging, device or store operations, release work, or Package B or Package C implementation. See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package.
+No documentation-governance package is currently active. D1-D5 documentation reconciliation is complete. Package B (Schema-9 Completed-Review Convergence writer evidence) is the next planned repository-planning target: a fresh Package B `PLAN_ONLY` revalidation requires separate explicit user authorization, and Package B implementation remains unauthorized. See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package state.
 
 ## Planned Sequence (Meaning & Merge)
 
@@ -86,7 +86,7 @@ The current product direction is **non-destructive populated-target portable arc
 5. **Slice 8 (Populated-target merge writer):** Completed and merged via PR #44.
 6. **Slice 9 (Import preview and localization):** Completed and merged via PR #45.
 7. **Schema-9 Completed-Review Convergence (Package A):** Completed and merged via PR #52.
-8. **Schema-9 Completed-Review Convergence (Package B):** Planned. Writer evidence and implementation (paused until documentation reconciliation finishes).
+8. **Schema-9 Completed-Review Convergence (Package B):** Planned. Documentation reconciliation is now complete; a fresh, separately authorized `PLAN_ONLY` revalidation is required before Package B implementation resumes.
 9. **Schema-9 Completed-Review Convergence (Package C):** Planned. Convergence hardening and two-installation synchronization testing.
 
 ## Deferred
@@ -113,8 +113,8 @@ Prioritized work-package sequence:
 2. **D2 Agent communication and operation governance** (Completed and merged via PR #55).
 3. **D3 Backup and import contracts** (Completed and merged via PR #57).
 4. **D4 Product, workflow, and release-facing documentation** (`README.md`, `docs/KNOWNFIRST_ARCHITECTURE.md`, `docs/MVP_WORKFLOW.md`, `docs/VERSIONING.md`, `docs/BETA_TESTING.md`) (Completed and merged via PR #59).
-5. **D5 Testing, GUI status, historical banners, and Markdown hygiene** (confirmed primary targets `docs/TESTING.md`, `docs/GUI_TEST_MATRIX.md`; historical-banner and Markdown-hygiene investigation categories; additional files require evidence and approval) (Current).
-6. **Resume Schema-9 completed-review Package B** only after the authoritative documentation packages needed for safe agent operation are merged.
+5. **D5 Testing, GUI status, historical banners, and Markdown hygiene** (confirmed primary targets `docs/TESTING.md`, `docs/GUI_TEST_MATRIX.md`; historical-banner and Markdown-hygiene investigation categories) (Completed and merged via PR #61, PR #62, and PR #63).
+6. **Resume Schema-9 completed-review Package B.** The documentation-reconciliation precondition is now satisfied, but Package B still requires a fresh, separately authorized `PLAN_ONLY` revalidation before implementation may resume.
 7. **Package C** after Package B is implemented, validated, reviewed, merged, and synchronized.
 
 After these packages complete, additional release-readiness packages (production UI inventory, test-first UI cleanliness, removing unfinished controls, pre-AAB documentation review) will be prioritized.

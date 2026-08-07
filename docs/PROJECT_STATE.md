@@ -2,7 +2,7 @@
 
 **Status date:** 2026-08-07
 **State source:** `master` (`0fdef44f620da1b8c086dfcf08f055bfdf105bb4`, PR #64 merge commit)
-**Next repository action:** Package B is implemented, independently reviewed (approved), and validated (`ALL_AUTOMATED` 1769/0/0) on local branch `feature/schema9-completed-review-writer-evidence-v1`; it remains uncommitted, unpushed, without an open pull request, and unmerged, so `master` itself carries no Package B change. The next action is a final read-only review of the complete uncommitted Package B diff, followed by separately authorized `COMMIT_ONLY`/`PUSH_ONLY`/`PR_ONLY` steps.
+**Next repository action:** Package B implementation, independent review, and automated validation (`ALL_AUTOMATED` 1769/0/0) are complete on commit `d00144cd8789f5392c9fb695dac8856f992c2200`, published on branch `feature/schema9-completed-review-writer-evidence-v1` and under open PR #65 (`fix: complete schema 9 completed-review package B`) — `master` itself still carries no Package B change. A PR review identified one documentation-currentness finding and no code/test finding; the branch documentation addresses that finding. Complete PR #65's remaining correction/review cycle and obtain final approval before the user's manual merge decision. Final PR approval, the manual-merge decision, and the subsequent `POST_MERGE_SYNC_ONLY` each remain separately authorized operations.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -99,7 +99,7 @@ The `master` branch includes the following merged technical foundations:
 - Schema 9 is active during normal application initialization on master.
 - PR #64 is the most recent merge. D1-D5 documentation reconciliation is complete.
 - No product implementation or release package is merged to master beyond Package A. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
-- Package B is implemented, independently reviewed (approved), and validated on the local, unmerged branch `feature/schema9-completed-review-writer-evidence-v1` — see "Active development" below. It is not part of this `master` snapshot. Package C remains future work.
+- Package B is implemented, independently reviewed (approved), and validated on branch `feature/schema9-completed-review-writer-evidence-v1`, published and under open PR #65 — see "Active development" below. It remains unmerged and is not part of this `master` snapshot. Package C remains future work.
 
 ## Confirmed verification
 
@@ -149,14 +149,15 @@ The stable master baseline is `0fdef44f620da1b8c086dfcf08f055bfdf105bb4` (PR #64
 
 D1-D5 documentation reconciliation is complete. No product implementation is active on `master` beyond Package A. Package C remains future work and is not started. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
-**Schema-9 Completed-Review Convergence — Package B (local branch, not yet merged).** Implemented, independently reviewed, and validated on local branch `feature/schema9-completed-review-writer-evidence-v1` (HEAD `0fdef44f620da1b8c086dfcf08f055bfdf105bb4`, 0 commits ahead of master, exactly three unstaged changed paths):
+**Schema-9 Completed-Review Convergence — Package B (open PR #65, not yet merged).** Implemented, independently reviewed, and validated on branch `feature/schema9-completed-review-writer-evidence-v1`, published as commit `d00144cd8789f5392c9fb695dac8856f992c2200` and under open PR #65 (`fix: complete schema 9 completed-review package B`):
 
 - `PLAN_ONLY` was approved by the user; `IMPLEMENT` added a deterministic total ordering for Schema-9 `ReviewSessions` in `Services/DataSafety/BackupModelMapperV2.cs` and writer-evidence/canonical-output regression tests in `KnownFirst.Tests/MergeWriterServiceTests.cs` and `KnownFirst.Tests/BackupCreationTests.cs`.
 - An independent `REVIEW_ONLY` pass found one MINOR XML-comment accuracy issue; the comment-only correction was made and independently re-reviewed. Final verdict: **`PACKAGE B IMPLEMENTATION REVIEW APPROVED`**.
 - `TEST_ONLY` validation: focused writer/planner/identity scope 183/0/0, mapper/archive-contract scope 86/0/0, schema activation/compatibility scope 189/0/0, and the full `ALL_AUTOMATED` suite **1769 passed / 0 failed / 0 skipped**.
+- A final pre-commit complete-diff review of the published commit returned **`PACKAGE B FINAL REVIEW APPROVED`**. A review of open PR #65 identified exactly one documentation-currentness finding and no code/test finding; the branch documentation addresses that finding.
 - No GUI, device, build, APK/AAB, packaging, signing, publishing, or release evidence exists for this work.
-- **The branch is uncommitted, unpushed, has no open pull request, and is unmerged — this work is not part of the `master` snapshot recorded elsewhere in this document.**
-- Package C (convergence hardening, two-installation synchronization) remains future work, gated behind Package B being finally reviewed, committed, pushed, PR-reviewed, manually merged, and post-merge synchronized.
+- **PR #65 remains open and unmerged — this work is not part of the `master` snapshot recorded elsewhere in this document.** Final PR approval and the manual-merge decision remain separately authorized operations.
+- Package C (convergence hardening, two-installation synchronization) remains future work, gated behind Package B being manually merged and post-merge synchronized.
 
 **KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 
@@ -174,7 +175,7 @@ D1-D5 documentation reconciliation is complete. No product implementation is act
 
 **Subsequent correctness and data-safety fixes (merged PRs #46-#50)** — see "Production capabilities" and "Merged development foundations" above.
 
-**Schema-9 Completed-Review Convergence (merged PRs #51-#52)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52). Package B (writer evidence) is implemented, independently reviewed, and validated on the local, unmerged branch `feature/schema9-completed-review-writer-evidence-v1` (see "Active development" above); Package C (convergence hardening) remains future work.
+**Schema-9 Completed-Review Convergence (merged PRs #51-#52)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52). Package B (writer evidence) is implemented, independently reviewed, and validated on branch `feature/schema9-completed-review-writer-evidence-v1`, published and under open PR #65 (see "Active development" above); it remains unmerged. Package C (convergence hardening) remains future work.
 
 **D1 Authoritative State and Database Truth (merged PR #53)** — reconciled repository baseline, roadmap, and changelog context.
 

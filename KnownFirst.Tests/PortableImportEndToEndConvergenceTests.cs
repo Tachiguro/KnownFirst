@@ -820,4 +820,318 @@ public sealed class PortableImportEndToEndConvergenceTests
         CollectionAssert.AreEqual(beforeState, afterState);
         Assert.IsFalse(Directory.Exists(SafetyCopyDirectory(target.DatabasePath)), "An invalid archive must never create a safety-copy directory.");
     }
+
+    // ==== Package C: two-installation exchange of divergent completed Schema-9 review histories ====
+    //
+    // A owns completed history H1, B owns H2. Both describe the same document, tie on every session-level
+    // field the v2 mapper orders by, and differ only in which word each history recorded as Known. After
+    // A -> B and B -> A both installations hold {H1, H2} — but each installation's *imported* history is its
+    // newer row, so the two installations end up with the opposite local ReviewSession row ids. That is the
+    // Package-C precondition arising naturally from convergence itself rather than from a synthetic fixture.
+    //
+    // Whole-archive byte equality is deliberately NOT asserted: Sense/Meaning/AnswerVariant StableId values
+    // are Guid.NewGuid()-generated and therefore installation-random by design. Only the completed-review
+    // subgraph, whose exported content is fully content-derived, can converge canonically.
+
+    private const string PackageCReviewDocumentContent = "The bank is open near the river.";
+    private static readonly DateTime PackageCReviewStartedAtUtc = new(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime PackageCReviewCompletedAtUtc = new(2026, 5, 1, 9, 30, 0, DateTimeKind.Utc);
+
+    /// <summary>
+    /// One Schema-9 installation holding exactly one completed review history over the shared document.
+    /// Word rows are identical on both sides (so no KnowledgeState conflict decision can block the merge);
+    /// only the two histories' recorded candidate decisions differ, which is exactly what the Schema-9
+    /// full-history identity distinguishes and exactly what the v2 mapper's session-level key cannot see.
+    /// </summary>
+    private static async Task<Schema7Fixture> BuildPackageCReviewInstallationAsync(bool bankDecidedKnown)
+    {
+        var fixture = await Schema7Fixture.CreateAsync();
+
+        var documentId = await fixture.InsertDocumentAsync(
+            title: "Review history document", content: PackageCReviewDocumentContent,
+            wordCount: 7, importedAt: Epoch);
+        var bankWordId = await fixture.InsertWordAsync(
+            "bank", status: WordStatus.Known, createdAt: Epoch, updatedAt: Epoch);
+        var riverWordId = await fixture.InsertWordAsync(
+            "river", status: WordStatus.UnknownBacklog, createdAt: Epoch, updatedAt: Epoch);
+
+        // Identical retained outcome counters on both sides: exactly one Known and one UnknownBacklog
+        // decision either way, so the two histories are indistinguishable at session level.
+        await fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewSessions
+                (DocumentId, Status, TotalCandidates, ReviewedCount, KnownCount, UnknownCount, IgnoredCount,
+                 DecisionSequence, StartedAt, CompletedAt)
+            VALUES (?, ?, 2, 2, 1, 1, 0, 2, ?, ?)
+            """,
+            documentId, (int)ReviewSessionStatus.Completed,
+            PackageCReviewStartedAtUtc, PackageCReviewCompletedAtUtc);
+        var sessionId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+
+        await InsertPackageCReviewCandidateAsync(
+            fixture, sessionId, bankWordId, order: 0,
+            status: bankDecidedKnown ? WordStatus.Known : WordStatus.UnknownBacklog);
+        await InsertPackageCReviewCandidateAsync(
+            fixture, sessionId, riverWordId, order: 1,
+            status: bankDecidedKnown ? WordStatus.UnknownBacklog : WordStatus.Known);
+
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+        await Schema9RawFixture.ReplaceLegacyIndexAsync(fixture.Connection);
+        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 9");
+
+        BackupSchemaCapabilityResult? capability = null;
+        await fixture.Connection.RunInTransactionAsync(connection => capability = BackupSchemaCapability.Resolve(connection));
+        Assert.IsInstanceOfType<Schema9CapabilityResult>(
+            capability,
+            "Both Package-C installations must be genuinely Schema-9 shaped, so two completed review "
+            + "histories for one document are representable at all.");
+
+        return fixture;
+    }
+
+    private static Task InsertPackageCReviewCandidateAsync(
+        Schema7Fixture fixture, int sessionId, int wordId, int order, WordStatus status) =>
+        fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewCandidates
+                (SessionId, WordId, "Order", Status, PreviousWordStatus, PreviousTotalOccurrenceCount,
+                 PreviousDocumentCount, PreviousUpdatedAt, DecisionSequence, WasWordCreatedForSession, DecidedAt)
+            VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, 0, ?)
+            """,
+            sessionId, wordId, order, (int)status, (int)WordStatus.Unreviewed,
+            PackageCReviewStartedAtUtc, order + 1, PackageCReviewStartedAtUtc.AddMinutes(order + 1));
+
+    private static async Task<byte[]> CaptureSchema9ArchiveBytesAsync(SQLiteAsyncConnection connection)
+    {
+        Schema8BackupSnapshot? snapshot = null;
+        await connection.RunInTransactionAsync(conn => snapshot = Schema8BackupSnapshotRepository.CapturePortableSnapshot(conn));
+        BackupSchemaCapabilityResult? capabilityResult = null;
+        await connection.RunInTransactionAsync(conn => capabilityResult = BackupSchemaCapability.Resolve(conn));
+        var capability = ((Schema9CapabilityResult)capabilityResult!).Capability;
+        var payload = BackupModelMapperV2.MapToExternal(snapshot!);
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(
+            payload, new FakePlatformInfo(), capability, DateTime.UtcNow, stream, CancellationToken.None);
+        return stream.ToArray();
+    }
+
+    /// <summary>
+    /// The installation-independent part of a payload's completed-review subgraph: which archive-local
+    /// workflow/item id binds to which document content, decision content, and ordinal position. Parent
+    /// documents and vocabulary are addressed by their own content, never by a positional archive id, so
+    /// this projection isolates the review-session ordering itself.
+    /// </summary>
+    private static List<string> CanonicalReviewSubgraphProjection(BackupPayloadV2 payload)
+    {
+        var documentContentById = payload.SourceMaterials.ToDictionary(d => d.Id, d => d.ContentSha256, StringComparer.Ordinal);
+        var vocabularyKeyById = payload.Vocabulary.ToDictionary(
+            v => v.Id, v => $"{v.Language}|{v.IdentityKey}", StringComparer.Ordinal);
+
+        return payload.Workflows.VocabularyReviews
+            .Select(workflow => string.Join(
+                " | ",
+                new[]
+                {
+                    workflow.Id,
+                    documentContentById[workflow.SourceMaterialId],
+                    workflow.Status.ToString(),
+                    $"K{workflow.KnownCount}/U{workflow.UnknownCount}/I{workflow.IgnoredCount}",
+                    $"{workflow.StartedAtUtc:O}..{workflow.CompletedAtUtc:O}"
+                }.Concat(workflow.Items.Select(item =>
+                    $"{item.Id}/{vocabularyKeyById[item.VocabularyId]}/{item.Order}/{item.Status}"))))
+            .ToList();
+    }
+
+    private static async Task<List<string>> CaptureCanonicalReviewSubgraphAsync(SQLiteAsyncConnection connection) =>
+        CanonicalReviewSubgraphProjection(await CaptureCurrentPayloadAsync(connection));
+
+    [TestMethod]
+    public async Task TwoInstallations_ExchangeDivergentCompletedReviewHistories_ConvergeAndExportIdenticalCanonicalReviewSubgraph()
+    {
+        var builtA = await BuildPackageCReviewInstallationAsync(bankDecidedKnown: true);
+        var builtB = await BuildPackageCReviewInstallationAsync(bankDecidedKnown: false);
+
+        await using var dbA = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtA);
+        await using var dbB = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtB);
+
+        var archiveA = await CaptureSchema9ArchiveBytesAsync(dbA.Connection);
+        var archiveB = await CaptureSchema9ArchiveBytesAsync(dbB.Connection);
+
+        var serviceOverA = new BackupService(dbA, new FakePlatformInfo());
+        var serviceOverB = new BackupService(dbB, new FakePlatformInfo());
+
+        // ---- A -> B ----
+        PortableImportResult resultAIntoB;
+        using (var importStream = new MemoryStream(archiveA))
+        {
+            resultAIntoB = await serviceOverB.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+        }
+        Assert.AreEqual(PortableImportStatus.Success, resultAIntoB.Status, $"A -> B failed: '{resultAIntoB.ErrorCode}'.");
+        Assert.AreEqual(PortableImportDisposition.MergeApplied, resultAIntoB.Summary!.Disposition);
+
+        // ---- B -> A (B's pre-merge archive, exactly what a real device would have exported once) ----
+        PortableImportResult resultBIntoA;
+        using (var importStream = new MemoryStream(archiveB))
+        {
+            resultBIntoA = await serviceOverA.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+        }
+        Assert.AreEqual(PortableImportStatus.Success, resultBIntoA.Status, $"B -> A failed: '{resultBIntoA.ErrorCode}'.");
+        Assert.AreEqual(PortableImportDisposition.MergeApplied, resultBIntoA.Summary!.Disposition);
+
+        // ---- Semantic convergence: one document, both completed histories, on both sides ----
+        foreach (var installation in new[] { dbA, dbB })
+        {
+            Assert.AreEqual(1, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM Documents"));
+            Assert.AreEqual(
+                2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM ReviewSessions"),
+                "Both divergent completed histories must coexist after the exchange.");
+            Assert.AreEqual(
+                4, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM ReviewCandidates"),
+                "Each completed history keeps its own two candidate rows.");
+            Assert.AreEqual(
+                0,
+                await CountAsync(installation.Connection, $"SELECT COUNT(*) FROM ReviewSessions WHERE Status <> {(int)ReviewSessionStatus.Completed}"),
+                "No Active session may be produced by the exchange.");
+            await AssertReferentialIntegrityAsync(installation.Connection);
+        }
+
+        // ---- The Package-C precondition really arose: the two installations hold the same two histories
+        // under the opposite local row ids. ----
+        var localOrderA = await ReviewCandidateStatusesByRowOrderAsync(dbA.Connection);
+        var localOrderB = await ReviewCandidateStatusesByRowOrderAsync(dbB.Connection);
+        Assert.AreNotEqual(
+            string.Join(";", localOrderA), string.Join(";", localOrderB),
+            "The exchange must leave the two installations with the opposite local ReviewSession row order; "
+            + "otherwise this test would not exercise the Package-C boundary at all.");
+
+        // ---- Canonical review-subgraph convergence ----
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, await CaptureCanonicalReviewSubgraphAsync(dbA.Connection)),
+            string.Join(Environment.NewLine, await CaptureCanonicalReviewSubgraphAsync(dbB.Connection)),
+            "After converging, both installations must export the same archive-local vr-*/rc-* binding for "
+            + "the same completed review history, independently of their local SQLite row ids.");
+    }
+
+    // ---- Package C idempotence: once the two installations have converged, a further exchange in both
+    // directions must be a pure no-change on both sides, with every completed history preserved exactly once
+    // and every candidate row still attached to its own parent session. ----
+    [TestMethod]
+    public async Task TwoInstallations_AfterConvergence_RepeatedExchange_IsNoChangeAndPreservesEveryCompletedHistory()
+    {
+        var builtA = await BuildPackageCReviewInstallationAsync(bankDecidedKnown: true);
+        var builtB = await BuildPackageCReviewInstallationAsync(bankDecidedKnown: false);
+
+        await using var dbA = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtA);
+        await using var dbB = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtB);
+
+        var serviceOverA = new BackupService(dbA, new FakePlatformInfo());
+        var serviceOverB = new BackupService(dbB, new FakePlatformInfo());
+
+        // ---- Converge first (the scenario the previous test establishes) ----
+        var initialArchiveA = await CaptureSchema9ArchiveBytesAsync(dbA.Connection);
+        var initialArchiveB = await CaptureSchema9ArchiveBytesAsync(dbB.Connection);
+        await ImportExpectingAsync(serviceOverB, initialArchiveA, PortableImportDisposition.MergeApplied, "A -> B");
+        await ImportExpectingAsync(serviceOverA, initialArchiveB, PortableImportDisposition.MergeApplied, "B -> A");
+
+        var reviewStateA = await CompletedReviewHistoryStateAsync(dbA.Connection);
+        var reviewStateB = await CompletedReviewHistoryStateAsync(dbB.Connection);
+        Assert.HasCount(2, reviewStateA, "A must hold both completed histories after convergence.");
+        CollectionAssert.AreEqual(
+            reviewStateA, reviewStateB,
+            "Both installations must hold the same two completed histories after convergence.");
+
+        // ---- Repeat the exchange with freshly captured, post-convergence archives ----
+        var convergedArchiveA = await CaptureSchema9ArchiveBytesAsync(dbA.Connection);
+        var convergedArchiveB = await CaptureSchema9ArchiveBytesAsync(dbB.Connection);
+        await ImportExpectingAsync(serviceOverB, convergedArchiveA, PortableImportDisposition.MergeNoChange, "A -> B (repeat)");
+        await ImportExpectingAsync(serviceOverA, convergedArchiveB, PortableImportDisposition.MergeNoChange, "B -> A (repeat)");
+
+        // ---- And once more, to prove the no-change result is stable rather than a one-off ----
+        await ImportExpectingAsync(serviceOverB, convergedArchiveA, PortableImportDisposition.MergeNoChange, "A -> B (second repeat)");
+        await ImportExpectingAsync(serviceOverA, convergedArchiveB, PortableImportDisposition.MergeNoChange, "B -> A (second repeat)");
+
+        foreach (var installation in new[] { dbA, dbB })
+        {
+            Assert.AreEqual(
+                2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM ReviewSessions"),
+                "Repeated exchange must neither duplicate nor drop a completed review history.");
+            Assert.AreEqual(
+                4, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM ReviewCandidates"),
+                "Repeated exchange must neither duplicate nor drop a candidate row.");
+            Assert.AreEqual(
+                0,
+                await CountAsync(installation.Connection, $"SELECT COUNT(*) FROM ReviewSessions WHERE Status <> {(int)ReviewSessionStatus.Completed}"),
+                "Repeated exchange must never produce an Active session.");
+            await AssertReferentialIntegrityAsync(installation.Connection);
+        }
+
+        CollectionAssert.AreEqual(
+            reviewStateA, await CompletedReviewHistoryStateAsync(dbA.Connection),
+            "A's completed review history must be unchanged by the repeated exchange.");
+        CollectionAssert.AreEqual(
+            reviewStateB, await CompletedReviewHistoryStateAsync(dbB.Connection),
+            "B's completed review history must be unchanged by the repeated exchange.");
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, await CaptureCanonicalReviewSubgraphAsync(dbA.Connection)),
+            string.Join(Environment.NewLine, await CaptureCanonicalReviewSubgraphAsync(dbB.Connection)),
+            "Both installations must still export the same canonical review subgraph after the repeated exchange.");
+    }
+
+    private static async Task ImportExpectingAsync(
+        BackupService service, byte[] archiveBytes, PortableImportDisposition expected, string step)
+    {
+        using var importStream = new MemoryStream(archiveBytes);
+        var result = await service.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, $"{step} failed: '{result.ErrorCode}'.");
+        Assert.AreEqual(expected, result.Summary!.Disposition, $"{step} produced an unexpected disposition.");
+    }
+
+    /// <summary>
+    /// Each completed review history reduced to content only — its retained outcome counters and the ordered
+    /// decision content of the candidate rows attached to that specific parent session. Sorted by content, so
+    /// the projection is comparable across installations whose local row ids differ, while still proving each
+    /// candidate stayed with its own parent.
+    /// </summary>
+    private static async Task<List<string>> CompletedReviewHistoryStateAsync(SQLiteAsyncConnection connection)
+    {
+        var sessions = await connection.QueryAsync<KnownFirst.Data.Entities.ReviewSessionEntity>("SELECT * FROM ReviewSessions");
+        var candidates = await connection.QueryAsync<KnownFirst.Data.Entities.ReviewCandidateEntity>("SELECT * FROM ReviewCandidates");
+        var words = await connection.QueryAsync<KnownFirst.Data.Entities.WordEntity>("SELECT * FROM Words");
+        var termByWordId = words.ToDictionary(word => word.Id, word => $"{word.Language}|{word.NormalizedTerm}");
+
+        return sessions
+            .Select(session =>
+            {
+                var ownCandidates = candidates
+                    .Where(candidate => candidate.SessionId == session.Id)
+                    .OrderBy(candidate => candidate.Order)
+                    .Select(candidate => $"{candidate.Order}:{termByWordId[candidate.WordId]}:{candidate.Status}");
+                return $"{session.Status}|K{session.KnownCount}/U{session.UnknownCount}/I{session.IgnoredCount}"
+                    + $"|{session.StartedAt:O}..{session.CompletedAt:O}|{string.Join(",", ownCandidates)}";
+            })
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>The per-session candidate decisions in raw local row order — the installation-local view the
+    /// canonical export must NOT depend on.</summary>
+    private static async Task<List<string>> ReviewCandidateStatusesByRowOrderAsync(SQLiteAsyncConnection connection)
+    {
+        var rows = await connection.QueryAsync<ReviewCandidateRowProjection>(
+            """
+            SELECT rc.SessionId AS SessionId, rc."Order" AS CandidateOrder, rc.Status AS Status
+            FROM ReviewCandidates rc
+            ORDER BY rc.SessionId, rc."Order"
+            """);
+        return rows.Select(row => $"{row.CandidateOrder}:{row.Status}").ToList();
+    }
+
+    private sealed class ReviewCandidateRowProjection
+    {
+        public int SessionId { get; set; }
+        public int CandidateOrder { get; set; }
+        public int Status { get; set; }
+    }
 }

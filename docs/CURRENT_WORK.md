@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-07
+2026-08-07 (Package C documentation reconciliation)
 
 ## Repository
 
@@ -40,20 +40,17 @@
 - **PR #64 — D5 closure and Package B revalidation queued.**
 - **PR #65 — Package B (Schema-9 completed-review writer evidence):** genuine Schema-9 writer evidence and a narrow deterministic `BackupModelMapperV2` `ReviewSession` ordering correction; merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`.
 
-## Most recently completed package
+## Currently active package
 
-**Schema-9 Completed-Review Convergence — Package B (writer evidence) — complete, merged, on master**
+**Schema-9 Completed-Review Convergence — Package C (convergence hardening) — implemented, reviewed, validated on a local branch; not committed, not pushed, not merged**
 
-- D1-D5 documentation reconciliation is complete (PR #53-#63); PR #64 recorded D5 closure and queued a fresh Package B `PLAN_ONLY` revalidation.
-- A `PLAN_ONLY` revalidation of Package B was performed and approved by the user.
-- `IMPLEMENT` was completed on branch `feature/schema9-completed-review-writer-evidence-v1`: a deterministic total ordering was added for Schema-9 `ReviewSessions` in `Services/DataSafety/BackupModelMapperV2.cs`, plus writer-evidence and canonical-output regression tests in `KnownFirst.Tests/MergeWriterServiceTests.cs` and `KnownFirst.Tests/BackupCreationTests.cs`.
-- An independent `REVIEW_ONLY` pass found one MINOR XML-comment accuracy issue; the comment-only correction was made and re-reviewed. Final verdict: **`PACKAGE B IMPLEMENTATION REVIEW APPROVED`**.
-- `TEST_ONLY` validation passed on the branch: focused writer/planner/identity scope 183/0/0, mapper/archive-contract scope 86/0/0, schema activation/compatibility scope 189/0/0, and the full `ALL_AUTOMATED` suite **1769 passed / 0 failed / 0 skipped**.
-- Implementation commit `d00144cd8789f5392c9fb695dac8856f992c2200` was published on branch `feature/schema9-completed-review-writer-evidence-v1` under PR #65 (`fix: complete schema 9 completed-review package B`).
-- A final pre-commit complete-diff review of the published commit returned **`PACKAGE B FINAL REVIEW APPROVED`**. A PR review of PR #65 identified one documentation-currentness finding and no code/test finding; the branch documentation addressed that finding. Pre-push verification returned **`PACKAGE B PRE-PUSH REVIEW APPROVED`**, and the final independent PR review returned **`PACKAGE B FINAL PR REVIEW APPROVED`**.
-- **The repository owner merged PR #65 manually; merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49` brought Package B onto `master`. `POST_MERGE_SYNC_ONLY` completed successfully.**
-- **Package B is complete and present on master.**
-- Package C remains future work and has not started. The Package-B merge and post-merge-sync gate that previously blocked it is now satisfied, so Package C is the next eligible work package; starting it still requires a separately authorized Package C `PLAN_ONLY`.
+- Package A and Package B are merged and present on `master` (PR #52, PR #65). Package C is active local work on branch `feature/schema9-completed-review-convergence-v1`; `master` itself does not yet contain Package C.
+- A Package C `PLAN_ONLY` was approved by the user, scoping two proven canonical-output defects left open by Package B: (C-1) completed `ReviewSession` ordering falling through to the local `ReviewSession.Id` when two histories tie on every session-level field and differ only through candidate content, and (C-2) `SourceMaterial` ordering not total over distinct emitted documents.
+- `IMPLEMENT` was completed on the branch: `Services/DataSafety/BackupModelMapperV2.cs` and `Services/DataSafety/Merge/MergeWriterTargetIndex.cs` were modified; a new caller-neutral `Services/DataSafety/Merge/Schema9ReviewSessionRowIdentities.cs` helper was added; regression tests were added to `KnownFirst.Tests/BackupCreationTests.cs`, `KnownFirst.Tests/MergeWriterServiceTests.cs`, and `KnownFirst.Tests/PortableImportEndToEndConvergenceTests.cs`.
+- An independent `REVIEW_ONLY` pass found exactly one MINOR finding: the new `SourceMaterial` ordering covered scalar Document fields but not the emitted child subgraph (`Sentences`/`Occurrences`), leaving `sm-*`/`ss-*` bindings installation-dependent for source materials that tie on every scalar. A RED-first correction added a deterministic content-derived child-subgraph ordering key. An independent re-review returned **`PACKAGE C MINOR-1 CORRECTION REVIEW APPROVED`** — no BLOCKER, MAJOR, or MINOR findings remain.
+- `TEST_ONLY` validation passed on the branch: `BackupCreationTests` 50/0/0, merge planner/writer/identity scope (`MergeWriterServiceTests`/`MergePreflightPlannerTests`/`MergeWorkflowIdentityTests`/`MergePreflightServiceTests`) 157/0/0, archive/restore/Schema-9 compatibility scope (`BackupArchiveV2Tests`/`PortableRecoveryTests`/`BackupServiceImportRoutingTests`/`Schema8BackupRestoreTests`/`Schema9RuntimeCompatibilityTests`) 117/0/0, `PortableImportEndToEndConvergenceTests` 6/0/0, and the full `ALL_AUTOMATED` suite **1776 passed / 0 failed / 0 skipped** (the pre-Package-C `master` baseline was 1769/0/0; the delta is exactly the seven added Package-C tests).
+- **Package C remains entirely local: uncommitted, unpushed, without a PR, and unmerged.** No remote `feature/schema9-completed-review-convergence-v1` branch exists.
+- No GUI, device, platform, standalone-build, packaging, signing, publishing, or release evidence exists for Package C.
 
 ## Current blocker or pending validation
 
@@ -62,14 +59,13 @@
 
 ## Exact next action
 
-- A separately authorized Package C `PLAN_ONLY` is the next repository action. Package C planning and implementation have not been authorized or started.
+- An independently authorized complete-diff `REVIEW_ONLY` of the full uncommitted Package C diff is the next repository action, before any `COMMIT_ONLY`. This document does not authorize that review; it records the expected next lifecycle gate.
 
 ## Concise new-chat handoff
 
-- Most recent recorded product-relevant milestone: `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65, Package B merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Most recent recorded product-relevant milestone on `master`: `f560a6b7ff9109bbee6c46602a002ea8b591de49` (PR #65, Package B merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
-- D1-D5 documentation reconciliation is complete. Package A is merged and complete.
-- Package B implementation, independent review, and automated validation (`ALL_AUTOMATED` 1769/0/0) are complete and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); Package B is present on master.
-- Package C remains future work and is not started; it is no longer gated by the Package-B merge/post-merge-sync event, which is complete. Its next lifecycle step is a separately authorized Package C `PLAN_ONLY`.
+- D1-D5 documentation reconciliation is complete. Package A and Package B are merged and complete on master.
+- Package C (convergence hardening) is implemented, independently reviewed and corrected, and `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0) on local branch `feature/schema9-completed-review-convergence-v1`. It remains uncommitted, unpushed, and unmerged — `master` does not yet contain it.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

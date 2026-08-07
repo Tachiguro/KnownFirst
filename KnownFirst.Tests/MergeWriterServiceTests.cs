@@ -941,6 +941,81 @@ public sealed class MergeWriterServiceTests
         DecidedAt = source.DecidedAt
     };
 
+    // ---- Package C parity: BackupModelMapperV2's canonical ReviewSessions ordering and
+    // MergeWriterTargetIndex must resolve the same Schema-9 completed-review identity for the same snapshot,
+    // so no second definition of completed-review identity can drift into existence. Both reach it through
+    // the shared, caller-neutral Schema9ReviewSessionRowIdentities plumbing; this test pins the observable
+    // consequence — the order in which the mapper emits two completed histories is exactly the ordinal order
+    // of the identities the writer's target index holds for them. ----
+    [TestMethod]
+    public async Task Schema9_MapperReviewSessionOrderingIdentity_EqualsWriterTargetIndexIdentity_ForTheSameSnapshot()
+    {
+        await using var fixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(
+            fixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc,
+            candidateStatus: WordStatus.Known, decisionSequence: 2);
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+        await PromoteToSchema9Async(fixture);
+
+        // A second completed history over the SAME document that ties on every session-level field the
+        // mapper orders by and differs only through its candidate decision — the exact shape whose ordering
+        // used to fall through to the local row id.
+        var documentId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM Documents LIMIT 1");
+        var bankWordId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM Words WHERE CanonicalTerm = 'bank'");
+        await fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewSessions
+                (DocumentId, Status, TotalCandidates, ReviewedCount, KnownCount, UnknownCount, IgnoredCount,
+                 DecisionSequence, StartedAt, CompletedAt)
+            VALUES (?, ?, 1, 1, 1, 0, 0, 2, ?, ?)
+            """,
+            documentId, (int)ReviewSessionStatus.Completed, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        var secondSessionId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+        await fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewCandidates
+                (SessionId, WordId, "Order", Status, PreviousWordStatus, PreviousTotalOccurrenceCount,
+                 PreviousDocumentCount, PreviousUpdatedAt, DecisionSequence, WasWordCreatedForSession, DecidedAt)
+            VALUES (?, ?, 0, ?, ?, 0, 0, ?, 2, 0, ?)
+            """,
+            secondSessionId, bankWordId, (int)WordStatus.Ignored, (int)WordStatus.Unreviewed,
+            ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+
+        var snapshot = await CaptureSnapshotAsync(fixture);
+        Assert.HasCount(2, snapshot.ReviewSessions);
+
+        var index = MergeWriterTargetIndex.Build(snapshot);
+        var payload = BackupModelMapperV2.MapToExternal(snapshot);
+        Assert.HasCount(2, payload.Workflows.VocabularyReviews);
+
+        // Identity of every emitted workflow, in emitted order, computed from the archive DTO side.
+        var documentIdentities = MergePreflightPlanner.BuildIdentityMap(
+            payload.SourceMaterials, d => d.Id, SourceMaterialIdentityPolicy.Compute, "source material");
+        var vocabularyIdentities = MergePreflightPlanner.BuildIdentityMap(
+            payload.Vocabulary, v => v.Id, VocabularyMergeIdentityPolicy.Compute, "vocabulary");
+        var emittedIdentities = payload.Workflows.VocabularyReviews
+            .Select(workflow =>
+            {
+                var result = ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2(
+                    workflow, documentIdentities, vocabularyIdentities);
+                Assert.IsFalse(result.HasDuplicateCandidateVocabularyIdentity);
+                return result.Identity.Value;
+            })
+            .ToList();
+
+        CollectionAssert.AreEquivalent(
+            index.ReviewSessionIdByIdentity.Keys.Select(identity => identity.Value).ToList(),
+            emittedIdentities,
+            "The mapper and the writer target index must resolve the same set of Schema-9 completed-review "
+            + "identities for one snapshot.");
+
+        CollectionAssert.AreEqual(
+            emittedIdentities.OrderBy(value => value, StringComparer.Ordinal).ToList(),
+            emittedIdentities,
+            "The mapper must emit two session-level-tied completed histories in the ordinal order of the same "
+            + "Schema-9 identity the writer target index keys them by — not in local row-id order.");
+    }
+
     // ---- Stage 2 intended behaviour: planner and writer target index must share one identity version ----
     [TestMethod]
     public async Task Schema9_PlannerActionIdentity_AndWriterTargetIndexKey_UseTheSameIdentityVersion()

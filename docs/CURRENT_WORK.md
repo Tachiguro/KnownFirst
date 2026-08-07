@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-06
+2026-08-07
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Verified master baseline
 
-- Master commit: `143c771afb0c875e2d47d802c9c2115b967ef689` (PR #59 merged)
+- Master commit: `179cf41870a6b59275e8cac0cc4f38b289040ce8` (PR #63 merged)
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android build, AAB, Internal Testing release, installation, or user test has occurred since.
 - Active database schema on master: SQLite `PRAGMA user_version` 9
@@ -33,6 +33,10 @@
 - **PR #57 — D3 Backup and Import Contracts.**
 - **PR #58 — D3 closure and D4 activation.**
 - **PR #59 — D4 Product, Workflow, and Release-Facing Documentation.**
+- **PR #60 — D4 closure and D5 activation.**
+- **PR #61 — D5 Testing and GUI Contract Reconciliation.**
+- **PR #62 — D5 Historical Banners and Routing Corrections.**
+- **PR #63 — D5 Mechanical Markdown Hygiene.**
 
 ## Active work package
 
@@ -42,26 +46,28 @@
 - **D2:** Agent Communication and Operation Governance. (Completed and merged via PR #55).
 - **D3:** Backup and Import Contracts. (Completed and merged via PR #57).
 - **D4:** Product, Workflow, and Release-Facing Documentation. (Completed and merged via PR #59).
-- **D5 (Current active documentation package):** Testing, GUI Status, Historical Banners, and Markdown Hygiene. Confirmed primary target files: `docs/TESTING.md`, `docs/GUI_TEST_MATRIX.md`. Historical status banners and Markdown hygiene (tables, headings, links, fragments, whitespace, encoding, BOM, line endings) remain mandatory investigation categories for the later D5 `PLAN_ONLY`. Any additional editable D5 file requires concrete evidence in that plan and separate user approval.
-- Package B implementation is not accepted and is paused until D5 is completed, merged, and locally synchronized.
+- **D5:** Testing, GUI Status, Historical Banners, and Markdown Hygiene. Completed and merged via PR #61 (D5 Testing and GUI Contract Reconciliation), PR #62 (D5 Historical Banners and Routing Corrections), and PR #63 (D5 Mechanical Markdown Hygiene).
+- D1-D5 documentation reconciliation is complete.
+- Package B implementation remains unauthorized. A fresh Package B `PLAN_ONLY` revalidation is required before implementation may resume; beginning that future `PLAN_ONLY` also requires separate explicit user authorization.
 - Package C remains future work.
 
 ## Current blocker or pending validation
 
-- Package B (completed-review convergence writer) is paused.
+- Package B implementation remains unauthorized pending a fresh, separately authorized `PLAN_ONLY` revalidation.
 - No pull request is currently open.
 - No remote Package-B branch exists.
 - No Beta 13, packaging, device, or store task is active.
 
 ## Exact next action
 
-- Review and complete the D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene package.
+- Determine whether the user wishes to authorize a fresh Package B `PLAN_ONLY` revalidation. No such authorization currently exists.
 
 ## Concise new-chat handoff
 
-- Master baseline is `143c771afb0c875e2d47d802c9c2115b967ef689` (PR #59 merged); no open pull request exists.
+- Master baseline is `179cf41870a6b59275e8cac0cc4f38b289040ce8` (PR #63 merged); no open pull request exists.
 - `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
-- The current approved work is D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene.
-- Package A is merged and complete; Package B implementation is not accepted and is paused; Package C is not started.
+- D1-D5 documentation reconciliation is complete. Package B is the next planned repository-planning target.
+- A fresh Package B `PLAN_ONLY` revalidation requires separate explicit user authorization; Package B implementation remains unauthorized.
+- Package A is merged and complete; Package C remains future work and is not started.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

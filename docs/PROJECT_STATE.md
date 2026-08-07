@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-06
-**State source:** `master` (`143c771afb0c875e2d47d802c9c2115b967ef689`, PR #59 merge commit)
-**Next repository action:** Review and complete the D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene package; no product implementation is currently active.
+**Status date:** 2026-08-07
+**State source:** `master` (`179cf41870a6b59275e8cac0cc4f38b289040ce8`, PR #63 merge commit)
+**Next repository action:** Package B is the next planned repository-planning target; a fresh Package B `PLAN_ONLY` revalidation requires separate explicit user authorization, and Package B implementation remains unauthorized. No product implementation is currently active.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -88,12 +88,17 @@ The `master` branch includes the following merged technical foundations:
 - **D3 Backup and Import Contracts (PR #57).**
 - **D3 closure and D4 activation (PR #58).**
 - **D4 Product, Workflow, and Release-Facing Documentation (PR #59).**
+- **D4 closure and D5 activation (PR #60).**
+- **D5 Testing and GUI Contract Reconciliation (PR #61).**
+- **D5 Historical Banners and Routing Corrections (PR #62).**
+- **D5 Mechanical Markdown Hygiene (PR #63).**
 
 **Current Status (master):**
 - The active database schema is **9** (`PRAGMA user_version = 9`).
 - Schema 9 is active during normal application initialization on master.
-- PR #59 is the most recent merge. Package B writer evidence is still pending; Package C convergence hardening is future work.
-- No product implementation or release package is currently active. D1, D2, D3, and D4 are complete, and D5 is the active documentation package. The current work package is authoritative documentation reconciliation (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
+- PR #63 is the most recent merge. D1-D5 documentation reconciliation is complete.
+- Package B is the next planned planning/revalidation target. A fresh Package B `PLAN_ONLY` revalidation requires separate explicit user authorization, and Package B implementation remains unauthorized. Package C remains future work.
+- No product implementation or release package is currently active. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
 
 ## Confirmed verification
 
@@ -139,9 +144,9 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The stable master baseline is `143c771afb0c875e2d47d802c9c2115b967ef689` (PR #59 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
+The stable master baseline is `179cf41870a6b59275e8cac0cc4f38b289040ce8` (PR #63 merged), carrying source version `1.0.0-beta.12` (build 12). `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
-No product implementation is currently active. The current work package is the D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene package described in [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+No product implementation is currently active. D1-D5 documentation reconciliation is complete. Package B is the next planned repository-planning target; a fresh Package B `PLAN_ONLY` revalidation requires separate explicit user authorization, and Package B implementation remains unauthorized. Package C remains future work. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
 **KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
 
@@ -159,7 +164,7 @@ No product implementation is currently active. The current work package is the D
 
 **Subsequent correctness and data-safety fixes (merged PRs #46-#50)** — see "Production capabilities" and "Merged development foundations" above.
 
-**Schema-9 Completed-Review Convergence (merged PRs #51-#52)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52). Package B (writer evidence) is paused. Package C (convergence hardening) is future work.
+**Schema-9 Completed-Review Convergence (merged PRs #51-#52)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52). Package B (writer evidence) had not yet resumed; Package C (convergence hardening) remained future work.
 
 **D1 Authoritative State and Database Truth (merged PR #53)** — reconciled repository baseline, roadmap, and changelog context.
 
@@ -174,3 +179,7 @@ No product implementation is currently active. The current work package is the D
 **D3 Closure and D4 Activation (merged PR #58)** — recorded D3 closure and activated D4 product, workflow, and release-facing documentation package.
 
 **D4 Product, Workflow, and Release-Facing Documentation (merged PR #59)** — reconciled `README.md`, `docs/KNOWNFIRST_ARCHITECTURE.md`, `docs/MVP_WORKFLOW.md`, `docs/VERSIONING.md`, and `docs/BETA_TESTING.md`.
+
+**D4 Closure and D5 Activation (merged PR #60)** — recorded D4 closure and activated D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene package.
+
+**D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene (merged PRs #61-#63)** — PR #61 reconciled testing and GUI contract documentation; PR #62 corrected historical status banners and routing references; PR #63 fixed mechanical Markdown hygiene defects. D1-D5 documentation reconciliation is complete.

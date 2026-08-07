@@ -12,6 +12,16 @@ namespace KnownFirst.Services.DataSafety;
 /// numeric id anywhere in the graph — every collection uses its own StableId, canonical parent identity,
 /// content fingerprint, or already-required-unique semantic key instead. Local numeric ids are used only
 /// to build the in-memory FK-resolution dictionaries during mapping.
+///
+/// <para><b>One deliberate exception:</b> <c>ReviewSessions</c> ends its ordering with the local row id.
+/// The <c>Id</c> tie-break is reached only after all retained session-level fields used by this mapper's
+/// ordering compare equal. Two such sessions may still contain different candidate rows and therefore may
+/// be genuinely distinct under the Schema-9 v2 full-history identity. <see cref="Merge.MergeWriterTargetIndex"/>
+/// rejects wholly identical full-history identities, but does not reject sessions that differ only through
+/// candidate history. The <c>Id</c> tie-break guarantees deterministic ordering within one captured snapshot
+/// and follows the established v1 precedent in <see cref="BackupModelMapper"/>. Cross-installation canonical
+/// ordering for sessions whose session-level fields tie but candidate histories differ is not claimed by
+/// Package B and remains a Package C convergence concern.</para>
 /// </summary>
 public static class BackupModelMapperV2
 {
@@ -66,9 +76,26 @@ public static class BackupModelMapperV2
         var cardIdMap = BuildIdMap(sortedCards, c => c.Id, "c-");
 
         // ---- Workflow parents: content-fingerprint ordered (no natural single unique field) ----
+        //
+        // ReviewSessions use explicit typed comparisons over every retained completed-review field rather
+        // than a delimiter-free ContentKey, and end in the local row id as a guaranteed final tie-break.
+        // Schema 9 replaced the legacy unique ReviewSessions(DocumentId) index with a non-unique index plus
+        // a partial unique index restricted to Active sessions, so two independently completed histories for
+        // one document became representable; the previous key omitted KnownCount/UnknownCount/IgnoredCount
+        // and CompletedAt, which are exactly the fields that distinguish two such histories, leaving the
+        // ordering non-total and the emitted archive-local ids dependent on raw row enumeration order.
         var sortedReviewSessions = snapshot.ReviewSessions
             .OrderBy(rs => docIdMap.TryGetValue(rs.DocumentId, out var d) ? d : string.Empty, StringComparer.Ordinal)
-            .ThenBy(rs => ContentKey(rs.Status, rs.TotalCandidates, rs.ReviewedCount, rs.DecisionSequence, rs.StartedAt.Ticks))
+            .ThenBy(rs => (int)rs.Status)
+            .ThenBy(rs => rs.TotalCandidates)
+            .ThenBy(rs => rs.ReviewedCount)
+            .ThenBy(rs => rs.KnownCount)
+            .ThenBy(rs => rs.UnknownCount)
+            .ThenBy(rs => rs.IgnoredCount)
+            .ThenBy(rs => rs.DecisionSequence)
+            .ThenBy(rs => EnsureUtc(rs.StartedAt).Ticks)
+            .ThenBy(rs => rs.CompletedAt.HasValue ? EnsureUtc(rs.CompletedAt.Value).Ticks : 0)
+            .ThenBy(rs => rs.Id)
             .ToList();
         var reviewSessionIdMap = BuildIdMap(sortedReviewSessions, rs => rs.Id, "vr-");
 

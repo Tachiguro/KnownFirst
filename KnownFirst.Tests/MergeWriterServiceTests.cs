@@ -1048,4 +1048,390 @@ public sealed class MergeWriterServiceTests
 
         Assert.AreEqual(BackupErrorCodes.DuplicateId, exception.Code);
     }
+
+    // ==== Package B: writer evidence for divergent completed Schema-9 review histories ====
+    //
+    // Package A proved the planner classification, the v2 full-history identity, and target-index parity,
+    // but every writer-level Schema-9 test above still runs against a Schema-8-shaped database:
+    // Schema8BackupFixtureBuilders.MigrateAsync stops at Schema 8 and therefore retains the legacy unique
+    // ReviewSessions(DocumentId) index, under which a second completed session for one document cannot
+    // physically exist. The helper below produces a genuinely Schema-9-shaped target — the same raw-DDL
+    // route Schema9RawFixture already establishes — so the writer's New-classification insert path can be
+    // exercised for the first time.
+
+    private static readonly DateTime DivergentReviewCompletedAtUtc = new(2026, 2, 1, 10, 15, 0, DateTimeKind.Utc);
+
+    /// <summary>Migrates an already-Schema-8 fixture to a real Schema-9 shape (non-unique DocumentId index
+    /// plus the partial unique Active-session index) and sets <c>PRAGMA user_version = 9</c>, then proves
+    /// the result actually resolves as Schema 9 through the production capability resolver.</summary>
+    private static async Task PromoteToSchema9Async(Schema7Fixture fixture)
+    {
+        await Schema9RawFixture.ReplaceLegacyIndexAsync(fixture.Connection);
+        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 9");
+
+        Assert.AreEqual(9, await fixture.ReadUserVersionAsync());
+        BackupSchemaCapabilityResult? capability = null;
+        await fixture.Connection.RunInTransactionAsync(connection => capability = BackupSchemaCapability.Resolve(connection));
+        Assert.IsInstanceOfType<Schema9CapabilityResult>(
+            capability,
+            "The Package B target must be a genuinely Schema-9-shaped database, not a Schema-8 fixture.");
+    }
+
+    /// <summary>Target: one "bank" card fixture plus one completed review history over the shared document,
+    /// promoted to a real Schema-9 shape.</summary>
+    private static async Task<Schema7Fixture> BuildSchema9ReviewHistoryTargetAsync()
+    {
+        var fixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(fixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+        await PromoteToSchema9Async(fixture);
+        return fixture;
+    }
+
+    /// <summary>Source: the identical "bank" card fixture and the identical document, but a completed review
+    /// history that genuinely diverges — a different completion instant and different retained outcome
+    /// counters, which is exactly what the v2 full-history identity distinguishes. Stays Schema-8 shaped:
+    /// only one session exists on this side, and only the target must be Schema 9.</summary>
+    private static async Task<Schema7Fixture> BuildDivergentReviewHistorySourceAsync()
+    {
+        var fixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(
+            fixture, ReviewHistoryStartedAtUtc, DivergentReviewCompletedAtUtc,
+            candidateStatus: WordStatus.UnknownBacklog, decisionSequence: 2);
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+        return fixture;
+    }
+
+    private static async Task<List<ReviewSessionEntity>> ReadReviewSessionsAsync(Schema7Fixture fixture) =>
+        await fixture.Connection.QueryAsync<ReviewSessionEntity>("SELECT * FROM ReviewSessions ORDER BY Id");
+
+    private static async Task<List<ReviewCandidateEntity>> ReadReviewCandidatesAsync(Schema7Fixture fixture) =>
+        await fixture.Connection.QueryAsync<ReviewCandidateEntity>("SELECT * FROM ReviewCandidates ORDER BY Id");
+
+    private static (int TotalCandidates, int ReviewedCount, int KnownCount, int UnknownCount, int IgnoredCount,
+        int DecisionSequence, DateTime StartedAt, DateTime? CompletedAt, int DocumentId, ReviewSessionStatus Status)
+        SessionFields(ReviewSessionEntity session) =>
+        (session.TotalCandidates, session.ReviewedCount, session.KnownCount, session.UnknownCount,
+            session.IgnoredCount, session.DecisionSequence, session.StartedAt, session.CompletedAt,
+            session.DocumentId, session.Status);
+
+    // ---- 1. A divergent completed history for an already-known document is inserted alongside the
+    // existing completed session, which itself is left untouched. ----
+    [TestMethod]
+    public async Task Schema9_DivergentCompletedReviewHistory_ForKnownDocument_IsInsertedAlongsideExistingSession()
+    {
+        await using var targetFixture = await BuildSchema9ReviewHistoryTargetAsync();
+        await using var sourceFixture = await BuildDivergentReviewHistorySourceAsync();
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status, $"Unexpected plan error code '{plan.ErrorCode}'.");
+        var workflowAction = plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow);
+        Assert.AreEqual(
+            MergeEntityClassification.New, workflowAction.Classification,
+            "A completed review history that diverges on completion instant and retained counters must not collapse "
+            + "onto the target's existing session identity.");
+
+        var documentsBefore = await CountAsync(targetFixture, "SELECT COUNT(*) FROM Documents");
+        var existingSessionBefore = (await ReadReviewSessionsAsync(targetFixture)).Single();
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status, $"Merge failed with error code '{result.ErrorCode}'.");
+        Assert.AreEqual(
+            documentsBefore, await CountAsync(targetFixture, "SELECT COUNT(*) FROM Documents"),
+            "The divergent history belongs to the already-known document; no second document may be created.");
+
+        var sessionsAfter = await ReadReviewSessionsAsync(targetFixture);
+        Assert.HasCount(2, sessionsAfter, "Both completed review histories must coexist for the one document.");
+        Assert.AreEqual(
+            1, sessionsAfter.Select(session => session.DocumentId).Distinct().Count(),
+            "Both sessions must be attached to the same target document row.");
+        Assert.AreEqual(existingSessionBefore.DocumentId, sessionsAfter[0].DocumentId);
+        Assert.IsTrue(
+            sessionsAfter.All(session => session.Status == ReviewSessionStatus.Completed),
+            "Neither coexisting session may be Active.");
+
+        var existingSessionAfter = sessionsAfter.Single(session => session.Id == existingSessionBefore.Id);
+        Assert.AreEqual(
+            SessionFields(existingSessionBefore), SessionFields(existingSessionAfter),
+            "The pre-existing completed history must not be overwritten, merged into, or mutated.");
+
+        var insertedSession = sessionsAfter.Single(session => session.Id != existingSessionBefore.Id);
+        Assert.AreEqual(DivergentReviewCompletedAtUtc.Ticks, insertedSession.CompletedAt!.Value.Ticks);
+        Assert.AreEqual(2, insertedSession.DecisionSequence);
+
+        // The merged target is still a structurally valid Schema-9 database: two Completed sessions for one
+        // document are legal, and the at-most-one-Active-session invariant still holds.
+        Assert.AreEqual(9, await targetFixture.ReadUserVersionAsync());
+        BackupSchemaCapabilityResult? capabilityAfter = null;
+        await targetFixture.Connection.RunInTransactionAsync(
+            connection => capabilityAfter = BackupSchemaCapability.Resolve(connection));
+        Assert.IsInstanceOfType<Schema9CapabilityResult>(capabilityAfter);
+        await AssertReferentialIntegrityAsync(targetFixture);
+    }
+
+    // ---- 2. Inserted candidates hang off the newly generated parent session; existing candidates keep
+    // their existing parent; document and vocabulary references resolve to target rows. ----
+    [TestMethod]
+    public async Task Schema9_InsertedCompletedReviewHistory_CandidatesAttachToNewParentSessionOnly()
+    {
+        await using var targetFixture = await BuildSchema9ReviewHistoryTargetAsync();
+        await using var sourceFixture = await BuildDivergentReviewHistorySourceAsync();
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+
+        var existingSessionId = (await ReadReviewSessionsAsync(targetFixture)).Single().Id;
+        var existingCandidateBefore = (await ReadReviewCandidatesAsync(targetFixture)).Single();
+        var targetDocumentId = await targetFixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM Documents");
+        var targetBankWordId = await targetFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT Id FROM Words WHERE CanonicalTerm = 'bank'");
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status, $"Merge failed with error code '{result.ErrorCode}'.");
+
+        var sessionsAfter = await ReadReviewSessionsAsync(targetFixture);
+        var insertedSessionId = sessionsAfter.Single(session => session.Id != existingSessionId).Id;
+
+        var candidatesAfter = await ReadReviewCandidatesAsync(targetFixture);
+        Assert.HasCount(2, candidatesAfter);
+
+        var existingCandidateAfter = candidatesAfter.Single(candidate => candidate.Id == existingCandidateBefore.Id);
+        Assert.AreEqual(
+            existingSessionId, existingCandidateAfter.SessionId,
+            "The pre-existing candidate must remain attached to the pre-existing session.");
+        Assert.AreEqual(existingCandidateBefore.WordId, existingCandidateAfter.WordId);
+        Assert.AreEqual(existingCandidateBefore.Status, existingCandidateAfter.Status);
+
+        var insertedCandidate = candidatesAfter.Single(candidate => candidate.Id != existingCandidateBefore.Id);
+        Assert.AreEqual(
+            insertedSessionId, insertedCandidate.SessionId,
+            "The inserted candidate must reference the newly generated target ReviewSession primary key.");
+        Assert.AreEqual(
+            WordStatus.UnknownBacklog, insertedCandidate.Status,
+            "The inserted candidate must carry the archive's own decision, not the target's.");
+
+        // Every relationship resolves through writer-side target mappings to real target rows: the archive's
+        // document and vocabulary were remapped onto the rows the target already had, never re-created.
+        Assert.IsTrue(
+            sessionsAfter.All(session => session.DocumentId == targetDocumentId),
+            "Both sessions must reference the existing target Document row.");
+        Assert.IsTrue(
+            candidatesAfter.All(candidate => candidate.WordId == targetBankWordId),
+            "Both candidates must reference the existing target 'bank' Word row.");
+        Assert.AreEqual(
+            1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM Words WHERE CanonicalTerm = 'bank'"),
+            "Vocabulary remapping must reuse the existing word, never duplicate it.");
+        Assert.AreEqual(
+            0,
+            await CountAsync(
+                targetFixture,
+                "SELECT COUNT(*) FROM ReviewCandidates rc LEFT JOIN ReviewSessions rs ON rs.Id = rc.SessionId "
+                + "LEFT JOIN Words w ON w.Id = rc.WordId WHERE rs.Id IS NULL OR w.Id IS NULL"),
+            "Every candidate must resolve to a real parent session row and a real word row.");
+        await AssertReferentialIntegrityAsync(targetFixture);
+    }
+
+    // ---- 3. One plan carrying both an exact-duplicate and a divergent completed history inserts only the
+    // divergent one. ----
+    [TestMethod]
+    public async Task Schema9_DivergentAndExactDuplicateCompletedHistories_InOnePlan_InsertOnlyTheDivergentOne()
+    {
+        await using var targetFixture = await BuildSchema9ReviewHistoryTargetAsync();
+
+        // The source repeats the target's history verbatim over one document and adds a genuinely different
+        // completed history over a second, independent document.
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(sourceFixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        await AddCompletedBankReviewHistoryAsync(
+            sourceFixture, ReviewHistoryStartedAtUtc, DivergentReviewCompletedAtUtc,
+            candidateStatus: WordStatus.UnknownBacklog, decisionSequence: 2,
+            content: "A second bank document.");
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status, $"Unexpected plan error code '{plan.ErrorCode}'.");
+
+        var workflowActions = plan.Actions.Where(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow).ToList();
+        Assert.HasCount(2, workflowActions);
+        Assert.AreEqual(
+            1, workflowActions.Count(a => a.Classification == MergeEntityClassification.ExactDuplicateSkipped));
+        Assert.AreEqual(1, workflowActions.Count(a => a.Classification == MergeEntityClassification.New));
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status, $"Merge failed with error code '{result.ErrorCode}'.");
+        Assert.AreEqual(
+            2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM ReviewSessions"),
+            "Exactly one session must be inserted: the duplicate resolves to the existing row.");
+        Assert.AreEqual(
+            2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM ReviewCandidates"),
+            "The duplicate's candidate must not be re-inserted.");
+        await AssertReferentialIntegrityAsync(targetFixture);
+    }
+
+    // ---- 4. Reimporting the merged completed history is a writer-boundary no-op. ----
+    [TestMethod]
+    public async Task Schema9_ReimportingMergedCompletedHistory_IsNoChangeAndIdempotentAtWriterBoundary()
+    {
+        await using var targetFixture = await BuildSchema9ReviewHistoryTargetAsync();
+        await using var sourceFixture = await BuildDivergentReviewHistorySourceAsync();
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+
+        Assert.AreEqual(MergeWriteStatus.Success, (await writer.ApplyAsync(archive, plan, CancellationToken.None)).Status);
+
+        var sessionsAfterFirstMerge = await ReadReviewSessionsAsync(targetFixture);
+        var candidatesAfterFirstMerge = await ReadReviewCandidatesAsync(targetFixture);
+        Assert.HasCount(2, sessionsAfterFirstMerge);
+
+        // The target index must now recognize the freshly written session by exactly the identity the
+        // planner computes for the archive's own session — otherwise this would report New a second time.
+        var reimportPlan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(
+            MergePreflightStatus.NoChanges, reimportPlan.Status,
+            "Reimporting an already-merged completed history must classify as an exact duplicate.");
+
+        var reimportResult = await writer.ApplyAsync(archive, reimportPlan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Success, reimportResult.Status, $"Reimport failed with '{reimportResult.ErrorCode}'.");
+        CollectionAssert.AreEqual(
+            sessionsAfterFirstMerge.Select(SessionFields).ToList(),
+            (await ReadReviewSessionsAsync(targetFixture)).Select(SessionFields).ToList(),
+            "Reimport must leave every ReviewSession row unchanged.");
+        Assert.AreEqual(
+            candidatesAfterFirstMerge.Count, (await ReadReviewCandidatesAsync(targetFixture)).Count,
+            "Reimport must not create a duplicate candidate.");
+    }
+
+    // ---- 5. An Active review session on the target blocks the writer entirely, with zero mutation. ----
+    [TestMethod]
+    public async Task Schema9_TargetWithActiveReviewSession_IsBlockedByActiveWorkflowWithoutMutation()
+    {
+        await using var targetFixture = await BuildSchema9ReviewHistoryTargetAsync();
+        await using var sourceFixture = await BuildDivergentReviewHistorySourceAsync();
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+
+        // The plan is computed while the target is still quiescent; the Active session appears only
+        // afterwards, exactly like a user starting a review between preview and confirmation.
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+
+        var activeDocumentId = await targetFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT Id FROM Documents");
+        await targetFixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO ReviewSessions
+                (DocumentId, Status, TotalCandidates, ReviewedCount, KnownCount, UnknownCount, IgnoredCount,
+                 DecisionSequence, StartedAt, CompletedAt)
+            VALUES (?, ?, 1, 0, 0, 0, 0, 0, ?, NULL)
+            """,
+            activeDocumentId, (int)ReviewSessionStatus.Active, ReviewHistoryStartedAtUtc);
+
+        var sessionsBefore = await ReadReviewSessionsAsync(targetFixture);
+        var candidatesBefore = await ReadReviewCandidatesAsync(targetFixture);
+        var activeSessionBefore = sessionsBefore.Single(session => session.Status == ReviewSessionStatus.Active);
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.BlockedByActiveWorkflow, result.Status);
+        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, result.ErrorCode);
+
+        var sessionsAfter = await ReadReviewSessionsAsync(targetFixture);
+        CollectionAssert.AreEqual(
+            sessionsBefore.Select(SessionFields).ToList(), sessionsAfter.Select(SessionFields).ToList(),
+            "A blocked merge must not mutate any ReviewSession row.");
+        Assert.AreEqual(
+            candidatesBefore.Count, (await ReadReviewCandidatesAsync(targetFixture)).Count,
+            "A blocked merge must not insert any ReviewCandidate row.");
+        Assert.AreEqual(
+            SessionFields(activeSessionBefore),
+            SessionFields(sessionsAfter.Single(session => session.Id == activeSessionBefore.Id)),
+            "The existing active session must remain exactly as it was.");
+    }
+
+    // ---- 6. A failure raised after the completed-history insertion rolls the whole transaction back. ----
+    [TestMethod]
+    public async Task Schema9_InjectedFailure_DuringCompletedReviewHistoryInsertion_RollsBackEveryChange()
+    {
+        await using var targetFixture = await BuildSchema9ReviewHistoryTargetAsync();
+        await using var sourceFixture = await BuildDivergentReviewHistorySourceAsync();
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+
+        var sessionsBefore = await ReadReviewSessionsAsync(targetFixture);
+        var candidatesBefore = await ReadReviewCandidatesAsync(targetFixture);
+
+        // "MergeWriter.BeforeCompletion" fires after WriteVocabularyReviewWorkflows has already inserted the
+        // new session and its candidate, so a throw here proves those specific rows are rolled back.
+        var writer = new MergeWriterService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
+            new ThrowAtCheckpointInjector("MergeWriter.BeforeCompletion"));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Failed, result.Status);
+
+        CollectionAssert.AreEqual(
+            sessionsBefore.Select(SessionFields).ToList(),
+            (await ReadReviewSessionsAsync(targetFixture)).Select(SessionFields).ToList(),
+            "Rollback must restore the ReviewSessions table exactly.");
+        CollectionAssert.AreEqual(
+            candidatesBefore.Select(candidate => (candidate.Id, candidate.SessionId, candidate.WordId, candidate.Order)).ToList(),
+            (await ReadReviewCandidatesAsync(targetFixture))
+                .Select(candidate => (candidate.Id, candidate.SessionId, candidate.WordId, candidate.Order)).ToList(),
+            "Rollback must restore the ReviewCandidates table exactly.");
+    }
+
+    // ---- 7. Characterization: the identical plan against a still-Schema-8 target fails closed. The legacy
+    // unique ReviewSessions(DocumentId) index physically rejects the second completed session, the writer's
+    // single transaction rolls back, and the target is left byte-identical. This asserts only the existing
+    // public contract (MergeWriteResult.ErrorCode is non-null whenever Status is not Success); it introduces
+    // no new error code and no new behavior. ----
+    [TestMethod]
+    public async Task Schema8Target_DivergentCompletedReviewHistoryPlan_FailsClosedWithoutMutation()
+    {
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        await AddCompletedBankReviewHistoryAsync(targetFixture, ReviewHistoryStartedAtUtc, ReviewHistoryCompletedAtUtc);
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+        Assert.AreEqual(8, await targetFixture.ReadUserVersionAsync(), "This target must deliberately remain Schema 8.");
+
+        await using var sourceFixture = await BuildDivergentReviewHistorySourceAsync();
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+
+        // The V2 planner classifies by content identity and is schema-shape agnostic, so it still reports New.
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.AreEqual(
+            MergeEntityClassification.New,
+            plan.Actions.Single(a => a.EntityKind == MergeEntityKind.VocabularyReviewWorkflow).Classification);
+
+        var sessionsBefore = await ReadReviewSessionsAsync(targetFixture);
+        var candidatesBefore = await ReadReviewCandidatesAsync(targetFixture);
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreNotEqual(
+            MergeWriteStatus.Success, result.Status,
+            "A Schema-8 target cannot physically hold two completed sessions for one document.");
+        Assert.IsNotNull(result.ErrorCode, "A non-success merge result must always carry an error code.");
+        CollectionAssert.AreEqual(
+            sessionsBefore.Select(SessionFields).ToList(),
+            (await ReadReviewSessionsAsync(targetFixture)).Select(SessionFields).ToList(),
+            "The Schema-8 target must be left byte-identical after the refused merge.");
+        Assert.AreEqual(candidatesBefore.Count, (await ReadReviewCandidatesAsync(targetFixture)).Count);
+    }
 }

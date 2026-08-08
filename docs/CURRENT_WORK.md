@@ -47,7 +47,7 @@
 
 **Milestone 14 product/source work is complete: Milestone 14B was manually merged via PR #73** (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`), `POST_MERGE_SYNC_ONLY` completed successfully, and local `master` is fast-forwarded to that commit.
 
-**The currently active repository package is a separate, uncommitted documentation package: the Milestone 14B post-merge documentation closure**, on branch `docs/milestone14b-post-merge-closure-v1` (three files: this file, [PROJECT_STATE.md](PROJECT_STATE.md), [ROADMAP.md](ROADMAP.md)). This closure package reconciles those three documents with the already-merged Milestone 14B product state. It is **not yet committed, pushed, opened as a pull request, reviewed as a pull request, merged, or post-merge synchronized.** Its immediate next lifecycle action is independent re-review of the corrected uncommitted closure package; after approval it still proceeds through commit, push, PR creation, final PR review, manual user merge, and `POST_MERGE_SYNC_ONLY`. The separately authorized standing-delegation governance package is queued only after this closure package is fully merged and synchronized; governance work has not started. Discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**The active documentation package is the Milestone 14B post-merge documentation closure** on branch `docs/milestone14b-post-merge-closure-v1`, associated with GitHub pull request PR #74 (covering three documentation files: this file, [PROJECT_STATE.md](PROJECT_STATE.md), and [ROADMAP.md](ROADMAP.md)). Live PR and branch lifecycle states must be discovered dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). If PR #74 is open and unreviewed, the next lifecycle step is final PR review; after an approved final review, the user manually merges it on GitHub; after a verified manual merge, the next step is `POST_MERGE_SYNC_ONLY`. If PR #74 has already been merged and synchronized when this document is read, the next work item is the separately authorized standing-delegation governance package.
 
 - Settings → Help & Support now offers one production-visible link to the new `/release-notes` route; the page exposes the complete existing release-note catalog.
 - History is returned newest-first: `1.0.0-beta.12`, `1.0.0-beta.11`, `1.0.0-beta.10`, through the new `IReleaseNotesService.GetReleaseNoteHistory()` API.
@@ -71,9 +71,9 @@ Milestone 14A history is unaffected: it passed final PR review, was manually mer
 
 ## Exact next action
 
-- **Independent re-review of the corrected, still-uncommitted Milestone 14B post-merge documentation closure** on branch `docs/milestone14b-post-merge-closure-v1`. Only after that review is approved does the closure proceed through commit, push, PR creation, final PR review, and manual user merge, followed by `POST_MERGE_SYNC_ONLY`.
-- No repository-writing next phase beyond that review is automatically authorized. The separately authorized standing-delegation governance package, and any future Milestone 15+ work package, come only after this closure package is fully merged and synchronized (see [ROADMAP.md](ROADMAP.md) priority 15 and beyond).
-- Automated agents never merge PRs; pull requests are merged exclusively by the repository owner manually through GitHub.
+- **Dynamic lifecycle determination for PR #74** on branch `docs/milestone14b-post-merge-closure-v1` per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md): if open and pending review, execute `REVIEW_ONLY`; after review approval, the repository owner manually merges the PR on GitHub; after manual merge, synchronize via `POST_MERGE_SYNC_ONLY`.
+- If PR #74 is already merged and synchronized, the next authorized task is the separately authorized standing-delegation governance package, followed by future roadmap milestones.
+- Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
 

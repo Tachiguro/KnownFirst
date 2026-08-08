@@ -44,7 +44,7 @@
 
 ## Currently active package
 
-**Milestone 14B — reopenable release-note history.** Implemented locally on branch `feature/milestone14b-release-note-history-v1`. The implementation is **uncommitted** and **no pull request exists yet**; discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Milestone 14B — reopenable release-note history.** Committed (`940f54d59697b4d5744355634f6ae52b6cb40692`), pushed on branch `feature/milestone14b-release-note-history-v1`, and open for review on PR #73. Implementation, targeted `TEST_ONLY` validation, documentation reconciliation, pre-commit review, and pre-PR re-review are complete; discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 - Settings → Help & Support now offers one production-visible link to the new `/release-notes` route; the page exposes the complete existing release-note catalog.
 - History is returned newest-first: `1.0.0-beta.12`, `1.0.0-beta.11`, `1.0.0-beta.10`, through the new `IReleaseNotesService.GetReleaseNoteHistory()` API.
@@ -61,15 +61,15 @@ Milestone 14A history is unaffected: it passed final PR review, was manually mer
 
 ## Current blocker or pending validation
 
-- Milestone 14B implementation and targeted automated validation are complete locally; the package is uncommitted and unreviewed.
-- Milestone 14 as a whole is **not** complete: Milestone 14B must still complete review, commit, push, pull-request, merge, and post-merge synchronization.
+- Milestone 14B implementation, targeted automated validation, independent review, commit (`940f54d59697b4d5744355634f6ae52b6cb40692`), push, and PR creation (PR #73) are complete; PR #73 is open on GitHub.
+- Milestone 14 as a whole is **not** complete: Milestone 14B must still undergo final PR review, manual user merge on GitHub, and `POST_MERGE_SYNC_ONLY`.
 - Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior of the new history page and Settings entry point remains unproven and belongs to separately authorized manual/GUI verification and the future pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
 - No Beta 13, build, packaging, signing, publishing, store, or device activity has occurred, and no such task is active.
 
 ## Exact next action
 
-- **User review of the complete uncommitted Milestone 14B package** (implementation, tests, and this documentation reconciliation).
-- No repository-writing next phase is automatically authorized. Commit, push, pull-request creation, and merge each require separate explicit authorization.
+- **Final PR review of open PR #73** followed by explicit manual user merge on GitHub if approved.
+- No repository-writing next phase is automatically authorized. Automated agents never merge PRs; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
 
@@ -79,6 +79,6 @@ Milestone 14A history is unaffected: it passed final PR review, was manually mer
 - D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are merged and complete on master.
 - Package C was implemented, MINOR-1 corrected, independently reviewed, `TEST_ONLY`-validated (1776/0/0 local automated evidence), passed final PR review, and manually merged via PR #68. `POST_MERGE_SYNC_ONLY` completed successfully.
 - Milestone 14A removed the unfinished `Support KnownFirst` and `Report a bug` controls and their placeholder behavior from the production Settings source. It was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) and `POST_MERGE_SYNC_ONLY` completed successfully. Its `UI_CONTRACT_AUTOMATED` evidence is `70 passed / 0 failed / 0 skipped` and is source/markup/Razor/CSS contract evidence only; rendered-Release and AAB-level absence remain unproven.
-- Milestone 14B (reopenable release-note history) is implemented locally on `feature/milestone14b-release-note-history-v1`, uncommitted, with no pull request yet. Focused TDD completed RED 5-failed then GREEN 5-passed; `TEST_ONLY` returned `110 passed / 0 failed / 0 skipped`. That evidence is service/unit/contract plus source/markup/Razor/CSS contract evidence only.
-- Milestone 14 is not complete: Milestone 14B must still pass review and complete its Git lifecycle, and no rendered-GUI, runtime, platform, or AAB evidence exists for it.
+- Milestone 14B (reopenable release-note history) is committed (`940f54d59697b4d5744355634f6ae52b6cb40692`), pushed on branch `feature/milestone14b-release-note-history-v1`, and open on PR #73. Focused TDD completed RED 5-failed then GREEN 5-passed; `TEST_ONLY` returned `110 passed / 0 failed / 0 skipped` (`ReleaseNotesTests` 38/38, `UiWorkflowContractTests` 72/72). That evidence is service/unit/contract plus source/markup/Razor/CSS contract evidence only.
+- Milestone 14 is not complete: PR #73 awaits final review and manual user merge on GitHub, followed by `POST_MERGE_SYNC_ONLY`; no rendered-GUI, runtime, platform, or AAB evidence exists for it.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

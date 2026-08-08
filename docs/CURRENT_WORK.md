@@ -52,7 +52,7 @@ No implementation package is currently active. Package C is complete and merged 
 
 ## Current blocker or pending validation
 
-- No blocker is active; no pull request is currently open.
+- No active implementation blocker or Package C lifecycle step remains outstanding; discover live pull-request state dynamically.
 - No Beta 13, packaging, device, or store task is active.
 
 ## Exact next action

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-08 (Milestone 14A support-placeholder removal)
+2026-08-08 (Milestone 14A post-merge closure)
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Verified product-state milestone
 
-- Most recent product-relevant milestone commit: `db47de3bf48b49b5258ce16acc6e3e543d96143c` (Package C, PR #68 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Most recent product-relevant milestone commit: `39609ffffb39c69238882172d153f4bb795ddab8` (Milestone 14A, PR #71 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android build, AAB, Internal Testing release, installation, or user test has occurred since.
 - Active database schema on master: SQLite `PRAGMA user_version` 9
@@ -40,17 +40,19 @@
 - **PR #64 — D5 closure and Package B revalidation queued.**
 - **PR #65 — Package B (Schema-9 completed-review writer evidence):** genuine Schema-9 writer evidence and a narrow deterministic `BackupModelMapperV2` `ReviewSession` ordering correction; merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`.
 - **PR #68 — Package C (Schema-9 completed-review convergence):** convergence hardening, cross-installation canonical ordering, and two-installation synchronization; merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`.
+- **PR #71 — Milestone 14A (unfinished support/report control removal):** the unfinished `Support KnownFirst` and `Report a bug` controls and their shared placeholder behavior removed from the production Settings source, with a focused source-contract absence test; merge commit `39609ffffb39c69238882172d153f4bb795ddab8`.
 
 ## Currently active package
 
-**Milestone 14A — removal of the unfinished Release-visible support/report controls.** This is the product package represented by the current repository snapshot. Package C remains complete and merged to `master` (PR #68); discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+No implementation package is currently active. Milestone 14A is complete and merged to `master` (PR #71); discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
-- The unfinished `Support KnownFirst` and `Report a bug` production controls, their `Common_FeatureComingSoon` placeholder UI, and the shared placeholder state and handlers are removed from `Components/Pages/Settings.razor`. The dead placeholder styling is removed from `Components/Pages/Settings.razor.css`.
-- `Settings_HelpAndSupport` and the build-identity display are intentionally retained; all unrelated Settings behavior is unchanged.
+- Milestone 14A passed final PR review, was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`), and `POST_MERGE_SYNC_ONLY` completed successfully. No Milestone 14A lifecycle step remains outstanding.
+- The unfinished `Support KnownFirst` and `Report a bug` production controls, their `Common_FeatureComingSoon` placeholder UI, and the shared placeholder state and handlers were removed from `Components/Pages/Settings.razor`. The dead placeholder styling was removed from `Components/Pages/Settings.razor.css`.
+- `Settings_HelpAndSupport` and the build-identity display were intentionally retained; all unrelated Settings behavior is unchanged.
 - The localization keys `Settings_SupportKnownFirst`, `Settings_ReportBug`, and `Common_FeatureComingSoon` are intentionally retained as resources. They are no longer referenced by any production control.
 - A focused absence contract was added to `KnownFirst.Tests/UiWorkflowContractTests.cs` and completed a genuine focused TDD red/green cycle during `IMPLEMENT`.
 - Authorized `UI_CONTRACT_AUTOMATED` evidence: `70 passed / 0 failed / 0 skipped`.
-- **This evidence is source/markup contract evidence only** (Razor, CSS, and test source inspection). It proves absence in the production component source, not runtime rendering.
+- **This evidence is source/markup/Razor/CSS contract evidence only.** It proves absence in the production component source, not runtime rendering.
 - No rendered-GUI, Windows runtime, Android/device, AOT/trimming, APK/AAB, packaging, signing, publishing, store, release, or newer external-distribution evidence was produced by Milestone 14A.
 - No SQLite schema version/migration, archive DTO/format version, public merge error/status contract, or release identity was changed by Milestone 14A.
 
@@ -58,23 +60,24 @@ Package C history is unaffected: it passed final PR review, was manually merged 
 
 ## Current blocker or pending validation
 
-- No active implementation blocker remains for Milestone 14A; discover live branch and pull-request lifecycle state dynamically.
-- Milestone 14 as a whole is **not** complete: reopenable release-note history remains outstanding.
-- AAB-level and rendered-Release absence of the removed controls remains unproven and belongs to the pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
-- No Beta 13, packaging, device, or store task is active.
+- No active implementation blocker or Milestone 14A lifecycle step remains outstanding; discover live branch and pull-request lifecycle state dynamically.
+- Milestone 14 as a whole is **not** complete: reopenable release-note history (Milestone 14B) remains outstanding and has not started.
+- Rendered-Release and AAB-level absence of the removed controls remains unproven and belongs to the future pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
+- No Beta 13, build, packaging, signing, publishing, store, or device activity has occurred, and no such task is active.
 
 ## Exact next action
 
+- No Milestone 14A lifecycle step remains.
 - No repository-writing next phase is automatically authorized.
-- After the Milestone 14A lifecycle closes, the next planned product work is **reopenable release-note history** — the remaining half of ROADMAP milestone 14. It requires its own separately authorized `PLAN_ONLY` before implementation.
+- The next planned product work is **Milestone 14B — reopenable release-note history**, the remaining half of ROADMAP milestone 14. It has not started and requires its own separately authorized `PLAN_ONLY` before implementation.
 
 ## Concise new-chat handoff
 
-- Most recent recorded product-relevant milestone on `master`: `db47de3bf48b49b5258ce16acc6e3e543d96143c` (PR #68, Package C merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Most recent recorded product-relevant milestone on `master`: `39609ffffb39c69238882172d153f4bb795ddab8` (PR #71, Milestone 14A merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are merged and complete on master.
 - Package C was implemented, MINOR-1 corrected, independently reviewed, `TEST_ONLY`-validated (1776/0/0 local automated evidence), passed final PR review, and manually merged via PR #68. `POST_MERGE_SYNC_ONLY` completed successfully.
-- Milestone 14A removes the unfinished `Support KnownFirst` and `Report a bug` controls and their placeholder behavior from the production Settings source. Its `UI_CONTRACT_AUTOMATED` evidence is `70 passed / 0 failed / 0 skipped` and is source/markup contract evidence only.
-- Milestone 14 is not complete: reopenable release-note history is still outstanding and is the next planned product work after the Milestone 14A lifecycle closes.
+- Milestone 14A removed the unfinished `Support KnownFirst` and `Report a bug` controls and their placeholder behavior from the production Settings source. It was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) and `POST_MERGE_SYNC_ONLY` completed successfully. Its `UI_CONTRACT_AUTOMATED` evidence is `70 passed / 0 failed / 0 skipped` and is source/markup/Razor/CSS contract evidence only; rendered-Release and AAB-level absence remain unproven.
+- Milestone 14 is not complete: Milestone 14B (reopenable release-note history) is still outstanding, has not started, and requires its own separately authorized `PLAN_ONLY`.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

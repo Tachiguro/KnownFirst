@@ -63,6 +63,19 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Settings_HasNoUnfinishedSupportOrReportControlsOrPlaceholderHandler()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.DoesNotContain("Settings_SupportKnownFirst", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Settings_ReportBug", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Common_FeatureComingSoon", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("FeaturePlaceholder", markup, StringComparison.Ordinal);
+
+        Assert.Contains("BuildIdentityService.GetFormattedBuildIdentity()", markup);
+    }
+
+    [TestMethod]
     public void Learning_AnswerIsConditionalAndNoSkipActionExists()
     {
         var markup = LoadUi("Learn.razor");

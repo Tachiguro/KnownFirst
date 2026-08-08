@@ -130,7 +130,7 @@ The `master` branch includes the following merged technical foundations:
 ## Known limitations
 
 - Exported `.kfarchive` archives are not encrypted and may contain personal imported text and learning history; users are warned before export.
-- "Support KnownFirst" and "Report a bug" in Settings are currently nonfunctional planned features. Both controls presently render unconditionally, including in Release, bound to a shared placeholder handler (`ShowFeaturePlaceholder`); this is a recorded release blocker (see [ROADMAP.md](ROADMAP.md)), not an acceptable permanent state.
+- "Support KnownFirst" and "Report a bug" remain unimplemented planned features. Milestone 14A removed both controls, their "coming soon" placeholder UI, and the shared placeholder state and handlers from the production Settings source (`Components/Pages/Settings.razor`), so they are no longer represented by any production control; they remain documentation-only, tracked in [ROADMAP.md](ROADMAP.md). The localization keys `Settings_SupportKnownFirst`, `Settings_ReportBug`, and `Common_FeatureComingSoon` are intentionally retained as unreferenced resource strings; a resource string is not a rendered product control. This state is established by source-contract evidence (Razor/CSS/test source inspection, `UI_CONTRACT_AUTOMATED` `70 passed / 0 failed / 0 skipped`) — it is not rendered-Release or AAB evidence.
 - Cloud synchronization, accounts, analytics, advertising, and payments are not implemented.
 - Offline dictionary packages and FSRS scheduling are deferred.
 - Online lookup requires explicit consent and network access on cache misses.
@@ -143,7 +143,8 @@ The `master` branch includes the following merged technical foundations:
 - An unfinished control must be absent from the rendered Release component tree and accessibility tree, not merely hidden with CSS.
 - Debug-only exposure of a planned control is permitted only when it is explicitly gated by an approved diagnostic build condition, cannot be activated in a normal Release build, is clearly marked as diagnostic and unfinished, and is excluded from the Google Play Release AAB. The existing `DiagnosticsEnabled`-gated lexical-log actions in Settings are the current example of this pattern.
 - Debug-only visual diagnostics (layout outlines, element borders, bounding boxes, diagnostic overlays, developer badges, or similar visual markers) must not appear in a Release build or Google Play AAB.
-- Under this policy, Support KnownFirst and Report a bug must be implemented or removed from Release rendering before the next AAB; see the work-package sequence in [ROADMAP.md](ROADMAP.md) (P2-P4).
+- Under this policy, Support KnownFirst and Report a bug took the explicit-removal path in Milestone 14A: they are absent from the production Settings source rather than implemented. See [ROADMAP.md](ROADMAP.md) for the milestone record.
+- Source-contract evidence and rendered evidence are distinct. Source or markup inspection establishes that an unfinished control is absent from the component source; it does not by itself prove absence from a rendered Release build or from a Google Play AAB. The mandatory pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) is still required before any package- or AAB-level absence claim is made.
 
 This document does not claim public-release readiness or draw legal conclusions about license/attribution compliance; those remain open review items tracked in [ROADMAP.md](ROADMAP.md).
 
@@ -151,7 +152,7 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 The most recent recorded product-relevant milestone on `master` is `db47de3bf48b49b5258ce16acc6e3e543d96143c` (PR #68, Package C merged), carrying source version `1.0.0-beta.12` (build 12). This is historical milestone evidence, not a claim about the literal current `master` HEAD. `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
 
-D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are all merged and present on `master`. No implementation package is currently active. Package C (convergence hardening) was implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and manually merged via PR #68 — it is documented below for traceability. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are all merged and present on `master`. The current active package state is recorded in [CURRENT_WORK.md](CURRENT_WORK.md). Package C (convergence hardening) was implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and manually merged via PR #68 — it is documented below for traceability. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
 
 **Schema-9 Completed-Review Convergence — Package B (merged via PR #65).** Implemented, independently reviewed, validated, and merged, on the former branch `feature/schema9-completed-review-writer-evidence-v1`, published as commit `d00144cd8789f5392c9fb695dac8856f992c2200` and merged via PR #65 (`fix: complete schema 9 completed-review package B`, merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`):
 

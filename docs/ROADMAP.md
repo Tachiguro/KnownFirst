@@ -29,7 +29,7 @@ This roadmap records intended order. It does not claim that planned behavior exi
 | 11 | Schema-9 Review-Session History and Package A | Committed | PR #51 (Schema-9 review-session history storage) and PR #52 Package A (Schema-9 completed-review identity, planner, target-index parity, and characterization coverage). |
 | 12 | Authoritative Documentation Reconciliation | Committed | Documentation-governance packages D1-D5 establishing truth and safe agent operation. D1 merged via PR #53. D2 merged via PR #55. D3 merged via PR #57. D4 merged via PR #59. D5 merged via PR #61, PR #62, and PR #63; D5 closure and Package B revalidation queued via PR #64. |
 | 13 | Schema-9 Completed-Review Convergence (Package B and C) | Committed | Package B (writer evidence) is committed and merged: implemented, independently reviewed (approved), validated (`ALL_AUTOMATED` 1769/0/0), and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`). Package C (convergence hardening) is implemented, independently reviewed, MINOR-1 corrected, independently re-reviewed (approved, no BLOCKER/MAJOR/MINOR findings), `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0), passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`). `POST_MERGE_SYNC_ONLY` completed successfully. |
-| 14 | Public-release support surface | Planned — every-AAB blocker (see policy below) and public-release blocker | Implement functional Support KnownFirst and Report a bug controls, or explicitly remove them from Release rendering; and add reopenable release-note history. |
+| 14 | Public-release support surface | Current — partially implemented; remains a public-release blocker until complete | Two parts. **14A (implemented in this package snapshot):** the explicit-removal path was taken — Support KnownFirst and Report a bug, their "coming soon" placeholder UI, and the shared placeholder handlers are removed from the production Settings source; `UI_CONTRACT_AUTOMATED` `70 passed / 0 failed / 0 skipped` (source-contract evidence only, not GUI, AAB, or release evidence). **14B (outstanding):** reopenable release-note history. |
 | 15 | Automated GUI validation | Planned | Android-first deterministic GUI automation (Appium/UiAutomator2); Windows automation launcher integration. |
 | 16 | Public-release readiness | Planned — public-release blocker | Privacy disclosures, attribution/license review, support/payment surface, website, and store materials. |
 | 17 | Russian source-text support | Deferred | Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, Russian Wikipedia fallback. |
@@ -75,7 +75,9 @@ This roadmap records intended order. It does not claim that planned behavior exi
 
 ## Current
 
-D1-D5 documentation reconciliation is complete. Package B (Schema-9 Completed-Review Convergence writer evidence) is implemented, independently reviewed (approved), validated, and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); it is present on master. Package C (convergence hardening) was implemented, independently reviewed, MINOR-1 corrected, independently re-reviewed (approved), `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0), passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`). See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package state.
+D1-D5 documentation reconciliation is complete. Package B (Schema-9 Completed-Review Convergence writer evidence) is implemented, independently reviewed (approved), validated, and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); it is present on master. Package C (convergence hardening) was implemented, independently reviewed, MINOR-1 corrected, independently re-reviewed (approved), `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0), passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`).
+
+Milestone 14 is now partially implemented. Milestone 14A (removal of the unfinished Support KnownFirst and Report a bug controls and their placeholder behavior from the production Settings source) is implemented in the current package snapshot with `UI_CONTRACT_AUTOMATED` `70 passed / 0 failed / 0 skipped` — source-contract evidence only. Milestone 14B (reopenable release-note history) is not started and requires its own `PLAN_ONLY`. Milestone 14 is therefore not complete. See [CURRENT_WORK.md](CURRENT_WORK.md) for the active package state.
 
 ## Planned Sequence (Meaning & Merge)
 
@@ -125,8 +127,8 @@ After these packages complete, additional release-readiness packages (production
 
 The following must be resolved before any public Google Play promotion (current distribution remains Internal Testing only), in addition to the every-AAB unfinished-control and debug-UI blockers above:
 
-1. Functional (or explicitly removed) Support KnownFirst and Report a bug controls (also an every-AAB blocker under the policy above).
-2. Reopenable release notes / release-note history.
+1. Functional (or explicitly removed) Support KnownFirst and Report a bug controls. **Milestone 14A took the explicit-removal implementation path:** both controls and their placeholder behavior are absent from the production Settings source, established by source-contract evidence (`UI_CONTRACT_AUTOMATED` `70 passed / 0 failed / 0 skipped`). Source-contract evidence is not package- or AAB-level evidence; confirming their absence in an actual Release build and AAB belongs to the mandatory pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
+2. Reopenable release notes / release-note history. **Open.**
 3. Wikimedia attribution and license-version handling reviewed against actual provider-returned metadata.
 4. Deterministic GUI validation coverage sufficient to support release confidence without exclusively manual verification.
 5. Privacy, support, and payment-surface documentation and external legal/tax review where applicable.

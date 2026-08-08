@@ -163,7 +163,9 @@ Each applicable surface must handle these states without broken layout, missing 
 - The complete page is scrollable.
 - Reset confirmation and all its actions remain reachable and fully visible.
 - Destructive settings are clear without consuming disproportionate space.
-- Support and diagnostics are grouped logically.
+- Unfinished support actions are absent from production Settings rendering; no placeholder or "coming soon" control appears.
+- Diagnostic actions remain logically grouped, visually marked as diagnostic, and gated so they are absent in Release.
+- The remaining Settings content, including the build identity, stays structurally clear, correctly labelled, and accessible.
 
 ## 10. Forms and feedback
 

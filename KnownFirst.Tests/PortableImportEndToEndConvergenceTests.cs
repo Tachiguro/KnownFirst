@@ -1500,4 +1500,167 @@ public sealed class PortableImportEndToEndConvergenceTests
 
         return [.. preparation, .. learning, .. reviews];
     }
+
+    // ==== Schema-9 LearningReview merge integrity ====
+
+    private static readonly DateTime ReviewVariantReviewedAtUtc = new(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc);
+    private const string ReviewVariantAlphaText = "alpha-answer";
+    private const string ReviewVariantBetaText = "beta-answer";
+
+    [TestMethod]
+    public async Task SameInstantVariantDistinctLearningReviews_ExchangeConvergesWithoutMissingOrDuplicateEvents()
+    {
+        // Both installations hold identical vocabulary, sense, card and answer-variant content, and one
+        // completed learning session whose single review ties on every field the meaning-aware fingerprint
+        // considered — same instant, rating, outcome and scheduling snapshot. They differ only in which
+        // answer variant the review exercised, and they store the two equivalent variants under opposite
+        // local row ids, so only stable variant identity can decide the match.
+        var builtA = await BuildReviewVariantInstallationAsync(targetsAlpha: true);
+        var builtB = await BuildReviewVariantInstallationAsync(targetsAlpha: false);
+
+        await using var dbA = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtA);
+        await using var dbB = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtB);
+
+        var localVariantOrderA = await VariantTextsByRowOrderAsync(dbA.Connection);
+        var localVariantOrderB = await VariantTextsByRowOrderAsync(dbB.Connection);
+        Assert.AreNotEqual(
+            string.Join(";", localVariantOrderA), string.Join(";", localVariantOrderB),
+            "The two installations must hold the equivalent answer variants under the opposite local row "
+            + "order; otherwise this test would not exercise the stable-identity boundary at all.");
+
+        var archiveA = await CaptureSchema9ArchiveBytesAsync(dbA.Connection);
+        var archiveB = await CaptureSchema9ArchiveBytesAsync(dbB.Connection);
+
+        var serviceOverA = new BackupService(dbA, new FakePlatformInfo());
+        var serviceOverB = new BackupService(dbB, new FakePlatformInfo());
+
+        await PreviewAndImportPackageDAsync(serviceOverB, archiveA, "A -> B");
+        await PreviewAndImportPackageDAsync(serviceOverA, archiveB, "B -> A");
+
+        foreach (var installation in new[] { dbA, dbB })
+        {
+            Assert.AreEqual(
+                2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningReviews"),
+                "Two reviews exercising different answer variants are distinct events: neither may be lost "
+                + "and neither may be duplicated.");
+            Assert.AreEqual(
+                1, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningSessions"),
+                "The two identical completed sessions must match by identity rather than duplicate.");
+            Assert.AreEqual(
+                0,
+                await CountAsync(
+                    installation.Connection,
+                    "SELECT COUNT(*) FROM LearningReviews r LEFT JOIN LearningSessions s ON s.Id = r.SessionId WHERE s.Id IS NULL"),
+                "Every retained review must stay attached to a real LearningSession row.");
+            await AssertReferentialIntegrityAsync(installation.Connection);
+        }
+
+        var reviewStateA = await ReviewVariantAttachmentStateAsync(dbA.Connection);
+        var reviewStateB = await ReviewVariantAttachmentStateAsync(dbB.Connection);
+        CollectionAssert.AreEqual(
+            new List<string> { $"{ReviewVariantAlphaText}|{ReviewVariantAlphaText}", $"{ReviewVariantBetaText}|{ReviewVariantBetaText}" },
+            reviewStateA,
+            "A must end up with exactly one review per answer variant, each keeping its own target/matched "
+            + "variant attachment.");
+        CollectionAssert.AreEqual(
+            reviewStateA, reviewStateB,
+            "Both installations must converge on the same review/answer-variant attachment.");
+
+        // One further exchange must be a pure no-change on both sides.
+        var convergedArchiveA = await CaptureSchema9ArchiveBytesAsync(dbA.Connection);
+        var convergedArchiveB = await CaptureSchema9ArchiveBytesAsync(dbB.Connection);
+        await ImportExpectingAsync(serviceOverB, convergedArchiveA, PortableImportDisposition.MergeNoChange, "A -> B (repeat)");
+        await ImportExpectingAsync(serviceOverA, convergedArchiveB, PortableImportDisposition.MergeNoChange, "B -> A (repeat)");
+
+        foreach (var installation in new[] { dbA, dbB })
+        {
+            Assert.AreEqual(2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningReviews"));
+            Assert.AreEqual(1, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningSessions"));
+            await AssertReferentialIntegrityAsync(installation.Connection);
+        }
+
+        CollectionAssert.AreEqual(reviewStateA, await ReviewVariantAttachmentStateAsync(dbA.Connection));
+        CollectionAssert.AreEqual(reviewStateB, await ReviewVariantAttachmentStateAsync(dbB.Connection));
+    }
+
+    /// <summary>
+    /// One Schema-9 installation with a single card carrying two extra assigned answer variants and exactly
+    /// one completed learning history. The two installations differ only in which variant the review
+    /// exercised and in the local row order of the two equivalent variants.
+    /// </summary>
+    private static async Task<Schema7Fixture> BuildReviewVariantInstallationAsync(bool targetsAlpha)
+    {
+        var fixture = await Schema7Fixture.CreateAsync();
+
+        var wordId = await fixture.InsertWordAsync("bank", status: WordStatus.Learning, createdAt: Epoch, updatedAt: Epoch);
+        var meaningId = await fixture.InsertMeaningAsync(
+            wordId, displayTerm: "bank", translation: "Bank", selectedMeaningId: "bank-1",
+            definition: "a financial institution", createdAt: Epoch, updatedAt: Epoch);
+        var cardId = await fixture.InsertCardAsync(
+            wordId, meaningId, CardDirection.TermToMeaning,
+            dueAtUtc: Epoch, createdAtUtc: Epoch, updatedAtUtc: Epoch);
+
+        var learningSessionId = await fixture.InsertLearningSessionAsync(
+            startedAtUtc: ReviewVariantReviewedAtUtc, updatedAtUtc: ReviewVariantReviewedAtUtc,
+            completedAtUtc: ReviewVariantReviewedAtUtc);
+        await fixture.InsertReviewAsync(
+            cardId, sessionId: learningSessionId, rating: ReviewRating.Good, wasTypedAnswer: true,
+            wasCorrect: true, reviewedAtUtc: ReviewVariantReviewedAtUtc,
+            dueAtUtc: ReviewVariantReviewedAtUtc.AddDays(1), intervalDays: 1,
+            easeFactor: SimpleSpacedRepetitionScheduler.DefaultEaseFactor);
+
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+        await Schema9RawFixture.ReplaceLegacyIndexAsync(fixture.Connection);
+        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 9");
+
+        // The two extra variants are inserted in the opposite order on the two installations, so equivalent
+        // answer content lands on opposite local row ids.
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM Senses LIMIT 1");
+        var texts = targetsAlpha
+            ? new[] { ReviewVariantAlphaText, ReviewVariantBetaText }
+            : [ReviewVariantBetaText, ReviewVariantAlphaText];
+
+        var variantIdByText = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var text in texts)
+        {
+            var variantId = await fixture.InsertAnswerVariantAsync(
+                senseId, displayText: text, answerLanguage: "de", createdAtUtc: Epoch);
+            await fixture.InsertAssignmentAsync(
+                senseId, CardDirection.TermToMeaning, variantId,
+                Data.Migrations.Schema8.AnswerVariantRequirement.AcceptedOnly,
+                isPreferred: false, requiredSinceUtc: null, createdAtUtc: Epoch);
+            variantIdByText[text] = variantId;
+        }
+
+        var exercisedVariantId = variantIdByText[targetsAlpha ? ReviewVariantAlphaText : ReviewVariantBetaText];
+        await fixture.Connection.ExecuteAsync(
+            "UPDATE LearningReviews SET TargetAnswerVariantId = ?, MatchedAnswerVariantId = ?",
+            exercisedVariantId, exercisedVariantId);
+
+        BackupSchemaCapabilityResult? capability = null;
+        await fixture.Connection.RunInTransactionAsync(connection => capability = BackupSchemaCapability.Resolve(connection));
+        Assert.IsInstanceOfType<Schema9CapabilityResult>(
+            capability, "Both installations must be genuinely Schema-9 shaped.");
+
+        return fixture;
+    }
+
+    private static async Task<List<string>> VariantTextsByRowOrderAsync(SQLiteAsyncConnection connection) =>
+        [.. (await connection.QueryAsync<TextRow>("SELECT NormalizedText AS Value FROM AnswerVariants ORDER BY Id")).Select(row => row.Value)];
+
+    /// <summary>Each review reduced to the normalized answer text of its target and matched variant, sorted
+    /// by content so the projection is comparable across installations with different local ids.</summary>
+    private static async Task<List<string>> ReviewVariantAttachmentStateAsync(SQLiteAsyncConnection connection) =>
+        [.. (await connection.QueryAsync<TextRow>(
+            """
+            SELECT COALESCE(t.NormalizedText, '<none>') || '|' || COALESCE(m.NormalizedText, '<none>') AS Value
+            FROM LearningReviews r
+            LEFT JOIN AnswerVariants t ON t.Id = r.TargetAnswerVariantId
+            LEFT JOIN AnswerVariants m ON m.Id = r.MatchedAnswerVariantId
+            """)).Select(row => row.Value).OrderBy(value => value, StringComparer.Ordinal)];
+
+    private sealed class TextRow
+    {
+        public string Value { get; set; } = string.Empty;
+    }
 }

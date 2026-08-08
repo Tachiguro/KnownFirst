@@ -1821,4 +1821,211 @@ public sealed class MergePreflightPlannerTests
             CollectionAssert.AreEqual(leftSamples.ToList(), rightSamples.ToList());
         }
     }
+
+    // ==== Schema-9 LearningReview merge integrity ====
+    //
+    // Design §6's exact-duplicate rule is "any field difference at the same (stableCardKey, ReviewedAtUtc)
+    // means they are not the same event". The Schema-9 meaning-aware fingerprint stopped at EaseFactor and
+    // never consulted the emitted TargetAnswerVariantId/MatchedAnswerVariantId, and the LearningReview action
+    // key was the non-unique content label CardId@ReviewedAtUtc rather than the synthesized positional label
+    // MergePlanAction.ArchiveLocalId documents. LearningSessionId stays out of event identity by design.
+
+    private const string ReviewIntegrityFirstVariantText = "alpha-answer";
+    private const string ReviewIntegritySecondVariantText = "beta-answer";
+
+    /// <summary>
+    /// One vocabulary item, Sense, prepared item and card, plus two AnswerVariants assigned to the card's
+    /// direction. Every archive-local id and StableId carries <paramref name="side"/>, so a target and an
+    /// archive payload built here share no raw local id — only content-derived identities can ever match
+    /// them. Each requested review is emitted at the same instant with the same scheduling outcome, so two
+    /// reviews differ only in the fields the tuple names.
+    /// </summary>
+    private static BackupPayloadV2 ReviewIntegrityPayload(
+        string side,
+        params (BackupReviewRating Rating, int TargetVariant, int MatchedVariant)[] reviews)
+    {
+        string VariantId(int index) => index switch
+        {
+            1 => $"av1-{side}",
+            2 => $"av2-{side}",
+            _ => throw new ArgumentOutOfRangeException(nameof(index))
+        };
+
+        var sense = new BackupSense(
+            $"s-{side}", $"sense-stable-{side}", $"v-{side}", "en", "de", "bank-1", string.Empty, string.Empty,
+            string.Empty, string.Empty, null, BackupSenseStatus.Learning, BaseTime, BaseTime);
+
+        var prepared = new BackupPreparedItemV2(
+            $"p-{side}", $"s-{side}", $"prepared-stable-{side}", $"v-{side}", "en", "de", "bank", null, null,
+            BackupTokenKind.Word, "bank-1", null, "Bank", "a financial institution", null, null, null, [], true,
+            SourceReference(), BaseTime, BaseTime, BaseTime, []);
+
+        var card = new BackupLearningCardV2(
+            $"c-{side}", $"v-{side}", $"s-{side}", $"p-{side}", BackupCardDirection.TermToMeaning,
+            BackupCardState.Review, BaseTime.AddDays(3), 3, 2.5, 1, 0, BaseTime, BackupReviewRating.Good,
+            BaseTime, BaseTime);
+
+        BackupAnswerVariant Variant(int index, string normalizedText) => new(
+            VariantId(index), $"variant-stable-{index}-{side}", $"s-{side}", "de", normalizedText,
+            normalizedText, null, BaseTime, BaseTime);
+
+        BackupSenseAnswerVariantAssignment Assignment(int index) => new(
+            $"asg{index}-{side}", $"assignment-stable-{index}-{side}", $"s-{side}",
+            BackupCardDirection.TermToMeaning, VariantId(index), BackupAnswerVariantRequirement.AcceptedOnly,
+            false, BaseTime, BaseTime);
+
+        var reviewRows = reviews
+            .Select(review => new BackupLearningReviewV2(
+                $"c-{side}", $"ls-{side}", review.Rating, true, true, BaseTime, BaseTime.AddDays(3), 3, 2.5,
+                review.TargetVariant == 0 ? null : VariantId(review.TargetVariant),
+                review.MatchedVariant == 0 ? null : VariantId(review.MatchedVariant)))
+            .ToList();
+
+        return new BackupPayloadV2(
+            [],
+            [Vocabulary($"v-{side}", term: "bank")],
+            [sense],
+            [prepared],
+            [Variant(1, ReviewIntegrityFirstVariantText), Variant(2, ReviewIntegritySecondVariantText)],
+            [Assignment(1), Assignment(2)],
+            [],
+            new BackupLearningDataV2([card], reviewRows),
+            new BackupWorkflowDataV2([], [], []),
+            new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
+    }
+
+    private static List<MergePlanAction> ReviewActions(MergePreflightPlan plan) =>
+        [.. plan.Actions.Where(a => a.EntityKind == MergeEntityKind.LearningReview)];
+
+    [TestMethod]
+    public void SameCardSameInstantReviews_ProduceDistinctArchiveActionKeys()
+    {
+        // Two physical archive review rows for one card at one instant. They are genuinely distinct events
+        // (different Rating), so the planner must emit two separately addressable actions — the writer keys
+        // its per-row lookup by ArchiveLocalId, so two rows sharing one key silently collapse there.
+        var archive = ReviewIntegrityPayload(
+            "a",
+            (BackupReviewRating.Good, 0, 0),
+            (BackupReviewRating.Hard, 0, 0));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(ReviewIntegrityPayload("t"), archive, ManifestV2());
+
+        var actions = ReviewActions(plan);
+        Assert.HasCount(2, actions, "Each physical archive review row must keep exactly one primary action.");
+        Assert.AreEqual(
+            2,
+            actions.Select(a => a.ArchiveLocalId).Distinct(StringComparer.Ordinal).Count(),
+            "Two archive review rows sharing CardId and ReviewedAtUtc must still receive distinct "
+            + "ArchiveLocalId lookup keys, or the writer's action map collapses them.");
+        Assert.AreEqual(
+            2,
+            actions.Select(a => a.StableIdentity).Distinct(StringComparer.Ordinal).Count(),
+            "The two events are genuinely distinct and must keep distinct merge identities.");
+
+        foreach (var action in actions)
+        {
+            Assert.AreNotEqual(
+                action.StableIdentity, action.ArchiveLocalId,
+                "ArchiveLocalId is a synthesized positional lookup label, never the merge identity itself.");
+        }
+    }
+
+    [TestMethod]
+    public void EquivalentReviewsAcrossInstallations_DedupeThroughStableVariantIdentity()
+    {
+        // Control for the tests below: the target and archive answer variants carry different archive-local
+        // ids but identical normalized text, so the same real event must still dedupe.
+        var target = ReviewIntegrityPayload("t", (BackupReviewRating.Good, 1, 1));
+        var archive = ReviewIntegrityPayload("a", (BackupReviewRating.Good, 1, 1));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].DeduplicatedEventCount,
+            "Equivalent variants under different archive-local ids must resolve to the same stable identity.");
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.LearningReview].NewCount);
+    }
+
+    [TestMethod]
+    public void ReviewsDifferingOnlyInTargetAnswerVariantIdentity_RemainDistinct()
+    {
+        var target = ReviewIntegrityPayload("t", (BackupReviewRating.Good, 1, 0));
+        var archive = ReviewIntegrityPayload("a", (BackupReviewRating.Good, 2, 0));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].NewCount,
+            "Two reviews tying on every other emitted field but exercising a different target answer "
+            + "variant are distinct events and must both be retained.");
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.LearningReview].DeduplicatedEventCount);
+    }
+
+    [TestMethod]
+    public void ReviewsDifferingOnlyInTargetAnswerVariantPresence_RemainDistinct()
+    {
+        var target = ReviewIntegrityPayload("t", (BackupReviewRating.Good, 0, 0));
+        var archive = ReviewIntegrityPayload("a", (BackupReviewRating.Good, 1, 0));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].NewCount,
+            "An absent target answer variant is a distinct event from a present one; null presence must be "
+            + "encoded explicitly.");
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.LearningReview].DeduplicatedEventCount);
+    }
+
+    [TestMethod]
+    public void ReviewsDifferingOnlyInMatchedAnswerVariantIdentity_RemainDistinct()
+    {
+        var target = ReviewIntegrityPayload("t", (BackupReviewRating.Good, 1, 1));
+        var archive = ReviewIntegrityPayload("a", (BackupReviewRating.Good, 1, 2));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].NewCount,
+            "Two reviews whose matched answer variant resolves to a different stable identity are distinct "
+            + "events and must both be retained.");
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.LearningReview].DeduplicatedEventCount);
+    }
+
+    [TestMethod]
+    public void ReviewsDifferingOnlyInMatchedAnswerVariantPresence_RemainDistinct()
+    {
+        var target = ReviewIntegrityPayload("t", (BackupReviewRating.Good, 1, 0));
+        var archive = ReviewIntegrityPayload("a", (BackupReviewRating.Good, 1, 1));
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archive, ManifestV2());
+
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].NewCount,
+            "A matched answer variant that is absent on one side and present on the other must not collapse.");
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.LearningReview].DeduplicatedEventCount);
+    }
+
+    [TestMethod]
+    public void ReviewsDifferingOnlyInLearningSessionReference_RemainOneEvent()
+    {
+        // The resolved architecture decision: LearningSessionId is referential workflow attachment, not
+        // LearningReview event identity. The same real event exported under two workflow-session references
+        // must still dedupe, or repeated cross-installation exchange would duplicate historical reviews.
+        var target = ReviewIntegrityPayload("t", (BackupReviewRating.Good, 1, 1));
+        var archive = ReviewIntegrityPayload("a", (BackupReviewRating.Good, 1, 1));
+        var archiveWithOtherSession = archive with
+        {
+            Learning = archive.Learning with
+            {
+                ReviewEvents = [.. archive.Learning.ReviewEvents.Select(r => r with { LearningSessionId = "ls-other" })]
+            }
+        };
+
+        var plan = MergePreflightPlannerV2.CreatePlan(target, archiveWithOtherSession, ManifestV2());
+
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].DeduplicatedEventCount,
+            "LearningSessionId must never enter LearningReview merge identity.");
+        Assert.AreEqual(0, plan.PerEntity[MergeEntityKind.LearningReview].NewCount);
+    }
 }

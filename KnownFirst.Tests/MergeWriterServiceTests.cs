@@ -1509,4 +1509,88 @@ public sealed class MergeWriterServiceTests
             "The Schema-8 target must be left byte-identical after the refused merge.");
         Assert.AreEqual(candidatesBefore.Count, (await ReadReviewCandidatesAsync(targetFixture)).Count);
     }
+
+    // ==== Schema-9 LearningReview merge integrity ====
+
+    /// <summary>Adds one completed LearningSession holding <paramref name="ratings"/> reviews for the
+    /// fixture's single card, all at the same instant with the same scheduling snapshot, so the rows differ
+    /// only in Rating. Built identically on both sides, the session itself matches by merge identity.</summary>
+    private static async Task<int> AddSameInstantReviewSessionAsync(
+        Schema7Fixture fixture, DateTime reviewedAtUtc, DateTime dueAtUtc, params ReviewRating[] ratings)
+    {
+        var cardId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM LearningCards LIMIT 1");
+        var sessionId = await fixture.InsertLearningSessionAsync(
+            startedAtUtc: reviewedAtUtc, updatedAtUtc: reviewedAtUtc, completedAtUtc: reviewedAtUtc);
+
+        foreach (var rating in ratings)
+        {
+            await fixture.InsertReviewAsync(
+                cardId, sessionId: sessionId, rating: rating, wasTypedAnswer: true, wasCorrect: true,
+                reviewedAtUtc: reviewedAtUtc, dueAtUtc: dueAtUtc, intervalDays: 3, easeFactor: 2.5);
+        }
+
+        return sessionId;
+    }
+
+    [TestMethod]
+    public async Task SameCardSameInstantReviews_OneNewOneDuplicate_WriterAppliesEachPlannedActionExactlyOnce()
+    {
+        // The archive holds two review rows for one card at one instant: one the target already has, one it
+        // does not. The planner classifies them separately, but the writer resolved both rows through the
+        // same CardId@ReviewedAtUtc action key, so whichever action was recorded last decided both rows —
+        // either dropping the genuinely new event or re-inserting the duplicate.
+        var reviewedAt = SchedulerTestCardCreatedAtUtc.AddDays(1);
+        var dueAt = reviewedAt.AddDays(3);
+
+        await using var targetFixture = await BuildBankCardFixtureAsync();
+        var targetSessionId = await AddSameInstantReviewSessionAsync(targetFixture, reviewedAt, dueAt, ReviewRating.Good);
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+
+        await using var sourceFixture = await BuildBankCardFixtureAsync();
+        await AddSameInstantReviewSessionAsync(sourceFixture, reviewedAt, dueAt, ReviewRating.Good, ReviewRating.Hard);
+        await Schema8BackupFixtureBuilders.MigrateAsync(sourceFixture);
+
+        var archive = await CapturePayloadAsync(sourceFixture);
+        var plan = await ComputePlanAsync(targetFixture, archive);
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].NewCount,
+            "Exactly the Hard event is new to the target.");
+        Assert.AreEqual(
+            1, plan.PerEntity[MergeEntityKind.LearningReview].DeduplicatedEventCount,
+            "Exactly the Good event is the already-present duplicate.");
+
+        var writer = new MergeWriterService(new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status);
+
+        Assert.AreEqual(
+            2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningReviews"),
+            "The writer must apply each planned action exactly once: the new event inserted, the duplicate "
+            + "skipped — never both rows resolved through one shared action key.");
+        Assert.AreEqual(
+            1, await CountAsync(targetFixture, $"SELECT COUNT(*) FROM LearningReviews WHERE Rating = {(int)ReviewRating.Good}"),
+            "The already-present Good event must not be inserted a second time.");
+        Assert.AreEqual(
+            1, await CountAsync(targetFixture, $"SELECT COUNT(*) FROM LearningReviews WHERE Rating = {(int)ReviewRating.Hard}"),
+            "The genuinely new Hard event must be inserted.");
+
+        // Session attachment survives the action-key correction: the archive session matched the target's,
+        // so both surviving rows must still hang off that one real session row.
+        Assert.AreEqual(
+            1, await CountAsync(targetFixture, "SELECT COUNT(*) FROM LearningSessions"),
+            "The archive's identical completed session must match the target's rather than duplicate it.");
+        Assert.AreEqual(
+            2, await CountAsync(targetFixture, $"SELECT COUNT(*) FROM LearningReviews WHERE SessionId = {targetSessionId}"),
+            "Every retained review must stay attached to the LearningSession its source row referenced.");
+        Assert.AreEqual(
+            0,
+            await CountAsync(
+                targetFixture,
+                "SELECT COUNT(*) FROM LearningReviews r LEFT JOIN LearningSessions s ON s.Id = r.SessionId WHERE s.Id IS NULL"),
+            "No review may be left with a dangling session reference.");
+
+        await AssertReferentialIntegrityAsync(targetFixture);
+    }
 }

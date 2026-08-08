@@ -1,6 +1,6 @@
 # KF-BACKUP-002 — Non-destructive portable archive merge (design)
 
-**Status:** Complete implementation. Slices 1–9 are merged to `master`. Slice 9 was merged through PR #45. This document remains the architecture and historical implementation design for non-destructive populated-target import. The title is retained for historical continuity and does not mean this document alone owns the complete archive-format-v2 payload contract. Schema 9 is now active on master. The Schema-8 implementation slices described below remain historical foundations of the current path. PR #51 activated Schema-9 review-session history storage. PR #52 merged Package A (completed-review identity, planner, target-index parity, and characterization coverage) to `master`. Package A did not create the entire Schema-9 schema or all archive-format-v2 behavior. **Package B (writer evidence) is implemented, independently reviewed (approved), automated-validated, and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); a PR review found one documentation-currentness finding and no code/test finding, addressed by the branch documentation — see §19.** Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0), passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`). `POST_MERGE_SYNC_ONLY` completed successfully. See §20. **Package D (KF-BACKUP-003, PreparationSession/LearningSession/LearningReview v2 canonical-ordering hardening) is implemented and automated-validated (`ALL_AUTOMATED` 1786/0/0) on feature branch `fix/schema9-portable-workflow-canonical-ordering-v1`; it is not yet committed, pushed, reviewed, or merged — see §21.** **§16's meaning-centric product model is the binding architecture decision** — see [meaning-centric-learning-v1-design.md](meaning-centric-learning-v1-design.md) (KF-MEANING-001 Slice 0), which restates §16.1's model as decided and adds the full Schema 8 entity model and Schema 7→8/archive v1→v2 migration contracts. Populated Schema-8/9 import can consume format v2 directly, or format v1 after in-memory upgrade.
+**Status:** Complete implementation. Slices 1–9 are merged to `master`. Slice 9 was merged through PR #45. This document remains the architecture and historical implementation design for non-destructive populated-target import. The title is retained for historical continuity and does not mean this document alone owns the complete archive-format-v2 payload contract. Schema 9 is now active on master. The Schema-8 implementation slices described below remain historical foundations of the current path. PR #51 activated Schema-9 review-session history storage. PR #52 merged Package A (completed-review identity, planner, target-index parity, and characterization coverage) to `master`. Package A did not create the entire Schema-9 schema or all archive-format-v2 behavior. **Package B (writer evidence) is implemented, independently reviewed (approved), automated-validated, and merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); a PR review found one documentation-currentness finding and no code/test finding, addressed by the branch documentation — see §19.** Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0), passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`). `POST_MERGE_SYNC_ONLY` completed successfully. See §20. **Package D (KF-BACKUP-003, PreparationSession/LearningSession/LearningReview v2 canonical-ordering hardening) is implemented, automated-validated (`ALL_AUTOMATED` 1786/0/0), approved by its final PR re-review (0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT), and merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`); `POST_MERGE_SYNC_ONLY` completed successfully — see §21.** **KF-BACKUP-004 (Schema-9 `LearningReview` merge integrity: collision-free physical review action keys, meaning-aware answer-variant identity, replay alignment) is implemented and automated-validated (`ALL_AUTOMATED` 1795/0/0) on feature branch `fix/schema9-learningreview-merge-integrity-v1`; it is not yet committed, pushed, reviewed, or merged — see §22.** **§16's meaning-centric product model is the binding architecture decision** — see [meaning-centric-learning-v1-design.md](meaning-centric-learning-v1-design.md) (KF-MEANING-001 Slice 0), which restates §16.1's model as decided and adds the full Schema 8 entity model and Schema 7→8/archive v1→v2 migration contracts. Populated Schema-8/9 import can consume format v2 directly, or format v1 after in-memory upgrade.
 **Backlog item:** [KF-BACKUP-002](../BACKLOG.md), P1, blocks public release readiness, does not block Beta 12 Internal Testing.
 **Builds on:** [backup-format-v1.md](backup-format-v1.md) (binding contract for the *existing* Restore-into-empty behavior, unchanged by this proposal), `Models/BackupModels.cs`, `Data/BackupImportRepository.cs`, `Data/BackupSnapshotRepository.cs`, `Services/DataSafety/BackupService.cs`, `Services/TextReviewService.cs`, `Services/Study/PreparationService.cs`, `Services/Study/LearningService.cs`.
 
@@ -210,6 +210,8 @@ EaseFactor                (invariant-culture "G17" round-trippable double)
 This is **not** a `|`-joined string. Naive delimiter-joining is ambiguous whenever a field's own content can contain the delimiter or produce equal concatenations from different splits (e.g. `("a|b","c")` and `("a","b|c")` both join to `"a|b|c"`). Instead, each field is written as an explicit null/non-null marker byte followed (for non-null values) by a fixed-width 4-byte big-endian UTF-8 byte-length prefix and the raw payload bytes, so every field's boundary is self-describing and no two distinct field sequences can ever collide on the same byte stream. The complete byte sequence is prefixed with a version/domain discriminator string (`KnownFirst.Merge.LearningReview.v1`) so this fingerprint family can never collide with a structurally similar one (e.g. a Meaning or SourceMaterial identity), then reduced to an **uppercase** SHA-256 hex digest. Every other stable identity in §4 uses the same canonical encoding with its own domain discriminator (e.g. `KnownFirst.Merge.SourceMaterial.v1`, `KnownFirst.Merge.Meaning.v1`).
 
 These fields are the complete, immutable record of "what this review event was and what it produced" — nothing about them can legitimately differ between two exports of the *same* real-world event.
+
+**Forward correction (KF-BACKUP-004, §22).** The field list above remains the exact, unchanged contract of the *persisted Slice-1* `LearningReviewFingerprintPolicy` / `KnownFirst.Merge.LearningReview.v1` domain, and is retained here as the historical Slice-1 record. It is **no longer the complete Schema-9 populated-target contract**: the Schema-9 meaning-aware fingerprint (§16.2c) now also encodes the stable nullable `TargetAnswerVariant` and `MatchedAnswerVariant` identities that §16.2's correction note required it to incorporate. `LearningSessionId` remains deliberately outside event identity in both domains — see §22 for the exact current field list and the reasoning.
 
 **Exact duplicate rule:** two `LearningReviewEntity` rows (one target, one archive) with an identical fingerprint are the same event — dedupe, insert nothing. Any field difference at the same `(stableCardKey, ReviewedAtUtc)` means they are **not** the same event (however unlikely a same-instant collision is for human-paced review) — both are retained rather than guessing which is canonical, consistent with "distinct non-empty content is preserved."
 
@@ -436,7 +438,9 @@ These are additive to Slice 1's `MeaningIdentity`/`MeaningIdentityPolicy` and `L
 
 #### 16.2c Meaning-aware review-event fingerprint
 
-**Correction (focused review):** the original Slice 3 revision reused Slice 1's persisted `LearningReviewFingerprintPolicy` (keyed by the physical `LearningCardMatchIdentity`, i.e. `(VocabularyIdentity, Direction)`) directly inside the planner. Because card matching is now semantic (`FutureCardIdentity`), two review events for genuinely different SemanticMeanings — sharing the same Word, Direction, timestamp, rating, and outcome — would have wrongly collapsed into one. The planner now computes its own fingerprint (`MergePreflightPlanner.ComputeMeaningAwareReviewFingerprint`, domain `KnownFirst.Merge.Preflight.MeaningAwareLearningReview.v1`), keyed by `FutureCardIdentity` instead, using the same canonical-encoding infrastructure. Slice 1's own persisted `LearningReviewFingerprintPolicy` is unchanged for its existing callers/tests — no persisted archive field is silently changed.
+**Correction (focused review):** the original Slice 3 revision reused Slice 1's persisted `LearningReviewFingerprintPolicy` (keyed by the physical `LearningCardMatchIdentity`, i.e. `(VocabularyIdentity, Direction)`) directly inside the planner. Because card matching is now semantic (`FutureCardIdentity`), two review events for genuinely different SemanticMeanings — sharing the same Word, Direction, timestamp, rating, and outcome — would have wrongly collapsed into one. The planner now computes its own fingerprint, keyed by `FutureCardIdentity` instead, using the same canonical-encoding infrastructure. Slice 1's own persisted `LearningReviewFingerprintPolicy` is unchanged for its existing callers/tests — no persisted archive field is silently changed.
+
+**Current contract (KF-BACKUP-004, §22).** The eight-field `KnownFirst.Merge.Preflight.MeaningAwareLearningReview.v1` domain described above is the **historical** Schema-9 planner fingerprint and is no longer the current contract. It omitted the emitted `TargetAnswerVariantId`/`MatchedAnswerVariantId` this section's own correction note required it to incorporate, so reviews exercising genuinely different answer variants were wrongly deduplicated. The binding Schema-9 contract is now the ten-field `KnownFirst.Merge.Preflight.MeaningAwareLearningReview.v2` domain in `Schema9LearningReviewMergeIdentity`, shared by `MergePreflightPlannerV2` and `MergeWriterExecutor`'s scheduler replay — see §22 for the exact field list, the null-presence rule, and why `LearningSessionId` is excluded.
 
 ### 16.6 Context and topic rules
 
@@ -539,7 +543,7 @@ No archive DTO shape, `.kfarchive` format version, database schema, migration, o
 
 ## 21. Package D — Schema-9 v2 workflow/review canonical-ordering hardening (KF-BACKUP-003)
 
-**Status:** Implemented and automated-validated on feature branch `fix/schema9-portable-workflow-canonical-ordering-v1`. **Not yet committed, pushed, reviewed, or merged.** This section documents work in progress on that branch, not shipped `master` behavior.
+**Status:** Implemented, automated-validated, independently reviewed, and **merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`)**; the final PR re-review approved it 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT and `POST_MERGE_SYNC_ONLY` completed successfully. This section documents shipped `master` behavior.
 
 **Backlog item:** [KF-BACKUP-003](../BACKLOG.md).
 
@@ -561,7 +565,7 @@ None of the three chains ended in any tie-break at all — not even the local-ro
 
 No archive DTO shape, `.kfarchive` format version, database schema, migration, merge identity, import routing, public error/status code, or v1 `BackupModelMapper` behavior changed.
 
-### `TEST_ONLY` evidence (feature branch, not yet merged)
+### `TEST_ONLY` evidence (merged via PR #76)
 
 - Focused RED, final test code against unmodified `master` production code: **56 passed / 4 failed / 0 skipped / 60 total** — all four failures were assertion failures on differing emitted content (opposite `pb-*`/`ls-*` bindings and reordered `LearningReviews`), not compilation, fixture, or environment failures.
 - Identical focused GREEN after the production correction: **60 passed / 0 failed / 0 skipped / 60 total**.
@@ -574,3 +578,73 @@ No archive DTO shape, `.kfarchive` format version, database schema, migration, m
 ### Scope boundary
 
 Left out of Package D, and not silently closed by it: `LegacyReviewSummaries` ordering (same defect class, no archive-local id derives from it); `MergePreflightPlannerV2.ComputeReviewFingerprint`'s omission of `LearningSessionId`/answer-variant references from its duplicate-detection key; the mid-session review-event export policy (`Schema8BackupSnapshotRepository.CapturePortableSnapshot` excludes reviews recorded inside a still-Active session); and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random.
+
+The duplicate-detection residual above is taken up by KF-BACKUP-004 in §22, which resolves the answer-variant half and records why `LearningSessionId` is deliberately kept out of merge identity. The other three residuals remain open.
+
+## 22. KF-BACKUP-004 — Schema-9 LearningReview merge integrity
+
+**Status:** implemented and automated-validated on feature branch `fix/schema9-learningreview-merge-integrity-v1`, based on `master` at `17d3f1a031b9f319041ff1034a227d17b1029c4f`. **Not committed, not pushed, not in a pull request, and not merged** — this section describes the contract this package carries, not current `master` behavior. Package D (§21) is merged and is current `master` behavior.
+
+Package D made archive *export ordering* total. This package closes the residual it deliberately left open on the *populated-target merge* path, plus a second, more serious defect that the `PLAN_ONLY` investigation proved along the way.
+
+### 22.1 Defect 1 — the LearningReview plan-action key was not unique per physical row
+
+A `LearningReview` is the one planned entity with no archive-local id of its own, so `MergePlanAction.ArchiveLocalId` carries a synthesized label. That label was `CardId + "@" + ReviewedAtUtc`, which is **not** unique per physical archive row: §6's own exact-duplicate rule and §11's clock-skew table both require two same-instant reviews for one card that differ in any field to be retained as distinct events, and the schema enforces no unique index on `(CardId, ReviewedAtUtc)`.
+
+`MergeWriterExecutor` indexes plan actions by `(EntityKind, ArchiveLocalId)` with a plain last-wins assignment and no duplicate detection, and `WriteLearningReviews` resolved each source row through that same label. Two distinct archive review rows for one card at one instant therefore both received whichever action was recorded last — inserting the duplicate the planner had classified `DeduplicatedEvent`, or dropping the event it had classified `New`, while the preview still reported one of each. Scheduler replay then ran on the wrong surviving event set. Existing coverage proved the retention rule only against the pure `MergeFixtureSet.DeduplicatedUnion` helper, never through the real planner → writer path.
+
+**Correction.** The label is now a deterministic positional key, `lr#<archiveRowIndex>`, derived from the row's position in `archive.Learning.ReviewEvents` by both the planner and the writer through the same shared helper, so the two can never drift. Every physical archive review row keeps exactly one primary plan action. The key is a **lookup label only**: never the fingerprint, never a semantic merge identity, never a target-local id. This also restores the "synthesized positional label" contract `MergePreflightModels` already documented.
+
+### 22.2 Defect 2 — the Schema-9 meaning-aware fingerprint omitted the answer-variant references
+
+§16.2's correction note already recorded that `LearningReviewEntity.TargetAnswerVariantId`/`MatchedAnswerVariantId` "must eventually incorporate" into the meaning-aware review fingerprint. Until this package it had not, so two reviews tying on every other emitted field but exercising genuinely different answer variants were wrongly deduplicated — losing an event together with its variant provenance.
+
+**Correction.** A new domain, `KnownFirst.Merge.Preflight.MeaningAwareLearningReview.v2`, encodes exactly:
+
+```
+FutureCardIdentity                    (the card's stable semantic identity — never a raw archive-local CardId)
+ReviewedAtUtc
+Rating
+WasTypedAnswer
+WasCorrect
+DueAtUtc
+IntervalDays
+EaseFactor
+TargetAnswerVariant stable identity   (nullable AnswerVariantIdentity)
+MatchedAnswerVariant stable identity  (nullable AnswerVariantIdentity)
+```
+
+Both variant references are resolved to `AnswerVariantIdentity` — a content-derived value over the sense identity, normalized text, and answer language — so equivalent variants held under different archive-local `av-*` or target-local numeric ids on two installations still match. **Archive-local and target-local variant ids are never fingerprinted directly.** Null presence is significant and encoded explicitly by the canonical builder's null marker, so an absent reference never collides with a present one.
+
+### 22.3 LearningSessionId is deliberately excluded from event identity
+
+`LearningSessionId` is **not** part of `LearningReview` merge identity, in either the v2 planner domain or scheduler replay. Three binding reasons:
+
+- §6 defines the immutable real-world event identity — "what this review event was and what it produced" — without it.
+- §16.2's forward correction names only `TargetAnswerVariantId`/`MatchedAnswerVariantId` as fields the meaning-aware fingerprint must incorporate.
+- §21 states explicitly that Package D's archive-ordering keys — which *do* include the mapped `LearningSessionId` — "are never used, and must never be used, as merge identity material". Ordering material is not identity material.
+
+Including it would couple event deduplication to workflow-session identity stability: two installations whose session rows differ on any identity-bearing field would fingerprint the *same* real event differently and both insert it, duplicating historical reviews and breaking repeated-import convergence. A review's session is therefore treated as **referential workflow attachment and provenance**, not identity. The writer still writes each inserted review's session reference from its own source row, so the positional-key correction can never swap or drop session attachment.
+
+### 22.4 Scheduler replay must share the preflight event contract
+
+`MergeWriterExecutor.ReplayCardSchedules` previously deduplicated a card's surviving events with the narrower persisted Slice-1 fingerprint. Left unaligned, a wider planner contract would let replay silently re-collapse events the planner had just kept distinct — a fresh preview/writer divergence. Replay now uses the same v2 event contract: the card's real `FutureCardIdentity`, the eight immutable review fields, and the same stable nullable variant identities. No scheduling algorithm, initial-state policy, or update set changed — only event-set deduplication and tie-breaking.
+
+### 22.5 What is unchanged
+
+Slice 1's persisted `LearningReviewFingerprintPolicy` and its `KnownFirst.Merge.LearningReview.v1` domain are unchanged for their existing callers and compatibility contract; §6's field list remains that domain's exact historical record. The v2 fingerprint and the positional action key are ephemeral in-plan merge contracts — neither is persisted, and neither is an archive-format field. No archive DTO, `.kfarchive` `formatVersion`, database schema, migration, public error/status code, import-UI, or Package D mapper-ordering change. Populated-target merge remains non-destructive and transactional, and repeated import remains convergent.
+
+The legacy v1 `MergePreflightPlanner` keeps its analogous synthesized label and is **not** corrected here: import routing upgrades every v1 payload through `BackupArchiveV1UpgradePolicy` and recomputes the plan with `MergePreflightPlannerV2` before the writer runs, so the v1 label never reaches the writer's action map. That is a residual, not a fix.
+
+### 22.6 Evidence
+
+- Focused RED, final test code against unmodified `master` production code: **114 passed / 7 failed / 0 skipped / 121 total** — every failure an assertion failure on missing intended behavior, not a compilation, fixture, or environment failure.
+- Identical focused GREEN after the production correction: **121 passed / 0 failed / 0 skipped / 121 total**.
+- Affected merge/data-safety `TEST_ONLY` scope: **348 passed / 0 failed / 0 skipped / 348 total**, with all nine new tests included and passing.
+- `ALL_AUTOMATED`: **1795 passed / 0 failed / 0 skipped / 1795 total**.
+
+**Evidence limitation:** all of the above is automated unit, integration, persistence, and contract evidence executed against isolated temporary synthetic SQLite databases; no real user database was accessed. There is no rendered-GUI, Windows or Android runtime/device/platform, Release-build, packaging, signing, publishing, or release evidence for this package, and no claim of universal whole-archive byte equality.
+
+### Scope boundary
+
+Left out of KF-BACKUP-004, and not silently closed by it: the legacy v1 planner's analogous synthesized label (above); `LegacyReviewSummaries` ordering; the mid-session review-event export policy; and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random.

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-08 (Milestone 14B implementation, pending review)
+2026-08-08 (Milestone 14B merged; Milestone 14 complete on `master`)
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Verified product-state milestone
 
-- Most recent product-relevant milestone commit: `39609ffffb39c69238882172d153f4bb795ddab8` (Milestone 14A, PR #71 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Most recent product-relevant milestone commit: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (Milestone 14B, PR #73 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android build, AAB, Internal Testing release, installation, or user test has occurred since.
 - Active database schema on master: SQLite `PRAGMA user_version` 9
@@ -41,10 +41,13 @@
 - **PR #65 — Package B (Schema-9 completed-review writer evidence):** genuine Schema-9 writer evidence and a narrow deterministic `BackupModelMapperV2` `ReviewSession` ordering correction; merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`.
 - **PR #68 — Package C (Schema-9 completed-review convergence):** convergence hardening, cross-installation canonical ordering, and two-installation synchronization; merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`.
 - **PR #71 — Milestone 14A (unfinished support/report control removal):** the unfinished `Support KnownFirst` and `Report a bug` controls and their shared placeholder behavior removed from the production Settings source, with a focused source-contract absence test; merge commit `39609ffffb39c69238882172d153f4bb795ddab8`.
+- **PR #73 — Milestone 14B (reopenable release-note history):** Settings → Help & Support link and new `/release-notes` route exposing the complete existing release-note catalog; merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`. `POST_MERGE_SYNC_ONLY` completed successfully.
 
 ## Currently active package
 
-**Milestone 14B — reopenable release-note history.** Committed (`940f54d59697b4d5744355634f6ae52b6cb40692`), pushed on branch `feature/milestone14b-release-note-history-v1`, and open for review on PR #73. Implementation, targeted `TEST_ONLY` validation, documentation reconciliation, pre-commit review, and pre-PR re-review are complete; discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Milestone 14 product/source work is complete: Milestone 14B was manually merged via PR #73** (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`), `POST_MERGE_SYNC_ONLY` completed successfully, and local `master` is fast-forwarded to that commit.
+
+**The active documentation package is the Milestone 14B post-merge documentation closure** on branch `docs/milestone14b-post-merge-closure-v1`, associated with GitHub pull request PR #74 (covering three documentation files: this file, [PROJECT_STATE.md](PROJECT_STATE.md), and [ROADMAP.md](ROADMAP.md)). Live PR and branch lifecycle states must be discovered dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). If PR #74 is open and unreviewed, the next lifecycle step is final PR review; after an approved final review, the user manually merges it on GitHub; after a verified manual merge, the next step is `POST_MERGE_SYNC_ONLY`. If PR #74 has already been merged and synchronized when this document is read, the next work item is the separately authorized standing-delegation governance package.
 
 - Settings → Help & Support now offers one production-visible link to the new `/release-notes` route; the page exposes the complete existing release-note catalog.
 - History is returned newest-first: `1.0.0-beta.12`, `1.0.0-beta.11`, `1.0.0-beta.10`, through the new `IReleaseNotesService.GetReleaseNoteHistory()` API.
@@ -61,24 +64,25 @@ Milestone 14A history is unaffected: it passed final PR review, was manually mer
 
 ## Current blocker or pending validation
 
-- Milestone 14B implementation, targeted automated validation, independent review, commit (`940f54d59697b4d5744355634f6ae52b6cb40692`), push, and PR creation (PR #73) are complete; PR #73 is open on GitHub.
-- Milestone 14 as a whole is **not** complete: Milestone 14B must still undergo final PR review, manual user merge on GitHub, and `POST_MERGE_SYNC_ONLY`.
+- None for Milestone 14B specifically: implementation, targeted automated validation, independent review, commit (`940f54d59697b4d5744355634f6ae52b6cb40692`), push, PR creation, final PR review, and manual merge (PR #73, merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`) are all complete; `POST_MERGE_SYNC_ONLY` completed successfully.
+- Milestone 14 as a whole is now complete on `master`.
 - Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior of the new history page and Settings entry point remains unproven and belongs to separately authorized manual/GUI verification and the future pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
 - No Beta 13, build, packaging, signing, publishing, store, or device activity has occurred, and no such task is active.
 
 ## Exact next action
 
-- **Final PR review of open PR #73** followed by explicit manual user merge on GitHub if approved.
-- No repository-writing next phase is automatically authorized. Automated agents never merge PRs; pull requests are merged exclusively by the repository owner manually through GitHub.
+- **Dynamic lifecycle determination for PR #74** on branch `docs/milestone14b-post-merge-closure-v1` per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md): if open and pending review, execute `REVIEW_ONLY`; after review approval, the repository owner manually merges the PR on GitHub; after manual merge, synchronize via `POST_MERGE_SYNC_ONLY`.
+- If PR #74 is already merged and synchronized, the next authorized task is the separately authorized standing-delegation governance package, followed by future roadmap milestones.
+- Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
 
-- Most recent recorded product-relevant milestone on `master`: `39609ffffb39c69238882172d153f4bb795ddab8` (PR #71, Milestone 14A merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Most recent recorded product-relevant milestone on `master`: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged). The exact current `master` HEAD is a live GitHub/Git fact, not this value — discover it dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are merged and complete on master.
 - Package C was implemented, MINOR-1 corrected, independently reviewed, `TEST_ONLY`-validated (1776/0/0 local automated evidence), passed final PR review, and manually merged via PR #68. `POST_MERGE_SYNC_ONLY` completed successfully.
 - Milestone 14A removed the unfinished `Support KnownFirst` and `Report a bug` controls and their placeholder behavior from the production Settings source. It was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) and `POST_MERGE_SYNC_ONLY` completed successfully. Its `UI_CONTRACT_AUTOMATED` evidence is `70 passed / 0 failed / 0 skipped` and is source/markup/Razor/CSS contract evidence only; rendered-Release and AAB-level absence remain unproven.
-- Milestone 14B (reopenable release-note history) is committed (`940f54d59697b4d5744355634f6ae52b6cb40692`), pushed on branch `feature/milestone14b-release-note-history-v1`, and open on PR #73. Focused TDD completed RED 5-failed then GREEN 5-passed; `TEST_ONLY` returned `110 passed / 0 failed / 0 skipped` (`ReleaseNotesTests` 38/38, `UiWorkflowContractTests` 72/72). That evidence is service/unit/contract plus source/markup/Razor/CSS contract evidence only.
-- Milestone 14 is not complete: PR #73 awaits final review and manual user merge on GitHub, followed by `POST_MERGE_SYNC_ONLY`; no rendered-GUI, runtime, platform, or AAB evidence exists for it.
+- Milestone 14B (reopenable release-note history) was committed (`940f54d59697b4d5744355634f6ae52b6cb40692`) on branch `feature/milestone14b-release-note-history-v1`, and manually merged via PR #73 (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`); `POST_MERGE_SYNC_ONLY` completed successfully. Focused TDD completed RED 5-failed then GREEN 5-passed; `TEST_ONLY` returned `110 passed / 0 failed / 0 skipped` (`ReleaseNotesTests` 38/38, `UiWorkflowContractTests` 72/72). That evidence is service/unit/contract plus source/markup/Razor/CSS contract evidence only.
+- Milestone 14 is complete on `master`: no rendered-GUI, runtime, platform, or AAB evidence exists for 14B yet — that remains separately authorized manual/GUI verification and the future pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

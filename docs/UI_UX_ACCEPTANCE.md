@@ -166,6 +166,16 @@ Each applicable surface must handle these states without broken layout, missing 
 - Unfinished support actions are absent from production Settings rendering; no placeholder or "coming soon" control appears.
 - Diagnostic actions remain logically grouped, visually marked as diagnostic, and gated so they are absent in Release.
 - The remaining Settings content, including the build identity, stays structurally clear, correctly labelled, and accessible.
+- Help & Support offers exactly one release-note-history entry point, which opens the dedicated `/release-notes` route. It is a normal production control — implemented in Debug, BetaDiagnostic, and Release, never placeholder or debug-only.
+
+### 9.6 Release-note history
+
+- The `/release-notes` page shows every existing release note, newest first, and can be reopened as often as the user wants.
+- Reopening the history never alters the automatic one-time What's New notice or its seen state; dismissing that notice never removes an entry from the history.
+- Each release note is a labelled section with a heading carrying its version and a list of its bullets, so headings and lists remain semantically correct and navigable.
+- The page remains readable and scrollable at every required viewport, with the standard page header and back navigation.
+- No Support KnownFirst or Report a bug control appears on this page or in Help & Support.
+- Current automated coverage for this surface is source/markup contract evidence only. Visual acceptance and runtime navigation are verified manually per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md) and are not claimed by automated results.
 
 ## 10. Forms and feedback
 

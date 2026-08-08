@@ -1,0 +1,22 @@
+.release-notes-page {
+    width: min(100%, 82rem);
+    margin: 0 auto;
+}
+
+.release-note-entry {
+    margin-top: 1rem;
+    padding: clamp(1rem, 3vw, 1.5rem);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    background: var(--color-surface);
+}
+
+.release-note-entry h2 {
+    margin-top: 0;
+}
+
+.release-note-bullets {
+    margin: 0;
+    padding-left: var(--space-6);
+    line-height: 1.6;
+}

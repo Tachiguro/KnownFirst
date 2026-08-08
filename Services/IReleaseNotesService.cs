@@ -10,4 +10,6 @@ public interface IReleaseNotesService
     ReleaseNoteEntry? GetUnseenReleaseNotes();
 
     void MarkSeen(string version);
+
+    IReadOnlyList<ReleaseNoteEntry> GetReleaseNoteHistory();
 }

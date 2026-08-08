@@ -485,6 +485,75 @@ public sealed class ReleaseNotesTests
         Assert.AreEqual(Beta12, entry.Version);
     }
 
+    // --- Reopenable release-note history (Milestone 14B) ---------------------------------
+
+    [TestMethod]
+    public void ReleaseNoteHistory_ApiExposesEveryCatalogEntryNewestFirst()
+    {
+        var service = CreateService(Beta12, new FakeWhatsNewPreferenceStore());
+
+        var historyMethod = typeof(IReleaseNotesService).GetMethod("GetReleaseNoteHistory");
+        Assert.IsNotNull(
+            historyMethod,
+            "IReleaseNotesService must expose GetReleaseNoteHistory() for the Milestone 14B reopenable release-note history.");
+
+        var history = historyMethod.Invoke(service, null) as IEnumerable<ReleaseNoteEntry>;
+        Assert.IsNotNull(history, "GetReleaseNoteHistory() must return the release-note entries.");
+
+        CollectionAssert.AreEqual(
+            new[] { Beta12, Beta11, Beta10 },
+            history.Select(entry => entry.Version).ToArray(),
+            "Release-note history must contain every catalog entry, newest first.");
+    }
+
+    [TestMethod]
+    public void ReleaseNoteHistory_IsIndependentOfSeenVersionAndLeavesItUnchanged()
+    {
+        var store = new FakeWhatsNewPreferenceStore();
+        store.SetSeenVersion(Beta12);
+        var service = CreateService(Beta12, store);
+
+        var historyMethod = typeof(IReleaseNotesService).GetMethod("GetReleaseNoteHistory");
+        Assert.IsNotNull(
+            historyMethod,
+            "IReleaseNotesService must expose GetReleaseNoteHistory() for the Milestone 14B reopenable release-note history.");
+
+        var history = historyMethod.Invoke(service, null) as IEnumerable<ReleaseNoteEntry>;
+        Assert.IsNotNull(history, "GetReleaseNoteHistory() must return the release-note entries.");
+
+        CollectionAssert.AreEqual(
+            new[] { Beta12, Beta11, Beta10 },
+            history.Select(entry => entry.Version).ToArray(),
+            "A seen active version must not remove any entry from the reopenable history.");
+        Assert.AreEqual(
+            Beta12,
+            store.GetSeenVersion(),
+            "Reading the release-note history must not mutate the seen-version preference.");
+        Assert.IsNull(
+            service.GetUnseenReleaseNotes(),
+            "Reading the release-note history must not resurrect the automatic one-time notice.");
+    }
+
+    [TestMethod]
+    public void ReleaseNotesPage_ExistsWithHistoryRouteAndConsumesHistoryNotUnseenNotes()
+    {
+        var pagePath = Path.Combine(FindRepositoryRoot(), "Components", "Pages", "ReleaseNotes.razor");
+        Assert.IsTrue(
+            File.Exists(pagePath),
+            "Components/Pages/ReleaseNotes.razor must exist for the Milestone 14B reopenable release-note history page.");
+
+        var markup = File.ReadAllText(pagePath);
+
+        Assert.Contains("@page \"/release-notes\"", markup);
+        Assert.Contains("GetReleaseNoteHistory", markup);
+        Assert.Contains("WhatsNew_VersionLabel", markup);
+        Assert.Contains("BulletResourceKeys", markup);
+        Assert.Contains("<ul", markup);
+
+        Assert.DoesNotContain("GetUnseenReleaseNotes", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("MarkSeen", markup, StringComparison.Ordinal);
+    }
+
     // --- Fault tolerance -----------------------------------------------------------------
 
     [TestMethod]

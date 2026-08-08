@@ -92,6 +92,11 @@ public sealed class ReleaseNotesService : IReleaseNotesService
         }
     }
 
+    // The catalog is authored oldest-first, so reversing it yields the newest-first history the
+    // reopenable release-note page shows. This never touches the seen-version preference: the
+    // history stays available whether or not the automatic one-time notice was dismissed.
+    public IReadOnlyList<ReleaseNoteEntry> GetReleaseNoteHistory() => _catalog.Reverse().ToArray();
+
     public void MarkSeen(string version)
     {
         try

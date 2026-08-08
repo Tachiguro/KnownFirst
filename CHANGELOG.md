@@ -8,6 +8,7 @@ and uses the application's prerelease version identifiers.
 
 ### Added
 
+- Settings now provides a reopenable release-note history under Help and Support. Earlier release notes can be viewed again at any time, including after the one-time What's New notice has been dismissed, and they are listed newest first.
 - Portable import preview UI with read-only preview before confirmation, distinguishing restore (empty target), merge (populated target), and no-change (duplicate import) cases; localized EN/DE/RU coverage for preview, result, and failure handling (PR #45).
 
 ### Fixed

@@ -6,6 +6,8 @@ This protocol governs the initialization sequence for new ChatGPT and prompt-aut
 
 Live GitHub pull request and branch states are authoritative over static or pasted prompt text. Prompt authoring and session initialization must discover current repository state dynamically rather than relying on stale prompt fragments, old chat history, or hardcoded commit hashes.
 
+Standing orchestration delegation, defined precisely in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), authorizes ChatGPT to issue the next correctly isolated prompt (`PLAN_ONLY` through `PR_ONLY`) without requiring the user to separately request each routine phase, provided live repository/GitHub state has been verified per this protocol and no unresolved material decision remains. It never authorizes merge, auto-merge, or any operation on that document's non-delegable-operations list; those always require explicit user action.
+
 ## 2. Repository-Access Capability Gate
 
 When initializing a new session, distinguish repository access capability immediately:

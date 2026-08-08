@@ -87,13 +87,50 @@ The repository enforces strict mutual isolation between task phases:
 - Select **exactly one** primary mode per prompt.
 - Pull-request merges are performed exclusively by the user manually through GitHub. Automated agents never merge pull requests, enable auto-merge, or execute `MERGE_ONLY` operations.
 - Multiple modes may be combined **only** when the user explicitly requests the combination.
-- Completion of one mode never authorizes the next mode.
-- The agent must not infer permission from previous work packages.
+- **Agent-level isolation (absolute, never delegated):** the programming agent executing a prompt must never continue from its assigned mode into another mode on its own, and must not infer additional execution authority from completion of its current prompt or from prior work packages. Commit does not imply push; push does not imply PR; PR does not imply merge; merge does not imply build, package, or release work.
+- **Orchestrator-level standing delegation** governs only whether ChatGPT may issue the *next* isolated prompt without additional per-phase user typing — see "Standing Orchestration Delegation" below. Standing delegation never authorizes an agent to self-advance within a single prompt.
 - Every final report must explicitly state which operations were intentionally not performed.
+
+### Standing Orchestration Delegation
+
+Once (1) a concrete KnownFirst work package is established, (2) its scope is bounded, (3) repository/GitHub state has been directly verified, and (4) no unresolved material product, architecture, data-integrity, or scope decision remains, the user's standing delegation authorizes ChatGPT — the orchestrator, not the executing agent — to evaluate each phase's report and issue the next correctly isolated, single-mode prompt without requiring the user to type the phase name or separately approve each routine transition.
+
+Standing delegation covers exactly these modes, applied one at a time in isolated prompts:
+- `PLAN_ONLY`
+- `IMPLEMENT`
+- `TEST_ONLY`
+- `DOCUMENT_ONLY`
+- `REVIEW_ONLY`
+- `COMMIT_ONLY`
+- `PUSH_ONLY`
+- `PR_ONLY`
+
+For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT` without a ceremonial "approve plan" message; a reviewed change may progress through `COMMIT_ONLY`, `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
+
+If `PLAN_ONLY`, or any later phase, exposes a genuine unresolved material decision (see Section E), ChatGPT must stop and ask the user regardless of standing delegation.
+
+### Non-Delegable Operations
+
+This is the canonical, detailed list. Other tracked documents reference this list rather than duplicating it. Standing delegation does **not** authorize:
+- pull-request merge or enabling auto-merge;
+- destructive Git/history operations: reset, rebase, stash, amend, history rewriting, or force-push;
+- deleting branches or worktrees;
+- tags, releases, deployment, or publishing;
+- `BUILD_ONLY` unless the user explicitly requested that build;
+- `PACKAGE_ONLY` unless the user explicitly requested that package;
+- APK or AAB creation without explicit user request;
+- ADB, emulator, device, or manual-device operations without explicit user request;
+- dangerous user-data/database/schema operations outside an already explicitly scoped and approved package;
+- subagents, delegated writers, background tasks/processes, task trackers, or parallel writers;
+- material scope expansion or a genuinely ambiguous product-direction decision.
+
+Manual PR merge remains exclusively the repository owner's action through GitHub. After a verified manual merge, ChatGPT may issue exactly one `POST_MERGE_SYNC_ONLY` prompt per the existing lifecycle contract.
 
 ## E. Planning Approval Gate
 
-Every request that would modify repository files must first execute in `PLAN_ONLY` mode, unless the user explicitly states that a specific previously presented plan is approved.
+Every request that would modify repository files must first execute in `PLAN_ONLY` mode.
+
+The transition from an approved `PLAN_ONLY` result to `IMPLEMENT` is satisfied either by explicit user approval of the presented plan, or by the standing orchestration delegation defined above when the plan is complete, bounded, and exposes no unresolved material product, architecture, data-integrity, or scope decision. If `PLAN_ONLY` exposes such a decision, ChatGPT must stop and ask the user before authorizing any repository-writing work, regardless of standing delegation.
 
 `PLAN_ONLY` is strictly read-only and must report:
 - task objective;

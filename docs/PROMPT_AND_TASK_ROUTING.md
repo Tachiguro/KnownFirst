@@ -149,7 +149,7 @@ The transition from an approved `PLAN_ONLY` result to `IMPLEMENT` is satisfied e
 
 ## F. Implementation and TDD
 
-`IMPLEMENT` mode is authorized **only** after explicit user plan approval.
+`IMPLEMENT` mode is authorized only after the planning gate in Section E is satisfied — either by explicit user plan approval or by standing orchestration delegation when the plan is complete, bounded, and decision-free.
 
 ### Default TDD Sequence
 1. Verify initial repository state.

@@ -433,29 +433,43 @@ public static class MergePreflightPlannerV2
             Record(MergeEntityKind.SenseAnswerVariantAssignment, identity, assignment.Id, classification, reason);
         }
 
-        // LearningReviews
-        string ComputeReviewFingerprint(FutureCardIdentity futureCardIdentity, BackupLearningReviewV2 review)
+        // LearningReviews — meaning-aware event fingerprint (see Schema9LearningReviewMergeIdentity for the
+        // exact field set, and for why LearningSessionId is deliberately not part of event identity).
+        // Answer-variant references are resolved to stable AnswerVariantIdentity values through the side's
+        // own map, never hashed as raw archive-local av-* ids.
+        string ComputeReviewFingerprint(
+            FutureCardIdentity futureCardIdentity,
+            BackupLearningReviewV2 review,
+            IReadOnlyDictionary<string, AnswerVariantIdentity> variantIdentityByLocalId,
+            string side)
         {
-            var builder = new CanonicalFingerprintBuilder("KnownFirst.Merge.Preflight.MeaningAwareLearningReview.v1")
-                .WriteString(futureCardIdentity.Value)
-                .WriteUtcTimestamp(review.ReviewedAtUtc)
-                .WriteEnum(review.Rating)
-                .WriteBoolean(review.WasTypedAnswer)
-                .WriteBoolean(review.WasCorrect)
-                .WriteUtcTimestamp(review.DueAtUtc)
-                .WriteInt32(review.IntervalDays)
-                .WriteDouble(review.EaseFactor);
+            string? VariantIdentity(string? localId, string reference) =>
+                localId is null
+                    ? null
+                    : MergePreflightPlanner.Resolve(variantIdentityByLocalId, localId, reference).Value;
 
-            return builder.ComputeSha256Hex();
+            return Schema9LearningReviewMergeIdentity.ComputeEventFingerprint(
+                futureCardIdentity.Value,
+                review.ReviewedAtUtc,
+                review.Rating,
+                review.WasTypedAnswer,
+                review.WasCorrect,
+                review.DueAtUtc,
+                review.IntervalDays,
+                review.EaseFactor,
+                VariantIdentity(review.TargetAnswerVariantId, side + " review target answer variant identity"),
+                VariantIdentity(review.MatchedAnswerVariantId, side + " review matched answer variant identity"));
         }
 
         var targetReviewFingerprints = new HashSet<string>(
             target.Learning.ReviewEvents.Select(r => ComputeReviewFingerprint(
-                MergePreflightPlanner.Resolve(targetFutureCardIdByLocalId, r.CardId, "target learning review card"), r)), StringComparer.Ordinal);
+                MergePreflightPlanner.Resolve(targetFutureCardIdByLocalId, r.CardId, "target learning review card"),
+                r, targetAnswerVariantByLocalId, "target")), StringComparer.Ordinal);
         var cardsWithNewEvents = new HashSet<FutureCardIdentity>();
 
-        foreach (var review in archive.Learning.ReviewEvents)
+        for (var reviewIndex = 0; reviewIndex < archive.Learning.ReviewEvents.Count; reviewIndex++)
         {
+            var review = archive.Learning.ReviewEvents[reviewIndex];
             var futureCardIdentity = MergePreflightPlanner.Resolve(archiveFutureCardIdByLocalId, review.CardId, "archive learning review card");
             var archiveCard = MergePreflightPlanner.Resolve(archiveCardsByLocalId, review.CardId, "archive learning review card content");
 
@@ -481,7 +495,7 @@ public static class MergePreflightPlannerV2
                 }
             }
 
-            var fingerprint = ComputeReviewFingerprint(futureCardIdentity, review);
+            var fingerprint = ComputeReviewFingerprint(futureCardIdentity, review, archiveAnswerVariantByLocalId, "archive");
 
             MergeEntityClassification classification;
             string reason;
@@ -497,8 +511,12 @@ public static class MergePreflightPlannerV2
                 cardsWithNewEvents.Add(futureCardIdentity);
             }
 
-            var label = review.CardId + "@" + review.ReviewedAtUtc.ToString("O", CultureInfo.InvariantCulture);
-            Record(MergeEntityKind.LearningReview, fingerprint, label, classification, reason);
+            // A synthesized positional label, not the CardId@ReviewedAtUtc content label: two physical
+            // archive rows for one card at one instant are genuinely distinct events, and the writer keys
+            // its per-row action lookup by this value.
+            Record(
+                MergeEntityKind.LearningReview, fingerprint, Schema9LearningReviewMergeIdentity.ArchiveActionKey(reviewIndex),
+                classification, reason);
         }
 
         // LearningCards

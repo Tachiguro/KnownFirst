@@ -23,7 +23,7 @@ Two automation assets exist in the repository and must not be confused with matr
 
 Neither harness scenario execution nor any `winapp` capability was executed or validated when this section was last reconciled. **Source presence is not proof of a passing scenario, and it is not matrix coverage.** See [TESTING.md](TESTING.md) scope D for the full contract.
 
-Automated GUI validation is [ROADMAP.md](ROADMAP.md) **priority 15** ("Automated GUI validation"), which plans an Android-first deterministic automation effort (Appium/UiAutomator2) plus Windows automation launcher integration.
+Automated GUI validation is [ROADMAP.md](ROADMAP.md) **priority 16** ("Automated GUI validation"), which plans an Android-first deterministic automation effort (Appium/UiAutomator2) plus Windows automation launcher integration.
 
 A passing unit, contract, StartupSmoke, or isolated UIA run is never sufficient to report a row here as passed. A row may only be reported as passed after an explicitly mapped run against that row, with its evidence recorded per "Result recording" below.
 

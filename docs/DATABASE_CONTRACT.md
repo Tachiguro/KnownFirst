@@ -197,13 +197,26 @@ Package C (cross-installation canonical-ordering hardening) is merged via PR #68
 - completed `ReviewSession` `vr-*` / `rc-*` assignment is hardened against the reviewed tied-session/candidate-history case;
 - focused two-installation convergence and repeated-exchange evidence exists.
 
-Package D (KF-BACKUP-003, `PreparationSession`/`LearningSession`/`LearningReview` v2 canonical-ordering hardening) is implemented and automated-validated on feature branch `fix/schema9-portable-workflow-canonical-ordering-v1`; it is **not yet merged to master**. For the affected v2 export collections, once merged:
+Package D (KF-BACKUP-003, `PreparationSession`/`LearningSession`/`LearningReview` v2 canonical-ordering hardening) is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`) and is now binding master behavior; `POST_MERGE_SYNC_ONLY` completed successfully. For the affected v2 export collections:
 - completed `PreparationSession`/`PreparationCandidate` archive-local `pb-*` / `pi-*` assignment is hardened against relevant local-row/enumeration differences;
 - completed `LearningSession`/`LearningSessionCard` archive-local `ls-*` / `lq-*` assignment is hardened the same way;
 - `LearningReview` export ordering is total over every emitted review field, including `LearningSessionId`, `TargetAnswerVariantId`, and `MatchedAnswerVariantId`;
 - this is archive-emission canonical ordering only, never a merge identity — no `MergePreflightPlannerV2`/`MergeWriterExecutor` identity or writer behavior changed.
 
 Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive under Schema 9; repeated merge converges/no-changes; these semantics are unchanged by Package D. Schema and archive-format compatibility rules are unchanged. This does not claim universal whole-archive byte equality.
+
+### Populated-target LearningReview merge rules (KF-BACKUP-004 — current branch, not yet on master)
+
+The following rules are the contract carried by the `KF-BACKUP-004` package on branch `fix/schema9-learningreview-merge-integrity-v1`. That package is implemented and automated-validated but **not committed, pushed, in a pull request, or merged**, so these rules are not yet present on `master`; the Package D facts above *are* already merged. See [architecture/backup-merge-v1-design.md](architecture/backup-merge-v1-design.md) §22.
+
+- Every physical archive `LearningReview` row receives its own deterministic positional plan-action lookup key derived from its position in the archive's review collection, so two rows for the same card at the same `ReviewedAtUtc` can never resolve to one another's plan action. Planner and writer derive that key identically.
+- The lookup key is addressing only. Duplicate/event identity is a separate, content-derived fingerprint and is never the lookup label.
+- The Schema-9 meaning-aware review event identity is content-derived over the card's stable semantic identity, `ReviewedAtUtc`, `Rating`, `WasTypedAnswer`, `WasCorrect`, `DueAtUtc`, `IntervalDays`, `EaseFactor`, and the stable nullable `TargetAnswerVariant` and `MatchedAnswerVariant` identities. Answer-variant references are compared as content-derived identities, never as archive-local or target-local row ids, and absent-versus-present is a significant distinction.
+- `LearningSessionId` is preserved as the review's referential relationship to its workflow session — every inserted review keeps the session its source row referenced — but is **not** part of the event identity.
+- Deterministic scheduler replay uses the same event distinctness and tie-break semantics as preflight, so events the planner keeps distinct are never re-collapsed during replay.
+- Repeated import remains convergent: an unchanged archive re-imported after a merge still reports no change.
+
+No database schema or migration change, and no archive-format change, accompanies these rules. The persisted Slice-1 review-fingerprint API and its `KnownFirst.Merge.LearningReview.v1` domain are unchanged for their existing callers.
 
 Synchronization and cloud formats do not exist.
 

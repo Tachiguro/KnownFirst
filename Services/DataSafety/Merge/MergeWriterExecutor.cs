@@ -32,6 +32,8 @@ internal sealed class MergeWriterExecutor
     private readonly CancellationToken _cancellationToken;
     private readonly IBackupImportFailureInjector? _failureInjector;
     private readonly Dictionary<(MergeEntityKind Kind, string ArchiveLocalId), MergePlanAction> _actionsByKey;
+    private readonly Dictionary<int, string> _answerVariantIdentityByVariantId;
+    private readonly Dictionary<int, string> _futureCardIdentityByCardId;
     private readonly Dictionary<int, WordEntity> _targetWordsById;
     private readonly Dictionary<int, PreparationSessionEntity> _targetPreparationSessionsById;
     private readonly Dictionary<int, Schema8CardRow> _targetCardsById;
@@ -72,6 +74,21 @@ internal sealed class MergeWriterExecutor
         foreach (var action in plan.Actions)
         {
             _actionsByKey[(action.EntityKind, action.ArchiveLocalId)] = action;
+        }
+
+        // Stable answer-variant identity for every target row that already exists. Rows this merge inserts
+        // are added by WriteAnswerVariants; together they cover every variant a review can reference, so
+        // scheduler replay never has to fingerprint a raw SQLite variant id.
+        _answerVariantIdentityByVariantId = new Dictionary<int, string>();
+        foreach (var (identity, variantId) in _targetIndex.AnswerVariantIdByIdentity)
+        {
+            _answerVariantIdentityByVariantId[variantId] = identity.Value;
+        }
+
+        _futureCardIdentityByCardId = new Dictionary<int, string>();
+        foreach (var (identity, cardId) in _targetIndex.CardIdByIdentity)
+        {
+            _futureCardIdentityByCardId[cardId] = identity.Value;
         }
     }
 
@@ -469,6 +486,10 @@ internal sealed class MergeWriterExecutor
             }
 
             _variantIds[source.Id] = variantId;
+
+            // The planner's StableIdentity for an AnswerVariant action is exactly its AnswerVariantIdentity,
+            // for both newly inserted and already-matched rows.
+            _answerVariantIdentityByVariantId[variantId] = action.StableIdentity;
         }
     }
 
@@ -753,10 +774,12 @@ internal sealed class MergeWriterExecutor
     // ---- 11d. LearningReviews ----
     private void WriteLearningReviews()
     {
-        foreach (var source in _archive.Learning.ReviewEvents)
+        // Addressed by the planner's synthesized positional key, so two rows for one card at one instant
+        // each resolve to their own action instead of both collapsing onto whichever was recorded last.
+        for (var reviewIndex = 0; reviewIndex < _archive.Learning.ReviewEvents.Count; reviewIndex++)
         {
-            var label = source.CardId + "@" + source.ReviewedAtUtc.ToString("O", CultureInfo.InvariantCulture);
-            var action = GetAction(MergeEntityKind.LearningReview, label);
+            var source = _archive.Learning.ReviewEvents[reviewIndex];
+            var action = GetAction(MergeEntityKind.LearningReview, Schema9LearningReviewMergeIdentity.ArchiveActionKey(reviewIndex));
             if (action.Classification != MergeEntityClassification.New)
             {
                 continue;
@@ -786,7 +809,27 @@ internal sealed class MergeWriterExecutor
         public DateTime DueAtUtc { get; set; }
         public int IntervalDays { get; set; }
         public double EaseFactor { get; set; }
+        public int? TargetAnswerVariantId { get; set; }
+        public int? MatchedAnswerVariantId { get; set; }
     }
+
+    /// <summary>Fail-closed lookup of a stable identity value behind a target-local row id, mirroring
+    /// <see cref="ResolveExisting{TIdentity}"/> for maps whose values are identities rather than ids.</summary>
+    private static string ResolveIdentity<TKey>(IReadOnlyDictionary<TKey, string> map, TKey key)
+        where TKey : notnull
+    {
+        if (!map.TryGetValue(key, out var identity))
+        {
+            throw new BackupFormatException(BackupErrorCodes.MissingReference);
+        }
+
+        return identity;
+    }
+
+    /// <summary>The stable <see cref="AnswerVariantIdentity"/> value behind a target-local variant row id,
+    /// or <see langword="null"/> when the review carries no such reference.</summary>
+    private string? ResolveVariantIdentity(int? variantId) =>
+        variantId is null ? null : ResolveIdentity(_answerVariantIdentityByVariantId, variantId.Value);
 
     /// <summary>
     /// Recomputes the derived scheduling fields (State, DueAtUtc, IntervalDays, EaseFactor,
@@ -796,8 +839,9 @@ internal sealed class MergeWriterExecutor
     /// Review history is authoritative and these fields are derived from it — never carried over from
     /// either side's stale snapshot. Loads the card's <em>complete</em> current review set (target rows
     /// already present plus every archive-only row <see cref="WriteLearningReviews"/> just inserted — both
-    /// visible on this same connection/transaction), deduplicates by the existing review fingerprint
-    /// contract (<see cref="LearningReviewFingerprintPolicy"/>), and replays via
+    /// visible on this same connection/transaction), deduplicates by the same Schema-9 meaning-aware event
+    /// contract the planner classified with (<see cref="Schema9LearningReviewMergeIdentity"/>) so events the
+    /// planner kept distinct are never silently re-collapsed here, and replays via
     /// <see cref="CardScheduleReplayer"/> from the card's own creation-time default
     /// (<see cref="CardSchedule.New"/>) — the same initial state <see cref="Schema8LearningReviewReplayPolicy.FirstPreEventSchedule"/>
     /// already uses for the analogous per-variant progress replay. Never touches PreferredMeaningId,
@@ -811,12 +855,16 @@ internal sealed class MergeWriterExecutor
             _failureInjector?.AtCheckpoint(Checkpoints.DuringSchedulerReplay);
 
             var rows = _connection.Query<ReplayReviewRow>(
-                "SELECT Rating, WasTypedAnswer, WasCorrect, ReviewedAtUtc, DueAtUtc, IntervalDays, EaseFactor FROM LearningReviews WHERE CardId = ?",
+                """
+                SELECT Rating, WasTypedAnswer, WasCorrect, ReviewedAtUtc, DueAtUtc, IntervalDays, EaseFactor,
+                       TargetAnswerVariantId, MatchedAnswerVariantId
+                FROM LearningReviews WHERE CardId = ?
+                """,
                 cardId);
 
-            // A fixed per-card identity: fingerprints are only ever compared within this one card's own
-            // event list, so any constant value distinguishes events correctly here.
-            var cardIdentity = new LearningCardMatchIdentity(cardId.ToString(CultureInfo.InvariantCulture));
+            // Replay is only ever reached for a matched card, so the card's own stable semantic identity is
+            // always available — the numeric row id is never fingerprinted.
+            var futureCardIdentity = ResolveIdentity(_futureCardIdentityByCardId, cardId);
 
             // sqlite-net returns every DateTime with DateTimeKind.Unspecified regardless of how it was
             // written (see Schema8Utc's own doc comment) — normalized to Utc here before use, exactly like
@@ -830,9 +878,11 @@ internal sealed class MergeWriterExecutor
                 return new CardScheduleReplayer.ReviewEvent(
                     reviewedAtUtc,
                     row.Rating,
-                    LearningReviewFingerprintPolicy.Compute(
-                        cardIdentity, reviewedAtUtc, BackupEnumMappings.ToBackup(row.Rating),
-                        row.WasTypedAnswer, row.WasCorrect, dueAtUtc, row.IntervalDays, row.EaseFactor).Value);
+                    Schema9LearningReviewMergeIdentity.ComputeEventFingerprint(
+                        futureCardIdentity, reviewedAtUtc, BackupEnumMappings.ToBackup(row.Rating),
+                        row.WasTypedAnswer, row.WasCorrect, dueAtUtc, row.IntervalDays, row.EaseFactor,
+                        ResolveVariantIdentity(row.TargetAnswerVariantId),
+                        ResolveVariantIdentity(row.MatchedAnswerVariantId)));
             });
 
             var initial = CardSchedule.New(Schema8Utc.Normalize(_targetCardsById[cardId].CreatedAtUtc));

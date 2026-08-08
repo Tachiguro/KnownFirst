@@ -2145,4 +2145,644 @@ public class BackupCreationTests
             [],
             [],
             []);
+
+    // ---- Package D (KF-BACKUP-003): cross-installation canonical output for completed preparation
+    // workflows, completed learning workflows, and learning-review events.
+    //
+    // Package B/C brought SourceMaterials and completed ReviewSessions to a total ordering over emitted
+    // content. The v2 mapper's three remaining workflow/history collections were left behind:
+    //   * PreparationSessions order by (Method, Status, TotalItems, CompletedItems, StartedAtUtc,
+    //     UpdatedAtUtc) and omit the emitted CompletedAtUtc and every emitted PreparationItem;
+    //   * LearningSessions order by (Status, the four rating counters, TotalCards, CompletedCards,
+    //     StartedAtUtc, UpdatedAtUtc) and omit the emitted CompletedAtUtc and every emitted queue item;
+    //   * LearningReviews omit the emitted LearningSessionId, TargetAnswerVariantId and
+    //     MatchedAnswerVariantId.
+    // None of the three ends in any tie-break at all — not even the local row-id fallback ReviewSessions
+    // and the shipped v1 BackupModelMapper both retain — so two rows that tie on the key fall through to
+    // raw snapshot enumeration order, i.e. local SQLite row order. Two installations holding the same
+    // content under different local row ids then bind different archive-local ids to the same history.
+    //
+    // The key's U+0001 separator is not the defect: no string-typed field reaches any of these three
+    // ContentKey call sites, so no delimiter ambiguity is representable. The defect is the missing
+    // ordering material. ----
+
+    private static readonly DateTime TiedWorkflowStartedAtUtc = new(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime TiedWorkflowUpdatedAtUtc = new(2026, 5, 1, 9, 30, 0, DateTimeKind.Utc);
+    private static readonly DateTime TiedWorkflowFirstCompletedAtUtc = new(2026, 5, 1, 9, 20, 0, DateTimeKind.Utc);
+    private static readonly DateTime TiedWorkflowSecondCompletedAtUtc = new(2026, 5, 1, 9, 25, 0, DateTimeKind.Utc);
+    private static readonly DateTime TiedWorkflowReviewedAtUtc = new(2026, 5, 1, 9, 15, 0, DateTimeKind.Utc);
+    private static readonly DateTime TiedWorkflowReviewDueAtUtc = new(2026, 5, 2, 9, 15, 0, DateTimeKind.Utc);
+
+    [TestMethod]
+    public void CreateBackupV2_TwoInstallationsWithOppositeRowIds_TiedPreparationSessionSortKeys_ProduceIdenticalCanonicalOutput()
+    {
+        var installationA = NewTiedPreparationWorkflowInstallation(
+            bankPreparedSessionId: 10, riverPreparedSessionId: 20,
+            bankPreparedCandidateBaseId: 100, riverPreparedCandidateBaseId: 200,
+            bankWordId: 1, riverWordId: 2);
+
+        // Same two logical preparation histories, independently created: the opposite local session row
+        // ids and therefore the opposite raw enumeration order.
+        var installationB = NewTiedPreparationWorkflowInstallation(
+            bankPreparedSessionId: 20, riverPreparedSessionId: 10,
+            bankPreparedCandidateBaseId: 500, riverPreparedCandidateBaseId: 400,
+            bankWordId: 42, riverWordId: 41);
+
+        AssertPreparationSessionsTieOnCurrentSortKey(installationA);
+        AssertPreparationSessionsTieOnCurrentSortKey(installationB);
+        AssertOppositeRowOrder(
+            installationA.PreparationSessions.Select(session => session.CompletedAtUtc).ToList(),
+            installationB.PreparationSessions.Select(session => session.CompletedAtUtc).ToList(),
+            "preparation sessions");
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+
+        Assert.HasCount(2, payloadA.Workflows.PreparationBatches);
+        AssertPreparationWorkflowsDifferInEmittedContent(payloadA);
+        AssertPreparationWorkflowsDifferInEmittedContent(payloadB);
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, CanonicalPreparationWorkflowProjection(payloadA)),
+            string.Join(Environment.NewLine, CanonicalPreparationWorkflowProjection(payloadB)),
+            "Two installations holding the same two completed preparation histories must bind the same "
+            + "archive-local pb-*/pi-* ids to the same history, regardless of which local row id each "
+            + "installation assigned.");
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Two completed preparation histories that tie on every currently-ordered session field and "
+            + "differ only in CompletedAtUtc and candidate content must still produce byte-identical "
+            + "canonical v2 output across installations.");
+    }
+
+    [TestMethod]
+    public void CreateBackupV2_TwoInstallationsWithOppositeRowIds_TiedLearningSessionSortKeys_ProduceIdenticalCanonicalOutput()
+    {
+        var installationA = NewTiedLearningWorkflowInstallation(
+            bankSessionId: 10, riverSessionId: 20,
+            bankQueueItemId: 100, riverQueueItemId: 200,
+            bankWordId: 1, riverWordId: 2, bankCardId: 300, riverCardId: 400);
+
+        // Same two logical learning histories, independently created, with the opposite local session row
+        // ids and therefore the opposite raw enumeration order.
+        var installationB = NewTiedLearningWorkflowInstallation(
+            bankSessionId: 20, riverSessionId: 10,
+            bankQueueItemId: 500, riverQueueItemId: 400,
+            bankWordId: 42, riverWordId: 41, bankCardId: 700, riverCardId: 600);
+
+        AssertLearningSessionsTieOnCurrentSortKey(installationA);
+        AssertLearningSessionsTieOnCurrentSortKey(installationB);
+        AssertOppositeRowOrder(
+            installationA.LearningSessions.Select(session => session.CompletedAtUtc).ToList(),
+            installationB.LearningSessions.Select(session => session.CompletedAtUtc).ToList(),
+            "learning sessions");
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+
+        Assert.HasCount(2, payloadA.Workflows.LearningSessions);
+        AssertLearningWorkflowsDifferInEmittedContent(payloadA);
+        AssertLearningWorkflowsDifferInEmittedContent(payloadB);
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, CanonicalLearningWorkflowProjection(payloadA)),
+            string.Join(Environment.NewLine, CanonicalLearningWorkflowProjection(payloadB)),
+            "Two installations holding the same two completed learning histories must bind the same "
+            + "archive-local ls-*/lq-* ids to the same history, regardless of which local row id each "
+            + "installation assigned.");
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Two completed learning histories that tie on every currently-ordered session field and differ "
+            + "only in CompletedAtUtc and queue-item content must still produce byte-identical canonical v2 "
+            + "output across installations.");
+    }
+
+    // ---- Package D: the LearningReviews ordering key stops at EaseFactor, so two review rows that tie on
+    // every field it considers fall through to raw enumeration order even though the emitted rows differ in
+    // LearningSessionId, TargetAnswerVariantId and MatchedAnswerVariantId.
+    //
+    // This pins the mapper's totality contract, exactly as
+    // CreateBackupV2_TwoIndistinguishableCompletedReviewSessions_RemainByteIdenticalUnderAnyRowIdAssignment
+    // does for completed review sessions. It is NOT a claim that two reviews of one card sharing an
+    // identical ReviewedAtUtc is normal user-reachable runtime behaviour: LearningService records one review
+    // per submitted rating with a wall-clock timestamp. ----
+    [TestMethod]
+    public void CreateBackupV2_LearningReviewsTiedOnSortKeyButDifferingInSessionOrAnswerVariant_ProduceIdenticalCanonicalOrder()
+    {
+        var installationA = NewTiedLearningReviewInstallation(
+            shortSessionId: 10, longSessionId: 20,
+            firstReviewId: 100, secondReviewId: 200,
+            alphaVariantId: 300, betaVariantId: 400,
+            wordId: 1, cardId: 500);
+
+        // Same logical content, independently created: the opposite local LearningReview row ids and
+        // therefore the opposite raw enumeration order.
+        var installationB = NewTiedLearningReviewInstallation(
+            shortSessionId: 20, longSessionId: 10,
+            firstReviewId: 200, secondReviewId: 100,
+            alphaVariantId: 400, betaVariantId: 300,
+            wordId: 42, cardId: 900);
+
+        AssertLearningReviewsTieOnCurrentSortKey(installationA);
+        AssertLearningReviewsTieOnCurrentSortKey(installationB);
+        // Marked by a content property, never by a local row id: this fixture deliberately assigns the
+        // opposite local ids to the answer variants and sessions too, so only content is comparable.
+        AssertOppositeRowOrder(
+            installationA.LearningReviews.Select(review => review.MatchedAnswerVariantId.HasValue).ToList(),
+            installationB.LearningReviews.Select(review => review.MatchedAnswerVariantId.HasValue).ToList(),
+            "learning reviews");
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+
+        Assert.HasCount(2, payloadA.Learning.ReviewEvents);
+        AssertLearningReviewsDifferInEmittedContent(payloadA);
+        AssertLearningReviewsDifferInEmittedContent(payloadB);
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, CanonicalLearningReviewProjection(payloadA)),
+            string.Join(Environment.NewLine, CanonicalLearningReviewProjection(payloadB)),
+            "Two review events that tie on every currently-ordered field must still be emitted in the same "
+            + "order across installations, because the emitted rows differ in session and answer-variant "
+            + "references the ordering key never consults.");
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Review events distinguishable only by their emitted session/answer-variant references must "
+            + "still produce byte-identical canonical v2 output across installations.");
+    }
+
+    // ---- Package D fixtures and projections ----
+
+    private static void AssertOppositeRowOrder<T>(
+        IReadOnlyList<T> firstInstallationOrder, IReadOnlyList<T> secondInstallationOrder, string what)
+    {
+        Assert.HasCount(2, firstInstallationOrder);
+        Assert.HasCount(2, secondInstallationOrder);
+        Assert.AreEqual(
+            firstInstallationOrder[0], secondInstallationOrder[1],
+            $"The two installations must enumerate their {what} in the opposite order; otherwise this test "
+            + "would not exercise the ordering boundary at all.");
+        Assert.AreEqual(firstInstallationOrder[1], secondInstallationOrder[0]);
+    }
+
+    private static void AssertPreparationSessionsTieOnCurrentSortKey(
+        KnownFirst.Data.Schema8.Schema8BackupSnapshot snapshot)
+    {
+        Assert.HasCount(2, snapshot.PreparationSessions);
+        var first = snapshot.PreparationSessions[0];
+        var second = snapshot.PreparationSessions[1];
+
+        Assert.AreEqual(first.Method, second.Method, "Method participates in the current sort key.");
+        Assert.AreEqual(first.Status, second.Status, "Status participates in the current sort key.");
+        Assert.AreEqual(first.TotalItems, second.TotalItems, "TotalItems participates in the current sort key.");
+        Assert.AreEqual(first.CompletedItems, second.CompletedItems, "CompletedItems participates in the current sort key.");
+        Assert.AreEqual(first.StartedAtUtc, second.StartedAtUtc, "StartedAtUtc participates in the current sort key.");
+        Assert.AreEqual(first.UpdatedAtUtc, second.UpdatedAtUtc, "UpdatedAtUtc participates in the current sort key.");
+    }
+
+    private static void AssertPreparationWorkflowsDifferInEmittedContent(BackupPayloadV2 payload)
+    {
+        var first = payload.Workflows.PreparationBatches[0];
+        var second = payload.Workflows.PreparationBatches[1];
+
+        Assert.AreNotEqual(
+            first.CompletedAtUtc, second.CompletedAtUtc,
+            "The two emitted preparation workflows must differ in CompletedAtUtc, which the current sort key omits.");
+        Assert.AreNotEqual(
+            EmittedPreparationItems(first), EmittedPreparationItems(second),
+            "The two emitted preparation workflows must differ in candidate content, which the current sort key omits.");
+    }
+
+    private static string EmittedPreparationItems(BackupPreparationWorkflow workflow) =>
+        string.Join(
+            ",",
+            workflow.Items.Select(item => string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0}/{1}/{2}/{3}", item.VocabularyId, item.Order, item.Status, item.LastErrorCode ?? "<none>")));
+
+    private static List<string> CanonicalPreparationWorkflowProjection(BackupPayloadV2 payload) =>
+        payload.Workflows.PreparationBatches
+            .Select(workflow => string.Join(
+                " | ",
+                new[]
+                {
+                    workflow.Id,
+                    workflow.Status.ToString(),
+                    workflow.Method.ToString(),
+                    workflow.TotalItems.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.CompletedItems.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.StartedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.UpdatedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.CompletedAtUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture) ?? "<none>"
+                }.Concat(workflow.Items.Select(item => string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0}/{1}/{2}/{3}/{4}/{5}/{6}",
+                    item.Id, item.VocabularyId, item.Order, item.Status, item.SelectedMeaningIndex,
+                    item.LastErrorCode ?? "<none>", item.LookupAttemptCount)))))
+            .ToList();
+
+    /// <summary>
+    /// One installation holding exactly two completed preparation histories. Both are equal on every field
+    /// the current v2 ordering compares (Method, Status, TotalItems, CompletedItems, StartedAtUtc,
+    /// UpdatedAtUtc); they differ in the emitted CompletedAtUtc and in which word each batch prepared
+    /// successfully — both of which the current key ignores entirely.
+    /// </summary>
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewTiedPreparationWorkflowInstallation(
+        int bankPreparedSessionId, int riverPreparedSessionId,
+        int bankPreparedCandidateBaseId, int riverPreparedCandidateBaseId,
+        int bankWordId, int riverWordId)
+    {
+        // Prepared/Learning/Mastered are rejected at the Word level by BackupModelContractV2 (Schema-8 moved
+        // that concern to Sense progression), so the fixture uses review-level statuses.
+        var bank = NewCanonicalOrderingWord(bankWordId, "bank", KnownFirst.Models.WordStatus.Known);
+        var river = NewCanonicalOrderingWord(riverWordId, "river", KnownFirst.Models.WordStatus.UnknownBacklog);
+
+        var bankPreparedSession = NewCompletedPreparationSession(
+            bankPreparedSessionId, TiedWorkflowFirstCompletedAtUtc);
+        var riverPreparedSession = NewCompletedPreparationSession(
+            riverPreparedSessionId, TiedWorkflowSecondCompletedAtUtc);
+
+        PreparationCandidateEntity[] candidates =
+        [
+            NewPreparationCandidate(
+                bankPreparedCandidateBaseId, bankPreparedSession.Id, bank.Id, 0,
+                KnownFirst.Models.PreparationCandidateStatus.Prepared),
+            NewPreparationCandidate(
+                bankPreparedCandidateBaseId + 1, bankPreparedSession.Id, river.Id, 1,
+                KnownFirst.Models.PreparationCandidateStatus.Failed),
+            NewPreparationCandidate(
+                riverPreparedCandidateBaseId, riverPreparedSession.Id, bank.Id, 0,
+                KnownFirst.Models.PreparationCandidateStatus.Failed),
+            NewPreparationCandidate(
+                riverPreparedCandidateBaseId + 1, riverPreparedSession.Id, river.Id, 1,
+                KnownFirst.Models.PreparationCandidateStatus.Prepared)
+        ];
+
+        // A raw Schema8BackupSnapshot capture reads unordered SELECTs, so row enumeration order follows the
+        // local rowids; ordering the fixture rows by id reproduces exactly that.
+        return NewPreparationOrderingSnapshot(
+            new[] { bank, river }.OrderBy(word => word.Id).ToList(),
+            new[] { bankPreparedSession, riverPreparedSession }.OrderBy(session => session.Id).ToList(),
+            candidates.OrderBy(candidate => candidate.Id).ToList());
+    }
+
+    private static PreparationSessionEntity NewCompletedPreparationSession(int id, DateTime completedAtUtc) => new()
+    {
+        Id = id,
+        Status = KnownFirst.Models.PreparationSessionStatus.Completed,
+        Method = KnownFirst.Core.Preparation.PreparationMethod.AutomaticOnline,
+        TotalItems = 2,
+        CompletedItems = 2,
+        StartedAtUtc = TiedWorkflowStartedAtUtc,
+        UpdatedAtUtc = TiedWorkflowUpdatedAtUtc,
+        CompletedAtUtc = completedAtUtc
+    };
+
+    private static PreparationCandidateEntity NewPreparationCandidate(
+        int id, int sessionId, int wordId, int order,
+        KnownFirst.Models.PreparationCandidateStatus status) => new()
+        {
+            Id = id,
+            SessionId = sessionId,
+            WordId = wordId,
+            Order = order,
+            Status = status,
+            ResultJson = string.Empty,
+            SelectedMeaningIndex = 0,
+            LastErrorCode = status == KnownFirst.Models.PreparationCandidateStatus.Failed
+                ? "lookup-failed"
+                : string.Empty,
+            LookupAttemptCount = 1,
+            UpdatedAtUtc = TiedWorkflowUpdatedAtUtc
+        };
+
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewPreparationOrderingSnapshot(
+        IReadOnlyList<WordEntity> words,
+        IReadOnlyList<PreparationSessionEntity> preparationSessions,
+        IReadOnlyList<PreparationCandidateEntity> preparationCandidates) => new(
+            [],
+            words,
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            preparationSessions,
+            preparationCandidates,
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            []);
+
+    private static void AssertLearningSessionsTieOnCurrentSortKey(
+        KnownFirst.Data.Schema8.Schema8BackupSnapshot snapshot)
+    {
+        Assert.HasCount(2, snapshot.LearningSessions);
+        var first = snapshot.LearningSessions[0];
+        var second = snapshot.LearningSessions[1];
+
+        Assert.AreEqual(first.Status, second.Status, "Status participates in the current sort key.");
+        Assert.AreEqual(first.TotalCards, second.TotalCards, "TotalCards participates in the current sort key.");
+        Assert.AreEqual(first.CompletedCards, second.CompletedCards, "CompletedCards participates in the current sort key.");
+        Assert.AreEqual(first.AgainCount, second.AgainCount, "AgainCount participates in the current sort key.");
+        Assert.AreEqual(first.HardCount, second.HardCount, "HardCount participates in the current sort key.");
+        Assert.AreEqual(first.GoodCount, second.GoodCount, "GoodCount participates in the current sort key.");
+        Assert.AreEqual(first.EasyCount, second.EasyCount, "EasyCount participates in the current sort key.");
+        Assert.AreEqual(first.StartedAtUtc, second.StartedAtUtc, "StartedAtUtc participates in the current sort key.");
+        Assert.AreEqual(first.UpdatedAtUtc, second.UpdatedAtUtc, "UpdatedAtUtc participates in the current sort key.");
+    }
+
+    private static void AssertLearningWorkflowsDifferInEmittedContent(BackupPayloadV2 payload)
+    {
+        var first = payload.Workflows.LearningSessions[0];
+        var second = payload.Workflows.LearningSessions[1];
+
+        Assert.AreNotEqual(
+            first.CompletedAtUtc, second.CompletedAtUtc,
+            "The two emitted learning workflows must differ in CompletedAtUtc, which the current sort key omits.");
+        Assert.AreNotEqual(
+            EmittedQueueItems(first), EmittedQueueItems(second),
+            "The two emitted learning workflows must differ in queue-item content, which the current sort key omits.");
+    }
+
+    private static string EmittedQueueItems(BackupLearningWorkflowV2 workflow) =>
+        string.Join(
+            ",",
+            workflow.QueueItems.Select(item => string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0}/{1}/{2}", item.CardId, item.QueueOrder, item.Rating)));
+
+    private static List<string> CanonicalLearningWorkflowProjection(BackupPayloadV2 payload) =>
+        payload.Workflows.LearningSessions
+            .Select(workflow => string.Join(
+                " | ",
+                new[]
+                {
+                    workflow.Id,
+                    workflow.Status.ToString(),
+                    workflow.TotalCards.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.CompletedCards.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.StartedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.UpdatedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                    workflow.CompletedAtUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture) ?? "<none>"
+                }.Concat(workflow.QueueItems.Select(item => string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0}/{1}/{2}/{3}/{4}/{5}",
+                    item.Id, item.CardId, item.QueueOrder, item.IsCompleted, item.Rating,
+                    item.TargetAnswerVariantId ?? "<none>")))))
+            .ToList();
+
+    /// <summary>
+    /// One installation holding exactly two completed learning histories. Both are equal on every field the
+    /// current v2 ordering compares (Status, TotalCards, CompletedCards, the four rating counters,
+    /// StartedAtUtc, UpdatedAtUtc); they differ in the emitted CompletedAtUtc and in which card each session
+    /// queued. The two cards carry no Sense reference and use different directions, so the card ordering is
+    /// itself total and the fixture needs no Guid-generated StableId values — keeping serialized byte
+    /// equality a legitimate oracle.
+    /// </summary>
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewTiedLearningWorkflowInstallation(
+        int bankSessionId, int riverSessionId, int bankQueueItemId, int riverQueueItemId,
+        int bankWordId, int riverWordId, int bankCardId, int riverCardId)
+    {
+        var bank = NewCanonicalOrderingWord(bankWordId, "bank", KnownFirst.Models.WordStatus.Known);
+        var river = NewCanonicalOrderingWord(riverWordId, "river", KnownFirst.Models.WordStatus.UnknownBacklog);
+
+        var bankCard = NewOrderingCard(bankCardId, bank.Id, KnownFirst.Core.Learning.CardDirection.TermToMeaning);
+        var riverCard = NewOrderingCard(riverCardId, river.Id, KnownFirst.Core.Learning.CardDirection.MeaningToTerm);
+
+        var bankSession = NewCompletedLearningSession(bankSessionId, TiedWorkflowFirstCompletedAtUtc);
+        var riverSession = NewCompletedLearningSession(riverSessionId, TiedWorkflowSecondCompletedAtUtc);
+
+        KnownFirst.Data.Schema8.Schema8QueueRow[] queueItems =
+        [
+            NewOrderingQueueItem(bankQueueItemId, bankSession.Id, bankCard.Id),
+            NewOrderingQueueItem(riverQueueItemId, riverSession.Id, riverCard.Id)
+        ];
+
+        return NewLearningWorkflowOrderingSnapshot(
+            new[] { bank, river }.OrderBy(word => word.Id).ToList(),
+            [],
+            new[] { bankCard, riverCard }.OrderBy(card => card.Id).ToList(),
+            [],
+            new[] { bankSession, riverSession }.OrderBy(session => session.Id).ToList(),
+            queueItems.OrderBy(item => item.Id).ToList());
+    }
+
+    private static LearningSessionEntity NewCompletedLearningSession(int id, DateTime completedAtUtc) => new()
+    {
+        Id = id,
+        Status = KnownFirst.Models.LearningSessionStatus.Completed,
+        TotalCards = 1,
+        CompletedCards = 1,
+        AgainCount = 0,
+        HardCount = 0,
+        GoodCount = 1,
+        EasyCount = 0,
+        StartedAtUtc = TiedWorkflowStartedAtUtc,
+        UpdatedAtUtc = TiedWorkflowUpdatedAtUtc,
+        CompletedAtUtc = completedAtUtc
+    };
+
+    private static KnownFirst.Data.Schema8.Schema8CardRow NewOrderingCard(
+        int id, int wordId, KnownFirst.Core.Learning.CardDirection direction) => new()
+        {
+            Id = id,
+            WordId = wordId,
+            SenseId = null,
+            PreferredMeaningId = 0,
+            Direction = direction,
+            State = KnownFirst.Core.Learning.CardState.Review,
+            DueAtUtc = TiedWorkflowReviewDueAtUtc,
+            IntervalDays = 1,
+            EaseFactor = 2.5,
+            SuccessfulReviewCount = 1,
+            LapseCount = 0,
+            LastReviewedAtUtc = TiedWorkflowReviewedAtUtc,
+            LastRating = KnownFirst.Core.Learning.ReviewRating.Good,
+            CreatedAtUtc = TiedWorkflowStartedAtUtc,
+            UpdatedAtUtc = TiedWorkflowUpdatedAtUtc
+        };
+
+    private static KnownFirst.Data.Schema8.Schema8QueueRow NewOrderingQueueItem(int id, int sessionId, int cardId) => new()
+    {
+        Id = id,
+        SessionId = sessionId,
+        CardId = cardId,
+        QueueOrder = 0,
+        IsDueCard = true,
+        IsAgainRepeat = false,
+        AnswerRevealed = true,
+        SpellingChecked = false,
+        SpellingCorrect = false,
+        IsCompleted = true,
+        Rating = KnownFirst.Core.Learning.ReviewRating.Good,
+        CompletedAtUtc = TiedWorkflowReviewedAtUtc,
+        TargetAnswerVariantId = null
+    };
+
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewLearningWorkflowOrderingSnapshot(
+        IReadOnlyList<WordEntity> words,
+        IReadOnlyList<KnownFirst.Data.Migrations.Schema8.AnswerVariantRow> answerVariants,
+        IReadOnlyList<KnownFirst.Data.Schema8.Schema8CardRow> cards,
+        IReadOnlyList<KnownFirst.Data.Schema8.Schema8ReviewRow> reviews,
+        IReadOnlyList<LearningSessionEntity> learningSessions,
+        IReadOnlyList<KnownFirst.Data.Schema8.Schema8QueueRow> queueItems) => new(
+            [],
+            words,
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            answerVariants,
+            [],
+            [],
+            cards,
+            reviews,
+            learningSessions,
+            queueItems);
+
+    private static void AssertLearningReviewsTieOnCurrentSortKey(
+        KnownFirst.Data.Schema8.Schema8BackupSnapshot snapshot)
+    {
+        Assert.HasCount(2, snapshot.LearningReviews);
+        var first = snapshot.LearningReviews[0];
+        var second = snapshot.LearningReviews[1];
+
+        Assert.AreEqual(first.CardId, second.CardId, "The emitted card reference participates in the current sort key.");
+        Assert.AreEqual(first.ReviewedAtUtc, second.ReviewedAtUtc, "ReviewedAtUtc participates in the current sort key.");
+        Assert.AreEqual(first.Rating, second.Rating, "Rating participates in the current sort key.");
+        Assert.AreEqual(first.WasTypedAnswer, second.WasTypedAnswer, "WasTypedAnswer participates in the current sort key.");
+        Assert.AreEqual(first.WasCorrect, second.WasCorrect, "WasCorrect participates in the current sort key.");
+        Assert.AreEqual(first.DueAtUtc, second.DueAtUtc, "DueAtUtc participates in the current sort key.");
+        Assert.AreEqual(first.IntervalDays, second.IntervalDays, "IntervalDays participates in the current sort key.");
+        Assert.AreEqual(first.EaseFactor, second.EaseFactor, "EaseFactor participates in the current sort key.");
+    }
+
+    private static void AssertLearningReviewsDifferInEmittedContent(BackupPayloadV2 payload)
+    {
+        var first = payload.Learning.ReviewEvents[0];
+        var second = payload.Learning.ReviewEvents[1];
+
+        Assert.AreNotEqual(
+            first.LearningSessionId, second.LearningSessionId,
+            "The two emitted reviews must differ in LearningSessionId, which the current sort key omits.");
+        Assert.AreNotEqual(
+            first.TargetAnswerVariantId, second.TargetAnswerVariantId,
+            "The two emitted reviews must differ in TargetAnswerVariantId, which the current sort key omits.");
+        Assert.AreNotEqual(
+            first.MatchedAnswerVariantId, second.MatchedAnswerVariantId,
+            "The two emitted reviews must differ in MatchedAnswerVariantId, which the current sort key omits.");
+    }
+
+    private static List<string> CanonicalLearningReviewProjection(BackupPayloadV2 payload) =>
+        payload.Learning.ReviewEvents
+            .Select(review => string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{0} | {1} | {2} | {3} | {4} | {5} | {6} | {7} | {8} | {9} | {10}",
+                review.CardId,
+                review.LearningSessionId,
+                review.Rating,
+                review.WasTypedAnswer,
+                review.WasCorrect,
+                review.ReviewedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                review.DueAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+                review.IntervalDays,
+                review.EaseFactor.ToString("G17", System.Globalization.CultureInfo.InvariantCulture),
+                review.TargetAnswerVariantId ?? "<none>",
+                review.MatchedAnswerVariantId ?? "<none>"))
+            .ToList();
+
+    /// <summary>
+    /// One installation holding one card and two review events that are equal on every field the current v2
+    /// review ordering compares, and differ only in the emitted LearningSessionId, TargetAnswerVariantId and
+    /// MatchedAnswerVariantId. The two parent learning sessions differ in TotalCards and the two answer
+    /// variants carry fixed StableId values, so both of those collections are already totally ordered by
+    /// content — the only ordering instability this fixture can expose is the review ordering itself.
+    /// </summary>
+    private static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewTiedLearningReviewInstallation(
+        int shortSessionId, int longSessionId, int firstReviewId, int secondReviewId,
+        int alphaVariantId, int betaVariantId, int wordId, int cardId)
+    {
+        var word = NewCanonicalOrderingWord(wordId, "bank", KnownFirst.Models.WordStatus.Known);
+        var card = NewOrderingCard(cardId, word.Id, KnownFirst.Core.Learning.CardDirection.TermToMeaning);
+
+        var shortSession = NewCompletedLearningSession(shortSessionId, TiedWorkflowFirstCompletedAtUtc);
+        var longSession = NewCompletedLearningSession(longSessionId, TiedWorkflowSecondCompletedAtUtc);
+        longSession.TotalCards = 2;
+        longSession.CompletedCards = 2;
+
+        var alpha = NewOrderingAnswerVariant(alphaVariantId, "av-stable-alpha", "alpha");
+        var beta = NewOrderingAnswerVariant(betaVariantId, "av-stable-beta", "beta");
+
+        KnownFirst.Data.Schema8.Schema8ReviewRow[] reviews =
+        [
+            NewTiedReview(firstReviewId, card.Id, shortSession.Id, alpha.Id, alpha.Id),
+            NewTiedReview(secondReviewId, card.Id, longSession.Id, beta.Id, null)
+        ];
+
+        return NewLearningWorkflowOrderingSnapshot(
+            [word],
+            new[] { alpha, beta }.OrderBy(variant => variant.Id).ToList(),
+            [card],
+            reviews.OrderBy(review => review.Id).ToList(),
+            new[] { shortSession, longSession }.OrderBy(session => session.Id).ToList(),
+            []);
+    }
+
+    private static KnownFirst.Data.Migrations.Schema8.AnswerVariantRow NewOrderingAnswerVariant(
+        int id, string stableId, string text) => new()
+        {
+            Id = id,
+            StableId = stableId,
+            SenseId = 0,
+            AnswerLanguage = "de",
+            DisplayText = text,
+            NormalizedText = text,
+            SourceMeaningId = null,
+            CreatedAtUtc = TiedWorkflowStartedAtUtc,
+            UpdatedAtUtc = TiedWorkflowUpdatedAtUtc
+        };
+
+    private static KnownFirst.Data.Schema8.Schema8ReviewRow NewTiedReview(
+        int id, int cardId, int sessionId, int? targetAnswerVariantId, int? matchedAnswerVariantId) => new()
+        {
+            Id = id,
+            CardId = cardId,
+            SessionId = sessionId,
+            Rating = KnownFirst.Core.Learning.ReviewRating.Good,
+            WasTypedAnswer = true,
+            WasCorrect = true,
+            ReviewedAtUtc = TiedWorkflowReviewedAtUtc,
+            DueAtUtc = TiedWorkflowReviewDueAtUtc,
+            IntervalDays = 1,
+            EaseFactor = 2.5,
+            TargetAnswerVariantId = targetAnswerVariantId,
+            MatchedAnswerVariantId = matchedAnswerVariantId
+        };
 }

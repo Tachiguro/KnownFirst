@@ -1134,4 +1134,370 @@ public sealed class PortableImportEndToEndConvergenceTests
         public int CandidateOrder { get; set; }
         public int Status { get; set; }
     }
+
+    // ==== Package D (KF-BACKUP-003): two-installation exchange of completed preparation and learning
+    // workflows whose parent rows tie on every field the current v2 mapper orders by.
+    //
+    // Package C closed the same class of gap for SourceMaterials and completed ReviewSessions. The
+    // PreparationSessions and LearningSessions ordering keys still omit the emitted CompletedAtUtc and every
+    // emitted child row, and end in no tie-break at all, so two histories that tie fall through to raw local
+    // row order. After a bidirectional exchange each installation holds both histories under the opposite
+    // local row ids, so the same pb-*/pi-*/ls-*/lq-* ids bind to different histories on the two sides and the
+    // canonical payload stops being a pure function of exported content. ====
+
+    private const string PackageDWorkflowDocumentContent = "The bank is open near the river.";
+    private static readonly DateTime PackageDWorkflowStartedAtUtc = new(2026, 5, 1, 9, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime PackageDWorkflowUpdatedAtUtc = new(2026, 5, 1, 9, 30, 0, DateTimeKind.Utc);
+
+    [TestMethod]
+    public async Task TwoInstallations_ExchangeTiedCompletedPreparationAndLearningWorkflows_ConvergeAndExportIdenticalCanonicalWorkflowSubgraph()
+    {
+        var builtA = await BuildPackageDWorkflowInstallationAsync(bankPrepared: true);
+        var builtB = await BuildPackageDWorkflowInstallationAsync(bankPrepared: false);
+
+        await using var dbA = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtA);
+        await using var dbB = await IsolatedMergeTarget.FromBuiltFixtureAsync(builtB);
+
+        var archiveA = await CaptureSchema9ArchiveBytesAsync(dbA.Connection);
+        var archiveB = await CaptureSchema9ArchiveBytesAsync(dbB.Connection);
+
+        var serviceOverA = new BackupService(dbA, new FakePlatformInfo());
+        var serviceOverB = new BackupService(dbB, new FakePlatformInfo());
+
+        await PreviewAndImportPackageDAsync(serviceOverB, archiveA, "A -> B");
+        await PreviewAndImportPackageDAsync(serviceOverA, archiveB, "B -> A");
+
+        // ---- Convergence: both completed histories of each kind on both sides, exactly once ----
+        foreach (var installation in new[] { dbA, dbB })
+        {
+            Assert.AreEqual(
+                2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM PreparationSessions"),
+                "Both divergent completed preparation histories must coexist after the exchange.");
+            Assert.AreEqual(
+                4, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM PreparationCandidates"),
+                "Each completed preparation history keeps its own two candidate rows.");
+            Assert.AreEqual(
+                2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningSessions"),
+                "Both divergent completed learning histories must coexist after the exchange.");
+            Assert.AreEqual(
+                2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningSessionCards"),
+                "Each completed learning history keeps its own queue item.");
+            Assert.AreEqual(
+                2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningReviews"),
+                "Each completed learning history keeps its own review event.");
+            Assert.AreEqual(
+                0,
+                await CountAsync(
+                    installation.Connection,
+                    $"SELECT COUNT(*) FROM PreparationSessions WHERE Status <> {(int)PreparationSessionStatus.Completed}"),
+                "No Active preparation session may be produced by the exchange.");
+            Assert.AreEqual(
+                0,
+                await CountAsync(
+                    installation.Connection,
+                    $"SELECT COUNT(*) FROM LearningSessions WHERE Status <> {(int)LearningSessionStatus.Completed}"),
+                "No Active learning session may be produced by the exchange.");
+            await AssertReferentialIntegrityAsync(installation.Connection);
+        }
+
+        var workflowStateA = await CompletedWorkflowHistoryStateAsync(dbA.Connection);
+        var workflowStateB = await CompletedWorkflowHistoryStateAsync(dbB.Connection);
+        Assert.HasCount(4, workflowStateA, "Two preparation histories plus two learning histories.");
+        CollectionAssert.AreEqual(
+            workflowStateA, workflowStateB,
+            "Both installations must hold the same completed workflow histories, with every candidate and "
+            + "queue item still attached to its own semantic parent.");
+
+        // ---- The ordering boundary really arose: the two installations hold the same two preparation
+        // histories under the opposite local row order. ----
+        var localOrderA = await PreparationCandidateStatusesByRowOrderAsync(dbA.Connection);
+        var localOrderB = await PreparationCandidateStatusesByRowOrderAsync(dbB.Connection);
+        Assert.AreNotEqual(
+            string.Join(";", localOrderA), string.Join(";", localOrderB),
+            "The exchange must leave the two installations with the opposite local PreparationSession row "
+            + "order; otherwise this test would not exercise the ordering boundary at all.");
+
+        // ---- Canonical workflow-subgraph convergence (never whole-archive bytes: Sense/Meaning/
+        // AnswerVariant/Assignment StableId values are installation-random by design). ----
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, await CaptureCanonicalWorkflowSubgraphAsync(dbA.Connection)),
+            string.Join(Environment.NewLine, await CaptureCanonicalWorkflowSubgraphAsync(dbB.Connection)),
+            "After converging, both installations must export the same archive-local pb-*/pi-*/ls-*/lq-* "
+            + "binding for the same completed workflow history, independently of their local row ids.");
+
+        // ---- One further exchange must be a pure no-change on both sides ----
+        var convergedArchiveA = await CaptureSchema9ArchiveBytesAsync(dbA.Connection);
+        var convergedArchiveB = await CaptureSchema9ArchiveBytesAsync(dbB.Connection);
+        await ImportExpectingAsync(serviceOverB, convergedArchiveA, PortableImportDisposition.MergeNoChange, "A -> B (repeat)");
+        await ImportExpectingAsync(serviceOverA, convergedArchiveB, PortableImportDisposition.MergeNoChange, "B -> A (repeat)");
+
+        foreach (var installation in new[] { dbA, dbB })
+        {
+            Assert.AreEqual(2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM PreparationSessions"));
+            Assert.AreEqual(4, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM PreparationCandidates"));
+            Assert.AreEqual(2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningSessions"));
+            Assert.AreEqual(2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningSessionCards"));
+            Assert.AreEqual(2, await CountAsync(installation.Connection, "SELECT COUNT(*) FROM LearningReviews"));
+            await AssertReferentialIntegrityAsync(installation.Connection);
+        }
+
+        CollectionAssert.AreEqual(
+            workflowStateA, await CompletedWorkflowHistoryStateAsync(dbA.Connection),
+            "A's completed workflow history must be unchanged by the repeated exchange.");
+        CollectionAssert.AreEqual(
+            workflowStateB, await CompletedWorkflowHistoryStateAsync(dbB.Connection),
+            "B's completed workflow history must be unchanged by the repeated exchange.");
+    }
+
+    private static async Task PreviewAndImportPackageDAsync(BackupService service, byte[] archiveBytes, string step)
+    {
+        PortableImportPreview preview;
+        using (var previewStream = new MemoryStream(archiveBytes))
+        {
+            preview = await service.PreviewPortableImportAsync(previewStream, CancellationToken.None);
+        }
+        Assert.AreEqual(
+            PortableImportPreviewDisposition.MergeChanges, preview.Disposition,
+            $"{step} preview must report a mutating merge (error code '{preview.ErrorCode}').");
+
+        PortableImportResult result;
+        using (var importStream = new MemoryStream(archiveBytes))
+        {
+            result = await service.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+        }
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, $"{step} failed: '{result.ErrorCode}'.");
+        Assert.AreEqual(PortableImportDisposition.MergeApplied, result.Summary!.Disposition);
+
+        Assert.AreEqual(preview.InsertedCount, result.Summary.InsertedCount, $"{step} preview/result inserted count disagreement.");
+        Assert.AreEqual(preview.EnrichedCount, result.Summary.EnrichedCount, $"{step} preview/result enriched count disagreement.");
+        Assert.AreEqual(preview.PreservedVariantCount, result.Summary.PreservedVariantCount, $"{step} preview/result preserved count disagreement.");
+        Assert.AreEqual(preview.SkippedCount, result.Summary.SkippedCount, $"{step} preview/result skipped count disagreement.");
+    }
+
+    /// <summary>
+    /// One Schema-9 installation holding exactly one completed preparation history and one completed learning
+    /// history. Every field the current v2 mapper orders those two collections by is identical on both
+    /// installations; only the emitted CompletedAtUtc and the child content (which candidate succeeded, which
+    /// card was queued) differ — exactly what the current keys cannot see.
+    /// </summary>
+    private static async Task<Schema7Fixture> BuildPackageDWorkflowInstallationAsync(bool bankPrepared)
+    {
+        var fixture = await Schema7Fixture.CreateAsync();
+
+        _ = await fixture.InsertDocumentAsync(
+            title: "Workflow history document", content: PackageDWorkflowDocumentContent,
+            wordCount: 7, importedAt: Epoch);
+
+        // Identical vocabulary/meaning/card content on both installations, so no KnowledgeState,
+        // semantic-grouping or preferred-variant decision can block the merge.
+        var bankWordId = await fixture.InsertWordAsync(
+            "bank", status: WordStatus.Learning, createdAt: Epoch, updatedAt: Epoch);
+        var riverWordId = await fixture.InsertWordAsync(
+            "river", status: WordStatus.Learning, createdAt: Epoch, updatedAt: Epoch);
+
+        var bankMeaningId = await fixture.InsertMeaningAsync(
+            bankWordId, displayTerm: "bank", translation: "Bank", selectedMeaningId: "bank-1",
+            definition: "a financial institution", createdAt: Epoch, updatedAt: Epoch);
+        var riverMeaningId = await fixture.InsertMeaningAsync(
+            riverWordId, displayTerm: "river", translation: "Fluss", selectedMeaningId: "river-1",
+            definition: "a large natural stream", createdAt: Epoch, updatedAt: Epoch);
+
+        var bankCardId = await fixture.InsertCardAsync(
+            bankWordId, bankMeaningId, CardDirection.TermToMeaning,
+            dueAtUtc: Epoch, createdAtUtc: Epoch, updatedAtUtc: Epoch);
+        var riverCardId = await fixture.InsertCardAsync(
+            riverWordId, riverMeaningId, CardDirection.MeaningToTerm,
+            dueAtUtc: Epoch, createdAtUtc: Epoch, updatedAtUtc: Epoch);
+
+        var completedAtUtc = bankPrepared
+            ? PackageDWorkflowStartedAtUtc.AddMinutes(20)
+            : PackageDWorkflowStartedAtUtc.AddMinutes(25);
+
+        // Completed preparation history: identical Method/Status/TotalItems/CompletedItems/StartedAtUtc/
+        // UpdatedAtUtc on both sides; only CompletedAtUtc and which candidate succeeded differ.
+        await fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO PreparationSessions
+                (Status, Method, TotalItems, CompletedItems, StartedAtUtc, UpdatedAtUtc, CompletedAtUtc)
+            VALUES (?, 0, 2, 2, ?, ?, ?)
+            """,
+            (int)PreparationSessionStatus.Completed,
+            PackageDWorkflowStartedAtUtc, PackageDWorkflowUpdatedAtUtc, completedAtUtc);
+        var preparationSessionId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT last_insert_rowid()");
+
+        await InsertPackageDPreparationCandidateAsync(
+            fixture, preparationSessionId, bankWordId, order: 0,
+            status: bankPrepared ? PreparationCandidateStatus.Prepared : PreparationCandidateStatus.Failed);
+        await InsertPackageDPreparationCandidateAsync(
+            fixture, preparationSessionId, riverWordId, order: 1,
+            status: bankPrepared ? PreparationCandidateStatus.Failed : PreparationCandidateStatus.Prepared);
+
+        // Completed learning history: identical counters/timestamps on both sides; only CompletedAtUtc and
+        // the queued card differ.
+        var learningSessionId = await fixture.InsertLearningSessionAsync(
+            startedAtUtc: PackageDWorkflowStartedAtUtc, updatedAtUtc: PackageDWorkflowUpdatedAtUtc,
+            completedAtUtc: completedAtUtc);
+        var queuedCardId = bankPrepared ? bankCardId : riverCardId;
+        await fixture.InsertQueueItemAsync(
+            sessionId: learningSessionId, cardId: queuedCardId, queueOrder: 0, isCompleted: true,
+            rating: ReviewRating.Good, completedAtUtc: completedAtUtc);
+        await fixture.InsertReviewAsync(
+            queuedCardId, sessionId: learningSessionId, rating: ReviewRating.Good, wasTypedAnswer: true,
+            wasCorrect: true, reviewedAtUtc: completedAtUtc, dueAtUtc: completedAtUtc.AddDays(1),
+            intervalDays: 1, easeFactor: SimpleSpacedRepetitionScheduler.DefaultEaseFactor);
+
+        await Schema8BackupFixtureBuilders.MigrateAsync(fixture);
+        await Schema9RawFixture.ReplaceLegacyIndexAsync(fixture.Connection);
+        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 9");
+
+        BackupSchemaCapabilityResult? capability = null;
+        await fixture.Connection.RunInTransactionAsync(connection => capability = BackupSchemaCapability.Resolve(connection));
+        Assert.IsInstanceOfType<Schema9CapabilityResult>(
+            capability, "Both Package-D installations must be genuinely Schema-9 shaped.");
+
+        return fixture;
+    }
+
+    private static Task InsertPackageDPreparationCandidateAsync(
+        Schema7Fixture fixture, int sessionId, int wordId, int order, PreparationCandidateStatus status) =>
+        fixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO PreparationCandidates
+                (SessionId, WordId, "Order", Status, ResultJson, SelectedMeaningIndex, LastErrorCode,
+                 LookupAttemptCount, UpdatedAtUtc)
+            VALUES (?, ?, ?, ?, '', 0, ?, 1, ?)
+            """,
+            sessionId, wordId, order, (int)status,
+            status == PreparationCandidateStatus.Failed ? "lookup-failed" : string.Empty,
+            PackageDWorkflowUpdatedAtUtc);
+
+    /// <summary>
+    /// Every completed preparation and learning history reduced to content only — its own scalars plus the
+    /// ordered child content attached to that specific parent row, with vocabulary and cards addressed by
+    /// canonical content rather than by local row id. Sorted by content, so the projection is comparable
+    /// across installations while still proving each child stayed with its own semantic parent.
+    /// </summary>
+    private static async Task<List<string>> CompletedWorkflowHistoryStateAsync(SQLiteAsyncConnection connection)
+    {
+        var words = await connection.QueryAsync<KnownFirst.Data.Entities.WordEntity>("SELECT * FROM Words");
+        var termByWordId = words.ToDictionary(word => word.Id, word => $"{word.Language}|{word.NormalizedTerm}");
+
+        var preparationSessions = await connection.QueryAsync<KnownFirst.Data.Entities.PreparationSessionEntity>(
+            "SELECT * FROM PreparationSessions");
+        var preparationCandidates = await connection.QueryAsync<KnownFirst.Data.Entities.PreparationCandidateEntity>(
+            "SELECT * FROM PreparationCandidates");
+        var learningSessions = await connection.QueryAsync<KnownFirst.Data.Entities.LearningSessionEntity>(
+            "SELECT * FROM LearningSessions");
+        var queueItems = await connection.QueryAsync<Schema8QueueRow>("SELECT * FROM LearningSessionCards");
+        var cards = await connection.QueryAsync<Schema8CardRow>("SELECT * FROM LearningCards");
+        var cardKeyByRowId = cards.ToDictionary(
+            card => card.Id, card => $"{termByWordId[card.WordId]}|{card.Direction}");
+
+        var preparationState = preparationSessions.Select(session =>
+        {
+            var ownCandidates = preparationCandidates
+                .Where(candidate => candidate.SessionId == session.Id)
+                .OrderBy(candidate => candidate.Order)
+                .Select(candidate => $"{candidate.Order}:{termByWordId[candidate.WordId]}:{candidate.Status}");
+            return $"prep|{session.Method}|{session.Status}|{session.TotalItems}/{session.CompletedItems}"
+                + $"|{session.StartedAtUtc:O}..{session.CompletedAtUtc:O}|{string.Join(",", ownCandidates)}";
+        });
+
+        var learningState = learningSessions.Select(session =>
+        {
+            var ownItems = queueItems
+                .Where(item => item.SessionId == session.Id)
+                .OrderBy(item => item.QueueOrder)
+                .Select(item => $"{item.QueueOrder}:{cardKeyByRowId[item.CardId]}:{item.Rating}:{item.IsCompleted}");
+            return $"learn|{session.Status}|{session.TotalCards}/{session.CompletedCards}"
+                + $"|{session.StartedAtUtc:O}..{session.CompletedAtUtc:O}|{string.Join(",", ownItems)}";
+        });
+
+        return preparationState
+            .Concat(learningState)
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>The per-session preparation decisions in raw local row order — the installation-local view the
+    /// canonical export must NOT depend on.</summary>
+    private static async Task<List<string>> PreparationCandidateStatusesByRowOrderAsync(SQLiteAsyncConnection connection)
+    {
+        var rows = await connection.QueryAsync<PreparationCandidateRowProjection>(
+            """
+            SELECT pc.SessionId AS SessionId, pc."Order" AS CandidateOrder, pc.Status AS Status
+            FROM PreparationCandidates pc
+            ORDER BY pc.SessionId, pc."Order"
+            """);
+        return rows.Select(row => $"{row.CandidateOrder}:{row.Status}").ToList();
+    }
+
+    private sealed class PreparationCandidateRowProjection
+    {
+        public int SessionId { get; set; }
+        public int CandidateOrder { get; set; }
+        public int Status { get; set; }
+    }
+
+    private static async Task<List<string>> CaptureCanonicalWorkflowSubgraphAsync(SQLiteAsyncConnection connection) =>
+        CanonicalWorkflowSubgraphProjection(await CaptureCurrentPayloadAsync(connection));
+
+    /// <summary>
+    /// The installation-independent part of a payload's completed preparation/learning subgraph: which
+    /// archive-local workflow/item id binds to which content. Vocabulary and cards are addressed by their own
+    /// content, never by a positional archive id, so this projection isolates the workflow ordering itself.
+    /// </summary>
+    private static List<string> CanonicalWorkflowSubgraphProjection(BackupPayloadV2 payload)
+    {
+        var vocabularyKeyById = payload.Vocabulary.ToDictionary(
+            item => item.Id, item => $"{item.Language}|{item.IdentityKey}", StringComparer.Ordinal);
+        var cardKeyById = payload.Learning.Cards.ToDictionary(
+            card => card.Id, card => $"{vocabularyKeyById[card.VocabularyId]}|{card.Direction}", StringComparer.Ordinal);
+
+        var preparation = payload.Workflows.PreparationBatches
+            .Select(workflow => string.Join(
+                " | ",
+                new[]
+                {
+                    "prep",
+                    workflow.Id,
+                    workflow.Status.ToString(),
+                    workflow.Method.ToString(),
+                    $"{workflow.StartedAtUtc:O}..{workflow.CompletedAtUtc:O}"
+                }.Concat(workflow.Items.Select(item =>
+                    $"{item.Id}/{vocabularyKeyById[item.VocabularyId]}/{item.Order}/{item.Status}"))));
+
+        var learning = payload.Workflows.LearningSessions
+            .Select(workflow => string.Join(
+                " | ",
+                new[]
+                {
+                    "learn",
+                    workflow.Id,
+                    workflow.Status.ToString(),
+                    $"{workflow.StartedAtUtc:O}..{workflow.CompletedAtUtc:O}"
+                }.Concat(workflow.QueueItems.Select(item =>
+                    $"{item.Id}/{cardKeyById[item.CardId]}/{item.QueueOrder}/{item.Rating}"))));
+
+        // Review events are compared as a content-sorted set, never in emitted order. The review ordering is
+        // keyed first by the emitted c-* reference, and the Cards collection is ordered by Sense StableId —
+        // a Guid.NewGuid() value the Schema-8 migration generates per installation and which Package C
+        // explicitly records as installation-random by design. Package D makes the review ordering total
+        // over emitted content (proved at mapper level by
+        // CreateBackupV2_LearningReviewsTiedOnSortKeyButDifferingInSessionOrAnswerVariant_...); it does not,
+        // and must not, make the Cards collection's own ordering installation-independent. What this
+        // projection does assert is that both sides bind the same ls-* workflow and the same card content to
+        // the same review event.
+        var reviews = payload.Learning.ReviewEvents
+            .Select(review => string.Join(
+                " | ",
+                "review",
+                cardKeyById[review.CardId],
+                review.LearningSessionId,
+                review.Rating.ToString(),
+                $"{review.ReviewedAtUtc:O}"))
+            .OrderBy(value => value, StringComparer.Ordinal);
+
+        return [.. preparation, .. learning, .. reviews];
+    }
 }

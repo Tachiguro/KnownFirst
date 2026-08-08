@@ -197,7 +197,13 @@ Package C (cross-installation canonical-ordering hardening) is merged via PR #68
 - completed `ReviewSession` `vr-*` / `rc-*` assignment is hardened against the reviewed tied-session/candidate-history case;
 - focused two-installation convergence and repeated-exchange evidence exists.
 
-Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive under Schema 9; repeated merge converges/no-changes. This does not claim universal whole-archive byte equality.
+Package D (KF-BACKUP-003, `PreparationSession`/`LearningSession`/`LearningReview` v2 canonical-ordering hardening) is implemented and automated-validated on feature branch `fix/schema9-portable-workflow-canonical-ordering-v1`; it is **not yet merged to master**. For the affected v2 export collections, once merged:
+- completed `PreparationSession`/`PreparationCandidate` archive-local `pb-*` / `pi-*` assignment is hardened against relevant local-row/enumeration differences;
+- completed `LearningSession`/`LearningSessionCard` archive-local `ls-*` / `lq-*` assignment is hardened the same way;
+- `LearningReview` export ordering is total over every emitted review field, including `LearningSessionId`, `TargetAnswerVariantId`, and `MatchedAnswerVariantId`;
+- this is archive-emission canonical ordering only, never a merge identity — no `MergePreflightPlannerV2`/`MergeWriterExecutor` identity or writer behavior changed.
+
+Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive under Schema 9; repeated merge converges/no-changes; these semantics are unchanged by Package D. Schema and archive-format compatibility rules are unchanged. This does not claim universal whole-archive byte equality.
 
 Synchronization and cloud formats do not exist.
 

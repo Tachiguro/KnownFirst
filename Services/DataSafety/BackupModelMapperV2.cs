@@ -152,8 +152,29 @@ public static class BackupModelMapperV2
             .ToList();
         var reviewCandidateIdMap = BuildIdMap(sortedReviewCandidates, rc => rc.Id, "rc-");
 
+        // ---- PreparationSessions (KF-BACKUP-003 Package D): explicit typed comparisons over every emitted
+        // parent scalar, then a content key over the complete emitted candidate subgraph ----
+        //
+        // The previous key omitted the emitted CompletedAtUtc and every emitted candidate row, and ended in
+        // no tie-break at all — not even the local row-id fallback ReviewSessions above and the shipped v1
+        // BackupModelMapper both retain. Two completed batches that tied therefore fell through to raw
+        // snapshot enumeration order, i.e. installation-local SQLite row order, so two installations holding
+        // the same two histories bound the same pb-*/pi-* ids to different histories.
+        var preparationChildKeys = BuildPreparationWorkflowChildOrderingKeys(snapshot, vocabIdMap);
+
         var sortedPrepSessions = snapshot.PreparationSessions
-            .OrderBy(ps => ContentKey(ps.Method, ps.Status, ps.TotalItems, ps.CompletedItems, ps.StartedAtUtc.Ticks, ps.UpdatedAtUtc.Ticks))
+            .OrderBy(ps => (int)ps.Method)
+            .ThenBy(ps => (int)ps.Status)
+            .ThenBy(ps => ps.TotalItems)
+            .ThenBy(ps => ps.CompletedItems)
+            .ThenBy(ps => EnsureUtc(ps.StartedAtUtc).Ticks)
+            .ThenBy(ps => EnsureUtc(ps.UpdatedAtUtc).Ticks)
+            // HasValue precedes Ticks so an absent CompletedAtUtc and a present one at tick 0 — which emit
+            // different payload values — can never compare equal and fall through to the row id below.
+            .ThenBy(ps => ps.CompletedAtUtc.HasValue)
+            .ThenBy(ps => ps.CompletedAtUtc.HasValue ? EnsureUtc(ps.CompletedAtUtc.Value).Ticks : 0)
+            .ThenBy(ps => preparationChildKeys[ps.Id], StringComparer.Ordinal)
+            .ThenBy(ps => ps.Id)
             .ToList();
         var prepSessionIdMap = BuildIdMap(sortedPrepSessions, ps => ps.Id, "pb-");
 
@@ -163,8 +184,23 @@ public static class BackupModelMapperV2
             .ToList();
         var prepCandidateIdMap = BuildIdMap(sortedPrepCandidates, pc => pc.Id, "pi-");
 
+        // ---- LearningSessions (KF-BACKUP-003 Package D): the same correction, one entity over ----
+        var learningChildKeys = BuildLearningWorkflowChildOrderingKeys(snapshot, cardIdMap, variantIdMap);
+
         var sortedLearningSessions = snapshot.LearningSessions
-            .OrderBy(ls => ContentKey(ls.Status, ls.TotalCards, ls.CompletedCards, ls.AgainCount, ls.HardCount, ls.GoodCount, ls.EasyCount, ls.StartedAtUtc.Ticks, ls.UpdatedAtUtc.Ticks))
+            .OrderBy(ls => (int)ls.Status)
+            .ThenBy(ls => ls.TotalCards)
+            .ThenBy(ls => ls.CompletedCards)
+            .ThenBy(ls => ls.AgainCount)
+            .ThenBy(ls => ls.HardCount)
+            .ThenBy(ls => ls.GoodCount)
+            .ThenBy(ls => ls.EasyCount)
+            .ThenBy(ls => EnsureUtc(ls.StartedAtUtc).Ticks)
+            .ThenBy(ls => EnsureUtc(ls.UpdatedAtUtc).Ticks)
+            .ThenBy(ls => ls.CompletedAtUtc.HasValue)
+            .ThenBy(ls => ls.CompletedAtUtc.HasValue ? EnsureUtc(ls.CompletedAtUtc.Value).Ticks : 0)
+            .ThenBy(ls => learningChildKeys[ls.Id], StringComparer.Ordinal)
+            .ThenBy(ls => ls.Id)
             .ToList();
         var learningSessionIdMap = BuildIdMap(sortedLearningSessions, ls => ls.Id, "ls-");
 
@@ -183,10 +219,28 @@ public static class BackupModelMapperV2
         var assignments = sortedAssignments.Select(a => MapAssignment(a, senseIdMap, variantIdMap)).ToList();
         var cards = sortedCards.Select(c => MapCard(c, cardIdMap, vocabIdMap, senseIdMap, meaningIdMap)).ToList();
 
+        // ---- LearningReviews (KF-BACKUP-003 Package D): explicit typed comparisons over every emitted
+        // scalar and reference ----
+        //
+        // The previous key stopped at EaseFactor and never consulted the emitted LearningSessionId,
+        // TargetAnswerVariantId or MatchedAnswerVariantId, so two review rows differing only in those three
+        // references fell through to raw snapshot enumeration order. EaseFactor is compared as numeric data,
+        // never as culture-formatted text.
         var sortedReviews = snapshot.LearningReviews
             .OrderBy(r => cardIdMap.TryGetValue(r.CardId, out var c) ? c : string.Empty, StringComparer.Ordinal)
-            .ThenBy(r => r.ReviewedAtUtc.Ticks)
-            .ThenBy(r => ContentKey(r.Rating, r.WasTypedAnswer, r.WasCorrect, r.DueAtUtc.Ticks, r.IntervalDays, r.EaseFactor))
+            .ThenBy(r => EnsureUtc(r.ReviewedAtUtc).Ticks)
+            .ThenBy(r => (int)r.Rating)
+            .ThenBy(r => r.WasTypedAnswer)
+            .ThenBy(r => r.WasCorrect)
+            .ThenBy(r => EnsureUtc(r.DueAtUtc).Ticks)
+            .ThenBy(r => r.IntervalDays)
+            .ThenBy(r => r.EaseFactor)
+            .ThenBy(r => learningSessionIdMap.TryGetValue(r.SessionId, out var s) ? s : string.Empty, StringComparer.Ordinal)
+            .ThenBy(r => r.TargetAnswerVariantId.HasValue)
+            .ThenBy(r => ResolveVariantOrderingReference(r.TargetAnswerVariantId, variantIdMap), StringComparer.Ordinal)
+            .ThenBy(r => r.MatchedAnswerVariantId.HasValue)
+            .ThenBy(r => ResolveVariantOrderingReference(r.MatchedAnswerVariantId, variantIdMap), StringComparer.Ordinal)
+            .ThenBy(r => r.Id)
             .Select(r => MapReview(r, cardIdMap, learningSessionIdMap, variantIdMap))
             .ToList();
 
@@ -348,6 +402,260 @@ public static class BackupModelMapperV2
 
         return keys;
     }
+
+    /// <summary>
+    /// Ordering material only — never an identity. Its own domain keeps it in a separate hash family from
+    /// every merge identity: it encodes archive-emission concerns the PreparationSession merge identity
+    /// deliberately omits (that identity hashes only the ordered vocabulary identities of a batch's items).
+    /// </summary>
+    private const string PreparationWorkflowChildOrderingDomain =
+        "KnownFirst.Archive.PreparationWorkflow.ChildGraphOrdering.v1";
+
+    /// <summary>
+    /// A deterministic, content-derived key over one preparation batch's complete emitted candidate
+    /// subgraph — the exact content <see cref="MapPreparationWorkflow"/> puts into <c>Items</c>, which the
+    /// scalar session comparisons cannot see.
+    ///
+    /// <para>Each candidate contributes every emitted field: the vocabulary reference as the emitted
+    /// <c>v-*</c> value (never the local <c>WordId</c>, and the same collapsed
+    /// <c>v-000000-missing</c> literal the mapper itself emits when the reference does not resolve); the
+    /// absolute <c>Order</c>; the symbolic status; <c>SelectedMeaningIndex</c>; <c>LastErrorCode</c> under
+    /// the same empty-to-null semantics the DTO uses; <c>LookupAttemptCount</c>; <c>UpdatedAtUtc</c>; and the
+    /// parsed lookup draft. The emitted <c>BackupPreparationItem.Id</c> is positional within the owning
+    /// batch, so it is fully determined by the position being decided plus <c>Order</c>.</para>
+    ///
+    /// <para>Candidates are ordered inside the key by <c>Order</c> — which the emitted array also sorts by,
+    /// and which <c>IX_PreparationCandidates_Session_Order</c> makes unique per session — with further
+    /// encoded content as a tie-break, so the key itself never depends on row enumeration order even for a
+    /// snapshot that violates that invariant. Encoding is the length-prefixed, domain-discriminated
+    /// <see cref="Merge.CanonicalFingerprintBuilder"/> form.</para>
+    /// </summary>
+    private static Dictionary<int, string> BuildPreparationWorkflowChildOrderingKeys(
+        Schema8BackupSnapshot snapshot, Dictionary<int, string> vocabIdMap)
+    {
+        var candidatesBySessionRowId = new Dictionary<int, List<PreparationCandidateEntity>>();
+        foreach (var candidate in snapshot.PreparationCandidates)
+        {
+            if (!candidatesBySessionRowId.TryGetValue(candidate.SessionId, out var sessionCandidates))
+            {
+                sessionCandidates = [];
+                candidatesBySessionRowId[candidate.SessionId] = sessionCandidates;
+            }
+
+            sessionCandidates.Add(candidate);
+        }
+
+        var keys = new Dictionary<int, string>();
+        foreach (var session in snapshot.PreparationSessions)
+        {
+            var sessionCandidates = candidatesBySessionRowId.TryGetValue(session.Id, out var found)
+                ? found
+                : [];
+
+            var builder = new Merge.CanonicalFingerprintBuilder(PreparationWorkflowChildOrderingDomain);
+
+            var orderedCandidates = sessionCandidates
+                .Select(candidate => (
+                    Candidate: candidate,
+                    VocabularyKey: vocabIdMap.TryGetValue(candidate.WordId, out var vocabularyId)
+                        ? vocabularyId
+                        : "v-000000-missing"))
+                .OrderBy(entry => entry.Candidate.Order)
+                .ThenBy(entry => entry.VocabularyKey, StringComparer.Ordinal)
+                .ThenBy(entry => (int)entry.Candidate.Status)
+                .ThenBy(entry => entry.Candidate.SelectedMeaningIndex)
+                .ThenBy(entry => entry.Candidate.LookupAttemptCount)
+                .ThenBy(entry => EnsureUtc(entry.Candidate.UpdatedAtUtc).Ticks)
+                .ThenBy(entry => entry.Candidate.LastErrorCode, StringComparer.Ordinal)
+                .ToList();
+
+            builder.WriteInt32(orderedCandidates.Count);
+            foreach (var (candidate, vocabularyKey) in orderedCandidates)
+            {
+                builder
+                    .WriteString(vocabularyKey)
+                    .WriteInt32(candidate.Order)
+                    .WriteEnum(BackupEnumMappings.ToBackup(candidate.Status))
+                    .WriteInt32(candidate.SelectedMeaningIndex)
+                    .WriteNullableString(
+                        string.IsNullOrEmpty(candidate.LastErrorCode) ? null : candidate.LastErrorCode)
+                    .WriteInt32(candidate.LookupAttemptCount)
+                    .WriteUtcTimestamp(EnsureUtc(candidate.UpdatedAtUtc));
+
+                WriteLookupDraftOrderingMaterial(builder, candidate.ResultJson);
+            }
+
+            keys[session.Id] = builder.ComputeSha256Hex();
+        }
+
+        return keys;
+    }
+
+    /// <summary>
+    /// Writes the emitted lookup draft's own content. <see cref="MapPreparationWorkflow"/> emits
+    /// <c>null</c> for an empty <c>ResultJson</c> and the parsed draft otherwise, so this mirrors exactly
+    /// that. A draft this mapper cannot parse is encoded from its raw stored text rather than throwing: the
+    /// mapper is not a validation stage, and the identical parse failure still surfaces from
+    /// <see cref="MapPreparationWorkflow"/> at the same place it does today.
+    /// </summary>
+    private static void WriteLookupDraftOrderingMaterial(
+        Merge.CanonicalFingerprintBuilder builder, string resultJson)
+    {
+        if (string.IsNullOrEmpty(resultJson))
+        {
+            builder.WriteNullableString(null);
+            return;
+        }
+
+        BackupLookupDraft draft;
+        try
+        {
+            draft = BackupModelMapper.ParseLookupDraft(resultJson);
+        }
+        catch (BackupFormatException)
+        {
+            builder.WriteString("raw").WriteString(resultJson);
+            return;
+        }
+
+        builder
+            .WriteString("draft")
+            .WriteEnum(draft.Status)
+            .WriteEnum(draft.LookupMode)
+            .WriteString(draft.SourceLanguage)
+            .WriteString(draft.ExplanationLanguage)
+            .WriteNullableString(draft.TargetLanguage)
+            .WriteString(draft.QueriedLemma)
+            .WriteString(draft.DisplayTerm)
+            .WriteEnum(draft.TokenKind)
+            .WriteNullableString(draft.AcronymExpansion)
+            .WriteNullableString(draft.EncounteredSurfaceForm)
+            .WriteNullableString(draft.GrammaticalRelationship)
+            .WriteUtcTimestamp(EnsureUtc(draft.LookupAtUtc))
+            .WriteInt32(draft.RedirectDepth)
+            .WriteString(draft.Source.ProviderName)
+            .WriteString(draft.Source.SourceProject)
+            .WriteString(draft.Source.PageTitle)
+            .WriteNullableInt64(draft.Source.RevisionId)
+            .WriteString(draft.Source.Attribution)
+            .WriteInt32(draft.Meanings.Count);
+
+        foreach (var meaning in draft.Meanings)
+        {
+            builder
+                .WriteString(meaning.MeaningId)
+                .WriteNullableString(meaning.PartOfSpeech)
+                .WriteString(meaning.Definition)
+                .WriteNullableString(meaning.Translation)
+                .WriteNullableString(meaning.Example)
+                .WriteInt32(meaning.UsageLabels.Count);
+            foreach (var label in meaning.UsageLabels)
+            {
+                builder.WriteString(label);
+            }
+        }
+
+        builder.WriteInt32(draft.FormRelations.Count);
+        foreach (var relation in draft.FormRelations)
+        {
+            builder
+                .WriteEnum(relation.Kind)
+                .WriteString(relation.BaseLemma)
+                .WriteString(relation.Relationship);
+        }
+    }
+
+    /// <summary>
+    /// Ordering material only — never an identity. Its own domain keeps it in a separate hash family from
+    /// every merge identity: the LearningSession merge identity hashes only each queue item's card identity
+    /// and rating, while the archive additionally emits queue state, completion time and the target
+    /// answer-variant reference.
+    /// </summary>
+    private const string LearningWorkflowChildOrderingDomain =
+        "KnownFirst.Archive.LearningWorkflow.ChildGraphOrdering.v1";
+
+    /// <summary>
+    /// A deterministic, content-derived key over one learning session's complete emitted queue subgraph —
+    /// the exact content <see cref="MapLearningWorkflow"/> puts into <c>QueueItems</c>, which the scalar
+    /// session comparisons cannot see. Each item contributes the card reference as the emitted <c>c-*</c>
+    /// value (never the local <c>CardId</c>), <c>QueueOrder</c>, all five queue-state booleans,
+    /// <c>IsCompleted</c>, the optional rating, the optional completion timestamp, and the optional target
+    /// answer-variant reference as its emitted <c>av-*</c> value. Items are ordered inside the key by
+    /// <c>QueueOrder</c> — which the emitted array also sorts by — with further encoded content as a
+    /// tie-break, so the key never depends on row enumeration order.
+    /// </summary>
+    private static Dictionary<int, string> BuildLearningWorkflowChildOrderingKeys(
+        Schema8BackupSnapshot snapshot, Dictionary<int, string> cardIdMap, Dictionary<int, string> variantIdMap)
+    {
+        var itemsBySessionRowId = new Dictionary<int, List<Schema8QueueRow>>();
+        foreach (var item in snapshot.LearningSessionCards)
+        {
+            if (!itemsBySessionRowId.TryGetValue(item.SessionId, out var sessionItems))
+            {
+                sessionItems = [];
+                itemsBySessionRowId[item.SessionId] = sessionItems;
+            }
+
+            sessionItems.Add(item);
+        }
+
+        var keys = new Dictionary<int, string>();
+        foreach (var session in snapshot.LearningSessions)
+        {
+            var sessionItems = itemsBySessionRowId.TryGetValue(session.Id, out var found)
+                ? found
+                : [];
+
+            var builder = new Merge.CanonicalFingerprintBuilder(LearningWorkflowChildOrderingDomain);
+
+            var orderedItems = sessionItems
+                .Select(item => (
+                    Item: item,
+                    CardKey: cardIdMap.TryGetValue(item.CardId, out var cardId) ? cardId : "c-000000-missing",
+                    TargetVariantKey: ResolveVariantOrderingReference(item.TargetAnswerVariantId, variantIdMap)))
+                .OrderBy(entry => entry.Item.QueueOrder)
+                .ThenBy(entry => entry.CardKey, StringComparer.Ordinal)
+                .ThenBy(entry => entry.Item.Rating.HasValue)
+                .ThenBy(entry => entry.Item.Rating.HasValue ? (int)entry.Item.Rating.Value : 0)
+                .ThenBy(entry => entry.Item.IsCompleted)
+                .ThenBy(entry => entry.TargetVariantKey, StringComparer.Ordinal)
+                .ToList();
+
+            builder.WriteInt32(orderedItems.Count);
+            foreach (var (item, cardKey, targetVariantKey) in orderedItems)
+            {
+                builder
+                    .WriteString(cardKey)
+                    .WriteInt32(item.QueueOrder)
+                    .WriteBoolean(item.IsDueCard)
+                    .WriteBoolean(item.IsAgainRepeat)
+                    .WriteBoolean(item.AnswerRevealed)
+                    .WriteBoolean(item.SpellingChecked)
+                    .WriteBoolean(item.SpellingCorrect)
+                    .WriteBoolean(item.IsCompleted)
+                    .WriteNullableEnum(
+                        item.Rating.HasValue ? BackupEnumMappings.ToBackup(item.Rating.Value) : (BackupReviewRating?)null)
+                    .WriteNullableUtcTimestamp(EnsureUtc(item.CompletedAtUtc))
+                    .WriteNullableString(item.TargetAnswerVariantId.HasValue ? targetVariantKey : null);
+            }
+
+            keys[session.Id] = builder.ComputeSha256Hex();
+        }
+
+        return keys;
+    }
+
+    /// <summary>
+    /// The emitted <c>av-*</c> reference for an optional answer-variant row id, using exactly the collapsed
+    /// literal <see cref="MapReview"/> and <see cref="MapLearningWorkflow"/> emit for an unresolvable
+    /// reference. Ordering material only; an absent reference is handled by the caller's own presence
+    /// comparison so it can never be confused with a resolved one.
+    /// </summary>
+    private static string ResolveVariantOrderingReference(
+        int? variantRowId, Dictionary<int, string> variantIdMap) =>
+        variantRowId.HasValue
+            ? (variantIdMap.TryGetValue(variantRowId.Value, out var variantId) ? variantId : "av-000000-missing")
+            : string.Empty;
 
     /// <summary>
     /// The two content-derived components that continue the <c>ReviewSessions</c> ordering once every

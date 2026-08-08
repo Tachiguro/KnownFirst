@@ -6,24 +6,25 @@ An agent receives the current branch and one concrete work package. Prompt formu
 
 ## Explicit Phase State Sequence
 
-KnownFirst development follows a strict, user-authorized phase sequence. No phase starts automatically.
+KnownFirst development follows a strict, isolated phase sequence. No programming agent self-advances between phases: the agent executing a given prompt performs only that prompt's mode. Whether ChatGPT may issue the *next* isolated prompt without separate per-phase user typing is governed by the standing orchestration delegation defined in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md); the phase list below states the underlying gate each transition must satisfy.
 
 1. **PLAN_ONLY:** Read-only analysis and proposal.
-2. **User Plan Approval:** Explicit user approval of the presented plan.
+2. **Plan/Implement Transition:** Satisfied by explicit user approval of the presented plan, or by standing orchestration delegation when `PLAN_ONLY` is complete, bounded, and exposes no unresolved material decision (see [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md)).
 3. **IMPLEMENT:** Minimum production change using focused TDD red/green loop (see [docs/TESTING.md](TESTING.md)).
 4. **TEST_ONLY:** Scoped test execution when explicitly requested.
 5. **DOCUMENT_ONLY:** Updating documentation for verified implementation when explicitly requested.
-6. **User Review:** Inspection of uncommitted changes.
+6. **Document/Commit Transition:** Inspection of uncommitted changes, satisfied by explicit user review or by standing orchestration delegation under the same conditions as step 2.
 7. **COMMIT_ONLY:** Staging explicit files and committing.
 8. **PUSH_ONLY:** Pushing approved branch and commit to remote repository.
 9. **PR_ONLY:** Opening or updating a pull request.
 10. **REVIEW_ONLY:** Read-only review of PR or diff.
 11. **Correction Package:** Approved fixes for review findings.
-12. **Explicit User Merge Decision:** Separate user-driven merge.
+12. **Explicit User Merge Decision:** Separate user-driven merge. Never delegable, regardless of standing orchestration delegation.
 13. **POST_MERGE_SYNC_ONLY:** Fast-forward synchronizing local master after the user's verified manual GitHub merge. It does not authorize branch deletion, documentation changes, builds, tests, commits, pushes, or additional PR mutations.
 
 ### Phase Isolation Boundaries
 - A prompt author may explicitly authorize a combination of modes, but the prompt must enumerate every included mode.
+- **Agent-level isolation is absolute:** the agent executing a given prompt performs only that prompt's mode and never self-advances. Standing orchestration delegation (see [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md)) governs only whether ChatGPT may issue the next prompt; it never authorizes an agent to continue within one.
 - Normal `IMPLEMENT` mode stops as soon as focused green tests pass. It does not automatically run full test suites, build platforms, update documentation, commit, push, or create PRs.
 - Normal `TEST_ONLY` mode does not modify code or fix failures.
 - Normal `DOCUMENT_ONLY` mode does not modify production or test code.
@@ -65,5 +66,5 @@ This section is additive to, and does not weaken, the existing operation-isolati
 
 1. **Explicit staging:** Use explicit file paths (`git add <file1> <file2>`). Never use `git add .` or stage untracked scratch files.
 2. **Conventional commits:** Use standard conventional commit prefixes (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `chore:`).
-3. **Authorized publication:** Push branches and create pull requests only when explicitly authorized. Auto-merge is strictly prohibited.
+3. **Authorized publication:** Pushing an approved branch (`PUSH_ONLY`) and creating or updating its pull request (`PR_ONLY`) for an established, bounded work package are covered by the standing orchestration delegation defined in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) and do not require a fresh per-operation user message. However, prompt-level mode isolation remains absolute: an executing programming agent pushes only when its prompt is `PUSH_ONLY` and creates/updates a pull request only when its prompt is `PR_ONLY`. Auto-merge is strictly prohibited; PR merge is an explicit, non-delegable repository-owner action.
 4. **Evidence-based claims:** Never claim physical device validation, visual acceptance, or manual verification without concrete empirical evidence.

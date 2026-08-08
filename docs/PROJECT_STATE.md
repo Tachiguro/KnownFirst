@@ -56,6 +56,7 @@ The current product source implements:
 - Package C (Schema-9 completed-review convergence hardening): cross-installation canonical ordering for completed `ReviewSession` and `SourceMaterial` subgraphs, and two-installation synchronization (PR #68).
 - Milestone 14A (unfinished support/report control removal): the unfinished `Support KnownFirst` and `Report a bug` controls and their shared placeholder behavior removed from the production Settings source (PR #71).
 - Milestone 14B (reopenable release-note history): Settings → Help & Support link and new `/release-notes` route exposing the complete existing release-note catalog newest-first (PR #73).
+- KF-BACKUP-004 (Schema-9 populated-target LearningReview merge integrity): collision-free positional action keys (`lr#<archiveRowIndex>`), meaning-aware review-event identity with stable nullable Target/Matched AnswerVariant identities, and scheduler-replay alignment; `LearningSessionId` deliberately excluded from event identity (PR #77).
 
 ## Merged development foundations
 
@@ -100,6 +101,7 @@ The `master` branch includes the following merged technical foundations:
 - **D5 Mechanical Markdown Hygiene (PR #63).**
 - **D5 closure and Package B revalidation queued (PR #64).**
 - **KF-BACKUP-003 Package D — Schema-9 portable workflow canonical ordering (PR #76, merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`):** `BackupModelMapperV2`'s v2 export ordering for completed `PreparationSessions`/`PreparationCandidates`, `LearningSessions`/`LearningSessionCards`, and `LearningReviews` is now total over emitted content, so archive-local `pb-*`/`pi-*`/`ls-*`/`lq-*` assignment and review emission order no longer fall through to installation-local SQLite row order. Archive-emission canonical ordering only — no database schema, migration, archive DTO, `.kfarchive` format version, or merge-identity change. `POST_MERGE_SYNC_ONLY` completed successfully.
+- **KF-BACKUP-004 — Schema-9 LearningReview merge integrity (PR #77, merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`):** every physical archive `LearningReview` receives a collision-free positional lookup key (`lr#<archiveRowIndex>`), Schema-9 meaning-aware review identity incorporates stable nullable `TargetAnswerVariant` and `MatchedAnswerVariant` identities, and scheduler replay is aligned to the same event semantics. `LearningSessionId` is deliberately excluded from event identity and preserved as referential attachment. `POST_MERGE_SYNC_ONLY` completed successfully.
 
 **Current Status (master):**
 - The active database schema is **9** (`PRAGMA user_version = 9`).
@@ -108,7 +110,7 @@ The `master` branch includes the following merged technical foundations:
 - Package A, Package B, and Package C are merged to master. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
 - Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`) — see "Active development" below for its technical evidence. It is part of this `master` snapshot.
 - Milestone 14A and Milestone 14B are both merged (PR #71, merge commit `39609ffffb39c69238882172d153f4bb795ddab8`; PR #73, merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`). Milestone 14 as a whole is complete on `master`. `POST_MERGE_SYNC_ONLY` completed successfully for both.
-- KF-BACKUP-003 Package D is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`) and is part of this `master` snapshot; `POST_MERGE_SYNC_ONLY` completed successfully. It changed archive-emission canonical ordering only — no schema, archive-version, or merge-identity change. Portable-integrity work continuing after Package D is active development, not master capability; see [CURRENT_WORK.md](CURRENT_WORK.md).
+- KF-BACKUP-003 Package D is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`) and KF-BACKUP-004 is merged via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`); `POST_MERGE_SYNC_ONLY` completed successfully for both, and both are part of this `master` snapshot. Remaining portable-integrity residuals continue under active development (see [ROADMAP.md](ROADMAP.md) priority 15 and [CURRENT_WORK.md](CURRENT_WORK.md)).
 
 ## Confirmed verification
 

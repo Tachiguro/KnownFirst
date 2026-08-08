@@ -1,0 +1,25 @@
+@page "/release-notes"
+@inject IReleaseNotesService ReleaseNotes
+
+<PageTitle>@Localizer["WhatsNew_Title"]</PageTitle>
+
+<section class="release-notes-page">
+    <PageHeader Title="@(Localizer["WhatsNew_Title"])" />
+
+    @foreach (var entry in ReleaseNotes.GetReleaseNoteHistory())
+    {
+        <section class="release-note-entry" aria-labelledby="@GetHeadingId(entry)">
+            <h2 id="@GetHeadingId(entry)">@Localizer["WhatsNew_VersionLabel", entry.Version]</h2>
+            <ul class="release-note-bullets">
+                @foreach (var bulletKey in entry.BulletResourceKeys)
+                {
+                    <li>@Localizer[bulletKey]</li>
+                }
+            </ul>
+        </section>
+    }
+</section>
+
+@code {
+    private static string GetHeadingId(ReleaseNoteEntry entry) => $"release-note-{entry.Version}";
+}

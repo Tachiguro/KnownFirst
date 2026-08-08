@@ -76,6 +76,30 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Settings_OffersReopenableReleaseNoteHistoryEntryPoint()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.Contains("href=\"release-notes\"", markup);
+        Assert.Contains("WhatsNew_Title", markup);
+        Assert.Contains("BuildIdentityService.GetFormattedBuildIdentity()", markup);
+
+        Assert.DoesNotContain("Settings_SupportKnownFirst", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Settings_ReportBug", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Common_FeatureComingSoon", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("FeaturePlaceholder", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("MarkSeen", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void MainLayout_MapsReleaseNotesRouteToOwnTitleNotNotFound()
+    {
+        var markup = LoadUi("MainLayout.razor");
+
+        Assert.Contains("\"release-notes\" => Localizer[\"WhatsNew_Title\"]", markup);
+    }
+
+    [TestMethod]
     public void Learning_AnswerIsConditionalAndNoSkipActionExists()
     {
         var markup = LoadUi("Learn.razor");

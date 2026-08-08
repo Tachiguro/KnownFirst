@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-08 (Milestone 14A post-merge closure)
+2026-08-08 (Milestone 14B implementation, pending review)
 
 ## Repository
 
@@ -44,32 +44,32 @@
 
 ## Currently active package
 
-No implementation package is currently active. Milestone 14A is complete and merged to `master` (PR #71); discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Milestone 14B — reopenable release-note history.** Committed (`940f54d59697b4d5744355634f6ae52b6cb40692`), pushed on branch `feature/milestone14b-release-note-history-v1`, and open for review on PR #73. Implementation, targeted `TEST_ONLY` validation, documentation reconciliation, pre-commit review, and pre-PR re-review are complete; discover live branch and pull-request lifecycle state dynamically per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
-- Milestone 14A passed final PR review, was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`), and `POST_MERGE_SYNC_ONLY` completed successfully. No Milestone 14A lifecycle step remains outstanding.
-- The unfinished `Support KnownFirst` and `Report a bug` production controls, their `Common_FeatureComingSoon` placeholder UI, and the shared placeholder state and handlers were removed from `Components/Pages/Settings.razor`. The dead placeholder styling was removed from `Components/Pages/Settings.razor.css`.
-- `Settings_HelpAndSupport` and the build-identity display were intentionally retained; all unrelated Settings behavior is unchanged.
-- The localization keys `Settings_SupportKnownFirst`, `Settings_ReportBug`, and `Common_FeatureComingSoon` are intentionally retained as resources. They are no longer referenced by any production control.
-- A focused absence contract was added to `KnownFirst.Tests/UiWorkflowContractTests.cs` and completed a genuine focused TDD red/green cycle during `IMPLEMENT`.
-- Authorized `UI_CONTRACT_AUTOMATED` evidence: `70 passed / 0 failed / 0 skipped`.
-- **This evidence is source/markup/Razor/CSS contract evidence only.** It proves absence in the production component source, not runtime rendering.
-- No rendered-GUI, Windows runtime, Android/device, AOT/trimming, APK/AAB, packaging, signing, publishing, store, release, or newer external-distribution evidence was produced by Milestone 14A.
-- No SQLite schema version/migration, archive DTO/format version, public merge error/status contract, or release identity was changed by Milestone 14A.
+- Settings → Help & Support now offers one production-visible link to the new `/release-notes` route; the page exposes the complete existing release-note catalog.
+- History is returned newest-first: `1.0.0-beta.12`, `1.0.0-beta.11`, `1.0.0-beta.10`, through the new `IReleaseNotesService.GetReleaseNoteHistory()` API.
+- History access neither reads nor mutates the persisted seen-version state, so the history stays available after the one-time notice was dismissed.
+- The automatic one-time What's New behavior is unchanged: `GetUnseenReleaseNotes()`, `MarkSeen()`, `WhatsNewModal`, and the seen-version preference store are untouched.
+- Existing Beta 10/11/12 release-note content is unchanged. **Zero new localization keys** were added — the page reuses `WhatsNew_Title`, `WhatsNew_VersionLabel`, and the existing bullet keys.
+- No Beta 13 identity or release-note entry, and no database, schema, archive, network, packaging, or release-identity change.
+- `Support KnownFirst` and `Report a bug` remain absent from production controls.
+- **IMPLEMENT focused TDD evidence:** genuine behavioral RED `0 passed / 5 failed / 0 skipped`, then GREEN `5 passed / 0 failed / 0 skipped` on the identical focused scope. Zero production files were modified before the RED run.
+- **`TEST_ONLY` evidence:** `110 passed / 0 failed / 0 skipped` (`ReleaseNotesTests` 38/38, `UiWorkflowContractTests` 72/72). `TEST_ONLY` modified no files.
+- **This 110-test evidence is automated service/unit/contract evidence plus static source/markup/Razor/CSS contract evidence only.** Rendered GUI behavior, actual click/navigation behavior, runtime focus/keyboard behavior, visual layout and responsiveness, Windows/Android runtime behavior, Release-build rendering, APK/AAB behavior, and physical-device behavior all remain **unproven**.
 
-Package C history is unaffected: it passed final PR review, was manually merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`), `POST_MERGE_SYNC_ONLY` completed successfully, and its final local automated evidence remains `1776 passed / 0 failed / 0 skipped`.
+Milestone 14A history is unaffected: it passed final PR review, was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`), and `POST_MERGE_SYNC_ONLY` completed successfully. Package C history is likewise unaffected: merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`), with final local automated evidence `1776 passed / 0 failed / 0 skipped`.
 
 ## Current blocker or pending validation
 
-- No active implementation blocker or Milestone 14A lifecycle step remains outstanding; discover live branch and pull-request lifecycle state dynamically.
-- Milestone 14 as a whole is **not** complete: reopenable release-note history (Milestone 14B) remains outstanding and has not started.
-- Rendered-Release and AAB-level absence of the removed controls remains unproven and belongs to the future pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
+- Milestone 14B implementation, targeted automated validation, independent review, commit (`940f54d59697b4d5744355634f6ae52b6cb40692`), push, and PR creation (PR #73) are complete; PR #73 is open on GitHub.
+- Milestone 14 as a whole is **not** complete: Milestone 14B must still undergo final PR review, manual user merge on GitHub, and `POST_MERGE_SYNC_ONLY`.
+- Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior of the new history page and Settings entry point remains unproven and belongs to separately authorized manual/GUI verification and the future pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
 - No Beta 13, build, packaging, signing, publishing, store, or device activity has occurred, and no such task is active.
 
 ## Exact next action
 
-- No Milestone 14A lifecycle step remains.
-- No repository-writing next phase is automatically authorized.
-- The next planned product work is **Milestone 14B — reopenable release-note history**, the remaining half of ROADMAP milestone 14. It has not started and requires its own separately authorized `PLAN_ONLY` before implementation.
+- **Final PR review of open PR #73** followed by explicit manual user merge on GitHub if approved.
+- No repository-writing next phase is automatically authorized. Automated agents never merge PRs; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
 
@@ -79,5 +79,6 @@ Package C history is unaffected: it passed final PR review, was manually merged 
 - D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are merged and complete on master.
 - Package C was implemented, MINOR-1 corrected, independently reviewed, `TEST_ONLY`-validated (1776/0/0 local automated evidence), passed final PR review, and manually merged via PR #68. `POST_MERGE_SYNC_ONLY` completed successfully.
 - Milestone 14A removed the unfinished `Support KnownFirst` and `Report a bug` controls and their placeholder behavior from the production Settings source. It was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) and `POST_MERGE_SYNC_ONLY` completed successfully. Its `UI_CONTRACT_AUTOMATED` evidence is `70 passed / 0 failed / 0 skipped` and is source/markup/Razor/CSS contract evidence only; rendered-Release and AAB-level absence remain unproven.
-- Milestone 14 is not complete: Milestone 14B (reopenable release-note history) is still outstanding, has not started, and requires its own separately authorized `PLAN_ONLY`.
+- Milestone 14B (reopenable release-note history) is committed (`940f54d59697b4d5744355634f6ae52b6cb40692`), pushed on branch `feature/milestone14b-release-note-history-v1`, and open on PR #73. Focused TDD completed RED 5-failed then GREEN 5-passed; `TEST_ONLY` returned `110 passed / 0 failed / 0 skipped` (`ReleaseNotesTests` 38/38, `UiWorkflowContractTests` 72/72). That evidence is service/unit/contract plus source/markup/Razor/CSS contract evidence only.
+- Milestone 14 is not complete: PR #73 awaits final review and manual user merge on GitHub, followed by `POST_MERGE_SYNC_ONLY`; no rendered-GUI, runtime, platform, or AAB evidence exists for it.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

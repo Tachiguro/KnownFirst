@@ -339,7 +339,7 @@ public sealed class TextReviewService(
                     .ToListAsync())
                 .Select(card => DiagnosticLearningCardRow.FromSchema7(card))
                 .ToArray(),
-            Schema8CapabilityResult or Schema9CapabilityResult => (await connection.QueryAsync<DiagnosticLearningCardRow>(
+            Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult => (await connection.QueryAsync<DiagnosticLearningCardRow>(
                 """
                 SELECT Id, WordId, PreferredMeaningId AS MeaningId, Direction, State, DueAtUtc,
                        IntervalDays, EaseFactor, LastRating

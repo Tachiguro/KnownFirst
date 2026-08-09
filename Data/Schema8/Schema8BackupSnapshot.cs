@@ -10,6 +10,14 @@ namespace KnownFirst.Data.Schema8;
 /// does; tables the migration changes (Meanings, ContextSnapshots, LearningCards, LearningReviews,
 /// LearningSessionCards) and the four new tables use the isolated row models in this namespace /
 /// <c>Data/Migrations/Schema8</c> — no existing entity class is read or written through here.
+///
+/// <para><c>LearningSessionStableIds</c> / <c>LearningQueueStableIds</c> are the KF-BACKUP-005A
+/// Schema-10 learning-workflow identities, keyed by physical row id. They are deliberately carried
+/// beside the row lists rather than on <c>LearningSessionEntity</c> / <c>Schema8QueueRow</c>: those two
+/// types are also the Schema-8 and Schema-9 capture shape, and a Schema-8/9 database has no such column
+/// to read. Both maps are <see langword="null"/> for a Schema-8/9 capture and populated for a Schema-10
+/// capture — which is exactly the distinction the archive writer needs in order to decide whether it may
+/// emit identities at all.</para>
 /// </summary>
 public sealed record Schema8BackupSnapshot(
     IReadOnlyList<DocumentEntity> Documents,
@@ -31,4 +39,6 @@ public sealed record Schema8BackupSnapshot(
     IReadOnlyList<Schema8CardRow> LearningCards,
     IReadOnlyList<Schema8ReviewRow> LearningReviews,
     IReadOnlyList<LearningSessionEntity> LearningSessions,
-    IReadOnlyList<Schema8QueueRow> LearningSessionCards);
+    IReadOnlyList<Schema8QueueRow> LearningSessionCards,
+    IReadOnlyDictionary<int, string>? LearningSessionStableIds = null,
+    IReadOnlyDictionary<int, string>? LearningQueueStableIds = null);

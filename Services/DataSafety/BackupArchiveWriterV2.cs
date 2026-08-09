@@ -41,6 +41,27 @@ public static class BackupArchiveWriterV2
             payload, platformInfo, ValidatedSchema9Capability.SchemaVersion, timestampUtc, destinationStream, cancellationToken);
     }
 
+    /// <summary>The Schema-10 counterpart. Records
+    /// <see cref="ValidatedSchema10Capability.SchemaVersion"/> (10) as the manifest's
+    /// <c>SourceDatabaseSchemaVersion</c>, and additionally refuses to emit a learning workflow or queue
+    /// row without a valid persistent identity: a Schema-10 source always has one, so a missing value is a
+    /// capture defect, and writing it would produce an archive that the reader must then reject.</summary>
+    public static Task WriteArchiveAsync(
+        BackupPayloadV2 payload,
+        IBackupPlatformInfo platformInfo,
+        ValidatedSchema10Capability capability,
+        DateTime timestampUtc,
+        Stream destinationStream,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capability);
+        ArgumentNullException.ThrowIfNull(payload);
+        BackupModelContractV2.ValidateLearningWorkflowStableIds(
+            ValidatedSchema10Capability.SchemaVersion, payload);
+        return WriteArchiveCoreAsync(
+            payload, platformInfo, ValidatedSchema10Capability.SchemaVersion, timestampUtc, destinationStream, cancellationToken);
+    }
+
     private static async Task WriteArchiveCoreAsync(
         BackupPayloadV2 payload,
         IBackupPlatformInfo platformInfo,

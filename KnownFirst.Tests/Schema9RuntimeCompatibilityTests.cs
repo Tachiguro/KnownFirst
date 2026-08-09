@@ -187,15 +187,17 @@ public sealed class Schema9RuntimeCompatibilityTests
 
     /// <summary>
     /// Independent-review correction (SCHEMA9_POPULATED_IMPORT_SAFETY_COPY_CORRECTION): proves a populated
-    /// Schema-9 target routes through the real <see cref="BackupService.ImportPortableArchiveAsync"/> merge
-    /// orchestration end to end — never the restore-into-empty path, never <see cref="PortableImportStatus.TargetNotEmpty"/> —
+    /// <em>current-schema</em> target routes through the real <see cref="BackupService.ImportPortableArchiveAsync"/>
+    /// merge orchestration end to end — never the restore-into-empty path, never <see cref="PortableImportStatus.TargetNotEmpty"/> —
     /// and that the mandatory pre-merge safety copy is created, reopened, and strictly validated before the
-    /// writer mutates anything. The archive carries deterministic archive-only data (a representative
-    /// Schema-8 fixture's "bank"/"light" words) that produces <see cref="MergePreflightStatus.Ready"/> /
+    /// writer mutates anything. The target is built through real production initialization, so it tracks
+    /// <see cref="DatabaseSchema.CurrentVersion"/> rather than being pinned to a raw Schema-9 shape. The
+    /// archive carries deterministic archive-only data (a representative Schema-8 fixture's "bank"/"light"
+    /// words) that produces <see cref="MergePreflightStatus.Ready"/> /
     /// <see cref="PortableImportDisposition.MergeApplied"/>, never a no-change import.
     /// </summary>
     [TestMethod]
-    public async Task BackupService_ImportPortableArchiveAsync_PopulatedSchema9Target_RoutesThroughMergeAndCreatesSafetyCopy()
+    public async Task BackupService_ImportPortableArchiveAsync_PopulatedCurrentSchemaTarget_RoutesThroughMergeAndCreatesSafetyCopy()
     {
         await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
         Schema8BackupSnapshot? sourceSnapshot = null;
@@ -213,10 +215,10 @@ public sealed class Schema9RuntimeCompatibilityTests
             archiveStream, CancellationToken.None);
         var archiveBytes = archiveStream.ToArray();
 
-        // Populated Schema-9 target with deterministic target-only durable data, built through real
+        // Populated current-schema target with deterministic target-only durable data, built through real
         // production initialization: DatabaseSchema.InitializeAsync activates a fresh database directly to
-        // Schema 9 (proven independently by Schema9ActivationTests.InitializeAsync_FreshDatabase_ActivatesSchema9).
-        await using var targetDb = new IsolatedSchema9Database();
+        // DatabaseSchema.CurrentVersion.
+        await using var targetDb = new IsolatedCurrentSchemaDatabase();
         await targetDb.InitializeAsync();
         await targetDb.RunInTransactionAsync(connection =>
         {
@@ -244,7 +246,7 @@ public sealed class Schema9RuntimeCompatibilityTests
         Assert.AreNotEqual(
             PortableImportStatus.TargetNotEmpty,
             result.Status,
-            "A populated Schema-9 target must route through merge, never fall back to restore-into-empty.");
+            "A populated current-schema target must route through merge, never fall back to restore-into-empty.");
         Assert.AreEqual(PortableImportStatus.Success, result.Status);
         Assert.IsNull(result.ErrorCode);
         Assert.IsNotNull(result.Summary);
@@ -258,9 +260,9 @@ public sealed class Schema9RuntimeCompatibilityTests
         Assert.AreEqual(1, await targetDb.ExecuteSnapshotAsync(connection =>
             connection.Table<WordEntity>().Count(w => w.CanonicalTerm == "bank")));
 
-        // The mandatory safety copy exists, reopens, and strictly validates as an explicit Schema-9 envelope
-        // capturing the target's state BEFORE merge — exactly the one target-only word, never the archive's
-        // "bank"/"light" — proving it was captured before the writer mutated anything.
+        // The mandatory safety copy exists, reopens, and strictly validates as an explicit current-schema
+        // envelope capturing the target's state BEFORE merge — exactly the one target-only word, never the
+        // archive's "bank"/"light" — proving it was captured before the writer mutated anything.
         var safetyCopyDirectory = Path.Combine(Path.GetDirectoryName(targetDb.DatabasePath)!, MergeSafetyCopyService.DirectoryName);
         var safetyCopyFiles = Directory.GetFiles(safetyCopyDirectory, "*.kfarchive");
         Assert.HasCount(1, safetyCopyFiles);
@@ -269,7 +271,7 @@ public sealed class Schema9RuntimeCompatibilityTests
         {
             var validatedSafetyCopy = await BackupArchiveReader.ValidateVersionedAsync(safetyCopyStream, CancellationToken.None);
             Assert.IsNotNull(validatedSafetyCopy.V2);
-            Assert.AreEqual(9, validatedSafetyCopy.V2!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, validatedSafetyCopy.V2!.Manifest.SourceDatabaseSchemaVersion);
             Assert.AreEqual(1, validatedSafetyCopy.V2.Payload.Vocabulary.Count);
             Assert.AreEqual("targetonlyword", validatedSafetyCopy.V2.Payload.Vocabulary[0].CanonicalTerm);
         }
@@ -286,15 +288,15 @@ public sealed class Schema9RuntimeCompatibilityTests
     /// <summary>
     /// Independent-review correction (SCHEMA9_POPULATED_IMPORT_SAFETY_COPY_CORRECTION): proves
     /// <see cref="MergeSafetyCopyService.CreateSafetyCopyAsync"/> succeeds directly against a populated,
-    /// valid Schema-9 target — captured through an explicit Schema-9 envelope, reporting manifest
-    /// <c>SourceDatabaseSchemaVersion = 9</c> — with record counts matching an independently captured
-    /// pre-operation raw-SQL row count (never the same production mapper/validator used by the service
-    /// under test) and zero target-row mutation.
+    /// valid <em>current-schema</em> target — captured through an explicit versioned envelope, reporting
+    /// manifest <c>SourceDatabaseSchemaVersion = </c><see cref="DatabaseSchema.CurrentVersion"/> — with
+    /// record counts matching an independently captured pre-operation raw-SQL row count (never the same
+    /// production mapper/validator used by the service under test) and zero target-row mutation.
     /// </summary>
     [TestMethod]
-    public async Task MergeSafetyCopyService_ValidSchema9Target_CreatesAndValidatesSafetyCopy()
+    public async Task MergeSafetyCopyService_ValidCurrentSchemaTarget_CreatesAndValidatesSafetyCopy()
     {
-        await using var targetDb = new IsolatedSchema9Database();
+        await using var targetDb = new IsolatedCurrentSchemaDatabase();
         await targetDb.InitializeAsync();
 
         const string documentContent = "The house on the hill.";
@@ -326,8 +328,8 @@ public sealed class Schema9RuntimeCompatibilityTests
             return true;
         });
 
-        // Independent oracle: raw row counts, queried directly by SQL — never through
-        // Schema9ShapeValidator or the production mapper that the service under test also uses.
+        // Independent oracle: raw row counts, queried directly by SQL — never through a production shape
+        // validator or the production mapper that the service under test also uses.
         var documentCountBefore = await targetDb.ReadAsync(
             connection => connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Documents"));
         var wordCountBefore = await targetDb.ReadAsync(
@@ -350,13 +352,13 @@ public sealed class Schema9RuntimeCompatibilityTests
         {
             var validated = await BackupArchiveReader.ValidateVersionedAsync(readStream, CancellationToken.None);
             Assert.IsNotNull(validated.V2);
-            Assert.AreEqual(9, validated.V2!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, validated.V2!.Manifest.SourceDatabaseSchemaVersion);
             Assert.AreEqual(1, validated.V2.Payload.SourceMaterials.Count);
             Assert.AreEqual(1, validated.V2.Payload.Vocabulary.Count);
         }
 
         Assert.IsNotNull(result.ValidatedManifest);
-        Assert.AreEqual(9, result.ValidatedManifest!.SourceDatabaseSchemaVersion);
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, result.ValidatedManifest!.SourceDatabaseSchemaVersion);
         Assert.IsNotNull(result.RecordCounts);
         Assert.AreEqual(documentCountBefore, result.RecordCounts!.SourceMaterials);
         Assert.AreEqual(wordCountBefore, result.RecordCounts.VocabularyItems);
@@ -454,23 +456,26 @@ public sealed class Schema9RuntimeCompatibilityTests
     }
 
     /// <summary>
-    /// Isolated per-instance Schema-9 target database, built through real production initialization
-    /// (<see cref="DatabaseSchema.InitializeAsync"/> activates a fresh database directly to Schema 9).
-    /// Rooted in its own unique temp directory tree so its sibling "merge-safety-copies" directory can
-    /// never collide with another test's directory — the same isolation rationale documented on
+    /// Isolated per-instance current-schema target database, built through real production initialization
+    /// (<see cref="DatabaseSchema.InitializeAsync"/> activates a fresh database directly to
+    /// <see cref="DatabaseSchema.CurrentVersion"/>). Deliberately not pinned to any one schema number: the
+    /// two tests that use it assert current-schema behaviour, while every genuinely pinned raw Schema-9
+    /// shape in this class continues to come from <see cref="Schema9RawFixture"/>. Rooted in its own unique
+    /// temp directory tree so its sibling "merge-safety-copies" directory can never collide with another
+    /// test's directory — the same isolation rationale documented on
     /// <c>BackupServiceImportRoutingTests.IsolatedSchema8Database</c> and
     /// <c>MergeSafetyCopyServiceTests.IsolatedDatabase</c>.
     /// </summary>
-    private sealed class IsolatedSchema9Database : IKnownFirstDatabase, IAsyncDisposable
+    private sealed class IsolatedCurrentSchemaDatabase : IKnownFirstDatabase, IAsyncDisposable
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private readonly string _testRoot;
         private SQLiteAsyncConnection? _connection;
         private bool _initialized;
 
-        public IsolatedSchema9Database()
+        public IsolatedCurrentSchemaDatabase()
         {
-            _testRoot = Path.Combine(Path.GetTempPath(), "kf-schema9-runtime-test", Guid.NewGuid().ToString("N"));
+            _testRoot = Path.Combine(Path.GetTempPath(), "kf-current-schema-runtime-test", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_testRoot);
             DatabasePath = Path.Combine(_testRoot, "knownfirst.db3");
         }

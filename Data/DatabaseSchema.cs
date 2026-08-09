@@ -4,13 +4,14 @@ using KnownFirst.Core.Text;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
+using KnownFirst.Data.Migrations.Schema10;
 using SQLite;
 
 namespace KnownFirst.Data;
 
 public static class DatabaseSchema
 {
-    public const int CurrentVersion = 9;
+    public const int CurrentVersion = 10;
 
     public static async Task InitializeAsync(SQLiteAsyncConnection connection)
     {
@@ -35,7 +36,15 @@ public static class DatabaseSchema
             await Schema8DormantMigration.ApplyAsync(connection);
         }
 
-        await Schema9DormantMigration.ApplyAsync(connection);
+        // Same guard as Schema 8's, for the same reason: an existing Schema-10 database must never rerun
+        // Schema9DormantMigration.ApplyAsync, whose future-version guard (target 9) would reject a source
+        // of 10. Only Schema-8-or-older sources still need it.
+        if (existingVersion <= Schema9DormantMigration.TargetVersion)
+        {
+            await Schema9DormantMigration.ApplyAsync(connection);
+        }
+
+        await Schema10DormantMigration.ApplyAsync(connection);
         await connection.ExecuteAsync("DELETE FROM LexicalCache WHERE CacheKey NOT LIKE 'v2|%'");
     }
 

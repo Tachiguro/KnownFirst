@@ -1,12 +1,12 @@
 @page "/release-notes"
-@inject IReleaseNotesService ReleaseNotes
+@inject IReleaseNotesService ReleaseNotesService
 
 <PageTitle>@Localizer["WhatsNew_Title"]</PageTitle>
 
 <section class="release-notes-page">
     <PageHeader Title="@(Localizer["WhatsNew_Title"])" />
 
-    @foreach (var entry in ReleaseNotes.GetReleaseNoteHistory())
+    @foreach (var entry in ReleaseNotesService.GetReleaseNoteHistory())
     {
         <section class="release-note-entry" aria-labelledby="@GetHeadingId(entry)">
             <h2 id="@GetHeadingId(entry)">@Localizer["WhatsNew_VersionLabel", entry.Version]</h2>

@@ -314,6 +314,14 @@ internal sealed class TemporarySchema8Database : IKnownFirstDatabase, IAsyncDisp
 }
 
 /// <summary>
+/// One exact <c>(table, column)</c> pair a snapshot comparison is explicitly allowed to ignore, declared by
+/// the calling test. Used only for a column a deliberate additive migration introduces between the "before"
+/// and "after" capture, so the comparison can still prove that every pre-existing column value, and the row
+/// cardinality, are unchanged. Never a wildcard: any column not named here still alters the snapshot.
+/// </summary>
+internal sealed record SnapshotToleratedAdditiveColumn(string Table, string Column);
+
+/// <summary>
 /// Deterministic test-only capture of persistent SQLite schema metadata and application rows. The
 /// helper deliberately introspects the supplied temporary database rather than assuming a valid
 /// KnownFirst shape, so malformed-schema tests can prove exact zero mutation without silently
@@ -359,7 +367,31 @@ internal static class PersistentDatabaseSnapshot
         ArgumentNullException.ThrowIfNull(tableNames);
 
         string[]? snapshot = null;
-        await connection.RunInTransactionAsync(sqlite => snapshot = CaptureTableRows(sqlite, tableNames));
+        await connection.RunInTransactionAsync(sqlite => snapshot = CaptureTableRows(sqlite, tableNames, []));
+        return snapshot!;
+    }
+
+    /// <summary>
+    /// Opt-in variant of <see cref="CaptureTableRowsAsync"/> for a comparison that spans a deliberate
+    /// additive migration. Behaviour is identical except that the exact <c>(table, column)</c> pairs the
+    /// caller declares in <paramref name="toleratedAdditiveColumns"/> are omitted from both the projection
+    /// line and the row-value encoding — and only when the physical column actually exists, so the same
+    /// tolerance set is valid before the column is added and after. Every other column keeps its original
+    /// order and encoding, a missing requested table still fails exactly as before, and any column the
+    /// caller did not name still changes the snapshot and fails the comparison.
+    /// </summary>
+    public static async Task<string[]> CaptureTableRowsIgnoringAdditiveColumnsAsync(
+        SQLiteAsyncConnection connection,
+        IReadOnlyCollection<SnapshotToleratedAdditiveColumn> toleratedAdditiveColumns,
+        params string[] tableNames)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(toleratedAdditiveColumns);
+        ArgumentNullException.ThrowIfNull(tableNames);
+
+        string[]? snapshot = null;
+        await connection.RunInTransactionAsync(sqlite =>
+            snapshot = CaptureTableRows(sqlite, tableNames, toleratedAdditiveColumns));
         return snapshot!;
     }
 
@@ -387,7 +419,10 @@ internal static class PersistentDatabaseSnapshot
         return [.. result];
     }
 
-    private static string[] CaptureTableRows(SQLiteConnection connection, IReadOnlyCollection<string> tableNames)
+    private static string[] CaptureTableRows(
+        SQLiteConnection connection,
+        IReadOnlyCollection<string> tableNames,
+        IReadOnlyCollection<SnapshotToleratedAdditiveColumn> toleratedAdditiveColumns)
     {
         var requested = new HashSet<string>(tableNames, StringComparer.OrdinalIgnoreCase);
         var existing = connection.Query<SnapshotTableRow>(
@@ -403,13 +438,26 @@ internal static class PersistentDatabaseSnapshot
         var result = new List<string>();
         foreach (var tableName in requested.OrderBy(table => table, StringComparer.Ordinal))
         {
-            var columns = GetColumns(connection, tableName);
+            // Filtering (rather than substituting a placeholder) is what makes the same tolerance set valid
+            // on both sides of the migration: before the column exists there is nothing to drop, and after
+            // it exists it is dropped, so the two projections and row encodings line up exactly.
+            var columns = GetColumns(connection, tableName)
+                .Where(column => !IsTolerated(toleratedAdditiveColumns, tableName, column.Name))
+                .ToArray();
             result.Add($"projection|{Encode(tableName)}|{string.Join(",", columns.Select(column => Encode(column.Name)))}");
             AddRows(connection, tableName, columns, result);
         }
 
         return [.. result];
     }
+
+    private static bool IsTolerated(
+        IReadOnlyCollection<SnapshotToleratedAdditiveColumn> toleratedAdditiveColumns,
+        string tableName,
+        string columnName) =>
+        toleratedAdditiveColumns.Any(tolerated =>
+            string.Equals(tolerated.Table, tableName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(tolerated.Column, columnName, StringComparison.OrdinalIgnoreCase));
 
     private static SnapshotColumnRow[] GetColumns(SQLiteConnection connection, string tableName) =>
         connection.Query<SnapshotColumnRow>($"PRAGMA table_info(\"{EscapeIdentifier(tableName)}\")")

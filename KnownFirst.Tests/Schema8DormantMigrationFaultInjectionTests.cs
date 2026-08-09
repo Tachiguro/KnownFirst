@@ -1,7 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
-using KnownFirst.Data.Migrations.Schema9;
+using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Models;
 using SQLite;
 
@@ -41,8 +41,9 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
             await using var fixture = await Schema7Fixture.CreateAsync();
             var seed = await SeedRepresentativeSchema7Async(fixture);
             var before = await fixture.CapturePersistentStateAsync();
-            var unchangedRowsBefore = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(
+            var unchangedRowsBefore = await PersistentDatabaseSnapshot.CaptureTableRowsIgnoringAdditiveColumnsAsync(
                 fixture.Connection,
+                Schema10AdditiveIdentityColumns,
                 UnchangedAuthoritativeTables);
             var transformedRowsBefore = await CaptureTransformedAuthoritativeRowsAsync(fixture.Connection, schema8: false);
             var options = new Schema8MigrationOptions
@@ -84,8 +85,9 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
         await using var fixture = await Schema7Fixture.CreateAsync();
         var seed = await SeedRepresentativeSchema7Async(fixture);
         var before = await fixture.CapturePersistentStateAsync();
-        var unchangedRowsBefore = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(
+        var unchangedRowsBefore = await PersistentDatabaseSnapshot.CaptureTableRowsIgnoringAdditiveColumnsAsync(
             fixture.Connection,
+            Schema10AdditiveIdentityColumns,
             UnchangedAuthoritativeTables);
         var transformedRowsBefore = await CaptureTransformedAuthoritativeRowsAsync(fixture.Connection, schema8: false);
         var options = new Schema8MigrationOptions
@@ -283,7 +285,11 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
     /// Called only after the successful retry through <see cref="DatabaseSchema.InitializeAsync"/> (never
     /// after the pinned Schema-7 rollback assertions above, which stay pinned at version 7): ordinary
     /// initialization advances the retried database through the Schema-8 semantic step and on to
-    /// <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9).
+    /// <see cref="DatabaseSchema.CurrentVersion"/>.
+    /// <para>The unchanged-table row comparison tolerates exactly one additive Schema-10 column,
+    /// <c>LearningSessions.StableId</c>. <c>LearningSessionCards</c> is not part of this snapshot path — it
+    /// is covered by <see cref="CaptureTransformedAuthoritativeRowsAsync"/>, whose explicit legacy column
+    /// projection already excludes it — so its identity column is deliberately not tolerated here.</para>
     /// </summary>
     private static async Task AssertRepresentativeDataPreservedAsync(
         Schema7Fixture fixture,
@@ -293,19 +299,20 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
         string assertionMessage)
     {
         Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.ReadUserVersionAsync(), assertionMessage);
-        bool validSchema9 = false;
+        bool validCurrentSchema = false;
         string? validationFailure = null;
         await fixture.Connection.RunInTransactionAsync(connection =>
-            validSchema9 = Schema9ShapeValidator.IsValidDatabase(connection, out validationFailure));
-        Assert.IsTrue(validSchema9, $"{assertionMessage}: {validationFailure}");
+            validCurrentSchema = Schema10ShapeValidator.IsValidDatabase(connection, out validationFailure));
+        Assert.IsTrue(validCurrentSchema, $"{assertionMessage}: {validationFailure}");
 
         var integrity = await fixture.Connection.ExecuteScalarAsync<string>("PRAGMA integrity_check");
         Assert.AreEqual("ok", integrity, assertionMessage);
         var foreignKeyViolations = await fixture.Connection.QueryAsync<ForeignKeyViolationRow>("PRAGMA foreign_key_check");
         Assert.IsEmpty(foreignKeyViolations, assertionMessage);
 
-        var unchangedRowsAfter = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(
+        var unchangedRowsAfter = await PersistentDatabaseSnapshot.CaptureTableRowsIgnoringAdditiveColumnsAsync(
             fixture.Connection,
+            Schema10AdditiveIdentityColumns,
             UnchangedAuthoritativeTables);
         CollectionAssert.AreEqual(unchangedRowsBefore, unchangedRowsAfter, assertionMessage);
 
@@ -409,6 +416,16 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
 
         return [.. result];
     }
+
+    /// <summary>
+    /// The complete, explicit tolerance set for the <see cref="UnchangedAuthoritativeTables"/> comparison:
+    /// only the single column the additive Schema-10 migration introduces on a table in that list. Any other
+    /// column difference still fails the comparison, and no table is ever dropped from it.
+    /// </summary>
+    private static readonly SnapshotToleratedAdditiveColumn[] Schema10AdditiveIdentityColumns =
+    [
+        new("LearningSessions", "StableId")
+    ];
 
     private static readonly string[] UnchangedAuthoritativeTables =
     [

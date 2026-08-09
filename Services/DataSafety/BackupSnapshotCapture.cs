@@ -27,6 +27,14 @@ public sealed record CapturedSchema9SnapshotEnvelope(
     Schema8BackupSnapshot Snapshot,
     ValidatedSchema9Capability Capability) : CapturedBackupSnapshotEnvelope;
 
+/// <summary>The Schema-10 counterpart of <see cref="CapturedSchema9SnapshotEnvelope"/>. Carries the same
+/// <see cref="Schema8BackupSnapshot"/> shape, additionally populated with the persistent
+/// learning-workflow identities — see
+/// <see cref="Schema8BackupSnapshotRepository.WithSchema10LearningIdentities"/>.</summary>
+public sealed record CapturedSchema10SnapshotEnvelope(
+    Schema8BackupSnapshot Snapshot,
+    ValidatedSchema10Capability Capability) : CapturedBackupSnapshotEnvelope;
+
 public static class BackupSnapshotCapture
 {
     /// <summary>Portable/user-export capture (workflow-filtered), dispatched by validated schema
@@ -42,6 +50,10 @@ public static class BackupSnapshotCapture
                 Schema8BackupSnapshotRepository.CapturePortableSnapshot(connection), schema8.Capability),
             Schema9CapabilityResult schema9 => new CapturedSchema9SnapshotEnvelope(
                 Schema8BackupSnapshotRepository.CapturePortableSnapshot(connection), schema9.Capability),
+            Schema10CapabilityResult schema10 => new CapturedSchema10SnapshotEnvelope(
+                Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                    connection, Schema8BackupSnapshotRepository.CapturePortableSnapshot(connection)),
+                schema10.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
     }
@@ -59,6 +71,10 @@ public static class BackupSnapshotCapture
                 Schema8BackupSnapshotRepository.CaptureSnapshot(connection), schema8.Capability),
             Schema9CapabilityResult schema9 => new CapturedSchema9SnapshotEnvelope(
                 Schema8BackupSnapshotRepository.CaptureSnapshot(connection), schema9.Capability),
+            Schema10CapabilityResult schema10 => new CapturedSchema10SnapshotEnvelope(
+                Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                    connection, Schema8BackupSnapshotRepository.CaptureSnapshot(connection)),
+                schema10.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
     }
@@ -89,6 +105,11 @@ public sealed record MergeSafetyCopySchema9Captured(
     Schema8BackupSnapshot Snapshot,
     ValidatedSchema9Capability Capability) : MergeSafetyCopyCaptureEnvelope;
 
+/// <summary>The Schema-10 counterpart of <see cref="MergeSafetyCopySchema9Captured"/>.</summary>
+public sealed record MergeSafetyCopySchema10Captured(
+    Schema8BackupSnapshot Snapshot,
+    ValidatedSchema10Capability Capability) : MergeSafetyCopyCaptureEnvelope;
+
 public static class BackupMergeSafetyCopySnapshotCapture
 {
     public static MergeSafetyCopyCaptureEnvelope CaptureForMergeSafetyCopy(SQLiteConnection connection)
@@ -113,6 +134,14 @@ public static class BackupMergeSafetyCopySnapshotCapture
                 return v2ResultForSchema9.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
                     ? new MergeSafetyCopyCaptureBlocked()
                     : new MergeSafetyCopySchema9Captured(v2ResultForSchema9.Snapshot!, schema9.Capability);
+
+            case Schema10CapabilityResult schema10:
+                var v2ResultForSchema10 = Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
+                return v2ResultForSchema10.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
+                    ? new MergeSafetyCopyCaptureBlocked()
+                    : new MergeSafetyCopySchema10Captured(
+                        Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, v2ResultForSchema10.Snapshot!),
+                        schema10.Capability);
 
             default:
                 throw new InvalidOperationException("Unrecognized backup schema capability result.");

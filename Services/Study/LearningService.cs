@@ -64,7 +64,7 @@ public sealed class LearningService : ILearningService
             // one transaction and never performs a second read. Schema 7 keeps its existing two-step shape.
             var schema8Result = await database.RunInTransactionAsync<LearningLoadResult?>(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult)
+                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult)
                 {
                     return GetOrStartSchema8(connection);
                 }
@@ -87,7 +87,7 @@ public sealed class LearningService : ILearningService
         {
             await database.RunInTransactionAsync(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult)
+                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult)
                 {
                     RevealAnswerSchema8(connection, queueItemId);
                     return true;
@@ -124,7 +124,7 @@ public sealed class LearningService : ILearningService
             // One transaction for both schemas. The Schema-8 pending-match handoff is stored only after the
             // transaction has committed successfully.
             var outcome = await database.RunInTransactionAsync(connection =>
-                LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult
+                LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult
                     ? CheckSpellingSchema8(connection, queueItemId, enteredAnswer)
                     : new Schema8SpellingOutcome(
                         CheckSpellingSchema7(connection, queueItemId, enteredAnswer), null, IsSchema8: false));
@@ -226,7 +226,7 @@ public sealed class LearningService : ILearningService
         {
             var schema8Outcome = await database.RunInTransactionAsync<Schema8RatingOutcome?>(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult)
+                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult)
                 {
                     return PersistRatingSchema8(
                         connection, queueItemId, rating, fromIncorrectSpellingCheck: false);
@@ -303,7 +303,7 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult)
+                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult)
                 {
                     return MarkPermanentlyKnownSchema8(connection, wordId);
                 }

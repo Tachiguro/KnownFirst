@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using KnownFirst.Data.Schema10;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety;
@@ -126,6 +127,66 @@ public static class BackupModelContractV2
         if (manifest.RecordCounts != actual)
         {
             throw Error(BackupErrorCodes.RecordCountMismatch);
+        }
+
+        ValidateLearningWorkflowStableIds(manifest.SourceDatabaseSchemaVersion, payload);
+    }
+
+    /// <summary>
+    /// The KF-BACKUP-005A learning-workflow identity rule, decided by the manifest's declared source
+    /// schema version — the only field that says whether the writing database could have had identities
+    /// at all.
+    ///
+    /// <list type="bullet">
+    /// <item><description><b>Source schema &lt;= 9.</b> Absent identities are valid and expected: those
+    /// databases had no <c>StableId</c> column. Ordinary legacy portable workflows are Completed, so the
+    /// importer reconstructs each identity through the exact deterministic bootstrap the Schema-10
+    /// migration uses. An identity that <em>is</em> present must still be well-formed and unique — a
+    /// malformed value is never silently dropped.</description></item>
+    /// <item><description><b>Source schema &gt;= 10.</b> Identities are mandatory. A missing or malformed
+    /// value fails closed rather than being regenerated, because regenerating it would invent an identity
+    /// that disagrees with the one the source database actually persists. Supplied identities are
+    /// preserved exactly as written.</description></item>
+    /// </list>
+    /// </summary>
+    public static void ValidateLearningWorkflowStableIds(int sourceDatabaseSchemaVersion, BackupPayloadV2 payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+
+        var required = sourceDatabaseSchemaVersion >= ValidatedSchema10Capability.SchemaVersion;
+        var seenWorkflowIds = new HashSet<string>(StringComparer.Ordinal);
+        var seenQueueIds = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var workflow in payload.Workflows.LearningSessions)
+        {
+            ValidateOptionalStableId(workflow.StableId, required, seenWorkflowIds);
+            foreach (var item in workflow.QueueItems)
+            {
+                ValidateOptionalStableId(item.StableId, required, seenQueueIds);
+            }
+        }
+    }
+
+    private static void ValidateOptionalStableId(string? stableId, bool required, HashSet<string> seen)
+    {
+        if (stableId is null)
+        {
+            if (required)
+            {
+                throw Error(BackupErrorCodes.InvariantViolation);
+            }
+
+            return;
+        }
+
+        if (!LearningWorkflowStableId.IsValid(stableId))
+        {
+            throw Error(BackupErrorCodes.InvariantViolation);
+        }
+
+        if (!seen.Add(stableId))
+        {
+            throw Error(BackupErrorCodes.DuplicateId);
         }
     }
 

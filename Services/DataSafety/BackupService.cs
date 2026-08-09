@@ -140,6 +140,7 @@ public sealed class BackupService(
                     Schema7CapabilityResult => BackupImportRepository.HasDurableUserData(connection),
                     Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
@@ -245,12 +246,13 @@ public sealed class BackupService(
                     Schema7CapabilityResult => BackupImportRepository.HasDurableUserData(connection),
                     Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
             });
 
-            if ((capability is Schema8CapabilityResult or Schema9CapabilityResult) && targetHasDurableData)
+            if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult) && targetHasDurableData)
             {
                 return await ImportIntoPopulatedSchema8Async(validated, cancellationToken);
             }
@@ -286,6 +288,7 @@ public sealed class BackupService(
 
                     case Schema8CapabilityResult:
                     case Schema9CapabilityResult:
+                    case Schema10CapabilityResult:
                         if (Schema8BackupImportRepository.HasDurableUserData(connection))
                         {
                             return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
@@ -469,6 +472,12 @@ public sealed class BackupService(
                 var payloadV2FromSchema9 = BackupModelMapperV2.MapToExternal(schema9.Snapshot);
                 await BackupArchiveWriterV2.WriteArchiveAsync(
                     payloadV2FromSchema9, platformInfo, schema9.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
+                break;
+
+            case CapturedSchema10SnapshotEnvelope schema10:
+                var payloadV2FromSchema10 = BackupModelMapperV2.MapToExternal(schema10.Snapshot);
+                await BackupArchiveWriterV2.WriteArchiveAsync(
+                    payloadV2FromSchema10, platformInfo, schema10.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
                 break;
 
             default:

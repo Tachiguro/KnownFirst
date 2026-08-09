@@ -100,13 +100,25 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
         }
 
-        if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult)
+        if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult)
         {
             KnownFirst.Data.Schema8.Schema8PortableSnapshotCaptureResult captureResultV2;
             try
             {
-                captureResultV2 = await database.ExecuteSnapshotAsync(
-                    connection => Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection));
+                // The Schema-10 identities are read in the same snapshot callback as the capture itself,
+                // so the target payload the planner sees carries the same persistent identities the
+                // writer will later match against.
+                captureResultV2 = await database.ExecuteSnapshotAsync(connection =>
+                {
+                    var captured = Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
+                    return captured.Snapshot is null || BackupSchemaCapability.Resolve(connection) is not Schema10CapabilityResult
+                        ? captured
+                        : captured with
+                        {
+                            Snapshot = Data.Schema8.Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                                connection, captured.Snapshot)
+                        };
+                });
             }
             catch (OperationCanceledException)
             {

@@ -1,5 +1,6 @@
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
+using KnownFirst.Data.Migrations.Schema10;
 using SQLite;
 
 namespace KnownFirst.Services.Study;
@@ -42,6 +43,18 @@ public sealed class ValidatedLearningSchema9Capability
     public const int SchemaVersion = 9;
 }
 
+/// <summary>The Schema-10 counterpart of <see cref="ValidatedLearningSchema9Capability"/>
+/// (KF-BACKUP-005A). The learning-relevant data model gains persistent learning-workflow
+/// <c>StableId</c> identity; every existing learning behaviour is unchanged.</summary>
+public sealed class ValidatedLearningSchema10Capability
+{
+    internal ValidatedLearningSchema10Capability()
+    {
+    }
+
+    public const int SchemaVersion = 10;
+}
+
 public abstract record LearningSchemaCapabilityResult;
 
 public sealed record LearningSchema7CapabilityResult(ValidatedLearningSchema7Capability Capability)
@@ -51,6 +64,9 @@ public sealed record LearningSchema8CapabilityResult(ValidatedLearningSchema8Cap
     : LearningSchemaCapabilityResult;
 
 public sealed record LearningSchema9CapabilityResult(ValidatedLearningSchema9Capability Capability)
+    : LearningSchemaCapabilityResult;
+
+public sealed record LearningSchema10CapabilityResult(ValidatedLearningSchema10Capability Capability)
     : LearningSchemaCapabilityResult;
 
 /// <summary>
@@ -80,7 +96,7 @@ public sealed class LearningSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch, string? shapeDetail) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version: {shapeDetail}"
-        : $"PRAGMA user_version {foundVersion} is not a supported learning source version; only 7, 8, and 9 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported learning source version; only 7, 8, 9, and 10 are accepted.";
 }
 
 /// <summary>
@@ -122,6 +138,14 @@ public static class LearningSchemaCapability
                 }
 
                 return new LearningSchema9CapabilityResult(new ValidatedLearningSchema9Capability());
+
+            case ValidatedLearningSchema10Capability.SchemaVersion:
+                if (!Schema10ShapeValidator.IsValidDatabase(connection, out var schema10Detail))
+                {
+                    throw new LearningSchemaCapabilityException(userVersion, shapeMismatch: true, schema10Detail);
+                }
+
+                return new LearningSchema10CapabilityResult(new ValidatedLearningSchema10Capability());
 
             default:
                 throw new LearningSchemaCapabilityException(userVersion, shapeMismatch: false);

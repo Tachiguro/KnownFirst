@@ -160,6 +160,11 @@ public sealed record BackupLearningReviewV2(
     string? TargetAnswerVariantId,
     string? MatchedAnswerVariantId);
 
+/// <summary><paramref name="StableId"/> is the KF-BACKUP-005A persistent queue-row identity. It is a
+/// trailing nullable field so an archive written before Schema 10 stays byte-compatible with archive
+/// formatVersion 2: a manifest reporting source schema &lt;= 9 legitimately omits it (those workflows are
+/// Completed, so the reader reconstructs the identity through the shared deterministic bootstrap), while
+/// a manifest reporting source schema &gt;= 10 must supply it or the archive fails closed.</summary>
 public sealed record BackupLearningQueueItemV2(
     string Id,
     string CardId,
@@ -172,8 +177,11 @@ public sealed record BackupLearningQueueItemV2(
     bool IsCompleted,
     BackupReviewRating? Rating,
     DateTime? CompletedAtUtc,
-    string? TargetAnswerVariantId);
+    string? TargetAnswerVariantId,
+    string? StableId = null);
 
+/// <summary><paramref name="StableId"/> is the KF-BACKUP-005A persistent workflow identity; see
+/// <see cref="BackupLearningQueueItemV2"/> for why it is trailing and nullable.</summary>
 public sealed record BackupLearningWorkflowV2(
     string Id,
     BackupLearningSessionStatus Status,
@@ -186,7 +194,8 @@ public sealed record BackupLearningWorkflowV2(
     DateTime StartedAtUtc,
     DateTime UpdatedAtUtc,
     DateTime? CompletedAtUtc,
-    IReadOnlyList<BackupLearningQueueItemV2> QueueItems);
+    IReadOnlyList<BackupLearningQueueItemV2> QueueItems,
+    string? StableId = null);
 
 public sealed record BackupLearningDataV2(
     IReadOnlyList<BackupLearningCardV2> Cards,

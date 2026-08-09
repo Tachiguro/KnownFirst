@@ -43,6 +43,7 @@ public sealed partial class PreparationService(
         {
             PreparationSchema8CapabilityResult schema8 => schema8.Capability,
             PreparationSchema9CapabilityResult => new ValidatedPreparationSchema8Capability(),
+            PreparationSchema10CapabilityResult => new ValidatedPreparationSchema8Capability(),
             _ => null
         };
 #if DEBUG

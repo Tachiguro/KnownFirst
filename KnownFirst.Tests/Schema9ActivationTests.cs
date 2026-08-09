@@ -20,7 +20,7 @@ namespace KnownFirst.Tests;
 public sealed class Schema9ActivationTests
 {
     [TestMethod]
-    public async Task InitializeAsync_FreshDatabase_ActivatesSchema9()
+    public async Task InitializeAsync_FreshDatabase_ActivatesCurrentSchema()
     {
         var path = TemporaryPath("fresh-schema9");
         SQLiteAsyncConnection? connection = null;
@@ -29,7 +29,7 @@ public sealed class Schema9ActivationTests
             connection = new SQLiteAsyncConnection(path);
             await DatabaseSchema.InitializeAsync(connection);
 
-            Assert.AreEqual(9, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual(1, await IndexCountAsync(connection, Schema9RawFixture.NormalIndexName));
             Assert.AreEqual(1, await IndexCountAsync(connection, Schema9RawFixture.ActiveIndexName));
             Assert.AreEqual(
@@ -43,7 +43,7 @@ public sealed class Schema9ActivationTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_PinnedSchema8Database_UpgradesToSchema9AndPreservesRows()
+    public async Task InitializeAsync_PinnedSchema8Database_UpgradesToCurrentSchemaAndPreservesRows()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var documentId = await fixture.InsertDocumentAsync(content: "schema9 upgrade evidence");
@@ -52,7 +52,7 @@ public sealed class Schema9ActivationTests
         await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
 
         // Pinned Schema-8 source built only through existing production/test infrastructure — never through
-        // DatabaseSchema.InitializeAsync, which after implementation activates Schema 9.
+        // DatabaseSchema.InitializeAsync, which after implementation activates the current schema.
         await Schema8DormantMigration.ApplyAsync(fixture.Connection);
 
         var completedAt = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc);
@@ -62,7 +62,7 @@ public sealed class Schema9ActivationTests
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
-        Assert.AreEqual(9, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(1, await IndexCountAsync(fixture.Connection, Schema9RawFixture.NormalIndexName));
         Assert.AreEqual(1, await IndexCountAsync(fixture.Connection, Schema9RawFixture.ActiveIndexName));
         Assert.AreEqual(
@@ -83,16 +83,25 @@ public sealed class Schema9ActivationTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_AlreadyValidSchema9_IsIdempotent()
+    public async Task InitializeAsync_AlreadyValidCurrentSchema_IsIdempotent()
     {
         await using var fixture = await Schema9RawFixture.CreateValidSchema9FixtureAsync();
+
+        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        Assert.AreEqual(
+            DatabaseSchema.CurrentVersion,
+            await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+
         var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.Connection);
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
         var after = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.Connection);
+
         CollectionAssert.AreEqual(before, after);
-        Assert.AreEqual(9, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(
+            DatabaseSchema.CurrentVersion,
+            await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
     }
 
     [TestMethod]
@@ -233,10 +242,16 @@ public sealed class Schema9ActivationTests
             InsertReviewSessionAsync(fixture.Connection, documentId, ReviewSessionStatus.Active, completedAt: null));
     }
 
+    /// <summary>
+    /// The future-version gate is expressed against <see cref="DatabaseSchema.CurrentVersion"/> + 1 rather
+    /// than a hard-coded version number, so it keeps testing a genuinely unsupported future schema instead
+    /// of silently becoming a test of the current one the next time a schema is activated.
+    /// </summary>
     [TestMethod]
-    public async Task InitializeAsync_FutureSchema10_FailsClosedBeforeMutation()
+    public async Task InitializeAsync_FutureSchemaVersion_FailsClosedBeforeMutation()
     {
-        var path = TemporaryPath("future-schema10");
+        var futureVersion = DatabaseSchema.CurrentVersion + 1;
+        var path = TemporaryPath("future-schema-version");
         SQLiteAsyncConnection? connection = null;
         try
         {
@@ -245,16 +260,16 @@ public sealed class Schema9ActivationTests
             {
                 setup.Execute("CREATE TABLE FutureSentinel (Id INTEGER PRIMARY KEY, Value TEXT NOT NULL)");
                 setup.Execute("INSERT INTO FutureSentinel (Id, Value) VALUES (1, 'preserve-me')");
-                setup.Execute("PRAGMA user_version = 10");
+                setup.Execute($"PRAGMA user_version = {futureVersion}");
             }
 
             connection = new SQLiteAsyncConnection(path);
             var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
                 () => DatabaseSchema.InitializeAsync(connection));
 
-            Assert.AreEqual(10, exception.FoundVersion);
-            Assert.AreEqual(9, exception.SupportedVersion);
-            Assert.AreEqual(10, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(futureVersion, exception.FoundVersion);
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, exception.SupportedVersion);
+            Assert.AreEqual(futureVersion, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual(
                 0,
                 await connection.ExecuteScalarAsync<int>(

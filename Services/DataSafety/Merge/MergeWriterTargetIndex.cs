@@ -180,18 +180,32 @@ internal sealed class MergeWriterTargetIndex
             preparationSessionIdByIdentity[identity] = session.Id;
         }
 
+        // Mirrors the archive-side rule in LearningWorkflowIdentityPolicy: a Schema-10 target row's own
+        // persistent StableId is its logical identity, and only a target still without one falls back to
+        // the Schema-8 content fingerprint. Both sides must apply the same rule, or an archive carrying
+        // identities could never match the very rows it came from.
         var learningSessionIdByIdentity = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var session in snapshot.LearningSessions)
         {
-            var orderedQueueItems = snapshot.LearningSessionCards
-                .Where(item => item.SessionId == session.Id)
-                .OrderBy(item => item.QueueOrder)
-                .Select(item => (
-                    cardIdentityByCardId[item.CardId],
-                    item.Rating is null ? (BackupReviewRating?)null : BackupEnumMappings.ToBackup(item.Rating.Value)))
-                .ToList();
-            var identity = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(
-                session.StartedAtUtc, session.CompletedAtUtc, orderedQueueItems);
+            var persistedStableId = snapshot.LearningSessionStableIds?.GetValueOrDefault(session.Id);
+            string identity;
+            if (Data.Schema10.LearningWorkflowStableId.IsValid(persistedStableId))
+            {
+                identity = persistedStableId!;
+            }
+            else
+            {
+                var orderedQueueItems = snapshot.LearningSessionCards
+                    .Where(item => item.SessionId == session.Id)
+                    .OrderBy(item => item.QueueOrder)
+                    .Select(item => (
+                        cardIdentityByCardId[item.CardId],
+                        item.Rating is null ? (BackupReviewRating?)null : BackupEnumMappings.ToBackup(item.Rating.Value)))
+                    .ToList();
+                identity = LearningWorkflowIdentityPolicy.ComputeSchema8SessionIdentity(
+                    session.StartedAtUtc, session.CompletedAtUtc, orderedQueueItems);
+            }
+
             learningSessionIdByIdentity[identity] = session.Id;
         }
 
@@ -208,21 +222,9 @@ internal sealed class MergeWriterTargetIndex
         sentence.StartPosition,
         sentence.Length);
 
-    private static BackupSense ToBackupSense(SenseRow sense) => new(
-        sense.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        sense.StableId,
-        string.Empty,
-        sense.SourceLanguage,
-        sense.ExplanationLanguage,
-        sense.ProviderSenseId,
-        sense.TopicOrDomain,
-        sense.PartOfSpeech,
-        sense.GrammaticalRelationship,
-        sense.AcronymExpansion,
-        null,
-        (BackupSenseStatus)(int)sense.Status,
-        EnsureUtc(sense.CreatedAtUtc),
-        EnsureUtc(sense.UpdatedAtUtc));
+    /// <summary>Single definition, shared with the Schema-10 identity bootstrap — see
+    /// <see cref="Schema8RowSemanticIdentities.ToBackupSense"/> for why it must not be duplicated.</summary>
+    private static BackupSense ToBackupSense(SenseRow sense) => Schema8RowSemanticIdentities.ToBackupSense(sense);
 
     private static BackupPreparedItemV2 ToBackupPreparedItemV2(Schema8MeaningRow meaning) => new(
         meaning.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),

@@ -1027,14 +1027,18 @@ public static class BackupModelMapperV2
                 EnsureUtc(c.CompletedAtUtc),
                 c.TargetAnswerVariantId.HasValue
                     ? (variantIdMap.TryGetValue(c.TargetAnswerVariantId.Value, out var tId) ? tId : "av-000000-missing")
-                    : null))
+                    : null,
+                // Null for a Schema-8/9 capture, whose database has no such column. Never invented here:
+                // an identity the source database does not hold must not be fabricated by the mapper.
+                snapshot.LearningQueueStableIds?.GetValueOrDefault(c.Id)))
             .ToList();
 
         return new BackupLearningWorkflowV2(
             learningSessionIdMap.TryGetValue(session.Id, out var lsId) ? lsId : "ls-000000-missing",
             BackupEnumMappings.ToBackup(session.Status), session.TotalCards, session.CompletedCards,
             session.AgainCount, session.HardCount, session.GoodCount, session.EasyCount,
-            EnsureUtc(session.StartedAtUtc), EnsureUtc(session.UpdatedAtUtc), EnsureUtc(session.CompletedAtUtc), items);
+            EnsureUtc(session.StartedAtUtc), EnsureUtc(session.UpdatedAtUtc), EnsureUtc(session.CompletedAtUtc), items,
+            snapshot.LearningSessionStableIds?.GetValueOrDefault(session.Id));
     }
 
     private static IReadOnlyList<string> DeserializeAliases(string json)

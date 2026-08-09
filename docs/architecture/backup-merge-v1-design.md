@@ -648,3 +648,117 @@ The legacy v1 `MergePreflightPlanner` keeps its analogous synthesized label and 
 ### Scope boundary
 
 Left out of KF-BACKUP-004, and not silently closed by it: the legacy v1 planner's analogous synthesized label (above); `LegacyReviewSummaries` ordering; the mid-session review-event export policy; and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random.
+
+---
+
+## §23 KF-BACKUP-005A — Schema-10 Stable Learning-Workflow Identity
+
+> **Feature-branch status:** Implemented and validated on `feature/schema10-stable-learning-workflow-identity-v1`. Not yet merged to `master`. This section describes the durable architecture design; the full persistence contract is in [DATABASE_CONTRACT.md](../DATABASE_CONTRACT.md) Schema-10 section.
+
+### 23.1 Motivation
+
+Prior to Schema 10, `LearningSessions` and `LearningSessionCards` rows were identified only by installation-local SQLite integer primary keys. This made portable archive transport of learning-workflow identity fragile:
+
+- Two installations holding semantically identical Completed sessions assigned different local row ids.
+- Archive-local `ls-*` / `lq-*` identifiers (established by KF-BACKUP-003 Package D for canonical ordering) are ephemeral, export-time-only, and explicitly not merge identity material (§21).
+- No stable cross-installation identity existed to anchor portable workflow identity in future synchronization scenarios.
+
+Schema 10 supplies a durable, immutable `StableId` on each `LearningSession` and `LearningSessionCard` row. This identity:
+
+- is assigned once and never changed;
+- does not depend on installation-local SQLite row ids or archive-local ordinals;
+- is intentionally reusable by later cross-device synchronization, not a backup-only disposable scheme.
+
+### 23.2 Schema-10 identity model
+
+Schema 10 adds a `TEXT NOT NULL` `StableId` column to `LearningSessions` and `LearningSessionCards`. No other table receives `StableId` columns in this package.
+
+**Canonical form:** lowercase hexadecimal, exact length 32 (GUID origin) or 64 (SHA-256 origin), unique within its table, immutable after assignment.
+
+**New-row allocation:** Fresh post-Schema-10 `LearningSession` and `LearningSessionCard` rows receive a 32-character `StableId` from `Guid.NewGuid().ToString("N")`.
+
+### 23.3 Completed session deterministic bootstrap
+
+A legacy Completed `LearningSession` (migrated from Schema 9) receives a 64-character SHA-256 `StableId` under the frozen domain:
+
+```
+KnownFirst.Identity.LearningSession.LegacyCompletedBootstrap.v1
+```
+
+Semantic material:
+- `StartedAtUtc`
+- `CompletedAtUtc`
+- For each queue item in `QueueOrder` order: `(FutureCardIdentity, Rating)`
+
+The hash never includes installation-local SQLite ids or archive-local ordinals. Two installations holding semantically identical Completed sessions produce identical `StableId` values.
+
+**Completed queue row bootstrap** uses a companion domain:
+
+```
+KnownFirst.Identity.LearningQueueItem.LegacyCompletedBootstrap.v1
+```
+
+Semantic material:
+- Parent Completed session `StableId`
+- `QueueOrder`
+- `FutureCardIdentity`
+- `IsAgainRepeat`
+
+### 23.4 Active session one-time GUID bootstrap
+
+A legacy Active `LearningSession` and its associated `LearningSessionCard` rows receive fresh 32-character GUID `StableId` values at migration time. These identities:
+
+- are not deterministic or cross-installation reproducible (by design — Active sessions are not portable in Schema 10);
+- remain stable through all subsequent workflow mutations: rating, pruning, Again/repeat, counter changes, and eventual completion;
+- are never reassigned after the initial migration bootstrap.
+
+### 23.5 Identity immutability and preservation through workflow mutation
+
+A `StableId` assigned to any `LearningSession` or `LearningSessionCard` row must never be updated, overwritten, or removed by:
+
+- normal workflow operations (rating, pruning, session completion, counters);
+- import/merge operations (transported StableIds from source ≥10 archives are preserved unchanged);
+- schema migrations (Schema 10 assigns once; later migrations must not reassign).
+
+This immutability constraint is the foundation for future cross-device synchronization reuse.
+
+### 23.6 Archive/source compatibility
+
+| Source schema | Completed portable workflow | Active portable workflow |
+| --- | --- | --- |
+| ≤9 | Supported; Completed sessions/queue rows may receive deterministic bootstrap StableIds during import | Unsupported/rejected |
+| ≥10 | Required; StableIds must be present, canonical, and unique | Required; StableIds present, canonical, and unique; Active workflow portability deferred to KF-BACKUP-005B |
+
+For source ≥10 archives, transported `StableId` values are preserved unchanged and validated for canonical form and uniqueness before any mutation.
+
+The outer `.kfarchive` format remains version V2 (not incremented). Schema 10 extends the existing V2 learning-workflow DTOs with trailing nullable `StableId` fields on `BackupLearningWorkflowV2` and `BackupLearningQueueItemV2`. These fields are nullable specifically so pre-Schema10 (source ≤9) archives remain readable without carrying workflow StableIds. Source schema ≥10 archives must supply valid StableIds according to the Schema-10 contract. This is a V2 DTO evolution, not an outer format-version increment.
+
+### 23.7 KF-BACKUP-004 LearningReview identity boundary
+
+`LearningSessionId` is **not** part of `LearningReview` merge identity — this boundary established by KF-BACKUP-004 (§22.3) is unchanged by Schema 10. `LearningSessionId` is preserved as referential workflow attachment and provenance for each inserted review row. Schema-10 `StableId` assignment on `LearningSessions` does not alter or interact with the `LearningReview` event-identity contract.
+
+### 23.8 005A Active portability exclusion
+
+KF-BACKUP-005A does not implement portable Active learning-workflow continuation:
+
+- Portable export excludes Active `LearningSessions`/workflow rows.
+- Portable import continues rejecting unsupported Active workflow archives where applicable.
+
+This exclusion is not a gap in the current product; the application fully supports resumable local Active sessions. The exclusion bounds the portable-transport contract to what is safe and proven in this package.
+
+### 23.9 Succession: KF-BACKUP-005B and 005C
+
+- **KF-BACKUP-005B:** Portable Active learning-workflow export and restore into an empty installation from the last durably committed application state. Requires stable StableIds established by 005A.
+- **KF-BACKUP-005C:** Populated-target Active workflow convergence and conflict safety. Builds on 005A StableIds and 005B portable export.
+
+Actual network/cloud synchronization is not implemented. The StableId architecture is intentionally reusable by later cross-device synchronization rather than being a backup-only disposable identity scheme.
+
+### 23.10 Evidence
+
+- Final `ALL_AUTOMATED`: **1812 passed / 0 failed / 0 skipped / 1812 total** (`dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj -c Debug`; duration: 9m 18s).
+- Focused five-class correction scope: 215 passed / 0 failed / 0 skipped / 215 total.
+- Original Stage-1 scope: 845 passed / 0 failed / 0 skipped / 845 total.
+- Wikipedia architecture sentinel (Schema 10 `CurrentVersion` sentinel): 7 passed / 0 failed / 0 skipped / 7 total.
+- Focused Windows Debug launcher build: **success** (`.\scripts\knownfirst.ps1 -Action WindowsBuild -Configuration Debug -Force`; exit code 0; 0 errors; output `bin\Debug\net10.0-windows10.0.19041.0\win-x64\KnownFirst.dll`).
+
+**Evidence limitation:** all of the above is automated unit, integration, persistence, and contract evidence executed against isolated temporary synthetic SQLite databases, plus a focused Windows Debug compilation gate; no real user database was accessed. There is no Windows Release, Android Debug/Release, candidate `ValidateAll`, rendered-GUI, runtime/device/platform, Release-build, packaging, signing, publishing, or release evidence for this package. Active portable-workflow resume behavior is explicitly excluded from this package's scope.

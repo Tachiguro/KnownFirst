@@ -5,7 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version 9.
+It describes the current SQLite model at schema version 9 on `master`. Schema 10 is implemented on the active feature branch `feature/schema10-stable-learning-workflow-identity-v1` and is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below; it is not yet merged.
 
 ## Storage boundary
 
@@ -19,8 +19,10 @@ It describes the current SQLite model at schema version 9.
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **9**.
-A healthy initialized current database reports `PRAGMA user_version = 9`.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **9** on `master`.
+A healthy initialized current database on master reports `PRAGMA user_version = 9`.
+
+> On the active feature branch `feature/schema10-stable-learning-workflow-identity-v1`, `CurrentVersion` is **10**. See [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) below.
 
 | Table | Responsibility |
 | --- | --- |
@@ -39,8 +41,8 @@ A healthy initialized current database reports `PRAGMA user_version = 9`.
 | `ContextSnapshots` | Deduplicated learning contexts with exact target coordinates |
 | `LearningCards` | Independent Sense-addressed card-direction scheduling state |
 | `LearningReviews` | Persisted rating history including target and matched answer variant |
-| `LearningSessions` | Resumable learning-session summary state |
-| `LearningSessionCards` | Ordered persisted session queue, frozen answer target, and reveal/check state |
+| `LearningSessions` | Resumable learning-session summary state; on Schema 10 also carries an immutable `StableId` |
+| `LearningSessionCards` | Ordered persisted session queue, frozen answer target, and reveal/check state; on Schema 10 also carries an immutable `StableId` |
 | `Senses` | Meaning-centric Sense identity, provenance, and status per vocabulary identity |
 | `AnswerVariants` | Distinct accepted answer expressions per Sense and answer language |
 | `SenseAnswerVariantAssignments` | Direction-specific Required/AcceptedOnly assignment, preferred flag, and Required-epoch boundary |
@@ -98,7 +100,7 @@ not report success before the transaction commits.
 
 ### Schema-9 activation behavior
 
-Initialization reads `PRAGMA user_version` before touching any table and then
+Initialization on master reads `PRAGMA user_version` before touching any table and then
 follows exactly one path:
 
 | Source version | Behavior |
@@ -110,6 +112,8 @@ follows exactly one path:
 | 9 (valid) | Validation only. The database is inspected and never mutated. |
 | 9 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
 | Greater than 9 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
+
+> On the active feature branch (`CurrentVersion = 10`), see [Schema-10 activation behavior](#schema-10-activation-behavior) in the Schema-10 contract below.
 
 The legacy enum backfills assign deterministic supported values for
 `Words.TokenKind`, `Words.PreparationState`, `Words.AutomaticInteractionMode`,
@@ -222,3 +226,141 @@ Synchronization and cloud formats do not exist.
 
 Any accepted decision that changes these rules requires an ADR and an update to
 this contract, `PROJECT_STATE.md`, tests, and user-facing documentation.
+
+---
+
+## Schema-10 Stable Learning-Workflow Identity Contract
+
+> **Feature-branch status:** Implemented and verified on `feature/schema10-stable-learning-workflow-identity-v1`. Not yet merged to `master`. All rules below describe the durable contract as implemented on the feature branch.
+
+### Schema-10 migration intent
+
+Schema 10 establishes immutable stable identifiers (`StableId`) for persisted learning-workflow entities. These identifiers:
+
+- are assigned once, on first creation or on migration from a prior schema;
+- are never changed by subsequent workflow operations (rating, pruning, Again/repeat, counters, or completion);
+- enable portable archive transport and future cross-device synchronization without depending on installation-local SQLite row ids.
+
+The `StableId` architecture is intentionally reusable by later cross-device synchronization and is not a backup-only disposable identity scheme.
+
+### New physical columns
+
+Schema 10 adds a `TEXT NOT NULL` `StableId` column to:
+
+| Table | Assigned on |
+| --- | --- |
+| `LearningSessions` | Session creation (new) or migration bootstrap (legacy) |
+| `LearningSessionCards` | Queue-row creation (new) or migration bootstrap (legacy) |
+
+No other table receives `StableId` columns in Schema 10. The physical Schema-8/9 entity definitions for `LearningSessions` and `LearningSessionCards` do not contain these columns; they are added by the Schema-10 migration.
+
+### Canonical StableId form
+
+A valid `StableId` must satisfy all of:
+
+- **Encoding:** lowercase hexadecimal only (no uppercase, no dashes, no braces).
+- **Length:** exactly 32 characters (GUID origin) or exactly 64 characters (SHA-256 origin).
+- **Uniqueness:** unique within its table across all rows.
+- **Immutability:** never mutated after first assignment.
+
+A `StableId` that fails any of these constraints is invalid. Invalid or absent StableIds on source ≥10 archives are rejected.
+
+### New-row identity allocation
+
+Fresh post-Schema-10 workflow entities receive a 32-character canonical `StableId` derived from `Guid.NewGuid().ToString("N")` (lowercase hexadecimal, no separators). This format is the canonical form for new workflow identities.
+
+### Legacy Completed session identity (deterministic bootstrap)
+
+A legacy Completed `LearningSession` (Status = Completed at migration time) receives a deterministic 64-character lowercase SHA-256 `StableId` computed under the frozen domain:
+
+```
+KnownFirst.Identity.LearningSession.LegacyCompletedBootstrap.v1
+```
+
+Semantic material included in the hash:
+
+- `StartedAtUtc`
+- `CompletedAtUtc`
+- Ordered workflow material: for each queue item in `QueueOrder` order, a `(FutureCardIdentity, Rating)` pair
+
+The hash does not depend on installation-local SQLite row ids or archive-local ordinals. Identical Completed sessions on different installations produce identical `StableId` values.
+
+### Legacy Completed queue identity (deterministic bootstrap)
+
+A legacy Completed `LearningSessionCard` row (belonging to a Completed session at migration time) receives a deterministic 64-character lowercase SHA-256 `StableId` computed under the frozen domain:
+
+```
+KnownFirst.Identity.LearningQueueItem.LegacyCompletedBootstrap.v1
+```
+
+Semantic material included in the hash:
+
+- Parent Completed session `StableId` (already assigned above)
+- `QueueOrder`
+- `FutureCardIdentity`
+- `IsAgainRepeat`
+
+This identity is also installation-independent for semantically identical queue content.
+
+### Legacy Active identity (one-time GUID bootstrap)
+
+A legacy Active `LearningSession` (Status = Active at migration time) and its associated `LearningSessionCard` rows receive fresh 32-character canonical GUID `StableId` values once, at migration time. These identities:
+
+- are not deterministic or cross-installation reproducible (by design — Active sessions are not portable in Schema 10);
+- remain stable through all later workflow mutations: rating, pruning, Again/repeat, counter changes, and eventual completion;
+- are never reassigned after the initial migration bootstrap.
+
+### Identity immutability
+
+A `StableId` assigned to a `LearningSession` or `LearningSessionCard` row must never be updated, overwritten, or removed by any subsequent operation. This constraint applies to:
+
+- normal workflow operations (rating, pruning, session completion);
+- import/merge operations (transported StableIds are preserved unchanged for source ≥10 archives);
+- schema migrations (Schema 10 assigns once; later migrations must not reassign).
+
+### Schema-10 activation behavior
+
+Initialization on the feature branch reads `PRAGMA user_version` and then follows exactly one path:
+
+| Source version | Behavior |
+| --- | --- |
+| Fresh / empty database | Initializes directly to a validated schema 10. |
+| 0–6 | Advances to schema-7 baseline, enum backfills, schema 8, schema 9, then schema 10. |
+| 7 | Migrates to schema 8, then schema 9, then schema 10. |
+| 8 | Validates schema-8 shape, migrates to schema 9, then schema 10. |
+| 9 (valid) | Validates schema-9 shape, then applies schema-10 migration (adds StableId columns, assigns bootstrap identities). |
+| 10 (valid) | Validates schema-10 shape. Database is inspected and never mutated. |
+| 10 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
+| Greater than 10 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
+
+The schema-10 migration is transactional and rollback-safe.
+
+### Archive/source compatibility under Schema 10
+
+| Source schema | Completed portable workflow | Active portable workflow |
+| --- | --- | --- |
+| ≤9 | Supported; Completed sessions/queue rows may receive deterministic bootstrap StableIds during import | Unsupported/rejected |
+| ≥10 | Required; StableIds must be present, canonical, and unique | Required; StableIds must be present, canonical, and unique; Active workflow portability is deferred to KF-BACKUP-005B |
+
+For source ≥10 archives, transported `StableId` values are preserved unchanged. They are validated for canonical form and uniqueness before any mutation.
+
+The outer `.kfarchive` format remains version V2 (not incremented). However, Schema 10 extends the existing V2 learning-workflow DTOs with trailing nullable `StableId` fields on `BackupLearningWorkflowV2` and `BackupLearningQueueItemV2`. These fields are nullable specifically so pre-Schema10 (source ≤9) archives remain readable without carrying workflow StableIds. Source schema ≤9 may omit these StableIds where compatibility rules allow it. Source schema ≥10 requires the relevant workflow StableIds to be present and pass canonical/uniqueness validation; transported valid source ≥10 StableIds are preserved unchanged. Source schema metadata determines whether missing StableIds are legacy-compatible or invalid.
+
+### KF-BACKUP-004 LearningReview identity boundary
+
+`LearningSessionId` remains **not** part of `LearningReview` merge identity. This boundary established by KF-BACKUP-004 is unchanged by Schema 10. `LearningSessionId` is preserved as referential workflow attachment and provenance for each inserted review row. The KF-BACKUP-004 contract in the [Populated-target LearningReview merge rules](#populated-target-learningreview-merge-rules-kf-backup-004--merged-via-pr-77) section above is unaffected.
+
+### 005A Active portability exclusion
+
+KF-BACKUP-005A does not implement portable Active learning-workflow continuation. Current 005A behavior:
+
+- Portable export excludes Active `LearningSessions`/workflow rows.
+- Portable import continues rejecting unsupported Active workflow archives where applicable.
+
+Portable Active workflow export and restore is deferred to KF-BACKUP-005B. Populated-target Active workflow convergence is deferred to KF-BACKUP-005C.
+
+### Follow-up packages
+
+- **KF-BACKUP-005A** (this package): Schema-10 stable learning-workflow identity foundation. Feature-branch validated; not yet merged.
+- **KF-BACKUP-005B:** portable Active learning-workflow export and restore into an empty installation from the last durably committed application state.
+- **KF-BACKUP-005C:** populated-target Active workflow convergence and conflict safety.

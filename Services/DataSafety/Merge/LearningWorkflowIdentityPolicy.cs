@@ -123,12 +123,25 @@ public static class LearningWorkflowIdentityPolicy
         return builder.ComputeSha256Hex();
     }
 
+    /// <summary>
+    /// The logical merge identity of one archive learning workflow. From Schema 10 onward a workflow
+    /// carries its own persistent <c>StableId</c>, and that identity — not a recomputed content
+    /// fingerprint — is authoritative: it survives edits the fingerprint would not, and it is the same
+    /// value on every installation that holds the workflow. A record without one is genuinely legacy
+    /// (source schema &lt;= 9), and keeps the original Schema-8 content fingerprint so pre-Schema-10
+    /// archives still match exactly as they did before.
+    /// </summary>
     public static string ComputeSchema8SessionIdentity(
         BackupLearningWorkflowV2 session,
         IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByArchiveId)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(cardIdentitiesByArchiveId);
+
+        if (Data.Schema10.LearningWorkflowStableId.IsValid(session.StableId))
+        {
+            return session.StableId!;
+        }
 
         var orderedItems = session.QueueItems
             .OrderBy(item => item.QueueOrder)
@@ -151,12 +164,19 @@ public static class LearningWorkflowIdentityPolicy
         return builder.ComputeSha256Hex();
     }
 
+    /// <summary>Queue-row counterpart of the workflow rule above: a persisted <c>StableId</c> wins,
+    /// a genuinely legacy row keeps the Schema-8 cascade from its parent session identity.</summary>
     public static string ComputeSchema8QueueItemIdentity(
         BackupLearningQueueItemV2 item,
         string sessionIdentity,
         IReadOnlyDictionary<string, FutureCardIdentity> cardIdentitiesByArchiveId)
     {
         ArgumentNullException.ThrowIfNull(item);
+
+        if (Data.Schema10.LearningWorkflowStableId.IsValid(item.StableId))
+        {
+            return item.StableId!;
+        }
 
         var cardIdentity = ResolveFutureCardIdentity(item.CardId, cardIdentitiesByArchiveId);
         return ComputeSchema8QueueItemIdentity(sessionIdentity, cardIdentity, item.QueueOrder);

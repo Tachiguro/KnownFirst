@@ -1,6 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Schema10;
 using KnownFirst.Models;
 using SQLite;
 
@@ -65,9 +66,31 @@ public static class Schema8LearningRepository
         connection.Query<Schema8QueueTargetRow>(
             $"SELECT {QueueColumns} FROM LearningSessionCards WHERE CardId = ? AND IsCompleted = 0 ORDER BY Id", cardId);
 
+    /// <summary>
+    /// Inserts one fresh queue row. On a Schema-10 database the statement additionally supplies a fresh
+    /// <c>StableId</c>; on Schema 8/9 the identical Schema-8 column list is issued unchanged, because
+    /// those databases have no such column. The branch is decided by
+    /// <see cref="Schema10LearningIdentityWriter.HasLearningWorkflowIdentity"/> — i.e. by the physical
+    /// shape actually present — never by appending a column to a query that still runs against Schema 8.
+    /// </summary>
     public static void InsertQueueRow(
         SQLiteConnection connection, int sessionId, int cardId, int queueOrder, bool isDueCard,
-        int targetAnswerVariantId) =>
+        int targetAnswerVariantId)
+    {
+        if (Schema10LearningIdentityWriter.HasLearningWorkflowIdentity(connection))
+        {
+            connection.Execute(
+                """
+                INSERT INTO LearningSessionCards
+                    (SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked,
+                     SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId, StableId)
+                VALUES (?, ?, ?, ?, 0, 0, 0, 0, 0, NULL, NULL, ?, ?)
+                """,
+                sessionId, cardId, queueOrder, isDueCard, targetAnswerVariantId,
+                LearningWorkflowStableId.NewGuidForm());
+            return;
+        }
+
         connection.Execute(
             """
             INSERT INTO LearningSessionCards
@@ -76,6 +99,7 @@ public static class Schema8LearningRepository
             VALUES (?, ?, ?, ?, 0, 0, 0, 0, 0, NULL, NULL, ?)
             """,
             sessionId, cardId, queueOrder, isDueCard, targetAnswerVariantId);
+    }
 
     public static int CountQueueRows(SQLiteConnection connection, int sessionId) =>
         connection.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ?", sessionId);
@@ -113,8 +137,30 @@ public static class Schema8LearningRepository
             "UPDATE LearningSessionCards SET IsCompleted = 1, Rating = ?, CompletedAtUtc = ? WHERE Id = ?",
             (int)rating, completedAtUtc, queueItemId);
 
+    /// <summary>
+    /// Inserts the Again repeat of an existing queue row. The <c>INSERT ... SELECT</c> copies only the
+    /// source row's session, card and answer-variant target — on Schema 10 the new row's <c>StableId</c>
+    /// is a freshly generated parameter, never <c>SELECT StableId</c>. An Again repeat is a new queue
+    /// position: copying the source identity would collide on the unique index and, worse, would assert
+    /// that the two attempts are one.
+    /// </summary>
     public static void InsertAgainRepeatQueueRow(
-        SQLiteConnection connection, int sourceQueueItemId, int queueOrder) =>
+        SQLiteConnection connection, int sourceQueueItemId, int queueOrder)
+    {
+        if (Schema10LearningIdentityWriter.HasLearningWorkflowIdentity(connection))
+        {
+            connection.Execute(
+                """
+                INSERT INTO LearningSessionCards
+                    (SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked,
+                     SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId, StableId)
+                SELECT SessionId, CardId, ?, 0, 1, 0, 0, 0, 0, NULL, NULL, TargetAnswerVariantId, ?
+                FROM LearningSessionCards WHERE Id = ?
+                """,
+                queueOrder, LearningWorkflowStableId.NewGuidForm(), sourceQueueItemId);
+            return;
+        }
+
         connection.Execute(
             """
             INSERT INTO LearningSessionCards
@@ -124,6 +170,7 @@ public static class Schema8LearningRepository
             FROM LearningSessionCards WHERE Id = ?
             """,
             queueOrder, sourceQueueItemId);
+    }
 
     public static void DeleteQueueRow(SQLiteConnection connection, int queueItemId) =>
         connection.Execute("DELETE FROM LearningSessionCards WHERE Id = ?", queueItemId);
@@ -435,8 +482,27 @@ public static class Schema8LearningRepository
         connection.Query<Schema8SessionCounterRow>(
             $"SELECT {SessionColumns} FROM LearningSessions WHERE Id = ?", sessionId).FirstOrDefault();
 
+    /// <summary>
+    /// Starts a new Active session. On Schema 10 it receives a fresh <c>StableId</c> at creation — not at
+    /// completion — so the identity exists for the whole life of the workflow and is already immutable
+    /// before the session ever transitions to Completed.
+    /// </summary>
     public static int InsertSession(SQLiteConnection connection, DateTime startedAtUtc, int totalCards)
     {
+        if (Schema10LearningIdentityWriter.HasLearningWorkflowIdentity(connection))
+        {
+            connection.Execute(
+                """
+                INSERT INTO LearningSessions
+                    (Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount,
+                     StartedAtUtc, UpdatedAtUtc, CompletedAtUtc, StableId)
+                VALUES (?, ?, 0, 0, 0, 0, 0, ?, ?, NULL, ?)
+                """,
+                (int)LearningSessionStatus.Active, totalCards, startedAtUtc, startedAtUtc,
+                LearningWorkflowStableId.NewGuidForm());
+            return (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+        }
+
         connection.Execute(
             """
             INSERT INTO LearningSessions

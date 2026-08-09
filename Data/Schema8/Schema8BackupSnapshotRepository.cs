@@ -121,6 +121,42 @@ public static class Schema8BackupSnapshotRepository
             progress, cards, reviews, learningSessions, queueItems);
     }
 
+    /// <summary>
+    /// Returns <paramref name="snapshot"/> enriched with the Schema-10 learning-workflow identities.
+    /// Issued as its own statement against its own row model, so the Schema-8/9 capture queries above stay
+    /// byte-for-byte valid against a database that has no <c>StableId</c> column at all. Callers must have
+    /// resolved a <see cref="ValidatedSchema10Capability"/> first.
+    /// </summary>
+    public static Schema8BackupSnapshot WithSchema10LearningIdentities(
+        SQLiteConnection connection, Schema8BackupSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var sessionIds = snapshot.LearningSessions.Select(session => session.Id).ToHashSet();
+        var queueIds = snapshot.LearningSessionCards.Select(item => item.Id).ToHashSet();
+
+        return snapshot with
+        {
+            LearningSessionStableIds = ReadStableIds(connection, "LearningSessions")
+                .Where(pair => sessionIds.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value),
+            LearningQueueStableIds = ReadStableIds(connection, "LearningSessionCards")
+                .Where(pair => queueIds.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value)
+        };
+    }
+
+    private static Dictionary<int, string> ReadStableIds(SQLiteConnection connection, string table) =>
+        connection.Query<Schema10StableIdRow>($"SELECT Id, StableId FROM {table}")
+            .ToDictionary(row => row.Id, row => row.StableId);
+
+    private sealed class Schema10StableIdRow
+    {
+        public int Id { get; set; }
+
+        public string StableId { get; set; } = string.Empty;
+    }
+
     private static List<T> GetBoundedTable<T>(SQLiteConnection connection, int limit) where T : new()
     {
         var count = connection.Table<T>().Count();

@@ -1,5 +1,6 @@
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
+using KnownFirst.Data.Migrations.Schema10;
 using SQLite;
 
 namespace KnownFirst.Services.DataSafety;
@@ -45,6 +46,20 @@ public sealed class ValidatedSchema9Capability
     public const int SchemaVersion = 9;
 }
 
+/// <summary>The Schema-10 counterpart of <see cref="ValidatedSchema9Capability"/> (KF-BACKUP-005A).
+/// Schema 10 keeps Schema 9's meaning-centric data model and payload-v2 code paths exactly; it adds
+/// persistent <c>StableId</c> identity to <c>LearningSessions</c> and <c>LearningSessionCards</c>, which
+/// is why it is an honest capability of its own rather than a Schema-9 proof object — an archive written
+/// from a Schema-10 database must record source schema 10 and must carry those identities.</summary>
+public sealed class ValidatedSchema10Capability
+{
+    internal ValidatedSchema10Capability()
+    {
+    }
+
+    public const int SchemaVersion = 10;
+}
+
 public abstract record BackupSchemaCapabilityResult;
 
 public sealed record Schema7CapabilityResult(ValidatedSchema7Capability Capability) : BackupSchemaCapabilityResult;
@@ -52,6 +67,8 @@ public sealed record Schema7CapabilityResult(ValidatedSchema7Capability Capabili
 public sealed record Schema8CapabilityResult(ValidatedSchema8Capability Capability) : BackupSchemaCapabilityResult;
 
 public sealed record Schema9CapabilityResult(ValidatedSchema9Capability Capability) : BackupSchemaCapabilityResult;
+
+public sealed record Schema10CapabilityResult(ValidatedSchema10Capability Capability) : BackupSchemaCapabilityResult;
 
 /// <summary>
 /// Thrown by <see cref="BackupSchemaCapability.Resolve"/> for every rejection case: an unsupported
@@ -77,7 +94,7 @@ public sealed class BackupSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
-        : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7, 8, and 9 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7, 8, 9, and 10 are accepted.";
 }
 
 /// <summary>
@@ -121,6 +138,14 @@ public static class BackupSchemaCapability
                 }
 
                 return new Schema9CapabilityResult(new ValidatedSchema9Capability());
+
+            case ValidatedSchema10Capability.SchemaVersion:
+                if (!Schema10ShapeValidator.IsValidDatabase(connection, out _))
+                {
+                    throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: true);
+                }
+
+                return new Schema10CapabilityResult(new ValidatedSchema10Capability());
 
             default:
                 throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: false);

@@ -53,7 +53,7 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var capability = BackupSchemaCapability.Resolve(connection);
-                if (capability is not (Schema8CapabilityResult or Schema9CapabilityResult))
+                if (capability is not (Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult))
                 {
                     return new MergeWriteResult(MergeWriteStatus.Failed, MergeWriterErrorCodes.TargetNotSchema8);
                 }
@@ -66,6 +66,13 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
 
                 var targetSnapshot = captureResult.Snapshot
                     ?? throw new InvalidOperationException("Snapshot capture reported success without a snapshot.");
+
+                // Same enrichment the preflight capture performs, so the plan recomputed below is built
+                // over identical target identities and a Schema-10 target's rows match by StableId.
+                if (capability is Schema10CapabilityResult)
+                {
+                    targetSnapshot = Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, targetSnapshot);
+                }
 
                 cancellationToken.ThrowIfCancellationRequested();
                 var targetPayload = BackupModelMapperV2.MapToExternal(targetSnapshot);

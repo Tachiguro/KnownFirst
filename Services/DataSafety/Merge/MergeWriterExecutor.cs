@@ -2,6 +2,7 @@ using System.Globalization;
 using KnownFirst.Core.Learning;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Schema8;
+using KnownFirst.Data.Schema10;
 using KnownFirst.Models.Backup;
 using SQLite;
 
@@ -718,27 +719,27 @@ internal sealed class MergeWriterExecutor
     // ---- 11c. LearningWorkflow + LearningQueueItem ----
     private void WriteLearningWorkflows()
     {
+        // Same resolution the restore-into-empty path uses: an archive-supplied identity is preserved,
+        // a legacy archive's Completed workflow is deterministically reconstructed. Rows classified as
+        // anything other than New already exist in the target and keep the identity they were migrated
+        // or created with — a merge never rewrites an assigned StableId.
+        var archiveStableIds = LearningWorkflowStableIdArchiveResolver.Resolve(_archive);
+
         foreach (var source in _archive.Workflows.LearningSessions)
         {
             var action = GetAction(MergeEntityKind.LearningWorkflow, source.Id);
             int sessionId;
             if (action.Classification == MergeEntityClassification.New)
             {
-                var session = new LearningSessionEntity
-                {
-                    Status = BackupEnumMappings.ToPersistence(source.Status),
-                    TotalCards = source.TotalCards,
-                    CompletedCards = source.CompletedCards,
-                    AgainCount = source.AgainCount,
-                    HardCount = source.HardCount,
-                    GoodCount = source.GoodCount,
-                    EasyCount = source.EasyCount,
-                    StartedAtUtc = source.StartedAtUtc,
-                    UpdatedAtUtc = source.UpdatedAtUtc,
-                    CompletedAtUtc = source.CompletedAtUtc
-                };
-                Insert(session);
-                sessionId = session.Id;
+                var sessionInsert = Schema10LearningIdentityWriter.BuildSessionInsert(
+                    _connection,
+                    (int)BackupEnumMappings.ToPersistence(source.Status),
+                    source.TotalCards, source.CompletedCards, source.AgainCount, source.HardCount,
+                    source.GoodCount, source.EasyCount, source.StartedAtUtc, source.UpdatedAtUtc,
+                    source.CompletedAtUtc,
+                    archiveStableIds.WorkflowStableIdsByArchiveId.GetValueOrDefault(source.Id));
+                InsertRaw(sessionInsert.Sql, sessionInsert.Arguments);
+                sessionId = (int)_connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
             }
             else
             {
@@ -755,18 +756,16 @@ internal sealed class MergeWriterExecutor
                     continue;
                 }
 
-                InsertRaw(
-                    """
-                    INSERT INTO LearningSessionCards
-                        (SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked,
-                         SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                var queueInsert = Schema10LearningIdentityWriter.BuildQueueInsert(
+                    _connection,
                     sessionId, RequireId(_cardIds, item.CardId), item.QueueOrder, item.IsDueCard,
                     item.IsAgainRepeat, item.AnswerRevealed, item.SpellingChecked, item.SpellingCorrect,
-                    item.IsCompleted, item.Rating is null ? null : (int?)BackupEnumMappings.ToPersistence(item.Rating.Value),
+                    item.IsCompleted,
+                    item.Rating is null ? null : (int?)BackupEnumMappings.ToPersistence(item.Rating.Value),
                     item.CompletedAtUtc,
-                    item.TargetAnswerVariantId is null ? null : (int?)RequireId(_variantIds, item.TargetAnswerVariantId));
+                    item.TargetAnswerVariantId is null ? null : (int?)RequireId(_variantIds, item.TargetAnswerVariantId),
+                    archiveStableIds.QueueStableIdsByArchiveId.GetValueOrDefault(item.Id));
+                InsertRaw(queueInsert.Sql, queueInsert.Arguments);
             }
         }
     }

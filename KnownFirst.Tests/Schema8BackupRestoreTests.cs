@@ -4,6 +4,7 @@ using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
+using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
@@ -253,9 +254,14 @@ public sealed class Schema8BackupRestoreTests
     /// <summary>
     /// The restored database is a valid pinned Schema-8 database. Reopening it through
     /// <see cref="DatabaseSchema.InitializeAsync"/> is ordinary current-schema initialization and legitimately
-    /// migrates it to <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9) — so this proves the durable-data
-    /// contract (every restored row, keyed by table, survives byte-for-byte) rather than a full schema-level
-    /// snapshot, which would wrongly fail on the expected user_version bump and ReviewSessions index migration.
+    /// migrates it to <see cref="DatabaseSchema.CurrentVersion"/> — so this proves the durable-data contract
+    /// (every restored row, keyed by table, survives byte-for-byte) rather than a full schema-level snapshot,
+    /// which would wrongly fail on the expected user_version bump and ReviewSessions index migration.
+    /// <para>The row comparison tolerates exactly the two additive Schema-10 learning-workflow identity
+    /// columns and nothing else: every durable table stays in the comparison, row cardinality and every
+    /// pre-Schema-10 column value must still match byte-for-byte, and the identity columns the migration
+    /// adds are separately proven present, unique, and canonical by <see cref="Schema10ShapeValidator"/>
+    /// below.</para>
     /// </summary>
     private static async Task AssertNormalReopenPreservesCompleteUserDataAsync(Schema7Fixture fixture)
     {
@@ -268,7 +274,8 @@ public sealed class Schema8BackupRestoreTests
         var beforeConnection = new SQLiteAsyncConnection(fixture.DatabasePath);
         try
         {
-            before = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(beforeConnection, DurableSchema8TableNames);
+            before = await PersistentDatabaseSnapshot.CaptureTableRowsIgnoringAdditiveColumnsAsync(
+                beforeConnection, Schema10AdditiveIdentityColumns, DurableSchema8TableNames);
         }
         finally
         {
@@ -289,14 +296,26 @@ public sealed class Schema8BackupRestoreTests
         var validShape = false;
         string? shapeFailureDetail = null;
         await reopened.RunInTransactionAsync(connection =>
-            validShape = Schema9ShapeValidator.IsValidDatabase(connection, out shapeFailureDetail));
+            validShape = Schema10ShapeValidator.IsValidDatabase(connection, out shapeFailureDetail));
         Assert.IsTrue(validShape, shapeFailureDetail);
 
-        var after = await PersistentDatabaseSnapshot.CaptureTableRowsAsync(reopened, DurableSchema8TableNames);
+        var after = await PersistentDatabaseSnapshot.CaptureTableRowsIgnoringAdditiveColumnsAsync(
+            reopened, Schema10AdditiveIdentityColumns, DurableSchema8TableNames);
         await reopened.CloseAsync();
 
         CollectionAssert.AreEqual(before, after);
     }
+
+    /// <summary>
+    /// The complete, explicit tolerance set for <see cref="AssertNormalReopenPreservesCompleteUserDataAsync"/>:
+    /// only the two columns the additive Schema-10 migration introduces. Any other column difference — on
+    /// these tables or any other durable table — still fails the comparison.
+    /// </summary>
+    private static readonly SnapshotToleratedAdditiveColumn[] Schema10AdditiveIdentityColumns =
+    [
+        new("LearningSessions", "StableId"),
+        new("LearningSessionCards", "StableId")
+    ];
 
     private static readonly string[] DurableSchema8TableNames =
     [

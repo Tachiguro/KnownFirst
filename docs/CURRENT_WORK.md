@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-08 (PR #77 merged and synchronized; KF-BACKUP-004 complete on `master`; post-merge documentation closure active)
+2026-08-09 (PR #78 merged and synchronized; KF-BACKUP-004 post-merge documentation closure complete on `master`; KF-BACKUP-005A feature-branch implementation verified; documentation reconciliation active)
 
 ## Repository
 
@@ -46,46 +46,76 @@
 - **PR #75 — Standing Delegation Governance Reconciliation:** reconciled `AGENTS.md`, [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md), [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md), [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), and this file with the user's standing orchestration delegation for the routine `PLAN_ONLY`-through-`PR_ONLY` lifecycle; merge commit `666aa165b071886940ac7ce1b86de9ae2e11c73a`. `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #76 — `KF-BACKUP-003` Package D (Schema-9 portable workflow canonical ordering):** made `BackupModelMapperV2`'s v2 export ordering for completed `PreparationSessions`/`PreparationCandidates`, `LearningSessions`/`LearningSessionCards`, and `LearningReviews` total over emitted content instead of falling through to installation-local SQLite row order; merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`. `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #77 — `KF-BACKUP-004` (Schema-9 LearningReview merge integrity):** positional action lookup keys (`lr#<archiveRowIndex>`), meaning-aware review-event identity incorporating stable nullable `TargetAnswerVariant`/`MatchedAnswerVariant` identities, and scheduler replay alignment; `LearningSessionId` deliberately excluded from event identity; merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`. `POST_MERGE_SYNC_ONLY` completed successfully.
+- **PR #78 — `KF-BACKUP-004` Post-Merge Documentation Closure:** reconciled `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `BACKLOG.md`, `DATABASE_CONTRACT.md`, and `docs/architecture/backup-merge-v1-design.md` with the merged `KF-BACKUP-004` state on `master`; merge commit `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`. `POST_MERGE_SYNC_ONLY` completed successfully.
 
 ## Currently active package
 
-**Milestone 14 product/source work is complete: Milestone 14B was manually merged via PR #73** (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`). The Milestone 14B post-merge documentation closure was manually merged via PR #74 (merge commit `27ebb9aed301dfce424e4c713a9e7d8aa56bf95b`). The Standing Delegation Governance Reconciliation was manually merged via PR #75 (merge commit `666aa165b071886940ac7ce1b86de9ae2e11c73a`); `POST_MERGE_SYNC_ONLY` for PR #75 completed successfully, and local `master` is fast-forwarded to that commit.
+**`KF-BACKUP-004` Post-Merge Documentation Closure is complete on `master`.** It was manually merged via PR #78 (merge commit `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`); `POST_MERGE_SYNC_ONLY` completed successfully. This was a bounded six-file documentation-only package reconciling `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `BACKLOG.md`, `DATABASE_CONTRACT.md`, and `docs/architecture/backup-merge-v1-design.md` with the merged `KF-BACKUP-004` state on `master`.
 
-**`KF-BACKUP-003` Package D — Schema-9 Portable Workflow Canonical Ordering is complete on `master`.** It was manually merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`); the final PR re-review approved it with `0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT`, and `POST_MERGE_SYNC_ONLY` completed successfully. Its evidence remains: focused RED `56 passed / 4 failed / 0 skipped / 60 total` → GREEN `60 passed / 0 failed / 0 skipped / 60 total`; broader data-safety `TEST_ONLY` `376 passed / 0 failed / 0 skipped`; `ALL_AUTOMATED` `1786 passed / 0 failed / 0 skipped`. Package D changed only `Services/DataSafety/BackupModelMapperV2.cs` plus two test files, with no archive DTO, `.kfarchive` format version, schema, migration, merge-identity, import-routing, public error/status-code, GUI, build, package, or release change. See [architecture/backup-merge-v1-design.md](architecture/backup-merge-v1-design.md) §21.
+---
 
-**`KF-BACKUP-004` — Schema-9 LearningReview Merge Integrity is complete on `master`.** It was manually merged via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`); the final PR review approved it with `0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT`, and `POST_MERGE_SYNC_ONLY` completed successfully. Its evidence remains: focused RED `114 passed / 7 failed / 0 skipped / 121 total` → GREEN `121 passed / 0 failed / 0 skipped / 121 total`; broader data-safety `TEST_ONLY` `348 passed / 0 failed / 0 skipped`; `ALL_AUTOMATED` `1795 passed / 0 failed / 0 skipped`. Scope was three production files (`Services/DataSafety/Merge/MergePreflightPlannerV2.cs`, `Services/DataSafety/Merge/MergeWriterExecutor.cs`, `Services/DataSafety/Merge/Schema9LearningReviewMergeIdentity.cs`) plus three test files (`KnownFirst.Tests/MergePreflightPlannerTests.cs`, `KnownFirst.Tests/MergeWriterServiceTests.cs`, `KnownFirst.Tests/PortableImportEndToEndConvergenceTests.cs`). No archive DTO, format version, database schema, migration, public error/status code, import-UI, or Package D mapper-ordering change. See [architecture/backup-merge-v1-design.md](architecture/backup-merge-v1-design.md) §22 and [BACKLOG.md](BACKLOG.md) `KF-BACKUP-004`.
+**The currently active package is `KF-BACKUP-005A` — Schema-10 Stable Learning-Workflow Identity Foundation** on branch `feature/schema10-stable-learning-workflow-identity-v1`.
 
-**The currently active package is the `KF-BACKUP-004` Post-Merge Documentation Closure** on branch `docs/kf-backup-004-post-merge-closure-v1`, reconciling `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `BACKLOG.md`, `DATABASE_CONTRACT.md`, and `docs/architecture/backup-merge-v1-design.md` with the merged state on `master`.
-- This is a bounded six-file documentation-only package.
-- Live Git and GitHub state governs its routine lifecycle (`REVIEW_ONLY` → `COMMIT_ONLY` → `PUSH_ONLY` → `PR_ONLY` → final `REVIEW_ONLY` → manual owner merge → `POST_MERGE_SYNC_ONLY`).
-- After this documentation closure is merged and synchronized, no new engineering package is automatically started; the next active task is chosen from the remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, mid-session review-event export policy, `Learning.Cards`/Sense `StableId` cross-installation ordering, legacy v1 planner synthesized label) or explicit user direction.
+### Feature-branch state (NOT yet merged to master)
 
-Milestone 14A history is unaffected: it passed final PR review, was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`), and `POST_MERGE_SYNC_ONLY` completed successfully. Package A/B/C history is likewise unaffected: Package A merged via PR #52; Package B merged via PR #65 (merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`); Package C merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`), with final local automated evidence `1776 passed / 0 failed / 0 skipped`.
+> **Important:** The following describes the state of the local feature branch only. Current GitHub `master` remains `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931` (the PR #78 merge commit) — the pre-005A Schema-9 baseline. Schema 10 is active on the feature branch only and is not yet merged.
+
+**Implementation status:** Complete and fully validated on the feature branch.
+
+- `DatabaseSchema.CurrentVersion` advances to **10** on the feature branch.
+- Schema 10 introduces immutable `StableId` columns on `LearningSessions` and `LearningSessionCards`.
+- Legacy Completed learning sessions receive deterministic SHA-256 64-character StableIds on migration.
+- Legacy Active learning sessions receive fresh GUID 32-character StableIds once on migration.
+- Archive/source compatibility: source ≤9 Completed portable workflows may receive bootstrap StableIds; source ≤9 Active portable workflows remain unsupported/rejected; source ≥10 workflows require valid StableIds.
+- `LearningSessionId` exclusion from `LearningReview` merge identity (established by KF-BACKUP-004) is preserved and unchanged.
+- **Portability boundary:** Active learning-workflow portable continuation is explicitly excluded from 005A scope.
+
+**Validation evidence (feature branch, not master):**
+
+- Final `ALL_AUTOMATED`: **1812 passed / 0 failed / 0 skipped / 1812 total** (`dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj -c Debug`; duration: 9m 18s).
+- Focused five-class correction scope: 215 passed / 0 failed / 0 skipped / 215 total.
+- Original Stage-1 scope: 845 passed / 0 failed / 0 skipped / 845 total.
+- Wikipedia architecture sentinel: 7 passed / 0 failed / 0 skipped / 7 total.
+- Focused Windows Debug launcher build: **success** (`.\scripts\knownfirst.ps1 -Action WindowsBuild -Configuration Debug -Force`, exit code 0, 0 errors). Output: `bin\Debug\net10.0-windows10.0.19041.0\win-x64\KnownFirst.dll`.
+  - Note: this build also validated the separately identified inherited master-baseline `CS0542` compile defect in `Components/Pages/ReleaseNotes.razor`, which was corrected in-place on this branch because it blocked the Windows build. That correction is an inherited baseline fix, not a Schema-10 feature.
+- **Not yet validated:** Windows Release build, Android Debug/Release builds, candidate-commit `ValidateAll`, rendered GUI behavior, APK/AAB, platform/device, Active portable resume.
+
+**Lifecycle state:**
+
+- Branch is uncommitted beyond HEAD `e3511ba6...` — no feature commit exists yet.
+- No PR is open.
+- Documentation reconciliation (`DOCUMENT_ONLY`) is the active lifecycle phase.
+- Candidate `ValidateAll` (`.\scripts\knownfirst.ps1 -Action ValidateAll`) is required after `COMMIT_ONLY` before `PUSH_ONLY`/`PR_ONLY`.
+
+**Deferred follow-ups:**
+
+- **KF-BACKUP-005B:** portable Active learning-workflow export and restore into an empty installation from the last durably committed application state.
+- **KF-BACKUP-005C:** populated-target Active workflow convergence and conflict safety.
+
+Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and their respective documentation closures are all complete and merged on `master`; their history is unaffected.
 
 ## Current blocker or pending validation
 
-- None for Milestone 14B, its post-merge documentation closure, or the Standing Delegation Governance Reconciliation: all completed their full lifecycle.
-- Milestone 14 as a whole remains complete on `master`.
-- None for `KF-BACKUP-003` Package D: completed its full lifecycle and merged via PR #76 (`17d3f1a031b9f319041ff1034a227d17b1029c4f`).
-- None for `KF-BACKUP-004`: completed its full lifecycle and merged via PR #77 (`bec861fb8a054beb2804f1132b450da1e45dee90`), with `POST_MERGE_SYNC_ONLY` completed successfully.
-- Active documentation closure (`docs/kf-backup-004-post-merge-closure-v1`): pending standard review, commit, push, PR, manual merge, and sync lifecycle.
-- Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior of Package D and of `KF-BACKUP-004` remains unproven and out of scope for this initiative; the same is true of the Milestone 14B history page and Settings entry point, which belongs to separately authorized manual/GUI verification and the future pre-AAB validation gate in [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
-- No Beta 13, build, packaging, signing, publishing, store, or device activity has occurred, and no such task is active.
+- None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, or the KF-BACKUP-004 post-merge documentation closure (PR #78): all completed their full lifecycle on `master`.
+- **KF-BACKUP-005A (feature branch `feature/schema10-stable-learning-workflow-identity-v1`):** implementation and automated validation are complete. The active blocker is: documentation reconciliation (`DOCUMENT_ONLY`) must complete, then `REVIEW_ONLY` → `COMMIT_ONLY` → candidate `ValidateAll` → `PUSH_ONLY` → `PR_ONLY` → manual owner merge → `POST_MERGE_SYNC_ONLY`.
+- Candidate `ValidateAll` has not yet been executed against a clean committed candidate SHA.
+- Windows Release, Android Debug/Release builds, and candidate `ValidateAll` remain unvalidated.
+- Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior remains unproven and out of scope for 005A; the same is true of the Milestone 14B history page, which belongs to separately authorized manual/GUI verification.
+- No Beta 13, build, packaging, signing, publishing, or device activity has occurred, and no such task is active.
 
 ## Exact next action
 
-- **State-driven next action for the `docs/kf-backup-004-post-merge-closure-v1` package:** determine the first incomplete step from live Git and GitHub state. If uncommitted in working tree, independent `REVIEW_ONLY` over the six-file diff is next, followed by `COMMIT_ONLY` → `PUSH_ONLY` → `PR_ONLY` → final `REVIEW_ONLY` → manual owner PR merge on GitHub → `POST_MERGE_SYNC_ONLY`.
-- If this documentation package is already merged and synchronized when this document is read, the next authorized engineering task is determined from live roadmap and repository state (see [ROADMAP.md](ROADMAP.md) priority 15 residuals and beyond) rather than from this description.
+- **State-driven next action for `KF-BACKUP-005A`:** determine the first incomplete step from live Git and GitHub state. Current lifecycle state: `DOCUMENT_ONLY` active → `REVIEW_ONLY` → `COMMIT_ONLY` → candidate `ValidateAll` → `PUSH_ONLY` → `PR_ONLY` → final `REVIEW_ONLY` → manual owner PR merge on GitHub → `POST_MERGE_SYNC_ONLY`.
+- After 005A is merged and synchronized, remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, mid-session review-event export policy, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue before Priority-16 automated GUI validation. KF-BACKUP-005B and 005C follow after 005A.
 - Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
 
 - Most recent recorded product-relevant milestone on `master`: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged).
-- Current `master` baseline: `bec861fb8a054beb2804f1132b450da1e45dee90` (PR #77 merge commit). Discover literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
-- `DatabaseSchema.CurrentVersion` is 9 and Schema 9 is active on master.
+- Current `master` baseline: `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931` (PR #78 merge commit — KF-BACKUP-004 post-merge documentation closure). Discover literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active on `master`. Schema 10 exists on the active feature branch `feature/schema10-stable-learning-workflow-identity-v1` only — not yet merged.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
-- D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), and KF-BACKUP-004 (PR #77) are complete and merged on master.
-- `KF-BACKUP-004` (Schema-9 LearningReview merge integrity) is **complete and merged** via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`); final PR review approved it `0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT` and `POST_MERGE_SYNC_ONLY` completed successfully. Its evidence: RED `114/7/0/121` → GREEN `121/0/0/121`; `TEST_ONLY` `348/0/0`; `ALL_AUTOMATED` `1795/0/0`.
-- The active task is the six-file post-merge documentation closure (`docs/kf-backup-004-post-merge-closure-v1`). Discover its exact lifecycle state from live Git/GitHub state.
-- After post-merge documentation closure is merged, remaining Priority 15 residuals (`LegacyReviewSummaries` ordering, mid-session review-event export policy, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) remain open before Priority 16 automated GUI validation.
+- D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), and the KF-BACKUP-004 post-merge documentation closure (PR #78) are complete and merged on `master`.
+- **Active package: `KF-BACKUP-005A`** — Schema-10 stable learning-workflow identity foundation — on feature branch `feature/schema10-stable-learning-workflow-identity-v1`. Implementation verified (`ALL_AUTOMATED` 1812/0/0; Windows Debug build green). Lifecycle state: `DOCUMENT_ONLY` active. Discover exact branch/PR state from live Git/GitHub.
+- After 005A is merged, remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, mid-session review-event export policy, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue, followed by KF-BACKUP-005B and 005C.
 - No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.

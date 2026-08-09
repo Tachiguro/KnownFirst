@@ -76,9 +76,9 @@ public class WikipediaArchitectureTests
 
 
     [TestMethod]
-    public void Architecture_SchemaVersionIsCurrentSchema9()
+    public void Architecture_SchemaVersionIsCurrentSchema10()
     {
-        Assert.AreEqual(9, DatabaseSchema.CurrentVersion);
+        Assert.AreEqual(10, DatabaseSchema.CurrentVersion);
     }
 
     private static void AssertForbidden(IEnumerable<(string Path, string Text)> files, string forbidden)

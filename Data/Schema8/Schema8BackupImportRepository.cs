@@ -1,6 +1,8 @@
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Schema10;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
+using KnownFirst.Services.DataSafety.Merge;
 using SQLite;
 
 namespace KnownFirst.Data.Schema8;
@@ -407,40 +409,41 @@ public static class Schema8BackupImportRepository
             }
         }
 
+        // Persistent learning-workflow identities for the incoming archive: preserved when the archive
+        // carries them (Schema-10 source), deterministically reconstructed when it does not (legacy
+        // Schema-8/9 source, whose portable workflows are Completed). Resolved once, before the first
+        // insert, so a session and its queue rows can never disagree about which identity they belong to.
+        var archiveStableIds = LearningWorkflowStableIdArchiveResolver.Resolve(payload);
+
         foreach (var source in payload.Workflows.LearningSessions)
         {
-            var session = new LearningSessionEntity
-            {
-                Status = BackupEnumMappings.ToPersistence(source.Status),
-                TotalCards = source.TotalCards,
-                CompletedCards = source.CompletedCards,
-                AgainCount = source.AgainCount,
-                HardCount = source.HardCount,
-                GoodCount = source.GoodCount,
-                EasyCount = source.EasyCount,
-                StartedAtUtc = source.StartedAtUtc,
-                UpdatedAtUtc = source.UpdatedAtUtc,
-                CompletedAtUtc = source.CompletedAtUtc
-            };
-            Insert(connection, session, cancellationToken, failureInjector, ref mutationCount);
-            learningSessionIds.Add(source.Id, session.Id);
+            var sessionInsert = Schema10LearningIdentityWriter.BuildSessionInsert(
+                connection,
+                (int)BackupEnumMappings.ToPersistence(source.Status),
+                source.TotalCards, source.CompletedCards, source.AgainCount, source.HardCount,
+                source.GoodCount, source.EasyCount, source.StartedAtUtc, source.UpdatedAtUtc,
+                source.CompletedAtUtc,
+                archiveStableIds.WorkflowStableIdsByArchiveId.GetValueOrDefault(source.Id));
+            InsertRaw(
+                connection, sessionInsert.Sql, cancellationToken, failureInjector, ref mutationCount,
+                sessionInsert.Arguments);
+            var sessionId = (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+            learningSessionIds.Add(source.Id, sessionId);
 
             foreach (var sourceItem in source.QueueItems.OrderBy(item => item.QueueOrder))
             {
-                InsertRaw(
+                var queueInsert = Schema10LearningIdentityWriter.BuildQueueInsert(
                     connection,
-                    """
-                    INSERT INTO LearningSessionCards
-                        (SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked,
-                         SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    cancellationToken, failureInjector, ref mutationCount,
-                    session.Id, RequireId(cardIds, sourceItem.CardId), sourceItem.QueueOrder, sourceItem.IsDueCard,
-                    sourceItem.IsAgainRepeat, sourceItem.AnswerRevealed, sourceItem.SpellingChecked, sourceItem.SpellingCorrect,
-                    sourceItem.IsCompleted, sourceItem.Rating is null ? null : (int?)BackupEnumMappings.ToPersistence(sourceItem.Rating.Value),
+                    sessionId, RequireId(cardIds, sourceItem.CardId), sourceItem.QueueOrder, sourceItem.IsDueCard,
+                    sourceItem.IsAgainRepeat, sourceItem.AnswerRevealed, sourceItem.SpellingChecked,
+                    sourceItem.SpellingCorrect, sourceItem.IsCompleted,
+                    sourceItem.Rating is null ? null : (int?)BackupEnumMappings.ToPersistence(sourceItem.Rating.Value),
                     sourceItem.CompletedAtUtc,
-                    sourceItem.TargetAnswerVariantId is null ? null : (int?)RequireId(variantIds, sourceItem.TargetAnswerVariantId));
+                    sourceItem.TargetAnswerVariantId is null ? null : (int?)RequireId(variantIds, sourceItem.TargetAnswerVariantId),
+                    archiveStableIds.QueueStableIdsByArchiveId.GetValueOrDefault(sourceItem.Id));
+                InsertRaw(
+                    connection, queueInsert.Sql, cancellationToken, failureInjector, ref mutationCount,
+                    queueInsert.Arguments);
             }
         }
 

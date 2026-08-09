@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-08
+**Status date:** 2026-08-09
 **State source:** most recent product-relevant milestone — `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73 merge commit, Milestone 14B). This is historical milestone evidence, not the literal current `master` HEAD; the exact current `master` HEAD and PR state are live GitHub/Git facts discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
-**Next repository action:** None automatically authorized; Milestone 14 is complete and awaits explicit user direction on the next work package. Milestone 14A (explicit removal of the unfinished Support KnownFirst and Report a bug controls and their placeholder behavior) passed final PR review and was merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) — `master` now carries the Milestone 14A change, and `POST_MERGE_SYNC_ONLY` completed successfully. Milestone 14B (reopenable release-note history) passed final PR review and was manually merged via PR #73 (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`); `POST_MERGE_SYNC_ONLY` completed successfully. Milestone 14 is therefore complete. Package C (convergence hardening) was previously implemented, independently reviewed and corrected, `TEST_ONLY`-validated (`ALL_AUTOMATED` 1776/0/0), and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`).
+**Next repository action:** None automatically authorized. `KF-BACKUP-005A` (Schema-10 stable learning-workflow identity foundation) is implemented and validated on feature branch `feature/schema10-stable-learning-workflow-identity-v1`; its documentation reconciliation is active. The next action is determined from live Git/GitHub state.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -110,7 +110,22 @@ The `master` branch includes the following merged technical foundations:
 - Package A, Package B, and Package C are merged to master. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
 - Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`) — see "Active development" below for its technical evidence. It is part of this `master` snapshot.
 - Milestone 14A and Milestone 14B are both merged (PR #71, merge commit `39609ffffb39c69238882172d153f4bb795ddab8`; PR #73, merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`). Milestone 14 as a whole is complete on `master`. `POST_MERGE_SYNC_ONLY` completed successfully for both.
-- KF-BACKUP-003 Package D is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`) and KF-BACKUP-004 is merged via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`); `POST_MERGE_SYNC_ONLY` completed successfully for both, and both are part of this `master` snapshot. Remaining portable-integrity residuals continue under active development (see [ROADMAP.md](ROADMAP.md) priority 15 and [CURRENT_WORK.md](CURRENT_WORK.md)).
+- KF-BACKUP-003 Package D is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`) and KF-BACKUP-004 is merged via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`); `POST_MERGE_SYNC_ONLY` completed successfully for both, and both are part of this `master` snapshot.
+- The KF-BACKUP-004 post-merge documentation closure is merged via PR #78 (merge commit `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`); `POST_MERGE_SYNC_ONLY` completed successfully. Current `master` HEAD is `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`.
+
+**KF-BACKUP-005A — Feature-Branch State (NOT yet merged to master):**
+
+> Schema 10 is implemented and verified on feature branch `feature/schema10-stable-learning-workflow-identity-v1` only. It is not merged to `master`. Master remains Schema 9.
+
+- `DatabaseSchema.CurrentVersion` is **10** on the feature branch; fresh initialization reaches Schema 10; databases from versions 0–9 advance through the migration chain to Schema 10.
+- Schema 10 introduces immutable `StableId` columns on `LearningSessions` and `LearningSessionCards`.
+- Legacy Completed learning sessions receive deterministic SHA-256 64-character StableIds on migration.
+- Legacy Active learning sessions receive fresh GUID 32-character StableIds once on migration.
+- StableId identity is immutable after assignment; canonical form is lowercase hexadecimal, exact length 32 (GUID) or 64 (SHA-256).
+- Archive/source compatibility: source ≤9 Completed portable workflows may receive bootstrap StableIds; source ≤9 Active portable workflows remain unsupported/rejected; source ≥10 workflows require valid StableIds.
+- `LearningSessionId` is **not** part of `LearningReview` merge identity (KF-BACKUP-004 contract unchanged).
+- **Active portable-workflow continuation is explicitly excluded from 005A scope** (reserved for KF-BACKUP-005B/C).
+- Feature-branch validation evidence: `ALL_AUTOMATED` **1812 passed / 0 failed / 0 skipped** (`dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj -c Debug`); focused Windows Debug build **green** (`bin\Debug\net10.0-windows10.0.19041.0\win-x64\KnownFirst.dll`, exit code 0, 0 errors). Windows Release, Android builds, candidate `ValidateAll`, rendered GUI, and APK/AAB remain unvalidated.
 
 ## Confirmed verification
 
@@ -128,8 +143,9 @@ The `master` branch includes the following merged technical foundations:
 - Storage is local SQLite in the application data directory (`knownfirst.db3`).
 - On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **9**.
 - Schema 9 is active in real application databases on master.
+- On the active feature branch `feature/schema10-stable-learning-workflow-identity-v1`, `DatabaseSchema.CurrentVersion` is **10** (not yet merged; see "Active development" below).
 - Initialization is forward-oriented and preserves existing rows while adding supported tables or columns.
-- The initialization sequence advances fresh or legacy baseline databases to Schema 7, applies the Schema 8 migration, and then applies the Schema 9 migration.
+- The initialization sequence on master advances fresh or legacy baseline databases to Schema 7, applies the Schema 8 migration, and then applies the Schema 9 migration.
 - Initialization reads `PRAGMA user_version` first and rejects any version greater than the current version before modifying tables or cache.
 - Complete persisted-data rules are in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md).
 - Portable recovery format v1 is documented in [architecture/backup-format-v1.md](architecture/backup-format-v1.md).

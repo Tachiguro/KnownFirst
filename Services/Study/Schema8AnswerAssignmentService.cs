@@ -88,7 +88,7 @@ public sealed class Schema8AnswerAssignmentService
         }
 
         // ---- 2. Capability and physical shape (fail-closed before anything is read semantically) ----
-        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema8CapabilityResult or LearningSchema9CapabilityResult))
+        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult))
         {
             throw Schema8LearningDataException.Create(
                 Schema8LearningDataErrorCode.InvalidCardGraph,

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-09 (KF-BACKUP-005A Post-Merge Documentation Closure active on master)
+2026-08-09 (KF-BACKUP-005A merged; post-merge documentation reconciliation finalized in this closure package; resolve live closure PR/merge/sync state from GitHub)
 
 ## Repository
 
@@ -51,13 +51,11 @@
 
 ## Currently active package
 
-**`KF-BACKUP-005A` is complete and merged on `master`.** It was manually merged via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully.
+**`KF-BACKUP-005A` is complete and merged on `master`** via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully.
 
----
+This tracked documentation closure package finalizes the post-merge documentation reconciliation (`CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `BACKLOG.md`, `DATABASE_CONTRACT.md`, and `docs/architecture/backup-merge-v1-design.md`) for Schema 10 on `master`.
 
-**The currently active package is `KF-BACKUP-005A` Post-Merge Documentation Closure** on branch `docs/kf-backup-005a-post-merge-closure-v1`.
-
-This is a bounded six-file documentation-only package reconciling `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `BACKLOG.md`, `DATABASE_CONTRACT.md`, and `docs/architecture/backup-merge-v1-design.md` with the merged `KF-BACKUP-005A` Schema-10 state on `master`.
+No subsequent implementation package is recorded as active by this closure; **`KF-BACKUP-005B`** is the next bounded development package once the closure PR lifecycle is complete. Resolve PR #80 review/merge/synchronization state dynamically from live GitHub and repository state.
 
 ### Merged Schema-10 capabilities on master
 
@@ -92,14 +90,14 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 ## Current blocker or pending validation
 
 - None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), or KF-BACKUP-005A (PR #79): all completed their full lifecycle on `master`.
-- **Active task:** `KF-BACKUP-005A Post-Merge Documentation Closure` (`DOCUMENT_ONLY` → `REVIEW_ONLY` → `COMMIT_ONLY` → `PUSH_ONLY` → `PR_ONLY` → final `REVIEW_ONLY` → manual owner merge on GitHub → `POST_MERGE_SYNC_ONLY`).
+- No known implementation, test, or build blocker remains for KF-BACKUP-005A or its documentation reconciliation. No new executable validation is pending for this documentation-only closure package.
+- Resolve exact closure repository lifecycle state (PR #80 review, manual merge, post-merge sync) dynamically from live GitHub and local repository state. Once closure merge/sync is complete, KF-BACKUP-005B is next.
 - Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior remains unproven and out of scope.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation did occur through the canonical candidate `ValidateAll` gate.
 
 ## Exact next action
 
-- **State-driven next action:** execute the post-merge documentation closure lifecycle for `KF-BACKUP-005A` (`DOCUMENT_ONLY` → `REVIEW_ONLY` → `COMMIT_ONLY` → `PUSH_ONLY` → `PR_ONLY` → final `REVIEW_ONLY` → manual owner PR merge on GitHub → `POST_MERGE_SYNC_ONLY`).
-- After this documentation closure is merged and synchronized on `master`, the next bounded development package is **`KF-BACKUP-005B`**, followed by `KF-BACKUP-005C` and remaining Priority-15 residuals before Priority 16 (automated GUI validation).
+- **State-driven next action:** determine the first incomplete closure action from live PR #80 and repository state: final `REVIEW_ONLY` → manual owner merge → `POST_MERGE_SYNC_ONLY`. If all closure actions are complete, begin `PLAN_ONLY` for **`KF-BACKUP-005B`**, followed by `KF-BACKUP-005C` and remaining Priority-15 residuals before Priority 16 (automated GUI validation).
 - Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
@@ -109,6 +107,6 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 - `DatabaseSchema.CurrentVersion` is **10** and Schema 10 is active on `master`.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), KF-BACKUP-004 post-merge closure (PR #78), and KF-BACKUP-005A (PR #79) are complete and merged on `master`.
-- **Active package:** `KF-BACKUP-005A Post-Merge Documentation Closure` on branch `docs/kf-backup-005a-post-merge-closure-v1`. Reconciles six documentation files with merged Schema-10 master state.
+- Post-merge documentation reconciliation is carried by PR #80 / this closure package; discover exact PR #80 review/merge/sync state dynamically from live GitHub and local repository state.
 - **Next development package:** `KF-BACKUP-005B` (portable Active workflow export/restore into empty target), followed by `KF-BACKUP-005C` and remaining Priority-15 residuals.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred through the canonical candidate `ValidateAll` gate.

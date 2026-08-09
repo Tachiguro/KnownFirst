@@ -2,7 +2,7 @@
 
 **Status date:** 2026-08-09
 **State source:** most recent product-relevant milestone — `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73 merge commit, Milestone 14B). This is historical milestone evidence, not the literal current `master` HEAD; the exact current `master` HEAD and PR state are live GitHub/Git facts discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
-**Next repository action:** None automatically authorized. `KF-BACKUP-005A` (Schema-10 stable learning-workflow identity foundation) is implemented and validated on feature branch `feature/schema10-stable-learning-workflow-identity-v1`; its documentation reconciliation is active. The next action is determined from live Git/GitHub state.
+**Next repository action:** None automatically authorized. Next bounded development package is `KF-BACKUP-005B` (portable Active learning-workflow export and restore into an empty installation), preceded by post-merge documentation closure on master.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -57,6 +57,7 @@ The current product source implements:
 - Milestone 14A (unfinished support/report control removal): the unfinished `Support KnownFirst` and `Report a bug` controls and their shared placeholder behavior removed from the production Settings source (PR #71).
 - Milestone 14B (reopenable release-note history): Settings → Help & Support link and new `/release-notes` route exposing the complete existing release-note catalog newest-first (PR #73).
 - KF-BACKUP-004 (Schema-9 populated-target LearningReview merge integrity): collision-free positional action keys (`lr#<archiveRowIndex>`), meaning-aware review-event identity with stable nullable Target/Matched AnswerVariant identities, and scheduler-replay alignment; `LearningSessionId` deliberately excluded from event identity (PR #77).
+- KF-BACKUP-005A (Schema-10 stable learning-workflow identity foundation): immutable `StableId` columns on `LearningSessions` and `LearningSessionCards`, deterministic Completed bootstrap (SHA-256, 64 chars), one-time Active GUID bootstrap (32 chars), archive V2 DTO evolution, source ≤9 Completed compatibility, source ≤9 Active rejection, source ≥10 StableId validation; `LearningSessionId` excluded from `LearningReview` merge identity; Active workflow portable continuation excluded (deferred to 005B/005C) (PR #79).
 
 ## Merged development foundations
 
@@ -102,30 +103,16 @@ The `master` branch includes the following merged technical foundations:
 - **D5 closure and Package B revalidation queued (PR #64).**
 - **KF-BACKUP-003 Package D — Schema-9 portable workflow canonical ordering (PR #76, merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`):** `BackupModelMapperV2`'s v2 export ordering for completed `PreparationSessions`/`PreparationCandidates`, `LearningSessions`/`LearningSessionCards`, and `LearningReviews` is now total over emitted content, so archive-local `pb-*`/`pi-*`/`ls-*`/`lq-*` assignment and review emission order no longer fall through to installation-local SQLite row order. Archive-emission canonical ordering only — no database schema, migration, archive DTO, `.kfarchive` format version, or merge-identity change. `POST_MERGE_SYNC_ONLY` completed successfully.
 - **KF-BACKUP-004 — Schema-9 LearningReview merge integrity (PR #77, merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`):** every physical archive `LearningReview` receives a collision-free positional lookup key (`lr#<archiveRowIndex>`), Schema-9 meaning-aware review identity incorporates stable nullable `TargetAnswerVariant` and `MatchedAnswerVariant` identities, and scheduler replay is aligned to the same event semantics. `LearningSessionId` is deliberately excluded from event identity and preserved as referential attachment. `POST_MERGE_SYNC_ONLY` completed successfully.
+- **KF-BACKUP-005A — Schema-10 stable learning-workflow identity foundation (PR #79, merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`):** advances `DatabaseSchema.CurrentVersion` to **10** on `master`; adds immutable `StableId` columns to `LearningSessions` and `LearningSessionCards`; assigns deterministic SHA-256 64-char StableIds for Completed sessions and queue rows; assigns one-time GUID 32-char StableIds for Active sessions and queue rows; evolves V2 DTOs with trailing nullable StableIds; enforces source ≤9 Completed compatibility, source ≤9 Active rejection, and source ≥10 StableId validation; preserves KF-BACKUP-004 `LearningSessionId` exclusion from `LearningReview` merge identity; excludes Active portable workflow continuation (deferred to 005B/005C). Inherited baseline compiler blocker in `ReleaseNotes.razor` resolved. Validated via candidate `ValidateAll` checkpoint `551399df22131e0214e87b43a3eeaea9ae40ddf9` FULL GREEN (`1812 passed / 0 failed / 0 skipped`, Windows Debug/Release passed, Android Debug/Release passed, 0 build errors, 0 AOT/trimming/source-gen warnings, 8 non-blocking XML-doc warnings). `POST_MERGE_SYNC_ONLY` completed successfully.
 
 **Current Status (master):**
-- The active database schema is **9** (`PRAGMA user_version = 9`).
-- Schema 9 is active during normal application initialization on master.
+- The active database schema is **10** (`PRAGMA user_version = 10`).
+- Schema 10 is active during normal application initialization on master.
 - Package C was merged via PR #68. D1-D5 documentation reconciliation is complete.
 - Package A, Package B, and Package C are merged to master. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
-- Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`) — see "Active development" below for its technical evidence. It is part of this `master` snapshot.
 - Milestone 14A and Milestone 14B are both merged (PR #71, merge commit `39609ffffb39c69238882172d153f4bb795ddab8`; PR #73, merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`). Milestone 14 as a whole is complete on `master`. `POST_MERGE_SYNC_ONLY` completed successfully for both.
-- KF-BACKUP-003 Package D is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`) and KF-BACKUP-004 is merged via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`); `POST_MERGE_SYNC_ONLY` completed successfully for both, and both are part of this `master` snapshot.
-- The KF-BACKUP-004 post-merge documentation closure is merged via PR #78 (merge commit `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`); `POST_MERGE_SYNC_ONLY` completed successfully. Current `master` HEAD is `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`.
-
-**KF-BACKUP-005A — Feature-Branch State (NOT yet merged to master):**
-
-> Schema 10 is implemented and verified on feature branch `feature/schema10-stable-learning-workflow-identity-v1` only. It is not merged to `master`. Master remains Schema 9.
-
-- `DatabaseSchema.CurrentVersion` is **10** on the feature branch; fresh initialization reaches Schema 10; databases from versions 0–9 advance through the migration chain to Schema 10.
-- Schema 10 introduces immutable `StableId` columns on `LearningSessions` and `LearningSessionCards`.
-- Legacy Completed learning sessions receive deterministic SHA-256 64-character StableIds on migration.
-- Legacy Active learning sessions receive fresh GUID 32-character StableIds once on migration.
-- StableId identity is immutable after assignment; canonical form is lowercase hexadecimal, exact length 32 (GUID) or 64 (SHA-256).
-- Archive/source compatibility: source ≤9 Completed portable workflows may receive bootstrap StableIds; source ≤9 Active portable workflows remain unsupported/rejected; source ≥10 workflows require valid StableIds.
-- `LearningSessionId` is **not** part of `LearningReview` merge identity (KF-BACKUP-004 contract unchanged).
-- **Active portable-workflow continuation is explicitly excluded from 005A scope** (reserved for KF-BACKUP-005B/C).
-- Feature-branch validation evidence: `ALL_AUTOMATED` **1812 passed / 0 failed / 0 skipped** (`dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj -c Debug`); focused Windows Debug build **green** (`bin\Debug\net10.0-windows10.0.19041.0\win-x64\KnownFirst.dll`, exit code 0, 0 errors). Windows Release, Android builds, candidate `ValidateAll`, rendered GUI, and APK/AAB remain unvalidated.
+- KF-BACKUP-003 Package D is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`), KF-BACKUP-004 is merged via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`), the KF-BACKUP-004 post-merge closure is merged via PR #78 (merge commit `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`), and KF-BACKUP-005A is merged via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully for all, and all are part of this `master` snapshot.
+- Current `master` baseline is `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`.
 
 ## Confirmed verification
 
@@ -136,16 +123,15 @@ The `master` branch includes the following merged technical foundations:
 
 ### Platform builds
 
-- **Windows / Android Debug & Release:** Build readiness verified during Beta 10, Beta 11, and Beta 12 release preparation.
+- **Windows / Android Debug & Release:** Build readiness verified during Beta 10, Beta 11, Beta 12 release preparation, and candidate `ValidateAll` validation.
 
 ## Database status
 
 - Storage is local SQLite in the application data directory (`knownfirst.db3`).
-- On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **9**.
-- Schema 9 is active in real application databases on master.
-- On the active feature branch `feature/schema10-stable-learning-workflow-identity-v1`, `DatabaseSchema.CurrentVersion` is **10** (not yet merged; see "Active development" below).
+- On `master`, `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are **10**.
+- Schema 10 is active in real application databases on master.
 - Initialization is forward-oriented and preserves existing rows while adding supported tables or columns.
-- The initialization sequence on master advances fresh or legacy baseline databases to Schema 7, applies the Schema 8 migration, and then applies the Schema 9 migration.
+- The initialization sequence on master advances fresh or legacy baseline databases to Schema 7, applies the Schema 8 migration, applies the Schema 9 migration, and then applies the Schema 10 migration.
 - Initialization reads `PRAGMA user_version` first and rejects any version greater than the current version before modifying tables or cache.
 - Complete persisted-data rules are in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md).
 - Portable recovery format v1 is documented in [architecture/backup-format-v1.md](architecture/backup-format-v1.md).
@@ -174,64 +160,10 @@ This document does not claim public-release readiness or draw legal conclusions 
 
 ## Active development
 
-The most recent recorded product-relevant milestone on `master` is `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged), carrying source version `1.0.0-beta.12` (build 12). This is historical milestone evidence, not a claim about the literal current `master` HEAD. `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active for real application databases on master.
+The most recent recorded product-relevant milestone on `master` is `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged), carrying source version `1.0.0-beta.12` (build 12). This is historical milestone evidence, not a claim about the literal current `master` HEAD. `DatabaseSchema.CurrentVersion` is **10** and Schema 10 is active for real application databases on master.
 
-D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are all merged and present on `master`. Milestone 14A (removal of the unfinished Support KnownFirst and Report a bug controls and their placeholder behavior from the production Settings source) was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) and `POST_MERGE_SYNC_ONLY` completed successfully; its evidence is source-contract only. Milestone 14B (reopenable release-note history) was manually merged via PR #73 (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`) and `POST_MERGE_SYNC_ONLY` completed successfully. Milestone 14 as a whole is therefore complete on `master`. The current active package state is recorded in [CURRENT_WORK.md](CURRENT_WORK.md).
+D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are all merged and present on `master`. Milestone 14A (removal of the unfinished Support KnownFirst and Report a bug controls and their placeholder behavior from the production Settings source) was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) and `POST_MERGE_SYNC_ONLY` completed successfully; its evidence is source-contract only. Milestone 14B (reopenable release-note history) was manually merged via PR #73 (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`) and `POST_MERGE_SYNC_ONLY` completed successfully. Milestone 14 as a whole is therefore complete on `master`.
 
-**Milestone 14B — reopenable release-note history (merged via PR #73, merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`).** Settings → Help & Support offers one production-visible link to a dedicated `/release-notes` route, which lists every existing release-note catalog entry newest-first (`1.0.0-beta.12`, `1.0.0-beta.11`, `1.0.0-beta.10`) via the new `IReleaseNotesService.GetReleaseNoteHistory()` API. History access neither reads nor mutates the persisted seen-version state, so the automatic one-time What's New semantics remain intact: `GetUnseenReleaseNotes()`, `MarkSeen()`, `WhatsNewModal`, and the preference store are unchanged. Existing Beta 10/11/12 release-note content is unchanged, no localization key was added, and no Beta 13 entry, release identity, database, schema, archive, or network behavior changed. Evidence is automated service/unit/contract plus source/markup/Razor/CSS contract only (`110 passed / 0 failed / 0 skipped`); **no rendered-GUI, runtime, platform, Release-build, AAB, or physical-device validation has occurred.** `POST_MERGE_SYNC_ONLY` completed successfully; the change is part of this `master` snapshot. Package C (convergence hardening) was implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and manually merged via PR #68 — it is documented below for traceability. See [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md).
+**KF-BACKUP-005A — Schema-10 Stable Learning-Workflow Identity Foundation (merged via PR #79, merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`).** Advances `DatabaseSchema.CurrentVersion` to **10** on `master`. Adds immutable `StableId` columns to `LearningSessions` and `LearningSessionCards`. Completed legacy sessions receive deterministic SHA-256 64-char StableIds; Active legacy sessions receive fresh GUID 32-char StableIds once on migration. V2 DTOs evolve with trailing nullable StableId properties for legacy compatibility. Source ≤9 Completed workflows receive bootstrap StableIds on import; source ≤9 Active workflows remain unsupported/rejected; source ≥10 workflows require valid canonical StableIds. KF-BACKUP-004 `LearningSessionId` exclusion from `LearningReview` merge identity is preserved. Active portable workflow continuation is excluded from 005A and deferred to KF-BACKUP-005B and 005C. Canonical candidate `ValidateAll` passed FULL GREEN on checkpoint `551399df22131e0214e87b43a3eeaea9ae40ddf9` (1812/1812 tests, Windows Debug/Release passed, Android Debug/Release passed, 0 build errors, 0 AOT/trimming/source-gen warnings, 8 non-blocking XML-doc warnings). `POST_MERGE_SYNC_ONLY` completed successfully; the package is part of this `master` snapshot.
 
-**Schema-9 Completed-Review Convergence — Package B (merged via PR #65).** Implemented, independently reviewed, validated, and merged, on the former branch `feature/schema9-completed-review-writer-evidence-v1`, published as commit `d00144cd8789f5392c9fb695dac8856f992c2200` and merged via PR #65 (`fix: complete schema 9 completed-review package B`, merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49`):
-
-- `PLAN_ONLY` was approved by the user; `IMPLEMENT` added a deterministic total ordering for Schema-9 `ReviewSessions` in `Services/DataSafety/BackupModelMapperV2.cs` and writer-evidence/canonical-output regression tests in `KnownFirst.Tests/MergeWriterServiceTests.cs` and `KnownFirst.Tests/BackupCreationTests.cs`.
-- An independent `REVIEW_ONLY` pass found one MINOR XML-comment accuracy issue; the comment-only correction was made and independently re-reviewed. Final verdict: **`PACKAGE B IMPLEMENTATION REVIEW APPROVED`**.
-- `TEST_ONLY` validation: focused writer/planner/identity scope 183/0/0, mapper/archive-contract scope 86/0/0, schema activation/compatibility scope 189/0/0, and the full `ALL_AUTOMATED` suite **1769 passed / 0 failed / 0 skipped**.
-- A final pre-commit complete-diff review of the published commit returned **`PACKAGE B FINAL REVIEW APPROVED`**. A review of PR #65 identified exactly one documentation-currentness finding and no code/test finding; the branch documentation addressed that finding.
-- No GUI, device, build, APK/AAB, packaging, signing, publishing, or release evidence exists for this work.
-- **The repository owner merged PR #65 manually; merge commit `f560a6b7ff9109bbee6c46602a002ea8b591de49` is part of this `master` snapshot. `POST_MERGE_SYNC_ONLY` completed successfully.**
-- Package C (convergence hardening, two-installation synchronization) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and merged via PR #68.
-
-**Schema-9 Completed-Review Convergence — Package C (convergence hardening) — merged via PR #68.** Implemented, independently reviewed and corrected, `TEST_ONLY`-validated, and merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`):
-
-- `PLAN_ONLY` was approved, scoping two proven canonical-output defects Package B left open. **C-1 (completed `ReviewSession` ordering):** `BackupModelMapperV2` reuses the existing Schema-9 full-history identity from `ReviewWorkflowIdentityPolicy.TryComputeSessionIdentityV2` — no second, competing completed-review identity was defined. Raw-row identity plumbing is shared through a new caller-neutral `Schema9ReviewSessionRowIdentities` helper; `MergeWriterTargetIndex` retains its existing fail-closed duplicate-identity behavior unchanged. Mapper ordering now continues past the session-level fields with the full identity and a content-derived candidate-content key (covering absolute candidate `Order` and every emitted item field, which the identity itself deliberately omits); a malformed duplicate-candidate session receives a deterministic content-derived fallback key rather than a shared sentinel. The local `ReviewSession.Id` comparison remains syntactically present as a final tie-break, but is proven output-neutral: it is reached only after every field two sessions could emit differently already compares equal, so which physical row is used cannot change any emitted content. Local SQLite row ids remain outside semantic identity.
-- **C-2 (SourceMaterial ordering):** the review also found that the existing `(ContentFingerprint, Title)` v2 ordering was not total over distinct emitted `SourceMaterial` rows. Ordering now compares the retained scalar `SourceMaterial` output plus a deterministic content-derived child-subgraph key covering emitted `Sentence`/`Occurrence` content, including the emitted vocabulary reference and sentence-reference semantics; no Document/SentenceSpan/WordOccurrence/Word local SQLite id participates as ordering content. An independent review found this addition itself initially covered only the scalar fields (MINOR-1); a RED-first correction closed the child-subgraph gap and an independent re-review returned **`PACKAGE C MINOR-1 CORRECTION REVIEW APPROVED`** with no BLOCKER/MAJOR/MINOR findings remaining.
-- **Two-installation convergence evidence:** focused tests exercise two installations exchanging divergent completed review histories A→B and B→A through the real archive write/validate/import/merge-writer path; both histories are preserved, candidates remain attached to their correct parent sessions, and after convergence the affected canonical export subgraph (documents, vocabulary, review workflows, and items) is installation-independent. A repeated exchange afterward is no-change/idempotent and preserves every completed history. This is distinct from, and does not by itself imply, universal byte-for-byte equality of complete independently created archives — Sense/Meaning/AnswerVariant `StableId` values remain installation-random by design and are unaffected by Package C.
-- No archive DTO, `.kfarchive` format version, database schema, migration, or public error/status code changed. No executable `MergeWriterExecutor` redesign was required.
-- `TEST_ONLY` validation on the branch: `BackupCreationTests` 50/0/0 (including the four C-1/C-2 mapper tests), merge planner/writer/identity scope 157/0/0, archive/restore/Schema-9 compatibility scope 117/0/0, `PortableImportEndToEndConvergenceTests` 6/0/0, and the full `ALL_AUTOMATED` suite **1776 passed / 0 failed / 0 skipped**.
-- No GUI, device, platform, standalone-build, packaging, signing, publishing, or release evidence exists for this work.
-- **The repository owner merged PR #68 manually; merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c` is part of this `master` snapshot. `POST_MERGE_SYNC_ONLY` completed successfully.** Final PR review was `PACKAGE C PR REVIEW APPROVED` with no BLOCKER, MAJOR, or MINOR findings.
-
-**KF-MEANING-001 Slice 9 (merged PR #45)** — portable import preview UI, localized handling, and end-to-end convergence validation. Verified behavior on the merged commit:
-
-- **Import preview UI** — read-only preview before confirmation; distinguishes restore (empty target), merge (populated Schema-8 target), and no-change (duplicate import) cases.
-- **Preview safety** — no database mutation, safety copy, or writer invocation during preview; supports non-seekable caller streams.
-- **Confirmation workflow** — distinct action labels for restore or merge; no-change presents success without a mutating action; re-validates and re-evaluates independently on confirmation.
-- **Unified import operation** — single Import data operation; no separate Merge button or separate merge workflow.
-- **Merge preview and results** — expose aggregate inserted, enriched, preserved-variant, and skipped counts; explain that local data is preserved and a validated private safety copy is created before mutation.
-- **Disposition classification** — RestoredIntoEmpty, MergeApplied, MergeNoChange; workflow notifications occur only for RestoredIntoEmpty and MergeApplied.
-- **Localization** — complete EN/DE/RU coverage for preview, result, and failure handling.
-- **Corrected LearningSession identity** — distinct real sessions using the same card set no longer collapse; identity includes StartedAtUtc, CompletedAtUtc, ordered queue digest, and Rating per item; planner and target-index share the same implementation; reimport converges without duplicates.
-- **End-to-end convergence validation** — real automated tests exercise archive creation → validation → preview → preflight → validated safety copy → transactional writer → deterministic scheduler replay → result summary → repeated-import no-change; bidirectional divergent Schema-8 databases converge semantically.
-- **Archive-v1 upgrade and convergence** — Schema-8 populated-target Import upgrades archive-v1 in memory and converges on reimport.
-- **Safety-copy validation** — safety copies are reopened and validated from final paths; represent the pre-merge target state; remain available after later writer failure.
-
-**Subsequent correctness and data-safety fixes (merged PRs #46-#50)** — see "Production capabilities" and "Merged development foundations" above.
-
-**Schema-9 Completed-Review Convergence (merged PRs #51-#52, #65, #68)** — Schema-9 review-session history storage activated (PR #51); Package A Schema-9 completed-review identity, planner, target-index parity, and characterization coverage merged (PR #52); Package B (writer evidence) merged via PR #65. Package C (convergence hardening) is implemented, independently reviewed and corrected, `TEST_ONLY`-validated, passed final PR review, and manually merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`).
-
-**D1 Authoritative State and Database Truth (merged PR #53)** — reconciled repository baseline, roadmap, and changelog context.
-
-**D1 Closure and D2 Activation (merged PR #54)** — recorded D1 closure and activated D2 governance package.
-
-**D2 Agent Communication and Operation Governance (merged PR #55)** — established agent communication governance and operation isolation rules.
-
-**D2 Closure and D3 Activation (merged PR #56)** — recorded D2 closure and activated D3 backup and import contracts package.
-
-**D3 Backup and Import Contracts (merged PR #57)** — reconciled backup-format, populated-target import/merge contracts, historical restore-plan status, and documentation routing.
-
-**D3 Closure and D4 Activation (merged PR #58)** — recorded D3 closure and activated D4 product, workflow, and release-facing documentation package.
-
-**D4 Product, Workflow, and Release-Facing Documentation (merged PR #59)** — reconciled `README.md`, `docs/KNOWNFIRST_ARCHITECTURE.md`, `docs/MVP_WORKFLOW.md`, `docs/VERSIONING.md`, and `docs/BETA_TESTING.md`.
-
-**D4 Closure and D5 Activation (merged PR #60)** — recorded D4 closure and activated D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene package.
-
-**D5 Testing, GUI Status, Historical Banners, and Markdown Hygiene (merged PRs #61-#63)** — PR #61 reconciled testing and GUI contract documentation; PR #62 corrected historical status banners and routing references; PR #63 fixed mechanical Markdown hygiene defects. D1-D5 documentation reconciliation is complete.
+See [CURRENT_WORK.md](CURRENT_WORK.md) for the active task state.

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-09 (PR #78 merged and synchronized; KF-BACKUP-005A PR #79 open against master; pre-merge CURRENT_WORK lifecycle reconciliation active)
+2026-08-09 (KF-BACKUP-005A PR #79 at final pre-merge review/manual-merge boundary; resolve exact live PR state from GitHub)
 
 ## Repository
 
@@ -15,7 +15,7 @@
 
 - Most recent product-relevant milestone commit: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (Milestone 14B, PR #73 merged). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - Source-controlled application identity: `1.0.0-beta.12` (build 12)
-- Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android build, AAB, Internal Testing release, installation, or user test has occurred since.
+- Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android external distribution, AAB/APK package, Internal Testing release, installation, or user test has occurred since. Android compile builds have occurred as validation only.
 - Active database schema on master: SQLite `PRAGMA user_version` 9
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
 - Solution: `KnownFirst.slnx`
@@ -76,19 +76,18 @@
 - Focused five-class correction scope: 215 passed / 0 failed / 0 skipped / 215 total.
 - Original Stage-1 scope: 845 passed / 0 failed / 0 skipped / 845 total.
 - Wikipedia architecture sentinel: 7 passed / 0 failed / 0 skipped / 7 total.
-- Canonical candidate `ValidateAll` (`.\scripts\knownfirst.ps1 -Action ValidateAll -Force` on clean candidate commit `42039c2e0c0f38b80b0838437eb828ea0821c311`): **FULL GREEN** (ALL_AUTOMATED 1812/1812 passed; Windows Debug/Release builds passed; Android Debug/Release builds passed; 0 build errors; 0 AOT/trimming/source-gen warnings).
+- Canonical candidate `ValidateAll` (`.\scripts\knownfirst.ps1 -Action ValidateAll -Force` on latest fully validated executable/test-tree checkpoint `551399df22131e0214e87b43a3eeaea9ae40ddf9` and prior candidate `42039c2e0c0f38b80b0838437eb828ea0821c311`): **FULL GREEN** (ALL_AUTOMATED 1812/1812 passed; Windows Debug/Release builds passed; Android Debug/Release builds passed; 0 build errors; 0 AOT/trimming/source-gen warnings; 8 non-blocking Android Release XML-documentation warnings).
   - Note: this validation confirmed both the KF-BACKUP-005A Schema-10 package and the inherited baseline `CS0542` compile fix in `Components/Pages/ReleaseNotes.razor`.
 - **Not validated / Out of scope:** rendered GUI behavior, physical device / emulator execution, APK/AAB creation, signing, publishing, and Active portable workflow resume (deferred to KF-BACKUP-005B).
 
 **Lifecycle state:**
 
-- Branch `feature/schema10-stable-learning-workflow-identity-v1` contains two committed and pushed commits:
-  1. `c434729a56bf2e2c5c0681417f110eb200cafab6` (`fix: repair release notes build blocker`)
-  2. `42039c2e0c0f38b80b0838437eb828ea0821c311` (`feat: add schema 10 stable learning workflow identity`)
+- Branch `feature/schema10-stable-learning-workflow-identity-v1` contains the KF-BACKUP-005A Schema-10 implementation, inherited baseline fix, and documentation reconciliation.
+  - Important historical checkpoints: `c434729...` (inherited ReleaseNotes baseline fix), `42039c2...` (Schema-10 implementation), `551399df...` (latest fully validated executable/test-tree checkpoint). Exact live PR head and commit inventory are discovered dynamically from GitHub.
 - PR #79 is OPEN against `master`.
-- Pre-correction candidate `42039c2e...` passed canonical `ValidateAll`.
-- Pre-merge lifecycle reconciliation (`DOCUMENT_ONLY`) is currently active on `docs/CURRENT_WORK.md` to reconcile stale operational tracking before final review and manual merge.
-- Because updating `CURRENT_WORK.md` will create a new PR head commit, the resulting final candidate commit must pass canonical `ValidateAll` before manual merge.
+- Latest fully validated executable/test-tree checkpoint `551399df...` passed canonical `ValidateAll` FULL GREEN.
+- PR #79 is at the final pre-merge review / manual-merge boundary.
+- Live GitHub and review state determines the next action: `final REVIEW_ONLY → manual owner merge on GitHub → POST_MERGE_SYNC_ONLY`.
 
 **Deferred follow-ups:**
 
@@ -100,13 +99,13 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and their respective
 ## Current blocker or pending validation
 
 - None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, or the KF-BACKUP-004 post-merge documentation closure (PR #78): all completed their full lifecycle on `master`.
-- **KF-BACKUP-005A (PR #79 against `master`):** implementation, tests, and pre-correction candidate `ValidateAll` are complete. The active blocker is: pre-merge operational lifecycle reconciliation in `CURRENT_WORK.md` (`DOCUMENT_ONLY` → `REVIEW_ONLY` → `COMMIT_ONLY` → canonical `ValidateAll` on final candidate commit → `PUSH_ONLY` → final `REVIEW_ONLY` → manual owner merge on GitHub → `POST_MERGE_SYNC_ONLY`).
+- **KF-BACKUP-005A (PR #79 against `master`):** Implementation, automated tests, documentation reconciliation, candidate `ValidateAll`, and push are complete. The remaining pre-merge gate is: final `REVIEW_ONLY` → manual owner merge on GitHub → `POST_MERGE_SYNC_ONLY`.
 - Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior remains unproven and out of scope for 005A.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation did occur through the canonical candidate `ValidateAll` gate.
 
 ## Exact next action
 
-- **State-driven next action for `KF-BACKUP-005A`:** complete the operational lifecycle reconciliation of `docs/CURRENT_WORK.md` (`DOCUMENT_ONLY` → `REVIEW_ONLY` → `COMMIT_ONLY` → candidate `ValidateAll` → `PUSH_ONLY` → final `REVIEW_ONLY` → manual owner PR merge on GitHub → `POST_MERGE_SYNC_ONLY`).
+- **State-driven next action for `KF-BACKUP-005A`:** determine the first incomplete step from live PR #79 and review state: `final REVIEW_ONLY → manual owner PR merge on GitHub → POST_MERGE_SYNC_ONLY`.
 - After 005A is merged and synchronized, remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, mid-session review-event export policy, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue before Priority-16 automated GUI validation. KF-BACKUP-005B and 005C follow after 005A.
 - Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
@@ -115,8 +114,8 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and their respective
 - Most recent recorded product-relevant milestone on `master`: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged).
 - Current `master` baseline: `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931` (PR #78 merge commit — KF-BACKUP-004 post-merge documentation closure). Discover literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is **9** and Schema 9 is active on `master`. Schema 10 exists on active PR #79 (`feature/schema10-stable-learning-workflow-identity-v1`) only — not yet merged.
-- Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer distribution has occurred.
+- Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), and the KF-BACKUP-004 post-merge documentation closure (PR #78) are complete and merged on `master`.
-- **Active package: `KF-BACKUP-005A`** — Schema-10 stable learning-workflow identity foundation — open as PR #79 on branch `feature/schema10-stable-learning-workflow-identity-v1`. Implementation complete; candidate `42039c2e...` passed canonical `ValidateAll`. Lifecycle state: pre-merge `CURRENT_WORK.md` reconciliation active (`DOCUMENT_ONLY`). Final candidate commit requires canonical `ValidateAll` before manual merge.
+- **Active package: `KF-BACKUP-005A`** — Schema-10 stable learning-workflow identity foundation — open as PR #79 on branch `feature/schema10-stable-learning-workflow-identity-v1`. Implementation complete; latest executable/test-tree checkpoint `551399df...` passed canonical `ValidateAll` FULL GREEN. PR #79 is at the final pre-merge review / manual-merge boundary (`final REVIEW_ONLY → manual owner merge → POST_MERGE_SYNC_ONLY`). Discover exact live PR head and review status dynamically from GitHub.
 - After 005A is merged, remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, mid-session review-event export policy, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue, followed by KF-BACKUP-005B and 005C.
-- No AAB, APK, Android build, signing, publishing, or store operation is authorized by this package.
+- No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred through the canonical candidate `ValidateAll` gate.

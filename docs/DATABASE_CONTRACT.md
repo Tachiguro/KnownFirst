@@ -5,7 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version 9 on `master`. Schema 10 is implemented on the active feature branch `feature/schema10-stable-learning-workflow-identity-v1` and is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below; it is not yet merged.
+It describes the current SQLite model at schema version 10 on `master`. Schema 10 is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below.
 
 ## Storage boundary
 
@@ -19,10 +19,8 @@ It describes the current SQLite model at schema version 9 on `master`. Schema 10
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **9** on `master`.
-A healthy initialized current database on master reports `PRAGMA user_version = 9`.
-
-> On the active feature branch `feature/schema10-stable-learning-workflow-identity-v1`, `CurrentVersion` is **10**. See [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) below.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **10** on `master`.
+A healthy initialized current database on master reports `PRAGMA user_version = 10`.
 
 | Table | Responsibility |
 | --- | --- |
@@ -53,6 +51,8 @@ meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
 `SenseId`.
 
 At schema 9, `ReviewSessions` index constraints change to support multiple Completed sessions per `DocumentId`, while restricting to at most one Active session per `DocumentId`. `ReviewSessionStatus.Active = 0`, `ReviewSessionStatus.Completed = 1`.
+
+At schema 10, `LearningSessions` and `LearningSessionCards` carry immutable `StableId` columns and are constrained by unique indexes `IX_LearningSessions_StableId` and `IX_LearningSessionCards_StableId`.
 
 Relationships are represented by entity IDs and enforced by transactional
 service operations and tests. Do not introduce a competing representation of
@@ -98,29 +98,28 @@ not report success before the transaction commits.
 - Tests must cover at least the oldest explicitly supported source shape and
   the immediately preceding production schema.
 
-### Schema-9 activation behavior
+### Schema-10 activation behavior
 
 Initialization on master reads `PRAGMA user_version` before touching any table and then
 follows exactly one path:
 
 | Source version | Behavior |
 | --- | --- |
-| Fresh / empty database | Initializes directly to a validated schema 9. |
-| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8, and finally to schema 9. |
-| 7 | Migrates to schema 8, and then to schema 9. |
-| 8 | Validates schema-8 shape, then migrates to schema 9. |
-| 9 (valid) | Validation only. The database is inspected and never mutated. |
-| 9 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
-| Greater than 9 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
-
-> On the active feature branch (`CurrentVersion = 10`), see [Schema-10 activation behavior](#schema-10-activation-behavior) in the Schema-10 contract below.
+| Fresh / empty database | Initializes directly to a validated schema 10. |
+| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8, schema 9, and finally to schema 10. |
+| 7 | Migrates to schema 8, then schema 9, and finally to schema 10. |
+| 8 | Validates schema-8 shape, then migrates to schema 9, and finally to schema 10. |
+| 9 | Validates schema-9 shape, then migrates to schema 10 (adds StableId columns, assigns bootstrap identities, creates unique indexes). |
+| 10 (valid) | Validation only. The database is inspected and never mutated. |
+| 10 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
+| Greater than 10 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
 
 The legacy enum backfills assign deterministic supported values for
 `Words.TokenKind`, `Words.PreparationState`, `Words.AutomaticInteractionMode`,
 `Meanings.TokenKind`, `WordOccurrences.TechnicalFamily`, and the
 `Documents`/`LexicalCache` lookup mode before activation.
 
-The 7 → 8 → 9 migrations run inside real SQLite transactions. They are rollback-safe,
+The 7 → 8 → 9 → 10 migrations run inside real SQLite transactions. They are rollback-safe,
 cancellation-safe, and retryable.
 
 **Schema 9 Migration (Source 8, Target 9):**
@@ -179,20 +178,21 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 
 ## Backup and restore boundary
 
-The supported portable format is the `.kfarchive` archive. A schema-9 database
-exports archive format **v2**, and merge safety copies are captured as v2.
-Archive format **v1** remains readable and can still be restored into a schema-9
-target (upgraded in memory for Schema-9 targets).
+The supported portable format is the `.kfarchive` archive. A schema-10 database
+exports archive format **v2** (with trailing nullable workflow StableId extensions),
+and merge safety copies are captured as v2.
+Archive format **v1** remains readable and can still be restored into a schema-10
+target (upgraded in memory for Schema-10 targets).
 
 Import into an **empty** target uses restore-into-empty. Import into a **populated**
-Schema-9 target is merged transactionally: validation → preflight planning →
+target is merged transactionally: validation → preflight planning →
 validated safety copy → transactional merge writer → deterministic card-schedule
 replay → atomic commit or rollback. Stale or non-executable plans are rejected.
 Multiple imports converge without duplicates. The merge writer reuses existing
 entities, inserts missing entities and preserved variants, and applies enrichment
 policies. Failure and cancellation roll back completely. See `MergePreflightPlannerV2`,
 `MergeWriterService`, and `MergeWriterExecutor`. Archive-v1 upgrades in memory
-for Schema-9 targets; archive-v2 into Schema 7 is rejected.
+for Schema-10 targets; archive-v2 into Schema 7 is rejected.
 
 This general populated-target merge support is established. Package B (writer evidence for divergent completed Schema-9 review histories) is merged on `master`: divergent completed `ReviewSession` rows for one Document coexist correctly, exact duplicates are skipped, and reimport of an already-merged history converges to no change.
 
@@ -207,7 +207,7 @@ Package D (KF-BACKUP-003, `PreparationSession`/`LearningSession`/`LearningReview
 - `LearningReview` export ordering is total over every emitted review field, including `LearningSessionId`, `TargetAnswerVariantId`, and `MatchedAnswerVariantId`;
 - this is archive-emission canonical ordering only, never a merge identity — no `MergePreflightPlannerV2`/`MergeWriterExecutor` identity or writer behavior changed.
 
-Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive under Schema 9; repeated merge converges/no-changes; these semantics are unchanged by Package D. Schema and archive-format compatibility rules are unchanged. This does not claim universal whole-archive byte equality.
+Populated-target merge remains non-destructive and transactional; exact duplicate histories remain deduplicated; divergent completed histories remain preservable/additive; repeated merge converges/no-changes; these semantics are unchanged by Package D and Schema 10. Schema and archive-format compatibility rules are unchanged. This does not claim universal whole-archive byte equality.
 
 ### Populated-target LearningReview merge rules (KF-BACKUP-004 — merged via PR #77)
 
@@ -215,7 +215,7 @@ The following rules are the contract established by `KF-BACKUP-004`, merged to `
 
 - Every physical archive `LearningReview` row receives its own deterministic positional plan-action lookup key derived from its position in the archive's review collection, so two rows for the same card at the same `ReviewedAtUtc` can never resolve to one another's plan action. Planner and writer derive that key identically.
 - The lookup key is addressing only. Duplicate/event identity is a separate, content-derived fingerprint and is never the lookup label.
-- The Schema-9 meaning-aware review event identity is content-derived over the card's stable semantic identity, `ReviewedAtUtc`, `Rating`, `WasTypedAnswer`, `WasCorrect`, `DueAtUtc`, `IntervalDays`, `EaseFactor`, and the stable nullable `TargetAnswerVariant` and `MatchedAnswerVariant` identities. Answer-variant references are compared as content-derived identities, never as archive-local or target-local row ids, and absent-versus-present is a significant distinction.
+- The Schema-9/10 meaning-aware review event identity is content-derived over the card's stable semantic identity, `ReviewedAtUtc`, `Rating`, `WasTypedAnswer`, `WasCorrect`, `DueAtUtc`, `IntervalDays`, `EaseFactor`, and the stable nullable `TargetAnswerVariant` and `MatchedAnswerVariant` identities. Answer-variant references are compared as content-derived identities, never as archive-local or target-local row ids, and absent-versus-present is a significant distinction.
 - `LearningSessionId` is preserved as the review's referential relationship to its workflow session — every inserted review keeps the session its source row referenced — but is **not** part of the event identity.
 - Deterministic scheduler replay uses the same event distinctness and tie-break semantics as preflight, so events the planner keeps distinct are never re-collapsed during replay.
 - Repeated import remains convergent: an unchanged archive re-imported after a merge still reports no change.
@@ -231,8 +231,6 @@ this contract, `PROJECT_STATE.md`, tests, and user-facing documentation.
 
 ## Schema-10 Stable Learning-Workflow Identity Contract
 
-> **Feature-branch status:** Implemented and verified on `feature/schema10-stable-learning-workflow-identity-v1`. Not yet merged to `master`. All rules below describe the durable contract as implemented on the feature branch.
-
 ### Schema-10 migration intent
 
 Schema 10 establishes immutable stable identifiers (`StableId`) for persisted learning-workflow entities. These identifiers:
@@ -245,14 +243,14 @@ The `StableId` architecture is intentionally reusable by later cross-device sync
 
 ### New physical columns
 
-Schema 10 adds a `TEXT NOT NULL` `StableId` column to:
+Schema 10 adds a nullable `TEXT` `StableId` column to:
 
 | Table | Assigned on |
 | --- | --- |
 | `LearningSessions` | Session creation (new) or migration bootstrap (legacy) |
 | `LearningSessionCards` | Queue-row creation (new) or migration bootstrap (legacy) |
 
-No other table receives `StableId` columns in Schema 10. The physical Schema-8/9 entity definitions for `LearningSessions` and `LearningSessionCards` do not contain these columns; they are added by the Schema-10 migration.
+No other table receives `StableId` columns in Schema 10. The physical Schema-8/9 entity definitions for `LearningSessions` and `LearningSessionCards` do not contain these columns; they are added by the Schema-10 migration via `ALTER TABLE ... ADD COLUMN`. While physically declared as nullable `TEXT` in SQLite DDL, shape validation and unique indexes (`IX_LearningSessions_StableId` and `IX_LearningSessionCards_StableId`) enforce that every persisted row in a valid Schema-10 database contains a non-null canonical `StableId`.
 
 ### Canonical StableId form
 
@@ -320,7 +318,7 @@ A `StableId` assigned to a `LearningSession` or `LearningSessionCard` row must n
 
 ### Schema-10 activation behavior
 
-Initialization on the feature branch reads `PRAGMA user_version` and then follows exactly one path:
+Initialization on master reads `PRAGMA user_version` and then follows exactly one path:
 
 | Source version | Behavior |
 | --- | --- |
@@ -328,7 +326,7 @@ Initialization on the feature branch reads `PRAGMA user_version` and then follow
 | 0–6 | Advances to schema-7 baseline, enum backfills, schema 8, schema 9, then schema 10. |
 | 7 | Migrates to schema 8, then schema 9, then schema 10. |
 | 8 | Validates schema-8 shape, migrates to schema 9, then schema 10. |
-| 9 (valid) | Validates schema-9 shape, then applies schema-10 migration (adds StableId columns, assigns bootstrap identities). |
+| 9 | Validates schema-9 shape, then applies schema-10 migration (adds StableId columns, assigns bootstrap identities, creates unique indexes). |
 | 10 (valid) | Validates schema-10 shape. Database is inspected and never mutated. |
 | 10 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
 | Greater than 10 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
@@ -361,6 +359,6 @@ Portable Active workflow export and restore is deferred to KF-BACKUP-005B. Popul
 
 ### Follow-up packages
 
-- **KF-BACKUP-005A** (this package): Schema-10 stable learning-workflow identity foundation. Feature-branch validated; not yet merged.
+- **KF-BACKUP-005A:** Schema-10 stable learning-workflow identity foundation. Merged via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **KF-BACKUP-005B:** portable Active learning-workflow export and restore into an empty installation from the last durably committed application state.
 - **KF-BACKUP-005C:** populated-target Active workflow convergence and conflict safety.

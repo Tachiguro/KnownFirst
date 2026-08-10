@@ -31,6 +31,31 @@ public static class Schema8BackupSnapshotRepository
         return new Schema8PortableSnapshotCaptureResult(PortableSnapshotCaptureStatus.Success, CapturePortableSnapshot(connection));
     }
 
+    /// <summary>
+    /// Schema-10 merge-preflight-only capture for an archive that contains an Active learning workflow.
+    /// Unlike <see cref="CapturePortableSnapshotForMergeSafetyCopy"/>, this read-only path retains Active
+    /// learning state so the V2 planner can compare its durable StableIds and content. Active vocabulary
+    /// review and preparation workflows remain blocking. This method must never be used for safety-copy
+    /// creation or transactional writer stale-plan capture.
+    /// </summary>
+    public static Schema8PortableSnapshotCaptureResult CapturePortableSnapshotForSchema10ActiveLearningMergePreflight(
+        SQLiteConnection connection)
+    {
+        var hasActiveReview = connection.Table<ReviewSessionEntity>().ToList()
+            .Select(session => IsBlockingReviewStatus(session.Status)).ToList().Any(isBlocking => isBlocking);
+        var hasActivePreparation = connection.Table<PreparationSessionEntity>().ToList()
+            .Select(session => IsBlockingPreparationStatus(session.Status)).ToList().Any(isBlocking => isBlocking);
+
+        if (hasActiveReview || hasActivePreparation)
+        {
+            return new Schema8PortableSnapshotCaptureResult(PortableSnapshotCaptureStatus.BlockedByActiveWorkflow, null);
+        }
+
+        return new Schema8PortableSnapshotCaptureResult(
+            PortableSnapshotCaptureStatus.Success,
+            CapturePortableSnapshotSchema10(connection));
+    }
+
     private static bool IsBlockingReviewStatus(ReviewSessionStatus status) => status switch
     {
         ReviewSessionStatus.Active => true,

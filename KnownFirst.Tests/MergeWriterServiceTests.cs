@@ -734,6 +734,44 @@ public sealed class MergeWriterServiceTests
 
     // ==== Distinct LearningSession identity (KF-MEANING-001 Slice 9) ====
 
+    [TestMethod]
+    public async Task Schema10ActiveArchive_PopulatedQuiescentTarget_PreservesStableIdsAndRemapsReviews()
+    {
+        await using var targetFixture = await Schema7Fixture.CreateAsync();
+        var targetWordId = await targetFixture.InsertWordAsync("target-only");
+        await targetFixture.InsertMeaningAsync(targetWordId, "target-only", "target-only");
+        await Schema10ActiveArchiveTestData.MigrateToSchema10Async(targetFixture);
+
+        var targetDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture);
+        var archive = Schema10ActiveArchiveTestData.CreatePayload();
+        var plan = await ComputePlanAsync(targetDatabase, archive);
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status, plan.ErrorCode);
+
+        var writer = new MergeWriterService(targetDatabase);
+        var result = await writer.ApplyAsync(archive, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status, result.ErrorCode);
+        var insertedSession = (await targetFixture.Connection.Table<LearningSessionEntity>().ToListAsync())
+            .Single(session => session.Status == LearningSessionStatus.Active);
+        Assert.AreEqual(
+            Schema10ActiveArchiveTestData.WorkflowStableId,
+            await targetFixture.Connection.ExecuteScalarAsync<string>(
+                "SELECT StableId FROM LearningSessions WHERE Id = ?", insertedSession.Id));
+        Assert.AreEqual(
+            Schema10ActiveArchiveTestData.QueueStableId,
+            await targetFixture.Connection.ExecuteScalarAsync<string>(
+                "SELECT StableId FROM LearningSessionCards WHERE SessionId = ?", insertedSession.Id));
+
+        var insertedReviews = await targetFixture.Connection.Table<LearningReviewEntity>()
+            .Where(review => review.SessionId == insertedSession.Id)
+            .ToListAsync();
+        Assert.HasCount(1, insertedReviews);
+        Assert.AreEqual(
+            insertedSession.Id,
+            insertedReviews.Single().SessionId,
+            "The archive-local learning-session id must be remapped to the newly inserted target-local parent id.");
+    }
+
     // ---- Regression: a target session and an archive session sharing the same card set but a different
     // StartedAtUtc used to collapse onto one merge identity, so the writer either lost the archive
     // session's own queue item or hit the (SessionId, QueueOrder) uniqueness constraint. Both real

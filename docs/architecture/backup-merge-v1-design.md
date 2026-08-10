@@ -749,7 +749,7 @@ This was the 005A package boundary on `master`; it remains historically accurate
 ### 23.9 Succession: KF-BACKUP-005B and 005C
 
 - **KF-BACKUP-005B:** Merged via PR #81 and binding current master behavior; provides portable Active learning-workflow export and empty-target restore from the last durably committed application/database state. Requires the stable identities established by 005A.
-- **KF-BACKUP-005C:** Next bounded Priority-15 development package after the 005B post-merge documentation lifecycle. Populated-target Active workflow convergence and conflict safety remain unimplemented.
+- **KF-BACKUP-005C:** published feature-branch candidate for populated-target Active workflow convergence and conflict safety in open PR #83. The reviewed implementation commit before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover live PR/head state dynamically. It is not merged; 005B remains binding master behavior.
 
 Actual network/cloud synchronization is not implemented. The StableId architecture is intentionally reusable by later cross-device synchronization rather than being a backup-only disposable identity scheme.
 
@@ -852,4 +852,34 @@ Active-vs-Active convergence, populated-target conflict resolution, and all othe
 
 ### 24.8 Lifecycle succession
 
-The lifecycle-stable package state is: 005B implementation complete → focused final `TEST_ONLY` green → final independent PR review approved → PR #81 manually merged → `POST_MERGE_SYNC_ONLY` complete → post-merge documentation lifecycle. KF-BACKUP-005C becomes the next bounded Priority-15 development package only after that documentation lifecycle completes.
+The lifecycle-stable package state is: 005B implementation complete → focused final `TEST_ONLY` green → final independent PR review approved → PR #81 manually merged → `POST_MERGE_SYNC_ONLY` complete → post-merge documentation lifecycle. KF-BACKUP-005C is a published candidate in open PR #83; final correction/review, repository-owner manual merge after approval, and post-merge synchronization remain pending.
+
+---
+
+## §25 KF-BACKUP-005C — Populated-Target Active Learning-Workflow Convergence and Conflict Safety (published PR candidate)
+
+**Lifecycle status:** published feature-branch candidate in open PR #83, not binding `master` behavior. The reviewed implementation commit before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover live PR/head state dynamically. Final correction/review, repository-owner manual merge after approval, and post-merge synchronization remain pending. The current master contract remains §24's empty-target behavior.
+
+### 25.1 Bounded populated-target behavior
+
+For a valid Schema-10/archive-V2 source with an Active learning workflow, a populated target with no blocking Active target workflow may accept the workflow additively. The existing merge writer allocates the target-local integer `LearningSession.Id`, preserves workflow/queue `StableId` values, remaps committed `LearningReview` references to that local parent, and applies the established scheduler replay. This adds no separate Active-workflow update engine.
+
+### 25.2 Exact convergence and conflict safety
+
+The same Active workflow `StableId` converges to `NoChanges` only when durable state is exactly equivalent: workflow status/counters/timestamps; queue StableId topology and cardinality; semantic card identity; queue position/flags/completion/rating/timestamp fields; semantic nullable target-answer-variant identity; and LearningReview content. LearningReview comparison reuses KF-BACKUP-004 semantic event identity (including stable card and nullable answer-variant identities, while excluding `LearningSessionId`) but compares fingerprint counts as a multiset, so multiplicity is significant. A `NoChanges` plan returns before safety-copy creation, writer invocation, and scheduler replay.
+
+Every non-exact same-`StableId` Active state — archive ahead, target ahead, independently advanced state, scalar mismatch, queue topology/content mismatch, review-event mismatch, review multiplicity mismatch, or archive-Active/target-Completed — yields `RequiresUserDecision`, a deterministic workflow conflict decision, a non-executable plan, and zero target mutation. No automatic divergent Active-state reconciliation exists. Archive-Completed/target-Active retains `BlockedByActiveWorkflow` / `ActiveWorkflowUnsupported`.
+
+### 25.3 Safety and compatibility boundaries
+
+The Active-aware Schema-10 capture is read-only and preflight-only. It does not relax the existing safety-copy capture, which remains fail-closed for Active target workflows; every executable additive merge still requires the existing validated safety copy before writer mutation, and writer stale-plan/target-state safeguards remain binding. No write-path bypass was introduced. Source schema ≤9 Active workflows, Active VocabularyReview, and Active PreparationBatch remain unsupported.
+
+Schema 10 and `PRAGMA user_version` remain 10; the outer `.kfarchive` remains V2. No Schema 11, archive V3, DTO redesign, StableId-format change, public merge/error/status code, UI, network transport, or synchronization service was introduced.
+
+### 25.4 Candidate evidence and limits
+
+Focused `Schema10ActiveArchive` evidence is **8 passed / 0 failed / 0 skipped**. The identical 254-test affected/regression scope completed **254/0/0** with MSTest Workers=1 and **254/0/0** with normal Workers=8. Both included the idempotent re-import, semantic-mismatch, and review-multiplicity conflict scenarios. Independent implementation re-review and historical-failure risk review each found **0 BLOCKER / 0 MAJOR / 0 MINOR**.
+
+Two earlier bounded runs each had one safety-copy-count assertion observation (idempotent re-import 1→2; semantic mismatch 1→0). Neither reproduced standalone, in the routing class where applicable, or in the controlled serial/normal pair. They remain unexplained historical transient observations, are not recorded as passing runs, and established no concrete product, planner, safety-copy, parallelism, shared-state, or resource-collision correction target. They were not fixed by a code change.
+
+This is automated unit/integration/persistence/contract evidence using isolated synthetic data where applicable. It is not ALL_AUTOMATED, ValidateAll, platform/runtime, Release-build, rendered-GUI, device/emulator, APK/AAB, signing, publishing, distribution, or GitHub CI evidence.

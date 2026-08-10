@@ -8,6 +8,72 @@ using KnownFirst.Services.DataSafety.Merge;
 
 namespace KnownFirst.Tests;
 
+internal static class Schema10ActiveArchiveTestData
+{
+    internal const string WorkflowStableId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    internal const string QueueStableId = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+    internal static BackupPayloadV2 CreatePayload()
+    {
+        var payload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+        var activeLearning = payload.Workflows.LearningSessions.Single() with
+        {
+            Status = BackupLearningSessionStatus.Active,
+            StableId = WorkflowStableId,
+            QueueItems =
+            [
+                payload.Workflows.LearningSessions.Single().QueueItems.Single() with
+                {
+                    StableId = QueueStableId
+                }
+            ]
+        };
+
+        return payload with
+        {
+            Workflows = payload.Workflows with
+            {
+                VocabularyReviews = payload.Workflows.VocabularyReviews
+                    .Select(review => review with { Status = BackupReviewSessionStatus.Completed })
+                    .ToList(),
+                PreparationBatches = payload.Workflows.PreparationBatches
+                    .Select(batch => batch with { Status = BackupPreparationSessionStatus.Completed })
+                    .ToList(),
+                LearningSessions = [activeLearning]
+            },
+            Extensions = new BackupExtensions(new Dictionary<string, BackupExtensionPayload>())
+        };
+    }
+
+    internal static MergeManifestInfo ManifestInfo() =>
+        new(
+            BackupFormatLimits.CurrentArchiveFormatVersion,
+            "1.0.0-test",
+            10,
+            BackupTestData.UtcTime,
+            BackupSourcePlatform.Windows);
+
+    internal static async Task<byte[]> BuildArchiveBytesAsync()
+    {
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(
+            CreatePayload(),
+            new Schema8BackupFixtureBuilders.FakePlatformInfo(),
+            new ValidatedSchema10Capability(),
+            BackupTestData.UtcTime,
+            stream,
+            CancellationToken.None);
+        return stream.ToArray();
+    }
+
+    internal static async Task MigrateToSchema10Async(Schema7Fixture fixture)
+    {
+        await KnownFirst.Data.Migrations.Schema8.Schema8DormantMigration.ApplyAsync(fixture.Connection);
+        await KnownFirst.Data.Migrations.Schema9.Schema9DormantMigration.ApplyAsync(fixture.Connection);
+        await KnownFirst.Data.Migrations.Schema10.Schema10DormantMigration.ApplyAsync(fixture.Connection);
+    }
+}
+
 /// <summary>
 /// Service-level tests for <see cref="MergePreflightService"/> (KF-BACKUP-002 Slice 3 & Slice 7 Schema-8):
 /// archive validation failure, active/undefined target workflow status, cancellation, Schema-8 native preflight,
@@ -59,6 +125,84 @@ public sealed class MergePreflightServiceTests
             new BackupLearningDataV2(Array.Empty<BackupLearningCardV2>(), Array.Empty<BackupLearningReviewV2>()),
             new BackupWorkflowDataV2(Array.Empty<BackupVocabularyReviewWorkflow>(), Array.Empty<BackupPreparationWorkflow>(), Array.Empty<BackupLearningWorkflowV2>()),
             EmptyExtensions());
+
+    [TestMethod]
+    public async Task Schema10ActiveArchive_PopulatedQuiescentTarget_ProducesReadyAdditivePlan()
+    {
+        await using var targetFixture = await Schema7Fixture.CreateAsync();
+        var targetWordId = await targetFixture.InsertWordAsync("target-only");
+        await targetFixture.InsertMeaningAsync(targetWordId, "target-only", "target-only");
+        await Schema10ActiveArchiveTestData.MigrateToSchema10Async(targetFixture);
+
+        var service = new MergePreflightService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        using var archiveStream = new MemoryStream(await Schema10ActiveArchiveTestData.BuildArchiveBytesAsync());
+
+        var plan = await service.CreatePreflightPlanAsync(archiveStream, CancellationToken.None);
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status, plan.ErrorCode);
+        Assert.IsTrue(plan.IsExecutable);
+        Assert.AreEqual(
+            MergeEntityClassification.New,
+            plan.Actions.Single(action => action.EntityKind == MergeEntityKind.LearningWorkflow).Classification);
+        Assert.AreEqual(
+            MergeEntityClassification.New,
+            plan.Actions.Single(action => action.EntityKind == MergeEntityKind.LearningQueueItem).Classification);
+    }
+
+    [TestMethod]
+    public void Schema10ActiveArchive_SameStableIdExactActiveTarget_ProducesNoChanges()
+    {
+        var payload = Schema10ActiveArchiveTestData.CreatePayload();
+
+        var plan = MergePreflightPlannerV2.CreatePlan(
+            payload,
+            payload,
+            Schema10ActiveArchiveTestData.ManifestInfo());
+
+        Assert.AreEqual(MergePreflightStatus.NoChanges, plan.Status, plan.ErrorCode);
+        Assert.IsTrue(plan.IsExecutable);
+        Assert.IsEmpty(plan.WorkflowStatusConflictDecisions);
+    }
+
+    [TestMethod]
+    public void Schema10ActiveArchive_SameStableIdDivergentState_RequiresUserDecision()
+    {
+        var target = Schema10ActiveArchiveTestData.CreatePayload();
+        var archiveSession = target.Workflows.LearningSessions.Single();
+        var divergentSession = archiveSession with
+        {
+            UpdatedAtUtc = archiveSession.UpdatedAtUtc.AddMinutes(1),
+            QueueItems =
+            [
+                archiveSession.QueueItems.Single() with
+                {
+                    SpellingCorrect = !archiveSession.QueueItems.Single().SpellingCorrect
+                }
+            ]
+        };
+        var archive = target with
+        {
+            Workflows = target.Workflows with { LearningSessions = [divergentSession] }
+        };
+
+        var plan = MergePreflightPlannerV2.CreatePlan(
+            target,
+            archive,
+            Schema10ActiveArchiveTestData.ManifestInfo());
+
+        Assert.AreEqual(MergePreflightStatus.RequiresUserDecision, plan.Status, plan.ErrorCode);
+        Assert.IsFalse(plan.IsExecutable);
+        Assert.HasCount(1, plan.WorkflowStatusConflictDecisions);
+        var workflowAction = plan.Actions.Single(action => action.EntityKind == MergeEntityKind.LearningWorkflow);
+        Assert.AreEqual(MergeEntityClassification.UnresolvedConflict, workflowAction.Classification);
+        var queueAction = plan.Actions.Single(action => action.EntityKind == MergeEntityKind.LearningQueueItem);
+        Assert.AreEqual(MergeEntityClassification.UnresolvedConflict, queueAction.Classification);
+        Assert.AreEqual(workflowAction.DecisionId, queueAction.DecisionId);
+        Assert.IsFalse(plan.Actions.Any(action =>
+            action.EntityKind is MergeEntityKind.LearningQueueItem or MergeEntityKind.LearningReview
+            && action.Classification == MergeEntityClassification.New));
+    }
 
     [TestMethod]
     public async Task ValidArchiveAgainstEmptyTarget_ProducesReady()

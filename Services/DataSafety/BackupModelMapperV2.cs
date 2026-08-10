@@ -833,7 +833,12 @@ public static class BackupModelMapperV2
             .Select(f => new BackupEncounteredForm(f.SurfaceForm, f.OccurrenceCount)).ToList();
 
         var legacySummaries = snapshot.ReviewStates.Where(r => r.WordId == word.Id)
-            .OrderBy(r => ContentKey(r.ReviewCount, r.ForgotCount, r.PartialCount, r.KnownCount, r.LastReviewedAt?.Ticks ?? 0))
+            .OrderBy(r => r.ReviewCount)
+            .ThenBy(r => r.ForgotCount)
+            .ThenBy(r => r.PartialCount)
+            .ThenBy(r => r.KnownCount)
+            .ThenBy(r => r.LastReviewedAt.HasValue)
+            .ThenBy(r => r.LastReviewedAt.HasValue ? EnsureUtc(r.LastReviewedAt.Value).Ticks : 0L)
             .Select(r => new BackupLegacyReviewSummary(r.ReviewCount, r.ForgotCount, r.PartialCount, r.KnownCount, EnsureUtc(r.LastReviewedAt)))
             .ToList();
 

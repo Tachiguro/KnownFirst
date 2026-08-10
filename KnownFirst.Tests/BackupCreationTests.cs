@@ -2146,6 +2146,102 @@ public class BackupCreationTests
             [],
             []);
 
+    [TestMethod]
+    public void CreateBackupV2_LegacyReviewSummariesWithNullAndMinimumTimestamps_ProduceIdenticalCanonicalOutputAcrossInstallations()
+    {
+        var wordTimestamp = new DateTime(2026, 8, 10, 12, 0, 0, DateTimeKind.Utc);
+        var minimumUtc = new DateTime(DateTime.MinValue.Ticks, DateTimeKind.Utc);
+
+        static WordEntity NewWord(int id, DateTime timestamp) => new()
+        {
+            Id = id,
+            Language = "en",
+            CanonicalTerm = "legacy",
+            NormalizedTerm = "legacy",
+            TokenKind = KnownFirst.Core.Text.TokenKind.Word,
+            Status = KnownFirst.Models.WordStatus.Unreviewed,
+            PreparationState = KnownFirst.Core.Preparation.PreparationState.Unprepared,
+            AutomaticInteractionMode = KnownFirst.Core.Learning.LearningInteractionMode.Reading,
+            CreatedAt = timestamp,
+            UpdatedAt = timestamp
+        };
+
+        static ReviewStateEntity NewSummary(int id, int wordId, DateTime? lastReviewedAt) => new()
+        {
+            Id = id,
+            WordId = wordId,
+            ReviewCount = 4,
+            ForgotCount = 1,
+            PartialCount = 1,
+            KnownCount = 2,
+            LastReviewedAt = lastReviewedAt
+        };
+
+        static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewInstallation(
+            WordEntity word,
+            IReadOnlyList<ReviewStateEntity> summaries) => new(
+                [],
+                [word],
+                [],
+                [],
+                [],
+                [],
+                summaries,
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                []);
+
+        var installationA = NewInstallation(
+            NewWord(id: 1, wordTimestamp),
+            [
+                NewSummary(id: 10, wordId: 1, lastReviewedAt: null),
+                NewSummary(id: 20, wordId: 1, lastReviewedAt: minimumUtc)
+            ]);
+        var installationB = NewInstallation(
+            NewWord(id: 42, wordTimestamp),
+            [
+                NewSummary(id: 10, wordId: 42, lastReviewedAt: minimumUtc),
+                NewSummary(id: 20, wordId: 42, lastReviewedAt: null)
+            ]);
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+        var summariesA = payloadA.Vocabulary.Single().LegacyReviewSummaries;
+        var summariesB = payloadB.Vocabulary.Single().LegacyReviewSummaries;
+
+        Assert.HasCount(2, summariesA, "Canonical ordering must preserve every legacy review summary row.");
+        Assert.HasCount(2, summariesB, "Canonical ordering must preserve every legacy review summary row.");
+
+        static string Projection(IReadOnlyList<BackupLegacyReviewSummary> summaries) => string.Join(
+            Environment.NewLine,
+            summaries.Select(summary =>
+                $"{summary.ReviewCount}|{summary.ForgotCount}|{summary.PartialCount}|{summary.KnownCount}|"
+                + (summary.LastReviewedAtUtc?.ToString("O") ?? "null")));
+
+        Assert.AreEqual(
+            Projection(summariesA),
+            Projection(summariesB),
+            "The same null and present UTC DateTime.MinValue summaries must have one canonical order, "
+            + "regardless of local row IDs or controlled snapshot enumeration order.");
+
+        var bytesA = BackupJsonCodecV2.SerializeData(payloadA);
+        var bytesB = BackupJsonCodecV2.SerializeData(payloadB);
+
+        Assert.IsTrue(
+            bytesA.AsSpan().SequenceEqual(bytesB.AsSpan()),
+            "Logically equivalent installations must produce byte-identical canonical V2 data.json output.");
+    }
+
     // ---- Package D (KF-BACKUP-003): cross-installation canonical output for completed preparation
     // workflows, completed learning workflows, and learning-review events.
     //

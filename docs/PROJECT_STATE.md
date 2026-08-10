@@ -1,8 +1,8 @@
 # KnownFirst project state
 
-**Status date:** 2026-08-09
+**Status date:** 2026-08-10
 **State source:** most recent product-relevant milestone — `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73 merge commit, Milestone 14B). This is historical milestone evidence, not the literal current `master` HEAD; the exact current `master` HEAD and PR state are live GitHub/Git facts discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
-**Next repository action:** None automatically authorized. Next bounded development package is `KF-BACKUP-005B` (portable Active learning-workflow export and restore into an empty installation), preceded by post-merge documentation closure on master.
+**Current feature-branch package:** KF-BACKUP-005B is implemented on `feature/schema10-portable-active-learning-workflow-restore-v1`; final focused `TEST_ONLY` is green at **135 passed / 0 failed / 0 skipped**, documentation reconciliation is complete, and the package remains unmerged until its normal repository lifecycle completes.
 
 This document is the authoritative snapshot of verified current state. Update it when a milestone is completed or when a release, schema, supported platform, or confirmed limitation changes. Plans belong in [ROADMAP.md](ROADMAP.md).
 
@@ -59,6 +59,8 @@ The current product source implements:
 - KF-BACKUP-004 (Schema-9 populated-target LearningReview merge integrity): collision-free positional action keys (`lr#<archiveRowIndex>`), meaning-aware review-event identity with stable nullable Target/Matched AnswerVariant identities, and scheduler-replay alignment; `LearningSessionId` deliberately excluded from event identity (PR #77).
 - KF-BACKUP-005A (Schema-10 stable learning-workflow identity foundation): immutable `StableId` columns on `LearningSessions` and `LearningSessionCards`, deterministic Completed bootstrap (SHA-256, 64 chars), one-time Active GUID bootstrap (32 chars), archive V2 DTO evolution, source ≤9 Completed compatibility, source ≤9 Active rejection, source ≥10 StableId validation; `LearningSessionId` excluded from `LearningReview` merge identity; Active workflow portable continuation excluded (deferred to 005B/005C) (PR #79).
 
+The KF-BACKUP-005B feature-branch package additionally implements ordinary Schema-10 portable export of an Active `LearningSession`, its persisted queue state, and its committed `LearningReview` rows; restore into an empty Schema-10 installation recreates the still-Active workflow and resumes through the normal production `LearningService` path from the last durably committed database state. Its live commit, pull-request, and merge state is discovered dynamically. It does not implement populated-target Active convergence; that remains KF-BACKUP-005C.
+
 ## Merged development foundations
 
 The `master` branch includes the following merged technical foundations:
@@ -112,7 +114,15 @@ The `master` branch includes the following merged technical foundations:
 - Package A, Package B, and Package C are merged to master. D1 through D5 are complete (see [CURRENT_WORK.md](CURRENT_WORK.md) and [ROADMAP.md](ROADMAP.md)).
 - Milestone 14A and Milestone 14B are both merged (PR #71, merge commit `39609ffffb39c69238882172d153f4bb795ddab8`; PR #73, merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`). Milestone 14 as a whole is complete on `master`. `POST_MERGE_SYNC_ONLY` completed successfully for both.
 - KF-BACKUP-003 Package D is merged via PR #76 (merge commit `17d3f1a031b9f319041ff1034a227d17b1029c4f`), KF-BACKUP-004 is merged via PR #77 (merge commit `bec861fb8a054beb2804f1132b450da1e45dee90`), the KF-BACKUP-004 post-merge closure is merged via PR #78 (merge commit `e3511ba6e7466c2fa63c4c46fd37f4e427f2a931`), and KF-BACKUP-005A is merged via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully for all, and all are part of this `master` snapshot.
-- Current `master` baseline is `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`.
+- Current verified `master` baseline is `bfdc634129575c4319a4fae73d9df05ee67147a7`, containing the KF-BACKUP-005A/closure baseline but no KF-BACKUP-005B implementation.
+
+**Current Status (KF-BACKUP-005B feature branch):**
+
+- Branch: `feature/schema10-portable-active-learning-workflow-restore-v1` at baseline HEAD `bfdc634129575c4319a4fae73d9df05ee67147a7`, with the 005B production/test work and documentation reconciliation.
+- Database schema remains **10** and archive format remains **V2**; no Schema 11 or archive V3 exists.
+- Active Schema-10 learning-workflow export and empty-target restore are implemented locally and focused final `TEST_ONLY` is green.
+- Populated-target preview and import for an archive containing an Active learning workflow remain fail-closed with `BackupErrorCodes.ActiveWorkflowUnsupported`; no target mutation or executable merge/writer behavior occurs.
+- No application version/build increment or external distribution is associated with this feature-branch implementation.
 
 ## Confirmed verification
 
@@ -120,10 +130,13 @@ The `master` branch includes the following merged technical foundations:
 
 - Automated tests cover Core policies, text analysis, temporary SQLite persistence, workflow logic, localization, diagnostics, lookup providers with offline fixtures, script contract invariants, and archive contracts. Automated tests do not make live network requests.
 - Test execution and status are tied to explicit commit and scope boundaries (see `docs/TESTING.md`).
+- KF-BACKUP-005B final exact-tree focused `TEST_ONLY` covered `BackupArchiveV2Tests`, `BackupModelContractTests`, `Schema8BackupRestoreTests`, `BackupServiceImportRoutingTests`, and `MergePreflightServiceTests`: **135 passed / 0 failed / 0 skipped**, normal process completion, 0 build warnings, 0 build errors, with pre/post `git diff --check` passing.
+- An earlier test-project run returned **1820 passed / 0 failed / 0 skipped** against the same unchanged 005B production implementation, but before the final acceptance-test additions. It is supplementary production-regression evidence, not exact-final-test-tree evidence.
 
 ### Platform builds
 
 - **Windows / Android Debug & Release:** Build readiness verified during Beta 10, Beta 11, Beta 12 release preparation, and candidate `ValidateAll` validation.
+- **KF-BACKUP-005B boundary:** `ValidateAll`, Windows platform build, Android platform build, Release-build behavior, rendered GUI, physical device/emulator behavior, APK/AAB, signing, publishing, and Google Play distribution were not validated. The earlier KF-BACKUP-005A `ValidateAll` result must not be reused as 005B executable-tree evidence.
 
 ## Database status
 
@@ -141,6 +154,7 @@ The `master` branch includes the following merged technical foundations:
 - Exported `.kfarchive` archives are not encrypted and may contain personal imported text and learning history; users are warned before export.
 - "Support KnownFirst" and "Report a bug" remain unimplemented planned features. Milestone 14A removed both controls, their "coming soon" placeholder UI, and the shared placeholder state and handlers from the production Settings source (`Components/Pages/Settings.razor`), so they are no longer represented by any production control; they remain documentation-only, tracked in [ROADMAP.md](ROADMAP.md). The localization keys `Settings_SupportKnownFirst`, `Settings_ReportBug`, and `Common_FeatureComingSoon` are intentionally retained as unreferenced resource strings; a resource string is not a rendered product control. This state is established by source-contract evidence (Razor/CSS/test source inspection, `UI_CONTRACT_AUTOMATED` `70 passed / 0 failed / 0 skipped`) — it is not rendered-Release or AAB evidence.
 - Cloud synchronization, accounts, analytics, advertising, and payments are not implemented.
+- On `master`, portable Active learning-workflow continuation remains absent because KF-BACKUP-005B is still an unmerged feature-branch candidate. On that candidate, the proven scope is Schema-10 empty-target restore only; populated-target Active convergence, Active-vs-Active conflict resolution, Active `VocabularyReview`, and Active `PreparationBatch` portability remain unsupported.
 - Offline dictionary packages and FSRS scheduling are deferred.
 - Online lookup requires explicit consent and network access on cache misses.
 - Public Google Play release is intentionally not yet pursued.
@@ -165,5 +179,7 @@ The most recent recorded product-relevant milestone on `master` is `14138ccdab1e
 D1-D5 documentation reconciliation is complete. Package A, Package B, and Package C are all merged and present on `master`. Milestone 14A (removal of the unfinished Support KnownFirst and Report a bug controls and their placeholder behavior from the production Settings source) was manually merged via PR #71 (merge commit `39609ffffb39c69238882172d153f4bb795ddab8`) and `POST_MERGE_SYNC_ONLY` completed successfully; its evidence is source-contract only. Milestone 14B (reopenable release-note history) was manually merged via PR #73 (merge commit `14138ccdab1e9b09a12ded002ff198d9b7312fcf`) and `POST_MERGE_SYNC_ONLY` completed successfully. Milestone 14 as a whole is therefore complete on `master`.
 
 **KF-BACKUP-005A — Schema-10 Stable Learning-Workflow Identity Foundation (merged via PR #79, merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`).** Advances `DatabaseSchema.CurrentVersion` to **10** on `master`. Adds immutable `StableId` columns to `LearningSessions` and `LearningSessionCards`. Completed legacy sessions receive deterministic SHA-256 64-char StableIds; Active legacy sessions receive fresh GUID 32-char StableIds once on migration. V2 DTOs evolve with trailing nullable StableId properties for legacy compatibility. Source ≤9 Completed workflows receive bootstrap StableIds on import; source ≤9 Active workflows remain unsupported/rejected; source ≥10 workflows require valid canonical StableIds. KF-BACKUP-004 `LearningSessionId` exclusion from `LearningReview` merge identity is preserved. Active portable workflow continuation is excluded from 005A and deferred to KF-BACKUP-005B and 005C. Canonical candidate `ValidateAll` passed FULL GREEN on checkpoint `551399df22131e0214e87b43a3eeaea9ae40ddf9` (1812/1812 tests, Windows Debug/Release passed, Android Debug/Release passed, 0 build errors, 0 AOT/trimming/source-gen warnings, 8 non-blocking XML-doc warnings). `POST_MERGE_SYNC_ONLY` completed successfully; the package is part of this `master` snapshot.
+
+**KF-BACKUP-005B — Portable Active Learning-Workflow Restore Into Empty Target (implemented/tested feature-branch package on `feature/schema10-portable-active-learning-workflow-restore-v1`).** For a Schema-10 source, ordinary portable export now transports one Active learning workflow, its persisted queue, and committed mid-session `LearningReview` history. Empty-target restore preserves the workflow and queue `StableId` values, remaps review references to the new local integer session ID, retains already-completed queue ratings and remaining ordered work, and resumes through `LearningService` from durable committed state without fabricating completion. Completed Schema-10 workflow portability remains supported and regression-tested. Schema-8/9 export remains Completed-only; source ≤9 Active workflows, Active `VocabularyReview`, and Active `PreparationBatch` remain unsupported. A populated target containing durable data still rejects an Active-workflow archive at preview and actual import with `BackupErrorCodes.ActiveWorkflowUnsupported`, with zero mutation and no executable merge/writer behavior; that convergence boundary remains KF-BACKUP-005C. Schema 10 and archive V2 are unchanged, and the transported identities remain intended for future synchronization reuse without implementing any network/cloud sync. Final focused `TEST_ONLY`: 135/0/0. Earlier supplementary test-project evidence: 1820/0/0 before final acceptance-test additions. Documentation reconciliation is complete; the package remains unmerged until its normal repository lifecycle completes, after which KF-BACKUP-005C is the next bounded implementation package.
 
 See [CURRENT_WORK.md](CURRENT_WORK.md) for the active task state.

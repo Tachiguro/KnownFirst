@@ -52,7 +52,7 @@ public static class BackupSnapshotCapture
                 Schema8BackupSnapshotRepository.CapturePortableSnapshot(connection), schema9.Capability),
             Schema10CapabilityResult schema10 => new CapturedSchema10SnapshotEnvelope(
                 Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
-                    connection, Schema8BackupSnapshotRepository.CapturePortableSnapshot(connection)),
+                    connection, Schema8BackupSnapshotRepository.CapturePortableSnapshotSchema10(connection)),
                 schema10.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };

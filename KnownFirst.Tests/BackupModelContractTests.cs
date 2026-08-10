@@ -665,6 +665,120 @@ public sealed class BackupModelContractTests
         Assert.IsNull(payload.SenseAnswerVariantAssignments[0].RequiredSinceUtc);
     }
 
+    [TestMethod]
+    public void LearningWorkflowStableIds_SourceSchema10_MissingOrMalformed_AreRejected()
+    {
+        var validPayload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+        var validWorkflow = validPayload.Workflows.LearningSessions[0] with { StableId = new string('a', 32) };
+        var validItem = validWorkflow.QueueItems[0] with { StableId = new string('b', 32) };
+        validWorkflow = validWorkflow with { QueueItems = [validItem] };
+        validPayload = validPayload with { Workflows = validPayload.Workflows with { LearningSessions = [validWorkflow] } };
+
+        // 1. Missing workflow StableId
+        var missingWorkflowId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow with { StableId = null }]
+            }
+        };
+        AssertBackupError(
+            BackupErrorCodes.InvariantViolation,
+            () => BackupModelContractV2.ValidateLearningWorkflowStableIds(10, missingWorkflowId));
+
+        // 2. Malformed workflow StableId
+        var malformedWorkflowId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow with { StableId = "invalid-workflow-id" }]
+            }
+        };
+        AssertBackupError(
+            BackupErrorCodes.InvariantViolation,
+            () => BackupModelContractV2.ValidateLearningWorkflowStableIds(10, malformedWorkflowId));
+
+        // 3. Duplicate workflow StableId
+        var duplicateWorkflowId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow, validWorkflow]
+            }
+        };
+        AssertBackupError(
+            BackupErrorCodes.DuplicateId,
+            () => BackupModelContractV2.ValidateLearningWorkflowStableIds(10, duplicateWorkflowId));
+
+        // 4. Missing queue StableId
+        var missingQueueId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow with { QueueItems = [validItem with { StableId = null }] }]
+            }
+        };
+        AssertBackupError(
+            BackupErrorCodes.InvariantViolation,
+            () => BackupModelContractV2.ValidateLearningWorkflowStableIds(10, missingQueueId));
+
+        // 5. Malformed queue StableId
+        var malformedQueueId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow with { QueueItems = [validItem with { StableId = "invalid-queue-id" }] }]
+            }
+        };
+        AssertBackupError(
+            BackupErrorCodes.InvariantViolation,
+            () => BackupModelContractV2.ValidateLearningWorkflowStableIds(10, malformedQueueId));
+
+        // 6. Duplicate queue StableId
+        var duplicateQueueId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow with { QueueItems = [validItem, validItem] }]
+            }
+        };
+        AssertBackupError(
+            BackupErrorCodes.DuplicateId,
+            () => BackupModelContractV2.ValidateLearningWorkflowStableIds(10, duplicateQueueId));
+    }
+
+    [TestMethod]
+    public void LearningWorkflowStableIds_SourceSchema9_AllowedAbsentButMalformed_AreRejected()
+    {
+        var validPayload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+        var validWorkflow = validPayload.Workflows.LearningSessions[0] with { StableId = new string('a', 32) };
+        var validItem = validWorkflow.QueueItems[0] with { StableId = new string('b', 32) };
+        validWorkflow = validWorkflow with { QueueItems = [validItem] };
+        validPayload = validPayload with { Workflows = validPayload.Workflows with { LearningSessions = [validWorkflow] } };
+
+        // Allowed absent in schema <= 9
+        var missingWorkflowId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow with { StableId = null, QueueItems = [validItem with { StableId = null }] }]
+            }
+        };
+        BackupModelContractV2.ValidateLearningWorkflowStableIds(9, missingWorkflowId);
+
+        // But if present, must be well-formed
+        var malformedWorkflowId = validPayload with
+        {
+            Workflows = validPayload.Workflows with
+            {
+                LearningSessions = [validWorkflow with { StableId = "invalid-workflow-id" }]
+            }
+        };
+        AssertBackupError(
+            BackupErrorCodes.InvariantViolation,
+            () => BackupModelContractV2.ValidateLearningWorkflowStableIds(9, malformedWorkflowId));
+    }
+
     private static void AssertPersistenceRoundTrips<TPersistence, TBackup>(
         Func<TPersistence, TBackup> toBackup,
         Func<TBackup, TPersistence> toPersistence)

@@ -80,6 +80,33 @@ public static class Schema8BackupSnapshotRepository
         };
     }
 
+    /// <summary>Schema-10-specific portable/user-export capture. Differs from legacy <see cref="CapturePortableSnapshot"/>
+    /// only by retaining Active learning sessions, making them portable and resumable when restored into an empty target.</summary>
+    public static Schema8BackupSnapshot CapturePortableSnapshotSchema10(SQLiteConnection connection)
+    {
+        var snapshot = CaptureSnapshot(connection);
+
+        var reviewSessions = snapshot.ReviewSessions.Where(s => s.Status == ReviewSessionStatus.Completed).ToList();
+        var reviewSessionIds = reviewSessions.Select(s => s.Id).ToHashSet();
+
+        var preparationSessions = snapshot.PreparationSessions.Where(s => s.Status != PreparationSessionStatus.Active).ToList();
+        var preparationSessionIds = preparationSessions.Select(s => s.Id).ToHashSet();
+
+        var learningSessions = snapshot.LearningSessions.ToList();
+        var learningSessionIds = learningSessions.Select(s => s.Id).ToHashSet();
+
+        return snapshot with
+        {
+            ReviewSessions = reviewSessions,
+            ReviewCandidates = snapshot.ReviewCandidates.Where(c => reviewSessionIds.Contains(c.SessionId)).ToList(),
+            PreparationSessions = preparationSessions,
+            PreparationCandidates = snapshot.PreparationCandidates.Where(c => preparationSessionIds.Contains(c.SessionId)).ToList(),
+            LearningReviews = snapshot.LearningReviews.Where(r => learningSessionIds.Contains(r.SessionId)).ToList(),
+            LearningSessions = learningSessions,
+            LearningSessionCards = snapshot.LearningSessionCards.Where(q => learningSessionIds.Contains(q.SessionId)).ToList()
+        };
+    }
+
     /// <summary>Full, unfiltered Schema-8 capture (used by the internal full backup path). Bounds each
     /// table by the same <c>BackupFormatLimits</c> used for Schema 7.</summary>
     public static Schema8BackupSnapshot CaptureSnapshot(SQLiteConnection connection)

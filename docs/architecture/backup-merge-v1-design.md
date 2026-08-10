@@ -4,6 +4,8 @@
 **Backlog item:** [KF-BACKUP-002](../BACKLOG.md), P1, blocks public release readiness, does not block Beta 12 Internal Testing.
 **Builds on:** [backup-format-v1.md](backup-format-v1.md) (binding contract for the *existing* Restore-into-empty behavior, unchanged by this proposal), `Models/BackupModels.cs`, `Data/BackupImportRepository.cs`, `Data/BackupSnapshotRepository.cs`, `Services/DataSafety/BackupService.cs`, `Services/TextReviewService.cs`, `Services/Study/PreparationService.cs`, `Services/Study/LearningService.cs`.
 
+**KF-BACKUP-005B package status (2026-08-10):** Schema-10 Active learning-workflow export and restore into an empty target are implemented locally and focused final `TEST_ONLY` is green on `feature/schema10-portable-active-learning-workflow-restore-v1`; documentation reconciliation is complete and the package remains unmerged until its normal repository lifecycle completes. Live commit, pull-request, and merge state is discovered dynamically. See §24 for the package architecture and the unchanged KF-BACKUP-005C populated-target boundary.
+
 ## Product contract: single "Import data" action
 
 This section states the final user-facing behavior this design and [backup-format-v1.md](backup-format-v1.md) jointly implement, so slice-by-slice implementation work has one unambiguous target. It does not change anything below — §§0–15 already imply every point here; this section only makes the resulting product contract explicit in one place.
@@ -228,7 +230,7 @@ Workflow-level events (`ReviewCandidateEntity`, `PreparationCandidateEntity`, `L
 
 ## 7. Archive-version compatibility (unchanged conclusion)
 
-No `formatVersion` bump is required. Every stable key and every piece of history this revision needs — natural-key fields, `ExplanationLanguage`/`TargetLanguage`, provider source identity, full `LearningReview` rows with their scheduler-outcome fields — already exists in the v1 payload. Merge only changes how existing exported fields are *interpreted*; it exports nothing new. The active-workflow exclusion is unchanged and applies identically to Merge.
+No `formatVersion` bump is required. Every stable key and every piece of history this revision needs — natural-key fields, `ExplanationLanguage`/`TargetLanguage`, provider source identity, full `LearningReview` rows with their scheduler-outcome fields — already exists in the v1 payload. Merge only changes how existing exported fields are *interpreted*; it exports nothing new. Historically, the active-workflow exclusion applied identically to this merge design. KF-BACKUP-005B does not rewrite archive-format-v1 semantics: source schema ≤9 remains Completed-only, while §24 records the later Schema-10/archive-V2 empty-target Active capability.
 
 ## 8. Safety-copy design — added per defect #4
 
@@ -577,7 +579,7 @@ No archive DTO shape, `.kfarchive` format version, database schema, migration, m
 
 ### Scope boundary
 
-Left out of Package D, and not silently closed by it: `LegacyReviewSummaries` ordering (same defect class, no archive-local id derives from it); `MergePreflightPlannerV2.ComputeReviewFingerprint`'s omission of `LearningSessionId`/answer-variant references from its duplicate-detection key; the mid-session review-event export policy (`Schema8BackupSnapshotRepository.CapturePortableSnapshot` excludes reviews recorded inside a still-Active session); and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random.
+Left out of Package D, and not silently closed by it at that package boundary: `LegacyReviewSummaries` ordering (same defect class, no archive-local id derives from it); `MergePreflightPlannerV2.ComputeReviewFingerprint`'s omission of `LearningSessionId`/answer-variant references from its duplicate-detection key; the then-open mid-session review-event export policy (`Schema8BackupSnapshotRepository.CapturePortableSnapshot` excluded reviews recorded inside a still-Active session); and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random. KF-BACKUP-004 later addressed the fingerprint residual, and the KF-BACKUP-005B feature-branch package addresses the mid-session export policy (§24); the other listed residuals remain open.
 
 The duplicate-detection residual above is taken up by KF-BACKUP-004 in §22, which resolves the answer-variant half and records why `LearningSessionId` is deliberately kept out of merge identity. The other three residuals remain open.
 
@@ -647,7 +649,7 @@ The legacy v1 `MergePreflightPlanner` keeps its analogous synthesized label and 
 
 ### Scope boundary
 
-Left out of KF-BACKUP-004, and not silently closed by it: the legacy v1 planner's analogous synthesized label (above); `LegacyReviewSummaries` ordering; the mid-session review-event export policy; and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random.
+Left out of KF-BACKUP-004, and not silently closed by it at that package boundary: the legacy v1 planner's analogous synthesized label (above); `LegacyReviewSummaries` ordering; the then-open mid-session review-event export policy; and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random. The KF-BACKUP-005B feature-branch package addresses the mid-session export policy (§24); the other residuals remain open.
 
 ---
 
@@ -706,7 +708,7 @@ Semantic material:
 
 A legacy Active `LearningSession` and its associated `LearningSessionCard` rows receive fresh 32-character GUID `StableId` values at migration time. These identities:
 
-- are not deterministic or cross-installation reproducible (by design — Active sessions are not portable in Schema 10);
+- are not deterministic or independently reproducible from workflow content on another installation; they identify this specific durable workflow and are transported unchanged by the later KF-BACKUP-005B Schema-10 portability path;
 - remain stable through all subsequent workflow mutations: rating, pruning, Again/repeat, counter changes, and eventual completion;
 - are never reassigned after the initial migration bootstrap.
 
@@ -724,8 +726,8 @@ This immutability constraint is the foundation for future cross-device synchroni
 
 | Source schema | Completed portable workflow | Active portable workflow |
 | --- | --- | --- |
-| ≤9 | Supported; Completed sessions/queue rows may receive deterministic bootstrap StableIds during import | Unsupported/rejected |
-| ≥10 | Required; StableIds must be present, canonical, and unique | Required; StableIds present, canonical, and unique; Active workflow portability deferred to KF-BACKUP-005B |
+| ≤9 | Supported; ordinary portable export remains Completed-only and Completed sessions/queue rows may receive deterministic bootstrap StableIds during import | Unsupported/rejected |
+| ≥10 | Supported; StableIds must be present, canonical, unique, and transported unchanged | Supported by the KF-BACKUP-005B feature-branch candidate for ordinary export and restore into an empty Schema-10 target; StableIds must be present, canonical, unique, and transported unchanged |
 
 For source ≥10 archives, transported `StableId` values are preserved unchanged and validated for canonical form and uniqueness before any mutation.
 
@@ -735,19 +737,19 @@ The outer `.kfarchive` format remains version V2 (not incremented). Schema 10 ex
 
 `LearningSessionId` is **not** part of `LearningReview` merge identity — this boundary established by KF-BACKUP-004 (§22.3) is unchanged by Schema 10. `LearningSessionId` is preserved as referential workflow attachment and provenance for each inserted review row. Schema-10 `StableId` assignment on `LearningSessions` does not alter or interact with the `LearningReview` event-identity contract.
 
-### 23.8 005A Active portability exclusion
+### 23.8 Historical 005A Active portability exclusion
 
 KF-BACKUP-005A does not implement portable Active learning-workflow continuation:
 
 - Portable export excludes Active `LearningSessions`/workflow rows.
 - Portable import continues rejecting unsupported Active workflow archives where applicable.
 
-This exclusion is not a gap in the current product; the application fully supports resumable local Active sessions. The exclusion bounds the portable-transport contract to what is safe and proven in this package.
+This was the 005A package boundary on `master`; it remains historically accurate for 005A itself. KF-BACKUP-005B changes the current feature-branch candidate for Schema-10 empty-target portability only (§24). Populated-target Active convergence remains excluded.
 
 ### 23.9 Succession: KF-BACKUP-005B and 005C
 
-- **KF-BACKUP-005B:** Portable Active learning-workflow export and restore into an empty installation from the last durably committed application state. Requires stable StableIds established by 005A.
-- **KF-BACKUP-005C:** Populated-target Active workflow convergence and conflict safety. Builds on 005A StableIds and 005B portable export.
+- **KF-BACKUP-005B:** Implemented and focused-final-`TEST_ONLY` green on the feature branch; provides portable Active learning-workflow export and empty-target restore from the last durably committed application/database state. Requires the stable identities established by 005A.
+- **KF-BACKUP-005C:** Next bounded implementation package after 005B completes its lifecycle. Populated-target Active workflow convergence and conflict safety remain unimplemented.
 
 Actual network/cloud synchronization is not implemented. The StableId architecture is intentionally reusable by later cross-device synchronization rather than being a backup-only disposable identity scheme.
 
@@ -760,3 +762,94 @@ Actual network/cloud synchronization is not implemented. The StableId architectu
 - Wikipedia architecture sentinel (Schema 10 `CurrentVersion` sentinel): 7 passed / 0 failed / 0 skipped / 7 total.
 
 **Evidence limitation:** all of the above is automated unit, integration, persistence, contract, and platform compilation build evidence (Windows Debug/Release, Android Debug/Release) executed against isolated temporary synthetic SQLite databases; no real user database was accessed. There is no rendered-GUI, runtime/device/platform, APK/AAB packaging, signing, publishing, or release evidence for this package. Active portable-workflow resume behavior is explicitly excluded from this package's scope.
+
+---
+
+## §24 KF-BACKUP-005B — Portable Active Learning-Workflow Restore Into Empty Target
+
+**Lifecycle status:** Implementation and final focused `TEST_ONLY` are complete locally on `feature/schema10-portable-active-learning-workflow-restore-v1`; documentation reconciliation is complete for the feature-branch package. The package remains unmerged until its normal repository lifecycle completes. Live commit, pull-request, and merge state is discovered dynamically; `master` contains the KF-BACKUP-005A/closure baseline.
+
+### 24.1 Schema and archive continuity
+
+KF-BACKUP-005B changes portable behavior without introducing a new persistence or container version:
+
+- `DatabaseSchema.CurrentVersion` remains **10**; there is no Schema 11.
+- The outer `.kfarchive` format remains **V2**; there is no archive V3.
+- Existing Schema-10 `LearningSession.StableId` and `LearningSessionCard.StableId` values are carried unchanged.
+- Source ≥10 workflow and queue StableIds remain mandatory, lowercase-hex canonical, valid-length, and unique.
+
+The Schema-10 stable identities remain intended for later cross-device synchronization reuse. This package implements no network/cloud transport, account system, or remote synchronization service and must not be treated as a backup-only identity dead end.
+
+### 24.2 Ordinary Schema-10 export contract
+
+For a source database at Schema 10, ordinary portable export includes:
+
+- the Active `LearningSession` itself;
+- its persisted `LearningSessionCard` queue state;
+- committed `LearningReview` rows belonging to that Active workflow;
+- the workflow and queue-row StableIds assigned by Schema 10.
+
+The export represents the last durably committed application/database state. It does not claim to capture transient in-memory or uncommitted UI state, and the user is not required to finish the learning session before creating a portable archive.
+
+### 24.3 Empty-target restore and durable resume
+
+Restore into an **empty Schema-10 installation** recreates the Active workflow and resumes it through the normal production `LearningService` path. The restored session remains Active; no fake `Completed` state or completion timestamp is fabricated.
+
+The proven durable state includes:
+
+- queue items already completed before export;
+- their persisted ratings and completion state;
+- committed mid-session `LearningReview` history;
+- remaining incomplete queue items;
+- the persisted queue ordering;
+- unchanged transported workflow and queue StableIds.
+
+The target allocates a new installation-local integer `LearningSession.Id`. Every restored `LearningReview.LearningSessionId` is remapped to that new local parent while the review's durable event content is preserved. This is referential remapping only: KF-BACKUP-004's rule that `LearningSessionId` is excluded from `LearningReview` merge identity remains unchanged.
+
+### 24.4 Completed workflow regression
+
+KF-BACKUP-005B does not regress the established Completed Schema-10 workflow path. Explicit regression coverage proves that empty-target restore preserves:
+
+- `Completed` status;
+- a non-null completion timestamp;
+- queue and review history;
+- the persistent workflow StableId;
+- persistent queue-item StableIds.
+
+### 24.5 Legacy and non-learning workflow boundary
+
+- Schema-8 ordinary portable export remains Completed-only for learning workflows.
+- Schema-9 ordinary portable export remains Completed-only for learning workflows.
+- Source schema ≤9 Active learning-workflow archives remain unsupported/rejected under the established Active-workflow boundary.
+- Active `VocabularyReview` remains unsupported.
+- Active `PreparationBatch` remains unsupported.
+
+The historical archive-format-v1 Completed-only contract in [backup-format-v1.md](backup-format-v1.md) is unchanged. The 005B capability belongs to the current Schema-10/archive-V2 path.
+
+### 24.6 KF-BACKUP-005C populated-target guard
+
+KF-BACKUP-005B is deliberately limited to empty-target Active restore. If the target already contains durable data, a valid Schema-10 archive containing an Active learning workflow remains blocked:
+
+- preview fails closed with `BackupErrorCodes.ActiveWorkflowUnsupported`;
+- actual import fails closed with the same code;
+- the target is not mutated;
+- executable merge/writer behavior does not run.
+
+Active-vs-Active convergence, populated-target conflict resolution, and all other Active merge semantics remain KF-BACKUP-005C. Cross-device network/cloud synchronization, accounts, and remote sync services remain out of scope.
+
+### 24.7 Validation evidence and limits
+
+**Final exact-tree focused `TEST_ONLY`:**
+
+- Classes: `BackupArchiveV2Tests`, `BackupModelContractTests`, `Schema8BackupRestoreTests`, `BackupServiceImportRoutingTests`, `MergePreflightServiceTests`.
+- Result: **135 passed / 0 failed / 0 skipped**.
+- Normal process completion; 0 build warnings; 0 build errors.
+- Pre- and post-run `git diff --check`: passed.
+
+**Earlier supplementary evidence:** an earlier test-project run returned **1820 passed / 0 failed / 0 skipped** against the same unchanged 005B production implementation. Because it ran before the final acceptance-test additions, it is supplementary production-regression evidence and not exact-final-test-tree evidence.
+
+**Not validated for 005B:** `ValidateAll`; Windows platform build; Android platform build; rendered GUI; physical device/emulator behavior; Release-build behavior; APK/AAB; signing; publishing; Google Play distribution. The KF-BACKUP-005A `ValidateAll` result in §23.10 validates the 005A executable tree only and must not be reused as 005B evidence.
+
+### 24.8 Lifecycle succession
+
+The lifecycle-stable package state is: 005B implementation complete locally → focused final `TEST_ONLY` green → documentation reconciliation complete. The package remains unmerged until its normal repository lifecycle completes; live commit, pull-request, and merge state is discovered dynamically. KF-BACKUP-005C becomes the next implementation package only after the 005B lifecycle completes.

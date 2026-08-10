@@ -1195,6 +1195,69 @@ public sealed class BackupArchiveV2Tests
         return fixture;
     }
 
+    [TestMethod]
+    public async Task ValidatePortableRecoveryScopeV2_ActivePreparationBatch_IsRejected()
+    {
+        var payload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+        var activePreparation = payload.Workflows.PreparationBatches[0] with { Status = BackupPreparationSessionStatus.Active };
+        var activePayload = payload with { Workflows = payload.Workflows with { PreparationBatches = [activePreparation] }, Extensions = new BackupExtensions(new Dictionary<string, BackupExtensionPayload>()) };
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(activePayload, new Schema8BackupFixtureBuilders.FakePlatformInfo(), new ValidatedSchema8Capability(), DateTime.UtcNow, stream, CancellationToken.None);
+        var exception = await Assert.ThrowsExactlyAsync<BackupFormatException>(() => BackupArchiveReader.ValidateVersionedAsync(new MemoryStream(stream.ToArray()), CancellationToken.None));
+        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, exception.Code);
+    }
+
+    [TestMethod]
+    public async Task ValidatePortableRecoveryScopeV2_ActiveVocabularyReview_IsRejected()
+    {
+        var payload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+        var activeReview = payload.Workflows.VocabularyReviews[0] with { Status = BackupReviewSessionStatus.Active };
+        var activePayload = payload with { Workflows = payload.Workflows with { VocabularyReviews = [activeReview] }, Extensions = new BackupExtensions(new Dictionary<string, BackupExtensionPayload>()) };
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(activePayload, new Schema8BackupFixtureBuilders.FakePlatformInfo(), new ValidatedSchema8Capability(), DateTime.UtcNow, stream, CancellationToken.None);
+        var exception = await Assert.ThrowsExactlyAsync<BackupFormatException>(() => BackupArchiveReader.ValidateVersionedAsync(new MemoryStream(stream.ToArray()), CancellationToken.None));
+        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, exception.Code);
+    }
+
+    [TestMethod]
+    public async Task ValidatePortableRecoveryScopeV2_ActiveLearningSession_WithSourceSchema9_IsRejected()
+    {
+        var payload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+
+        var inactiveReviews = payload.Workflows.VocabularyReviews.Select(r => r with { Status = BackupReviewSessionStatus.Completed }).ToList();
+        var inactiveBatches = payload.Workflows.PreparationBatches.Select(b => b with { Status = BackupPreparationSessionStatus.Completed }).ToList();
+
+        var activeLearning = payload.Workflows.LearningSessions[0] with { Status = BackupLearningSessionStatus.Active };
+        var activePayload = payload with { Workflows = payload.Workflows with { LearningSessions = [activeLearning], VocabularyReviews = inactiveReviews, PreparationBatches = inactiveBatches }, Extensions = new BackupExtensions(new Dictionary<string, BackupExtensionPayload>()) };
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(activePayload, new Schema8BackupFixtureBuilders.FakePlatformInfo(), new ValidatedSchema9Capability(), DateTime.UtcNow, stream, CancellationToken.None);
+        var exception = await Assert.ThrowsExactlyAsync<BackupFormatException>(() => BackupArchiveReader.ValidateVersionedAsync(new MemoryStream(stream.ToArray()), CancellationToken.None));
+        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, exception.Code);
+    }
+
+    [TestMethod]
+    public async Task ValidatePortableRecoveryScopeV2_ActiveLearningSession_WithSourceSchema10_IsAccepted()
+    {
+        var payload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+
+        // Sanitize other active workflows to not trigger rejection early
+        var inactiveReviews = payload.Workflows.VocabularyReviews.Select(r => r with { Status = BackupReviewSessionStatus.Completed }).ToList();
+        var inactiveBatches = payload.Workflows.PreparationBatches.Select(b => b with { Status = BackupPreparationSessionStatus.Completed }).ToList();
+
+        var activeLearning = payload.Workflows.LearningSessions[0] with { Status = BackupLearningSessionStatus.Active, StableId = new string('a', 32) };
+        var activeItem = activeLearning.QueueItems[0] with { StableId = new string('b', 32) };
+        activeLearning = activeLearning with { QueueItems = [activeItem] };
+        var activePayload = payload with { Workflows = payload.Workflows with { LearningSessions = [activeLearning], VocabularyReviews = inactiveReviews, PreparationBatches = inactiveBatches }, Extensions = new BackupExtensions(new Dictionary<string, BackupExtensionPayload>()) };
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(activePayload, new Schema8BackupFixtureBuilders.FakePlatformInfo(), new ValidatedSchema10Capability(), DateTime.UtcNow, stream, CancellationToken.None);
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(new MemoryStream(stream.ToArray()), CancellationToken.None);
+        Assert.IsNotNull(validated.V2);
+    }
+
     private const string LocalIdIndependenceMeaning1StableId = "me-fixed-0001";
     private const string LocalIdIndependenceMeaning2StableId = "me-fixed-0002";
     private const string LocalIdIndependenceVariantTermStableId = "av-fixed-0001";

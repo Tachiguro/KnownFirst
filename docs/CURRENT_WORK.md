@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-10 (KF-BACKUP-005B complete on `master` via PR #81; KF-BACKUP-005C is next and has not started)
+2026-08-10 (KF-BACKUP-005B complete on `master` via PR #81; KF-BACKUP-005C is a verified local candidate pending its publication lifecycle)
 
 ## Repository
 
@@ -52,7 +52,17 @@
 
 ## Currently active package
 
-**`KF-BACKUP-005B` — Portable Active Learning-Workflow Restore Into Empty Target** is merged and binding `master` behavior via PR #81 (feature commit `e8236bba3d23e942014e6979b661e0c77a2a3bdd`, merge commit `dc56e8412966ac32531c4b0358526582702d6d24`). `POST_MERGE_SYNC_ONLY` completed successfully.
+**`KF-BACKUP-005C` — Populated-Target Active Learning-Workflow Convergence and Conflict Safety** is a verified local candidate on `feature/kf-backup-005c-active-workflow-convergence-v1`. It is uncommitted, unpushed, has no upstream, remote branch, or PR, and is not merged or binding `master` behavior. `master` remains at the merged KF-BACKUP-005B empty-target capability.
+
+### KF-BACKUP-005C verified local candidate
+
+- A populated, quiescent Schema-10 target can additively accept a Schema-10/V2 archive with an Active learning workflow. Existing writer machinery preserves workflow and queue-row `StableId` values, remaps committed `LearningReview` rows to the new target-local integer session ID, and performs scheduler replay.
+- For the same Active workflow `StableId`, exact durable workflow, queue, and multiplicity-aware LearningReview equivalence converges to `NoChanges`; no safety copy, writer invocation, or scheduler replay occurs.
+- Any non-exact same-`StableId` Active state requires a deterministic merge decision and is non-executable with zero target mutation. This includes scalar, queue, review-event, and review-multiplicity mismatches, plus archive-Active/target-Completed state.
+- Archive-Completed/target-Active remains blocked by the existing `BlockedByActiveWorkflow` / `ActiveWorkflowUnsupported` boundary. Source schema ≤9 Active learning workflows, Active `VocabularyReview`, and Active `PreparationBatch` remain unsupported.
+- The Active-aware Schema-10 capture is read-only and preflight-only. Existing safety-copy capture remains fail-closed for an Active target; executable additive merges still require the existing validated safety copy and writer stale-plan safeguards.
+
+**Candidate evidence:** focused `Schema10ActiveArchive` **8/0/0**; controlled bounded affected/regression scope **254/0/0** with MSTest Workers=1 and again **254/0/0** with normal Workers=8; independent implementation re-review and historical-failure risk review each found **0 BLOCKER / 0 MAJOR / 0 MINOR**. Two earlier safety-copy-count observations (H1 idempotency 1→2; H2 semantic mismatch 1→0) remain documented as unexplained, non-reproducible historical transient failures, not passing runs and not a concrete correction target. This is automated unit/integration/persistence/contract evidence only; no ALL_AUTOMATED, ValidateAll, platform, GUI, device, package, release, or CI evidence exists for 005C.
 
 ### KF-BACKUP-005B capability on master
 
@@ -105,7 +115,7 @@
 **Succession:**
 
 - **KF-BACKUP-005B:** complete and merged on `master` via PR #81.
-- **KF-BACKUP-005C:** the next bounded Priority-15 development package after the 005B post-merge documentation lifecycle completes; populated-target Active workflow convergence and conflict safety remain unimplemented.
+- **KF-BACKUP-005C:** verified local implementation and documentation candidate; commit, push, PR, manual merge, and post-merge synchronization remain pending. It is not current `master` behavior.
 - Remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue before Priority 16 (automated GUI validation). The mid-session review-event export policy is now on `master` through 005B.
 
 Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A are all complete and merged on `master`; their history is unaffected.
@@ -113,13 +123,13 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 ## Current blocker or pending validation
 
 - None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), or KF-BACKUP-005A (PR #79): all completed their full lifecycle on `master`.
-- No KF-BACKUP-005B implementation, focused-`TEST_ONLY`, review, commit, push, PR, merge, or synchronization lifecycle action remains. KF-BACKUP-005C is the next bounded Priority-15 package and has not started.
+- KF-BACKUP-005C is ready for independent DOCUMENT_ONLY review before its separate commit/push/PR lifecycle; it remains a local candidate and has not started any publication or merge phase.
 - Rendered-GUI, runtime, platform-build, Release-build, device/emulator, and AAB-level behavior remains unproven and out of scope for 005B.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for the earlier KF-BACKUP-005A candidate only; it is not 005B evidence.
 
 ## Exact next action
 
-- **Next development package:** KF-BACKUP-005C, through its own separately authorized isolated planning lifecycle. It has not started.
+- **Next lifecycle action:** independent `REVIEW_ONLY` of the KF-BACKUP-005C documentation candidate, followed only by separately scoped commit/push/PR phases if approved.
 - Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
@@ -130,5 +140,5 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), KF-BACKUP-004 post-merge closure (PR #78), and KF-BACKUP-005A (PR #79) are complete and merged on `master`.
 - **KF-BACKUP-005B:** merged master capability via PR #81; it implements Schema-10 Active workflow export and empty-target restore from durable state, with focused final `TEST_ONLY` green.
-- **Next implementation package:** `KF-BACKUP-005C` populated-target Active convergence, followed by the remaining Priority-15 residuals; it has not started and requires its own isolated planning lifecycle.
+- **Active local candidate:** `KF-BACKUP-005C` populated-target Active convergence; its implementation and documentation are verified locally but remain uncommitted, unpushed, without a PR, and non-binding on `master`. Remaining Priority-15 residuals follow after its lifecycle.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

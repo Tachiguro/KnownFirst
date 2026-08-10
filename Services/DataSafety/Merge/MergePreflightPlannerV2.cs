@@ -78,6 +78,213 @@ public static class MergePreflightPlannerV2
 
         var targetCardsByFutureCardIdentity = MergePreflightPlanner.ToUniqueDictionary(target.Learning.Cards, c => targetFutureCardIdByLocalId[c.Id], "target learning card future-card identity");
 
+        string? ResolveNullableVariantIdentity(
+            string? localId,
+            IReadOnlyDictionary<string, AnswerVariantIdentity> variantIdentityByLocalId,
+            string reference) =>
+            localId is null
+                ? null
+                : MergePreflightPlanner.Resolve(variantIdentityByLocalId, localId, reference).Value;
+
+        string ComputeReviewFingerprint(
+            FutureCardIdentity futureCardIdentity,
+            BackupLearningReviewV2 review,
+            IReadOnlyDictionary<string, AnswerVariantIdentity> variantIdentityByLocalId,
+            string side) =>
+            Schema9LearningReviewMergeIdentity.ComputeEventFingerprint(
+                futureCardIdentity.Value,
+                review.ReviewedAtUtc,
+                review.Rating,
+                review.WasTypedAnswer,
+                review.WasCorrect,
+                review.DueAtUtc,
+                review.IntervalDays,
+                review.EaseFactor,
+                ResolveNullableVariantIdentity(
+                    review.TargetAnswerVariantId,
+                    variantIdentityByLocalId,
+                    side + " review target answer variant identity"),
+                ResolveNullableVariantIdentity(
+                    review.MatchedAnswerVariantId,
+                    variantIdentityByLocalId,
+                    side + " review matched answer variant identity"));
+
+        bool ActiveWorkflowScalarsEqual(
+            BackupLearningWorkflowV2 targetSession,
+            BackupLearningWorkflowV2 archiveSession) =>
+            targetSession.Status == archiveSession.Status
+            && targetSession.TotalCards == archiveSession.TotalCards
+            && targetSession.CompletedCards == archiveSession.CompletedCards
+            && targetSession.AgainCount == archiveSession.AgainCount
+            && targetSession.HardCount == archiveSession.HardCount
+            && targetSession.GoodCount == archiveSession.GoodCount
+            && targetSession.EasyCount == archiveSession.EasyCount
+            && targetSession.StartedAtUtc == archiveSession.StartedAtUtc
+            && targetSession.UpdatedAtUtc == archiveSession.UpdatedAtUtc
+            && targetSession.CompletedAtUtc == archiveSession.CompletedAtUtc;
+
+        bool ActiveQueueItemsEqual(
+            BackupLearningQueueItemV2 targetItem,
+            BackupLearningQueueItemV2 archiveItem) =>
+            Data.Schema10.LearningWorkflowStableId.IsValid(targetItem.StableId)
+            && string.Equals(targetItem.StableId, archiveItem.StableId, StringComparison.Ordinal)
+            && MergePreflightPlanner.Resolve(
+                targetFutureCardIdByLocalId,
+                targetItem.CardId,
+                "target Active learning queue card identity") ==
+               MergePreflightPlanner.Resolve(
+                   archiveFutureCardIdByLocalId,
+                   archiveItem.CardId,
+                   "archive Active learning queue card identity")
+            && targetItem.QueueOrder == archiveItem.QueueOrder
+            && targetItem.IsDueCard == archiveItem.IsDueCard
+            && targetItem.IsAgainRepeat == archiveItem.IsAgainRepeat
+            && targetItem.AnswerRevealed == archiveItem.AnswerRevealed
+            && targetItem.SpellingChecked == archiveItem.SpellingChecked
+            && targetItem.SpellingCorrect == archiveItem.SpellingCorrect
+            && targetItem.IsCompleted == archiveItem.IsCompleted
+            && targetItem.Rating == archiveItem.Rating
+            && targetItem.CompletedAtUtc == archiveItem.CompletedAtUtc
+            && string.Equals(
+                ResolveNullableVariantIdentity(
+                    targetItem.TargetAnswerVariantId,
+                    targetAnswerVariantByLocalId,
+                    "target Active learning queue target answer variant identity"),
+                ResolveNullableVariantIdentity(
+                    archiveItem.TargetAnswerVariantId,
+                    archiveAnswerVariantByLocalId,
+                    "archive Active learning queue target answer variant identity"),
+                StringComparison.Ordinal);
+
+        bool ActiveWorkflowQueueTopologyEqual(
+            BackupLearningWorkflowV2 targetSession,
+            BackupLearningWorkflowV2 archiveSession)
+        {
+            if (targetSession.QueueItems.Count != archiveSession.QueueItems.Count ||
+                targetSession.QueueItems.Any(item => !Data.Schema10.LearningWorkflowStableId.IsValid(item.StableId)) ||
+                archiveSession.QueueItems.Any(item => !Data.Schema10.LearningWorkflowStableId.IsValid(item.StableId)))
+            {
+                return false;
+            }
+
+            var targetItemsByStableId = new Dictionary<string, BackupLearningQueueItemV2>(StringComparer.Ordinal);
+            foreach (var item in targetSession.QueueItems)
+            {
+                if (!targetItemsByStableId.TryAdd(item.StableId!, item))
+                {
+                    return false;
+                }
+            }
+
+            foreach (var archiveItem in archiveSession.QueueItems)
+            {
+                if (!targetItemsByStableId.TryGetValue(archiveItem.StableId!, out var targetItem) ||
+                    !ActiveQueueItemsEqual(targetItem, archiveItem))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        Dictionary<string, int> ReviewIdentityCounts(
+            BackupPayloadV2 payload,
+            string sessionLocalId,
+            IReadOnlyDictionary<string, FutureCardIdentity> cardIdentityByLocalId,
+            IReadOnlyDictionary<string, AnswerVariantIdentity> variantIdentityByLocalId,
+            string side)
+        {
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var review in payload.Learning.ReviewEvents.Where(review =>
+                         string.Equals(review.LearningSessionId, sessionLocalId, StringComparison.Ordinal)))
+            {
+                var fingerprint = ComputeReviewFingerprint(
+                    MergePreflightPlanner.Resolve(
+                        cardIdentityByLocalId,
+                        review.CardId,
+                        side + " Active learning review card identity"),
+                    review,
+                    variantIdentityByLocalId,
+                    side);
+                counts[fingerprint] = counts.GetValueOrDefault(fingerprint) + 1;
+            }
+
+            return counts;
+        }
+
+        static bool ReviewIdentityCountsEqual(
+            IReadOnlyDictionary<string, int> targetCounts,
+            IReadOnlyDictionary<string, int> archiveCounts) =>
+            targetCounts.Count == archiveCounts.Count
+            && targetCounts.All(entry =>
+                archiveCounts.TryGetValue(entry.Key, out var archiveCount)
+                && archiveCount == entry.Value);
+
+        bool ActiveWorkflowDurablyEquivalent(
+            BackupLearningWorkflowV2 targetSession,
+            BackupLearningWorkflowV2 archiveSession) =>
+            ActiveWorkflowScalarsEqual(targetSession, archiveSession)
+            && ActiveWorkflowQueueTopologyEqual(targetSession, archiveSession)
+            && ReviewIdentityCountsEqual(
+                ReviewIdentityCounts(
+                    target,
+                    targetSession.Id,
+                    targetFutureCardIdByLocalId,
+                    targetAnswerVariantByLocalId,
+                    "target"),
+                ReviewIdentityCounts(
+                    archive,
+                    archiveSession.Id,
+                    archiveFutureCardIdByLocalId,
+                    archiveAnswerVariantByLocalId,
+                    "archive"));
+
+        var targetLearningSessionsByStableId = target.Workflows.LearningSessions
+            .Where(session => Data.Schema10.LearningWorkflowStableId.IsValid(session.StableId))
+            .ToDictionary(session => session.StableId!, StringComparer.Ordinal);
+        var targetActiveLearningSessions = target.Workflows.LearningSessions
+            .Where(session => session.Status == BackupLearningSessionStatus.Active)
+            .ToList();
+        var exactActiveWorkflowArchiveIds = new HashSet<string>(StringComparer.Ordinal);
+        var activeWorkflowConflictsByArchiveId = new Dictionary<string, (DecisionId DecisionId, string Reason)>(StringComparer.Ordinal);
+
+        foreach (var archiveSession in archive.Workflows.LearningSessions.Where(session =>
+                     session.Status == BackupLearningSessionStatus.Active
+                     && Data.Schema10.LearningWorkflowStableId.IsValid(session.StableId)))
+        {
+            string? conflictReason = null;
+            if (targetLearningSessionsByStableId.TryGetValue(archiveSession.StableId!, out var targetSession))
+            {
+                if (targetSession.Status == BackupLearningSessionStatus.Active &&
+                    ActiveWorkflowDurablyEquivalent(targetSession, archiveSession))
+                {
+                    exactActiveWorkflowArchiveIds.Add(archiveSession.Id);
+                    continue;
+                }
+
+                conflictReason = "learning-active-workflow-durable-state-conflict";
+            }
+            else if (targetActiveLearningSessions.Count > 0)
+            {
+                conflictReason = "learning-active-target-workflow-conflict";
+            }
+
+            if (conflictReason is not null)
+            {
+                var decisionId = MakeDecisionId(
+                    "KnownFirst.Merge.Decision.ActiveLearningWorkflow.v1",
+                    archiveSession.StableId!);
+                activeWorkflowConflictsByArchiveId.Add(archiveSession.Id, (decisionId, conflictReason));
+                workflowStatusDecisions.Add(new WorkflowStatusConflictDecision(
+                    decisionId,
+                    MergeEntityKind.LearningWorkflow,
+                    archiveSession.Id,
+                    conflictReason));
+                warningCodes.Add(conflictReason);
+            }
+        }
+
         // Vocabulary
         var targetFormOccurrenceCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         var targetLegacySummariesByWord = new Dictionary<string, HashSet<BackupLegacyReviewSummary>>(StringComparer.Ordinal);
@@ -437,30 +644,6 @@ public static class MergePreflightPlannerV2
         // exact field set, and for why LearningSessionId is deliberately not part of event identity).
         // Answer-variant references are resolved to stable AnswerVariantIdentity values through the side's
         // own map, never hashed as raw archive-local av-* ids.
-        string ComputeReviewFingerprint(
-            FutureCardIdentity futureCardIdentity,
-            BackupLearningReviewV2 review,
-            IReadOnlyDictionary<string, AnswerVariantIdentity> variantIdentityByLocalId,
-            string side)
-        {
-            string? VariantIdentity(string? localId, string reference) =>
-                localId is null
-                    ? null
-                    : MergePreflightPlanner.Resolve(variantIdentityByLocalId, localId, reference).Value;
-
-            return Schema9LearningReviewMergeIdentity.ComputeEventFingerprint(
-                futureCardIdentity.Value,
-                review.ReviewedAtUtc,
-                review.Rating,
-                review.WasTypedAnswer,
-                review.WasCorrect,
-                review.DueAtUtc,
-                review.IntervalDays,
-                review.EaseFactor,
-                VariantIdentity(review.TargetAnswerVariantId, side + " review target answer variant identity"),
-                VariantIdentity(review.MatchedAnswerVariantId, side + " review matched answer variant identity"));
-        }
-
         var targetReviewFingerprints = new HashSet<string>(
             target.Learning.ReviewEvents.Select(r => ComputeReviewFingerprint(
                 MergePreflightPlanner.Resolve(targetFutureCardIdByLocalId, r.CardId, "target learning review card"),
@@ -499,10 +682,17 @@ public static class MergePreflightPlannerV2
 
             MergeEntityClassification classification;
             string reason;
+            DecisionId? decisionId = null;
             if (targetReviewFingerprints.Contains(fingerprint))
             {
                 classification = MergeEntityClassification.DeduplicatedEvent;
                 reason = "learning-review-exact-duplicate-event";
+            }
+            else if (activeWorkflowConflictsByArchiveId.TryGetValue(review.LearningSessionId, out var activeConflict))
+            {
+                classification = MergeEntityClassification.UnresolvedConflict;
+                reason = activeConflict.Reason;
+                decisionId = activeConflict.DecisionId;
             }
             else
             {
@@ -516,7 +706,7 @@ public static class MergePreflightPlannerV2
             // its per-row action lookup by this value.
             Record(
                 MergeEntityKind.LearningReview, fingerprint, Schema9LearningReviewMergeIdentity.ArchiveActionKey(reviewIndex),
-                classification, reason);
+                classification, reason, decisionId);
         }
 
         // LearningCards
@@ -817,8 +1007,15 @@ public static class MergePreflightPlannerV2
             var identity = MergePreflightPlanner.Resolve(archiveLearningSessionIdByLocalId, session.Id, "archive learning session identity map");
             MergeEntityClassification classification;
             string reason;
+            DecisionId? decisionId = null;
 
-            if (targetLearningSessionIdentitySet.Contains(identity))
+            if (activeWorkflowConflictsByArchiveId.TryGetValue(session.Id, out var activeConflict))
+            {
+                classification = MergeEntityClassification.UnresolvedConflict;
+                reason = activeConflict.Reason;
+                decisionId = activeConflict.DecisionId;
+            }
+            else if (exactActiveWorkflowArchiveIds.Contains(session.Id) || targetLearningSessionIdentitySet.Contains(identity))
             {
                 classification = MergeEntityClassification.ExactDuplicateSkipped;
                 reason = "learning-workflow-exact-duplicate";
@@ -829,7 +1026,7 @@ public static class MergePreflightPlannerV2
                 reason = "learning-workflow-new";
             }
 
-            Record(MergeEntityKind.LearningWorkflow, identity, session.Id, classification, reason);
+            Record(MergeEntityKind.LearningWorkflow, identity, session.Id, classification, reason, decisionId);
 
             var sessionIdentity = identity;
             foreach (var item in session.QueueItems)
@@ -849,7 +1046,28 @@ public static class MergePreflightPlannerV2
                 var itemIdentity = ComputeSessionCardIdentity(item, sessionIdentity, archiveFutureCardIdByLocalId);
                 MergeEntityClassification itemClassification;
                 string itemReason;
-                if (!targetLearningQueueItemContentByIdentity.TryGetValue(itemIdentity, out var targetItem))
+                DecisionId? itemDecisionId = null;
+                if (activeWorkflowConflictsByArchiveId.TryGetValue(session.Id, out activeConflict))
+                {
+                    if (targetLearningQueueItemContentByIdentity.TryGetValue(itemIdentity, out var conflictingTargetItem) &&
+                        ActiveQueueItemsEqual(conflictingTargetItem, item))
+                    {
+                        itemClassification = MergeEntityClassification.ExactDuplicateSkipped;
+                        itemReason = "learning-queue-item-exact-duplicate";
+                    }
+                    else
+                    {
+                        itemClassification = MergeEntityClassification.UnresolvedConflict;
+                        itemReason = activeConflict.Reason;
+                        itemDecisionId = activeConflict.DecisionId;
+                    }
+                }
+                else if (exactActiveWorkflowArchiveIds.Contains(session.Id))
+                {
+                    itemClassification = MergeEntityClassification.ExactDuplicateSkipped;
+                    itemReason = "learning-queue-item-exact-duplicate";
+                }
+                else if (!targetLearningQueueItemContentByIdentity.TryGetValue(itemIdentity, out var targetItem))
                 {
                     itemClassification = MergeEntityClassification.New;
                     itemReason = "learning-queue-item-new";
@@ -865,7 +1083,13 @@ public static class MergePreflightPlannerV2
                     itemReason = "learning-queue-item-preserved-divergent-history";
                 }
 
-                Record(MergeEntityKind.LearningQueueItem, itemIdentity, item.Id, itemClassification, itemReason);
+                Record(
+                    MergeEntityKind.LearningQueueItem,
+                    itemIdentity,
+                    item.Id,
+                    itemClassification,
+                    itemReason,
+                    itemDecisionId);
             }
         }
 

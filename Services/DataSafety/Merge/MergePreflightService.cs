@@ -82,6 +82,9 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             createdAtUtc,
             sourcePlatform);
 
+        var archiveContainsActiveLearning = validated.V2?.Payload.Workflows.LearningSessions
+            .Any(session => session.Status == BackupLearningSessionStatus.Active) == true;
+
         BackupSchemaCapabilityResult targetCapability;
         try
         {
@@ -102,6 +105,8 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
 
         if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult)
         {
+            var useSchema10ActiveLearningPreflightCapture =
+                archiveContainsActiveLearning && targetCapability is Schema10CapabilityResult;
             KnownFirst.Data.Schema8.Schema8PortableSnapshotCaptureResult captureResultV2;
             try
             {
@@ -110,7 +115,9 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
                 // writer will later match against.
                 captureResultV2 = await database.ExecuteSnapshotAsync(connection =>
                 {
-                    var captured = Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
+                    var captured = useSchema10ActiveLearningPreflightCapture
+                        ? Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForSchema10ActiveLearningMergePreflight(connection)
+                        : Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
                     return captured.Snapshot is null || BackupSchemaCapability.Resolve(connection) is not Schema10CapabilityResult
                         ? captured
                         : captured with
@@ -156,7 +163,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
                     archivePayloadV2 = validated.V2!.Payload;
                 }
 
-                if (archivePayloadV2.Workflows.LearningSessions.Any(s => s.Status == BackupLearningSessionStatus.Active))
+                if (archiveContainsActiveLearning && !useSchema10ActiveLearningPreflightCapture)
                 {
                     return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.BlockedByActiveWorkflow, manifestInfo, true, BackupErrorCodes.ActiveWorkflowUnsupported);
                 }

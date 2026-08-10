@@ -292,40 +292,7 @@ public sealed class BackupServiceImportRoutingTests
 
     private static async Task<byte[]> BuildActiveSchema10ArchiveBytesAsync()
     {
-        var payload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
-        var inactiveReviews = payload.Workflows.VocabularyReviews
-            .Select(review => review with { Status = BackupReviewSessionStatus.Completed })
-            .ToList();
-        var inactiveBatches = payload.Workflows.PreparationBatches
-            .Select(batch => batch with { Status = BackupPreparationSessionStatus.Completed })
-            .ToList();
-        var activeLearning = payload.Workflows.LearningSessions[0] with
-        {
-            Status = BackupLearningSessionStatus.Active,
-            StableId = new string('a', 32)
-        };
-        var activeItem = activeLearning.QueueItems[0] with { StableId = new string('b', 32) };
-        activeLearning = activeLearning with { QueueItems = [activeItem] };
-        var activePayload = payload with
-        {
-            Workflows = payload.Workflows with
-            {
-                VocabularyReviews = inactiveReviews,
-                PreparationBatches = inactiveBatches,
-                LearningSessions = [activeLearning]
-            },
-            Extensions = new BackupExtensions(new Dictionary<string, BackupExtensionPayload>())
-        };
-
-        using var stream = new MemoryStream();
-        await BackupArchiveWriterV2.WriteArchiveAsync(
-            activePayload,
-            new FakePlatformInfo(),
-            new ValidatedSchema10Capability(),
-            DateTime.UtcNow,
-            stream,
-            CancellationToken.None);
-        var archiveBytes = stream.ToArray();
+        var archiveBytes = await Schema10ActiveArchiveTestData.BuildArchiveBytesAsync();
         var validated = await BackupArchiveReader.ValidateVersionedAsync(
             new MemoryStream(archiveBytes),
             CancellationToken.None);
@@ -1102,57 +1069,206 @@ public sealed class BackupServiceImportRoutingTests
         Assert.AreEqual(wordCountBefore, await WordCountAsync(targetDb));
     }
     [TestMethod]
-    public async Task PreviewPortableImportAsync_ActiveLearningSession_PopulatedTarget_IsBlocked()
+    public async Task Schema10ActiveArchive_PopulatedTarget_PreviewsAndImportsWithSafetyCopy()
     {
         await using var targetFixture = await Schema7Fixture.CreateAsync();
         var targetWordId = await targetFixture.InsertWordAsync("targetword");
         await targetFixture.InsertMeaningAsync(targetWordId, "targetmeaning", "targetmeaning");
-        await KnownFirst.Data.Migrations.Schema8.Schema8DormantMigration.ApplyAsync(targetFixture.Connection);
-        await KnownFirst.Data.Migrations.Schema9.Schema9DormantMigration.ApplyAsync(targetFixture.Connection);
-        await KnownFirst.Data.Migrations.Schema10.Schema10DormantMigration.ApplyAsync(targetFixture.Connection);
-        var targetBefore = await targetFixture.CapturePersistentStateAsync();
+        await Schema10ActiveArchiveTestData.MigrateToSchema10Async(targetFixture);
         var bytes = await BuildActiveSchema10ArchiveBytesAsync();
-        var callLog = new List<string>();
-
-        var service = new BackupService(
-            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
-            new FakePlatformInfo(),
-            mergeWriterService: new RecordingWriterService(MergeWriteResult.SuccessResult, callLog));
+        var targetDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture);
+        var service = new BackupService(targetDatabase, new FakePlatformInfo());
         using var previewStream = new MemoryStream(bytes);
         var preview = await service.PreviewPortableImportAsync(previewStream, CancellationToken.None);
 
-        Assert.AreEqual(PortableImportPreviewDisposition.Blocked, preview.Disposition);
-        Assert.IsFalse(preview.CanConfirm);
-        Assert.IsFalse(preview.WillMutate);
-        Assert.IsFalse(preview.RequiresSafetyCopy);
-        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, preview.ErrorCode);
-        CollectionAssert.AreEqual(targetBefore, await targetFixture.CapturePersistentStateAsync());
-        Assert.IsEmpty(callLog);
+        Assert.AreEqual(PortableImportPreviewDisposition.MergeChanges, preview.Disposition, preview.ErrorCode);
+        Assert.IsTrue(preview.CanConfirm);
+        Assert.IsTrue(preview.WillMutate);
+        Assert.IsTrue(preview.RequiresSafetyCopy);
+
+        using var importStream = new MemoryStream(bytes);
+        var result = await service.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, result.ErrorCode);
+        Assert.AreEqual(PortableImportDisposition.MergeApplied, result.Summary!.Disposition);
+        Assert.IsTrue(result.Summary.SafetyCopyCreated);
+        Assert.AreEqual(
+            1,
+            await targetFixture.Connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM LearningSessions WHERE StableId = ? AND Status = ?",
+                Schema10ActiveArchiveTestData.WorkflowStableId,
+                (int)LearningSessionStatus.Active));
     }
 
     [TestMethod]
-    public async Task ImportPortableArchiveAsync_ActiveLearningSession_PopulatedTarget_IsBlocked()
+    public async Task Schema10ActiveArchive_ReimportAfterMerge_IsNoChange()
     {
         await using var targetFixture = await Schema7Fixture.CreateAsync();
         var targetWordId = await targetFixture.InsertWordAsync("targetword");
         await targetFixture.InsertMeaningAsync(targetWordId, "targetmeaning", "targetmeaning");
-        await KnownFirst.Data.Migrations.Schema8.Schema8DormantMigration.ApplyAsync(targetFixture.Connection);
-        await KnownFirst.Data.Migrations.Schema9.Schema9DormantMigration.ApplyAsync(targetFixture.Connection);
-        await KnownFirst.Data.Migrations.Schema10.Schema10DormantMigration.ApplyAsync(targetFixture.Connection);
-        var targetBefore = await targetFixture.CapturePersistentStateAsync();
+        await Schema10ActiveArchiveTestData.MigrateToSchema10Async(targetFixture);
         var bytes = await BuildActiveSchema10ArchiveBytesAsync();
-        var callLog = new List<string>();
+        var targetDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture);
+        var service = new BackupService(targetDatabase, new FakePlatformInfo());
 
-        var service = new BackupService(
-            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
+        using (var firstStream = new MemoryStream(bytes))
+        {
+            var first = await service.ImportPortableArchiveAsync(firstStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportStatus.Success, first.Status, first.ErrorCode);
+            Assert.AreEqual(PortableImportDisposition.MergeApplied, first.Summary!.Disposition);
+        }
+
+        var stateAfterFirst = await targetFixture.CapturePersistentStateAsync();
+        var safetyCopyDirectory = Path.Combine(
+            Path.GetDirectoryName(targetDatabase.DatabasePath)!,
+            MergeSafetyCopyService.DirectoryName);
+        var safetyCopiesAfterFirst = Directory.GetFiles(safetyCopyDirectory, "*.kfarchive").Length;
+
+        using (var previewStream = new MemoryStream(bytes))
+        {
+            var preview = await service.PreviewPortableImportAsync(previewStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportPreviewDisposition.MergeNoChange, preview.Disposition, preview.ErrorCode);
+            Assert.IsFalse(preview.RequiresSafetyCopy);
+            Assert.IsFalse(preview.WillMutate);
+        }
+
+        using (var secondStream = new MemoryStream(bytes))
+        {
+            var second = await service.ImportPortableArchiveAsync(secondStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportStatus.Success, second.Status, second.ErrorCode);
+            Assert.AreEqual(PortableImportDisposition.MergeNoChange, second.Summary!.Disposition);
+            Assert.IsFalse(second.Summary.SafetyCopyCreated);
+        }
+
+        CollectionAssert.AreEqual(stateAfterFirst, await targetFixture.CapturePersistentStateAsync());
+        Assert.AreEqual(safetyCopiesAfterFirst, Directory.GetFiles(safetyCopyDirectory, "*.kfarchive").Length);
+    }
+
+    [TestMethod]
+    public async Task Schema10ActiveArchive_SameStableIdSemanticMismatch_IsBlockedWithoutMutation()
+    {
+        await using var targetFixture = await Schema7Fixture.CreateAsync();
+        var targetWordId = await targetFixture.InsertWordAsync("targetword");
+        await targetFixture.InsertMeaningAsync(targetWordId, "targetmeaning", "targetmeaning");
+        await Schema10ActiveArchiveTestData.MigrateToSchema10Async(targetFixture);
+        var bytes = await BuildActiveSchema10ArchiveBytesAsync();
+        var targetDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture);
+        var service = new BackupService(targetDatabase, new FakePlatformInfo());
+
+        using (var firstStream = new MemoryStream(bytes))
+        {
+            var first = await service.ImportPortableArchiveAsync(firstStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportStatus.Success, first.Status, first.ErrorCode);
+        }
+
+        await targetFixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessionCards SET SpellingCorrect = CASE SpellingCorrect WHEN 0 THEN 1 ELSE 0 END WHERE StableId = ?",
+            Schema10ActiveArchiveTestData.QueueStableId);
+        var divergentState = await targetFixture.CapturePersistentStateAsync();
+        var safetyCopyDirectory = Path.Combine(
+            Path.GetDirectoryName(targetDatabase.DatabasePath)!,
+            MergeSafetyCopyService.DirectoryName);
+        var safetyCopiesBeforeConflict = Directory.GetFiles(safetyCopyDirectory, "*.kfarchive").Length;
+
+        using (var previewStream = new MemoryStream(bytes))
+        {
+            var preview = await service.PreviewPortableImportAsync(previewStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportPreviewDisposition.Blocked, preview.Disposition);
+            Assert.AreEqual(PortableImportPreviewErrorCodes.MergeRequiresUserDecision, preview.ErrorCode);
+            Assert.IsFalse(preview.CanConfirm);
+            Assert.IsFalse(preview.WillMutate);
+            Assert.IsFalse(preview.RequiresSafetyCopy);
+        }
+
+        using (var importStream = new MemoryStream(bytes))
+        {
+            var result = await service.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportStatus.Failed, result.Status);
+            Assert.AreEqual(MergeWriterErrorCodes.PlanNotExecutable, result.ErrorCode);
+        }
+
+        CollectionAssert.AreEqual(divergentState, await targetFixture.CapturePersistentStateAsync());
+        Assert.AreEqual(
+            safetyCopiesBeforeConflict,
+            Directory.GetFiles(safetyCopyDirectory, "*.kfarchive").Length,
+            "A non-executable conflict must not create a new safety copy.");
+    }
+
+    [TestMethod]
+    public async Task Schema10ActiveArchive_SameStableIdDuplicateReviewMultiplicityMismatch_IsBlockedWithoutMutation()
+    {
+        await using var targetFixture = await Schema7Fixture.CreateAsync();
+        var targetWordId = await targetFixture.InsertWordAsync("targetword");
+        await targetFixture.InsertMeaningAsync(targetWordId, "targetmeaning", "targetmeaning");
+        await Schema10ActiveArchiveTestData.MigrateToSchema10Async(targetFixture);
+
+        var targetDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture);
+        var originalArchiveBytes = await BuildActiveSchema10ArchiveBytesAsync();
+        var seedingService = new BackupService(targetDatabase, new FakePlatformInfo());
+        using (var seedStream = new MemoryStream(originalArchiveBytes))
+        {
+            var seedResult = await seedingService.ImportPortableArchiveAsync(seedStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportStatus.Success, seedResult.Status, seedResult.ErrorCode);
+        }
+
+        var targetStateBeforeConflict = await targetFixture.CapturePersistentStateAsync();
+        var reviewCountBeforeConflict = await targetFixture.Connection.Table<LearningReviewEntity>().CountAsync();
+        Assert.AreEqual(1, reviewCountBeforeConflict);
+
+        var payload = Schema10ActiveArchiveTestData.CreatePayload();
+        var review = payload.Learning.ReviewEvents.Single();
+        var duplicateReviewPayload = payload with
+        {
+            Learning = payload.Learning with { ReviewEvents = [review, review] }
+        };
+        using var duplicateArchiveStream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(
+            duplicateReviewPayload,
             new FakePlatformInfo(),
-            mergeWriterService: new RecordingWriterService(MergeWriteResult.SuccessResult, callLog));
-        using var importStream = new MemoryStream(bytes);
-        var result = await service.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+            new ValidatedSchema10Capability(),
+            BackupTestData.UtcTime,
+            duplicateArchiveStream,
+            CancellationToken.None);
+        var duplicateArchiveBytes = duplicateArchiveStream.ToArray();
 
-        Assert.AreEqual(PortableImportStatus.Failed, result.Status);
-        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, result.ErrorCode);
-        CollectionAssert.AreEqual(targetBefore, await targetFixture.CapturePersistentStateAsync());
-        Assert.IsEmpty(callLog);
+        var callLog = new List<string>();
+        var conflictService = new BackupService(
+            targetDatabase,
+            new FakePlatformInfo(),
+            mergeSafetyCopyService: new RecordingSafetyCopyService(
+                new MergeSafetyCopyResult(
+                    MergeSafetyCopyStatus.Success,
+                    "unused",
+                    "unused",
+                    BackupTestData.UtcTime,
+                    1,
+                    null,
+                    null,
+                    null),
+                callLog),
+            mergeWriterService: new RecordingWriterService(MergeWriteResult.SuccessResult, callLog));
+
+        using (var previewStream = new MemoryStream(duplicateArchiveBytes))
+        {
+            var preview = await conflictService.PreviewPortableImportAsync(previewStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportPreviewDisposition.Blocked, preview.Disposition);
+            Assert.AreEqual(PortableImportPreviewErrorCodes.MergeRequiresUserDecision, preview.ErrorCode);
+            Assert.IsFalse(preview.CanConfirm);
+            Assert.IsFalse(preview.WillMutate);
+            Assert.IsFalse(preview.RequiresSafetyCopy);
+        }
+
+        using (var importStream = new MemoryStream(duplicateArchiveBytes))
+        {
+            var result = await conflictService.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+            Assert.AreEqual(PortableImportStatus.Failed, result.Status);
+            Assert.AreEqual(MergeWriterErrorCodes.PlanNotExecutable, result.ErrorCode);
+        }
+
+        Assert.IsEmpty(callLog, "Conflict handling must not invoke the safety-copy service or merge writer.");
+        CollectionAssert.AreEqual(targetStateBeforeConflict, await targetFixture.CapturePersistentStateAsync());
+        Assert.AreEqual(
+            reviewCountBeforeConflict,
+            await targetFixture.Connection.Table<LearningReviewEntity>().CountAsync());
     }
 }

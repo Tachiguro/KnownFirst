@@ -196,7 +196,7 @@ for Schema-10 targets; archive-v2 into Schema 7 is rejected.
 
 This general populated-target merge support is established. Package B (writer evidence for divergent completed Schema-9 review histories) is merged on `master`: divergent completed `ReviewSession` rows for one Document coexist correctly, exact duplicates are skipped, and reimport of an already-merged history converges to no change.
 
-Merged KF-BACKUP-005B is binding current-`master` behavior via PR #81: restore-into-empty supports an Active Schema-10 `LearningSession` carried by an ordinary portable archive. The KF-BACKUP-005C published candidate in open PR #83 extends only the populated Schema-10 path; it is not merged or binding master behavior. See [KF-BACKUP-005B portable Active-workflow contract](#kf-backup-005b-portable-active-workflow-contract-merged-master-behavior) and the candidate contract below.
+Merged KF-BACKUP-005B establishes empty-target Active Schema-10 restore through an ordinary portable archive. Binding current-`master` KF-BACKUP-005C behavior, merged via PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`), extends the populated Schema-10 path under the contract below; `POST_MERGE_SYNC_ONLY` completed successfully. See [KF-BACKUP-005B portable Active-workflow contract](#kf-backup-005b-portable-active-workflow-contract-merged-master-behavior) and the populated-target contract below.
 
 Package C (cross-installation canonical-ordering hardening) is merged via PR #68 (merge commit `db47de3bf48b49b5258ce16acc6e3e543d96143c`) and is now binding master behavior. For the affected v2 export subgraphs:
 - `SourceMaterial` archive-local `sm-*` / `ss-*` assignment is hardened against relevant cross-installation local-row/enumeration differences;
@@ -346,9 +346,9 @@ For source ≥10 archives, transported `StableId` values are preserved unchanged
 
 The outer `.kfarchive` format remains version V2 (not incremented). However, Schema 10 extends the existing V2 learning-workflow DTOs with trailing nullable `StableId` fields on `BackupLearningWorkflowV2` and `BackupLearningQueueItemV2`. These fields are nullable specifically so pre-Schema10 (source ≤9) archives remain readable without carrying workflow StableIds. Source schema ≤9 may omit these StableIds where compatibility rules allow it. Source schema ≥10 requires the relevant workflow StableIds to be present and pass canonical/uniqueness validation; transported valid source ≥10 StableIds are preserved unchanged. Source schema metadata determines whether missing StableIds are legacy-compatible or invalid.
 
-### KF-BACKUP-005C populated-target Active-workflow candidate contract
+### KF-BACKUP-005C populated-target Active-workflow contract (merged master behavior)
 
-**Candidate status:** represented by open PR #83 and not binding `master` behavior. The reviewed implementation commit before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover live PR/head state dynamically.
+**Lifecycle status:** binding current-`master` behavior, merged via PR #83 at `bed54d01624e80ca6dd5adf8af097e64fe33e588` (feature head `bc30e9ee9a3689cc4d8b7d108ac83dc037a1b962`); `POST_MERGE_SYNC_ONLY` completed successfully.
 
 For a Schema-10/V2 archive carrying an Active learning workflow, a populated target with no blocking Active target workflow may merge the workflow additively through the existing writer: workflow/queue `StableId` values are preserved, committed reviews attach to the newly allocated target-local `LearningSession.Id`, and existing scheduler replay applies. No separate Active-workflow update engine exists.
 
@@ -362,7 +362,7 @@ Any non-exact same-`StableId` Active workflow, including scalar, queue, review-e
 
 ### Historical 005A Active portability exclusion
 
-KF-BACKUP-005A itself did not implement portable Active learning-workflow continuation: its `master` baseline excluded Active `LearningSessions` from ordinary portable export and rejected unsupported Active workflow archives. KF-BACKUP-005B changes the current master boundary for Schema-10 export plus empty-target restore. Populated-target Active convergence remains deferred to KF-BACKUP-005C.
+KF-BACKUP-005A itself did not implement portable Active learning-workflow continuation: its historical `master` baseline excluded Active `LearningSessions` from ordinary portable export and rejected unsupported Active workflow archives. KF-BACKUP-005B added Schema-10 export plus empty-target restore; KF-BACKUP-005C now supplies the bounded populated-target convergence contract.
 
 ### KF-BACKUP-005B portable Active-workflow contract (merged master behavior)
 
@@ -392,7 +392,7 @@ Legacy and unsupported boundaries remain explicit:
 - Active `VocabularyReview` remains unsupported;
 - Active `PreparationBatch` remains unsupported.
 
-The populated-target guard is unchanged for 005B. When the target already contains durable data, a valid Schema-10 archive containing an Active learning workflow returns preview `Blocked` and import `Failed`, both with `BackupErrorCodes.ActiveWorkflowUnsupported`. The target is not mutated, and executable merge/writer behavior does not run. Active-vs-Active convergence, populated-target conflict resolution, and all other Active merge semantics remain KF-BACKUP-005C.
+The populated-target guard is the historical 005B boundary, superseded on current `master` by KF-BACKUP-005C only for a learning-quiescent populated target. Exact same-`StableId` Active state is `NoChanges`; non-exact same-`StableId` state is `RequiresUserDecision`, non-executable, and zero-mutation. Archive-Completed/target-Active remains `BlockedByActiveWorkflow` / `ActiveWorkflowUnsupported`.
 
 The stable workflow representation remains intentionally reusable by a later cross-device synchronization design. KF-BACKUP-005B implements no network/cloud transport, accounts, or remote synchronization service.
 
@@ -400,4 +400,4 @@ The stable workflow representation remains intentionally reusable by a later cro
 
 - **KF-BACKUP-005A:** Schema-10 stable learning-workflow identity foundation. Merged via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **KF-BACKUP-005B:** merged via PR #81 (feature commit `e8236bba3d23e942014e6979b661e0c77a2a3bdd`, merge commit `dc56e8412966ac32531c4b0358526582702d6d24`); `POST_MERGE_SYNC_ONLY` completed. It is binding current-master behavior for portable Active learning-workflow export and empty-target restore from durable state.
-- **KF-BACKUP-005C:** published candidate in open PR #83 for populated-target Active workflow convergence and conflict safety; final correction/review and manual-merge lifecycle remain pending, and it is not binding current-master behavior.
+- **KF-BACKUP-005C:** binding current-master populated-target Active workflow convergence and conflict safety, merged via PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully.

@@ -4,7 +4,7 @@
 **Backlog item:** [KF-BACKUP-002](../BACKLOG.md), P1, blocks public release readiness, does not block Beta 12 Internal Testing.
 **Builds on:** [backup-format-v1.md](backup-format-v1.md) (binding contract for the *existing* Restore-into-empty behavior, unchanged by this proposal), `Models/BackupModels.cs`, `Data/BackupImportRepository.cs`, `Data/BackupSnapshotRepository.cs`, `Services/DataSafety/BackupService.cs`, `Services/TextReviewService.cs`, `Services/Study/PreparationService.cs`, `Services/Study/LearningService.cs`.
 
-**KF-BACKUP-005B package status (2026-08-10):** Schema-10 Active learning-workflow export and restore into an empty target are implemented locally and focused final `TEST_ONLY` is green on `feature/schema10-portable-active-learning-workflow-restore-v1`; documentation reconciliation is complete and the package remains unmerged until its normal repository lifecycle completes. Live commit, pull-request, and merge state is discovered dynamically. See §24 for the package architecture and the unchanged KF-BACKUP-005C populated-target boundary.
+**KF-BACKUP-005B package status (2026-08-10):** Schema-10 Active learning-workflow export and restore into an empty target are binding `master` behavior, merged via PR #81 (feature commit `e8236bba3d23e942014e6979b661e0c77a2a3bdd`, merge commit `dc56e8412966ac32531c4b0358526582702d6d24`); `POST_MERGE_SYNC_ONLY` completed successfully. Focused final `TEST_ONLY`: **135 passed / 0 failed / 0 skipped**. Final independent PR review: **0 BLOCKER / 0 MAJOR / 0 MINOR**. No GitHub CI evidence existed for the 005B head. See §24 for the package architecture and the unchanged KF-BACKUP-005C populated-target boundary.
 
 ## Product contract: single "Import data" action
 
@@ -579,7 +579,7 @@ No archive DTO shape, `.kfarchive` format version, database schema, migration, m
 
 ### Scope boundary
 
-Left out of Package D, and not silently closed by it at that package boundary: `LegacyReviewSummaries` ordering (same defect class, no archive-local id derives from it); `MergePreflightPlannerV2.ComputeReviewFingerprint`'s omission of `LearningSessionId`/answer-variant references from its duplicate-detection key; the then-open mid-session review-event export policy (`Schema8BackupSnapshotRepository.CapturePortableSnapshot` excluded reviews recorded inside a still-Active session); and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random. KF-BACKUP-004 later addressed the fingerprint residual, and the KF-BACKUP-005B feature-branch package addresses the mid-session export policy (§24); the other listed residuals remain open.
+Left out of Package D, and not silently closed by it at that package boundary: `LegacyReviewSummaries` ordering (same defect class, no archive-local id derives from it); `MergePreflightPlannerV2.ComputeReviewFingerprint`'s omission of `LearningSessionId`/answer-variant references from its duplicate-detection key; the then-open mid-session review-event export policy (`Schema8BackupSnapshotRepository.CapturePortableSnapshot` excluded reviews recorded inside a still-Active session); and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random. KF-BACKUP-004 later addressed the fingerprint residual, and merged KF-BACKUP-005B addresses the mid-session export policy (§24); the other listed residuals remain open.
 
 The duplicate-detection residual above is taken up by KF-BACKUP-004 in §22, which resolves the answer-variant half and records why `LearningSessionId` is deliberately kept out of merge identity. The other three residuals remain open.
 
@@ -649,7 +649,7 @@ The legacy v1 `MergePreflightPlanner` keeps its analogous synthesized label and 
 
 ### Scope boundary
 
-Left out of KF-BACKUP-004, and not silently closed by it at that package boundary: the legacy v1 planner's analogous synthesized label (above); `LegacyReviewSummaries` ordering; the then-open mid-session review-event export policy; and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random. The KF-BACKUP-005B feature-branch package addresses the mid-session export policy (§24); the other residuals remain open.
+Left out of KF-BACKUP-004, and not silently closed by it at that package boundary: the legacy v1 planner's analogous synthesized label (above); `LegacyReviewSummaries` ordering; the then-open mid-session review-event export policy; and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random. Merged KF-BACKUP-005B addresses the mid-session export policy (§24); the other residuals remain open.
 
 ---
 
@@ -727,7 +727,7 @@ This immutability constraint is the foundation for future cross-device synchroni
 | Source schema | Completed portable workflow | Active portable workflow |
 | --- | --- | --- |
 | ≤9 | Supported; ordinary portable export remains Completed-only and Completed sessions/queue rows may receive deterministic bootstrap StableIds during import | Unsupported/rejected |
-| ≥10 | Supported; StableIds must be present, canonical, unique, and transported unchanged | Supported by the KF-BACKUP-005B feature-branch candidate for ordinary export and restore into an empty Schema-10 target; StableIds must be present, canonical, unique, and transported unchanged |
+| ≥10 | Supported; StableIds must be present, canonical, unique, and transported unchanged | Supported on current `master` by KF-BACKUP-005B for ordinary export and restore into an empty Schema-10 target; StableIds must be present, canonical, unique, and transported unchanged |
 
 For source ≥10 archives, transported `StableId` values are preserved unchanged and validated for canonical form and uniqueness before any mutation.
 
@@ -744,12 +744,12 @@ KF-BACKUP-005A does not implement portable Active learning-workflow continuation
 - Portable export excludes Active `LearningSessions`/workflow rows.
 - Portable import continues rejecting unsupported Active workflow archives where applicable.
 
-This was the 005A package boundary on `master`; it remains historically accurate for 005A itself. KF-BACKUP-005B changes the current feature-branch candidate for Schema-10 empty-target portability only (§24). Populated-target Active convergence remains excluded.
+This was the 005A package boundary on `master`; it remains historically accurate for 005A itself. Merged KF-BACKUP-005B changes current master behavior for Schema-10 empty-target portability only (§24). Populated-target Active convergence remains excluded.
 
 ### 23.9 Succession: KF-BACKUP-005B and 005C
 
-- **KF-BACKUP-005B:** Implemented and focused-final-`TEST_ONLY` green on the feature branch; provides portable Active learning-workflow export and empty-target restore from the last durably committed application/database state. Requires the stable identities established by 005A.
-- **KF-BACKUP-005C:** Next bounded implementation package after 005B completes its lifecycle. Populated-target Active workflow convergence and conflict safety remain unimplemented.
+- **KF-BACKUP-005B:** Merged via PR #81 and binding current master behavior; provides portable Active learning-workflow export and empty-target restore from the last durably committed application/database state. Requires the stable identities established by 005A.
+- **KF-BACKUP-005C:** Next bounded Priority-15 development package after the 005B post-merge documentation lifecycle. Populated-target Active workflow convergence and conflict safety remain unimplemented.
 
 Actual network/cloud synchronization is not implemented. The StableId architecture is intentionally reusable by later cross-device synchronization rather than being a backup-only disposable identity scheme.
 
@@ -767,7 +767,7 @@ Actual network/cloud synchronization is not implemented. The StableId architectu
 
 ## §24 KF-BACKUP-005B — Portable Active Learning-Workflow Restore Into Empty Target
 
-**Lifecycle status:** Implementation and final focused `TEST_ONLY` are complete locally on `feature/schema10-portable-active-learning-workflow-restore-v1`; documentation reconciliation is complete for the feature-branch package. The package remains unmerged until its normal repository lifecycle completes. Live commit, pull-request, and merge state is discovered dynamically; `master` contains the KF-BACKUP-005A/closure baseline.
+**Lifecycle status:** Binding master behavior, merged via PR #81. Feature commit: `e8236bba3d23e942014e6979b661e0c77a2a3bdd`; merge commit: `dc56e8412966ac32531c4b0358526582702d6d24`; `POST_MERGE_SYNC_ONLY` completed successfully. Final focused `TEST_ONLY`: **135 passed / 0 failed / 0 skipped**. Final independent PR review: **0 BLOCKER / 0 MAJOR / 0 MINOR**. No GitHub CI evidence existed for the 005B head.
 
 ### 24.1 Schema and archive continuity
 
@@ -852,4 +852,4 @@ Active-vs-Active convergence, populated-target conflict resolution, and all othe
 
 ### 24.8 Lifecycle succession
 
-The lifecycle-stable package state is: 005B implementation complete locally → focused final `TEST_ONLY` green → documentation reconciliation complete. The package remains unmerged until its normal repository lifecycle completes; live commit, pull-request, and merge state is discovered dynamically. KF-BACKUP-005C becomes the next implementation package only after the 005B lifecycle completes.
+The lifecycle-stable package state is: 005B implementation complete → focused final `TEST_ONLY` green → final independent PR review approved → PR #81 manually merged → `POST_MERGE_SYNC_ONLY` complete → post-merge documentation lifecycle. KF-BACKUP-005C becomes the next bounded Priority-15 development package only after that documentation lifecycle completes.

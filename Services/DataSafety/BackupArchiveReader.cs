@@ -132,7 +132,7 @@ public static class BackupArchiveReader
 
                 BackupModelContractV2.ValidateRecordCounts(manifest, payload);
                 BackupArchiveWriterV2.ValidatePayloadGraphV2(payload);
-                ValidatePortableRecoveryScopeV2(payload);
+                ValidatePortableRecoveryScopeV2(manifest, payload);
 
                 return new ValidatedBackupArchiveEnvelope(
                     formatVersion,
@@ -449,13 +449,18 @@ public static class BackupArchiveReader
         }
     }
 
-    private static void ValidatePortableRecoveryScopeV2(BackupPayloadV2 payload)
+    private static void ValidatePortableRecoveryScopeV2(BackupManifestV2 manifest, BackupPayloadV2 payload)
     {
         if (payload.Workflows.VocabularyReviews.Any(
                 workflow => workflow.Status == BackupReviewSessionStatus.Active)
             || payload.Workflows.PreparationBatches.Any(
-                workflow => workflow.Status == BackupPreparationSessionStatus.Active)
-            || payload.Workflows.LearningSessions.Any(
+                workflow => workflow.Status == BackupPreparationSessionStatus.Active))
+        {
+            throw new BackupFormatException(BackupErrorCodes.ActiveWorkflowUnsupported);
+        }
+
+        if (manifest.SourceDatabaseSchemaVersion < 10
+            && payload.Workflows.LearningSessions.Any(
                 workflow => workflow.Status == BackupLearningSessionStatus.Active))
         {
             throw new BackupFormatException(BackupErrorCodes.ActiveWorkflowUnsupported);

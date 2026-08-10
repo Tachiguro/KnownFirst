@@ -156,6 +156,11 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
                     archivePayloadV2 = validated.V2!.Payload;
                 }
 
+                if (archivePayloadV2.Workflows.LearningSessions.Any(s => s.Status == BackupLearningSessionStatus.Active))
+                {
+                    return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.BlockedByActiveWorkflow, manifestInfo, true, BackupErrorCodes.ActiveWorkflowUnsupported);
+                }
+
                 return MergePreflightPlannerV2.CreatePlan(targetPayloadV2, archivePayloadV2, manifestInfo);
             }
             catch (OperationCanceledException)

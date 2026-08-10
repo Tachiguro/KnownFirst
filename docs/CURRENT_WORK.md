@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-09 (KF-BACKUP-005A merged; post-merge documentation reconciliation finalized in this closure package; resolve live closure PR/merge/sync state from GitHub)
+2026-08-10 (KF-BACKUP-005B implementation, focused final `TEST_ONLY`, and documentation reconciliation complete on the feature branch; `REVIEW_ONLY` next)
 
 ## Repository
 
@@ -51,11 +51,35 @@
 
 ## Currently active package
 
-**`KF-BACKUP-005A` is complete and merged on `master`** via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully.
+**`KF-BACKUP-005B` — Portable Active Learning-Workflow Restore Into Empty Target** is the current feature-branch package on `feature/schema10-portable-active-learning-workflow-restore-v1`.
 
-This tracked documentation closure package finalizes the post-merge documentation reconciliation (`CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `BACKLOG.md`, `DATABASE_CONTRACT.md`, and `docs/architecture/backup-merge-v1-design.md`) for Schema 10 on `master`.
+The production implementation and focused final `TEST_ONLY` scope are complete locally. This documentation reconciliation records the verified candidate behavior before review. No commit or push has been performed for 005B, no pull request exists, and the package is not merged. `master` remains the KF-BACKUP-005A/closure baseline and does not yet contain Active portable continuation.
 
-No subsequent implementation package is recorded as active by this closure; **`KF-BACKUP-005B`** is the next bounded development package once the closure PR lifecycle is complete. Resolve PR #80 review/merge/synchronization state dynamically from live GitHub and repository state.
+### KF-BACKUP-005B feature-branch capability
+
+- `DatabaseSchema.CurrentVersion` remains **10**; no Schema 11 was introduced.
+- The `.kfarchive` outer format remains **V2**; no archive V3 was introduced.
+- Ordinary portable export from a Schema-10 source includes an Active `LearningSession`, its persisted queue, and committed `LearningReview` rows belonging to that workflow.
+- Restore into an **empty** Schema-10 installation recreates the Active workflow and resumes it through the normal production `LearningService` path from the last durably committed application/database state.
+- The restored workflow remains Active. No fake `Completed` state is fabricated, and the user does not need to finish the session before portable export.
+- Durable state includes completed queue items and their ratings/completion state, committed mid-session review history, remaining incomplete items, queue ordering, review-to-session remapping to the new local integer session ID, and preservation of transported workflow/queue `StableId` values.
+- Transient or uncommitted UI state is not claimed to be portable.
+- Existing Completed Schema-10 portability remains supported: Completed status, non-null completion timestamp, queue/history, workflow `StableId`, and queue-item `StableId` values survive restore.
+- Schema-8 and Schema-9 ordinary portable export remain Completed-only. Source schema ≤9 Active learning workflows remain unsupported/rejected. Active `VocabularyReview` and Active `PreparationBatch` remain unsupported.
+- Source ≥10 workflow and queue `StableId` values remain mandatory, canonical, unique, and transported unchanged.
+- A populated target still fails closed for a valid Schema-10 archive containing an Active learning workflow: preview and actual import return `BackupErrorCodes.ActiveWorkflowUnsupported`, the target is not mutated, and executable merge/writer behavior does not run. This is the KF-BACKUP-005C boundary.
+
+**Final exact-tree focused `TEST_ONLY` evidence:**
+
+- Scope: `BackupArchiveV2Tests`, `BackupModelContractTests`, `Schema8BackupRestoreTests`, `BackupServiceImportRoutingTests`, and `MergePreflightServiceTests`.
+- Result: **135 passed / 0 failed / 0 skipped**, with normal process completion, 0 build warnings, and 0 build errors.
+- Pre- and post-run `git diff --check`: passed.
+
+**Supplementary broader evidence:** an earlier test-project run returned **1820 passed / 0 failed / 0 skipped** against the same unchanged 005B production implementation. It occurred before the final acceptance-test additions and is therefore supplementary production-regression evidence, not exact-final-test-tree evidence.
+
+**Not validated for KF-BACKUP-005B:** `ValidateAll`; Windows platform build; Android platform build; rendered GUI; physical device/emulator behavior; Release-build behavior; APK/AAB; signing; publishing; or Google Play distribution. The earlier KF-BACKUP-005A `ValidateAll` result does not validate the 005B executable tree.
+
+**Lifecycle:** implementation complete locally → focused final `TEST_ONLY` green → documentation reconciliation complete → `REVIEW_ONLY` next. Commit, push, PR, merge, and post-merge synchronization have not occurred for 005B.
 
 ### Merged Schema-10 capabilities on master
 
@@ -81,32 +105,31 @@ No subsequent implementation package is recorded as active by this closure; **`K
 
 **Succession:**
 
-- **KF-BACKUP-005B:** portable Active learning-workflow export and restore into an empty installation from the last durably committed application state.
-- **KF-BACKUP-005C:** populated-target Active workflow convergence and conflict safety.
-- Remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, mid-session review-event export policy, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue before Priority 16 (automated GUI validation).
+- **KF-BACKUP-005B:** current feature-branch package; implementation and focused final `TEST_ONLY` are complete, with review and repository lifecycle still pending.
+- **KF-BACKUP-005C:** next bounded implementation package after the 005B lifecycle completes; populated-target Active workflow convergence and conflict safety remain unimplemented.
+- Remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue before Priority 16 (automated GUI validation). The mid-session review-event export policy is addressed by the current 005B candidate but is not yet on `master`.
 
 Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A are all complete and merged on `master`; their history is unaffected.
 
 ## Current blocker or pending validation
 
 - None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), or KF-BACKUP-005A (PR #79): all completed their full lifecycle on `master`.
-- No known implementation, test, or build blocker remains for KF-BACKUP-005A or its documentation reconciliation. No new executable validation is pending for this documentation-only closure package.
-- Resolve exact closure repository lifecycle state (PR #80 review, manual merge, post-merge sync) dynamically from live GitHub and local repository state. Once closure merge/sync is complete, KF-BACKUP-005B is next.
-- Rendered-GUI, runtime, platform, Release-build, and AAB-level behavior remains unproven and out of scope.
-- No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation did occur through the canonical candidate `ValidateAll` gate.
+- No known implementation, focused-`TEST_ONLY`, or documentation-reconciliation blocker remains for KF-BACKUP-005B. `REVIEW_ONLY` is the current lifecycle work; commit, push, PR, merge, and post-merge synchronization remain pending.
+- Rendered-GUI, runtime, platform-build, Release-build, device/emulator, and AAB-level behavior remains unproven and out of scope for 005B.
+- No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for the earlier KF-BACKUP-005A candidate only; it is not 005B evidence.
 
 ## Exact next action
 
-- **State-driven next action:** determine the first incomplete closure action from live PR #80 and repository state: final `REVIEW_ONLY` → manual owner merge → `POST_MERGE_SYNC_ONLY`. If all closure actions are complete, begin `PLAN_ONLY` for **`KF-BACKUP-005B`**, followed by `KF-BACKUP-005C` and remaining Priority-15 residuals before Priority 16 (automated GUI validation).
+- **Next action:** `REVIEW_ONLY` for the complete KF-BACKUP-005B feature-branch diff and recorded contract. Subsequent commit, push, and PR work remain separate isolated lifecycle phases. KF-BACKUP-005C begins only after the 005B lifecycle completes.
 - Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
 
 - Most recent recorded product-relevant milestone on `master`: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged).
-- Current `master` baseline: `e56b8bfa27dfe1d630fbacfed24e6d56ea876026` (PR #79 merge commit — KF-BACKUP-005A Schema-10 stable learning-workflow identity foundation). Discover literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Current verified `master`/feature-branch HEAD baseline: `bfdc634129575c4319a4fae73d9df05ee67147a7` (KF-BACKUP-005A/closure baseline; no 005B commit). Discover future literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is **10** and Schema 10 is active on `master`.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), KF-BACKUP-004 post-merge closure (PR #78), and KF-BACKUP-005A (PR #79) are complete and merged on `master`.
-- Post-merge documentation reconciliation is carried by PR #80 / this closure package; discover exact PR #80 review/merge/sync state dynamically from live GitHub and local repository state.
-- **Next development package:** `KF-BACKUP-005B` (portable Active workflow export/restore into empty target), followed by `KF-BACKUP-005C` and remaining Priority-15 residuals.
-- No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred through the canonical candidate `ValidateAll` gate.
+- **Active feature-branch package:** `KF-BACKUP-005B` implements Schema-10 Active workflow export and empty-target restore from durable state; focused final `TEST_ONLY` is green, but the package is uncommitted, unpushed, has no PR, and is not merged.
+- **Next implementation package after the 005B lifecycle:** `KF-BACKUP-005C` populated-target Active convergence, followed by the remaining Priority-15 residuals.
+- No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

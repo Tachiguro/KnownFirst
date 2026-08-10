@@ -1072,9 +1072,9 @@ KnownFirst supports user-initiated portable data movement through a `.kfarchive`
 
 - The archive reader accepts archive formats **v1** and **v2**.
 - A Schema 7 database writes archive format **v1**.
-- A Schema 8 and a Schema 9 database write archive format **v2**.
-- The current application runs database schema **9** and therefore exports archive format **v2**.
-- Database schema 9 is a separate version axis, governed by [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md).
+- Schema 8, Schema 9, and Schema 10 databases write archive format **v2**.
+- The current application runs database schema **10** and therefore exports archive format **v2**; neither the schema nor the archive format is incremented for Schema-10 Active learning-workflow portability.
+- Database schema 10 is a separate version axis, governed by [`DATABASE_CONTRACT.md`](DATABASE_CONTRACT.md).
 
 Import has two distinct target cases, and they are not interchangeable:
 
@@ -1090,7 +1090,15 @@ Portable export must never damage an existing file. The two platforms achieve th
 - **Windows** stages the archive to a same-directory temporary file, validates it through the production archive validator, and only then finalizes atomically — `File.Replace` for an existing destination, `File.Move` for a new one. A failure at any stage before finalization leaves an existing archive byte-for-byte unchanged.
 - **Android** stages and strictly validates the archive privately *before* the destination picker is opened, so an invalid or failed archive never acquires or writes a destination. The chosen destination is then written through the content provider and reopened for verification. The provider boundary offers no universal atomic replacement guarantee, so Android must not be documented as providing the Windows atomic-finalization guarantee.
 
-Archives are not encrypted and may contain personal imported text and learning history. The user is warned before export. Device preferences, online-lookup consent, the lexical cache, diagnostic logs, and active/incomplete workflows are outside the archive.
+Archives are not encrypted and may contain personal imported text and learning history. The user is warned before export. Device preferences, online-lookup consent, the lexical cache, and diagnostic logs are outside the archive.
+
+Workflow portability is version- and capability-aware:
+
+- Historical format-v1 behavior and Schema-8/9 ordinary portable export remain Completed-only for learning workflows; source schema <=9 Active learning workflows are unsupported and rejected. Active `VocabularyReview` and `PreparationBatch` workflows remain outside portable archives and unsupported.
+- For Schema-10 archive-V2 ordinary portable export, an Active `LearningSession` may be included with its durably committed queue state and associated committed `LearningReview` history. KF-BACKUP-005B supports restoring that workflow only into an empty Schema-10 installation, resuming from the last durably committed application/database state; transient or uncommitted UI state is not portable, and restore does not fabricate a Completed state.
+- Against a populated target, a Schema-10 archive containing an Active learning workflow remains unsupported: preview and actual import fail closed with `BackupErrorCodes.ActiveWorkflowUnsupported`. Future populated-target Active convergence and conflict safety belong to KF-BACKUP-005C.
+
+Schema-10 stable workflow identities are durable architecture intended for reuse by future synchronization, not backup-only identity. Network/cloud synchronization is not implemented.
 
 The archive layout, validation rules, and resource limits are owned by [`architecture/backup-format-v1.md`](architecture/backup-format-v1.md). Merge identities, conflict policies, and safety-copy design are owned by [`architecture/backup-merge-v1-design.md`](architecture/backup-merge-v1-design.md). This section does not restate them.
 

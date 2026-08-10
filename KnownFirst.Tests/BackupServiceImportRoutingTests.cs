@@ -290,6 +290,53 @@ public sealed class BackupServiceImportRoutingTests
         return stream.ToArray();
     }
 
+    private static async Task<byte[]> BuildActiveSchema10ArchiveBytesAsync()
+    {
+        var payload = BackupArchiveV1UpgradePolicy.Upgrade(BackupTestData.CreateMaximumPayload());
+        var inactiveReviews = payload.Workflows.VocabularyReviews
+            .Select(review => review with { Status = BackupReviewSessionStatus.Completed })
+            .ToList();
+        var inactiveBatches = payload.Workflows.PreparationBatches
+            .Select(batch => batch with { Status = BackupPreparationSessionStatus.Completed })
+            .ToList();
+        var activeLearning = payload.Workflows.LearningSessions[0] with
+        {
+            Status = BackupLearningSessionStatus.Active,
+            StableId = new string('a', 32)
+        };
+        var activeItem = activeLearning.QueueItems[0] with { StableId = new string('b', 32) };
+        activeLearning = activeLearning with { QueueItems = [activeItem] };
+        var activePayload = payload with
+        {
+            Workflows = payload.Workflows with
+            {
+                VocabularyReviews = inactiveReviews,
+                PreparationBatches = inactiveBatches,
+                LearningSessions = [activeLearning]
+            },
+            Extensions = new BackupExtensions(new Dictionary<string, BackupExtensionPayload>())
+        };
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(
+            activePayload,
+            new FakePlatformInfo(),
+            new ValidatedSchema10Capability(),
+            DateTime.UtcNow,
+            stream,
+            CancellationToken.None);
+        var archiveBytes = stream.ToArray();
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(
+            new MemoryStream(archiveBytes),
+            CancellationToken.None);
+        Assert.IsNotNull(validated.V2);
+        Assert.AreEqual(10, validated.V2.Manifest.SourceDatabaseSchemaVersion);
+        Assert.AreEqual(
+            BackupLearningSessionStatus.Active,
+            validated.V2.Payload.Workflows.LearningSessions.Single().Status);
+        return archiveBytes;
+    }
+
     // ---- 1. Empty Schema-8 target + archive v2 still uses restore-into-empty, no safety copy ----
     [TestMethod]
     public async Task EmptySchema8Target_ArchiveV2_UsesRestoreIntoEmpty_NoSafetyCopy()
@@ -1053,5 +1100,59 @@ public sealed class BackupServiceImportRoutingTests
         Assert.AreEqual(PortableImportPreviewDisposition.Cancelled, preview.Disposition);
         Assert.AreEqual(BackupErrorCodes.OperationCancelled, preview.ErrorCode);
         Assert.AreEqual(wordCountBefore, await WordCountAsync(targetDb));
+    }
+    [TestMethod]
+    public async Task PreviewPortableImportAsync_ActiveLearningSession_PopulatedTarget_IsBlocked()
+    {
+        await using var targetFixture = await Schema7Fixture.CreateAsync();
+        var targetWordId = await targetFixture.InsertWordAsync("targetword");
+        await targetFixture.InsertMeaningAsync(targetWordId, "targetmeaning", "targetmeaning");
+        await KnownFirst.Data.Migrations.Schema8.Schema8DormantMigration.ApplyAsync(targetFixture.Connection);
+        await KnownFirst.Data.Migrations.Schema9.Schema9DormantMigration.ApplyAsync(targetFixture.Connection);
+        await KnownFirst.Data.Migrations.Schema10.Schema10DormantMigration.ApplyAsync(targetFixture.Connection);
+        var targetBefore = await targetFixture.CapturePersistentStateAsync();
+        var bytes = await BuildActiveSchema10ArchiveBytesAsync();
+        var callLog = new List<string>();
+
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
+            new FakePlatformInfo(),
+            mergeWriterService: new RecordingWriterService(MergeWriteResult.SuccessResult, callLog));
+        using var previewStream = new MemoryStream(bytes);
+        var preview = await service.PreviewPortableImportAsync(previewStream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportPreviewDisposition.Blocked, preview.Disposition);
+        Assert.IsFalse(preview.CanConfirm);
+        Assert.IsFalse(preview.WillMutate);
+        Assert.IsFalse(preview.RequiresSafetyCopy);
+        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, preview.ErrorCode);
+        CollectionAssert.AreEqual(targetBefore, await targetFixture.CapturePersistentStateAsync());
+        Assert.IsEmpty(callLog);
+    }
+
+    [TestMethod]
+    public async Task ImportPortableArchiveAsync_ActiveLearningSession_PopulatedTarget_IsBlocked()
+    {
+        await using var targetFixture = await Schema7Fixture.CreateAsync();
+        var targetWordId = await targetFixture.InsertWordAsync("targetword");
+        await targetFixture.InsertMeaningAsync(targetWordId, "targetmeaning", "targetmeaning");
+        await KnownFirst.Data.Migrations.Schema8.Schema8DormantMigration.ApplyAsync(targetFixture.Connection);
+        await KnownFirst.Data.Migrations.Schema9.Schema9DormantMigration.ApplyAsync(targetFixture.Connection);
+        await KnownFirst.Data.Migrations.Schema10.Schema10DormantMigration.ApplyAsync(targetFixture.Connection);
+        var targetBefore = await targetFixture.CapturePersistentStateAsync();
+        var bytes = await BuildActiveSchema10ArchiveBytesAsync();
+        var callLog = new List<string>();
+
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
+            new FakePlatformInfo(),
+            mergeWriterService: new RecordingWriterService(MergeWriteResult.SuccessResult, callLog));
+        using var importStream = new MemoryStream(bytes);
+        var result = await service.ImportPortableArchiveAsync(importStream, CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Failed, result.Status);
+        Assert.AreEqual(BackupErrorCodes.ActiveWorkflowUnsupported, result.ErrorCode);
+        CollectionAssert.AreEqual(targetBefore, await targetFixture.CapturePersistentStateAsync());
+        Assert.IsEmpty(callLog);
     }
 }

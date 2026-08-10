@@ -1014,4 +1014,392 @@ public sealed class Schema8BackupRestoreTests
         // Changing Vocabulary/PreparedLearning collection enumeration order does not change the result.
         Assert.AreEqual(senseBank.StableId, senseBankReordered.StableId);
     }
+    [TestMethod]
+    public async Task Schema8_PortableExport_ExcludesActiveLearningWorkflow()
+    {
+        await using var sourceFixture = await Schema7Fixture.CreateAsync();
+        var wordId = await sourceFixture.InsertWordAsync("schema8-active");
+        var meaningId = await sourceFixture.InsertMeaningAsync(wordId, "schema8-active", "Schema 8 active");
+        var cardId = await sourceFixture.InsertCardAsync(wordId, meaningId, CardDirection.TermToMeaning);
+        var sessionId = await sourceFixture.InsertLearningSessionAsync(
+            status: KnownFirst.Models.LearningSessionStatus.Active,
+            totalCards: 1,
+            completedCards: 0,
+            completedAtUtc: null);
+        await sourceFixture.InsertQueueItemAsync(sessionId, cardId, queueOrder: 0);
+        await Schema8DormantMigration.ApplyAsync(sourceFixture.Connection);
+
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(sourceFixture),
+            new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        using var archive = new MemoryStream();
+        await service.CreatePortableArchiveAsync(archive, CancellationToken.None);
+        archive.Position = 0;
+
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(archive, CancellationToken.None);
+
+        Assert.IsNotNull(validated.V2);
+        Assert.AreEqual(8, validated.V2!.Manifest.SourceDatabaseSchemaVersion);
+        Assert.IsEmpty(validated.V2.Payload.Workflows.LearningSessions);
+    }
+
+    [TestMethod]
+    public async Task Schema9_PortableExport_ExcludesActiveLearningWorkflow()
+    {
+        await using var sourceFixture = await Schema7Fixture.CreateAsync();
+        var wordId = await sourceFixture.InsertWordAsync("schema9-active");
+        var meaningId = await sourceFixture.InsertMeaningAsync(wordId, "schema9-active", "Schema 9 active");
+        var cardId = await sourceFixture.InsertCardAsync(wordId, meaningId, CardDirection.TermToMeaning);
+        var sessionId = await sourceFixture.InsertLearningSessionAsync(
+            status: KnownFirst.Models.LearningSessionStatus.Active,
+            totalCards: 1,
+            completedCards: 0,
+            completedAtUtc: null);
+        await sourceFixture.InsertQueueItemAsync(sessionId, cardId, queueOrder: 0);
+        await Schema8DormantMigration.ApplyAsync(sourceFixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(sourceFixture.Connection);
+
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(sourceFixture),
+            new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        using var archive = new MemoryStream();
+        await service.CreatePortableArchiveAsync(archive, CancellationToken.None);
+        archive.Position = 0;
+
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(archive, CancellationToken.None);
+
+        Assert.IsNotNull(validated.V2);
+        Assert.AreEqual(9, validated.V2!.Manifest.SourceDatabaseSchemaVersion);
+        Assert.IsEmpty(validated.V2.Payload.Workflows.LearningSessions);
+    }
+
+    [TestMethod]
+    public async Task Schema10_ActiveWorkflow_ExportRestore_PreservesState()
+    {
+        await using var sourceFixture = await Schema7Fixture.CreateAsync();
+        var startedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var completedAt = startedAt.AddMinutes(5);
+        var reviewedAt = startedAt.AddMinutes(4);
+        var dueAt = startedAt.AddDays(3);
+
+        var discardedSessionId = await sourceFixture.InsertLearningSessionAsync(
+            startedAtUtc: startedAt.AddDays(-1),
+            completedAtUtc: startedAt.AddDays(-1).AddMinutes(1));
+        await sourceFixture.Connection.ExecuteAsync("DELETE FROM LearningSessions WHERE Id = ?", discardedSessionId);
+
+        var completedWordId = await sourceFixture.InsertWordAsync("completed");
+        var completedMeaningId = await sourceFixture.InsertMeaningAsync(completedWordId, "completed", "abgeschlossen");
+        var completedCardId = await sourceFixture.InsertCardAsync(
+            completedWordId,
+            completedMeaningId,
+            CardDirection.TermToMeaning,
+            state: CardState.Review,
+            dueAtUtc: dueAt,
+            intervalDays: 3,
+            easeFactor: 2.35,
+            successfulReviewCount: 1,
+            lastReviewedAtUtc: reviewedAt,
+            lastRating: ReviewRating.Hard);
+        var remainingWordId = await sourceFixture.InsertWordAsync("remaining");
+        var remainingMeaningId = await sourceFixture.InsertMeaningAsync(remainingWordId, "remaining", "verbleibend");
+        var remainingCardId = await sourceFixture.InsertCardAsync(
+            remainingWordId,
+            remainingMeaningId,
+            CardDirection.TermToMeaning);
+        var sessionId = await sourceFixture.InsertLearningSessionAsync(
+            status: KnownFirst.Models.LearningSessionStatus.Active,
+            totalCards: 2,
+            completedCards: 1,
+            startedAtUtc: startedAt,
+            updatedAtUtc: completedAt,
+            completedAtUtc: null);
+        var completedQueueId = await sourceFixture.InsertQueueItemAsync(
+            sessionId,
+            completedCardId,
+            queueOrder: 0,
+            isDueCard: true,
+            answerRevealed: true,
+            spellingChecked: true,
+            spellingCorrect: true,
+            isCompleted: true,
+            rating: ReviewRating.Hard,
+            completedAtUtc: completedAt);
+        var remainingQueueId = await sourceFixture.InsertQueueItemAsync(
+            sessionId,
+            remainingCardId,
+            queueOrder: 1,
+            isDueCard: false);
+        await sourceFixture.InsertReviewAsync(
+            completedCardId,
+            sessionId,
+            ReviewRating.Hard,
+            wasTypedAnswer: true,
+            wasCorrect: true,
+            reviewedAtUtc: reviewedAt,
+            dueAtUtc: dueAt,
+            intervalDays: 3,
+            easeFactor: 2.35);
+
+        await Schema8DormantMigration.ApplyAsync(sourceFixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(sourceFixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(sourceFixture.Connection);
+
+        var sourceQueues = await sourceFixture.Connection.QueryAsync<Schema8QueueRow>(
+            "SELECT * FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder", sessionId);
+        var sourceReviews = await sourceFixture.Connection.QueryAsync<Schema8ReviewRow>(
+            "SELECT * FROM LearningReviews WHERE SessionId = ?", sessionId);
+        Assert.AreEqual(2, sourceQueues.Count);
+        Assert.AreEqual(1, sourceReviews.Count);
+        var sourceReview = sourceReviews[0];
+        Assert.IsNotNull(sourceReview.TargetAnswerVariantId);
+        Assert.IsNotNull(sourceReview.MatchedAnswerVariantId);
+
+        var expectedWorkflowStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessions WHERE Id = ?", sessionId);
+        var expectedCompletedQueueStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessionCards WHERE Id = ?", completedQueueId);
+        var expectedRemainingQueueStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessionCards WHERE Id = ?", remainingQueueId);
+        var sourceTargetVariantStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM AnswerVariants WHERE Id = ?", sourceReview.TargetAnswerVariantId!.Value);
+        var sourceMatchedVariantStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM AnswerVariants WHERE Id = ?", sourceReview.MatchedAnswerVariantId!.Value);
+
+        var sourceDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(sourceFixture);
+        var sourceService = new BackupService(sourceDatabase, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        using var stream = new MemoryStream();
+        await sourceService.CreatePortableArchiveAsync(stream, CancellationToken.None);
+        stream.Position = 0;
+        var firstArchive = await BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None);
+        Assert.IsNotNull(firstArchive.V2);
+        Assert.AreEqual(10, firstArchive.V2!.Manifest.SourceDatabaseSchemaVersion);
+        var firstArchiveWorkflow = firstArchive.V2.Payload.Workflows.LearningSessions.Single();
+        Assert.AreEqual(BackupLearningSessionStatus.Active, firstArchiveWorkflow.Status);
+        Assert.AreEqual(expectedWorkflowStableId, firstArchiveWorkflow.StableId);
+        Assert.AreEqual(expectedCompletedQueueStableId, firstArchiveWorkflow.QueueItems.Single(item => item.QueueOrder == 0).StableId);
+        Assert.AreEqual(expectedRemainingQueueStableId, firstArchiveWorkflow.QueueItems.Single(item => item.QueueOrder == 1).StableId);
+
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await Schema9DormantMigration.ApplyAsync(targetFixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(targetFixture.Connection);
+
+        var targetDatabase = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture);
+        var targetService = new BackupService(targetDatabase, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        var result = await targetService.ImportPortableArchiveAsync(
+            new MemoryStream(stream.ToArray()),
+            CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Success, result.Status);
+
+        var sessions = await targetFixture.Connection.QueryAsync<KnownFirst.Data.Entities.LearningSessionEntity>("SELECT * FROM LearningSessions");
+        Assert.AreEqual(1, sessions.Count);
+        Assert.AreEqual((int)KnownFirst.Models.LearningSessionStatus.Active, (int)sessions[0].Status);
+        Assert.IsNull(sessions[0].CompletedAtUtc);
+        Assert.AreEqual(2, sessions[0].TotalCards);
+        Assert.AreEqual(1, sessions[0].CompletedCards);
+        Assert.AreNotEqual(sessionId, sessions[0].Id);
+
+        var restoredWorkflowStableId = await targetFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessions WHERE Id = ?", sessions[0].Id);
+        Assert.AreEqual(expectedWorkflowStableId, restoredWorkflowStableId);
+
+        var restoredQueues = await targetFixture.Connection.QueryAsync<Schema8QueueRow>(
+            "SELECT * FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder", sessions[0].Id);
+        Assert.AreEqual(2, restoredQueues.Count);
+        var restoredCompletedQueue = restoredQueues[0];
+        var restoredRemainingQueue = restoredQueues[1];
+        Assert.AreEqual(0, restoredCompletedQueue.QueueOrder);
+        Assert.AreEqual(sessions[0].Id, restoredCompletedQueue.SessionId);
+        Assert.IsTrue(restoredCompletedQueue.IsCompleted);
+        Assert.AreEqual(ReviewRating.Hard, restoredCompletedQueue.Rating);
+        Assert.AreEqual(completedAt, restoredCompletedQueue.CompletedAtUtc);
+        Assert.IsTrue(restoredCompletedQueue.AnswerRevealed);
+        Assert.IsTrue(restoredCompletedQueue.SpellingChecked);
+        Assert.IsTrue(restoredCompletedQueue.SpellingCorrect);
+        Assert.AreEqual(1, restoredRemainingQueue.QueueOrder);
+        Assert.AreEqual(sessions[0].Id, restoredRemainingQueue.SessionId);
+        Assert.IsFalse(restoredRemainingQueue.IsCompleted);
+        Assert.IsNull(restoredRemainingQueue.Rating);
+        Assert.IsNull(restoredRemainingQueue.CompletedAtUtc);
+
+        var restoredReviews = await targetFixture.Connection.QueryAsync<Schema8ReviewRow>(
+            "SELECT * FROM LearningReviews WHERE SessionId = ?", sessions[0].Id);
+        Assert.AreEqual(1, restoredReviews.Count);
+        var restoredReview = restoredReviews[0];
+        Assert.AreEqual(sessions[0].Id, restoredReview.SessionId);
+        Assert.AreEqual(restoredCompletedQueue.CardId, restoredReview.CardId);
+        Assert.AreEqual(sourceReview.Rating, restoredReview.Rating);
+        Assert.AreEqual(sourceReview.WasTypedAnswer, restoredReview.WasTypedAnswer);
+        Assert.AreEqual(sourceReview.WasCorrect, restoredReview.WasCorrect);
+        Assert.AreEqual(sourceReview.ReviewedAtUtc, restoredReview.ReviewedAtUtc);
+        Assert.AreEqual(sourceReview.DueAtUtc, restoredReview.DueAtUtc);
+        Assert.AreEqual(sourceReview.IntervalDays, restoredReview.IntervalDays);
+        Assert.AreEqual(sourceReview.EaseFactor, restoredReview.EaseFactor);
+        Assert.IsNotNull(restoredReview.TargetAnswerVariantId);
+        Assert.IsNotNull(restoredReview.MatchedAnswerVariantId);
+        var restoredTargetVariantStableId = await targetFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM AnswerVariants WHERE Id = ?", restoredReview.TargetAnswerVariantId!.Value);
+        var restoredMatchedVariantStableId = await targetFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM AnswerVariants WHERE Id = ?", restoredReview.MatchedAnswerVariantId!.Value);
+        Assert.AreEqual(sourceTargetVariantStableId, restoredTargetVariantStableId);
+        Assert.AreEqual(sourceMatchedVariantStableId, restoredMatchedVariantStableId);
+
+        var learningService = new KnownFirst.Services.Study.LearningService(
+            targetDatabase,
+            new SimpleSpacedRepetitionScheduler(),
+            new SpellingAnswerComparer(),
+            new FakeClock(startedAt.AddHours(1)));
+        var resumed = await learningService.GetOrStartAsync();
+        Assert.IsNotNull(resumed.Card);
+        Assert.IsNull(resumed.CompletedSummary);
+        Assert.AreEqual(sessions[0].Id, resumed.Card!.SessionId);
+        Assert.AreEqual(restoredRemainingQueue.Id, resumed.Card.QueueItemId);
+        Assert.AreEqual(restoredRemainingQueue.CardId, resumed.Card.CardId);
+        Assert.AreEqual(remainingWordId, resumed.Card.WordId);
+
+        using var reexportedStream = new MemoryStream();
+        await targetService.CreatePortableArchiveAsync(reexportedStream, CancellationToken.None);
+        reexportedStream.Position = 0;
+        var reexportedArchive = await BackupArchiveReader.ValidateVersionedAsync(reexportedStream, CancellationToken.None);
+        Assert.IsNotNull(reexportedArchive.V2);
+        Assert.AreEqual(10, reexportedArchive.V2!.Manifest.SourceDatabaseSchemaVersion);
+        var reexportedWorkflow = reexportedArchive.V2.Payload.Workflows.LearningSessions.Single();
+        Assert.AreEqual(BackupLearningSessionStatus.Active, reexportedWorkflow.Status);
+        Assert.AreEqual(expectedWorkflowStableId, reexportedWorkflow.StableId);
+        Assert.AreEqual(
+            expectedCompletedQueueStableId,
+            reexportedWorkflow.QueueItems.Single(item => item.QueueOrder == 0).StableId);
+        Assert.AreEqual(
+            expectedRemainingQueueStableId,
+            reexportedWorkflow.QueueItems.Single(item => item.QueueOrder == 1).StableId);
+    }
+
+    [TestMethod]
+    public async Task Schema10_CompletedWorkflow_ExportRestore_PreservesCompletionAndStableIds()
+    {
+        var startedAt = new DateTime(2025, 3, 1, 10, 0, 0, DateTimeKind.Utc);
+        var completedAt = startedAt.AddMinutes(20);
+        var reviewedAt = startedAt.AddMinutes(19);
+        var dueAt = startedAt.AddDays(4);
+
+        await using var sourceFixture = await Schema7Fixture.CreateAsync();
+        var wordId = await sourceFixture.InsertWordAsync("completed-word");
+        var meaningId = await sourceFixture.InsertMeaningAsync(wordId, "completed-word", "abgeschlossen");
+        var cardId = await sourceFixture.InsertCardAsync(
+            wordId,
+            meaningId,
+            CardDirection.TermToMeaning,
+            state: CardState.Review,
+            dueAtUtc: dueAt,
+            intervalDays: 4,
+            easeFactor: 2.5,
+            successfulReviewCount: 1,
+            lastReviewedAtUtc: reviewedAt,
+            lastRating: ReviewRating.Good);
+        var sessionId = await sourceFixture.InsertLearningSessionAsync(
+            status: KnownFirst.Models.LearningSessionStatus.Completed,
+            totalCards: 1,
+            completedCards: 1,
+            startedAtUtc: startedAt,
+            updatedAtUtc: completedAt,
+            completedAtUtc: completedAt);
+        var queueItemId = await sourceFixture.InsertQueueItemAsync(
+            sessionId,
+            cardId,
+            queueOrder: 0,
+            isDueCard: true,
+            answerRevealed: true,
+            spellingChecked: true,
+            spellingCorrect: true,
+            isCompleted: true,
+            rating: ReviewRating.Good,
+            completedAtUtc: completedAt);
+        await sourceFixture.InsertReviewAsync(
+            cardId,
+            sessionId,
+            ReviewRating.Good,
+            wasTypedAnswer: true,
+            wasCorrect: true,
+            reviewedAtUtc: reviewedAt,
+            dueAtUtc: dueAt,
+            intervalDays: 4,
+            easeFactor: 2.5);
+
+        await Schema8DormantMigration.ApplyAsync(sourceFixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(sourceFixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(sourceFixture.Connection);
+
+        var expectedWorkflowStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessions WHERE Id = ?", sessionId);
+        var expectedQueueStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessionCards WHERE Id = ?", queueItemId);
+
+        Assert.IsNotNull(expectedWorkflowStableId, "Schema10 migration must assign a StableId to the completed session.");
+        Assert.IsNotNull(expectedQueueStableId, "Schema10 migration must assign a StableId to the queue item.");
+
+        var sourceService = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(sourceFixture),
+            new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        using var archiveStream = new MemoryStream();
+        await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
+        archiveStream.Position = 0;
+
+        var archive = await BackupArchiveReader.ValidateVersionedAsync(archiveStream, CancellationToken.None);
+        Assert.IsNotNull(archive.V2, "Ordinary export of a Schema-10 source must produce a V2 archive.");
+        Assert.AreEqual(10, archive.V2!.Manifest.SourceDatabaseSchemaVersion);
+        var archivedWorkflow = archive.V2.Payload.Workflows.LearningSessions.Single();
+        Assert.AreEqual(BackupLearningSessionStatus.Completed, archivedWorkflow.Status);
+        Assert.IsNotNull(archivedWorkflow.CompletedAtUtc);
+        Assert.AreEqual(completedAt, archivedWorkflow.CompletedAtUtc!.Value);
+        Assert.AreEqual(expectedWorkflowStableId, archivedWorkflow.StableId);
+        var archivedQueueItem = archivedWorkflow.QueueItems.Single();
+        Assert.IsTrue(archivedQueueItem.IsCompleted);
+        Assert.AreEqual(expectedQueueStableId, archivedQueueItem.StableId);
+
+        await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await Schema9DormantMigration.ApplyAsync(targetFixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(targetFixture.Connection);
+
+        var targetService = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture),
+            new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        var result = await targetService.ImportPortableArchiveAsync(
+            new MemoryStream(archiveStream.ToArray()),
+            CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status);
+
+        var restoredSessions = await targetFixture.Connection.QueryAsync<KnownFirst.Data.Entities.LearningSessionEntity>(
+            "SELECT * FROM LearningSessions");
+        Assert.AreEqual(1, restoredSessions.Count);
+        var restoredSession = restoredSessions[0];
+        Assert.AreEqual((int)KnownFirst.Models.LearningSessionStatus.Completed, (int)restoredSession.Status);
+        Assert.IsNotNull(restoredSession.CompletedAtUtc);
+        Assert.AreEqual(completedAt, restoredSession.CompletedAtUtc!.Value);
+
+        var restoredWorkflowStableId = await targetFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessions WHERE Id = ?", restoredSession.Id);
+        Assert.AreEqual(expectedWorkflowStableId, restoredWorkflowStableId);
+
+        var restoredQueues = await targetFixture.Connection.QueryAsync<Schema8QueueRow>(
+            "SELECT * FROM LearningSessionCards WHERE SessionId = ?", restoredSession.Id);
+        Assert.AreEqual(1, restoredQueues.Count);
+        var restoredQueue = restoredQueues[0];
+        Assert.AreEqual(restoredSession.Id, restoredQueue.SessionId);
+        Assert.IsTrue(restoredQueue.IsCompleted);
+        Assert.AreEqual(ReviewRating.Good, restoredQueue.Rating);
+        Assert.IsNotNull(restoredQueue.CompletedAtUtc);
+        Assert.AreEqual(completedAt, restoredQueue.CompletedAtUtc!.Value);
+
+        var restoredQueueStableId = await targetFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessionCards WHERE Id = ?", restoredQueue.Id);
+        Assert.AreEqual(expectedQueueStableId, restoredQueueStableId);
+
+        var restoredReviews = await targetFixture.Connection.QueryAsync<Schema8ReviewRow>(
+            "SELECT * FROM LearningReviews WHERE SessionId = ?", restoredSession.Id);
+        Assert.AreEqual(1, restoredReviews.Count);
+        var restoredReview = restoredReviews[0];
+        Assert.AreEqual(restoredSession.Id, restoredReview.SessionId);
+        Assert.AreEqual(ReviewRating.Good, restoredReview.Rating);
+        Assert.AreEqual(reviewedAt, restoredReview.ReviewedAtUtc);
+    }
 }

@@ -4,7 +4,7 @@
 **Backlog item:** [KF-BACKUP-002](../BACKLOG.md), P1, blocks public release readiness, does not block Beta 12 Internal Testing.
 **Builds on:** [backup-format-v1.md](backup-format-v1.md) (binding contract for the *existing* Restore-into-empty behavior, unchanged by this proposal), `Models/BackupModels.cs`, `Data/BackupImportRepository.cs`, `Data/BackupSnapshotRepository.cs`, `Services/DataSafety/BackupService.cs`, `Services/TextReviewService.cs`, `Services/Study/PreparationService.cs`, `Services/Study/LearningService.cs`.
 
-**KF-BACKUP-005B package status (2026-08-10):** Schema-10 Active learning-workflow export and restore into an empty target are binding `master` behavior, merged via PR #81 (feature commit `e8236bba3d23e942014e6979b661e0c77a2a3bdd`, merge commit `dc56e8412966ac32531c4b0358526582702d6d24`); `POST_MERGE_SYNC_ONLY` completed successfully. Focused final `TEST_ONLY`: **135 passed / 0 failed / 0 skipped**. Final independent PR review: **0 BLOCKER / 0 MAJOR / 0 MINOR**. No GitHub CI evidence existed for the 005B head. See §24 for the package architecture and the unchanged KF-BACKUP-005C populated-target boundary.
+**KF-BACKUP-005C package status (2026-08-10):** Populated-target Schema-10 Active learning-workflow convergence and conflict safety are binding `master` behavior, merged via PR #83 (feature head `bc30e9ee9a3689cc4d8b7d108ac83dc037a1b962`, merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully. Focused `Schema10ActiveArchive`: **8 passed / 0 failed / 0 skipped**; controlled affected/regression scope: **254 passed / 0 failed / 0 skipped** with Workers=1 and **254 passed / 0 failed / 0 skipped** with Workers=8; final relevant reviews: **0 BLOCKER / 0 MAJOR / 0 MINOR**. See §§24–25 for the historical 005B and binding 005C contracts.
 
 ## Product contract: single "Import data" action
 
@@ -744,12 +744,12 @@ KF-BACKUP-005A does not implement portable Active learning-workflow continuation
 - Portable export excludes Active `LearningSessions`/workflow rows.
 - Portable import continues rejecting unsupported Active workflow archives where applicable.
 
-This was the 005A package boundary on `master`; it remains historically accurate for 005A itself. Merged KF-BACKUP-005B changes current master behavior for Schema-10 empty-target portability only (§24). Populated-target Active convergence remains excluded.
+This was the historical 005A package boundary; merged KF-BACKUP-005B later added Schema-10 empty-target portability (§24). Merged KF-BACKUP-005C supersedes that boundary only for its documented bounded populated-target Active learning-workflow convergence (§25). Source schema ≤9 Active workflows, Active VocabularyReview, and Active PreparationBatch remain unsupported; archive-Completed/target-Active remains blocked, and divergent same-`StableId` Active state remains fail-closed as a non-executable user decision rather than automatic reconciliation.
 
 ### 23.9 Succession: KF-BACKUP-005B and 005C
 
 - **KF-BACKUP-005B:** Merged via PR #81 and binding current master behavior; provides portable Active learning-workflow export and empty-target restore from the last durably committed application/database state. Requires the stable identities established by 005A.
-- **KF-BACKUP-005C:** published feature-branch candidate for populated-target Active workflow convergence and conflict safety in open PR #83. The reviewed implementation commit before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover live PR/head state dynamically. It is not merged; 005B remains binding master behavior.
+- **KF-BACKUP-005C:** merged via PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`) and binding current master behavior for populated-target Active workflow convergence and conflict safety; `POST_MERGE_SYNC_ONLY` completed successfully.
 
 Actual network/cloud synchronization is not implemented. The StableId architecture is intentionally reusable by later cross-device synchronization rather than being a backup-only disposable identity scheme.
 
@@ -826,16 +826,16 @@ KF-BACKUP-005B does not regress the established Completed Schema-10 workflow pat
 
 The historical archive-format-v1 Completed-only contract in [backup-format-v1.md](backup-format-v1.md) is unchanged. The 005B capability belongs to the current Schema-10/archive-V2 path.
 
-### 24.6 KF-BACKUP-005C populated-target guard
+### 24.6 Historical KF-BACKUP-005B populated-target guard
 
-KF-BACKUP-005B is deliberately limited to empty-target Active restore. If the target already contains durable data, a valid Schema-10 archive containing an Active learning workflow remains blocked:
+KF-BACKUP-005B was deliberately limited to empty-target Active restore. At its package boundary, a target already containing durable data blocked a valid Schema-10 archive containing an Active learning workflow:
 
 - preview fails closed with `BackupErrorCodes.ActiveWorkflowUnsupported`;
 - actual import fails closed with the same code;
 - the target is not mutated;
 - executable merge/writer behavior does not run.
 
-Active-vs-Active convergence, populated-target conflict resolution, and all other Active merge semantics remain KF-BACKUP-005C. Cross-device network/cloud synchronization, accounts, and remote sync services remain out of scope.
+KF-BACKUP-005C now supplies the bounded populated-target convergence and conflict semantics in §25. Cross-device network/cloud synchronization, accounts, and remote sync services remain out of scope.
 
 ### 24.7 Validation evidence and limits
 
@@ -852,13 +852,13 @@ Active-vs-Active convergence, populated-target conflict resolution, and all othe
 
 ### 24.8 Lifecycle succession
 
-The lifecycle-stable package state is: 005B implementation complete → focused final `TEST_ONLY` green → final independent PR review approved → PR #81 manually merged → `POST_MERGE_SYNC_ONLY` complete → post-merge documentation lifecycle. KF-BACKUP-005C is a published candidate in open PR #83; final correction/review, repository-owner manual merge after approval, and post-merge synchronization remain pending.
+The lifecycle-stable package state is: 005B implementation complete → focused final `TEST_ONLY` green → final independent PR review approved → PR #81 manually merged → `POST_MERGE_SYNC_ONLY` complete. KF-BACKUP-005C then completed its bounded implementation, controlled validation, final relevant review, manual PR #83 merge, and `POST_MERGE_SYNC_ONLY`; its current contract is binding master behavior.
 
 ---
 
-## §25 KF-BACKUP-005C — Populated-Target Active Learning-Workflow Convergence and Conflict Safety (published PR candidate)
+## §25 KF-BACKUP-005C — Populated-Target Active Learning-Workflow Convergence and Conflict Safety
 
-**Lifecycle status:** published feature-branch candidate in open PR #83, not binding `master` behavior. The reviewed implementation commit before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover live PR/head state dynamically. Final correction/review, repository-owner manual merge after approval, and post-merge synchronization remain pending. The current master contract remains §24's empty-target behavior.
+**Lifecycle status:** binding current-`master` behavior, merged via PR #83 at `bed54d01624e80ca6dd5adf8af097e64fe33e588` (feature head `bc30e9ee9a3689cc4d8b7d108ac83dc037a1b962`); `POST_MERGE_SYNC_ONLY` completed successfully. Section §24 records the historical 005B empty-target boundary.
 
 ### 25.1 Bounded populated-target behavior
 
@@ -876,7 +876,7 @@ The Active-aware Schema-10 capture is read-only and preflight-only. It does not 
 
 Schema 10 and `PRAGMA user_version` remain 10; the outer `.kfarchive` remains V2. No Schema 11, archive V3, DTO redesign, StableId-format change, public merge/error/status code, UI, network transport, or synchronization service was introduced.
 
-### 25.4 Candidate evidence and limits
+### 25.4 Final bounded evidence and limits
 
 Focused `Schema10ActiveArchive` evidence is **8 passed / 0 failed / 0 skipped**. The identical 254-test affected/regression scope completed **254/0/0** with MSTest Workers=1 and **254/0/0** with normal Workers=8. Both included the idempotent re-import, semantic-mismatch, and review-multiplicity conflict scenarios. Independent implementation re-review and historical-failure risk review each found **0 BLOCKER / 0 MAJOR / 0 MINOR**.
 

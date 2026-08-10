@@ -749,7 +749,7 @@ This was the 005A package boundary on `master`; it remains historically accurate
 ### 23.9 Succession: KF-BACKUP-005B and 005C
 
 - **KF-BACKUP-005B:** Merged via PR #81 and binding current master behavior; provides portable Active learning-workflow export and empty-target restore from the last durably committed application/database state. Requires the stable identities established by 005A.
-- **KF-BACKUP-005C:** verified local feature-branch candidate for populated-target Active workflow convergence and conflict safety. It is uncommitted, unpushed, without a PR, and not merged; 005B remains binding master behavior.
+- **KF-BACKUP-005C:** published feature-branch candidate for populated-target Active workflow convergence and conflict safety in open PR #83. The reviewed implementation commit before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover live PR/head state dynamically. It is not merged; 005B remains binding master behavior.
 
 Actual network/cloud synchronization is not implemented. The StableId architecture is intentionally reusable by later cross-device synchronization rather than being a backup-only disposable identity scheme.
 
@@ -852,13 +852,13 @@ Active-vs-Active convergence, populated-target conflict resolution, and all othe
 
 ### 24.8 Lifecycle succession
 
-The lifecycle-stable package state is: 005B implementation complete → focused final `TEST_ONLY` green → final independent PR review approved → PR #81 manually merged → `POST_MERGE_SYNC_ONLY` complete → post-merge documentation lifecycle. KF-BACKUP-005C is now a verified local candidate; its separate commit/push/PR/manual-merge lifecycle remains pending.
+The lifecycle-stable package state is: 005B implementation complete → focused final `TEST_ONLY` green → final independent PR review approved → PR #81 manually merged → `POST_MERGE_SYNC_ONLY` complete → post-merge documentation lifecycle. KF-BACKUP-005C is a published candidate in open PR #83; final correction/review, repository-owner manual merge after approval, and post-merge synchronization remain pending.
 
 ---
 
-## §25 KF-BACKUP-005C — Populated-Target Active Learning-Workflow Convergence and Conflict Safety (local candidate)
+## §25 KF-BACKUP-005C — Populated-Target Active Learning-Workflow Convergence and Conflict Safety (published PR candidate)
 
-**Lifecycle status:** verified local feature-branch candidate only. It is uncommitted, unpushed, has no upstream, remote branch, or PR, and is not binding `master` behavior. The current master contract remains §24's empty-target behavior.
+**Lifecycle status:** published feature-branch candidate in open PR #83, not binding `master` behavior. The reviewed implementation commit before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover live PR/head state dynamically. Final correction/review, repository-owner manual merge after approval, and post-merge synchronization remain pending. The current master contract remains §24's empty-target behavior.
 
 ### 25.1 Bounded populated-target behavior
 

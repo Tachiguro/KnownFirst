@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-10 (KF-BACKUP-005B complete on `master` via PR #81; KF-BACKUP-005C is a verified local candidate pending its publication lifecycle)
+2026-08-10 (KF-BACKUP-005B complete on `master` via PR #81; KF-BACKUP-005C is a published candidate in open PR #83)
 
 ## Repository
 
@@ -52,9 +52,9 @@
 
 ## Currently active package
 
-**`KF-BACKUP-005C` — Populated-Target Active Learning-Workflow Convergence and Conflict Safety** is a verified local candidate on `feature/kf-backup-005c-active-workflow-convergence-v1`. It is uncommitted, unpushed, has no upstream, remote branch, or PR, and is not merged or binding `master` behavior. `master` remains at the merged KF-BACKUP-005B empty-target capability.
+**`KF-BACKUP-005C` — Populated-Target Active Learning-Workflow Convergence and Conflict Safety** is a published candidate on `feature/kf-backup-005c-active-workflow-convergence-v1` in open PR #83 against `master`. The reviewed implementation commit on which PR #83 was opened before this documentation correction is `ce6def4ab188a556bd825771e7b9b5451084871c`; discover the live PR head dynamically. It is not merged or binding `master` behavior; `master` remains at the merged KF-BACKUP-005B empty-target capability. Remaining work is the PR review/correction lifecycle, final approval, repository-owner manual merge, and then `POST_MERGE_SYNC_ONLY`.
 
-### KF-BACKUP-005C verified local candidate
+### KF-BACKUP-005C published PR candidate
 
 - A populated, quiescent Schema-10 target can additively accept a Schema-10/V2 archive with an Active learning workflow. Existing writer machinery preserves workflow and queue-row `StableId` values, remaps committed `LearningReview` rows to the new target-local integer session ID, and performs scheduler replay.
 - For the same Active workflow `StableId`, exact durable workflow, queue, and multiplicity-aware LearningReview equivalence converges to `NoChanges`; no safety copy, writer invocation, or scheduler replay occurs.
@@ -115,7 +115,7 @@
 **Succession:**
 
 - **KF-BACKUP-005B:** complete and merged on `master` via PR #81.
-- **KF-BACKUP-005C:** verified local implementation and documentation candidate; commit, push, PR, manual merge, and post-merge synchronization remain pending. It is not current `master` behavior.
+- **KF-BACKUP-005C:** published candidate in open PR #83; final review/correction, repository-owner manual merge after approval, and post-merge synchronization remain. It is not current `master` behavior.
 - Remaining Priority-15 residuals (`LegacyReviewSummaries` ordering, `Learning.Cards`/Sense `StableId` ordering, legacy v1 planner label) continue before Priority 16 (automated GUI validation). The mid-session review-event export policy is now on `master` through 005B.
 
 Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A are all complete and merged on `master`; their history is unaffected.
@@ -123,13 +123,13 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 ## Current blocker or pending validation
 
 - None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), or KF-BACKUP-005A (PR #79): all completed their full lifecycle on `master`.
-- KF-BACKUP-005C is ready for independent DOCUMENT_ONLY review before its separate commit/push/PR lifecycle; it remains a local candidate and has not started any publication or merge phase.
+- KF-BACKUP-005C is in the final PR #83 review/correction lifecycle. It remains a candidate until the repository owner manually merges an approved PR.
 - Rendered-GUI, runtime, platform-build, Release-build, device/emulator, and AAB-level behavior remains unproven and out of scope for 005B.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for the earlier KF-BACKUP-005A candidate only; it is not 005B evidence.
 
 ## Exact next action
 
-- **Next lifecycle action:** independent `REVIEW_ONLY` of the KF-BACKUP-005C documentation candidate, followed only by separately scoped commit/push/PR phases if approved.
+- **Next lifecycle action:** complete the remaining PR #83 correction/review lifecycle; after final approval, the repository owner may manually merge, followed by verified `POST_MERGE_SYNC_ONLY`.
 - Automated agents never merge PRs or enable auto-merge; pull requests are merged exclusively by the repository owner manually through GitHub.
 
 ## Concise new-chat handoff
@@ -140,5 +140,5 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), KF-BACKUP-004 post-merge closure (PR #78), and KF-BACKUP-005A (PR #79) are complete and merged on `master`.
 - **KF-BACKUP-005B:** merged master capability via PR #81; it implements Schema-10 Active workflow export and empty-target restore from durable state, with focused final `TEST_ONLY` green.
-- **Active local candidate:** `KF-BACKUP-005C` populated-target Active convergence; its implementation and documentation are verified locally but remain uncommitted, unpushed, without a PR, and non-binding on `master`. Remaining Priority-15 residuals follow after its lifecycle.
+- **Published candidate:** `KF-BACKUP-005C` populated-target Active convergence is represented by open PR #83 and remains non-binding on `master`; the reviewed implementation commit is `ce6def4ab188a556bd825771e7b9b5451084871c` before this documentation correction. Discover live PR state dynamically. Remaining Priority-15 residuals follow after its lifecycle.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

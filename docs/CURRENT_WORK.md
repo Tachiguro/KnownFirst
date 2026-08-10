@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-10 (KF-BACKUP-005C merged on `master` via PR #83; post-merge synchronization complete)
+2026-08-11 (LegacyReviewSummaries canonical-ordering correction merged on `master` via PR #85; post-merge synchronization and documentation closure complete)
 
 ## Repository
 
@@ -50,10 +50,11 @@
 - **PR #79 — `KF-BACKUP-005A` (Schema-10 stable learning-workflow identity foundation):** `DatabaseSchema.CurrentVersion` advances to **10** on `master`; immutable `StableId` columns added to `LearningSessions` and `LearningSessionCards`; deterministic SHA-256 64-character Completed bootstrap; one-time GUID 32-character Active bootstrap; archive V2 DTO evolution with trailing nullable StableIds; source ≤9 Completed compatibility, source ≤9 Active rejection, source ≥10 StableId validation; `LearningSessionId` excluded from `LearningReview` merge identity; Active workflow portable continuation excluded (deferred to 005B/005C); merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`. `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #81 — `KF-BACKUP-005B` (portable Active learning-workflow restore into an empty target):** Schema-10 ordinary portable export now carries an Active `LearningSession`, its persisted queue, committed `LearningReview` history, and workflow/queue `StableId` values; empty-target restore resumes through normal `LearningService` behavior from the last durably committed state. Final focused `TEST_ONLY`: **135 passed / 0 failed / 0 skipped**; final independent PR review: **0 BLOCKER / 0 MAJOR / 0 MINOR**; no GitHub CI evidence existed for the PR head. Merge commit `dc56e8412966ac32531c4b0358526582702d6d24` (feature commit `e8236bba3d23e942014e6979b661e0c77a2a3bdd`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #83 — `KF-BACKUP-005C` (populated-target Active learning-workflow convergence and conflict safety):** makes the established bounded populated-target Schema-10/V2 Active-workflow convergence contract binding `master` behavior. Merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588` (feature head `bc30e9ee9a3689cc4d8b7d108ac83dc037a1b962`); `POST_MERGE_SYNC_ONLY` completed successfully. Focused `Schema10ActiveArchive`: **8 passed / 0 failed / 0 skipped**; controlled affected/regression scope: **254 passed / 0 failed / 0 skipped** with Workers=1 and **254 passed / 0 failed / 0 skipped** with Workers=8; final relevant reviews: **0 BLOCKER / 0 MAJOR / 0 MINOR**.
+- **PR #85 — `LegacyReviewSummaries` canonical ordering correction:** makes V2 `LegacyReviewSummaries` export ordering canonical across installations by replacing the former composite string key with typed ordering over `ReviewCount`, `ForgotCount`, `PartialCount`, `KnownCount`, nullable `LastReviewedAt` presence (null first), and normalized UTC ticks for a present timestamp. Null is explicitly distinguished from present UTC `DateTime.MinValue`; local `ReviewStateEntity.Id` is not ordering material; multiplicity is preserved. Feature head `baf5fcda0a017c1492a08dac730d683c1554784d`; merge commit `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526`; `POST_MERGE_SYNC_ONLY` completed successfully.
 
 ## Most recently completed package and current Priority-15 state
 
-**`KF-BACKUP-005C` — Populated-Target Active Learning-Workflow Convergence and Conflict Safety** is binding `master` behavior, merged through PR #83 at `bed54d01624e80ca6dd5adf8af097e64fe33e588` (feature head `bc30e9ee9a3689cc4d8b7d108ac83dc037a1b962`); `POST_MERGE_SYNC_ONLY` completed successfully. Priority 15 remains active for the current `LegacyReviewSummaries` feature-branch candidate and its later documented residuals.
+**PR #85 — `LegacyReviewSummaries` canonical ordering correction** is the most recently completed package, binding `master` behavior at merge commit `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526` (feature head `baf5fcda0a017c1492a08dac730d683c1554784d`); `POST_MERGE_SYNC_ONLY` completed successfully. Priority 15 remains active for its two remaining residuals.
 
 ### KF-BACKUP-005C merged master capability
 
@@ -65,9 +66,9 @@
 
 **Final bounded evidence:** focused `Schema10ActiveArchive` **8/0/0**; controlled bounded affected/regression scope **254/0/0** with MSTest Workers=1 and again **254/0/0** with normal Workers=8; independent implementation re-review and historical-failure risk review each found **0 BLOCKER / 0 MAJOR / 0 MINOR**. Two earlier safety-copy-count observations (H1 idempotency 1→2; H2 semantic mismatch 1→0) remain documented as unexplained, non-reproducible historical transient failures, not passing runs and not a concrete correction target. This is automated unit/integration/persistence/contract evidence only; no ALL_AUTOMATED, ValidateAll, GitHub CI, platform/runtime, Release-build, rendered GUI, device/emulator, APK/AAB, signing, publishing, or distribution evidence exists for 005C.
 
-### Current Priority-15 candidate — LegacyReviewSummaries canonical ordering
+### LegacyReviewSummaries canonical ordering — merged master correction
 
-`LegacyReviewSummaries` canonical ordering is an implemented candidate on `fix/legacy-review-summaries-canonical-ordering-v1`, based on `master` commit `9cc6bbe08201107068f69ad1dd397f188499e69d`. Its production and test changes are uncommitted and unpushed, with no PR at this documentation point; it is not merged or binding `master` behavior.
+`LegacyReviewSummaries` canonical ordering is binding `master` behavior through PR #85 (feature head `baf5fcda0a017c1492a08dac730d683c1554784d`, merge commit `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526`); `POST_MERGE_SYNC_ONLY` completed successfully.
 
 - `BackupModelMapperV2` now orders each vocabulary item's legacy summaries by typed emitted content: `ReviewCount`, `ForgotCount`, `PartialCount`, `KnownCount`, nullable `LastReviewedAt` presence (null first), then normalized UTC ticks for a present timestamp. This distinguishes null from a present UTC `DateTime.MinValue`; local `ReviewStateEntity.Id` is not ordering material.
 - Multiplicity is preserved. Exact duplicate emitted summaries may tie only because their permutation is byte- and semantics-equivalent. No `Distinct`, grouping, or `HashSet` behavior was introduced.
@@ -75,7 +76,7 @@
 - Database Schema 10, outer archive V2, V1 mapper/writer and reader behavior, v1-to-v2 upgrade, DTO shape, migration behavior, and merge policies remain unchanged.
 - This evidence is bounded automated unit/integration/contract evidence only. It is not ALL_AUTOMATED, ValidateAll, GitHub CI, platform/runtime, rendered-GUI, device/emulator, package, signing, publishing, or distribution evidence.
 
-After this candidate, the next open Priority-15 residual is `Learning.Cards`/Sense `StableId` cross-installation ordering; the legacy v1 planner analogous synthesized-label residual remains after that.
+The remaining ordered Priority-15 residuals are: (1) `Learning.Cards`/Sense `StableId` cross-installation ordering; (2) the legacy v1 planner analogous synthesized-label residual.
 
 ### KF-BACKUP-005B capability on master
 
@@ -129,29 +130,29 @@ After this candidate, the next open Priority-15 residual is `Learning.Cards`/Sen
 
 - **KF-BACKUP-005B:** complete and merged on `master` via PR #81.
 - **KF-BACKUP-005C:** merged via PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully and its populated-target convergence contract is current `master` behavior.
-- Remaining Priority-15 residuals after the current `LegacyReviewSummaries` candidate continue in this documented order before Priority 16 (automated GUI validation): `Learning.Cards`/Sense `StableId` ordering, then the legacy v1 planner analogous synthesized label. The mid-session review-event export policy is on `master` through 005B.
+- Remaining Priority-15 residuals continue in this documented order before Priority 16 (automated GUI validation): `Learning.Cards`/Sense `StableId` ordering, then the legacy v1 planner analogous synthesized label. The mid-session review-event export policy is on `master` through 005B.
 
 Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A are all complete and merged on `master`; their history is unaffected.
 
 ## Current blocker or pending validation
 
-- None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), or KF-BACKUP-005A (PR #79): all completed their full lifecycle on `master`.
-- KF-BACKUP-005C is complete on `master` through PR #83. The current feature-branch candidate is `LegacyReviewSummaries` canonical ordering; the next open Priority-15 residual is `Learning.Cards`/Sense `StableId` ordering.
+- None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), KF-BACKUP-005A (PR #79), or `LegacyReviewSummaries` canonical ordering (PR #85): all completed their full lifecycle on `master`.
+- KF-BACKUP-005C is complete on `master` through PR #83; `LegacyReviewSummaries` canonical ordering is merged on `master` through PR #85. The next open Priority-15 residual is `Learning.Cards`/Sense `StableId` ordering.
 - Rendered-GUI, runtime, platform-build, Release-build, device/emulator, and AAB-level behavior remains unproven and out of scope for 005B.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for the earlier KF-BACKUP-005A candidate only; it is not 005B evidence.
 
 ## Exact next action
 
-- **Next lifecycle action:** complete the separately authorized lifecycle for the current `LegacyReviewSummaries` candidate. After that candidate is resolved, select `Learning.Cards`/Sense `StableId` ordering through its own scoped lifecycle; do not activate the later legacy v1 planner-label residual.
+- **Next lifecycle action:** select `Learning.Cards`/Sense `StableId` cross-installation ordering as the next Priority-15 package through its own scoped lifecycle; do not activate the later legacy v1 planner-label residual.
 
 ## Concise new-chat handoff
 
 - Most recent recorded product-relevant milestone on `master`: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged).
-- Current verified `master` baseline: `bed54d01624e80ca6dd5adf8af097e64fe33e588` (PR #83 merge commit). Discover future literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Current verified `master` baseline: `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526` (PR #85 merge commit). Discover future literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is **10** and Schema 10 is active on `master`.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), KF-BACKUP-004 post-merge closure (PR #78), and KF-BACKUP-005A (PR #79) are complete and merged on `master`.
 - **KF-BACKUP-005B:** merged master capability via PR #81; it implements Schema-10 Active workflow export and empty-target restore from durable state, with focused final `TEST_ONLY` green.
-- **KF-BACKUP-005C:** populated-target Active convergence is binding `master` behavior through PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully. The remaining Priority-15 residuals follow in their documented order.
-- **LegacyReviewSummaries candidate:** implemented, independently reviewed, and bounded-`TEST_ONLY`-validated on `fix/legacy-review-summaries-canonical-ordering-v1` from base `9cc6bbe08201107068f69ad1dd397f188499e69d`; uncommitted, unpushed, with no PR and not binding `master`. The remaining residual order is `Learning.Cards`/Sense `StableId` ordering, then the legacy v1 planner analogous synthesized label.
+- **KF-BACKUP-005C:** populated-target Active convergence is binding `master` behavior through PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully.
+- **PR #85 — `LegacyReviewSummaries` canonical ordering:** merged master behavior at `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526` (feature head `baf5fcda0a017c1492a08dac730d683c1554784d`); `POST_MERGE_SYNC_ONLY` completed successfully. The remaining Priority-15 residuals are: (1) `Learning.Cards`/Sense `StableId` ordering; (2) legacy v1 planner analogous synthesized label.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

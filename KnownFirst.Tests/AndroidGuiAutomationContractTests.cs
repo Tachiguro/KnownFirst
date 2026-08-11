@@ -1,10 +1,29 @@
 using System.Text.Json;
+using System.Xml.Linq;
 
 namespace KnownFirst.Tests;
 
 [TestClass]
 public sealed class AndroidGuiAutomationContractTests
 {
+    [TestMethod]
+    public void AndroidGuiTestVariant_IsDeclaredExactlyOnce()
+    {
+        const string expectedCondition = "'$(KnownFirstAndroidGuiTest)' == 'true' and '$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'";
+        var project = XDocument.Load(Path.Combine(FindRepositoryRoot(), "KnownFirst.csproj"));
+
+        var matchingGroups = project.Root!
+            .Elements("PropertyGroup")
+            .Where(group => string.Equals(
+                (string?)group.Attribute("Condition"),
+                expectedCondition,
+                StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.AreEqual(1, matchingGroups.Length,
+            "The opt-in Android GUI-test Debug variant must have exactly one PropertyGroup.");
+    }
+
     [TestMethod]
     public void AndroidGuiTestVariant_IsExplicitlyGatedAndKeepsExistingAndroidIdentities()
     {

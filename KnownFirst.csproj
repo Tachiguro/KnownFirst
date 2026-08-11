@@ -109,17 +109,6 @@
         <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\android-gui-test\</BaseIntermediateOutputPath>
     </PropertyGroup>
 
-    <!-- P16-A: this is an opt-in Android Debug derivative, never a normal Debug build. Its
-         package-private profile is the only Android GUI-test data root; it must not share normal
-         Debug output/intermediate paths or package identity. -->
-    <PropertyGroup Condition="'$(KnownFirstAndroidGuiTest)' == 'true' and '$(Configuration)' == 'Debug' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-        <ApplicationTitle>KnownFirst GUI Test</ApplicationTitle>
-        <ApplicationId>com.tachiguro.knownfirst.guitest</ApplicationId>
-        <DefineConstants>$(DefineConstants);KNOWNFIRST_ANDROID_GUI_TEST</DefineConstants>
-        <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\build\android-gui-test\</BaseOutputPath>
-        <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\android-gui-test\</BaseIntermediateOutputPath>
-    </PropertyGroup>
-
     <PropertyGroup Condition="'$(Configuration)' != 'Debug'">
         <DefaultItemExcludes>$(DefaultItemExcludes);Components\Pages\Diagnostics.razor;Components\Pages\Diagnostics.razor.css</DefaultItemExcludes>
     </PropertyGroup>

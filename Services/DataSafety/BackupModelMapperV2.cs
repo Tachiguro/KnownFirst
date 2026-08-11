@@ -106,10 +106,29 @@ public static class BackupModelMapperV2
         // would be unused bookkeeping) ----
         var sortedAssignments = snapshot.Assignments.OrderBy(a => a.StableId, StringComparer.Ordinal).ToList();
 
-        // ---- Cards: ordered by (SenseStableId, Direction) — unique by construction ----
+        // ---- Cards: semantic-first ordering over every emitted distinction ----
+        var learningCardSemanticOrderingKeys = BuildLearningCardSemanticOrderingKeys(
+            snapshot, meaningIdMap, vocabIdMap, senseIdMap, docIdMap);
+
         var sortedCards = snapshot.LearningCards
-            .OrderBy(c => c.SenseId.HasValue && senseIdMap.ContainsKey(c.SenseId.Value) ? SenseStableIdOf(c.SenseId.Value, snapshot) : string.Empty, StringComparer.Ordinal)
-            .ThenBy(c => (int)c.Direction)
+            .OrderBy(c => learningCardSemanticOrderingKeys[c.Id].FutureCardIdentity, StringComparer.Ordinal)
+            .ThenBy(c => learningCardSemanticOrderingKeys[c.Id].ExactMeaningVariantIdentity, StringComparer.Ordinal)
+            .ThenBy(c => learningCardSemanticOrderingKeys[c.Id].FallbackVocabularyIdentity, StringComparer.Ordinal)
+            .ThenBy(c => learningCardSemanticOrderingKeys[c.Id].FallbackDirection)
+            .ThenBy(c => (int)c.State)
+            .ThenBy(c => EnsureUtc(c.DueAtUtc).Ticks)
+            .ThenBy(c => c.IntervalDays)
+            .ThenBy(c => c.EaseFactor)
+            .ThenBy(c => c.SuccessfulReviewCount)
+            .ThenBy(c => c.LapseCount)
+            .ThenBy(c => c.LastReviewedAtUtc.HasValue)
+            .ThenBy(c => c.LastReviewedAtUtc.HasValue ? EnsureUtc(c.LastReviewedAtUtc.Value).Ticks : 0L)
+            .ThenBy(c => c.LastRating.HasValue)
+            .ThenBy(c => c.LastRating.HasValue ? (int)c.LastRating.Value : 0)
+            .ThenBy(c => EnsureUtc(c.CreatedAtUtc).Ticks)
+            .ThenBy(c => EnsureUtc(c.UpdatedAtUtc).Ticks)
+            .ThenBy(c => learningCardSemanticOrderingKeys[c.Id].FallbackPreferredMeaningIdentity, StringComparer.Ordinal)
+            .ThenBy(c => learningCardSemanticOrderingKeys[c.Id].SenseStableId, StringComparer.Ordinal)
             .ToList();
         var cardIdMap = BuildIdMap(sortedCards, c => c.Id, "c-");
 
@@ -780,8 +799,115 @@ public static class BackupModelMapperV2
             : ReviewSessionIdentityOrderingPrefix + result.Identity.Value;
     }
 
-    private static string SenseStableIdOf(int senseId, Schema8BackupSnapshot snapshot) =>
-        snapshot.Senses.First(s => s.Id == senseId).StableId;
+    private readonly record struct LearningCardSemanticOrderingKey(
+        string FutureCardIdentity,
+        string ExactMeaningVariantIdentity,
+        string FallbackVocabularyIdentity,
+        int FallbackDirection,
+        string FallbackPreferredMeaningIdentity,
+        string SenseStableId);
+
+    /// <summary>
+    /// Computes installation-independent semantic ordering material for every card. Resolvable cards use the
+    /// normal semantic identity path. When a card's Sense cannot produce that identity, the fallback fields
+    /// use resolved vocabulary/meaning content, explicit Direction, and the same missing-reference literals
+    /// emitted by the mapper. This keeps malformed snapshots deterministic without accepting them as valid;
+    /// downstream validation continues to own their rejection.
+    /// </summary>
+    private static Dictionary<int, LearningCardSemanticOrderingKey> BuildLearningCardSemanticOrderingKeys(
+        Schema8BackupSnapshot snapshot,
+        Dictionary<int, string> meaningIdMap,
+        Dictionary<int, string> vocabIdMap,
+        Dictionary<int, string> senseIdMap,
+        Dictionary<int, string> docIdMap)
+    {
+        var wordById = new Dictionary<int, WordEntity>();
+        foreach (var word in snapshot.Words)
+        {
+            wordById[word.Id] = word;
+        }
+
+        var senseById = new Dictionary<int, SenseRow>();
+        foreach (var sense in snapshot.Senses)
+        {
+            senseById[sense.Id] = sense;
+        }
+
+        var meaningById = new Dictionary<int, Schema8MeaningRow>();
+        foreach (var meaning in snapshot.Meanings)
+        {
+            meaningById[meaning.Id] = meaning;
+        }
+
+        var semanticIdentityBySenseId = new Dictionary<int, Merge.SemanticMeaningIdentity>();
+        foreach (var sense in snapshot.Senses)
+        {
+            if (!wordById.TryGetValue(sense.WordId, out var word))
+            {
+                continue;
+            }
+
+            var vocabularyIdentity = Merge.VocabularyMergeIdentityPolicy.Compute(word.Language, word.NormalizedTerm);
+            semanticIdentityBySenseId[sense.Id] = Merge.SemanticMeaningIdentityPolicy.Compute(
+                Merge.Schema8RowSemanticIdentities.ToBackupSense(sense), vocabularyIdentity);
+        }
+
+        var result = new Dictionary<int, LearningCardSemanticOrderingKey>();
+        foreach (var card in snapshot.LearningCards)
+        {
+            var futureCardIdentity = string.Empty;
+            var exactMeaningVariantIdentity = string.Empty;
+            var fallbackVocabularyIdentity = string.Empty;
+            var fallbackDirection = 0;
+            var fallbackPreferredMeaningIdentity = string.Empty;
+            var senseStableId = "se-000000-missing";
+            var hasResolvedCardSemanticIdentity = false;
+
+            if (card.SenseId is { } senseId && senseById.TryGetValue(senseId, out var sense))
+            {
+                senseStableId = sense.StableId;
+                if (semanticIdentityBySenseId.TryGetValue(senseId, out var semanticIdentity))
+                {
+                    futureCardIdentity = Merge.FutureCardIdentityPolicy.Compute(
+                        semanticIdentity, BackupEnumMappings.ToBackup(card.Direction)).Value;
+                    hasResolvedCardSemanticIdentity = true;
+                }
+            }
+
+            if (meaningById.TryGetValue(card.PreferredMeaningId, out var preferredMeaning)
+                && preferredMeaning.SenseId is { } preferredMeaningSenseId
+                && semanticIdentityBySenseId.TryGetValue(preferredMeaningSenseId, out var preferredMeaningSemanticIdentity))
+            {
+                var externalMeaning = MapPreparedItem(
+                    preferredMeaning, snapshot, meaningIdMap, vocabIdMap, senseIdMap, docIdMap);
+                exactMeaningVariantIdentity = Merge.ExactMeaningVariantIdentityPolicy.Compute(
+                    externalMeaning, preferredMeaningSemanticIdentity).Value;
+            }
+
+            if (!hasResolvedCardSemanticIdentity)
+            {
+                fallbackVocabularyIdentity = wordById.TryGetValue(card.WordId, out var word)
+                    ? Merge.VocabularyMergeIdentityPolicy.Compute(word.Language, word.NormalizedTerm).Value
+                    : "v-000000-missing";
+                fallbackDirection = (int)card.Direction;
+                fallbackPreferredMeaningIdentity = exactMeaningVariantIdentity.Length > 0
+                    ? $"exact:{exactMeaningVariantIdentity}"
+                    : meaningById.TryGetValue(card.PreferredMeaningId, out var fallbackPreferredMeaning)
+                        ? $"stable:{fallbackPreferredMeaning.StableId}"
+                        : "m-000000-missing";
+            }
+
+            result[card.Id] = new LearningCardSemanticOrderingKey(
+                futureCardIdentity,
+                exactMeaningVariantIdentity,
+                fallbackVocabularyIdentity,
+                fallbackDirection,
+                fallbackPreferredMeaningIdentity,
+                senseStableId);
+        }
+
+        return result;
+    }
 
     private static Dictionary<int, string> BuildIdMap<T>(List<T> sorted, Func<T, int> idSelector, string prefix)
     {

@@ -58,7 +58,17 @@ Test classes do not currently use formal MSTest category attributes; filtering r
 - **Reference:** Governed by [docs/BETA_TESTING.md](BETA_TESTING.md).
 - **Boundaries:** Requires recording exact build identity, device/emulator model, OS version, navigation mode, language, and theme. No `pm clear`, app uninstall, data reset, or real-data use without separate explicit authorization. Never inferred from "all automated tests".
 
-### G. FULL_VALIDATION
+### G. ANDROID_GUI_AUTOMATION_FOUNDATION (P16-A)
+
+- **Source-present harness:** `scripts/gui-tests/android/`; entry point `scripts/gui-tests/android/Invoke-AndroidGuiTest.ps1`; sole scenario `P16A-SettingsReleaseNotesNavigation`.
+- **Architecture:** Appium 3, UiAutomator2 5, and WebdriverIO 9. Native context is reserved for lifecycle/device/full-device screenshots; WebView context is reserved for rendered CSS-selector interaction.
+- **Safety contract:** dedicated package only, `com.tachiguro.knownfirst.guitest`; fail closed for every other KnownFirst package ID; already-installed application only; no build, package, install, update, uninstall, reset, or `pm clear`; no direct ADB command in the repository runner; `noReset=true`; `fullReset=false`; explicit Chromedriver executable required with no automatic acquisition; no automatic npm/dependency installation/update; loopback Appium server; the runner terminates only the server process it owns; fresh isolated application-private GUI-test profile; deterministic offline provider path.
+- **Artifacts:** bounded structured summary, log, device, capability, safety, and screenshot evidence under `artifacts/gui-tests/android/runs/...`.
+- **Current evidence boundary:** source/configuration contracts, profile-isolation unit behavior, runner/evidence pure logic, and static scenario/safety structure are validated. The harness has **not** been runtime-executed; it does not prove Android platform build, APK installation, Appium or UiAutomator2 compatibility, Chromedriver/WebView compatibility, rendered interaction, emulator/device behavior, screenshot correctness, or matrix coverage. `MANUAL_ANDROID_GUI` remains a distinct scope and P16-A does not replace it.
+- **Recorded bounded evidence:** AndroidGuiAutomationContractTests genuine RED **0 passed / 4 failed** → GREEN **4 passed / 0 failed**; GuiTestProfileTests genuine RED **10 passed / 2 failed** → GREEN **12 passed / 0 failed**; Node evidence tests genuine RED **0 passed / 2 failed** → GREEN **3 passed / 0 failed**. The Node missing `test` import and Windows file-URL import issues were corrected before accepting RED. Affected/regression TEST_ONLY was **144 passed / 0 failed / 0 skipped** across AndroidGuiAutomationContractTests, GuiTestProfileTests, UiWorkflowContractTests, ReleaseNotesTests, AndroidPublishingScriptContractTests, and AndroidIconConfigurationTests; pure Node was **3 passed / 0 failed / 0 skipped**; pre/post `git diff --check` passed.
+- **Dependency boundary:** Appium `3.6.0`, UiAutomator2 driver `5.0.7`, and WebdriverIO `9.30.1` are pinned. Lockfile metadata was generated during IMPLEMENT with `npm install --package-lock-only --ignore-scripts`; no `node_modules` was created, no third-party package code was executed, and no dependency runtime compatibility is proven.
+
+### H. FULL_VALIDATION
 - **Definition:** Validates automated tests and required builds (Windows Debug/Release, Android Debug/Release). Does NOT run rendered GUI tests or manual verification.
 - **Command:**
   ```powershell

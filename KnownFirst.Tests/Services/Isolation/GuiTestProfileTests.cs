@@ -162,4 +162,77 @@ public class GuiTestProfileTests
     {
         Assert.ThrowsExactly<InvalidOperationException>(() => GuiTestProfile.RootPath);
     }
+
+    [TestMethod]
+    public void AndroidGuiTestProfile_UsesBoundedUniquePrivateProfilesAndNeverUsesTheWindowsEnvironmentVariable()
+    {
+        var configure = typeof(GuiTestProfile).GetMethod(
+            "ConfigureAndroidGuiTestProfileForCurrentProcess",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        var reset = typeof(GuiTestProfile).GetMethod(
+            "ResetAndroidGuiTestProfileForTests",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        var supportedOverride = typeof(GuiTestProfile).GetProperty(
+            "AndroidGuiTestSupportedOverrideForTests",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+
+        Assert.IsNotNull(configure,
+            "P16-A requires an internal Android bootstrap seam rather than arbitrary environment-selected paths.");
+        Assert.IsNotNull(reset);
+        Assert.IsNotNull(supportedOverride);
+        if (configure is null || reset is null || supportedOverride is null)
+        {
+            return;
+        }
+
+        var appDataDirectory = Path.Combine(Path.GetTempPath(), "kf-android-gui-test-" + Guid.NewGuid().ToString("N"));
+        _createdDirectory = appDataDirectory;
+        try
+        {
+            supportedOverride.SetValue(null, true);
+            Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, "C:\\untrusted\\profile");
+
+            configure.Invoke(null, [appDataDirectory]);
+            var first = GuiTestProfile.RootPath;
+            Assert.StartsWith(Path.Combine(appDataDirectory, "gui-tests", "android", "profiles"), first, StringComparison.OrdinalIgnoreCase);
+            Assert.IsTrue(Path.IsPathFullyQualified(first));
+            Assert.IsTrue(Directory.Exists(first));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(GuiTestProfile.ProfileId));
+            Assert.AreEqual(first, GuiTestProfile.RootPath, "The profile root must be stable within one process.");
+
+            reset.Invoke(null, null);
+            configure.Invoke(null, [appDataDirectory]);
+            Assert.AreNotEqual(first, GuiTestProfile.RootPath, "A simulated new process must receive a new profile.");
+        }
+        finally
+        {
+            reset.Invoke(null, null);
+            supportedOverride.SetValue(null, null);
+        }
+    }
+
+    [TestMethod]
+    public void AndroidGuiTestProfile_BootstrapIncludesDeterministicEnglishLightAndSeenReleaseNotesDefaults()
+    {
+        var profileSource = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Services", "Isolation", "GuiTestProfile.cs"));
+
+        Assert.Contains("knownfirst.uiLanguage", profileSource);
+        Assert.Contains("theme_preference", profileSource);
+        Assert.Contains("whats_new_seen_version", profileSource);
+        Assert.Contains("gui-tests", profileSource);
+        Assert.Contains("android", profileSource);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "KnownFirst.csproj")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("Could not locate the KnownFirst repository root.");
+    }
 }

@@ -21,6 +21,14 @@ Current package identities:
 
 The diagnostic package keeps Release optimization, trimming, AOT, and embedded assemblies, while adding symbols and bounded lexical diagnostic actions. The Debug package embeds assemblies and disables Fast Deployment so that its APK can run without Visual Studio. The three package IDs allow side-by-side installation.
 
+## P16-A automation-only identity
+
+`com.tachiguro.knownfirst.guitest` / `KnownFirst GUI Test` is a dedicated Android Debug-derived GUI automation identity. It is not production, BetaDiagnostic, the ordinary developer Debug identity, or a Google Play/Internal Testing identity. P16-A evidence does not show it being built, packaged, installed, distributed, or device-validated.
+
+Its purpose is hard OS/application sandbox separation from ordinary Debug data, a fresh private GUI-test profile, protection of developer/user data, and deterministic offline automation. Future runtime execution requires separate authorization and must record the exact commit/build identity, package identity, device or emulator, Android/API version, language/theme, viewport/density, Appium/UiAutomator2/WebView/Chromedriver versions, and result/evidence artifacts.
+
+Automated GUI execution, emulator/device operations, package installation, and manual Android validation are distinct evidence categories. No physical-device or distribution evidence is implied by this identity or its source contracts.
+
 ## Build, Packaging, and Signing
 
 Build execution, APK/AAB packaging, keystore credentials, retention policy, and store publication boundaries are governed strictly by [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).

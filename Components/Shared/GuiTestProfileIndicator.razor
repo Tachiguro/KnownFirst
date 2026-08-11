@@ -2,7 +2,12 @@
 
 @if (GuiTestProfile.IsActive)
 {
-    <div id="gui-test-profile-indicator" class="gui-test-profile-indicator" role="status">
+    <div id="gui-test-profile-indicator"
+         class="gui-test-profile-indicator"
+         role="status"
+         data-gui-test-profile-id="@GuiTestProfile.ProfileId"
+         data-gui-test-provider="@(GuiTestProfile.IsAndroidGuiTestProfile ? "offline" : "windows-seed")"
+         data-gui-test-provider-invocations="@GuiTestSeedLookupProvider.InvocationCount">
         GUI TEST PROFILE
         <span class="gui-test-profile-root">@GuiTestProfile.RootPath</span>
     </div>

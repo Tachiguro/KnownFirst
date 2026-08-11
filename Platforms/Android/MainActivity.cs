@@ -21,6 +21,9 @@ public class MainActivity : MauiAppCompatActivity
 {
     protected override void OnCreate(Bundle? savedInstanceState)
     {
+#if KNOWNFIRST_ANDROID_GUI_TEST
+        Android.Webkit.WebView.SetWebContentsDebuggingEnabled(true);
+#endif
         base.OnCreate(savedInstanceState);
         ApplySystemBarTheme(Resources?.Configuration);
     }

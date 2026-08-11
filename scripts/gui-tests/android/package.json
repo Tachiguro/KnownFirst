@@ -1,0 +1,14 @@
+{
+  "name": "knownfirst-android-gui-tests",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/evidence.test.mjs"
+  },
+  "devDependencies": {
+    "appium": "3.6.0",
+    "appium-uiautomator2-driver": "5.0.7",
+    "webdriverio": "9.30.1"
+  }
+}

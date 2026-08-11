@@ -2242,6 +2242,282 @@ public class BackupCreationTests
             "Logically equivalent installations must produce byte-identical canonical V2 data.json output.");
     }
 
+    [TestMethod]
+    public void CreateBackupV2_TwoInstallationsWithOppositeSenseStableIdOrder_ProduceIdenticalCanonicalLearningCardOrder()
+    {
+        var createdAtUtc = new DateTime(2026, 8, 11, 8, 0, 0, DateTimeKind.Utc);
+
+        static WordEntity NewWord(int id, string term, DateTime createdAtUtc) => new()
+        {
+            Id = id,
+            Language = "en",
+            CanonicalTerm = term,
+            NormalizedTerm = term,
+            TokenKind = KnownFirst.Core.Text.TokenKind.Word,
+            Status = KnownFirst.Models.WordStatus.Known,
+            PreparationState = KnownFirst.Core.Preparation.PreparationState.Prepared,
+            CreatedAt = createdAtUtc,
+            UpdatedAt = createdAtUtc
+        };
+
+        static KnownFirst.Data.Migrations.Schema8.SenseRow NewSense(
+            int id, int wordId, int defaultMeaningId, string stableId, string providerSenseId, DateTime createdAtUtc) => new()
+            {
+                Id = id,
+                StableId = stableId,
+                WordId = wordId,
+                SourceLanguage = "en",
+                ExplanationLanguage = "de",
+                ProviderSenseId = providerSenseId,
+                PartOfSpeech = "noun",
+                GrammaticalRelationship = "noun",
+                DefaultMeaningId = defaultMeaningId,
+                Status = KnownFirst.Data.Migrations.Schema8.SenseStatus.Learning,
+                CreatedAtUtc = createdAtUtc,
+                UpdatedAtUtc = createdAtUtc
+            };
+
+        static KnownFirst.Data.Schema8.Schema8MeaningRow NewMeaning(
+            int id, int wordId, int senseId, string stableId, string term, string providerSenseId,
+            string translation, string definition, DateTime createdAtUtc) => new()
+            {
+                Id = id,
+                WordId = wordId,
+                SenseId = senseId,
+                StableId = stableId,
+                SourceLanguage = "en",
+                ExplanationLanguage = "de",
+                DisplayTerm = term,
+                GrammaticalRelationship = "noun",
+                TokenKind = KnownFirst.Core.Text.TokenKind.Word,
+                SelectedMeaningId = providerSenseId,
+                Translation = translation,
+                Definition = definition,
+                AcceptedAliasesJson = "[]",
+                Source = "test-dictionary",
+                SourceProject = "canonical-ordering",
+                SourcePageTitle = term,
+                ConfirmedByUser = true,
+                CreatedAt = createdAtUtc,
+                UpdatedAt = createdAtUtc,
+                PreparedAt = createdAtUtc
+            };
+
+        static KnownFirst.Data.Migrations.Schema8.AnswerVariantRow NewVariant(
+            int id, int senseId, int meaningId, string stableId, string text, DateTime createdAtUtc) => new()
+            {
+                Id = id,
+                StableId = stableId,
+                SenseId = senseId,
+                AnswerLanguage = "de",
+                DisplayText = text,
+                NormalizedText = text.ToLowerInvariant(),
+                SourceMeaningId = meaningId,
+                CreatedAtUtc = createdAtUtc,
+                UpdatedAtUtc = createdAtUtc
+            };
+
+        static KnownFirst.Data.Migrations.Schema8.SenseAnswerVariantAssignmentRow NewAssignment(
+            int id, int senseId, int variantId, string stableId, DateTime createdAtUtc) => new()
+            {
+                Id = id,
+                StableId = stableId,
+                SenseId = senseId,
+                CardDirection = KnownFirst.Core.Learning.CardDirection.TermToMeaning,
+                AnswerVariantId = variantId,
+                Requirement = KnownFirst.Data.Migrations.Schema8.AnswerVariantRequirement.Required,
+                IsPreferred = true,
+                RequiredSinceUtc = createdAtUtc,
+                CreatedAtUtc = createdAtUtc,
+                UpdatedAtUtc = createdAtUtc
+            };
+
+        static KnownFirst.Data.Schema8.Schema8CardRow NewCard(
+            int id, int wordId, int senseId, int meaningId, bool bankCard, DateTime createdAtUtc) => new()
+            {
+                Id = id,
+                WordId = wordId,
+                SenseId = senseId,
+                PreferredMeaningId = meaningId,
+                Direction = KnownFirst.Core.Learning.CardDirection.TermToMeaning,
+                State = bankCard ? KnownFirst.Core.Learning.CardState.Review : KnownFirst.Core.Learning.CardState.Learning,
+                DueAtUtc = bankCard ? createdAtUtc.AddDays(2) : createdAtUtc.AddDays(1),
+                IntervalDays = bankCard ? 5 : 2,
+                EaseFactor = bankCard ? 2.3 : 2.1,
+                SuccessfulReviewCount = bankCard ? 4 : 1,
+                LapseCount = bankCard ? 1 : 0,
+                LastReviewedAtUtc = bankCard ? createdAtUtc.AddHours(1) : null,
+                LastRating = bankCard ? KnownFirst.Core.Learning.ReviewRating.Good : null,
+                CreatedAtUtc = createdAtUtc,
+                UpdatedAtUtc = bankCard ? createdAtUtc.AddHours(2) : createdAtUtc.AddHours(3)
+            };
+
+        static KnownFirst.Data.Schema8.Schema8BackupSnapshot NewInstallation(
+            int bankWordId, int riverWordId, int bankSenseId, int riverSenseId,
+            int bankMeaningId, int riverMeaningId, int bankVariantId, int riverVariantId,
+            int bankAssignmentId, int riverAssignmentId, int bankCardId, int riverCardId,
+            string bankSenseStableId, string riverSenseStableId,
+            string bankMeaningStableId, string riverMeaningStableId,
+            string bankVariantStableId, string riverVariantStableId,
+            string bankAssignmentStableId, string riverAssignmentStableId,
+            bool reverseEnumeration, DateTime createdAtUtc)
+        {
+            var bankWord = NewWord(bankWordId, "bank", createdAtUtc);
+            var riverWord = NewWord(riverWordId, "river", createdAtUtc);
+            var bankSense = NewSense(
+                bankSenseId, bankWordId, bankMeaningId, bankSenseStableId, "bank-financial", createdAtUtc);
+            var riverSense = NewSense(
+                riverSenseId, riverWordId, riverMeaningId, riverSenseStableId, "river-edge", createdAtUtc);
+            var bankMeaning = NewMeaning(
+                bankMeaningId, bankWordId, bankSenseId, bankMeaningStableId, "bank", "bank-financial",
+                "Bank", "A financial institution.", createdAtUtc);
+            var riverMeaning = NewMeaning(
+                riverMeaningId, riverWordId, riverSenseId, riverMeaningStableId, "river", "river-edge",
+                "Flussufer", "The edge of a river.", createdAtUtc);
+            var bankVariant = NewVariant(
+                bankVariantId, bankSenseId, bankMeaningId, bankVariantStableId, "Bank", createdAtUtc);
+            var riverVariant = NewVariant(
+                riverVariantId, riverSenseId, riverMeaningId, riverVariantStableId, "Flussufer", createdAtUtc);
+            var bankAssignment = NewAssignment(
+                bankAssignmentId, bankSenseId, bankVariantId, bankAssignmentStableId, createdAtUtc);
+            var riverAssignment = NewAssignment(
+                riverAssignmentId, riverSenseId, riverVariantId, riverAssignmentStableId, createdAtUtc);
+            var bankCard = NewCard(bankCardId, bankWordId, bankSenseId, bankMeaningId, bankCard: true, createdAtUtc);
+            var riverCard = NewCard(riverCardId, riverWordId, riverSenseId, riverMeaningId, bankCard: false, createdAtUtc);
+
+            return new KnownFirst.Data.Schema8.Schema8BackupSnapshot(
+                [],
+                reverseEnumeration ? [riverWord, bankWord] : [bankWord, riverWord],
+                [], [], [],
+                reverseEnumeration ? [riverMeaning, bankMeaning] : [bankMeaning, riverMeaning],
+                [], [], [], [], [], [],
+                reverseEnumeration ? [riverSense, bankSense] : [bankSense, riverSense],
+                reverseEnumeration ? [riverVariant, bankVariant] : [bankVariant, riverVariant],
+                reverseEnumeration ? [riverAssignment, bankAssignment] : [bankAssignment, riverAssignment],
+                [],
+                reverseEnumeration ? [riverCard, bankCard] : [bankCard, riverCard],
+                [], [], []);
+        }
+
+        static string SenseStableIdForTerm(
+            KnownFirst.Data.Schema8.Schema8BackupSnapshot snapshot, string term)
+        {
+            var wordId = snapshot.Words.Single(word => word.NormalizedTerm == term).Id;
+            return snapshot.Senses.Single(sense => sense.WordId == wordId).StableId;
+        }
+
+        static List<string> SemanticCardProjection(BackupPayloadV2 payload)
+        {
+            var vocabularyById = payload.Vocabulary.ToDictionary(item => item.Id, StringComparer.Ordinal);
+            var vocabularyIdentityById = vocabularyById.ToDictionary(
+                pair => pair.Key,
+                pair => KnownFirst.Services.DataSafety.Merge.VocabularyMergeIdentityPolicy.Compute(pair.Value),
+                StringComparer.Ordinal);
+            var senseById = payload.Senses.ToDictionary(item => item.Id, StringComparer.Ordinal);
+            var meaningById = payload.PreparedLearning.ToDictionary(item => item.Id, StringComparer.Ordinal);
+
+            return payload.Learning.Cards.Select(card =>
+            {
+                var vocabulary = vocabularyById[card.VocabularyId];
+                var vocabularyIdentity = vocabularyIdentityById[card.VocabularyId];
+                var sense = senseById[card.SenseId];
+                var semanticSenseIdentity = KnownFirst.Services.DataSafety.Merge.SemanticMeaningIdentityPolicy.Compute(
+                    sense, vocabularyIdentity);
+                var preferredMeaning = meaningById[card.PreferredMeaningId];
+                var preferredMeaningSense = senseById[preferredMeaning.SenseId];
+                var preferredMeaningSenseIdentity = KnownFirst.Services.DataSafety.Merge.SemanticMeaningIdentityPolicy.Compute(
+                    preferredMeaningSense, vocabularyIdentityById[preferredMeaning.VocabularyId]);
+                var exactMeaningIdentity = KnownFirst.Services.DataSafety.Merge.ExactMeaningVariantIdentityPolicy.Compute(
+                    preferredMeaning, preferredMeaningSenseIdentity);
+
+                return string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0}|{1}:{2}|{3}|{4}|{5}|{6}|{7}|{8:R}|{9}|{10}|{11}:{12}|{13}:{14}|{15}|{16}",
+                    card.Id,
+                    vocabulary.Language,
+                    vocabulary.IdentityKey,
+                    vocabularyIdentity.Value,
+                    semanticSenseIdentity.Value,
+                    exactMeaningIdentity.Value,
+                    card.Direction,
+                    card.State,
+                    card.EaseFactor,
+                    card.IntervalDays,
+                    card.SuccessfulReviewCount,
+                    card.LastReviewedAtUtc.HasValue,
+                    card.LastReviewedAtUtc?.Ticks ?? 0L,
+                    card.LastRating.HasValue,
+                    card.LastRating.HasValue ? (int)card.LastRating.Value : 0,
+                    card.CreatedAtUtc.Ticks,
+                    card.UpdatedAtUtc.Ticks)
+                    + string.Format(
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        "|{0}|{1}",
+                        card.DueAtUtc.Ticks,
+                        card.LapseCount);
+            }).ToList();
+        }
+
+        var installationA = NewInstallation(
+            bankWordId: 1, riverWordId: 2,
+            bankSenseId: 11, riverSenseId: 22,
+            bankMeaningId: 111, riverMeaningId: 222,
+            bankVariantId: 1111, riverVariantId: 2222,
+            bankAssignmentId: 11111, riverAssignmentId: 22222,
+            bankCardId: 111111, riverCardId: 222222,
+            bankSenseStableId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+            riverSenseStableId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2",
+            bankMeaningStableId: "ccccccccccccccccccccccccccccccc3",
+            riverMeaningStableId: "ddddddddddddddddddddddddddddddd4",
+            bankVariantStableId: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee5",
+            riverVariantStableId: "fffffffffffffffffffffffffffffff6",
+            bankAssignmentStableId: "assignment-bank-a",
+            riverAssignmentStableId: "assignment-river-a",
+            reverseEnumeration: false,
+            createdAtUtc);
+        var installationB = NewInstallation(
+            bankWordId: 42, riverWordId: 41,
+            bankSenseId: 420, riverSenseId: 410,
+            bankMeaningId: 4200, riverMeaningId: 4100,
+            bankVariantId: 42000, riverVariantId: 41000,
+            bankAssignmentId: 420000, riverAssignmentId: 410000,
+            bankCardId: 4200000, riverCardId: 4100000,
+            bankSenseStableId: "ddddddddddddddddddddddddddddddd4",
+            riverSenseStableId: "ccccccccccccccccccccccccccccccc3",
+            bankMeaningStableId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2",
+            riverMeaningStableId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",
+            bankVariantStableId: "fffffffffffffffffffffffffffffff6",
+            riverVariantStableId: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee5",
+            bankAssignmentStableId: "assignment-bank-b",
+            riverAssignmentStableId: "assignment-river-b",
+            reverseEnumeration: true,
+            createdAtUtc);
+
+        Assert.IsTrue(
+            string.CompareOrdinal(
+                SenseStableIdForTerm(installationA, "bank"),
+                SenseStableIdForTerm(installationA, "river")) < 0,
+            "Installation A must bind the ordinally earlier Sense StableId to the bank card.");
+        Assert.IsTrue(
+            string.CompareOrdinal(
+                SenseStableIdForTerm(installationB, "bank"),
+                SenseStableIdForTerm(installationB, "river")) > 0,
+            "Installation B must reverse the semantic association of the Sense StableId ordering.");
+
+        var payloadA = BackupModelMapperV2.MapToExternal(installationA);
+        var payloadB = BackupModelMapperV2.MapToExternal(installationB);
+        BackupModelContractV2.ValidatePayload(payloadA);
+        BackupArchiveWriterV2.ValidatePayloadGraphV2(payloadA);
+        BackupModelContractV2.ValidatePayload(payloadB);
+        BackupArchiveWriterV2.ValidatePayloadGraphV2(payloadB);
+
+        Assert.AreEqual(
+            string.Join(Environment.NewLine, SemanticCardProjection(payloadA)),
+            string.Join(Environment.NewLine, SemanticCardProjection(payloadB)),
+            "The same c-* id must bind to the same semantic bank/river card and emitted card state across installations, "
+            + "even when installation-random Sense StableIds have the opposite semantic association.");
+    }
+
     // ---- Package D (KF-BACKUP-003): cross-installation canonical output for completed preparation
     // workflows, completed learning workflows, and learning-review events.
     //

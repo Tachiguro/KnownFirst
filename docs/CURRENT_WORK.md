@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-11 (Priority 16 P16-A documentation reconciliation completed on the active local candidate branch; Priority 15 remains complete on `master`)
+2026-08-12 (Priority 16 P16-A lifecycle and validation-evidence reconciliation completed on the committed, pushed active candidate branch; Priority 15 remains complete on `master`)
 
 ## Repository
 
@@ -59,7 +59,7 @@
 
 **Priority 15 — Portable merge integrity hardening** is complete and binding `master` behavior. PR #89 merged the Occurrence action-key correction at `49d25cb8d7d113d1f0b1826369d9105a37d9207b` after implementation, bounded `TEST_ONLY`, independent review, owner merge, and `POST_MERGE_SYNC_ONLY`.
 
-**Priority 16 — Automated GUI validation** is Current because P16-A is an active scoped package. **P16-A — Android rendered-navigation foundation** is implemented on `feature/p16a-android-gui-foundation-v1`, based on `9a3480678168414e4b8060d0673ec41c8f74767a`. Its bounded `TEST_ONLY` validation and this `DOCUMENT_ONLY` reconciliation are complete. It remains uncommitted, unpushed, without a PR, not independently reviewed, not merged, and not binding `master` behavior; commit, push, PR, independent review, merge, and post-merge sync remain pending.
+**Priority 16 — Automated GUI validation** is Current because P16-A is an active scoped package. **P16-A — Android rendered-navigation foundation** is committed and pushed on `feature/p16a-android-gui-foundation-v1`, based on `9a3480678168414e4b8060d0673ec41c8f74767a`: initial implementation `e3a92fa83366bc1cbfd33dd718c3d430d79ab037` and duplicate-configuration correction `112091226f5286b6239db926c78d012f0978edf1`. The branch is synchronized with upstream. PR creation, independent review, merge, and post-merge sync remain pending; P16-A is unmerged and not binding `master` behavior.
 
 ### P16-A — active non-binding candidate
 
@@ -69,7 +69,7 @@
 - The pinned repository Node workspace declares Appium `3.6.0`, `appium-uiautomator2-driver` `5.0.7`, and WebdriverIO `9.30.1`. Its sole registered pre-matrix scenario is `P16A-SettingsReleaseNotesNavigation`; `matrixMapping: null`, while `relatedMatrixRow: "S36"` is context only.
 - P16-A creates source infrastructure for a future rendered Android run. It does not establish rendered interaction evidence.
 
-**Recorded P16-A evidence:** focused TDD genuine RED → GREEN was AndroidGuiAutomationContractTests **0/4/0 → 4/0/0**, GuiTestProfileTests **10/2/0 → 12/0/0**, and Node evidence tests **0/2/0 → 3/0/0**. The missing Node `test` import and Windows file-URL import issues were corrected before accepting RED and are not RED evidence. Bounded TEST_ONLY ran AndroidGuiAutomationContractTests, GuiTestProfileTests, UiWorkflowContractTests, ReleaseNotesTests, AndroidPublishingScriptContractTests, and AndroidIconConfigurationTests: **144 passed / 0 failed / 0 skipped**; pure Node: **3 passed / 0 failed / 0 skipped**; pre/post `git diff --check` passed. This is source/configuration/contract, profile-unit, UI markup/component/release-notes automated, and pure Node runner/evidence-logic evidence only—not ALL_AUTOMATED, ValidateAll, FULL_VALIDATION, GitHub CI, Android build, APK/AAB, installation, rendered Android GUI, Appium/UiAutomator2/Chromedriver/WebView runtime, ADB/device/emulator, matrix/S36 coverage, or release/distribution evidence.
+**Recorded P16-A evidence:** original focused TDD genuine RED → initial GREEN was AndroidGuiAutomationContractTests **0/4/0 → 4/0/0**, GuiTestProfileTests **10/2/0 → 12/0/0**, and Node evidence tests **0/2/0 → 3/0/0**. The missing Node `test` import and Windows file-URL import issues were corrected before accepting RED and are not RED evidence. The initial pre-correction bounded TEST_ONLY ran AndroidGuiAutomationContractTests, GuiTestProfileTests, UiWorkflowContractTests, ReleaseNotesTests, AndroidPublishingScriptContractTests, and AndroidIconConfigurationTests: **144 passed / 0 failed / 0 skipped**; pure Node: **3 passed / 0 failed / 0 skipped**; pre/post `git diff --check` passed. Direct remote review then found a duplicate P16-A Android GUI-test PropertyGroup in `KnownFirst.csproj`. The XML-aware `AndroidGuiTestVariant_IsDeclaredExactlyOnce` correction regression produced genuine RED **4 passed / 1 failed** and GREEN **5 passed / 0 failed / 0 skipped**; the corrected bounded TEST_ONLY supersedes the earlier bounded MSTest result with **145 passed / 0 failed / 0 skipped**, while pure Node remains **3 passed / 0 failed / 0 skipped** and pre/post `git diff --check` passed. Exactly one matching `KnownFirstAndroidGuiTest=true` / Debug / Android PropertyGroup remains. This is source/configuration/contract, profile-unit, UI markup/component/release-notes automated, and pure Node runner/evidence-logic evidence only—not ALL_AUTOMATED, ValidateAll, FULL_VALIDATION, GitHub CI, Android build, APK/AAB, installation, rendered Android GUI, Appium/UiAutomator2/Chromedriver/WebView runtime, ADB/device/emulator, matrix/S36 coverage, or release/distribution evidence.
 
 Lockfile metadata was generated during IMPLEMENT using the expressly allowed `npm install --package-lock-only --ignore-scripts`; no `node_modules` was created, no third-party package code was executed, and no dependency runtime compatibility is proven.
 
@@ -179,7 +179,7 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 
 ## Exact next action
 
-- **Next lifecycle action:** P16-A commit remains pending after this completed DOCUMENT_ONLY reconciliation.
+- **Next lifecycle action:** P16-A PR creation remains pending; independent review, merge, and post-merge sync follow only in their separate lifecycle modes.
 
 ## Concise new-chat handoff
 
@@ -192,5 +192,5 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 - **KF-BACKUP-005C:** populated-target Active convergence is binding `master` behavior through PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #85 — `LegacyReviewSummaries` canonical ordering:** merged master behavior at `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526` (feature head `baf5fcda0a017c1492a08dac730d683c1554784d`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #87 / PR #88:** PR #87 remains merged product behavior; PR #88 completed its documentation closure at `133d34366204979d2905c665370531547a7a0b98` from feature head `4fc8b15f0861ab264ef7518ef66e810b0cf3c15c`, followed by `POST_MERGE_SYNC_ONLY`.
-- **PR #89 / PR #90:** Priority 15 is Committed. PR #90 merged the Priority-15 post-merge documentation closure at `9a3480678168414e4b8060d0673ec41c8f74767a` and local `POST_MERGE_SYNC_ONLY` completed. Priority 16 is Current through active non-binding candidate P16-A; it is implemented and bounded TEST_ONLY validated, but its commit/push/PR/review/merge lifecycle and all rendered Android runtime validation remain pending.
+- **PR #89 / PR #90:** Priority 15 is Committed. PR #90 merged the Priority-15 post-merge documentation closure at `9a3480678168414e4b8060d0673ec41c8f74767a` and local `POST_MERGE_SYNC_ONLY` completed. Priority 16 is Current through active non-binding candidate P16-A; it is implemented, corrected, bounded TEST_ONLY validated, committed, and pushed, while PR/review/merge lifecycle and all rendered Android runtime validation remain pending.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

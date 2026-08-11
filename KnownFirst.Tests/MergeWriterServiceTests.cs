@@ -397,6 +397,118 @@ public sealed class MergeWriterServiceTests
         await AssertReferentialIntegrityAsync(targetFixture);
     }
 
+    private static async Task AddRepeatedVocabularyOccurrenceFixtureAsync(
+        Schema7Fixture fixture,
+        bool includeSecondOccurrence)
+    {
+        const string text = "bank bank";
+        var documentId = await fixture.InsertDocumentAsync(
+            title: "Repeated bank document",
+            content: text,
+            wordCount: includeSecondOccurrence ? 2 : 1,
+            importedAt: SchedulerTestCardCreatedAtUtc);
+        var wordId = await fixture.InsertWordAsync(
+            "bank",
+            status: WordStatus.Unreviewed,
+            preparationState: KnownFirst.Core.Preparation.PreparationState.Unprepared,
+            totalOccurrenceCount: includeSecondOccurrence ? 2 : 1,
+            documentCount: 1,
+            createdAt: SchedulerTestCardCreatedAtUtc,
+            updatedAt: SchedulerTestCardCreatedAtUtc);
+
+        var sentence = new SentenceSpanEntity
+        {
+            DocumentId = documentId,
+            StartPosition = 0,
+            Length = text.Length,
+            Order = 0
+        };
+        await fixture.Connection.InsertAsync(sentence);
+
+        await fixture.Connection.InsertAsync(new WordOccurrenceEntity
+        {
+            WordId = wordId,
+            DocumentId = documentId,
+            SentenceSpanId = sentence.Id,
+            StartPosition = 0,
+            Length = 4,
+            SurfaceForm = "bank",
+            Order = 0
+        });
+
+        if (includeSecondOccurrence)
+        {
+            await fixture.Connection.InsertAsync(new WordOccurrenceEntity
+            {
+                WordId = wordId,
+                DocumentId = documentId,
+                SentenceSpanId = sentence.Id,
+                StartPosition = 5,
+                Length = 4,
+                SurfaceForm = "bank",
+                Order = 1
+            });
+        }
+    }
+
+    [TestMethod]
+    public async Task ArchiveV1RepeatedVocabularyOccurrences_OneNewOneDuplicate_WriterAppliesEachPlannedActionExactlyOnce()
+    {
+        await using var targetFixture = await Schema7Fixture.CreateAsync();
+        await AddRepeatedVocabularyOccurrenceFixtureAsync(targetFixture, includeSecondOccurrence: false);
+        await Schema8BackupFixtureBuilders.MigrateAsync(targetFixture);
+
+        await using var sourceFixtureV1 = await Schema7Fixture.CreateAsync();
+        await AddRepeatedVocabularyOccurrenceFixtureAsync(sourceFixtureV1, includeSecondOccurrence: true);
+
+        BackupSnapshot? v1Snapshot = null;
+        await sourceFixtureV1.Connection.RunInTransactionAsync(
+            connection => v1Snapshot = BackupSnapshotRepository.CaptureSnapshot(connection));
+        var v1Payload = BackupModelMapper.MapToExternal(v1Snapshot!);
+        BackupModelContract.ValidatePayload(v1Payload);
+        BackupArchiveWriter.ValidatePayloadGraph(v1Payload);
+        var archiveV2 = BackupArchiveV1UpgradePolicy.Upgrade(v1Payload);
+
+        var plan = await ComputePlanAsync(targetFixture, archiveV2);
+        var occurrenceActions = plan.Actions
+            .Where(action => action.EntityKind == MergeEntityKind.Occurrence)
+            .ToList();
+
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.HasCount(2, occurrenceActions);
+        Assert.AreEqual(
+            2,
+            occurrenceActions.Select(action => action.StableIdentity).Distinct(StringComparer.Ordinal).Count(),
+            "The existing and new physical occurrence rows must retain distinct semantic identities.");
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.Occurrence].ExactDuplicateSkippedCount);
+        Assert.AreEqual(1, plan.PerEntity[MergeEntityKind.Occurrence].NewCount);
+
+        var writer = new MergeWriterService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(targetFixture));
+        var result = await writer.ApplyAsync(archiveV2, plan, CancellationToken.None);
+
+        Assert.AreEqual(MergeWriteStatus.Success, result.Status);
+        Assert.AreEqual(2, await CountAsync(targetFixture, "SELECT COUNT(*) FROM WordOccurrences"));
+        Assert.AreEqual(
+            1,
+            await CountAsync(targetFixture, "SELECT COUNT(*) FROM WordOccurrences WHERE StartPosition = 0 AND Length = 4 AND \"Order\" = 0"),
+            "The already-present first occurrence must remain exactly once.");
+        Assert.AreEqual(
+            1,
+            await CountAsync(targetFixture, "SELECT COUNT(*) FROM WordOccurrences WHERE StartPosition = 5 AND Length = 4 AND \"Order\" = 1"),
+            "The second occurrence must be inserted exactly once.");
+        await AssertReferentialIntegrityAsync(targetFixture);
+
+        var reimportPlan = await ComputePlanAsync(targetFixture, archiveV2);
+        Assert.AreEqual(MergePreflightStatus.NoChanges, reimportPlan.Status);
+        var reimportResult = await writer.ApplyAsync(archiveV2, reimportPlan, CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.Success, reimportResult.Status);
+        Assert.AreEqual(
+            2,
+            await CountAsync(targetFixture, "SELECT COUNT(*) FROM WordOccurrences"),
+            "Reimport must converge without inserting another occurrence.");
+    }
+
     // ---- 8. A forced mid-write failure rolls back every change ----
     [TestMethod]
     public async Task ForcedMidWriteFailure_RollsBackEveryChange()

@@ -347,7 +347,9 @@ internal sealed class MergeWriterExecutor
             var documentId = RequireId(_documentIds, source.Id);
             foreach (var occurrence in source.Occurrences.OrderBy(item => item.Order))
             {
-                var action = GetAction(MergeEntityKind.Occurrence, occurrence.SentenceId + ":" + occurrence.VocabularyId);
+                var action = GetAction(
+                    MergeEntityKind.Occurrence,
+                    MergePreflightPlanner.ComputeOccurrenceArchiveActionKey(source.Id, occurrence.Order));
                 if (action.Classification != MergeEntityClassification.New)
                 {
                     continue;

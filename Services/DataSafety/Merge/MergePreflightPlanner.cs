@@ -293,7 +293,12 @@ public static class MergePreflightPlanner
                 var occurrenceIdentity = ComputeOccurrenceIdentity(docIdentity, sentenceIdentity, vocabIdentity, occurrence);
                 var occurrenceClassification = targetOccurrenceIdentitySet.Contains(occurrenceIdentity) ? MergeEntityClassification.ExactDuplicateSkipped : MergeEntityClassification.New;
                 var occurrenceReason = occurrenceClassification == MergeEntityClassification.New ? "occurrence-new" : "occurrence-exact-duplicate";
-                Record(MergeEntityKind.Occurrence, occurrenceIdentity, occurrence.SentenceId + ":" + occurrence.VocabularyId, occurrenceClassification, occurrenceReason);
+                Record(
+                    MergeEntityKind.Occurrence,
+                    occurrenceIdentity,
+                    ComputeOccurrenceArchiveActionKey(archiveDoc.Id, occurrence.Order),
+                    occurrenceClassification,
+                    occurrenceReason);
             }
         }
 
@@ -944,6 +949,10 @@ public static class MergePreflightPlanner
 
         return builder.ComputeSha256Hex();
     }
+
+    internal static string ComputeOccurrenceArchiveActionKey(
+        string sourceMaterialArchiveId, int occurrenceOrder) =>
+        sourceMaterialArchiveId + ":" + occurrenceOrder.ToString(CultureInfo.InvariantCulture);
 
     internal static string ComputeEncounteredFormIdentity(VocabularyIdentity vocabularyIdentity, string surfaceForm)
     {

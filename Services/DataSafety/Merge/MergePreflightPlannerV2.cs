@@ -482,7 +482,12 @@ public static class MergePreflightPlannerV2
                 var occurrenceIdentity = MergePreflightPlanner.ComputeOccurrenceIdentity(docIdentity, sentenceIdentity, vocabIdentity, occurrence);
                 var occurrenceClassification = targetOccurrenceIdentitySet.Contains(occurrenceIdentity) ? MergeEntityClassification.ExactDuplicateSkipped : MergeEntityClassification.New;
                 var occurrenceReason = occurrenceClassification == MergeEntityClassification.New ? "occurrence-new" : "occurrence-exact-duplicate";
-                Record(MergeEntityKind.Occurrence, occurrenceIdentity, occurrence.SentenceId + ":" + occurrence.VocabularyId, occurrenceClassification, occurrenceReason);
+                Record(
+                    MergeEntityKind.Occurrence,
+                    occurrenceIdentity,
+                    MergePreflightPlanner.ComputeOccurrenceArchiveActionKey(archiveDoc.Id, occurrence.Order),
+                    occurrenceClassification,
+                    occurrenceReason);
             }
         }
 

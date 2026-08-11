@@ -536,6 +536,57 @@ public sealed class MergePreflightPlannerTests
     }
 
     [TestMethod]
+    public void LegacyV1_RepeatedVocabularyOccurrencesInOneSentence_ProduceDistinctArchiveActionKeys()
+    {
+        const string text = "bank bank";
+        var contentSha256 = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)))
+            .ToLowerInvariant();
+        var sentence = new BackupSentenceRange("ss-1", 0, 0, text.Length);
+        var first = new BackupOccurrence(
+            "v-1", sentence.Id, 0, 4, "bank", 0,
+            BackupTechnicalTokenFamily.None, null, null, null);
+        var second = new BackupOccurrence(
+            "v-1", sentence.Id, 5, 4, "bank", 1,
+            BackupTechnicalTokenFamily.None, null, null, null);
+
+        BackupPayload Archive(IReadOnlyList<BackupOccurrence> occurrences) => Payload(
+            [SourceMaterial(
+                "sm-1", contentSha256, text: text, sentences: [sentence], occurrences: occurrences)
+                with { StoredWordCount = 2 }],
+            [Vocabulary("v-1", term: "bank") with { TotalOccurrenceCount = 2 }]);
+
+        var archiveInOrder = Archive([first, second]);
+        var archiveReversed = Archive([second, first]);
+        BackupModelContract.ValidatePayload(archiveInOrder);
+        BackupArchiveWriter.ValidatePayloadGraph(archiveInOrder);
+        BackupModelContract.ValidatePayload(archiveReversed);
+        BackupArchiveWriter.ValidatePayloadGraph(archiveReversed);
+
+        var actionsInOrder = MergePreflightPlanner.CreatePlan(EmptyPayload(), archiveInOrder, Manifest()).Actions
+            .Where(action => action.EntityKind == MergeEntityKind.Occurrence)
+            .ToList();
+        var actionsReversed = MergePreflightPlanner.CreatePlan(EmptyPayload(), archiveReversed, Manifest()).Actions
+            .Where(action => action.EntityKind == MergeEntityKind.Occurrence)
+            .ToList();
+
+        Assert.HasCount(2, actionsInOrder, "Each physical occurrence must receive one primary action.");
+        Assert.AreEqual(
+            2,
+            actionsInOrder.Select(action => action.StableIdentity).Distinct(StringComparer.Ordinal).Count(),
+            "The two physical occurrences have different positions and orders, so their merge identities differ.");
+        Assert.AreEqual(
+            2,
+            actionsInOrder.Select(action => action.ArchiveLocalId).Distinct(StringComparer.Ordinal).Count(),
+            "Separately addressable occurrence rows must not collapse onto one writer lookup key.");
+
+        CollectionAssert.AreEqual(
+            actionsInOrder.Select(action => $"{action.StableIdentity}={action.ArchiveLocalId}").ToList(),
+            actionsReversed.Select(action => $"{action.StableIdentity}={action.ArchiveLocalId}").ToList(),
+            "Permuting the collection must not change a physical row's stable-identity-to-action-key mapping.");
+    }
+
+    [TestMethod]
     public void DocumentDuplicateWithDifferentTitle_StillExactDuplicate()
     {
         var target = Payload(sourceMaterials: [SourceMaterial("sm-t", "shared-hash", title: "Target Title")]);

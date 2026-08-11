@@ -581,7 +581,7 @@ No archive DTO shape, `.kfarchive` format version, database schema, migration, m
 
 Left out of Package D, and not silently closed by it at that package boundary: `LegacyReviewSummaries` ordering (same defect class, no archive-local id derives from it); `MergePreflightPlannerV2.ComputeReviewFingerprint`'s omission of `LearningSessionId`/answer-variant references from its duplicate-detection key; the then-open mid-session review-event export policy (`Schema8BackupSnapshotRepository.CapturePortableSnapshot` excluded reviews recorded inside a still-Active session); and the `Learning.Cards` collection's own cross-installation ordering, which remains keyed by `Sense.StableId` and therefore installation-random. KF-BACKUP-004 later addressed the fingerprint residual, and merged KF-BACKUP-005B addresses the mid-session export policy (§24). The merged status of the `LegacyReviewSummaries` correction is recorded in §21.1; that correction does not rewrite the historical Package-D boundary.
 
-The duplicate-detection residual above is taken up by KF-BACKUP-004 in §22, which resolves the answer-variant half and records why `LearningSessionId` is deliberately kept out of merge identity. The mid-session policy is binding master behavior through 005B; the `LegacyReviewSummaries` correction is binding master behavior through PR #85; and the `Learning.Cards` correction is binding master behavior through PR #87 as described in §21.2. The legacy v1 planner-label issue is the sole remaining Priority-15 residual.
+The duplicate-detection residual above is taken up by KF-BACKUP-004 in §22, which resolves the answer-variant half and records why `LearningSessionId` is deliberately kept out of merge identity. The mid-session policy is binding master behavior through 005B; the `LegacyReviewSummaries` correction is binding master behavior through PR #85; and the `Learning.Cards` correction is binding master behavior through PR #87 as described in §21.2. The direct legacy planner-label statement is historical; the current candidate is the Occurrence action-key correction in §22.7.
 
 ### 21.1 LegacyReviewSummaries canonical ordering — merged master correction
 
@@ -619,7 +619,7 @@ The mapper remains a mapper, not a validator. A malformed snapshot with a missin
 6. Pre- and post-candidate `git diff --check`: passed.
 7. Independent review: **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT**.
 
-**Evidence limitation:** this is bounded automated unit/integration/contract evidence only. It is not ALL_AUTOMATED, ValidateAll, GitHub CI, platform/runtime build, rendered-GUI/device, package, signing, publishing, or distribution evidence. It also does not establish universal whole-archive byte equality: unrelated installation-random StableIds elsewhere in an otherwise equivalent archive remain an invalid general byte-equality oracle. The legacy v1 planner analogous synthesized-label issue is the sole remaining Priority-15 residual and next package; GUI automation remains after Priority 15.
+**Evidence limitation:** this is bounded automated unit/integration/contract evidence only. It is not ALL_AUTOMATED, ValidateAll, GitHub CI, platform/runtime build, rendered-GUI/device, package, signing, publishing, or distribution evidence. It also does not establish universal whole-archive byte equality: unrelated installation-random StableIds elsewhere in an otherwise equivalent archive remain an invalid general byte-equality oracle. The former legacy-planner residual wording is historical; GUI automation remains after the current Priority-15 Occurrence candidate.
 
 ## 22. KF-BACKUP-004 — Schema-9 LearningReview merge integrity
 
@@ -674,7 +674,7 @@ Including it would couple event deduplication to workflow-session identity stabi
 
 Slice 1's persisted `LearningReviewFingerprintPolicy` and its `KnownFirst.Merge.LearningReview.v1` domain are unchanged for their existing callers and compatibility contract; §6's field list remains that domain's exact historical record. The v2 fingerprint and the positional action key are ephemeral in-plan merge contracts — neither is persisted, and neither is an archive-format field. No archive DTO, `.kfarchive` `formatVersion`, database schema, migration, public error/status code, import-UI, or Package D mapper-ordering change. Populated-target merge remains non-destructive and transactional, and repeated import remains convergent.
 
-The legacy v1 `MergePreflightPlanner` keeps its analogous synthesized label and is **not** corrected here: import routing upgrades every v1 payload through `BackupArchiveV1UpgradePolicy` and recomputes the plan with `MergePreflightPlannerV2` before the writer runs, so the v1 label never reaches the writer's action map. That is a residual, not a fix.
+The legacy v1 `MergePreflightPlanner` keeps its analogous `LearningReview` synthesized label. It can collide in a direct legacy plan, but import routing upgrades V1 input through `BackupArchiveV1UpgradePolicy`; production preflight and stale-plan validation recompute with `MergePreflightPlannerV2`, whose positional LearningReview action key is already correct. This is therefore not a current production-writer defect.
 
 ### 22.6 Evidence
 
@@ -687,7 +687,19 @@ The legacy v1 `MergePreflightPlanner` keeps its analogous synthesized label and 
 
 ### Scope boundary
 
-Left out of KF-BACKUP-004, and not silently closed by it at that package boundary: the legacy v1 planner's analogous synthesized label (above); `LegacyReviewSummaries` ordering; the then-open mid-session review-event export policy; and the `Learning.Cards` collection's own cross-installation ordering, which remained keyed by `Sense.StableId` and therefore installation-random. Merged KF-BACKUP-005B addresses the mid-session export policy (§24); `LegacyReviewSummaries` ordering is now binding `master` behavior through PR #85 (merge commit `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526`); and `Learning.Cards` ordering is now binding `master` behavior through PR #87 (feature head `2cab8042887bed1004e7c26573a52fd59cc3b380`, merge commit `e97c83ac0cf7decf2915162e0e3a4abf24ee30d8`). The legacy v1 planner-label issue is the sole current Priority-15 residual.
+At the historical KF-BACKUP-004 package boundary, its direct legacy-planner label, `LegacyReviewSummaries` ordering, the mid-session review-event export policy, and `Learning.Cards` ordering remained outside that package. Later packages closed the latter three. The routing finding above establishes that the direct legacy LearningReview label is not production-writer reachable; the active Priority-15 candidate is instead the Occurrence action-key correction described below.
+
+### 22.7 Current Priority-15 candidate — Occurrence action lookup identity
+
+**Lifecycle status:** implemented and bounded-validated, committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on `fix/backup-v1-planner-action-key-v1`; PR, independent-review, and merge lifecycle are pending. It is not merged or binding master behavior. PR #88 completed the PR #87 documentation closure; current master is `133d34366204979d2905c665370531547a7a0b98`.
+
+**Proven defect.** Both legacy and V2 planners used `SentenceId:VocabularyId` for an Occurrence `ArchiveLocalId`/action lookup key. Two valid physical occurrences of the same vocabulary in one sentence can have distinct semantic occurrence identities and different classifications (for example `ExactDuplicateSkipped` and `New`) yet share that key. `MergeWriterExecutor` indexes actions by `(MergeEntityKind.Occurrence, ArchiveLocalId)` with last-wins assignment and reconstructed the same ambiguous key, so it could apply one occurrence's classification to both physical rows.
+
+**Candidate correction.** `MergePreflightPlanner`, `MergePreflightPlannerV2`, and `MergeWriterExecutor` use the same invariant-culture lookup-only key: `SourceMaterialArchiveId:Occurrence.Order`. V1 and V2 graph validation require `Order` to be unique within a SourceMaterial, archive IDs cannot contain `:`, and the key is deterministic. It deliberately uses explicit occurrence `Order`, not collection index or a target-local SQLite ID.
+
+**Unchanged contracts.** `ComputeOccurrenceIdentity` remains semantic identity; classifications, reason codes, preview counts, and multiplicity are unchanged. There is no grouping or deduplication. V1 compatibility and V1-to-V2 payload shape, archive V2, DTOs, Schema 10, migrations, LearningReview identity/action-key contracts, scheduler, `BackupModelMapperV2` canonical ordering, `Learning.Cards`, `LegacyReviewSummaries`, UI, transport, synchronization, persistence, and public status/error-code contracts are unchanged.
+
+**Evidence and limits.** Focused TDD recorded genuine RED **0 passed / 2 failed / 0 skipped** and identical GREEN **2 passed / 0 failed / 0 skipped**; an initial fixture compilation error was corrected before the RED and is not RED evidence. Bounded affected/regression `TEST_ONLY` returned **257 passed / 0 failed / 0 skipped**, including both new occurrence regressions, with pre/post `git diff --check` passing. This is automated component/integration/contract evidence on isolated synthetic SQLite only; it is not ALL_AUTOMATED, ValidateAll, GitHub CI, Windows/Android build validation, rendered GUI/runtime/device, or package/sign/publish/distribution evidence.
 
 ---
 

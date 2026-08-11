@@ -117,7 +117,8 @@ public sealed record MergeEntityPlanCounts(
 /// <see cref="ArchiveLocalId"/> is the entity's own archive-local string id (or, for entities with no own
 /// id such as a LearningReview, a synthesized positional label), retained only so a future writer can
 /// look the content back up inside the same archive <see cref="BackupPayload"/> it already holds — it is
-/// never a target-local id. <see cref="DecisionId"/> is non-null if and only if <see cref="Classification"/>
+/// never a target-local id. Physical rows that can be classified independently require distinct lookup
+/// labels within their <see cref="MergeEntityKind"/>. <see cref="DecisionId"/> is non-null if and only if <see cref="Classification"/>
 /// is <see cref="MergeEntityClassification.UnresolvedConflict"/>, and matches exactly one decision
 /// object's own <see cref="DecisionId"/> in the plan.
 /// </summary>

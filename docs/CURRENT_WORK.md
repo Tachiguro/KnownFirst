@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-11 (PR #88 completed the PR #87 documentation closure and `POST_MERGE_SYNC_ONLY`; the Priority-15 Occurrence action-key correction is the active feature-branch candidate)
+2026-08-11 (PR #89 merged the Priority-15 Occurrence action-key correction; `POST_MERGE_SYNC_ONLY` completed and Priority 15 is complete on `master`)
 
 ## Repository
 
@@ -53,17 +53,18 @@
 - **PR #85 — `LegacyReviewSummaries` canonical ordering correction:** makes V2 `LegacyReviewSummaries` export ordering canonical across installations by replacing the former composite string key with typed ordering over `ReviewCount`, `ForgotCount`, `PartialCount`, `KnownCount`, nullable `LastReviewedAt` presence (null first), and normalized UTC ticks for a present timestamp. Null is explicitly distinguished from present UTC `DateTime.MinValue`; local `ReviewStateEntity.Id` is not ordering material; multiplicity is preserved. Feature head `baf5fcda0a017c1492a08dac730d683c1554784d`; merge commit `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526`; `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #87 — `Learning.Cards` canonical ordering correction:** makes V2 valid/resolved-card ordering semantic-first through existing `FutureCardIdentity`, preferred-Meaning `ExactMeaningVariantIdentity`, and typed emitted Card state, with Sense `StableId` only as late/final non-local ordering material; malformed/unresolved-reference snapshots retain deterministic mapper fallback behavior including Direction. Feature head `2cab8042887bed1004e7c26573a52fd59cc3b380`; merge commit `e97c83ac0cf7decf2915162e0e3a4abf24ee30d8`; `POST_MERGE_SYNC_ONLY` completed successfully. Final bounded affected/regression `TEST_ONLY`: **119 passed / 0 failed / 0 skipped**; independent review: **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT**.
 - **PR #88 — PR #87 documentation closure:** merged feature head `4fc8b15f0861ab264ef7518ef66e810b0cf3c15c` through merge commit `133d34366204979d2905c665370531547a7a0b98`; `POST_MERGE_SYNC_ONLY` completed successfully.
+- **PR #89 — Occurrence action-key correction:** merged feature head `d45a7e8fad533ddda5dda425356bf2095e8bafb6` (implementation commit `edbb49a87ff3f37337c413111a60f6cfa6805b88`) through merge commit `49d25cb8d7d113d1f0b1826369d9105a37d9207b`; `POST_MERGE_SYNC_ONLY` completed successfully. Independent review found **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT**.
 
-## Most recently completed Priority-15 package and active final candidate
+## Priority-15 completion and next planned milestone
 
-**PR #87 — `Learning.Cards` canonical ordering correction** remains binding `master` behavior; PR #88 completed its documentation closure and synchronized `master` at `133d34366204979d2905c665370531547a7a0b98`. Priority 15 remains Current. Its active final package is the Occurrence action-key correction, implemented, bounded-validated, committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on `fix/backup-v1-planner-action-key-v1`; PR, independent-review, and merge lifecycle are pending.
+**Priority 15 — Portable merge integrity hardening** is complete and binding `master` behavior. PR #89 merged the Occurrence action-key correction at `49d25cb8d7d113d1f0b1826369d9105a37d9207b` after implementation, bounded `TEST_ONLY`, independent review, owner merge, and `POST_MERGE_SYNC_ONLY`. No active implementation package is in progress. Priority 16 — Automated GUI validation — is the next planned milestone; no Priority-16 `PLAN_ONLY`, implementation branch, or implementation has started.
 
-### Occurrence action-key correction — active non-binding candidate
+### Occurrence action-key correction — merged binding master behavior
 
 - The proven production-representable defect is `MergeEntityKind.Occurrence`: both planners and the writer formerly used `SentenceId:VocabularyId` as an action lookup key. Distinct physical occurrences of one vocabulary in one sentence could therefore receive different classifications but collide in the writer's last-wins action map.
-- The candidate uses the shared lookup-only key `SourceMaterialArchiveId:Occurrence.Order`, with invariant-culture decimal formatting, in `MergePreflightPlanner`, `MergePreflightPlannerV2`, and `MergeWriterExecutor`. Valid V1/V2 graphs require `Order` to be unique within its source material, and archive IDs cannot contain `:`. Semantic occurrence identity, classifications, reason codes, preview counts, multiplicity, V1 compatibility, archive V2, DTOs, Schema 10, migrations, LearningReview contracts, scheduler, mapper ordering, UI, transport, synchronization, persistence, and public status/error-code contracts are unchanged.
+- The binding correction uses the shared lookup-only key `SourceMaterialArchiveId:Occurrence.Order`, with invariant-culture decimal formatting, in `MergePreflightPlanner`, `MergePreflightPlannerV2`, and `MergeWriterExecutor`. Valid V1/V2 graphs require `Order` to be unique within its source material, and archive IDs cannot contain `:`. Semantic `ComputeOccurrenceIdentity`, classifications, reason codes, preview counts, multiplicity, V1 compatibility, archive V2, DTOs, Schema 10, migrations, LearningReview contracts, scheduler, mapper ordering, UI, transport, synchronization, persistence, and public status/error-code contracts are unchanged.
 - Focused TDD: genuine RED **0 passed / 2 failed / 0 skipped**; identical GREEN **2 passed / 0 failed / 0 skipped**. The initial fixture compilation error was corrected before the genuine RED and is not RED evidence. Bounded affected/regression `TEST_ONLY`: **257 passed / 0 failed / 0 skipped**; both occurrence regressions were included and green; pre/post `git diff --check` passed.
-- Evidence is automated component/integration/contract evidence using isolated synthetic SQLite only. It is not ALL_AUTOMATED, ValidateAll, GitHub CI, Windows/Android build validation, rendered GUI/runtime/device evidence, or package/sign/publish/distribution evidence. No independent review has occurred.
+- Evidence is automated component/integration/contract evidence using isolated synthetic SQLite only. It is not ALL_AUTOMATED, ValidateAll, GitHub CI, Windows/Android build validation, rendered GUI/runtime/device evidence, or package/sign/publish/distribution evidence. Independent review found **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT**.
 
 ### Learning.Cards canonical ordering — merged master correction
 
@@ -75,7 +76,7 @@ The Priority-15 V2 `Learning.Cards` correction is merged and binding `master` be
 - Database Schema 10, outer archive V2, DTO shape, migrations/validators, V1 mapper/reader/writer and v1-to-v2 compatibility, merge identities/planner classifications/writer semantics, scheduler semantics, UI, transport, synchronization, public status/error codes, and persistence contracts are unchanged.
 - Independent review: **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT**. Evidence remains bounded automated unit/integration/contract evidence only: not ALL_AUTOMATED, ValidateAll, GitHub CI, platform/runtime builds, rendered GUI/device, packaging, signing, publishing, or distribution evidence. It does not claim universal whole-archive byte equality; unrelated installation-random StableIds remain.
 
-The legacy `LearningReview` label (`CardId@ReviewedAtUtc`) can collide in a direct legacy plan but is not production-writer reachable: V1 input is upgraded to V2, production preflight and stale-plan validation use `MergePreflightPlannerV2`, and V2 LearningReview already uses its positional action key. It is not the current proven writer defect. GUI automation remains after Priority 15.
+The legacy `LearningReview` label (`CardId@ReviewedAtUtc`) can collide in a direct legacy plan but is not production-writer reachable: V1 input is upgraded to V2, production preflight and stale-plan validation use `MergePreflightPlannerV2`, and V2 LearningReview already uses its positional action key. It is not a current production-writer defect. Automated GUI validation is the next planned milestone, but has not started.
 
 ### KF-BACKUP-005C merged master capability
 
@@ -97,7 +98,7 @@ The legacy `LearningReview` label (`CardId@ReviewedAtUtc`) can collide in a dire
 - Database Schema 10, outer archive V2, V1 mapper/writer and reader behavior, v1-to-v2 upgrade, DTO shape, migration behavior, and merge policies remain unchanged.
 - This evidence is bounded automated unit/integration/contract evidence only. It is not ALL_AUTOMATED, ValidateAll, GitHub CI, platform/runtime, rendered-GUI, device/emulator, package, signing, publishing, or distribution evidence.
 
-The `Learning.Cards`/Sense `StableId` correction is the merged PR #87 package described above. The active final Priority-15 candidate is the Occurrence action-key correction described above.
+The `Learning.Cards`/Sense `StableId` correction is the merged PR #87 package described above. The Occurrence action-key correction is the merged PR #89 completion of Priority 15.
 
 ### KF-BACKUP-005B capability on master
 
@@ -151,25 +152,25 @@ The `Learning.Cards`/Sense `StableId` correction is the merged PR #87 package de
 
 - **KF-BACKUP-005B:** complete and merged on `master` via PR #81.
 - **KF-BACKUP-005C:** merged via PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully and its populated-target convergence contract is current `master` behavior.
-- The active final Priority-15 candidate is the Occurrence action-key correction; the mid-session review-event export policy is on `master` through 005B, PR #87 merged the `Learning.Cards`/Sense `StableId` ordering correction, and PR #88 completed its documentation closure.
+- Priority 15 is complete: PR #89 merged the Occurrence action-key correction; the mid-session review-event export policy is on `master` through 005B, PR #87 merged the `Learning.Cards`/Sense `StableId` ordering correction, and PR #88 completed its documentation closure.
 
 Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A are all complete and merged on `master`; their history is unaffected.
 
 ## Current blocker or pending validation
 
 - None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), KF-BACKUP-005A (PR #79), or `LegacyReviewSummaries` canonical ordering (PR #85): all completed their full lifecycle on `master`.
-- KF-BACKUP-005C, `LegacyReviewSummaries`, and `Learning.Cards` are merged on `master`; PR #88 completed the PR #87 documentation closure. The Occurrence action-key correction is implemented, bounded-validated, committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on the feature branch; it is not independently reviewed, not merged, and not binding master behavior.
+- KF-BACKUP-005C, `LegacyReviewSummaries`, `Learning.Cards`, and the Occurrence action-key correction are merged and binding on `master`; PR #89 merged feature head `d45a7e8fad533ddda5dda425356bf2095e8bafb6` at `49d25cb8d7d113d1f0b1826369d9105a37d9207b` after independent review **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT** and `POST_MERGE_SYNC_ONLY`.
 - Rendered-GUI, runtime, platform-build, Release-build, device/emulator, and AAB-level behavior remains unproven and out of scope for 005B.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for the earlier KF-BACKUP-005A candidate only; it is not 005B evidence.
 
 ## Exact next action
 
-- **Next lifecycle action:** independent review of the implemented, bounded-validated Occurrence action-key candidate; Priority 15 is not complete and Priority 16 remains Planned.
+- **Next lifecycle action:** Priority 16 Automated GUI validation remains Planned and is next in the roadmap; no Priority-16 `PLAN_ONLY`, implementation branch, or implementation has started.
 
 ## Concise new-chat handoff
 
 - Most recent recorded product-relevant milestone on `master`: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged).
-- Current verified `master` baseline: `133d34366204979d2905c665370531547a7a0b98` (PR #88 merge commit). Discover future literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Current verified `master` baseline: `49d25cb8d7d113d1f0b1826369d9105a37d9207b` (PR #89 merge commit). Discover future literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 - `DatabaseSchema.CurrentVersion` is **10** and Schema 10 is active on `master`.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
 - D1-D5 documentation reconciliation is complete. Package A, Package B, Package C, Package D (PR #76), KF-BACKUP-004 (PR #77), KF-BACKUP-004 post-merge closure (PR #78), and KF-BACKUP-005A (PR #79) are complete and merged on `master`.
@@ -177,5 +178,5 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 - **KF-BACKUP-005C:** populated-target Active convergence is binding `master` behavior through PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #85 — `LegacyReviewSummaries` canonical ordering:** merged master behavior at `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526` (feature head `baf5fcda0a017c1492a08dac730d683c1554784d`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #87 / PR #88:** PR #87 remains merged product behavior; PR #88 completed its documentation closure at `133d34366204979d2905c665370531547a7a0b98` from feature head `4fc8b15f0861ab264ef7518ef66e810b0cf3c15c`, followed by `POST_MERGE_SYNC_ONLY`.
-- **Occurrence action-key candidate:** implemented and bounded-validated (**RED 0/2/0 → GREEN 2/0/0; bounded TEST_ONLY 257/0/0**), committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on `fix/backup-v1-planner-action-key-v1`; PR, independent-review, and merge lifecycle are pending. It is not binding master behavior. Priority 15 remains Current; Priority 16 remains Planned.
+- **PR #89 — Occurrence action-key correction:** implemented at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, documented at `d45a7e8fad533ddda5dda425356bf2095e8bafb6`, and merged at `49d25cb8d7d113d1f0b1826369d9105a37d9207b`; bounded evidence is **RED 0/2/0 → GREEN 2/0/0; TEST_ONLY 257/0/0**, independent review found **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT**, and `POST_MERGE_SYNC_ONLY` completed. Priority 15 is Committed; Priority 16 remains Planned and not started.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

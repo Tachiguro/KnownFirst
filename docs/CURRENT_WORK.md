@@ -56,7 +56,7 @@
 
 ## Most recently completed Priority-15 package and active final candidate
 
-**PR #87 — `Learning.Cards` canonical ordering correction** remains binding `master` behavior; PR #88 completed its documentation closure and synchronized `master` at `133d34366204979d2905c665370531547a7a0b98`. Priority 15 remains Current. Its active final package is the uncommitted Occurrence action-key correction, implemented and bounded-validated on `fix/backup-v1-planner-action-key-v1`; publication, independent review, and merge lifecycle are pending.
+**PR #87 — `Learning.Cards` canonical ordering correction** remains binding `master` behavior; PR #88 completed its documentation closure and synchronized `master` at `133d34366204979d2905c665370531547a7a0b98`. Priority 15 remains Current. Its active final package is the Occurrence action-key correction, implemented, bounded-validated, committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on `fix/backup-v1-planner-action-key-v1`; PR, independent-review, and merge lifecycle are pending.
 
 ### Occurrence action-key correction — active non-binding candidate
 
@@ -158,7 +158,7 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 ## Current blocker or pending validation
 
 - None for Milestone 14B, its post-merge documentation closure, the Standing Delegation Governance Reconciliation, KF-BACKUP-003 Package D, KF-BACKUP-004, the KF-BACKUP-004 post-merge documentation closure (PR #78), KF-BACKUP-005A (PR #79), or `LegacyReviewSummaries` canonical ordering (PR #85): all completed their full lifecycle on `master`.
-- KF-BACKUP-005C, `LegacyReviewSummaries`, and `Learning.Cards` are merged on `master`; PR #88 completed the PR #87 documentation closure. The Occurrence action-key correction is implemented and bounded-validated on the feature branch but is uncommitted, not independently reviewed, not merged, and not binding master behavior.
+- KF-BACKUP-005C, `LegacyReviewSummaries`, and `Learning.Cards` are merged on `master`; PR #88 completed the PR #87 documentation closure. The Occurrence action-key correction is implemented, bounded-validated, committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on the feature branch; it is not independently reviewed, not merged, and not binding master behavior.
 - Rendered-GUI, runtime, platform-build, Release-build, device/emulator, and AAB-level behavior remains unproven and out of scope for 005B.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for the earlier KF-BACKUP-005A candidate only; it is not 005B evidence.
 
@@ -177,5 +177,5 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 - **KF-BACKUP-005C:** populated-target Active convergence is binding `master` behavior through PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #85 — `LegacyReviewSummaries` canonical ordering:** merged master behavior at `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526` (feature head `baf5fcda0a017c1492a08dac730d683c1554784d`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #87 / PR #88:** PR #87 remains merged product behavior; PR #88 completed its documentation closure at `133d34366204979d2905c665370531547a7a0b98` from feature head `4fc8b15f0861ab264ef7518ef66e810b0cf3c15c`, followed by `POST_MERGE_SYNC_ONLY`.
-- **Occurrence action-key candidate:** implemented and bounded-validated (**RED 0/2/0 → GREEN 2/0/0; bounded TEST_ONLY 257/0/0**) on `fix/backup-v1-planner-action-key-v1`; uncommitted, not independently reviewed, not merged, and not binding master behavior. Priority 15 remains Current; Priority 16 remains Planned.
+- **Occurrence action-key candidate:** implemented and bounded-validated (**RED 0/2/0 → GREEN 2/0/0; bounded TEST_ONLY 257/0/0**), committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on `fix/backup-v1-planner-action-key-v1`; PR, independent-review, and merge lifecycle are pending. It is not binding master behavior. Priority 15 remains Current; Priority 16 remains Planned.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

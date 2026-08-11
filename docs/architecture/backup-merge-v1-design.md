@@ -691,7 +691,7 @@ At the historical KF-BACKUP-004 package boundary, its direct legacy-planner labe
 
 ### 22.7 Current Priority-15 candidate — Occurrence action lookup identity
 
-**Lifecycle status:** implemented and bounded-validated on `fix/backup-v1-planner-action-key-v1`, but uncommitted, not independently reviewed, not merged, and not binding master behavior. PR #88 completed the PR #87 documentation closure; current master is `133d34366204979d2905c665370531547a7a0b98`.
+**Lifecycle status:** implemented and bounded-validated, committed at `edbb49a87ff3f37337c413111a60f6cfa6805b88`, and pushed on `fix/backup-v1-planner-action-key-v1`; PR, independent-review, and merge lifecycle are pending. It is not merged or binding master behavior. PR #88 completed the PR #87 documentation closure; current master is `133d34366204979d2905c665370531547a7a0b98`.
 
 **Proven defect.** Both legacy and V2 planners used `SentenceId:VocabularyId` for an Occurrence `ArchiveLocalId`/action lookup key. Two valid physical occurrences of the same vocabulary in one sentence can have distinct semantic occurrence identities and different classifications (for example `ExactDuplicateSkipped` and `New`) yet share that key. `MergeWriterExecutor` indexes actions by `(MergeEntityKind.Occurrence, ArchiveLocalId)` with last-wins assignment and reconstructed the same ambiguous key, so it could apply one occurrence's classification to both physical rows.
 

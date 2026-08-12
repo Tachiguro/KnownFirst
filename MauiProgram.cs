@@ -22,6 +22,9 @@ public static class MauiProgram
         typeof(Microsoft.AspNetCore.Components.Web.HeadOutlet))]
     public static MauiApp CreateMauiApp()
     {
+#if KNOWNFIRST_ANDROID_GUI_TEST
+        GuiTestProfile.ConfigureAndroidGuiTestProfileForCurrentProcess(FileSystem.AppDataDirectory);
+#endif
         var builder = MauiApp.CreateBuilder();
         var buildIdentity = new BuildIdentityService();
         var diagnosticOptions = DiagnosticLogConfiguration.Create(buildIdentity);
@@ -49,9 +52,14 @@ public static class MauiProgram
         builder.Services.AddMauiBlazorWebView();
         builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
         builder.Services.AddSingleton<IBuildIdentityService>(buildIdentity);
-        builder.Services.AddSingleton<IPreferences>(_ => GuiTestProfile.IsActive
-            ? new IsolatedFilePreferences(GuiTestProfile.RootPath)
-            : Preferences.Default);
+        builder.Services.AddSingleton<IPreferences>(_ =>
+        {
+            IPreferences preferences = GuiTestProfile.IsActive
+                ? new IsolatedFilePreferences(GuiTestProfile.RootPath)
+                : Preferences.Default;
+            GuiTestProfile.InitializeAndroidGuiTestPreferences(preferences, buildIdentity.Identity.Version);
+            return preferences;
+        });
         builder.Services.AddSingleton(fileLoggerProvider);
         builder.Services.AddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
         builder.Services.AddSingleton<RuntimeExceptionMonitor>();
@@ -108,8 +116,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<WiktionaryHtmlParser>();
         builder.Services.AddSingleton<IAsyncDelay, SystemAsyncDelay>();
         builder.Services.AddSingleton(new HttpClient());
-#if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
-        if (GuiTestScenarioSeed.IsActive)
+#if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED || KNOWNFIRST_ANDROID_GUI_TEST
+        if (GuiTestScenarioSeed.IsActive || GuiTestProfile.IsAndroidGuiTestProfile)
         {
             // GUI-test seed scenarios need deterministic, in-process, network-free meanings —
             // never the real Wiktionary/Wikipedia providers — so this substitutes the entire

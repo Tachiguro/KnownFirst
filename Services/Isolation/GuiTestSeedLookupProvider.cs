@@ -14,6 +14,9 @@ namespace KnownFirst.Services.Isolation;
 public sealed class GuiTestSeedLookupProvider : IDictionaryLookupProvider
 {
     public const string SeedTerm = "bank";
+    private static int _invocationCount;
+
+    public static int InvocationCount => Volatile.Read(ref _invocationCount);
 
     public string ProviderName => WiktionaryLookupProvider.Name;
 
@@ -21,6 +24,7 @@ public sealed class GuiTestSeedLookupProvider : IDictionaryLookupProvider
 
     public Task<LexicalResult> LookupAsync(LexicalLookupRequest request, CancellationToken cancellationToken = default)
     {
+        Interlocked.Increment(ref _invocationCount);
         var meanings = new List<LexicalMeaning>
         {
             new("gui-test-financial-institution", "noun",

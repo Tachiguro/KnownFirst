@@ -1,13 +1,22 @@
 @using KnownFirst.Services.Isolation
+@using KnownFirst.Services.Diagnostics
+@inject IBuildIdentityService BuildIdentityService
 
 @if (GuiTestProfile.IsActive)
 {
+    var buildIdentity = BuildIdentityService.Identity;
     <div id="gui-test-profile-indicator"
          class="gui-test-profile-indicator"
          role="status"
          data-gui-test-profile-id="@GuiTestProfile.ProfileId"
          data-gui-test-provider="@(GuiTestProfile.IsAndroidGuiTestProfile ? "offline" : "windows-seed")"
-         data-gui-test-provider-invocations="@GuiTestSeedLookupProvider.InvocationCount">
+         data-gui-test-provider-invocations="@GuiTestSeedLookupProvider.InvocationCount"
+         data-build-commit="@buildIdentity.CommitHash"
+         data-build-dirty="@buildIdentity.IsDirty.ToString().ToLowerInvariant()"
+         data-build-version="@buildIdentity.Version"
+         data-build-number="@buildIdentity.BuildNumber"
+         data-build-configuration="@buildIdentity.Configuration"
+         data-build-package-id="@buildIdentity.PackageId">
         GUI TEST PROFILE
         <span class="gui-test-profile-root">@GuiTestProfile.RootPath</span>
     </div>

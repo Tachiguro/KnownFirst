@@ -1,4 +1,13 @@
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const expectedPackageId = 'com.tachiguro.knownfirst.guitest';
+const expectedConfiguration = 'Debug';
+const fullCommitPattern = /^[0-9a-f]{40}$/i;
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const authoritativeRunsRoot = join(repositoryRoot, 'artifacts', 'gui-tests', 'android', 'runs');
 
 const requiredSummaryFields = [
   'scenarioId', 'matrixMapping', 'result', 'failedStep', 'git', 'buildIdentity', 'packageId',
@@ -18,6 +27,20 @@ export function createSummary(input) {
     throw new Error('P16-A is a pre-matrix scenario and must retain a null matrixMapping.');
   }
 
+  if (input.result === 'Passed') {
+    const verifiedIdentity = evaluateRuntimeBuildIdentity({
+      expectedCommit: input.buildIdentity?.expected?.commit,
+      observed: input.buildIdentity?.observed
+    });
+    if (
+      input.buildIdentity?.matched !== true ||
+      input.buildIdentity?.failureReason !== null ||
+      verifiedIdentity.matched !== true
+    ) {
+      throw new Error('Passed evidence requires a verified runtime build identity agreement.');
+    }
+  }
+
   return {
     ...input,
     screenshots: [],
@@ -26,6 +49,66 @@ export function createSummary(input) {
     dataResetPerformed: false,
     liveNetworkUsed: false
   };
+}
+
+export function evaluateRuntimeBuildIdentity({ expectedCommit, observed }) {
+  const expected = {
+    commit: expectedCommit,
+    packageId: expectedPackageId,
+    configuration: expectedConfiguration
+  };
+  const retainedObserved = observed && typeof observed === 'object' ? { ...observed } : {};
+  const failed = (failureReason) => ({ expected, observed: retainedObserved, matched: false, failureReason });
+
+  if (typeof expectedCommit !== 'string' || !fullCommitPattern.test(expectedCommit)) {
+    return failed('Expected commit must be exactly 40 hexadecimal characters.');
+  }
+  if (typeof retainedObserved.commit !== 'string' || !fullCommitPattern.test(retainedObserved.commit)) {
+    return failed('Observed commit is missing or must be exactly 40 hexadecimal characters.');
+  }
+  if (retainedObserved.commit.toLowerCase() !== expectedCommit.toLowerCase()) {
+    return failed('Observed commit does not match the expected commit.');
+  }
+
+  const clean = retainedObserved.dirty === false ||
+    (typeof retainedObserved.dirty === 'string' && retainedObserved.dirty.trim().toLowerCase() === 'false');
+  if (!clean) {
+    return failed('Observed build identity is dirty or has an invalid dirty state.');
+  }
+  if (typeof retainedObserved.version !== 'string' || retainedObserved.version.trim().length === 0) {
+    return failed('Observed version is missing.');
+  }
+  if (typeof retainedObserved.buildNumber !== 'string' || retainedObserved.buildNumber.trim().length === 0) {
+    return failed('Observed build number is missing.');
+  }
+  if (retainedObserved.packageId !== expectedPackageId) {
+    return failed('Observed package ID does not match the required GUI-test package.');
+  }
+  if (retainedObserved.configuration !== expectedConfiguration) {
+    return failed('Observed configuration does not match Debug.');
+  }
+
+  return { expected, observed: retainedObserved, matched: true, failureReason: null };
+}
+
+export function resolveAndroidRunDirectory(candidate) {
+  if (typeof candidate !== 'string' || candidate.trim().length === 0) {
+    throw new Error('The Android GUI run directory is required.');
+  }
+
+  const canonicalRoot = realpathSync(authoritativeRunsRoot);
+  const canonicalCandidate = realpathSync(candidate);
+  const relativeCandidate = relative(canonicalRoot, canonicalCandidate);
+  if (
+    relativeCandidate.length === 0 ||
+    relativeCandidate === '..' ||
+    relativeCandidate.startsWith(`..${sep}`) ||
+    isAbsolute(relativeCandidate)
+  ) {
+    throw new Error('The Android GUI run directory must be a strict descendant of the repository runs root and may not resolve outside it.');
+  }
+
+  return canonicalCandidate;
 }
 
 export function recordScreenshot(summary, { name, bytes }) {

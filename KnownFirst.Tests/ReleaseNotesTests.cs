@@ -12,6 +12,7 @@ public sealed class ReleaseNotesTests
     private const string Beta10 = "1.0.0-beta.10";
     private const string Beta11 = "1.0.0-beta.11";
     private const string Beta12 = "1.0.0-beta.12";
+    private const string Beta13 = "1.0.0-beta.13";
 
     // --- Catalog contract -------------------------------------------------------------
 
@@ -84,26 +85,37 @@ public sealed class ReleaseNotesTests
         Assert.IsGreaterThan(0, entry.BulletResourceKeys.Count);
     }
 
-    // --- Active release identity (Beta 12) ---------------------------------------------
+    [TestMethod]
+    public void Catalog_Beta13HasReleaseNoteEntry()
+    {
+        var entry = ReleaseNotesService.DefaultCatalog.SingleOrDefault(
+            candidate => candidate.Version == Beta13);
+
+        Assert.IsNotNull(entry);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(entry.TitleResourceKey));
+        Assert.IsGreaterThan(0, entry.BulletResourceKeys.Count);
+    }
+
+    // --- Active release identity (Beta 13) ---------------------------------------------
 
     [TestMethod]
-    public void ActiveProductIdentity_IsBeta12Build12()
+    public void ActiveProductIdentity_IsBeta13Build13()
     {
         var root = FindRepositoryRoot();
         var project = File.ReadAllText(Path.Combine(root, "KnownFirst.csproj"));
 
-        Assert.Contains("<KnownFirstProductVersion>1.0.0-beta.12</KnownFirstProductVersion>", project);
-        Assert.Contains("<KnownFirstBuildNumber>12</KnownFirstBuildNumber>", project);
+        Assert.Contains("<KnownFirstProductVersion>1.0.0-beta.13</KnownFirstProductVersion>", project);
+        Assert.Contains("<KnownFirstBuildNumber>13</KnownFirstBuildNumber>", project);
     }
 
     [TestMethod]
-    public void WhatsNewBeta12Entry_IsActiveForTheCurrentProductVersion()
+    public void WhatsNewBeta13Entry_IsActiveForTheCurrentProductVersion()
     {
         var activeVersion = ReadActiveProductVersion();
         Assert.AreEqual(
-            Beta12,
+            Beta13,
             activeVersion,
-            "The Beta 12 catalog entry is only meaningful while Beta 12 is the active product version.");
+            "The Beta 13 catalog entry is only meaningful while Beta 13 is the active product version.");
 
         var entry = ReleaseNotesService.DefaultCatalog.SingleOrDefault(
             candidate => candidate.Version == activeVersion);
@@ -265,6 +277,41 @@ public sealed class ReleaseNotesTests
             "All release-note entries share the same generic title resource key.");
 
         foreach (var bulletKey in beta12.BulletResourceKeys)
+        {
+            Assert.Contains(bulletKey, english.Keys);
+            Assert.Contains(bulletKey, german.Keys);
+            Assert.Contains(bulletKey, russian.Keys);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[bulletKey]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[bulletKey]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[bulletKey]));
+        }
+    }
+
+    [TestMethod]
+    public void Resources_WhatsNewBeta13KeysAreCompleteAndParallelAcrossAllLocales()
+    {
+        var root = FindRepositoryRoot();
+        var english = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.resx"));
+        var german = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.de.resx"));
+        var russian = LoadResources(Path.Combine(root, "Resources", "Localization", "SharedResource.ru.resx"));
+
+        var beta12 = ReleaseNotesService.DefaultCatalog.Single(candidate => candidate.Version == Beta12);
+        var beta13 = ReleaseNotesService.DefaultCatalog.Single(candidate => candidate.Version == Beta13);
+
+        Assert.AreEqual(
+            Beta12,
+            beta12.Version,
+            "The Beta 12 entry's version identifier must remain unchanged.");
+        Assert.AreEqual(
+            Beta13,
+            beta13.Version,
+            "The Beta 13 entry's version identifier must be the new product version.");
+        Assert.AreEqual(
+            beta12.TitleResourceKey,
+            beta13.TitleResourceKey,
+            "All release-note entries share the same generic title resource key.");
+
+        foreach (var bulletKey in beta13.BulletResourceKeys)
         {
             Assert.Contains(bulletKey, english.Keys);
             Assert.Contains(bulletKey, german.Keys);
@@ -501,7 +548,7 @@ public sealed class ReleaseNotesTests
         Assert.IsNotNull(history, "GetReleaseNoteHistory() must return the release-note entries.");
 
         CollectionAssert.AreEqual(
-            new[] { Beta12, Beta11, Beta10 },
+            new[] { Beta13, Beta12, Beta11, Beta10 },
             history.Select(entry => entry.Version).ToArray(),
             "Release-note history must contain every catalog entry, newest first.");
     }
@@ -522,7 +569,7 @@ public sealed class ReleaseNotesTests
         Assert.IsNotNull(history, "GetReleaseNoteHistory() must return the release-note entries.");
 
         CollectionAssert.AreEqual(
-            new[] { Beta12, Beta11, Beta10 },
+            new[] { Beta13, Beta12, Beta11, Beta10 },
             history.Select(entry => entry.Version).ToArray(),
             "A seen active version must not remove any entry from the reopenable history.");
         Assert.AreEqual(

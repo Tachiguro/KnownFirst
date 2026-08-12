@@ -1506,4 +1506,16 @@
   <data name="WhatsNew_Beta12_Bullet3" xml:space="preserve">
     <value>Analyzing Russian source text for import is still not supported.</value>
   </data>
+  <data name="WhatsNew_Beta13_Bullet1" xml:space="preserve">
+    <value>Backups can now be restored into an installation that already has data, with a safe preview shown before anything changes.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet2" xml:space="preserve">
+    <value>Backup and restore reliability has been substantially strengthened to guard against conflicts while merging.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet3" xml:space="preserve">
+    <value>An in-progress learning session is now preserved and can resume after a backup export and import.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet4" xml:space="preserve">
+    <value>Past release notes can be reopened anytime from Settings, under Help and Support.</value>
+  </data>
 </root>

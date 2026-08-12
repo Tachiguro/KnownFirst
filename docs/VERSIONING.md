@@ -69,23 +69,24 @@ A commit is included for Debug and Diagnostic builds and for every prerelease ve
 
 ## In-app release notes
 
-An in-app release-notes user interface exists. It is a **one-time per-version What's New notice**, and it is narrower than the cumulative specification below. Implemented behavior and planned behavior are kept strictly separate.
+An in-app release-notes user interface exists. It includes a **one-time per-version What's New notice** and reopenable release-note history; both are narrower than the cumulative specification below. Implemented behavior and planned behavior are kept strictly separate.
 
-### Implemented today: one-time per-version What's New notice
+### Implemented today: current-version What's New notice and reopenable release-note history
 
-- **Catalog:** A release-note catalog maps a product version to a localized title key and localized bullet keys. Entries exist for `1.0.0-beta.10`, `1.0.0-beta.11`, and `1.0.0-beta.12`.
+- **Catalog:** A release-note catalog maps a product version to a localized title key and localized bullet keys. Entries exist for `1.0.0-beta.10`, `1.0.0-beta.11`, `1.0.0-beta.12`, and `1.0.0-beta.13`.
 - **Selection:** Only the catalog entry whose version equals the running application version is selected. No older unread entry is collected.
 - **Display trigger:** The selected entry is shown automatically once, and stays dismissed afterwards.
 - **Acknowledgement storage:** Platform `Preferences` (not SQLite) stores the exact **seen version string**. It does not store an integer sequence.
+- **Reopenable history:** Settings → Help and Support provides access to Release Notes. The history exposes the catalog newest-first; reopening it does not mutate the stored seen-version state.
 - **No matching entry:** A running version without a matching catalog entry shows no modal at all rather than an empty one.
 - **Clean install:** A fresh installation shows only the entry matching its own version.
 - **Localization:** Current release-note title and bullet content is localized in English, German, and Russian.
 - **Isolation:** Portable archive export and import never read or write the seen-version preference. A full application-data reset clears platform preferences, so the notice can appear again.
 - **Failure tolerance:** A failed preference read or write never throws; the notice is simply suppressed for that run.
 
-### Planned, not implemented: cumulative unread release-note history
+### Planned, not implemented: cumulative unread release-note sequencing
 
-These remain binding future requirements. None of them is implemented today, and none may be described as available.
+These remain binding future requirements. They extend the implemented reopenable history and must not be described as available.
 
 - **Ordered sequence:** Every distributed version has an ordered release-note sequence.
 - **Acknowledged sequence storage:** Platform `Preferences` stores the integer sequence of the highest acknowledged release.
@@ -93,7 +94,6 @@ These remain binding future requirements. None of them is implemented today, and
   - Newest release notes appear first, followed by older unread releases.
   - *Example:* User acknowledged Beta 8, skipped Beta 9, and installed Beta 10 -> the view presents Beta 10 notes first, then Beta 9 notes below.
 - **Read confirmation:** Acknowledging or closing the completed release-note view records all displayed entries as read in platform preferences.
-- **Reopen access:** Users can reopen release notes from Settings at any time. Reopening from Settings does not alter version identity or acknowledged version state. Settings currently exposes no such control; reopenable release-note history is a recorded public-release blocker in [ROADMAP.md](ROADMAP.md).
 - **Tester details:** Technical details may exist separately in a collapsed control for Debug/Diagnostic builds.
 
 ### User Content Guidelines

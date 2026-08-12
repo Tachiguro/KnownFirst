@@ -1506,4 +1506,16 @@
   <data name="WhatsNew_Beta12_Bullet3" xml:space="preserve">
     <value>Die Analyse russischer Quelltexte für den Import wird weiterhin nicht unterstützt.</value>
   </data>
+  <data name="WhatsNew_Beta13_Bullet1" xml:space="preserve">
+    <value>Backups lassen sich jetzt in eine bereits vorhandene Installation wiederherstellen, mit sicherer Vorschau vor jeder Änderung.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet2" xml:space="preserve">
+    <value>Sicherung und Wiederherstellung wurden deutlich zuverlässiger gemacht, um Konflikte beim Zusammenführen zu vermeiden.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet3" xml:space="preserve">
+    <value>Eine laufende Lernsitzung bleibt jetzt erhalten und lässt sich nach Backup-Export und -Import fortsetzen.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet4" xml:space="preserve">
+    <value>Frühere Versionshinweise lassen sich jederzeit in den Einstellungen unter Hilfe und Support erneut öffnen.</value>
+  </data>
 </root>

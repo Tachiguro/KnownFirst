@@ -179,7 +179,7 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 
 ## Exact next action
 
-- **Next lifecycle action:** reconcile PR #91 body/state with the pushed correction commit `9719f3089ea758a6a65b3c5378834c1367227116`, obtain renewed independent PR review, manually merge only if approved, then perform `POST_MERGE_SYNC_ONLY` after verified manual merge. P16-B and P16-C remain not started.
+- **Next lifecycle action:** obtain renewed independent PR review for PR #91; manual merge is user-only and contingent on renewed review approval, followed by `POST_MERGE_SYNC_ONLY` after a verified manual merge. P16-B and P16-C remain not started.
 
 ## Concise new-chat handoff
 
@@ -192,5 +192,5 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, and KF-BACKUP-005A a
 - **KF-BACKUP-005C:** populated-target Active convergence is binding `master` behavior through PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #85 — `LegacyReviewSummaries` canonical ordering:** merged master behavior at `8eeaea58d87f9cfeb28cc4fc2520e5b277bb2526` (feature head `baf5fcda0a017c1492a08dac730d683c1554784d`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **PR #87 / PR #88:** PR #87 remains merged product behavior; PR #88 completed its documentation closure at `133d34366204979d2905c665370531547a7a0b98` from feature head `4fc8b15f0861ab264ef7518ef66e810b0cf3c15c`, followed by `POST_MERGE_SYNC_ONLY`.
-- **PR #89 / PR #90:** Priority 15 is Committed. PR #90 merged the Priority-15 post-merge documentation closure at `9a3480678168414e4b8060d0673ec41c8f74767a` and local `POST_MERGE_SYNC_ONLY` completed. Priority 16 is Current through active non-binding P16-A; PR #91 is open, its first independent review required correction, and correction commit `9719f3089ea758a6a65b3c5378834c1367227116` has been committed and pushed to PR #91. PR body reconciliation, renewed review, manual merge, and rendered Android runtime validation remain pending.
+- **PR #89 / PR #90:** Priority 15 is Committed. PR #90 merged the Priority-15 post-merge documentation closure at `9a3480678168414e4b8060d0673ec41c8f74767a` and local `POST_MERGE_SYNC_ONLY` completed. Priority 16 is Current through active non-binding P16-A; PR #91 is open, its first independent review required correction, correction commit `9719f3089ea758a6a65b3c5378834c1367227116` was pushed, and PR #91 body reconciliation has completed successfully. Renewed independent PR review, manual merge if approved, and future rendered Android runtime validation remain pending.
 - No Beta 13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B.

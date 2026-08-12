@@ -106,7 +106,6 @@
         <ApplicationId>com.tachiguro.knownfirst.guitest</ApplicationId>
         <DefineConstants>$(DefineConstants);KNOWNFIRST_ANDROID_GUI_TEST</DefineConstants>
         <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\build\android-gui-test\</BaseOutputPath>
-        <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\android-gui-test\</BaseIntermediateOutputPath>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' != 'Debug'">

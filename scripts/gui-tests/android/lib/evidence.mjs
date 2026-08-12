@@ -128,6 +128,25 @@ export function recordScreenshot(summary, { name, bytes }) {
   };
 }
 
+export async function captureScreenshotEvidence({ name, capture, write }) {
+  if (!name || typeof capture !== 'function' || typeof write !== 'function') {
+    throw new Error('Screenshot name, capture, and writer are required.');
+  }
+
+  const base64Png = await capture();
+  if (typeof base64Png !== 'string' || base64Png.length === 0) {
+    throw new Error('Screenshot capture must return a non-empty base64 PNG string.');
+  }
+
+  const bytes = Buffer.from(base64Png, 'base64');
+  if (bytes.length === 0) {
+    throw new Error('Screenshot capture decoded to an empty PNG.');
+  }
+
+  await write(name, bytes);
+  return { name, bytes };
+}
+
 export async function finalizeOwnedResources({ scenarioSucceeded, safetyAfter, session, ownedServer }) {
   let sessionClosed = false;
   let serverTerminated = false;

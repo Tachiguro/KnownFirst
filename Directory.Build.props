@@ -1,0 +1,5 @@
+<Project>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'KnownFirst' and '$(KnownFirstAndroidGuiTest)' == 'true' and '$(Configuration)' == 'Debug'">
+        <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\android-gui-test\</BaseIntermediateOutputPath>
+    </PropertyGroup>
+</Project>

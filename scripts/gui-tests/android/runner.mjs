@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { remote } from 'webdriverio';
 import {
-  createSummary, evaluateRuntimeBuildIdentity, finalizeOwnedResources, recordScreenshot,
+  captureScreenshotEvidence, createSummary, evaluateRuntimeBuildIdentity, finalizeOwnedResources, recordScreenshot,
   resolveAndroidRunDirectory
 } from './lib/evidence.mjs';
 import { runSettingsReleaseNotesNavigation, scenarioId } from './scenarios/settings-release-notes-navigation.mjs';
@@ -87,9 +87,13 @@ async function main() {
       assertions.push({ name, passed: Boolean(passed) });
       if (!passed) throw new Error(`Assertion failed: ${name}`);
     };
-    const saveScreenshot = async (name) => browser.saveScreenshot(join(runDirectory, 'screenshots', name));
+    const captureScreenshot = async (name) => captureScreenshotEvidence({
+      name,
+      capture: () => browser.takeScreenshot(),
+      write: (artifactName, bytes) => writeFile(join(runDirectory, 'screenshots', artifactName), bytes)
+    });
 
-    scenarioState = await runSettingsReleaseNotesNavigation({ browser, recordAssertion, saveScreenshot });
+    scenarioState = await runSettingsReleaseNotesNavigation({ browser, recordAssertion, captureScreenshot });
     summary = createSummary({
       scenarioId,
       matrixMapping: null,
@@ -116,7 +120,7 @@ async function main() {
       assertionCounts: { passed: assertions.length, failed: 0 },
       remainingUnproven: ['Clean matching assembly Git metadata does not establish APK-byte reproducibility.']
     });
-    summary = recordScreenshot(summary, { name: 'release-notes.png', bytes: await browser.takeScreenshot() });
+    summary = recordScreenshot(summary, scenarioState.screenshotEvidence);
   } catch (error) {
     summary = createSummary({
       scenarioId,

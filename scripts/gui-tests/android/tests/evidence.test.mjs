@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync
@@ -9,6 +10,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const harnessRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const evidenceModulePath = join(harnessRoot, 'lib', 'evidence.mjs');
+const runnerPath = join(harnessRoot, 'runner.mjs');
+const scenarioPath = join(harnessRoot, 'scenarios', 'settings-release-notes-navigation.mjs');
 const scenariosPath = join(harnessRoot, 'scenarios.json');
 const repositoryRoot = dirname(dirname(dirname(harnessRoot)));
 const runsRoot = join(repositoryRoot, 'artifacts', 'gui-tests', 'android', 'runs');
@@ -96,6 +99,58 @@ test('P16-A evidence rejects incomplete metadata and safety failures override sc
   assert.equal(result.succeeded, false);
   assert.equal(result.sessionClosed, true);
   assert.equal(result.serverTerminated, true);
+});
+
+test('P16-A screenshot persistence and summary hashing use one decoded capture', async () => {
+  const evidence = await import(pathToFileURL(evidenceModulePath));
+  assert.equal(typeof evidence.captureScreenshotEvidence, 'function');
+
+  const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01]);
+  let captureCount = 0;
+  const writes = [];
+  const screenshot = await evidence.captureScreenshotEvidence({
+    name: 'release-notes.png',
+    capture: async () => {
+      captureCount += 1;
+      return pngBytes.toString('base64');
+    },
+    write: async (name, bytes) => writes.push({ name, bytes })
+  });
+
+  assert.equal(captureCount, 1);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].name, 'release-notes.png');
+  assert.deepEqual(writes[0].bytes, pngBytes);
+  assert.deepEqual(screenshot.bytes, writes[0].bytes);
+
+  const summary = evidence.createSummary(summaryInput(evidence.evaluateRuntimeBuildIdentity({
+    expectedCommit: fullCommit,
+    observed: {
+      commit: fullCommit,
+      dirty: false,
+      version: '1.0.0-beta.12',
+      buildNumber: '12',
+      configuration: 'Debug',
+      packageId: 'com.tachiguro.knownfirst.guitest'
+    }
+  })));
+  const recorded = evidence.recordScreenshot(summary, screenshot);
+  assert.equal(recorded.screenshots[0].sha256, createHash('sha256').update(pngBytes).digest('hex'));
+  assert.notEqual(recorded.screenshots[0].sha256,
+    createHash('sha256').update(pngBytes.toString('base64')).digest('hex'));
+});
+
+test('P16-A Release Notes screenshot is captured before Home navigation with no post-scenario recapture', () => {
+  const scenario = readFileSync(scenarioPath, 'utf8');
+  const runner = readFileSync(runnerPath, 'utf8');
+  const captureIndex = scenario.indexOf("captureScreenshot('release-notes.png')");
+  const homeIndex = scenario.indexOf("browser.$('#nav-home')");
+
+  assert.ok(captureIndex >= 0, 'The scenario must capture Release Notes evidence in native context.');
+  assert.ok(homeIndex > captureIndex, 'Release Notes evidence must be captured before Home navigation.');
+  assert.equal((scenario.match(/captureScreenshot\('release-notes\.png'\)/g) ?? []).length, 1);
+  assert.match(runner, /recordScreenshot\(summary, scenarioState\.screenshotEvidence\)/);
+  assert.doesNotMatch(runner, /recordScreenshot\([^\n]*browser\.takeScreenshot/);
 });
 
 test('P16-A scenario registry is exactly the approved pre-matrix scenario', () => {

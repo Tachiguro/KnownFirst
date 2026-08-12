@@ -34,12 +34,37 @@ public sealed class AndroidGuiAutomationContractTests
         Assert.Contains("KnownFirst GUI Test", project);
         Assert.Contains("KNOWNFIRST_ANDROID_GUI_TEST", project);
         Assert.Contains("BaseOutputPath", project);
-        Assert.Contains("BaseIntermediateOutputPath", project);
+        Assert.DoesNotContain("BaseIntermediateOutputPath", project);
 
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst</ApplicationId>", project);
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.debug</ApplicationId>", project);
         Assert.Contains("<ApplicationId>com.tachiguro.knownfirst.diagnostic</ApplicationId>", project);
         Assert.Contains("KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED", project);
+    }
+
+    [TestMethod]
+    public void AndroidGuiTestIntermediateOutput_IsConfiguredEarlyForOnlyTheOptInMainProject()
+    {
+        const string expectedCondition = "'$(MSBuildProjectName)' == 'KnownFirst' and '$(KnownFirstAndroidGuiTest)' == 'true' and '$(Configuration)' == 'Debug'";
+        const string expectedPath = "$(MSBuildThisFileDirectory)artifacts\\obj\\android-gui-test\\";
+        var root = FindRepositoryRoot();
+        var propsPath = Path.Combine(root, "Directory.Build.props");
+
+        Assert.IsTrue(File.Exists(propsPath),
+            "The GUI-test intermediate root must be configured through repository-root Directory.Build.props.");
+
+        var props = XDocument.Load(propsPath);
+        var intermediatePathGroups = props.Root!
+            .Elements("PropertyGroup")
+            .Where(group => group.Element("BaseIntermediateOutputPath") is not null)
+            .ToArray();
+
+        Assert.AreEqual(1, intermediatePathGroups.Length,
+            "There must be exactly one early source for the GUI-test BaseIntermediateOutputPath.");
+        Assert.AreEqual(expectedCondition, (string?)intermediatePathGroups[0].Attribute("Condition"));
+        Assert.AreEqual(expectedPath, (string?)intermediatePathGroups[0].Element("BaseIntermediateOutputPath"));
+        Assert.DoesNotContain("TargetFramework", (string?)intermediatePathGroups[0].Attribute("Condition") ?? string.Empty);
+        Assert.DoesNotContain("BaseIntermediateOutputPath", ReadRepositoryFile("KnownFirst.csproj"));
     }
 
     [TestMethod]

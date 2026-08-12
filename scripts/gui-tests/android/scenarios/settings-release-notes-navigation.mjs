@@ -1,6 +1,6 @@
 export const scenarioId = 'P16A-SettingsReleaseNotesNavigation';
 
-export async function runSettingsReleaseNotesNavigation({ browser, recordAssertion, saveScreenshot }) {
+export async function runSettingsReleaseNotesNavigation({ browser, recordAssertion, captureScreenshot }) {
   const contexts = await browser.getContexts();
   const webview = contexts.find((context) => context.startsWith('WEBVIEW_com.tachiguro.knownfirst.guitest'));
   if (!webview) {
@@ -34,7 +34,7 @@ export async function runSettingsReleaseNotesNavigation({ browser, recordAsserti
   await recordAssertion('Current Beta 12 release note is visible', (await browser.$('#release-note-1.0.0-beta.12')).isDisplayed());
 
   await browser.switchContext('NATIVE_APP');
-  await saveScreenshot('release-notes.png');
+  const screenshotEvidence = await captureScreenshot('release-notes.png');
   await browser.switchContext(webview);
   await (await browser.$('#nav-home')).click();
   await (await browser.$('#gui-test-profile-indicator')).waitForDisplayed();
@@ -43,5 +43,5 @@ export async function runSettingsReleaseNotesNavigation({ browser, recordAsserti
   await recordAssertion('Offline provider remains unused after navigation',
     providerInvocations === await (await browser.$('#gui-test-profile-indicator')).getAttribute('data-gui-test-provider-invocations'));
 
-  return { profileId, providerInvocations };
+  return { profileId, providerInvocations, screenshotEvidence };
 }

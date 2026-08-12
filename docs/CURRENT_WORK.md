@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-13 (PR #91 verified merged to `master`; P16-A is now merged, binding source-foundation capability, not an active unmerged candidate; a local Beta-13 release-candidate implementation is in progress, uncommitted, on `release/1.0.0-beta.13-candidate-v1`; Priority 15 remains complete on `master`)
+2026-08-13 (PR #91 verified merged to `master`; P16-A is now merged, binding source-foundation capability; Beta 13 is an open, unmerged release candidate in PR #92, and this DOCUMENT_ONLY package corrects its lifecycle documentation; Priority 15 remains complete on `master`)
 
 ## Repository
 
@@ -14,7 +14,7 @@
 ## Verified product-state milestone
 
 - Current verified `master` baseline: `810a7bcd0979c2f482135c07b56f834204b53118` (PR #91 merge commit). This is historical milestone evidence, not a claim about the literal current `master` HEAD; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
-- Source-controlled application identity on `master`: `1.0.0-beta.12` (build 12). A `1.0.0-beta.13` (build 13) release-candidate implementation exists locally, uncommitted, on `release/1.0.0-beta.13-candidate-v1`; it is not yet binding `master` identity — see "Active Beta-13 release candidate" below.
+- Source-controlled application identity on `master`: `1.0.0-beta.12` (build 12). The committed and pushed `1.0.0-beta.13` (build 13) candidate is proposed by open, unmerged PR #92 from `release/1.0.0-beta.13-candidate-v1`; it is not yet binding `master` identity — see "Active Beta-13 release candidate" below.
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android external distribution, AAB/APK package, Internal Testing release, installation, or user test has occurred since. Android compile builds have occurred as validation only.
 - Active database schema on master: SQLite `PRAGMA user_version` 10
 - Supported platforms: Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
@@ -164,9 +164,10 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, KF-BACKUP-005A/005B/
 
 ## Active Beta-13 release candidate
 
-- A `1.0.0-beta.13` / build `13` release-candidate implementation is in progress on branch `release/1.0.0-beta.13-candidate-v1`, based on verified `master` `810a7bcd0979c2f482135c07b56f834204b53118`. It is **local and uncommitted**; it is not `master` identity and has not been pushed, reviewed, or merged.
+- The `1.0.0-beta.13` / build `13` release candidate is committed and pushed on `release/1.0.0-beta.13-candidate-v1`, based on `master` `810a7bcd0979c2f482135c07b56f834204b53118`. Its original reviewed candidate and PR-opening commit is `576865f9ed17f94c5f68aaa466f9bbf0244edb84`; PR #92 is open and unmerged. The candidate is not yet binding `master` identity.
 - Implementation evidence: focused genuine RED **7 failed / 36 passed / 0 skipped / 43 total** → identical focused GREEN **43 passed / 0 failed / 0 skipped / 43 total**; bounded affected/regression `TEST_ONLY` **138 passed / 0 failed / 0 skipped / 138 total**, with pre/post SHA-256 hashes of all eight implementation files unchanged and `git diff --check` passed.
-- Candidate evidence record: [docs/releases/1.0.0-beta.13.md](releases/1.0.0-beta.13.md). No commit, PR, PR review, manual merge, `ALL_AUTOMATED`, `FULL_VALIDATION`, Windows/Android build, APK/AAB, signing, device validation, or Google Play activity exists yet for this candidate. The mandatory Pre-AAB Release-Readiness Gate ([docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) §7) remains entirely pending and must run against the exact final candidate commit once one exists.
+- Local independent pre-commit review passed **0 BLOCKER / 0 MAJOR / 0 MINOR / 1 NIT**. The first independent remote review of PR #92 found **0 BLOCKER / 1 MAJOR / 1 MINOR / 0 NIT**, limited to stale lifecycle documentation and no product-code defect; this DOCUMENT_ONLY package corrects those findings. Candidate evidence is recorded in [docs/releases/1.0.0-beta.13.md](releases/1.0.0-beta.13.md).
+- Beta 13 has not been merged, finally built, fully validated, packaged, signed/package-verified, runtime/device validated, uploaded, distributed, or declared release-ready. `ALL_AUTOMATED`, final `UI_CONTRACT_AUTOMATED` evidence, `FULL_VALIDATION`, and the mandatory exact-master Pre-AAB Release-Readiness Gate ([docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) §7) remain pending.
 - The last confirmed external distribution remains `1.0.0-beta.12` / build 12 (2026-07-30); that evidence predates current Schema-10 populated-target merge and Active-workflow portability and does not validate them.
 
 ## Current blocker or pending validation
@@ -178,7 +179,7 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, KF-BACKUP-005A/005B/
 
 ## Exact next action
 
-- **Next lifecycle action:** complete `DOCUMENT_ONLY` reconciliation for the Beta-13 release candidate (this package), then proceed through the standard `COMMIT_ONLY` → `PUSH_ONLY` → `PR_ONLY` → independent `REVIEW_ONLY` → user-only manual merge → `POST_MERGE_SYNC_ONLY` lifecycle before any Pre-AAB gate work begins. P16-B and P16-C remain not started.
+- **Next lifecycle action:** independently `REVIEW_ONLY` the five-file lifecycle correction, then run `COMMIT_ONLY` and `PUSH_ONLY` to update existing PR #92, followed by renewed independent remote `REVIEW_ONLY`. If approved, the user alone may manually merge; then run `POST_MERGE_SYNC_ONLY`, and only after that the exact-master Pre-AAB Release-Readiness Gate. There is no new `PR_ONLY` step because PR #92 already exists. P16-B and P16-C remain not started.
 
 ## Concise new-chat handoff
 
@@ -193,5 +194,5 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, KF-BACKUP-005A/005B/
 - **PR #87 / PR #88:** PR #87 remains merged product behavior; PR #88 completed its documentation closure at `133d34366204979d2905c665370531547a7a0b98` from feature head `4fc8b15f0861ab264ef7518ef66e810b0cf3c15c`, followed by `POST_MERGE_SYNC_ONLY`.
 - **PR #89 / PR #90:** Priority 15 is Committed. PR #90 merged the Priority-15 post-merge documentation closure at `9a3480678168414e4b8060d0673ec41c8f74767a` and local `POST_MERGE_SYNC_ONLY` completed.
 - **PR #91:** P16-A is merged and binding `master` behavior at `810a7bcd0979c2f482135c07b56f834204b53118`; final independent remote review **0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT**; `POST_MERGE_SYNC_ONLY` completed successfully. It is merged source infrastructure only — no Android runtime/device/platform/package, rendered screenshot, matrix-row, or CI evidence exists. P16-B and P16-C remain not started.
-- **Beta-13 release candidate:** a local, uncommitted `1.0.0-beta.13` / build `13` implementation exists on `release/1.0.0-beta.13-candidate-v1` (base `810a7bcd0979c2f482135c07b56f834204b53118`); focused RED→GREEN and bounded `TEST_ONLY` (138/0/0) evidence is recorded in [docs/releases/1.0.0-beta.13.md](releases/1.0.0-beta.13.md). No commit, PR, merge, build, package, or distribution exists for it yet.
+- **Beta-13 release candidate:** committed and pushed on `release/1.0.0-beta.13-candidate-v1` from base `810a7bcd0979c2f482135c07b56f834204b53118`; original reviewed candidate/PR-opening commit `576865f9ed17f94c5f68aaa466f9bbf0244edb84`; PR #92 is open and unmerged. The local pre-commit review passed **0/0/0/1**; the first remote review found lifecycle-documentation-only **0/1/1/0**, which this DOCUMENT_ONLY package corrects. Focused RED→GREEN and bounded `TEST_ONLY` (138/0/0) evidence is recorded in [docs/releases/1.0.0-beta.13.md](releases/1.0.0-beta.13.md); merge, build, package, and distribution remain pending.
 - No Beta-13 external distribution, APK/AAB packaging, signing, publishing, or device/emulator activity has occurred. Windows and Android compile validation occurred for KF-BACKUP-005A only, not for 005B or the current candidate.

@@ -6,9 +6,9 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
-## [1.0.0-beta.13] - 2026-08-13 (local release candidate — not yet distributed)
+## [1.0.0-beta.13] - 2026-08-13 (merged source — next Internal Testing candidate, not yet gated or distributed)
 
-**This is a local release-candidate entry recorded on branch `release/1.0.0-beta.13-candidate-v1`. `1.0.0-beta.13` / build `13` has not been packaged as an AAB, signed, installed on a device, uploaded to Google Play, or distributed to testers. The last confirmed external distribution remains `1.0.0-beta.12` / build `12` (2026-07-30); see [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) and the new [docs/releases/1.0.0-beta.13.md](docs/releases/1.0.0-beta.13.md) candidate evidence record.**
+**`1.0.0-beta.13` / build `13` is merged source on `master` via PR #92 (final PR head `774b2245f64a986fe004f4ebd3288747642bdb0f`, merge commit `a5a9e734af0db0639a38471433748e334ca34d65`); local `POST_MERGE_SYNC_ONLY` completed exactly once. Merging is not a build, package, signing, device-validation, or distribution event: `1.0.0-beta.13` has not passed the mandatory exact-candidate Pre-AAB Release-Readiness Gate, and has not been packaged as an AAB, signed, installed on a device, uploaded to Google Play, or distributed to testers. The last confirmed externally distributed and device-tested release remains `1.0.0-beta.12` / build `12` (2026-07-30); see [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) and [docs/releases/1.0.0-beta.13.md](docs/releases/1.0.0-beta.13.md) for the Beta-13 evidence record.**
 
 ### Added
 

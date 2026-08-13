@@ -11,6 +11,7 @@
 @inject ITextReviewService TextReviewService
 @inject KnownFirst.Services.Lexical.ILexicalDiagnosticLog LexicalDiagnosticLog
 @inject KnownFirst.Services.Diagnostics.IBuildIdentityService BuildIdentityService
+@inject KnownFirst.Services.Diagnostics.IBugReportLauncherService BugReportLauncher
 @inject IBackupService BackupService
 @inject IPortableArchiveFileService PortableArchiveFiles
 @inject KnownFirst.Services.Study.IWorkflowChangeNotifier WorkflowChangeNotifier
@@ -347,7 +348,44 @@
         <h2 id="help-and-support-title">@Localizer["Settings_HelpAndSupport"]</h2>
         <div class="support-actions">
             <a id="settings-release-notes-link" class="button button-secondary" href="release-notes">@Localizer["WhatsNew_Title"]</a>
+            <button type="button"
+                    id="settings-report-bug-button"
+                    class="button button-secondary"
+                    disabled="@_isLaunchingBugReport"
+                    @onclick="ReportBugAsync">
+                @Localizer["Settings_ReportBug"]
+            </button>
         </div>
+        @if (_bugReportFailed)
+        {
+            <div id="bug-report-fallback-panel" class="setting-feedback setting-feedback-error" role="alert">
+                <p id="bug-report-feedback-error">@Localizer["Settings_ReportBugError"]</p>
+                <p id="bug-report-address" class="setting-help" style="margin-top: 0.5rem; margin-bottom: 0.5rem; user-select: all;">
+                    @BugReportLauncher.RecipientEmail
+                </p>
+                <div class="button-row">
+                    <button type="button"
+                            id="settings-copy-bug-report-address-button"
+                            class="button button-secondary"
+                            disabled="@_isCopyingBugReportAddress"
+                            @onclick="CopyBugReportAddressAsync">
+                        @Localizer["Settings_CopyBugReportAddress"]
+                    </button>
+                </div>
+                @if (_bugReportAddressCopied)
+                {
+                    <p id="bug-report-copy-success" class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                        @Localizer["Settings_BugReportAddressCopied"]
+                    </p>
+                }
+                else if (_bugReportAddressCopyFailed)
+                {
+                    <p id="bug-report-copy-error" class="setting-feedback setting-feedback-error" role="alert">
+                        @Localizer["Settings_BugReportAddressCopyError"]
+                    </p>
+                }
+            </div>
+        }
 
         <p style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.7;">
             @BuildIdentityService.GetFormattedBuildIdentity()
@@ -447,6 +485,11 @@
     private string? _diagnosticMessageKey;
     private bool _revealResetConfirmation;
     private bool _returnFocusToResetButton;
+    private bool _isLaunchingBugReport;
+    private bool _bugReportFailed;
+    private bool _isCopyingBugReportAddress;
+    private bool _bugReportAddressCopied;
+    private bool _bugReportAddressCopyFailed;
     private ElementReference _resetButton;
     private ElementReference _resetConfirmation;
     private ElementReference _cancelResetButton;
@@ -886,6 +929,63 @@
         finally
         {
             _isChangingDiagnostics = false;
+        }
+    }
+
+    private async Task ReportBugAsync()
+    {
+        if (_isLaunchingBugReport)
+        {
+            return;
+        }
+
+        _isLaunchingBugReport = true;
+        _bugReportFailed = false;
+        _bugReportAddressCopied = false;
+        _bugReportAddressCopyFailed = false;
+        try
+        {
+            var launched = await BugReportLauncher.LaunchBugReportAsync();
+            if (!launched)
+            {
+                _bugReportFailed = true;
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The bug report action failed.");
+            _bugReportFailed = true;
+        }
+        finally
+        {
+            _isLaunchingBugReport = false;
+        }
+    }
+
+    private async Task CopyBugReportAddressAsync()
+    {
+        if (_isCopyingBugReportAddress)
+        {
+            return;
+        }
+
+        _isCopyingBugReportAddress = true;
+        _bugReportAddressCopied = false;
+        _bugReportAddressCopyFailed = false;
+        try
+        {
+            await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(
+                BugReportLauncher.RecipientEmail);
+            _bugReportAddressCopied = true;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The bug report address could not be copied to the clipboard.");
+            _bugReportAddressCopyFailed = true;
+        }
+        finally
+        {
+            _isCopyingBugReportAddress = false;
         }
     }
 

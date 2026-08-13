@@ -195,6 +195,33 @@
   <data name="Settings_ReportBug" xml:space="preserve">
     <value>Report a bug</value>
   </data>
+  <data name="Settings_ReportBugError" xml:space="preserve">
+    <value>The email application could not be opened.</value>
+  </data>
+  <data name="Settings_CopyBugReportAddress" xml:space="preserve">
+    <value>Copy email address</value>
+  </data>
+  <data name="Settings_BugReportAddressCopied" xml:space="preserve">
+    <value>Email address copied to clipboard.</value>
+  </data>
+  <data name="Settings_BugReportAddressCopyError" xml:space="preserve">
+    <value>The email address could not be copied.</value>
+  </data>
+  <data name="BugReport_Subject" xml:space="preserve">
+    <value>KnownFirst Bug Report ({0})</value>
+  </data>
+  <data name="BugReport_PromptWhatHappened" xml:space="preserve">
+    <value>1. What happened?</value>
+  </data>
+  <data name="BugReport_PromptWhatExpected" xml:space="preserve">
+    <value>2. What did you expect to happen?</value>
+  </data>
+  <data name="BugReport_PromptReproductionSteps" xml:space="preserve">
+    <value>3. Steps to reproduce:</value>
+  </data>
+  <data name="BugReport_PromptOptionalScreenshots" xml:space="preserve">
+    <value>4. Screenshots or attachments (optional):</value>
+  </data>
   <data name="Common_FeatureComingSoon" xml:space="preserve">
     <value>This feature will be available in a future version.</value>
   </data>

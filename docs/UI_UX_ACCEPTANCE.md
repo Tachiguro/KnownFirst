@@ -163,10 +163,11 @@ Each applicable surface must handle these states without broken layout, missing 
 - The complete page is scrollable.
 - Reset confirmation and all its actions remain reachable and fully visible.
 - Destructive settings are clear without consuming disproportionate space.
-- Unfinished support actions are absent from production Settings rendering; no placeholder or "coming soon" control appears.
+- Unfinished support actions (such as Support KnownFirst) are absent from production Settings rendering; no placeholder or "coming soon" control appears.
 - Diagnostic actions remain logically grouped, visually marked as diagnostic, and gated so they are absent in Release.
 - The remaining Settings content, including the build identity, stays structurally clear, correctly labelled, and accessible.
-- Help & Support offers exactly one release-note-history entry point, which opens the dedicated `/release-notes` route. It is a normal production control — implemented in Debug, BetaDiagnostic, and Release, never placeholder or debug-only.
+- Help & Support offers the release-note-history entry point (opening `/release-notes`) and the functional "Report a bug" action. Both are normal production controls — implemented in Debug, BetaDiagnostic, and Release, never placeholder or debug-only.
+- Activating "Report a bug" opens the system email composer with recipient `Tachiguro+KnownFirst_BugReport@gmail.com`, localized subject, structured template prompts, and safe technical metadata only. It never sends automatically. If the email client cannot be opened, a localized copy-address fallback is displayed.
 
 ### 9.6 Release-note history
 
@@ -174,7 +175,7 @@ Each applicable surface must handle these states without broken layout, missing 
 - Reopening the history never alters the automatic one-time What's New notice or its seen state; dismissing that notice never removes an entry from the history.
 - Each release note is a labelled section with a heading carrying its version and a list of its bullets, so headings and lists remain semantically correct and navigable.
 - The page remains readable and scrollable at every required viewport, with the standard page header and back navigation.
-- No Support KnownFirst or Report a bug control appears on this page or in Help & Support.
+- No Support KnownFirst or placeholder control appears on this page or in Help & Support.
 - Current automated coverage for this surface is source/markup contract evidence only. Visual acceptance and runtime navigation are verified manually per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md) and are not claimed by automated results.
 
 ## 10. Forms and feedback

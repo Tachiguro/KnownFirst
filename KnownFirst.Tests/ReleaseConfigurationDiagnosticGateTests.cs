@@ -56,27 +56,157 @@ public sealed class ReleaseConfigurationDiagnosticGateTests
             XDocument.Load(Path.Combine(root, "Directory.Build.props")), "Directory.Build.props");
     }
 
+    [TestMethod]
+    public void AssertNoTargetFrameworkConditionedDefinition_RejectsElementLevelCondition()
+    {
+        var doc = XDocument.Parse("""
+            <Project>
+                <PropertyGroup>
+                    <DefineConstants Condition="'$(TargetFramework)' == 'net10.0-android'">KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+                </PropertyGroup>
+            </Project>
+            """);
+
+        var ex = Assert.ThrowsExactly<AssertFailedException>(() =>
+            AssertNoTargetFrameworkConditionedDefinition(doc, "synthetic.csproj"));
+        Assert.IsTrue(ex.Message.Contains("synthetic.csproj"), "Exception message must report the input file name.");
+    }
+
+    [TestMethod]
+    public void AssertNoTargetFrameworkConditionedDefinition_InspectsAllDefineConstantsElements()
+    {
+        var doc = XDocument.Parse("""
+            <Project>
+                <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+                    <DefineConstants>TRACE</DefineConstants>
+                    <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+                </PropertyGroup>
+            </Project>
+            """);
+
+        var ex = Assert.ThrowsExactly<AssertFailedException>(() =>
+            AssertNoTargetFrameworkConditionedDefinition(doc, "synthetic.csproj"));
+        Assert.IsTrue(ex.Message.Contains("synthetic.csproj"), "Exception message must report the input file name.");
+    }
+
+    [TestMethod]
+    public void AssertNoTargetFrameworkConditionedDefinition_RejectsWhenAncestorCondition()
+    {
+        var doc = XDocument.Parse("""
+            <Project>
+                <Choose>
+                    <When Condition="'$(TargetFramework)' == 'net10.0-android'">
+                        <PropertyGroup>
+                            <DefineConstants>KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+                        </PropertyGroup>
+                    </When>
+                </Choose>
+            </Project>
+            """);
+
+        var ex = Assert.ThrowsExactly<AssertFailedException>(() =>
+            AssertNoTargetFrameworkConditionedDefinition(doc, "synthetic.csproj"));
+        Assert.IsTrue(ex.Message.Contains("synthetic.csproj"), "Exception message must report the input file name.");
+    }
+
+    [TestMethod]
+    public void AssertNoTargetFrameworkConditionedDefinition_RejectsUnconditionalTargetDefinition()
+    {
+        var doc = XDocument.Parse("""
+            <Project>
+                <Target Name="AddDiagnostics" BeforeTargets="CoreCompile">
+                    <PropertyGroup>
+                        <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+                    </PropertyGroup>
+                </Target>
+            </Project>
+            """);
+
+        var ex = Assert.ThrowsExactly<AssertFailedException>(() =>
+            AssertNoTargetFrameworkConditionedDefinition(doc, "synthetic.csproj"));
+        Assert.IsTrue(ex.Message.Contains("synthetic.csproj"), "Exception message must report the input file name.");
+    }
+
+    [TestMethod]
+    public void AssertNoTargetFrameworkConditionedDefinition_RejectsReleaseConditionedTargetDefinition()
+    {
+        var doc = XDocument.Parse("""
+            <Project>
+                <Target Name="AddDiagnostics" BeforeTargets="CoreCompile" Condition="'$(Configuration)' == 'Release'">
+                    <PropertyGroup>
+                        <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+                    </PropertyGroup>
+                </Target>
+            </Project>
+            """);
+
+        var ex = Assert.ThrowsExactly<AssertFailedException>(() =>
+            AssertNoTargetFrameworkConditionedDefinition(doc, "synthetic.csproj"));
+        Assert.IsTrue(ex.Message.Contains("synthetic.csproj"), "Exception message must report the input file name.");
+    }
+
+    /// <summary>
+    /// Characterization: the repository's real diagnostic-symbol definition is an evaluation-time
+    /// Configuration-conditioned PropertyGroup, which the Configuration-level evaluation tests above
+    /// do cover. The structural backstop must keep allowing that shape.
+    /// </summary>
+    [TestMethod]
+    public void AssertNoTargetFrameworkConditionedDefinition_AllowsEvaluationTimeBetaDiagnosticDefinition()
+    {
+        var doc = XDocument.Parse("""
+            <Project>
+                <PropertyGroup Condition="'$(Configuration)' == 'BetaDiagnostic'">
+                    <DefineConstants>$(DefineConstants);KNOWNFIRST_DIAGNOSTICS</DefineConstants>
+                </PropertyGroup>
+            </Project>
+            """);
+
+        AssertNoTargetFrameworkConditionedDefinition(doc, "synthetic.csproj");
+    }
+
     private static void AssertNoTargetFrameworkConditionedDefinition(XDocument document, string fileName)
     {
-        var offendingGroups = document.Root!
-            .Descendants("PropertyGroup")
-            .Where(group => group.Element("DefineConstants") is { } defineConstants &&
-                (defineConstants.Value.Contains(DebugSymbol, StringComparison.Ordinal) ||
-                 defineConstants.Value.Contains(DiagnosticsSymbol, StringComparison.Ordinal)))
-            .Where(group =>
+        var offendingElements = document.Root!
+            .Descendants("DefineConstants")
+            .Where(element =>
             {
-                var condition = (string?)group.Attribute("Condition") ?? string.Empty;
-                return condition.Contains("TargetFramework", StringComparison.Ordinal) ||
-                       condition.Contains("GetTargetPlatformIdentifier", StringComparison.Ordinal) ||
-                       condition.Contains("android", StringComparison.OrdinalIgnoreCase) ||
-                       condition.Contains("windows", StringComparison.OrdinalIgnoreCase);
+                var tokens = element.Value
+                    .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                return tokens.Contains(DebugSymbol, StringComparer.Ordinal) ||
+                       tokens.Contains(DiagnosticsSymbol, StringComparer.Ordinal);
+            })
+            .Where(element =>
+            {
+                // A PropertyGroup nested in a Target is an execution-time property mutation: it lands
+                // in the property bag while targets run, so it can still reach CoreCompile and be
+                // handed to Csc as DefineConstants. The evaluation tests above execute no target at
+                // all, which makes any such assignment invisible to them no matter what its Condition
+                // or scheduling metadata says. Target-nested gate-symbol definitions are therefore
+                // forbidden outright rather than analyzed: deciding which targets really run before
+                // compilation would require reconstructing BeforeTargets/AfterTargets/DependsOnTargets
+                // across imported SDK targets, and every partial reconstruction fails open.
+                if (element.Ancestors("Target").Any())
+                {
+                    return true;
+                }
+
+                return element.AncestorsAndSelf().Any(ancestor =>
+                {
+                    var condition = (string?)ancestor.Attribute("Condition") ?? string.Empty;
+                    return condition.Contains("TargetFramework", StringComparison.Ordinal) ||
+                           condition.Contains("GetTargetPlatformIdentifier", StringComparison.Ordinal) ||
+                           condition.Contains("android", StringComparison.OrdinalIgnoreCase) ||
+                           condition.Contains("windows", StringComparison.OrdinalIgnoreCase);
+                });
             })
             .ToArray();
 
-        Assert.AreEqual(0, offendingGroups.Length,
-            $"{fileName} must not gate DEBUG or KNOWNFIRST_DIAGNOSTICS behind a TargetFramework- or " +
-            "platform-specific condition; the Configuration-level MSBuild evaluation tests would not " +
-            "cover such a group.");
+        Assert.AreEqual(0, offendingElements.Length,
+            $"{fileName} must define DEBUG and KNOWNFIRST_DIAGNOSTICS at evaluation time only, and must " +
+            "not gate them behind a TargetFramework- or platform-specific condition: the " +
+            "Configuration-level MSBuild evaluation tests execute no target and pin a single Windows " +
+            "TargetFramework, so neither a Target-nested nor a platform-conditioned definition would " +
+            "be covered.");
     }
 
     private static HashSet<string> EvaluateDefineConstants(string configuration)

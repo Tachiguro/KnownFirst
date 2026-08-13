@@ -6,10 +6,16 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
+## [1.0.0-beta.13] - 2026-08-13 (local release candidate — not yet distributed)
+
+**This is a local release-candidate entry recorded on branch `release/1.0.0-beta.13-candidate-v1`. `1.0.0-beta.13` / build `13` has not been packaged as an AAB, signed, installed on a device, uploaded to Google Play, or distributed to testers. The last confirmed external distribution remains `1.0.0-beta.12` / build `12` (2026-07-30); see [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) and the new [docs/releases/1.0.0-beta.13.md](docs/releases/1.0.0-beta.13.md) candidate evidence record.**
+
 ### Added
 
-- Settings now provides a reopenable release-note history under Help and Support. Earlier release notes can be viewed again at any time, including after the one-time What's New notice has been dismissed, and they are listed newest first.
+- Settings now provides a reopenable release-note history under Help and Support. Earlier release notes can be viewed again at any time, including after the one-time What's New notice has been dismissed, and they are listed newest first (Milestone 14B, PR #73).
 - Portable import preview UI with read-only preview before confirmation, distinguishing restore (empty target), merge (populated target), and no-change (duplicate import) cases; localized EN/DE/RU coverage for preview, result, and failure handling (PR #45).
+- Schema-10 portable export now carries a supported Active learning session together with its persisted queue and committed review history. Restoring into an empty installation resumes the session from its last durably committed state (KF-BACKUP-005A/005B, PR #79/#81). Restoring into a populated, learning-quiescent installation additively merges that Active session using the same preview/merge/no-change safety contract already established for Completed content, including exact same-workflow convergence to no-change and a non-executable, zero-mutation outcome for any conflicting Active state (KF-BACKUP-005C, PR #83).
+- A localized Beta 13 What's New entry (English, German, Russian) covering populated-target backup merge, strengthened backup/import safety, portable learning-session resume, and the reopenable release-note history.
 
 ### Fixed
 
@@ -17,16 +23,21 @@ and uses the application's prerelease version identifiers.
 - Android portable export stages and strictly validates the archive before opening the destination picker; invalid or failed staging never acquires or writes the destination (PR #50).
 - An invalid preparation context is now hidden rather than silently accepted during preparation selected-meaning acceptance (PR #46).
 - Diagnostics and export now read `PreparationCandidates.ResultJson` via the payload codec instead of a stale reader, correcting a defect in the diagnostics/export path (PR #47).
+- **Priority 15 — Portable merge integrity hardening (complete and binding since this candidate):** a sequence of populated-target merge/export-ordering corrections closes archive-emission and merge-identity defects that could misclassify or non-canonically order emitted archive content across otherwise-equivalent installations. This includes Schema-9 `LearningReview` merge-key collision correction (KF-BACKUP-004, PR #77), Schema-9 portable workflow canonical export ordering (KF-BACKUP-003 Package D, PR #76), `LegacyReviewSummaries` canonical ordering (PR #85), `Learning.Cards`/Sense-`StableId` canonical ordering (PR #87), and the `Occurrence` action-key lookup collision correction that completed Priority 15 (PR #89). None of these changed the archive format, database schema, or public merge outcome contract; they close rare non-canonical-ordering and misclassification defects rather than any observed data loss.
 
 ### Changed
 
 - `LearningSession` identity now includes `StartedAtUtc`, `CompletedAtUtc`, ordered queue digest, and per-item `Rating`, so distinct real sessions using the same card set no longer collapse into one (PR #45).
 - Schema 9 activates completed review-session history storage by replacing the unconditional `ReviewSessions(DocumentId)` uniqueness rule with one-Active/multiple-Completed index semantics (PR #51).
-- Package A adds deterministic Schema-9 completed-review identities, preflight classification, duplicate rejection, and target-index parity (PR #52). Writer-level convergence (Package B) is now complete, merged via PR #65; two-installation convergence (Package C) remains outstanding and planned.
+- Package A adds deterministic Schema-9 completed-review identities, preflight classification, duplicate rejection, and target-index parity (PR #52). Writer-level convergence (Package B, PR #65) and two-installation cross-convergence hardening (Package C, PR #68) are both now complete and merged.
+- Database schema advances to **10** (`PRAGMA user_version = 10`), adding immutable `StableId` columns to `LearningSessions` and `LearningSessionCards` as the stable identity foundation for the Active-workflow portability above (KF-BACKUP-005A, PR #79). The `.kfarchive` outer format remains **V2**; no archive V3 was introduced.
+- Product version raised to `1.0.0-beta.13` (build `13`). Package ID (`com.tachiguro.knownfirst`), signing configuration, and the portable archive outer format are unchanged.
 
 ### Internal
 
-- Documentation-governance package (branch `docs/test-confidence-release-readiness`) reconciled `CURRENT_WORK.md`, `PROJECT_STATE.md`, and `ROADMAP.md` with the merged state of PRs #45-#48, and established a test-confidence, strict-TDD, production-UI cleanliness, and pre-AAB documentation governance program. This is a repository-governance change only; it does not describe new user-facing product behavior and does not itself constitute a release.
+- An Android-only automated GUI-navigation test foundation (P16-A) was merged as source infrastructure under a dedicated, isolated `com.tachiguro.knownfirst.guitest` identity (PR #91). It is test tooling, not a product feature: it has not been runtime-executed, does not automate any row of the GUI test matrix, and establishes no Android platform build, packaging, or device evidence.
+- The unfinished "Support KnownFirst" and "Report a bug" placeholder controls and their shared placeholder-handler behavior were removed from the production Settings source (Milestone 14A, PR #71); they were not rendered to users before removal and this is a source-cleanliness change, not a user-facing behavior change.
+- Documentation-governance packages D1-D5 reconciled `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, and related contracts with merged product state on an ongoing basis (PRs #53-#64 and subsequent per-package closures). These are repository-governance changes only.
 
 ## [1.0.0-beta.12] - 2026-07-30 (confirmed distributed)
 

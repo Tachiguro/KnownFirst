@@ -31,7 +31,7 @@ export async function runSettingsReleaseNotesNavigation({ browser, recordAsserti
   await (await browser.$('#settings-release-notes-link')).click();
   await (await browser.$('#release-notes-page')).waitForDisplayed();
   await recordAssertion('Release Notes route is active', (await browser.getUrl()).endsWith('/release-notes'));
-  await recordAssertion('Current Beta 12 release note is visible', (await browser.$('#release-note-1.0.0-beta.12')).isDisplayed());
+  await recordAssertion('Newest Beta 13 release note is visible', (await browser.$('#release-note-1.0.0-beta.13')).isDisplayed());
 
   await browser.switchContext('NATIVE_APP');
   const screenshotEvidence = await captureScreenshot('release-notes.png');

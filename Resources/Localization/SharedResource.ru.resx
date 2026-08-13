@@ -1506,4 +1506,16 @@
   <data name="WhatsNew_Beta12_Bullet3" xml:space="preserve">
     <value>Анализ русского исходного текста для импорта по-прежнему не поддерживается.</value>
   </data>
+  <data name="WhatsNew_Beta13_Bullet1" xml:space="preserve">
+    <value>Резервную копию теперь можно восстановить в установку, где уже есть данные, с безопасным предварительным просмотром перед изменениями.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet2" xml:space="preserve">
+    <value>Надёжность резервного копирования и восстановления значительно повышена для защиты от конфликтов при слиянии.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet3" xml:space="preserve">
+    <value>Незавершённая учебная сессия теперь сохраняется и может быть продолжена после экспорта и импорта резервной копии.</value>
+  </data>
+  <data name="WhatsNew_Beta13_Bullet4" xml:space="preserve">
+    <value>Прошлые заметки о выпуске можно снова открыть в любое время в Настройках, в разделе «Помощь и поддержка».</value>
+  </data>
 </root>

@@ -40,7 +40,7 @@ Start with [AGENTS.md](AGENTS.md) and [docs/INDEX.md](docs/INDEX.md). They defin
 - [Changelog](CHANGELOG.md) records user-visible release changes.
 - [Database contract](docs/DATABASE_CONTRACT.md) defines persisted-data and migration rules.
 - [Architecture](docs/KNOWNFIRST_ARCHITECTURE.md), [MVP workflow](docs/MVP_WORKFLOW.md), and [word analysis](docs/WORD_ANALYSIS.md) are binding specifications.
-- [Decision records](docs/decisions/README.md) and the [current release record](docs/releases/1.0.0-beta.12.md) preserve rationale and current release evidence. The [Beta 8 release notes](docs/releases/1.0.0-beta.8.md) and the [Beta 8 handoff](docs/handoffs/2026-07-22-beta-8-release.md) are retained as historical evidence only.
+- [Decision records](docs/decisions/README.md) preserve rationale. `1.0.0-beta.12` remains the [latest confirmed distributed release](docs/releases/1.0.0-beta.12.md) (Google Play Internal Testing, confirmed 2026-07-30). `1.0.0-beta.13` has a committed, pushed release candidate in open PR #92; it is not merged, built, packaged, or distributed. The [Beta 8 release notes](docs/releases/1.0.0-beta.8.md) and the [Beta 8 handoff](docs/handoffs/2026-07-22-beta-8-release.md) are retained as historical evidence only.
 
 ## Technology stack
 

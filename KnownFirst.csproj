@@ -31,8 +31,8 @@
 
         <!-- Authoritative Product Identity -->
         <KnownFirstProductName>KnownFirst</KnownFirstProductName>
-        <KnownFirstProductVersion>1.0.0-beta.12</KnownFirstProductVersion>
-        <KnownFirstBuildNumber>12</KnownFirstBuildNumber>
+        <KnownFirstProductVersion>1.0.0-beta.13</KnownFirstProductVersion>
+        <KnownFirstBuildNumber>13</KnownFirstBuildNumber>
 
         <ApplicationDisplayVersion>$(KnownFirstProductVersion)</ApplicationDisplayVersion>
         <ApplicationVersion>$(KnownFirstBuildNumber)</ApplicationVersion>

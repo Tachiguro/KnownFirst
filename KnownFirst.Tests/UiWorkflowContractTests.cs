@@ -63,12 +63,13 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void Settings_HasNoUnfinishedSupportOrReportControlsOrPlaceholderHandler()
+    public void Settings_HasNoUnfinishedSupportControlsOrPlaceholderHandler()
     {
         var markup = LoadUi("Settings.razor");
 
+        Assert.Contains("Settings_ReportBug", markup, StringComparison.Ordinal);
+        Assert.Contains("id=\"settings-report-bug-button\"", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Settings_SupportKnownFirst", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("Settings_ReportBug", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Common_FeatureComingSoon", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("FeaturePlaceholder", markup, StringComparison.Ordinal);
 
@@ -85,7 +86,6 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("BuildIdentityService.GetFormattedBuildIdentity()", markup);
 
         Assert.DoesNotContain("Settings_SupportKnownFirst", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("Settings_ReportBug", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Common_FeatureComingSoon", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("FeaturePlaceholder", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("MarkSeen", markup, StringComparison.Ordinal);

@@ -74,6 +74,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
         builder.Services.AddSingleton<IWhatsNewPreferenceStore, MauiWhatsNewPreferenceStore>();
         builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
+        builder.Services.AddSingleton<IBugReportLauncherService, BugReportLauncherService>();
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
         builder.Services.AddSingleton<IBackupPlatformInfo, MauiBackupPlatformInfo>();
         builder.Services.AddSingleton<IBackupService, BackupService>();

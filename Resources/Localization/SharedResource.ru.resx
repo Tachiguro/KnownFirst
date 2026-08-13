@@ -195,6 +195,33 @@
   <data name="Settings_ReportBug" xml:space="preserve">
     <value>Сообщить об ошибке</value>
   </data>
+  <data name="Settings_ReportBugError" xml:space="preserve">
+    <value>Не удалось открыть почтовое приложение.</value>
+  </data>
+  <data name="Settings_CopyBugReportAddress" xml:space="preserve">
+    <value>Скопировать адрес эл. почты</value>
+  </data>
+  <data name="Settings_BugReportAddressCopied" xml:space="preserve">
+    <value>Адрес эл. почты скопирован в буфер обмена.</value>
+  </data>
+  <data name="Settings_BugReportAddressCopyError" xml:space="preserve">
+    <value>Не удалось скопировать адрес эл. почты.</value>
+  </data>
+  <data name="BugReport_Subject" xml:space="preserve">
+    <value>KnownFirst Отчет об ошибке ({0})</value>
+  </data>
+  <data name="BugReport_PromptWhatHappened" xml:space="preserve">
+    <value>1. Что произошло?</value>
+  </data>
+  <data name="BugReport_PromptWhatExpected" xml:space="preserve">
+    <value>2. Что ожидалось?</value>
+  </data>
+  <data name="BugReport_PromptReproductionSteps" xml:space="preserve">
+    <value>3. Шаги для воспроизведения:</value>
+  </data>
+  <data name="BugReport_PromptOptionalScreenshots" xml:space="preserve">
+    <value>4. Скриншоты или вложения (необязательно):</value>
+  </data>
   <data name="Common_FeatureComingSoon" xml:space="preserve">
     <value>Эта функция появится в одной из следующих версий.</value>
   </data>

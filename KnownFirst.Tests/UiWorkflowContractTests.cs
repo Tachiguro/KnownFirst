@@ -1402,6 +1402,48 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("AddSingleton<IClock, SystemClock>", startup);
         Assert.Contains("<Compile Remove=\"Services\\Study\\DebugLearningClock.cs\" />", project);
         Assert.Contains("Condition=\"'$(Configuration)' != 'Debug'\"", project);
+
+        AssertDebugOnlyMarkerIsGuardedByIsDebugBuild(navigation, "NavMenu.razor", "nav-link debug-nav-link");
+        AssertDebugOnlyMarkerIsGuardedByIsDebugBuild(preparation, "PrepareWords.razor", "lookup-diagnostics debug-tools");
+        AssertDebugOnlyMarkerIsGuardedByIsDebugBuild(review, "ReviewWords.razor", "review-debug-tools debug-tools");
+    }
+
+    private static void AssertDebugOnlyMarkerIsGuardedByIsDebugBuild(string markup, string fileLabel, string marker)
+    {
+        var propertyIndex = markup.IndexOf("private static bool IsDebugBuild", StringComparison.Ordinal);
+        Assert.IsTrue(propertyIndex >= 0, $"{fileLabel} must define an IsDebugBuild property.");
+        var propertyEndIndex = markup.IndexOf("#endif", propertyIndex, StringComparison.Ordinal);
+        Assert.IsTrue(propertyEndIndex >= 0 && propertyEndIndex - propertyIndex < 200,
+            $"{fileLabel}: IsDebugBuild property body not found within expected bounds.");
+        var debugDirectiveIndex = markup.IndexOf("#if DEBUG", propertyIndex, StringComparison.Ordinal);
+        Assert.IsTrue(debugDirectiveIndex >= 0 && debugDirectiveIndex < propertyEndIndex,
+            $"{fileLabel}: IsDebugBuild must resolve through a '#if DEBUG' compile-time branch.");
+
+        var guardIndex = markup.IndexOf("@if (IsDebugBuild", StringComparison.Ordinal);
+        Assert.IsTrue(guardIndex >= 0, $"{fileLabel} must guard debug-only markup with '@if (IsDebugBuild ...)'.");
+        var conditionOpenParen = markup.IndexOf('(', guardIndex);
+        var conditionCloseParen = FindMatchingClose(markup, conditionOpenParen, '(', ')');
+        Assert.IsTrue(conditionCloseParen > conditionOpenParen, $"{fileLabel}: unbalanced IsDebugBuild condition.");
+        var blockOpenBrace = markup.IndexOf('{', conditionCloseParen + 1);
+        Assert.IsTrue(blockOpenBrace >= 0, $"{fileLabel}: expected a block after the IsDebugBuild condition.");
+        var blockCloseBrace = FindMatchingClose(markup, blockOpenBrace, '{', '}');
+        Assert.IsTrue(blockCloseBrace > blockOpenBrace, $"{fileLabel}: unbalanced IsDebugBuild block.");
+
+        var markerIndex = markup.IndexOf(marker, StringComparison.Ordinal);
+        Assert.IsTrue(markerIndex >= 0, $"{fileLabel}: expected marker '{marker}'.");
+        Assert.IsTrue(markerIndex > blockOpenBrace && markerIndex < blockCloseBrace,
+            $"{fileLabel}: '{marker}' must be inside the '@if (IsDebugBuild ...)' block, not merely present elsewhere in the file.");
+    }
+
+    private static int FindMatchingClose(string text, int openIndex, char open, char close)
+    {
+        var depth = 0;
+        for (var i = openIndex; i < text.Length; i++)
+        {
+            if (text[i] == open) depth++;
+            else if (text[i] == close && --depth == 0) return i;
+        }
+        return -1;
     }
 
     [TestMethod]

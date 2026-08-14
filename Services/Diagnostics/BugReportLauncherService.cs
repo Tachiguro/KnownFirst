@@ -42,7 +42,7 @@ public sealed class BugReportLauncherService : IBugReportLauncherService
                     Subject = subject,
                     Body = body,
                     BodyFormat = EmailBodyFormat.PlainText,
-                    Recipients = [RecipientAddress]
+                    To = [RecipientAddress]
                 };
 
                 await Email.Default.ComposeAsync(message);

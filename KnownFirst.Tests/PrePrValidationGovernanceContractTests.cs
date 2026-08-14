@@ -54,6 +54,8 @@ public sealed class PrePrValidationGovernanceContractTests
         Assert.Contains("ValidateAll", content, StringComparison.Ordinal);
         Assert.Contains("exact final candidate commit", content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Standing delegation covers mandatory pre-PR validation", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("exposes a genuine unresolved material decision (see Section E)", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("exposes a genuine unresolved material decision (see Section F)", content, StringComparison.Ordinal);
         Assert.Contains("Non-Delegable Operations", content, StringComparison.Ordinal);
         Assert.Contains("Ad-hoc `BUILD_ONLY`", content, StringComparison.Ordinal);
         Assert.Contains("APK or AAB", content, StringComparison.Ordinal);

@@ -107,7 +107,7 @@ Standing delegation covers exactly these modes, applied one at a time in isolate
 
 Standing delegation covers mandatory pre-PR validation without requiring fresh per-PR user build authorization. For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT` without a ceremonial "approve plan" message; a reviewed change progresses through `COMMIT_ONLY`, mandatory candidate-HEAD `FULL_VALIDATION` (`TEST_ONLY`), `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
 
-If `PLAN_ONLY`, or any later phase, exposes a genuine unresolved material decision (see Section F), ChatGPT must stop and ask the user regardless of standing delegation.
+If `PLAN_ONLY`, or any later phase, exposes a genuine unresolved material decision (see Section E), ChatGPT must stop and ask the user regardless of standing delegation.
 
 ### Mandatory Pre-PR Full-Validation Gate
 

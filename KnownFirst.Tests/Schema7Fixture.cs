@@ -17,11 +17,14 @@ namespace KnownFirst.Tests;
 /// </summary>
 internal sealed class Schema7Fixture : IAsyncDisposable
 {
-    private Schema7Fixture(string path, SQLiteAsyncConnection connection)
+    private Schema7Fixture(string rootDirectory, string path, SQLiteAsyncConnection connection)
     {
+        RootDirectory = rootDirectory;
         DatabasePath = path;
         Connection = connection;
     }
+
+    internal string RootDirectory { get; }
 
     public string DatabasePath { get; }
 
@@ -29,10 +32,12 @@ internal sealed class Schema7Fixture : IAsyncDisposable
 
     public static async Task<Schema7Fixture> CreateAsync()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"knownfirst-schema8-migration-{Guid.NewGuid():N}.db3");
+        var rootDirectory = Path.Combine(Path.GetTempPath(), "kf-schema7-fixture-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(rootDirectory);
+        var path = Path.Combine(rootDirectory, "knownfirst.db3");
         var connection = new SQLiteAsyncConnection(path);
         await InitializeEmptyAsync(connection);
-        return new Schema7Fixture(path, connection);
+        return new Schema7Fixture(rootDirectory, path, connection);
     }
 
     internal static async Task InitializeEmptyAsync(SQLiteAsyncConnection connection)
@@ -124,6 +129,19 @@ internal sealed class Schema7Fixture : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await TemporaryDatabaseFiles.CloseAndDeleteAsync(Connection, DatabasePath);
+        if (!string.IsNullOrWhiteSpace(RootDirectory) && Directory.Exists(RootDirectory))
+        {
+            try
+            {
+                Directory.Delete(RootDirectory, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
     }
 
     private sealed class PersistentTableRow

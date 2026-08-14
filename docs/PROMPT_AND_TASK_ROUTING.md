@@ -98,16 +98,39 @@ Once (1) a concrete KnownFirst work package is established, (2) its scope is bou
 Standing delegation covers exactly these modes, applied one at a time in isolated prompts:
 - `PLAN_ONLY`
 - `IMPLEMENT`
-- `TEST_ONLY`
+- `TEST_ONLY` (including the mandatory candidate-HEAD `FULL_VALIDATION` pre-PR gate)
 - `DOCUMENT_ONLY`
 - `REVIEW_ONLY`
 - `COMMIT_ONLY`
 - `PUSH_ONLY`
 - `PR_ONLY`
 
-For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT` without a ceremonial "approve plan" message; a reviewed change may progress through `COMMIT_ONLY`, `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
+Standing delegation covers mandatory pre-PR validation without requiring fresh per-PR user build authorization. For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT` without a ceremonial "approve plan" message; a reviewed change progresses through `COMMIT_ONLY`, mandatory candidate-HEAD `FULL_VALIDATION` (`TEST_ONLY`), `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
 
-If `PLAN_ONLY`, or any later phase, exposes a genuine unresolved material decision (see Section E), ChatGPT must stop and ask the user regardless of standing delegation.
+If `PLAN_ONLY`, or any later phase, exposes a genuine unresolved material decision (see Section F), ChatGPT must stop and ask the user regardless of standing delegation.
+
+### Mandatory Pre-PR Full-Validation Gate
+
+Every future pull request without exception (including documentation-only and trivial packages; no docs-only exemption) is strictly blocked until the exact final candidate commit (HEAD) has successfully passed the complete documented `FULL_VALIDATION` composite:
+
+```powershell
+.\scripts\knownfirst.ps1 -Action ValidateAll
+```
+
+This matrix encompasses:
+1. `ALL_AUTOMATED` test suite execution (`KnownFirst.Tests`);
+2. Windows Debug build (`net10.0-windows10.0.19041.0`);
+3. Windows Release build (`net10.0-windows10.0.19041.0`);
+4. Android Debug build validation (`net10.0-android`);
+5. Android Release build validation (`net10.0-android`).
+
+**Gate Invariants & Semantics:**
+- **Exact-HEAD Evidence:** Validation evidence belongs to the exact final candidate commit SHA intended for the PR.
+- **Placement:** Validation must execute after `COMMIT_ONLY` and before `PUSH_ONLY`.
+- **Fail-Closed Blocking:** `PUSH_ONLY` and `PR_ONLY` are strictly blocked unless that exact HEAD has a recorded successful full-validation result.
+- **Stale-Evidence Invalidation:** Any subsequent commit or repository-file modification invalidates the validation evidence and renders it stale; `ValidateAll` must run again on the new candidate HEAD before progression.
+- **Fail-Closed Stop Policy:** Any test or build failure blocks progression immediately. The validation operation must never attempt automatic code fixes.
+- **PR Evidence:** The final validation report and subsequent PR body must record the exact HEAD SHA, execution command, exit status, actual automated test totals, and each required build result.
 
 ### Non-Delegable Operations
 
@@ -116,7 +139,7 @@ This is the canonical, detailed list. Other tracked documents reference this lis
 - destructive Git/history operations: reset, rebase, stash, amend, history rewriting, or force-push;
 - deleting branches or worktrees;
 - tags, releases, deployment, or publishing;
-- `BUILD_ONLY` unless the user explicitly requested that build;
+- Ad-hoc `BUILD_ONLY` unless the user explicitly requested that build (standing delegation authorizes only the mandatory pre-PR `FULL_VALIDATION` composite on the exact candidate HEAD);
 - `PACKAGE_ONLY` unless the user explicitly requested that package;
 - APK or AAB creation without explicit user request;
 - ADB, emulator, device, or manual-device operations without explicit user request;

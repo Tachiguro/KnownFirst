@@ -14,13 +14,14 @@ KnownFirst development follows a strict, isolated phase sequence. No programming
 4. **TEST_ONLY:** Scoped test execution when explicitly requested.
 5. **DOCUMENT_ONLY:** Updating documentation for verified implementation when explicitly requested.
 6. **Document/Commit Transition:** Inspection of uncommitted changes, satisfied by explicit user review or by standing orchestration delegation under the same conditions as step 2.
-7. **COMMIT_ONLY:** Staging explicit files and committing.
-8. **PUSH_ONLY:** Pushing approved branch and commit to remote repository.
-9. **PR_ONLY:** Opening or updating a pull request.
-10. **REVIEW_ONLY:** Read-only review of PR or diff.
-11. **Correction Package:** Approved fixes for review findings.
-12. **Explicit User Merge Decision:** Separate user-driven merge. Never delegable, regardless of standing orchestration delegation.
-13. **POST_MERGE_SYNC_ONLY:** Fast-forward synchronizing local master after the user's verified manual GitHub merge. It does not authorize branch deletion, documentation changes, builds, tests, commits, pushes, or additional PR mutations.
+7. **COMMIT_ONLY:** Staging explicit files and committing to create the candidate commit (HEAD).
+8. **Mandatory Pre-PR FULL_VALIDATION:** Running the complete `.\scripts\knownfirst.ps1 -Action ValidateAll` matrix on the exact candidate HEAD (`TEST_ONLY`). `PUSH_ONLY` and `PR_ONLY` are strictly blocked without this successful validation. Any subsequent repository-file modification or commit invalidates prior evidence and requires this gate to run again on the new HEAD.
+9. **PUSH_ONLY:** Pushing approved branch and validated commit to remote repository.
+10. **PR_ONLY:** Opening or updating a pull request containing exact-HEAD full-validation evidence.
+11. **REVIEW_ONLY:** Read-only review of PR or diff.
+12. **Correction Package:** Approved fixes for review findings (which start a new cycle and require full validation on the resulting HEAD).
+13. **Explicit User Merge Decision:** Separate user-driven merge. Never delegable, regardless of standing orchestration delegation.
+14. **POST_MERGE_SYNC_ONLY:** Fast-forward synchronizing local master after the user's verified manual GitHub merge. It does not authorize branch deletion, documentation changes, builds, tests, commits, pushes, or additional PR mutations.
 
 ### Phase Isolation Boundaries
 - A prompt author may explicitly authorize a combination of modes, but the prompt must enumerate every included mode.
@@ -66,5 +67,5 @@ This section is additive to, and does not weaken, the existing operation-isolati
 
 1. **Explicit staging:** Use explicit file paths (`git add <file1> <file2>`). Never use `git add .` or stage untracked scratch files.
 2. **Conventional commits:** Use standard conventional commit prefixes (`feat:`, `fix:`, `docs:`, `test:`, `build:`, `chore:`).
-3. **Authorized publication:** Pushing an approved branch (`PUSH_ONLY`) and creating or updating its pull request (`PR_ONLY`) for an established, bounded work package are covered by the standing orchestration delegation defined in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) and do not require a fresh per-operation user message. However, prompt-level mode isolation remains absolute: an executing programming agent pushes only when its prompt is `PUSH_ONLY` and creates/updates a pull request only when its prompt is `PR_ONLY`. Auto-merge is strictly prohibited; PR merge is an explicit, non-delegable repository-owner action.
+3. **Authorized publication:** Pushing an approved branch (`PUSH_ONLY`) and creating or updating its pull request (`PR_ONLY`) for an established, bounded work package are covered by the standing orchestration delegation defined in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) and do not require a fresh per-operation user message. Both operations are strictly blocked until the exact candidate commit (HEAD) has successfully passed the mandatory pre-PR `FULL_VALIDATION` gate. However, prompt-level mode isolation remains absolute: an executing programming agent pushes only when its prompt is `PUSH_ONLY` and creates/updates a pull request only when its prompt is `PR_ONLY`. Auto-merge is strictly prohibited; PR merge is an explicit, non-delegable repository-owner action.
 4. **Evidence-based claims:** Never claim physical device validation, visual acceptance, or manual verification without concrete empirical evidence.

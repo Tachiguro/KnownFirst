@@ -1,6 +1,8 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace KnownFirst.Tests;
@@ -295,5 +297,145 @@ public sealed class AndroidPublishingScriptContractTests
         var catchBody = canonicalScript.Substring(catchIndex, finallyIndex - catchIndex);
         Assert.IsTrue(catchBody.Contains("finalFilesCreated"), "Final files created by the invocation must be tracked for rollback in catch.");
         Assert.IsTrue(catchBody.Contains("ErrorAction SilentlyContinue"), "Cleanup in catch must be silent.");
+    }
+
+    // H. Post-clean stale-output check — behavioral evidence
+    //
+    // These tests execute the ACTUAL production stale-output-check fragment lifted verbatim out of
+    // scripts/publish-google-play-bundle.ps1, in an isolated temporary project root, under the same
+    // $ErrorActionPreference = 'Stop' the real script sets. The fragment is not reimplemented here:
+    // it is extracted between stable production markers so that a change to the real script changes
+    // what these tests execute. The complete publish script is never invoked, so no clean, publish,
+    // build, packaging, signing, or signing-material access occurs.
+
+    private const string StaleOutputCheckStartMarker = "$releaseRoot = Join-Path $projectRoot";
+    private const string StaleOutputCheckThrowMarker = "Stale output prevents trustworthy selection";
+
+    private static string ExtractStaleOutputCheckFragment()
+    {
+        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+
+        var start = canonicalScript.IndexOf(StaleOutputCheckStartMarker, StringComparison.Ordinal);
+        Assert.IsTrue(start >= 0, $"Production start marker '{StaleOutputCheckStartMarker}' was not found in the canonical script.");
+
+        var throwIndex = canonicalScript.IndexOf(StaleOutputCheckThrowMarker, start, StringComparison.Ordinal);
+        Assert.IsTrue(throwIndex > start, $"Production throw marker '{StaleOutputCheckThrowMarker}' was not found after the start marker.");
+
+        var closingBrace = canonicalScript.IndexOf('}', throwIndex);
+        Assert.IsTrue(closingBrace > throwIndex, "The closing brace of the stale-output guard was not found.");
+
+        var fragment = canonicalScript.Substring(start, closingBrace - start + 1);
+
+        // Guard the harness itself: the extracted text must be the real guard, not an arbitrary slice.
+        Assert.IsTrue(fragment.Contains("*-Signed.aab"), "Extracted fragment must contain the *-Signed.aab enumeration.");
+        Assert.IsTrue(fragment.Contains("$preCandidates"), "Extracted fragment must contain the pre-candidate collection.");
+        Assert.IsTrue(fragment.Contains(".Count -gt 0"), "Extracted fragment must contain the fail-closed count check.");
+
+        return fragment;
+    }
+
+    private sealed record PowerShellResult(int ExitCode, string StandardOutput, string StandardError);
+
+    private static PowerShellResult RunStaleOutputCheck(string temporaryProjectRoot)
+    {
+        var fragment = ExtractStaleOutputCheckFragment();
+
+        var harness = new StringBuilder();
+        harness.AppendLine("$ErrorActionPreference = \"Stop\"");
+        harness.AppendLine($"$projectRoot = '{temporaryProjectRoot.Replace("'", "''")}'");
+        harness.AppendLine(fragment);
+        harness.AppendLine("Write-Output \"PRECANDIDATES=$($preCandidates.Count)\"");
+
+        var harnessPath = Path.Combine(temporaryProjectRoot, "stale-output-check-harness.ps1");
+        File.WriteAllText(harnessPath, harness.ToString(), new UTF8Encoding(false));
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-ExecutionPolicy");
+        startInfo.ArgumentList.Add("Bypass");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(harnessPath);
+
+        using var process = Process.Start(startInfo);
+        Assert.IsNotNull(process, "powershell.exe could not be started.");
+
+        var standardOutput = process!.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        Assert.IsTrue(process.WaitForExit(120000), "The stale-output-check harness did not exit within 120 seconds.");
+
+        return new PowerShellResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static string CreateTemporaryProjectRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "knownfirst-stale-output-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    [TestMethod]
+    public void CanonicalScript_StaleOutputCheckTreatsMissingReleaseDirectoryAsZeroCandidates()
+    {
+        var projectRoot = CreateTemporaryProjectRoot();
+        try
+        {
+            var releaseRoot = Path.Combine(projectRoot, "bin", "Release", "net10.0-android");
+            Assert.IsFalse(Directory.Exists(releaseRoot), "Precondition: the Android Release output directory must not exist.");
+
+            var result = RunStaleOutputCheck(projectRoot);
+
+            Assert.AreEqual(
+                0,
+                result.ExitCode,
+                "A missing Android Release output directory means zero stale signed AABs and must not terminate the packaging run. " +
+                $"Exit code: {result.ExitCode}. StdErr: {result.StandardError}"
+            );
+            Assert.IsTrue(
+                result.StandardOutput.Contains("PRECANDIDATES=0"),
+                $"The stale-output check must report zero pre-existing candidates. StdOut: {result.StandardOutput}"
+            );
+        }
+        finally
+        {
+            Directory.Delete(projectRoot, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void CanonicalScript_StaleOutputCheckStillFailsClosedOnRemainingSignedAab()
+    {
+        var projectRoot = CreateTemporaryProjectRoot();
+        try
+        {
+            var releaseRoot = Path.Combine(projectRoot, "bin", "Release", "net10.0-android");
+            Directory.CreateDirectory(releaseRoot);
+            File.WriteAllText(
+                Path.Combine(releaseRoot, "com.tachiguro.knownfirst-Signed.aab"),
+                "not a real bundle - inert placeholder for the stale-output regression"
+            );
+
+            var result = RunStaleOutputCheck(projectRoot);
+
+            Assert.AreNotEqual(
+                0,
+                result.ExitCode,
+                $"A remaining *-Signed.aab after clean must still fail closed. StdOut: {result.StandardOutput}"
+            );
+            Assert.IsTrue(
+                result.StandardError.Contains("Stale output prevents trustworthy selection"),
+                $"The existing fail-closed stale-output message must be preserved. StdErr: {result.StandardError}"
+            );
+        }
+        finally
+        {
+            Directory.Delete(projectRoot, recursive: true);
+        }
     }
 }

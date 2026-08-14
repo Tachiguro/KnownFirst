@@ -121,7 +121,10 @@ try {
     }
 
     $releaseRoot = Join-Path $projectRoot "bin\Release\net10.0-android"
-    $preCandidates = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "*-Signed.aab")
+    $preCandidates = @()
+    if (Test-Path -LiteralPath $releaseRoot -PathType Container) {
+        $preCandidates = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "*-Signed.aab")
+    }
     if ($preCandidates.Count -gt 0) {
         throw "Stale output prevents trustworthy selection: *-Signed.aab files remain after clean."
     }

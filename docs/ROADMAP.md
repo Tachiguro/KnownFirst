@@ -119,7 +119,7 @@ The current product direction is **non-destructive populated-target portable arc
 
 ## Deferred
 
-- Re-validation of packaging script runtime behavior (deferred to `KF-RELEASE-001` before the next genuine release).
+- Re-validation of canonical Google Play AAB workflow runtime behavior (deferred to `KF-RELEASE-001` before the next genuine release; the repository defect was diagnosed and corrected via PR #101, with runtime packaging execution outstanding).
 - Russian source-text import, Cyrillic tokenization/normalization, Russian Wiktionary language-section parsing, and Russian Wikipedia fallback.
 - Additional learning languages beyond English, German, and Russian-as-target.
 - Full offline dictionary package pipeline.

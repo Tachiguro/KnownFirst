@@ -15,6 +15,7 @@
 @inject IBackupService BackupService
 @inject IPortableArchiveFileService PortableArchiveFiles
 @inject KnownFirst.Services.Study.IWorkflowChangeNotifier WorkflowChangeNotifier
+@inject Microsoft.Maui.Storage.IPreferences Preferences
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
 
@@ -1038,7 +1039,7 @@
         try
         {
             await Database.ResetAsync();
-            Microsoft.Maui.Storage.Preferences.Default.Clear();
+            Preferences.Clear();
             ThemeService.ResetPreference();
             AppSettings.Reset();
             _selectedCardDirection = AppSettings.CardDirection;

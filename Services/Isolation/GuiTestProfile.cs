@@ -7,7 +7,9 @@ public static class GuiTestProfile
     private static readonly string RequiredPathSegment =
         Path.Combine("artifacts", "gui-tests", "windows", "profiles") + Path.DirectorySeparatorChar;
 
-#if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
+#if WINDOWS
+    private const bool CompiledForSupportedBuild = true;
+#elif KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
     private const bool CompiledForSupportedBuild = true;
 #else
     private const bool CompiledForSupportedBuild = false;
@@ -30,6 +32,15 @@ public static class GuiTestProfile
     // The test assembly exercises this path without compiling a second Android target. Production
     // code never sets the override, and normal Android builds compile the support flag as false.
     internal static bool? AndroidGuiTestSupportedOverrideForTests { get; set; }
+
+    internal static bool? ShowsProfileIndicatorOverrideForTests { get; set; }
+
+    public static bool ShowsProfileIndicator => ShowsProfileIndicatorOverrideForTests ??
+#if DEBUG || KNOWNFIRST_DIAGNOSTICS || KNOWNFIRST_ANDROID_GUI_TEST
+        true;
+#else
+        false;
+#endif
 
     private static bool IsSupportedBuild => SupportedOverrideForTests ?? CompiledForSupportedBuild;
     private static bool IsAndroidGuiTestBuild => AndroidGuiTestSupportedOverrideForTests ?? CompiledForAndroidGuiTest;
@@ -131,8 +142,7 @@ public static class GuiTestProfile
         {
             throw new InvalidOperationException(
                 $"{EnvironmentVariableName} was set, but GUI test profiles are only supported in " +
-                "Windows Debug and Windows BetaDiagnostic builds. Failing closed instead of risking " +
-                "real application data on an unsupported build or platform.");
+                "Windows builds. Failing closed instead of risking real application data on an unsupported build or platform.");
         }
 
         if (!Path.IsPathFullyQualified(raw))
@@ -145,11 +155,35 @@ public static class GuiTestProfile
         var fullPath = Path.GetFullPath(raw).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             + Path.DirectorySeparatorChar;
 
-        if (!fullPath.Contains(RequiredPathSegment, StringComparison.OrdinalIgnoreCase))
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrEmpty(localAppData))
+        {
+            var realKnownFirstData = Path.Combine(localAppData, "KnownFirst") + Path.DirectorySeparatorChar;
+            var realPackageData = Path.Combine(localAppData, "com.tachiguro.knownfirst") + Path.DirectorySeparatorChar;
+            if (fullPath.StartsWith(realKnownFirstData, StringComparison.OrdinalIgnoreCase)
+                || fullPath.StartsWith(realPackageData, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"{EnvironmentVariableName} was set to '{raw}', which resolves under the real KnownFirst application data root. " +
+                    "Failing closed instead of risking real application data.");
+            }
+        }
+
+        var segmentIndex = fullPath.IndexOf(RequiredPathSegment, StringComparison.OrdinalIgnoreCase);
+        if (segmentIndex < 0)
         {
             throw new InvalidOperationException(
                 $"{EnvironmentVariableName} was set to '{raw}', which does not resolve under a " +
                 $"'{RequiredPathSegment}' directory. Failing closed instead of risking real application data.");
+        }
+
+        var childSegment = fullPath.Substring(segmentIndex + RequiredPathSegment.Length)
+            .Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.IsNullOrWhiteSpace(childSegment))
+        {
+            throw new InvalidOperationException(
+                $"{EnvironmentVariableName} was set to the profiles root directory itself. " +
+                "Failing closed instead of risking real application data.");
         }
 
         Directory.CreateDirectory(fullPath);

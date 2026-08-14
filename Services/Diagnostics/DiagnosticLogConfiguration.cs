@@ -46,6 +46,10 @@ internal static class DiagnosticLogConfiguration
 
     private static string ResolveLogDirectory()
     {
+        if (KnownFirst.Services.Isolation.GuiTestProfile.IsActive)
+        {
+            return Path.Combine(KnownFirst.Services.Isolation.GuiTestProfile.RootPath, "Logs");
+        }
 #if ANDROID
         return Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, "Logs");
 #else

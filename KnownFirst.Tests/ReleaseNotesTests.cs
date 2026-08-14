@@ -654,7 +654,7 @@ public sealed class ReleaseNotesTests
         var settingsSource = File.ReadAllText(Path.Combine(root, "Components", "Pages", "Settings.razor"));
 
         Assert.DoesNotContain("MarkSeen", settingsSource);
-        Assert.Contains("Preferences.Default.Clear()", settingsSource);
+        Assert.Contains("Preferences.Clear()", settingsSource);
     }
 
     // --- Modal accessibility contract -----------------------------------------------------

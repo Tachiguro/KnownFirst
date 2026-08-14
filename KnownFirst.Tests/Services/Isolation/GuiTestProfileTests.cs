@@ -223,6 +223,62 @@ public class GuiTestProfileTests
         Assert.Contains("android", profileSource);
     }
 
+    [TestMethod]
+    public void Resolve_FailsClosed_WhenPathIsProfilesRootItself()
+    {
+        GuiTestProfile.SupportedOverrideForTests = true;
+        var rootOnlyPath = Path.Combine(
+            Path.GetTempPath(),
+            "kf-gui-test-" + Guid.NewGuid().ToString("N"),
+            "artifacts",
+            "gui-tests",
+            "windows",
+            "profiles");
+        _createdDirectory = rootOnlyPath;
+        Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, rootOnlyPath);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => GuiTestProfile.Resolve());
+    }
+
+    [TestMethod]
+    public void Resolve_FailsClosed_WhenPathResolvesUnderRealLocalApplicationDataRoot()
+    {
+        GuiTestProfile.SupportedOverrideForTests = true;
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var subPath = Path.Combine(localAppData, "KnownFirst", "artifacts", "gui-tests", "windows", "profiles", "run-001");
+        Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, subPath);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => GuiTestProfile.Resolve());
+    }
+
+    [TestMethod]
+    public void ShowsProfileIndicator_ReturnsFalse_WhenOverriddenOrRelease()
+    {
+        try
+        {
+            GuiTestProfile.ShowsProfileIndicatorOverrideForTests = false;
+            Assert.IsFalse(GuiTestProfile.ShowsProfileIndicator);
+        }
+        finally
+        {
+            GuiTestProfile.ShowsProfileIndicatorOverrideForTests = null;
+        }
+    }
+
+    [TestMethod]
+    public void ShowsProfileIndicator_ReturnsTrue_WhenOverriddenOrDebug()
+    {
+        try
+        {
+            GuiTestProfile.ShowsProfileIndicatorOverrideForTests = true;
+            Assert.IsTrue(GuiTestProfile.ShowsProfileIndicator);
+        }
+        finally
+        {
+            GuiTestProfile.ShowsProfileIndicatorOverrideForTests = null;
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

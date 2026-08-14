@@ -2,6 +2,7 @@ using KnownFirst.Services.Diagnostics;
 using KnownFirst.Services.Lexical;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Maui.Storage;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -34,7 +35,12 @@ public sealed class LexicalDiagnosticLog(
         }
     }
 
-    private static string LogPath => Path.Combine(FileSystem.AppDataDirectory, "Logs", LogFileName);
+    private static string LogPath => Path.Combine(
+        KnownFirst.Services.Isolation.GuiTestProfile.IsActive
+            ? KnownFirst.Services.Isolation.GuiTestProfile.RootPath
+            : FileSystem.AppDataDirectory,
+        "Logs",
+        LogFileName);
 
     private string BuildType => buildIdentity.Identity.Configuration;
 

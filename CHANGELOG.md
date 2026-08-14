@@ -38,6 +38,7 @@ and uses the application's prerelease version identifiers.
 
 - An Android-only automated GUI-navigation test foundation (P16-A) was merged as source infrastructure under a dedicated, isolated `com.tachiguro.knownfirst.guitest` identity (PR #91). It is test tooling, not a product feature: it has not been runtime-executed, does not automate any row of the GUI test matrix, and establishes no Android platform build, packaging, or device evidence.
 - The unfinished "Support KnownFirst" and "Report a bug" placeholder controls and their shared placeholder-handler behavior were removed from the production Settings source (Milestone 14A, PR #71); they were not rendered to users before removal and this is a source-cleanliness change, not a user-facing behavior change.
+- The canonical Google Play packaging script now treats an absent post-clean Android Release output directory as zero stale candidates rather than raising a terminating error, with isolated behavioral regression tests (PR #101).
 - Documentation-governance packages D1-D5 reconciled `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, and related contracts with merged product state on an ongoing basis (PRs #53-#64 and subsequent per-package closures). These are repository-governance changes only.
 
 ## [1.0.0-beta.12] - 2026-07-30 (confirmed distributed)

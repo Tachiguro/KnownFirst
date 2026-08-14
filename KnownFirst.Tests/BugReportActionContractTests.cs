@@ -77,6 +77,17 @@ public sealed class BugReportActionContractTests
     }
 
     [TestMethod]
+    public void BugReportService_UsesMauiEmailMessageToPropertyContract()
+    {
+        var serviceFile = Path.Combine(FindRepositoryRoot(), "Services", "Diagnostics", "BugReportLauncherService.cs");
+        var source = File.ReadAllText(serviceFile);
+
+        Assert.Contains("To = [RecipientAddress]", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recipients = [RecipientAddress]", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recipients =", source, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void BugReportService_RegisteredInDependencyInjection()
     {
         var mauiProgram = ReadRepositoryFile("MauiProgram.cs");

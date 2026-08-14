@@ -1567,6 +1567,23 @@ public sealed class UiWorkflowContractTests
         return count;
     }
 
+    [TestMethod]
+    public void Settings_ResetData_UsesInjectedPreferencesClear_NotStaticPreferencesDefault()
+    {
+        var markup = LoadUi("Settings.razor");
+        Assert.IsTrue(
+            markup.Contains("@inject IPreferences Preferences", StringComparison.Ordinal)
+            || markup.Contains("@inject Microsoft.Maui.Storage.IPreferences Preferences", StringComparison.Ordinal),
+            "Settings.razor must inject IPreferences to support profile isolation during reset.");
+
+        var resetStart = markup.IndexOf("private async Task ResetDataAsync()", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, resetStart);
+        var resetMethod = markup[resetStart..];
+
+        Assert.Contains("Preferences.Clear()", resetMethod);
+        Assert.DoesNotContain("Preferences.Default.Clear()", resetMethod);
+    }
+
     private static void AssertConfirmationNavigation(
         string markup,
         string confirmationReference,

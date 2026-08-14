@@ -2,7 +2,7 @@
 @using KnownFirst.Services.Diagnostics
 @inject IBuildIdentityService BuildIdentityService
 
-@if (GuiTestProfile.IsActive)
+@if (GuiTestProfile.IsActive && GuiTestProfile.ShowsProfileIndicator)
 {
     var buildIdentity = BuildIdentityService.Identity;
     <div id="gui-test-profile-indicator"

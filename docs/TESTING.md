@@ -73,15 +73,24 @@ Test classes do not currently use formal MSTest category attributes; filtering r
 - **Current final correction validation:** bounded TEST_ONLY returned MSTest **160 passed / 0 failed / 0 skipped** and Node **7 passed / 0 failed / 0 cancelled / 0 skipped / 0 todo**; pre/post `git diff --check` passed and all seven correction-file SHA-256 hashes were unchanged. Deterministic MSBuild property evaluation verified GUI-test KnownFirst `BaseIntermediateOutputPath` and `MSBuildProjectExtensionsPath` under `C:\Dev\KnownFirst\artifacts\obj\android-gui-test\`, GUI-test `BaseOutputPath` under `C:\Dev\KnownFirst\artifacts\build\android-gui-test\`, and ordinary KnownFirst Android Debug plus KnownFirst.Core on their ordinary `obj\` / `bin\` roots. This is not Android build or runtime evidence.
 - **Dependency boundary:** Appium `3.6.0`, UiAutomator2 driver `5.0.7`, and WebdriverIO `9.30.1` are exact contract-tested manifest and lockfile pins. Lockfile metadata was generated during IMPLEMENT with `npm install --package-lock-only --ignore-scripts`; no `node_modules` was created, no third-party package code was executed, and no dependency runtime compatibility is proven.
 
-### H. FULL_VALIDATION
-- **Definition:** Validates automated tests and required builds (Windows Debug/Release, Android Debug/Release). Does NOT run rendered GUI tests or manual verification.
+### H. FULL_VALIDATION (Mandatory Pre-PR Full-Validation Gate)
+- **Definition:** The mandatory pre-PR full-validation gate that must execute and pass on the exact final candidate commit (HEAD) before every pull request. Does NOT run rendered GUI tests, physical device tests, or create application packages.
 - **Command:**
   ```powershell
   .\scripts\knownfirst.ps1 -Action ValidateAll
   ```
   OR (interactive menu option 6)
-- **Includes:** All automated tests, Windows Debug, Windows Release, Android Debug build validation, and Android Release build validation.
-- **Does NOT include:** Rendered GUI test execution, manual interaction testing, or Android package creation.
+- **Includes:**
+  1. `ALL_AUTOMATED`: Complete test suite execution across `KnownFirst.Tests.csproj`;
+  2. Windows Debug build (`net10.0-windows10.0.19041.0`);
+  3. Windows Release build (`net10.0-windows10.0.19041.0`);
+  4. Android Debug build validation (`net10.0-android`);
+  5. Android Release build validation (`net10.0-android`).
+- **Fail-Closed Stop Policy:** Any failure across the test suite or any build immediately halts progression. The validation operation must never attempt automatic code fixes.
+- **Exact-HEAD Evidence & Stale Invalidation:** Evidence belongs strictly to the exact candidate commit SHA. Any subsequent commit or repository file modification invalidates the result and requires `ValidateAll` to run again on the new HEAD.
+- **Evidence Boundaries:**
+  - *Validated:* Clean automated test execution and multi-target compilation for Windows and Android Debug/Release.
+  - *Does NOT include / prove:* Rendered GUI test execution, manual interaction testing, physical Android device execution, APK/AAB package creation, code signing, or store readiness.
 
 ## Layered Confidence Model
 

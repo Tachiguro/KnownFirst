@@ -80,29 +80,70 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Ac
 ```
 A successful local package consists of the final AAB and its matching SHA-256 sidecar. Creation does not authorize upload, installation, or device testing. Warnings prohibited by the release contract will fail packaging.
 
+### WINDOWS_PORTABLE_PACKAGE
+Executes the canonical launcher to create a transportable, self-contained Windows x64 Release ZIP archive and SHA-256 sidecar:
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Action WindowsPortablePackage
+```
+- **Channel contract:** Release configuration, `net10.0-windows10.0.19041.0`, `win-x64` RID, unpackaged (`WindowsPackageType=None`), `SelfContained=true`, `WindowsAppSDKSelfContained=true`.
+- **Packaging behavior:** Publishes into dedicated `artifacts\build\windows-portable\Release\net10.0-windows10.0.19041.0\win-x64\publish\`, validates required self-contained markers (`KnownFirst.exe`, `KnownFirst.dll`, `hostfxr.dll`, `Microsoft.WindowsAppRuntime.Bootstrap.dll`), archives the complete publish directory to `artifacts\windows-portable\KnownFirst-<ProductVersion>-build<BuildNumber>-win-x64-<ShortCommit>.zip`, and writes a matching `.sha256.txt` sidecar.
+- **Isolation:** Intermediate and build outputs are isolated under `artifacts\obj\windows-portable\` and `artifacts\build\windows-portable\`; ordinary `bin\Release\` outputs backing `WindowsBuild` and `ValidateAll` validation evidence are never rewritten.
+- **Update model:** Manual replacement channel only. The portable ZIP contains no updater, no self-update mechanism, and no installer. Updating an installation requires extracting a newer archive manually.
+- **Boundaries:** Creation does not launch the executable, install the application, create an installer, or distribute the package.
+
+### WINDOWS_MSIX_PACKAGE
+Executes the canonical launcher to create an x64 Release MSIX package and SHA-256 sidecar:
+```powershell
+# Unsigned (default / Microsoft Store oriented):
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Action WindowsMsixPackage
+
+# External certificate signing mode:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Action WindowsMsixPackage -MsixSigning External
+```
+- **Channel contract:** Release configuration, `net10.0-windows10.0.19041.0`, `win-x64` RID, MSIX package (`WindowsPackageType=MSIX`), `AppxBundle=Never`, `UapAppxPackageBuildMode=SideloadOnly`, `SelfContained=true`, `WindowsAppSDKSelfContained=true`.
+- **Output:** Staged and finalized under `artifacts\windows-msix\KnownFirst-<ProductVersion>-build<BuildNumber>-x64-<ShortCommit>-<SigningMarker>-<IdentityMarker>.msix` with a matching `.sha256.txt` sidecar.
+- **Isolation:** Intermediate and build outputs are isolated under `artifacts\obj\windows-msix\` and `artifacts\build\windows-msix\`.
+- **Signing modes:**
+  - `None` (default): `AppxPackageSigningEnabled=false`. The Microsoft Store signs packages during Store ingestion; local signing is not required for Store submission. An unsigned package cannot be sideloaded without a signature.
+  - `External`: Signs using a certificate that already exists in the current user's Windows Certificate Store, identified solely by its 40-character SHA-1 thumbprint read from environment variable `KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT`.
+- **Signing boundary & safety:** No certificate, PFX file, private key, or password is accepted, created, imported, trusted, or stored in the repository. The launcher forwards only the signing mode; the publishing script reads the environment variable directly so thumbprints never appear in launcher commands, logs, or state records. Missing or malformed thumbprints fail closed before building.
+- **Store identity classification & placeholders:** `Platforms\Windows\Package.appxmanifest` currently retains development/template placeholder identity values (`maui-package-name-placeholder`, `CN=User Name`, `User Name`). Both the launcher and publishing script inspect the manifest via `scripts/windows-distribution-common.ps1` and classify the package as `devidentity`. Current MSIX packages are technical development-identity artifacts and are **NOT** Microsoft Store submission candidates until real Partner Center identity values are authoritatively supplied in a future separately scoped package.
+- **Version mapping:** MAUI generates `Identity/@Version` as `<Display[0]>.<Display[1]>.<Display[2]>.<ApplicationVersion>`. The Microsoft Store requires the fourth section to be 0 and the first section to be non-zero. The MSIX packaging variant maps `ApplicationDisplayVersion` to `1.0.<KnownFirstBuildNumber>` and `ApplicationVersion` to `0`, yielding `1.0.13.0` for build 13. Application runtime identity is unaffected and reads from `KnownFirstProductVersion`/`KnownFirstBuildNumber` assembly metadata (`1.0.0-beta.13` / build `13`).
+- **Update model:** The Microsoft Store MSIX is the intended production Windows install and update channel once Store submission work is authorized and completed; Microsoft Store infrastructure delivers application updates. Sideloading auto-update via `.appinstaller` is explicitly out of scope and unimplemented.
+- **Boundaries:** Creation does not install, sideload, contact Partner Center, upload, or publish the MSIX.
+
+### Windows Distribution Architecture and Evidence Boundaries
+- **Single source of truth:** `scripts/windows-distribution-common.ps1` authoritatively derives short commit prefixes, artifact filenames, signing markers (`unsigned`/`signed`), Store identity markers (`devidentity`/`storeidentity`), MSIX candidate selection, and ZIP file-entry counting. Both packaging scripts and the launcher dot-source this helper.
+- **Runtime evidence boundary:** Automated source-contract tests and deterministic MSBuild evaluation verify packaging arguments, path isolation, version mapping, and safety guards. No real portable ZIP or MSIX has yet been produced by this work package; actual publish execution, presence of runtime payload markers on the toolchain, certificate signing, clean-PC installation/execution, and Store ingestion/update behavior remain unproven until separately authorized operations.
+
 ### Legacy Direct-Install Helper Limitation
 - `scripts/publish-android-test-packages.ps1` publishes Release, BetaDiagnostic, and Debug APKs, but its artifact names contain hard-coded legacy Beta 6 labels and installation metadata. `scripts/publish-android-beta.ps1` invokes that same helper.
 - Until parameterized and updated by tests, do not report output from these helper scripts as current release evidence or distribute generated ZIP instructions as current release metadata. Record any authorized run as a tooling investigation.
 
 ## 4. Signing Identity and Safety
 
-- The beta signing identity lives strictly outside the repository:
+- **Android beta signing identity:** lives strictly outside the repository:
   - `%USERPROFILE%\KnownFirst-Secrets\knownfirst-beta.keystore`
   - `%USERPROFILE%\KnownFirst-Secrets\knownfirst-beta-signing-password.txt`
-- Never print, log, copy, or commit signing credentials or keystores.
-- Supply password via environment variable `KNOWNFIRST_ANDROID_SIGNING_PASSWORD` when automated script execution is authorized.
+  - Supply password via environment variable `KNOWNFIRST_ANDROID_SIGNING_PASSWORD` when automated script execution is authorized.
+- **Windows MSIX signing identity:**
+  - Uses existing certificates from the local Windows Certificate Store only.
+  - Specified via 40-character SHA-1 thumbprint in environment variable `KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT`.
+  - The repository never creates, imports, trusts, or stores certificates, PFX files, or passwords.
+- Never print, log, copy, or commit signing credentials, thumbprints, passwords, or keystores.
 
 ## 5. Artifact Retention Policy
 
 - Retain exactly the **two newest verified Google Play AABs** and matching SHA-256 sidecars in the local storage location (the current release and immediately preceding release).
+- Retain verified Windows distribution artifacts (`artifacts\windows-portable\` and `artifacts\windows-msix\`) locally along with their matching SHA-256 sidecars.
 - Never delete the previous release artifact until the new release is created, signed, hashed, and verified.
 - Temporary generated files in `bin/` or `obj/` are transient outputs, not retained release artifacts.
 - Historical artifact reconstruction must target exact source release tags (e.g. `v1.0.0-beta.8`) and must not claim byte identity without physical proof.
 
 ## 6. Publication Boundaries
 
-- Authorization to build or sign does not authorize Google Play Store upload or release publishing.
-- Store uploads are never automatic.
+- Authorization to build or sign does not authorize Google Play Store upload, Microsoft Store submission, or release publishing.
+- Store uploads and submissions are never automatic.
 - Pull-request merge is never automatic.
 - Physical-device testing and manual GUI verification are separate explicit packages.
 

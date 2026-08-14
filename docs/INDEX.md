@@ -64,7 +64,8 @@ Refer to [TESTING.md](TESTING.md) for full scope definitions and failure policie
 ### 8. Build, Versioning, Packaging, and Release
 Refer to [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for full commands and isolation boundaries:
 - **Build / configuration verification:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md), [VERSIONING.md](VERSIONING.md), affected project files, scripts, and configuration tests.
-- **APK / AAB / package generation:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md), [VERSIONING.md](VERSIONING.md), relevant current scripts, and applicable release evidence.
+- **Android APK / AAB and Windows distribution packaging (portable ZIP / MSIX):** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md), [VERSIONING.md](VERSIONING.md), relevant current scripts, and applicable release evidence.
+- **Windows packaging, signing boundaries, and Microsoft Store packaging/submission routing:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) (does not imply Store submission or distribution is implemented).
 - **Manual Android device validation:** [BETA_TESTING.md](BETA_TESTING.md) in addition to [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md).
 - **Historical artifact reconstruction:** [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) plus exact release/tag evidence.
 

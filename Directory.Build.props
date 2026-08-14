@@ -2,4 +2,14 @@
     <PropertyGroup Condition="'$(MSBuildProjectName)' == 'KnownFirst' and '$(KnownFirstAndroidGuiTest)' == 'true' and '$(Configuration)' == 'Debug'">
         <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\android-gui-test\</BaseIntermediateOutputPath>
     </PropertyGroup>
+    <!-- Opt-in Windows distribution packaging variants. These must be assigned here rather than
+         in KnownFirst.csproj: an SDK-style project assigns BaseIntermediateOutputPath too late
+         for NuGet restore and MSBuildProjectExtensionsPath to follow it. Deliberately not
+         conditioned on TargetFramework for the same reason. -->
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'KnownFirst' and '$(KnownFirstWindowsPortablePackaging)' == 'true' and '$(Configuration)' == 'Release'">
+        <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\windows-portable\</BaseIntermediateOutputPath>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(MSBuildProjectName)' == 'KnownFirst' and '$(KnownFirstWindowsMsixPackaging)' == 'true' and '$(Configuration)' == 'Release'">
+        <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\windows-msix\</BaseIntermediateOutputPath>
+    </PropertyGroup>
 </Project>

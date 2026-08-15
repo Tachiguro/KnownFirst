@@ -7,7 +7,7 @@
     This is the canonical portable Windows distribution artifact. It is a manual replacement
     channel: the ZIP carries no updater, no version check, and no self-update mechanism.
     Replacing an installed copy means extracting a newer ZIP by hand. The Microsoft Store MSIX
-    channel (scripts/publish-windows-msix.ps1) is the canonical production install/update path.
+    channel (scripts/packaging/publish-windows-msix.ps1) is the canonical production install/update path.
 
     Nothing is installed, launched, signed, uploaded, or published. The produced ZIP is written
     to artifacts\windows-portable\ and is never committed (artifacts\ is git-ignored).
@@ -30,7 +30,7 @@
 param()
 
 $ErrorActionPreference = "Stop"
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $projectPath = Join-Path $projectRoot "KnownFirst.csproj"
 $targetFramework = "net10.0-windows10.0.19041.0"
 $runtimeIdentifier = "win-x64"

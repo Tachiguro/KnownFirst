@@ -56,7 +56,7 @@ Refer to [TESTING.md](TESTING.md) for full scope definitions and failure policie
 - **Focused automated tests:** [TESTING.md](TESTING.md) (FOCUSED_AUTOMATED scope), affected code and test classes.
 - **All automated tests:** [TESTING.md](TESTING.md) (ALL_AUTOMATED scope).
 - **Automated UI contract checks:** [TESTING.md](TESTING.md) (UI_CONTRACT_AUTOMATED scope), `UiWorkflowContractTests.cs`.
-- **Windows smoke verification:** [TESTING.md](TESTING.md) (WINDOWS_GUI_AUTOMATED scope), `scripts/smoke-test-windows.ps1`.
+- **Windows smoke verification:** [TESTING.md](TESTING.md) (WINDOWS_GUI_AUTOMATED scope), `scripts/validation/smoke-test-windows.ps1`.
 - **Manual Windows GUI testing:** [TESTING.md](TESTING.md) (MANUAL_WINDOWS_GUI scope), [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md).
 - **Manual Android GUI testing:** [TESTING.md](TESTING.md) (MANUAL_ANDROID_GUI scope), [BETA_TESTING.md](BETA_TESTING.md).
 - **Full validation:** [TESTING.md](TESTING.md) (FULL_VALIDATION scope with explicit list of included scopes).

@@ -22,9 +22,9 @@ namespace KnownFirst.Tests;
 public sealed class WindowsDistributionPackagingContractTests
 {
     private const string LauncherPath = "scripts/knownfirst.ps1";
-    private const string PortableScriptPath = "scripts/publish-windows-portable.ps1";
-    private const string MsixScriptPath = "scripts/publish-windows-msix.ps1";
-    private const string CommonHelperPath = "scripts/windows-distribution-common.ps1";
+    private const string PortableScriptPath = "scripts/packaging/publish-windows-portable.ps1";
+    private const string MsixScriptPath = "scripts/packaging/publish-windows-msix.ps1";
+    private const string CommonHelperPath = "scripts/packaging/windows-distribution-common.ps1";
 
     private const string WindowsTargetFramework = "net10.0-windows10.0.19041.0";
     private const string ThumbprintEnvironmentVariable = "KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT";
@@ -461,8 +461,14 @@ public sealed class WindowsDistributionPackagingContractTests
                 "A change to the shared helper must invalidate this channel's reuse record.");
 
             // ...and those two variables must actually resolve to the intended files.
-            Assert.Contains($"$scriptPath = Join-Path $scriptRoot '{ownScript}'", body);
-            Assert.Contains("$commonPath = Join-Path $scriptRoot 'windows-distribution-common.ps1'", body);
+            Assert.IsTrue(
+                body.Contains($"$scriptPath = Join-Path $scriptRoot 'packaging\\{ownScript}'") ||
+                body.Contains($"$scriptPath = Join-Path $scriptRoot 'packaging/{ownScript}'"),
+                $"Script path must resolve to packaging/{ownScript}.");
+            Assert.IsTrue(
+                body.Contains("$commonPath = Join-Path $scriptRoot 'packaging\\windows-distribution-common.ps1'") ||
+                body.Contains("$commonPath = Join-Path $scriptRoot 'packaging/windows-distribution-common.ps1'"),
+                "Common path must resolve to packaging/windows-distribution-common.ps1.");
         }
     }
 

@@ -11,8 +11,8 @@
     parent PowerShell window: it is reported as the failed command, its exit code, and the log
     path, and the interactive menu keeps running. Nothing is ever uploaded to Google Play and
     nothing is installed on a device automatically; package creation ("Build Android test APK"
-    / "Create Google Play AAB") calls the existing, already-reviewed
-    publish-android-test-packages.ps1 and publish-google-play-bundle.ps1 scripts instead of
+    The AndroidTestPackage and GooglePlayBundle actions call out to the dedicated
+    scripts/packaging/publish-android-test-packages.ps1 and scripts/packaging/publish-google-play-bundle.ps1 scripts instead of
     duplicating their signing logic.
 
     Successful results can be reused across runs (see -Force). A result under
@@ -58,7 +58,7 @@
     during publishing, so a Store submission candidate does not need to be signed locally.
     "External" signs with a certificate that already exists in the current user's certificate
     store. The launcher forwards only this mode: the required external signing input is read by
-    scripts/publish-windows-msix.ps1 itself (see that script's help for the exact environment
+    scripts/packaging/publish-windows-msix.ps1 itself (see that script's help for the exact environment
     variable it expects), so no signing input can ever reach a printed launcher command line, a
     launcher log under artifacts\launcher-logs\, or a reusable-result record under
     artifacts\launcher-state\. This repository never creates, imports, or trusts a certificate,
@@ -786,7 +786,7 @@ function Invoke-AndroidTestPackageAction {
     Write-Host 'Creates selected signed APKs for manual sideload testing; nothing is installed or uploaded.'
     $effectiveConfiguration = if ([string]::IsNullOrEmpty($Configuration)) { 'All' } else { $Configuration }
     $requestedKinds = Get-EffectiveAndroidPackageConfigurations -RequestedConfiguration $Configuration
-    $scriptPath = Join-Path $scriptRoot 'publish-android-test-packages.ps1'
+    $scriptPath = Join-Path $scriptRoot 'packaging\publish-android-test-packages.ps1'
     $outputRoot = Join-Path $projectRoot 'artifacts\android-beta'
 
     if ($WhatIf) {
@@ -860,7 +860,7 @@ function Invoke-AndroidTestPackageAction {
 
 function Invoke-GooglePlayBundleAction {
     Write-Host 'Creates one signed local App Bundle; nothing is uploaded.'
-    $scriptPath = Join-Path $scriptRoot 'publish-google-play-bundle.ps1'
+    $scriptPath = Join-Path $scriptRoot 'packaging\publish-google-play-bundle.ps1'
     $outputRoot = Join-Path $projectRoot 'artifacts\android-google-play'
     if ($WhatIf) {
         Write-Host "[WhatIf] Would run: $scriptPath -> $outputRoot"
@@ -907,7 +907,7 @@ function Invoke-GooglePlayBundleAction {
 
 # Both Windows packaging actions must predict the exact final artifact path before running
 # anything, so that Test-LauncherStateReusable can evaluate an expected output. Those names are
-# derived by scripts/windows-distribution-common.ps1, the single implementation the publishing
+# derived by scripts/packaging/windows-distribution-common.ps1, the single implementation the publishing
 # scripts use as well: a launcher-local copy could drift from the publisher and would then record
 # an expected output that was never produced. The helper is dot-sourced inside each action rather
 # than at file scope so that a problem with it can never prevent the launcher from starting; any
@@ -916,8 +916,8 @@ function Invoke-GooglePlayBundleAction {
 function Invoke-WindowsPortablePackageAction {
     Write-Host 'Creates one transportable self-contained Windows x64 ZIP; nothing is installed or uploaded.'
     Write-Host 'This is a manual replacement channel: the archive contains no updater.'
-    $scriptPath = Join-Path $scriptRoot 'publish-windows-portable.ps1'
-    $commonPath = Join-Path $scriptRoot 'windows-distribution-common.ps1'
+    $scriptPath = Join-Path $scriptRoot 'packaging\publish-windows-portable.ps1'
+    $commonPath = Join-Path $scriptRoot 'packaging\windows-distribution-common.ps1'
     $outputRoot = Join-Path $projectRoot 'artifacts\windows-portable'
 
     if ($WhatIf) {
@@ -977,8 +977,8 @@ function Invoke-WindowsPortablePackageAction {
 
 function Invoke-WindowsMsixPackageAction {
     Write-Host 'Creates one x64 Release MSIX; nothing is installed, sideloaded, or submitted to any store.'
-    $scriptPath = Join-Path $scriptRoot 'publish-windows-msix.ps1'
-    $commonPath = Join-Path $scriptRoot 'windows-distribution-common.ps1'
+    $scriptPath = Join-Path $scriptRoot 'packaging\publish-windows-msix.ps1'
+    $commonPath = Join-Path $scriptRoot 'packaging\windows-distribution-common.ps1'
     $outputRoot = Join-Path $projectRoot 'artifacts\windows-msix'
 
     if ($WhatIf) {

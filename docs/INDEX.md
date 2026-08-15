@@ -78,5 +78,5 @@ Refer to [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for full commands and isol
 - **Normally NOT required:** Unaffected domain code, test suites, build scripts.
 
 ### 11. Historical Investigation
-- **Required reading:** Only the specific historical document needed for investigation ([audits/](audits/), [handoffs/](handoffs/), [archive/](archive/), historical test plans, e.g. [plans/backup-restore-v1-implementation-plan.md](plans/backup-restore-v1-implementation-plan.md) when historical implementation evidence is specifically required).
+- **Required reading:** Only the specific historical document needed for investigation ([handoffs/](handoffs/), [audits/](audits/), [releases/](releases/), e.g. [plans/backup-restore-v1-implementation-plan.md](plans/backup-restore-v1-implementation-plan.md) when historical implementation evidence is specifically required).
 - **Normally NOT required:** All active implementation contracts not under investigation.

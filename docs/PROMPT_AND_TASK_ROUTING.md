@@ -7,7 +7,7 @@ This document governs the conversion of user requests into KnownFirst agent prom
 Governance policies in KnownFirst are categorized into four exact classes:
 
 1. `DURABLE_REPOSITORY_GOVERNANCE`
-   - Repository safety, Git authorization, operation isolation, data protection, single worktree (`C:\Dev\KnownFirst`) and single writing agent rules, test boundaries, and manual user merge policy.
+   - Repository safety, Git authorization, operation isolation, data protection, single canonical repository and single writing agent rules, test boundaries, and manual user merge policy.
    - These rules belong in tracked repository documentation (`AGENTS.md`, `docs/`).
 
 2. `DURABLE_PROMPT_AUTHORING_GOVERNANCE`
@@ -64,7 +64,7 @@ Prompts must select the least expensive capable model:
 
 ### Delegation and Evidence Verification Rules
 - Subagents, delegated writers, background processes, task trackers, or parallel execution require explicit user authorization.
-- One physical repository (`C:\Dev\KnownFirst`) and one writing agent remain the default.
+- One physical repository and one writing agent remain the default.
 - An agent report is evidence to evaluate, not authoritative proof; verify GitHub, commits, branches, PR metadata, changed files, and deterministic validation directly before claiming completion when those sources are available.
 
 ## D. Operation Modes

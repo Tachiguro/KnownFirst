@@ -4,7 +4,7 @@ KnownFirst is a local-first vocabulary-learning application for Windows and Andr
 
 ## Core repository rules
 
-- **Single worktree:** `C:\Dev\KnownFirst` is the only normal working folder (see [ADR-0007](docs/decisions/ADR-0007-single-canonical-working-directory.md)). Do not create additional worktrees or repository copies without explicit user approval.
+- **Single worktree:** The repository uses exactly one canonical local checkout and one normal worktree (see [ADR-0007](docs/decisions/ADR-0007-single-canonical-working-directory.md)). Its absolute filesystem location is configurable (defaulting to `C:\Dev\KnownFirst`); do not create additional worktrees or repository copies without explicit user approval.
 - **Single writing agent:** Only one writing agent may operate at a time in the repository. Subagents, delegated writers, background processes, task trackers, or parallel execution require explicit user authorization.
 - **No direct master commits:** Never implement directly on `master`. Work on task-appropriate branches using narrow prefixes (`feature/`, `fix/`, `docs/`, `build/`, `test/`, `chore/`, `hotfix/`, `release/`).
 - **Prohibited destructive operations:** Do not use `git clean`, destructive reset, stash, rebase, amend, history rewriting, or force-push unless an explicit recovery task authorizes it.

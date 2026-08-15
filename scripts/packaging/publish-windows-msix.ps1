@@ -102,15 +102,25 @@ function Get-KnownFirstShortCommit {
     param([Parameter(Mandatory = $true)][string]$ProjectRoot)
 
     $status = & git -C $ProjectRoot status --porcelain
-    if ($LASTEXITCODE -ne 0) {
+    $statusExitCode = $LASTEXITCODE
+    if ($statusExitCode -ne 0) {
         throw "Could not determine the Git worktree state for $ProjectRoot."
     }
     if (-not [string]::IsNullOrEmpty(($status -join ''))) {
         throw "The worktree is not clean. An MSIX package filename carries a commit identity and must never describe modified content. Commit or revert the pending changes first."
     }
 
-    $headSha = (& git -C $ProjectRoot rev-parse HEAD | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($headSha)) {
+    # The native invocation must NOT be piped: under Windows PowerShell 5.1, Select-Object -First 1
+    # stops the upstream pipeline as soon as it holds its single object, and if git has not exited
+    # at that instant PowerShell terminates it and overwrites $LASTEXITCODE with -1 - even though
+    # the SHA itself was captured correctly. Packaging then aborted with "Could not resolve HEAD"
+    # on a perfectly healthy repository. The exit code is therefore captured as the very next
+    # statement after the native call, exactly as the launcher's own native-command contract
+    # requires, and the first line is selected only afterwards.
+    $headOutput = & git -C $ProjectRoot rev-parse HEAD
+    $headExitCode = $LASTEXITCODE
+    $headSha = ($headOutput | Select-Object -First 1)
+    if ($headExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($headSha)) {
         throw "Could not resolve HEAD for $ProjectRoot."
     }
     $headSha = $headSha.Trim()

@@ -932,6 +932,177 @@ public sealed class WindowsDistributionPackagingContractTests
         Assert.Contains("<PublisherDisplayName>User Name</PublisherDisplayName>", manifest);
     }
 
+    // === H. Windows PowerShell 5.1 HEAD-resolution exit-code contract ========================
+
+    /// <summary>
+    /// Regression coverage for the observed WindowsPortablePackage runtime failure
+    /// (<c>ERROR: Could not resolve HEAD for C:\Dev\KnownFirst.</c>).
+    ///
+    /// Under Windows PowerShell 5.1 - the edition the canonical launcher runs under -
+    /// <c>Select-Object -First 1</c> stops the upstream pipeline as soon as it holds its single
+    /// object. If the native git process has not exited at that instant, PowerShell terminates it
+    /// and sets <c>$LASTEXITCODE</c> to <c>-1</c>, even though the SHA itself was captured
+    /// correctly. Observing <c>$LASTEXITCODE</c> after the pipeline therefore reports a spurious
+    /// failure, and packaging aborts before restore and publish.
+    ///
+    /// The shim makes that otherwise timing-dependent window deterministic: it prints a valid SHA
+    /// and then deliberately stays alive. A pipelined implementation is therefore always stopped
+    /// mid-flight, while an implementation that captures the native exit code before selecting
+    /// always succeeds.
+    /// </summary>
+    [TestMethod]
+    public void HeadResolution_ResolvesTheShortCommitWhenTheGitProcessHasNotYetExited()
+    {
+        foreach (var scriptPath in new[] { PortableScriptPath, MsixScriptPath })
+        {
+            var result = RunHeadResolution(scriptPath, new GitShimBehavior());
+
+            Assert.AreEqual(0, result.ExitCode,
+                $"{scriptPath}: HEAD resolution must survive a git process that has not yet exited when " +
+                $"the pipeline is stopped.\nStdOut: {result.StandardOutput}\nStdErr: {result.StandardError}");
+            Assert.AreEqual(FixtureShortCommit, result.StandardOutput.Trim(),
+                $"{scriptPath}: the seven-character artifact identity must be derived from the resolved SHA.");
+        }
+    }
+
+    /// <summary>
+    /// Structural guard for the defect class itself, so it cannot silently return to either channel.
+    /// </summary>
+    [TestMethod]
+    public void WindowsDistributionScripts_NeverObserveLastExitCodeAfterAPipelinedNativeCommand()
+    {
+        foreach (var scriptPath in new[] { PortableScriptPath, MsixScriptPath })
+        {
+            var lines = SplitLines(LoadRepositoryFile(scriptPath));
+
+            for (var index = 0; index < lines.Length; index++)
+            {
+                // A native invocation piped into another pipeline element must never be followed by
+                // a $LASTEXITCODE observation: the downstream element can stop the upstream process
+                // and replace the real exit code with the termination code.
+                if (Regex.IsMatch(lines[index], @"&\s*(git|dotnet)\b[^|]*\|"))
+                {
+                    Assert.DoesNotContain("$LASTEXITCODE", NextMeaningfulLine(lines, index),
+                        $"{scriptPath} line {index + 1}: '{lines[index].Trim()}' pipes a native command and the " +
+                        "next statement observes $LASTEXITCODE. Capture the native exit code immediately after " +
+                        "the invocation, then select from the captured output.");
+                }
+
+                // ...and every native git invocation the script relies on must capture its exit code
+                // on the immediately following statement, before anything else can overwrite it.
+                if (Regex.IsMatch(lines[index], @"^\s*\$\w+\s*=\s*&\s*git\b"))
+                {
+                    var next = NextMeaningfulLine(lines, index);
+                    Assert.IsTrue(
+                        Regex.IsMatch(next, @"^\s*\$\w+\s*=\s*\$LASTEXITCODE\s*$"),
+                        $"{scriptPath} line {index + 1}: '{lines[index].Trim()}' must be followed immediately by a " +
+                        $"'$<name> = $LASTEXITCODE' capture, but the next statement is '{next.Trim()}'.");
+                }
+            }
+        }
+
+        // The correction must not migrate process execution into the deliberately pure shared helper.
+        var helper = LoadRepositoryFile(CommonHelperPath);
+        foreach (var forbidden in new[] { "& git", "git -C", "& dotnet" })
+        {
+            Assert.DoesNotContain(forbidden, helper, StringComparison.OrdinalIgnoreCase,
+                $"The shared helper must stay process-free ({forbidden}).");
+        }
+    }
+
+    /// <summary>
+    /// Characterization/hardening: the fail-closed Git identity semantics both channels depend on.
+    /// A distribution filename carries a commit identity, so anything short of a clean worktree and
+    /// a full 40-character SHA must abort before any artifact is produced.
+    /// </summary>
+    [TestMethod]
+    public void HeadResolution_FailsClosedOnDirtyWorktreeNonZeroGitExitAndNonFullSha()
+    {
+        foreach (var scriptPath in new[] { PortableScriptPath, MsixScriptPath })
+        {
+            // 1. clean worktree and a full SHA -> the seven-character artifact identity.
+            var resolved = RunHeadResolution(scriptPath, new GitShimBehavior(DelayHeadExit: false));
+            Assert.AreEqual(0, resolved.ExitCode,
+                $"{scriptPath}: a clean worktree with a full SHA must resolve.\nStdErr: {resolved.StandardError}");
+            Assert.AreEqual(FixtureShortCommit, resolved.StandardOutput.Trim(),
+                $"{scriptPath}: the resolved identity must be the first seven SHA characters.");
+
+            // 2. dirty worktree -> a commit identity must never describe modified content.
+            AssertHeadResolutionFailsClosed(
+                scriptPath,
+                new GitShimBehavior(StatusOutput: " M Components/Pages/Settings.razor"),
+                "The worktree is not clean.");
+
+            // 3. rev-parse failure -> HEAD is genuinely unresolvable.
+            AssertHeadResolutionFailsClosed(
+                scriptPath,
+                new GitShimBehavior(HeadSha: "", HeadExitCode: 128, DelayHeadExit: false),
+                "Could not resolve HEAD for");
+
+            // 4. an abbreviated SHA -> the artifact identity must come from a full commit SHA.
+            AssertHeadResolutionFailsClosed(
+                scriptPath,
+                new GitShimBehavior(HeadSha: "0123456", DelayHeadExit: false),
+                "HEAD did not resolve to a full commit SHA.");
+
+            // 5. git status failure (for example dubious ownership) -> the worktree state is unknown.
+            AssertHeadResolutionFailsClosed(
+                scriptPath,
+                new GitShimBehavior(StatusExitCode: 128),
+                "Could not determine the Git worktree state for");
+        }
+    }
+
+    /// <summary>
+    /// Characterization/hardening: binds the shim-based contract above to real git behavior, using
+    /// a disposable temporary repository only. KnownFirst history, the KnownFirst worktree, and all
+    /// user data are untouched.
+    /// </summary>
+    [TestMethod]
+    public void HeadResolution_MatchesRealGitForAnIsolatedTemporaryRepository()
+    {
+        var repository = CreateTemporaryProjectRoot();
+        try
+        {
+            RunGitFixtureCommand(repository, "init", "-q", "-b", "main");
+            RunGitFixtureCommand(
+                repository,
+                "-c", "user.name=KnownFirst Test",
+                "-c", "user.email=test@knownfirst.invalid",
+                "-c", "commit.gpgsign=false",
+                "commit", "-q", "--allow-empty", "--no-gpg-sign",
+                "-m", "isolated head-resolution fixture");
+
+            var expectedShortCommit = RunGitFixtureCommand(repository, "rev-parse", "HEAD").Trim()[..7];
+
+            foreach (var scriptPath in new[] { PortableScriptPath, MsixScriptPath })
+            {
+                var clean = RunHeadResolution(scriptPath, projectRoot: repository);
+
+                Assert.AreEqual(0, clean.ExitCode,
+                    $"{scriptPath}: a clean real repository must resolve.\nStdErr: {clean.StandardError}");
+                Assert.AreEqual(expectedShortCommit, clean.StandardOutput.Trim(),
+                    $"{scriptPath}: the resolved identity must match real git for the same repository.");
+            }
+
+            File.WriteAllText(Path.Combine(repository, "uncommitted.txt"), "makes the worktree dirty");
+
+            foreach (var scriptPath in new[] { PortableScriptPath, MsixScriptPath })
+            {
+                var dirty = RunHeadResolution(scriptPath, projectRoot: repository);
+
+                Assert.AreNotEqual(0, dirty.ExitCode,
+                    $"{scriptPath}: a dirty real repository must fail closed.\nStdOut: {dirty.StandardOutput}");
+                Assert.Contains("The worktree is not clean.", dirty.StandardError,
+                    $"{scriptPath}: the existing clean-worktree rejection must be preserved for real git.");
+            }
+        }
+        finally
+        {
+            ForceDeleteDirectory(repository);
+        }
+    }
+
     // === Helpers ==============================================================================
 
     private static void AssertOutputFilesAre(string functionBody, string expectedOutputs, string channel)
@@ -1195,5 +1366,182 @@ public sealed class WindowsDistributionPackagingContractTests
         }
 
         throw new InvalidOperationException("Could not locate the KnownFirst repository root.");
+    }
+
+    // --- HEAD-resolution harness ----------------------------------------------------------
+
+    private const string HeadResolutionFunctionName = "Get-KnownFirstShortCommit";
+    private const string FixtureHeadSha = "0123456789abcdef0123456789abcdef01234567";
+    private const string FixtureShortCommit = "0123456";
+
+    /// <summary>
+    /// Deterministic stand-in for git. <paramref name="DelayHeadExit"/> keeps the process alive
+    /// after it has written the SHA, which is exactly the window in which Windows PowerShell 5.1
+    /// terminates a pipelined native command and overwrites <c>$LASTEXITCODE</c> with <c>-1</c>.
+    /// </summary>
+    private sealed record GitShimBehavior(
+        string StatusOutput = "",
+        int StatusExitCode = 0,
+        string HeadSha = FixtureHeadSha,
+        bool DelayHeadExit = true,
+        int HeadExitCode = 0);
+
+    /// <summary>
+    /// Executes the real <c>Get-KnownFirstShortCommit</c> function text lifted out of
+    /// <paramref name="scriptPath"/> under Windows PowerShell 5.1. Nothing is restored, built,
+    /// published, packaged, signed, installed, or uploaded.
+    /// </summary>
+    private static PowerShellResult RunHeadResolution(
+        string scriptPath,
+        GitShimBehavior? shim = null,
+        string? projectRoot = null)
+    {
+        var ownedRoot = projectRoot is null ? CreateTemporaryProjectRoot() : null;
+        var shimDirectory = shim is null ? null : CreateTemporaryProjectRoot();
+
+        try
+        {
+            var function = ExtractFunctionBody(LoadRepositoryFile(scriptPath), HeadResolutionFunctionName);
+
+            var harness = new StringBuilder();
+            harness.AppendLine("$ErrorActionPreference = \"Stop\"");
+            if (shim is not null)
+            {
+                WriteGitShim(shimDirectory!, shim);
+                // Child-process only: this never mutates the caller's or the machine's PATH.
+                harness.AppendLine($"$env:Path = '{shimDirectory!.Replace("'", "''")};' + $env:Path");
+            }
+            harness.AppendLine($". '{HelperFullPath().Replace("'", "''")}'");
+            harness.AppendLine($"function {HeadResolutionFunctionName} {{{function}");
+            harness.AppendLine("}");
+            harness.AppendLine(
+                $"{HeadResolutionFunctionName} -ProjectRoot '{(projectRoot ?? ownedRoot!).Replace("'", "''")}'");
+
+            return RunHarness(harness.ToString());
+        }
+        finally
+        {
+            if (ownedRoot is not null)
+            {
+                ForceDeleteDirectory(ownedRoot);
+            }
+            if (shimDirectory is not null)
+            {
+                ForceDeleteDirectory(shimDirectory);
+            }
+        }
+    }
+
+    private static void AssertHeadResolutionFailsClosed(
+        string scriptPath,
+        GitShimBehavior shim,
+        string expectedMessage)
+    {
+        var result = RunHeadResolution(scriptPath, shim);
+
+        Assert.AreNotEqual(0, result.ExitCode,
+            $"{scriptPath}: this condition must fail closed.\nStdOut: {result.StandardOutput}");
+        Assert.Contains(expectedMessage, result.StandardError,
+            $"{scriptPath}: the existing fail-closed message must be preserved.");
+    }
+
+    private static void WriteGitShim(string shimDirectory, GitShimBehavior behavior)
+    {
+        var shim = new StringBuilder();
+        shim.AppendLine("@echo off");
+        // Arguments are always `-C <root> <subcommand> ...`, so %3 is the subcommand.
+        shim.AppendLine("if /I \"%~3\"==\"rev-parse\" goto revparse");
+        if (behavior.StatusOutput.Length > 0)
+        {
+            shim.AppendLine($"echo {behavior.StatusOutput}");
+        }
+        if (behavior.StatusExitCode != 0)
+        {
+            shim.AppendLine("echo fatal: simulated git status failure 1>&2");
+        }
+        shim.AppendLine($"exit /b {behavior.StatusExitCode}");
+        shim.AppendLine(":revparse");
+        if (behavior.HeadSha.Length > 0)
+        {
+            shim.AppendLine($"echo {behavior.HeadSha}");
+        }
+        if (behavior.DelayHeadExit)
+        {
+            // Stays alive past the pipeline stop without requiring a console (unlike timeout /t).
+            shim.AppendLine("ping -n 3 127.0.0.1 >nul");
+        }
+        if (behavior.HeadExitCode != 0)
+        {
+            shim.AppendLine("echo fatal: simulated git rev-parse failure 1>&2");
+        }
+        shim.AppendLine($"exit /b {behavior.HeadExitCode}");
+
+        File.WriteAllText(Path.Combine(shimDirectory, "git.cmd"), shim.ToString(), new UTF8Encoding(false));
+    }
+
+    private static string RunGitFixtureCommand(string workingDirectory, params string[] arguments)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo);
+        Assert.IsNotNull(process, "git could not be started.");
+
+        var standardOutput = process!.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        Assert.IsTrue(process.WaitForExit(60000), "The git fixture command did not exit within 60 seconds.");
+
+        var output = standardOutput.GetAwaiter().GetResult();
+        Assert.AreEqual(0, process.ExitCode,
+            $"git {string.Join(' ', arguments)} exited {process.ExitCode}.\n" +
+            $"{output}\n{standardError.GetAwaiter().GetResult()}");
+
+        return output;
+    }
+
+    /// <summary>Git object files are read-only, so a plain recursive delete would fail.</summary>
+    private static void ForceDeleteDirectory(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+        }
+
+        Directory.Delete(path, recursive: true);
+    }
+
+    private static string[] SplitLines(string text) => text.Replace("\r\n", "\n").Split('\n');
+
+    /// <summary>The next statement, skipping blank lines and whole-line comments.</summary>
+    private static string NextMeaningfulLine(string[] lines, int index)
+    {
+        for (var next = index + 1; next < lines.Length; next++)
+        {
+            var candidate = lines[next].Trim();
+            if (candidate.Length == 0 || candidate.StartsWith('#'))
+            {
+                continue;
+            }
+
+            return lines[next];
+        }
+
+        return string.Empty;
     }
 }

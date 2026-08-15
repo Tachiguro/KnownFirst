@@ -432,11 +432,9 @@ function Write-ReuseMessage {
 #   - prints the exact executable and arguments before running anything;
 #   - runs the command completely unredirected so stdout/stderr stream live with normal
 #     dotnet formatting (colors, progress, everything) exactly as if run directly;
-#   - ALSO captures stdout (only) into a variable via Tee-Object -Variable, purely so it can
-#     be appended to a UTF-8 log file afterward. Tee-Object has no -Encoding parameter in
-#     Windows PowerShell 5.1, so the capture goes through Add-Content -Encoding UTF8 instead
-#     of letting Tee-Object touch the file directly. Native stderr is intentionally left out
-#     of the log (it still displays live): redirecting stderr on a native command in
+#   - ALSO captures stdout (only) into an in-memory collection via ForEach-Object, purely so it
+#     can be appended to a UTF-8 log file afterward (even if a child script throws). Native stderr
+#     is intentionally left out of the log (it still displays live): redirecting stderr on a native command in
 #     Windows PowerShell 5.1 (2>&1) wraps each line as a NativeCommandError object, which is
 #     exactly the kind of pipeline arrangement that can lose or misreport the real exit code
 #     and replace useful native text with PowerShell stack-trace noise.
@@ -539,12 +537,19 @@ function Invoke-KnownFirstCommand {
 
     $exitCode = 1
     $errorMessage = $null
+    $stepOutput = [System.Collections.Generic.List[string]]::new()
     try {
         if ($argumentCount -gt 0) {
-            & $FilePath @CommandArguments | Tee-Object -Variable 'knownFirstStepOutput'
+            & $FilePath @CommandArguments | ForEach-Object {
+                $_
+                $stepOutput.Add([string]$_)
+            }
         }
         else {
-            & $FilePath | Tee-Object -Variable 'knownFirstStepOutput'
+            & $FilePath | ForEach-Object {
+                $_
+                $stepOutput.Add([string]$_)
+            }
         }
         $exitCode = $LASTEXITCODE
     }
@@ -552,8 +557,8 @@ function Invoke-KnownFirstCommand {
         $errorMessage = $_.Exception.Message
     }
 
-    if ($knownFirstStepOutput) {
-        Add-Content -LiteralPath $LogPath -Value $knownFirstStepOutput -Encoding UTF8
+    if ($stepOutput.Count -gt 0) {
+        Add-Content -LiteralPath $LogPath -Value $stepOutput -Encoding UTF8
     }
     if ($errorMessage) {
         Add-Content -LiteralPath $LogPath -Value "ERROR: $errorMessage" -Encoding UTF8

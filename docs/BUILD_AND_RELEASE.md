@@ -132,13 +132,37 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Ac
   - The repository never creates, imports, trusts, or stores certificates, PFX files, or passwords.
 - Never print, log, copy, or commit signing credentials, thumbprints, passwords, or keystores.
 
-## 5. Artifact Retention Policy
+## 5. Artifact Retention and Cleanup Policy
 
-- Retain exactly the **two newest verified Google Play AABs** and matching SHA-256 sidecars in the local storage location (the current release and immediately preceding release).
+- Retain exactly the **two newest verified Google Play AABs** and matching SHA-256 sidecars in `artifacts\android-google-play\` (the current release and immediately preceding release) as verified release evidence and historical artifact availability. Old AABs are not kept for rollback purposes: Android/Google Play requires monotonic version codes, and SQLite database schema migrations are forward-oriented, making binary downgrade an unsafe recovery strategy.
 - Retain verified Windows distribution artifacts (`artifacts\windows-portable\` and `artifacts\windows-msix\`) locally along with their matching SHA-256 sidecars.
 - Never delete the previous release artifact until the new release is created, signed, hashed, and verified.
 - Temporary generated files in `bin/` or `obj/` are transient outputs, not retained release artifacts.
 - Historical artifact reconstruction must target exact source release tags (e.g. `v1.0.0-beta.8`) and must not claim byte identity without physical proof.
+
+### 5.1 Generated-Output Cleanup
+
+The canonical launcher provides safe, fail-closed cleanup actions for regenerable build outputs and test evidence without targeting release distributables:
+
+- **Standard Clean:**
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Action Clean
+  ```
+  Deletes regenerable compiler outputs (`bin/`, `obj/`), test results (`TestResults/`), packaging intermediates (`artifacts/build/`, `artifacts/obj/`), and disposable GUI-test profiles/runs, while bounding launcher logs to the 10 newest completed logs. Reusable launcher state is preserved.
+- **Deep Clean:**
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Action Clean -Deep
+  ```
+  Additionally deletes `.vs\` and `artifacts\launcher-state\`, and prunes all completed launcher logs while preserving the active log. Future launcher operations will recompute cached work.
+- **Preview / Dry-run:**
+  ```powershell
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\knownfirst.ps1 -Action Clean -WhatIf
+  ```
+
+**Safety Boundaries:**
+- Cleanup never implies package creation, signing, upload, installation, publishing, or device operations.
+- Distributable roots (`artifacts\android-google-play\`, `artifacts\windows-portable\`, `artifacts\windows-msix\`) are strictly preserved and are never allowlisted for deletion.
+- See [docs/development/DEBUG_ARTIFACT_POLICY.md](development/DEBUG_ARTIFACT_POLICY.md) for the complete directory lifecycle model and allowlists.
 
 ## 6. Publication Boundaries
 

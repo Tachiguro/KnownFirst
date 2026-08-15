@@ -56,10 +56,10 @@ public sealed class WindowsDistributionPackagingContractTests
             new[]
             {
                 "Test", "GuiTest", "WindowsBuild", "AndroidTestPackage", "GooglePlayBundle",
-                "WindowsPortablePackage", "WindowsMsixPackage", "ValidateAll",
+                "WindowsPortablePackage", "WindowsMsixPackage", "ValidateAll", "Clean",
             },
             actions,
-            "The launcher must add exactly the two new Windows distribution actions and keep every existing action.");
+            "The launcher must add the Clean and Windows distribution actions and keep every existing action.");
     }
 
     [TestMethod]

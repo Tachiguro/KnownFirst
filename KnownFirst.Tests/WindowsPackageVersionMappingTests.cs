@@ -55,6 +55,7 @@ public sealed class WindowsPackageVersionMappingTests
         "BaseOutputPath",
         "BaseIntermediateOutputPath",
         "RuntimeIdentifier",
+        "DefaultItemExcludes",
     ];
 
     // --- Package version mapping ---------------------------------------------------------
@@ -201,6 +202,39 @@ public sealed class WindowsPackageVersionMappingTests
             "Portable and MSIX packaging must never share an output root.");
         Assert.AreNotEqual(portable["BaseIntermediateOutputPath"], msix["BaseIntermediateOutputPath"],
             "Portable and MSIX packaging must never share an intermediate root.");
+    }
+
+    [TestMethod]
+    public void PackagingVariants_ExcludeTheOrdinaryBinAndObjTreesFromDefaultItemGlobs()
+    {
+        var configurations = new (string Scenario, Dictionary<string, string> Properties)[]
+        {
+            ("Ordinary Windows Release", EvaluateWindowsRelease()),
+            ("Windows Portable packaging variant", EvaluateWindowsRelease((PortablePackagingProperty, "true"))),
+            ("Windows MSIX packaging variant", EvaluateWindowsRelease((MsixPackagingProperty, "true"))),
+            ("Android GUI-test Debug variant", EvaluateProperties(AndroidTargetFramework, "Debug", ("KnownFirstAndroidGuiTest", "true"))),
+        };
+
+        foreach (var (scenario, properties) in configurations)
+        {
+            var excludes = properties["DefaultItemExcludes"];
+
+            Assert.IsTrue(
+                excludes.Contains(@"bin\**", StringComparison.OrdinalIgnoreCase) ||
+                excludes.Contains("bin/**", StringComparison.OrdinalIgnoreCase),
+                $"{scenario} must exclude ordinary bin\\** from DefaultItemExcludes to avoid re-globbing existing build outputs.");
+
+            Assert.IsTrue(
+                excludes.Contains(@"obj\**", StringComparison.OrdinalIgnoreCase) ||
+                excludes.Contains("obj/**", StringComparison.OrdinalIgnoreCase),
+                $"{scenario} must exclude ordinary obj\\** from DefaultItemExcludes to avoid re-globbing existing build intermediates.");
+
+            Assert.IsTrue(
+                excludes.Contains(@"artifacts\**", StringComparison.OrdinalIgnoreCase) ||
+                excludes.Contains("artifacts/**", StringComparison.OrdinalIgnoreCase) ||
+                excludes.Contains(properties["BaseOutputPath"], StringComparison.OrdinalIgnoreCase),
+                $"{scenario} must exclude its output root from DefaultItemExcludes.");
+        }
     }
 
     // --- Android is unaffected --------------------------------------------------------------

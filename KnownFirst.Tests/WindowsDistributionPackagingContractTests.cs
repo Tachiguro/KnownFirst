@@ -507,6 +507,55 @@ public sealed class WindowsDistributionPackagingContractTests
         }
     }
 
+    [TestMethod]
+    public void InvokeKnownFirstCommand_PreservesChildOutputInTheLogWhenTheChildScriptThrows()
+    {
+        var root = CreateTemporaryProjectRoot();
+        try
+        {
+            var childScriptPath = Path.Combine(root, "synthetic-child.ps1");
+            File.WriteAllText(childScriptPath, """
+                Write-Output 'SYNTHETIC_STDOUT_LINE_1'
+                Write-Output 'SYNTHETIC_STDOUT_LINE_2'
+                throw 'Simulated terminating child failure.'
+                """);
+
+            var logPath = Path.Combine(root, "test-launcher.log");
+            var function = ExtractFunctionBody(LoadRepositoryFile(LauncherPath), "Invoke-KnownFirstCommand");
+
+            var harness = new StringBuilder();
+            harness.AppendLine("$ErrorActionPreference = 'Stop'");
+            harness.AppendLine($"function Invoke-KnownFirstCommand {{{function}");
+            harness.AppendLine("}");
+            harness.AppendLine($"$result = Invoke-KnownFirstCommand -StepName 'TestStep' -FilePath '{childScriptPath.Replace("'", "''")}' -CommandArguments @{{}} -LogPath '{logPath.Replace("'", "''")}'");
+            harness.AppendLine("Write-Output '---RESULT---'");
+            harness.AppendLine("Write-Output \"SUCCEEDED:$($result.Succeeded)\"");
+            harness.AppendLine("Write-Output \"EXITCODE:$($result.ExitCode)\"");
+            harness.AppendLine("Write-Output \"ERROR:$($result.ErrorMessage)\"");
+
+            var processResult = RunHarness(harness.ToString(), workingDirectory: root);
+
+            Assert.IsTrue(File.Exists(logPath), "The launcher log file must be created.");
+            var logContent = File.ReadAllText(logPath);
+
+            Assert.Contains("SYNTHETIC_STDOUT_LINE_1", logContent,
+                "The log must preserve child stdout emitted before the terminating error.");
+            Assert.Contains("SYNTHETIC_STDOUT_LINE_2", logContent,
+                "The log must preserve all child stdout lines emitted before the terminating error.");
+            Assert.Contains("ERROR: Simulated terminating child failure.", logContent,
+                "The log must contain the final ERROR record.");
+
+            Assert.Contains("SUCCEEDED:False", processResult.StandardOutput,
+                "The structured result must indicate failure.");
+            Assert.Contains("ERROR:Simulated terminating child failure.", processResult.StandardOutput,
+                "The structured result must report the exception error message.");
+        }
+        finally
+        {
+            ForceDeleteDirectory(root);
+        }
+    }
+
     // === F. Fail-closed packaging safety ====================================================
 
     [TestMethod]

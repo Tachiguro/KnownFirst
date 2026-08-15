@@ -24,8 +24,17 @@
     "not reusable", never as a launcher error.
 
 .PARAMETER Action
-    Test | GuiTest | WindowsBuild | AndroidTestPackage | GooglePlayBundle | ValidateAll
+    Test | GuiTest | WindowsBuild | AndroidTestPackage | GooglePlayBundle |
+    WindowsPortablePackage | WindowsMsixPackage | ValidateAll
     When omitted, the interactive menu is shown instead.
+
+    The two Windows distribution actions create a distributable artifact and nothing else.
+    "WindowsPortablePackage" produces a self-contained unpackaged win-x64 Release payload archived
+    as a ZIP with a SHA-256 sidecar; it is a manual replacement channel and contains no updater.
+    "WindowsMsixPackage" produces an x64 Release MSIX with a SHA-256 sidecar; MSIX is the
+    canonical production install/update channel, where a Microsoft Store installation receives
+    updates through Microsoft Store infrastructure. Neither action installs, launches, sideloads,
+    uploads, or submits anything, and neither creates or trusts a certificate.
 
 .PARAMETER Configuration
     Debug | Release | Diagnostic | DebugRelease | All
@@ -38,6 +47,18 @@
 .PARAMETER GuiScenario
     Scenario id for -Action GuiTest. Supported: StartupSmoke (default), or future scenarios.
     Invalid or NotImplemented scenarios are rejected before execution.
+
+.PARAMETER MsixSigning
+    None | External. Applies to -Action WindowsMsixPackage only.
+    "None" (the default) produces an unsigned package. The Microsoft Store re-signs MSIX packages
+    during publishing, so a Store submission candidate does not need to be signed locally.
+    "External" signs with a certificate that already exists in the current user's certificate
+    store. The launcher forwards only this mode: the required external signing input is read by
+    scripts/publish-windows-msix.ps1 itself (see that script's help for the exact environment
+    variable it expects), so no signing input can ever reach a printed launcher command line, a
+    launcher log under artifacts\launcher-logs\, or a reusable-result record under
+    artifacts\launcher-state\. This repository never creates, imports, or trusts a certificate,
+    and never accepts a certificate file or a password.
 
 .PARAMETER WhatIf
     Prints what each operation would do and its expected output path without running it.
@@ -73,10 +94,18 @@
 .EXAMPLE
     .\scripts\knownfirst.ps1 -Action WindowsBuild -Configuration Debug -Force
     Rebuilds even if a valid reusable result already exists.
+
+.EXAMPLE
+    .\scripts\knownfirst.ps1 -Action WindowsPortablePackage
+    Creates the transportable self-contained Windows x64 ZIP and its SHA-256 sidecar.
+
+.EXAMPLE
+    .\scripts\knownfirst.ps1 -Action WindowsMsixPackage -WhatIf
+    Prints what would happen without creating an MSIX.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Test', 'GuiTest', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'ValidateAll')]
+    [ValidateSet('Test', 'GuiTest', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'WindowsPortablePackage', 'WindowsMsixPackage', 'ValidateAll')]
     [string]$Action,
 
     [ValidateSet('Debug', 'Release', 'Diagnostic', 'DebugRelease', 'All')]
@@ -84,6 +113,9 @@ param(
 
     [ValidateSet('StartupSmoke')]
     [string]$GuiScenario = 'StartupSmoke',
+
+    [ValidateSet('None', 'External')]
+    [string]$MsixSigning = 'None',
 
     [switch]$WhatIf,
 
@@ -814,6 +846,150 @@ function Invoke-GooglePlayBundleAction {
     return New-ActionResult -ActionName 'GooglePlayBundle' -Succeeded $true -LogPath $logPath
 }
 
+# Both Windows packaging actions must predict the exact final artifact path before running
+# anything, so that Test-LauncherStateReusable can evaluate an expected output. Those names are
+# derived by scripts/windows-distribution-common.ps1, the single implementation the publishing
+# scripts use as well: a launcher-local copy could drift from the publisher and would then record
+# an expected output that was never produced. The helper is dot-sourced inside each action rather
+# than at file scope so that a problem with it can never prevent the launcher from starting; any
+# failure there is caught by Invoke-KnownFirstAction and reported as a normal failed action.
+
+function Invoke-WindowsPortablePackageAction {
+    Write-Host 'Creates one transportable self-contained Windows x64 ZIP; nothing is installed or uploaded.'
+    Write-Host 'This is a manual replacement channel: the archive contains no updater.'
+    $scriptPath = Join-Path $scriptRoot 'publish-windows-portable.ps1'
+    $commonPath = Join-Path $scriptRoot 'windows-distribution-common.ps1'
+    $outputRoot = Join-Path $projectRoot 'artifacts\windows-portable'
+
+    if ($WhatIf) {
+        Write-Host "[WhatIf] Would run: $scriptPath -> $outputRoot"
+        Write-Host '[WhatIf] No restore, build, publish, archive, or file was created.'
+        return New-ActionResult -ActionName 'WindowsPortablePackage' -Succeeded $true -Summary '[WhatIf] no commands executed.'
+    }
+
+    . $commonPath
+
+    $versionInfo = Get-KnownFirstVersionInfo
+    $shortCommit = Get-KnownFirstShortCommitPrefix -HeadSha (Get-CurrentHeadSha)
+    if (-not $shortCommit) {
+        return New-ActionResult -ActionName 'WindowsPortablePackage' -Succeeded $false -ExitCode 1 `
+            -FailedStepName 'Launcher' -FailedCommand 'WindowsPortablePackage' `
+            -Summary 'HEAD could not be resolved, so the deterministic artifact name is unknown.'
+    }
+
+    $archiveName = Get-KnownFirstPortableArchiveName `
+        -ProductVersion $versionInfo.ProductVersion `
+        -BuildNumber $versionInfo.BuildNumber `
+        -ShortCommit $shortCommit
+    $zipPath = Join-Path $outputRoot $archiveName
+    $checksumPath = "$zipPath.sha256.txt"
+    $relevantScripts = @(
+        (Join-Path $scriptRoot 'knownfirst.ps1'),
+        $scriptPath,
+        $commonPath
+    )
+
+    $reusable = Test-LauncherStateReusable -StateKey 'WindowsPortablePackage-Release' -Action 'WindowsPortablePackage' `
+        -Configuration 'Release' -TargetFramework $windowsTargetFramework `
+        -OutputFiles @($zipPath, $checksumPath) -RelevantScriptPaths $relevantScripts
+    if ($reusable) {
+        Write-ReuseMessage -DisplayName 'Windows portable package'
+        return New-ActionResult -ActionName 'WindowsPortablePackage' -Succeeded $true -Reused $true
+    }
+
+    $logPath = New-LauncherLogPath -ActionName 'WindowsPortablePackage'
+    Write-Host "Log: $logPath"
+
+    $result = Invoke-KnownFirstCommand -StepName 'Create Windows portable package' -FilePath $scriptPath `
+        -CommandArguments @{} -LogPath $logPath
+    if (-not $result.Succeeded) {
+        return New-ActionResult -ActionName 'WindowsPortablePackage' -Succeeded $false `
+            -FailedStepName $result.StepName -FailedCommand $result.Command `
+            -ExitCode $result.ExitCode -LogPath $logPath
+    }
+
+    Save-LauncherState -StateKey 'WindowsPortablePackage-Release' -Action 'WindowsPortablePackage' `
+        -Configuration 'Release' -TargetFramework $windowsTargetFramework -Succeeded $true `
+        -OutputFiles @($zipPath, $checksumPath) -RelevantScriptPaths $relevantScripts
+
+    Write-Host "Output: $outputRoot"
+    return New-ActionResult -ActionName 'WindowsPortablePackage' -Succeeded $true -LogPath $logPath
+}
+
+function Invoke-WindowsMsixPackageAction {
+    Write-Host 'Creates one x64 Release MSIX; nothing is installed, sideloaded, or submitted to any store.'
+    $scriptPath = Join-Path $scriptRoot 'publish-windows-msix.ps1'
+    $commonPath = Join-Path $scriptRoot 'windows-distribution-common.ps1'
+    $outputRoot = Join-Path $projectRoot 'artifacts\windows-msix'
+
+    if ($WhatIf) {
+        Write-Host "[WhatIf] Would run: $scriptPath -MsixSigning $MsixSigning -> $outputRoot"
+        Write-Host '[WhatIf] No restore, build, publish, package, signing, or file was created.'
+        return New-ActionResult -ActionName 'WindowsMsixPackage' -Succeeded $true -Summary '[WhatIf] no commands executed.'
+    }
+
+    . $commonPath
+
+    $versionInfo = Get-KnownFirstVersionInfo
+    $shortCommit = Get-KnownFirstShortCommitPrefix -HeadSha (Get-CurrentHeadSha)
+    if (-not $shortCommit) {
+        return New-ActionResult -ActionName 'WindowsMsixPackage' -Succeeded $false -ExitCode 1 `
+            -FailedStepName 'Launcher' -FailedCommand 'WindowsMsixPackage' `
+            -Summary 'HEAD could not be resolved, so the deterministic artifact name is unknown.'
+    }
+
+    $identityMarker = Get-KnownFirstMsixIdentityMarker -ManifestPath (Join-Path $projectRoot 'Platforms\Windows\Package.appxmanifest')
+    if ($identityMarker -eq 'devidentity') {
+        Write-Host 'Note: the package manifest still carries at least one placeholder Partner Center identity value, so the result is a development-identity artifact and is not a Microsoft Store submission candidate.' -ForegroundColor Yellow
+    }
+
+    $signingMarker = Get-KnownFirstMsixSigningMarker -MsixSigning $MsixSigning
+    $packageName = Get-KnownFirstMsixPackageName `
+        -ProductVersion $versionInfo.ProductVersion `
+        -BuildNumber $versionInfo.BuildNumber `
+        -ShortCommit $shortCommit `
+        -SigningMarker $signingMarker `
+        -IdentityMarker $identityMarker
+    $msixPath = Join-Path $outputRoot $packageName
+    $checksumPath = "$msixPath.sha256.txt"
+    $relevantScripts = @(
+        (Join-Path $scriptRoot 'knownfirst.ps1'),
+        $scriptPath,
+        $commonPath
+    )
+    $parameters = @{ MsixSigning = $MsixSigning }
+
+    $reusable = Test-LauncherStateReusable -StateKey "WindowsMsixPackage-Release-$MsixSigning" -Action 'WindowsMsixPackage' `
+        -Configuration 'Release' -TargetFramework $windowsTargetFramework -Parameters $parameters `
+        -OutputFiles @($msixPath, $checksumPath) -RelevantScriptPaths $relevantScripts
+    if ($reusable) {
+        Write-ReuseMessage -DisplayName "Windows MSIX package ($MsixSigning)"
+        return New-ActionResult -ActionName 'WindowsMsixPackage' -Succeeded $true -Reused $true
+    }
+
+    $logPath = New-LauncherLogPath -ActionName 'WindowsMsixPackage'
+    Write-Host "Log: $logPath"
+
+    # Only the signing MODE is forwarded. Any external signing input is read by the publishing
+    # script itself, so it can never appear in the printed command, the log, or the state record.
+    $scriptArguments = [ordered]@{ MsixSigning = $MsixSigning }
+
+    $result = Invoke-KnownFirstCommand -StepName 'Create Windows MSIX package' -FilePath $scriptPath `
+        -CommandArguments $scriptArguments -LogPath $logPath
+    if (-not $result.Succeeded) {
+        return New-ActionResult -ActionName 'WindowsMsixPackage' -Succeeded $false `
+            -FailedStepName $result.StepName -FailedCommand $result.Command `
+            -ExitCode $result.ExitCode -LogPath $logPath
+    }
+
+    Save-LauncherState -StateKey "WindowsMsixPackage-Release-$MsixSigning" -Action 'WindowsMsixPackage' `
+        -Configuration 'Release' -TargetFramework $windowsTargetFramework -Parameters $parameters -Succeeded $true `
+        -OutputFiles @($msixPath, $checksumPath) -RelevantScriptPaths $relevantScripts
+
+    Write-Host "Output: $outputRoot"
+    return New-ActionResult -ActionName 'WindowsMsixPackage' -Succeeded $true -LogPath $logPath
+}
+
 function Invoke-ValidateAllStep {
     param(
         [Parameter(Mandatory = $true)][string]$DisplayName,
@@ -1079,6 +1255,8 @@ function Invoke-KnownFirstAction {
             'WindowsBuild' { return Invoke-WindowsBuildAction }
             'AndroidTestPackage' { return Invoke-AndroidTestPackageAction }
             'GooglePlayBundle' { return Invoke-GooglePlayBundleAction }
+            'WindowsPortablePackage' { return Invoke-WindowsPortablePackageAction }
+            'WindowsMsixPackage' { return Invoke-WindowsMsixPackageAction }
             'ValidateAll' { return Invoke-ValidateAllAction }
             default { throw "Unknown action: $SelectedAction" }
         }
@@ -1125,6 +1303,42 @@ function Show-WindowsBuildMenu {
     Write-ActionResult -Result $result
     if (-not $result.Succeeded) {
         Read-Host 'Press Enter to return to the menu'
+    }
+}
+
+function Show-WindowsDistributionMenu {
+    Write-Host ''
+    Write-Host 'Windows distribution packages' -ForegroundColor Green
+    Write-Host '1. Portable ZIP package (self-contained, x64)'
+    Write-Host '2. MSIX package (unsigned, Microsoft Store oriented)'
+    Write-Host '3. Back'
+    Write-Host ''
+    Write-Host 'The portable ZIP is a manual replacement channel and contains no updater.' -ForegroundColor DarkGray
+    Write-Host 'MSIX is the production install/update channel; a Microsoft Store installation updates through the Store.' -ForegroundColor DarkGray
+    Write-Host 'Nothing is installed, sideloaded, signed with a new certificate, uploaded, or submitted.' -ForegroundColor DarkGray
+    Write-Host ''
+    $choice = Read-Host 'Choose an option (1-3)'
+
+    switch ($choice) {
+        '1' {
+            $result = Invoke-KnownFirstAction -SelectedAction 'WindowsPortablePackage'
+            Write-ActionResult -Result $result
+            if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
+            return
+        }
+        '2' {
+            $result = Invoke-KnownFirstAction -SelectedAction 'WindowsMsixPackage'
+            Write-ActionResult -Result $result
+            if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
+            return
+        }
+        '3' {
+            return
+        }
+        default {
+            Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
+            return
+        }
     }
 }
 
@@ -1270,12 +1484,13 @@ function Show-KnownFirstMenu {
     Write-Host '1. Automated tests (unit, integration and contract)'
     Write-Host '2. Windows GUI tests'
     Write-Host '3. Build Windows app'
-    Write-Host '4. Build Android APK'
-    Write-Host '5. Create Google Play AAB'
-    Write-Host '6. Full validation (automated tests + Windows/Android builds)'
-    Write-Host '7. Exit'
+    Write-Host '4. Windows distribution packages (portable ZIP / MSIX)'
+    Write-Host '5. Build Android APK'
+    Write-Host '6. Create Google Play AAB'
+    Write-Host '7. Full validation (automated tests + Windows/Android builds)'
+    Write-Host '8. Exit'
     Write-Host ''
-    $choice = Read-Host 'Choose an option (1-7)'
+    $choice = Read-Host 'Choose an option (1-8)'
 
     switch ($choice) {
         '1' {
@@ -1293,22 +1508,26 @@ function Show-KnownFirstMenu {
             return $true
         }
         '4' {
-            Show-AndroidTestPackageMenu
+            Show-WindowsDistributionMenu
             return $true
         }
         '5' {
+            Show-AndroidTestPackageMenu
+            return $true
+        }
+        '6' {
             $result = Invoke-KnownFirstAction -SelectedAction 'GooglePlayBundle'
             Write-ActionResult -Result $result
             if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
             return $true
         }
-        '6' {
+        '7' {
             $result = Invoke-KnownFirstAction -SelectedAction 'ValidateAll'
             Write-ActionResult -Result $result
             if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
             return $true
         }
-        '7' {
+        '8' {
             Write-Host 'Exiting.'
             return $false
         }

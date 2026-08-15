@@ -79,7 +79,7 @@ Test classes do not currently use formal MSTest category attributes; filtering r
   ```powershell
   .\scripts\knownfirst.ps1 -Action ValidateAll
   ```
-  OR (interactive menu option 6)
+  OR (interactive menu option 7)
 - **Includes:**
   1. `ALL_AUTOMATED`: Complete test suite execution across `KnownFirst.Tests.csproj`;
   2. Windows Debug build (`net10.0-windows10.0.19041.0`);
@@ -91,6 +91,33 @@ Test classes do not currently use formal MSTest category attributes; filtering r
 - **Evidence Boundaries:**
   - *Validated:* Clean automated test execution and multi-target compilation for Windows and Android Debug/Release.
   - *Does NOT include / prove:* Rendered GUI test execution, manual interaction testing, physical Android device execution, APK/AAB package creation, code signing, or store readiness.
+
+### I. WINDOWS_DISTRIBUTION_PACKAGING_CONTRACTS
+- **Definition:** Deterministic source-contract, argument-binding, and MSBuild property evaluation tests covering the Windows portable ZIP and MSIX distribution channels (`KnownFirst.Tests/WindowsDistributionPackagingContractTests.cs`, `KnownFirst.Tests/WindowsPackageVersionMappingTests.cs`).
+- **Command:**
+  ```powershell
+  dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~WindowsDistributionPackagingContractTests|FullyQualifiedName~WindowsPackageVersionMappingTests"
+  ```
+- **Scope & Verified Invariants:**
+  - Launcher action declaration, parameter validation, submenu routing, and `-WhatIf` execution for `WindowsPortablePackage` and `WindowsMsixPackage`;
+  - 1:1 property parity between dedicated restores and subsequent `--no-restore` publishes (`SelfContained=true`, `WindowsAppSDKSelfContained=true`, `WindowsPackageType`, `RuntimeIdentifierOverride=win-x64`, `Configuration=Release`, and packaging flags);
+  - Build output and intermediate path redirection (`artifacts\build\windows-portable\`, `artifacts\build\windows-msix\`, `artifacts\obj\windows-portable\`, `artifacts\obj\windows-msix\`) leaving normal `bin\Release\` outputs unaffected;
+  - Store-compliant numeric MSIX version mapping (`1.0.<BuildNumber>.0`, revision section 0) while preserving `1.0.0-beta.13` application runtime identity;
+  - Single source of truth for artifact naming, signing markers, Store identity classification, candidate selection, and ZIP file counting in `scripts/windows-distribution-common.ps1`;
+  - Fail-closed Partner Center Store identity placeholder classification (`devidentity` for template placeholders vs `storeidentity` for real values);
+  - MSIX single-candidate selection (fail closed on 0 or multiple `.msix` files, select exact 1);
+  - ZIP file-entry counting excluding empty directory entries;
+  - Fail-closed validation for external signing thumbprints (exact 40 hex characters) and unsigned mode default;
+  - Launcher state reuse and script-hash invalidation on shared helper edits;
+  - Absolute exclusion of certificate creation, keystore/PFX storage, device operations, auto-installation, or Store upload.
+- **Evidence Boundaries (what these tests do NOT prove):**
+  - Actual end-to-end publish execution on the current machine/toolchain;
+  - Real creation of a portable ZIP or MSIX package;
+  - Clean-PC execution of the portable payload or absence of missing runtime dependencies;
+  - Actual MSIX installability or sideloading;
+  - Certificate signing execution or signature validity;
+  - Microsoft Store submission, ingestion, or verification;
+  - Microsoft Store update delivery behavior.
 
 ## Layered Confidence Model
 

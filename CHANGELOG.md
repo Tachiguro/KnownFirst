@@ -6,6 +6,17 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
+### Added
+
+- Windows portable ZIP packaging foundation: `scripts/publish-windows-portable.ps1` and canonical launcher action `WindowsPortablePackage` producing a self-contained, unpackaged x64 Release ZIP archive with a SHA-256 sidecar under `artifacts/windows-portable/` as a manual replacement channel.
+- Windows MSIX packaging foundation: `scripts/publish-windows-msix.ps1` and canonical launcher action `WindowsMsixPackage` producing an x64 Release MSIX package with a SHA-256 sidecar under `artifacts/windows-msix/`, with unsigned default and optional certificate thumbprint signing via external environment variable (`KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT`).
+- Shared distribution helper `scripts/windows-distribution-common.ps1` providing a single source of truth for artifact naming, signing markers, Store identity classification, candidate selection, and ZIP file-entry counting.
+
+### Changed
+
+- Windows MSIX packaging maps `ApplicationDisplayVersion` to `1.0.<BuildNumber>` and `ApplicationVersion` to `0` to produce Store-compliant four-part version `1.0.13.0` while preserving application runtime product identity (`1.0.0-beta.13` / build `13`).
+- Packaging build and intermediate outputs are isolated under `artifacts/build/` and `artifacts/obj/` so normal `bin/Release/` outputs backing validation evidence remain untouched.
+
 ## [1.0.0-beta.13] - 2026-08-13 (merged source — next Internal Testing candidate, not yet gated or distributed)
 
 **`1.0.0-beta.13` / build `13` is merged source on `master` via PR #92 (final PR head `774b2245f64a986fe004f4ebd3288747642bdb0f`, merge commit `a5a9e734af0db0639a38471433748e334ca34d65`); local `POST_MERGE_SYNC_ONLY` completed exactly once. Merging is not a build, package, signing, device-validation, or distribution event: `1.0.0-beta.13` has not passed the mandatory exact-candidate Pre-AAB Release-Readiness Gate, and has not been packaged as an AAB, signed, installed on a device, uploaded to Google Play, or distributed to testers. The last confirmed externally distributed and device-tested release remains `1.0.0-beta.12` / build `12` (2026-07-30); see [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) and [docs/releases/1.0.0-beta.13.md](docs/releases/1.0.0-beta.13.md) for the Beta-13 evidence record.**

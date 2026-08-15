@@ -49,6 +49,59 @@
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
     </PropertyGroup>
 
+    <!-- Microsoft-documented Windows App SDK workaround (WindowsAppSDK issue #3337): a Windows
+         publish must be able to pin the RuntimeIdentifier from the command line. This bridge is
+         inert unless RuntimeIdentifierOverride is supplied explicitly, so ordinary Debug/Release
+         builds and every Android target framework are unaffected. .NET 10 removed the
+         version-specific win10-* RIDs, so the portable win-x64 RID is the only supported value. -->
+    <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows' and '$(RuntimeIdentifierOverride)' != ''">
+        <RuntimeIdentifier>$(RuntimeIdentifierOverride)</RuntimeIdentifier>
+    </PropertyGroup>
+
+    <!-- Opt-in Windows portable (unpackaged, self-contained) distribution variant. It changes
+         nothing except where build output lands: WindowsPackageType stays None and the version
+         identity stays exactly what an ordinary Windows Release build produces.
+
+         Scope of the isolation guarantee: this redirects the KnownFirst application project only.
+         A packaging publish therefore never rewrites this project's own bin\Release\... outputs,
+         which are exactly the files backing the WindowsBuild and ValidateAll reusable-result
+         records, so existing validation evidence for the main project cannot be silently
+         invalidated. The referenced KnownFirst.Core project intentionally keeps its ordinary
+         build and intermediate trees under the current design; that is deliberate and unchanged
+         here, and no ValidateAll or WindowsBuild expected output points at Core.
+
+         The matching intermediate-output root lives in Directory.Build.props, because an
+         SDK-style project assigns that root too late for restore to follow it. -->
+    <PropertyGroup Condition="'$(KnownFirstWindowsPortablePackaging)' == 'true' and '$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+        <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\build\windows-portable\</BaseOutputPath>
+    </PropertyGroup>
+
+    <!-- Opt-in Windows MSIX distribution variant.
+
+         MAUI's GeneratePackageAppxManifest task replaces the Package.appxmanifest
+         Identity/@Version="0.0.0.0" placeholder with
+         <display[0]>.<display[1]>.<display[2]>.<ApplicationVersion>. With the ordinary Windows
+         values (1.0.0 and 13) that yields 1.0.0.13, which the Microsoft Store rejects: the
+         fourth section is reserved for Store use and must be 0. The build number is therefore
+         carried in the third section instead, giving the deterministic mapping
+
+             MSIX package version = $(KnownFirstWindowsPackageMajorMinor).$(KnownFirstBuildNumber).0
+
+         which is 1.0.13.0 for build 13. Because KnownFirstBuildNumber is strictly monotonically
+         increasing for every distributable package (docs/VERSIONING.md), successive MSIX package
+         versions are strictly increasing and cannot collide.
+
+         KnownFirstProductVersion and KnownFirstBuildNumber are untouched, and the runtime
+         identity string is read from the KnownFirstProductVersion/KnownFirstBuildNumber
+         AssemblyMetadata attributes rather than from ApplicationDisplayVersion/ApplicationVersion,
+         so this remapping is invisible to the running application. -->
+    <PropertyGroup Condition="'$(KnownFirstWindowsMsixPackaging)' == 'true' and '$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+        <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\build\windows-msix\</BaseOutputPath>
+        <KnownFirstWindowsPackageMajorMinor>1.0</KnownFirstWindowsPackageMajorMinor>
+        <ApplicationDisplayVersion>$(KnownFirstWindowsPackageMajorMinor).$(KnownFirstBuildNumber)</ApplicationDisplayVersion>
+        <ApplicationVersion>0</ApplicationVersion>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)' == 'Release' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
         <Optimize>true</Optimize>
         <PublishTrimmed>true</PublishTrimmed>

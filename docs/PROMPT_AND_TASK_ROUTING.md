@@ -230,12 +230,17 @@ Refer to [docs/TESTING.md](TESTING.md) for exact test scope definitions. When th
 - `ANDROID_RELEASE_APK`
 - `ANDROID_BETADIAGNOSTIC_APK`
 - `ANDROID_GOOGLE_PLAY_AAB`
+- `WINDOWS_PORTABLE_PACKAGE`
+- `WINDOWS_MSIX_PACKAGE`
 - `FULL_RELEASE_OUTPUT_PACKAGE`
 
 ### Rules
 - One requested build runs only that build. No tests run as a side effect.
 - An APK request without specified configuration requires clarification.
 - An AAB request does not authorize Google Play Store upload.
+- `WINDOWS_PORTABLE_PACKAGE` creates only the self-contained Windows x64 Release ZIP archive and SHA-256 sidecar; it does not launch, install, or distribute the package.
+- `WINDOWS_MSIX_PACKAGE` creates only the x64 Release MSIX package and SHA-256 sidecar (unsigned by default, or signed via external certificate thumbprint); it does not install, sideload, contact Partner Center, or upload/submit to the Microsoft Store.
+- Artifact creation is strictly isolated from installation, deployment, and distribution; Store upload/submission and certificate operations remain separately authorized and are never covered by standing delegation.
 - `FULL_RELEASE_OUTPUT_PACKAGE` is used only when the user explicitly requests the complete release output package.
 - Normal feature completion never triggers a build automatically.
 - Refer to [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for exact commands and safety boundaries.

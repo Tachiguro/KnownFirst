@@ -59,12 +59,31 @@ public sealed class AndroidGuiAutomationContractTests
             .Where(group => group.Element("BaseIntermediateOutputPath") is not null)
             .ToArray();
 
-        Assert.AreEqual(1, intermediatePathGroups.Length,
+        // Other opt-in build variants (currently the Windows portable/MSIX distribution
+        // packaging roots, pinned by WindowsPackageVersionMappingTests) legitimately add their
+        // own early intermediate roots here. This assertion is therefore scoped to the Android
+        // GUI-test group specifically; its substantive contract is unchanged - exactly one early
+        // source, the exact expected condition and path, no TargetFramework condition, and
+        // nothing assigning BaseIntermediateOutputPath from the csproj.
+        var guiTestGroups = intermediatePathGroups
+            .Where(group => ((string?)group.Attribute("Condition") ?? string.Empty)
+                .Contains("KnownFirstAndroidGuiTest", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.AreEqual(1, guiTestGroups.Length,
             "There must be exactly one early source for the GUI-test BaseIntermediateOutputPath.");
-        Assert.AreEqual(expectedCondition, (string?)intermediatePathGroups[0].Attribute("Condition"));
-        Assert.AreEqual(expectedPath, (string?)intermediatePathGroups[0].Element("BaseIntermediateOutputPath"));
-        Assert.DoesNotContain("TargetFramework", (string?)intermediatePathGroups[0].Attribute("Condition") ?? string.Empty);
+        Assert.AreEqual(expectedCondition, (string?)guiTestGroups[0].Attribute("Condition"));
+        Assert.AreEqual(expectedPath, (string?)guiTestGroups[0].Element("BaseIntermediateOutputPath"));
+        Assert.DoesNotContain("TargetFramework", (string?)guiTestGroups[0].Attribute("Condition") ?? string.Empty);
         Assert.DoesNotContain("BaseIntermediateOutputPath", ReadRepositoryFile("KnownFirst.csproj"));
+
+        // Every early intermediate root must remain uniquely attributable to exactly one opt-in
+        // variant, so no two variants can ever share an obj\ tree.
+        var conditions = intermediatePathGroups
+            .Select(group => (string?)group.Attribute("Condition") ?? string.Empty)
+            .ToArray();
+        Assert.AreEqual(conditions.Length, conditions.Distinct(StringComparer.Ordinal).Count(),
+            "Each early BaseIntermediateOutputPath source must have a distinct condition.");
     }
 
     [TestMethod]

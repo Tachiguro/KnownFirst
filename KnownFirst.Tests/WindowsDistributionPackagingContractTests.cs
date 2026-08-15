@@ -1,0 +1,1193 @@
+using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace KnownFirst.Tests;
+
+/// <summary>
+/// Static and behavioral contracts for the two Windows distribution channels:
+/// <c>WindowsPortablePackage</c> (self-contained unpackaged win-x64 payload archived as a ZIP)
+/// and <c>WindowsMsixPackage</c> (x64 MSIX, unsigned by default, Microsoft Store oriented).
+///
+/// These tests never invoke either publishing script end to end, so no restore, build, publish,
+/// archive, MSIX creation, signing, certificate access, installation, or upload occurs. The
+/// behavioral tests execute small fragments lifted verbatim out of the production scripts between
+/// stable markers, so changing the real script changes what is executed here.
+///
+/// Per docs/TESTING.md, this is release-script contract evidence: it proves argument binding,
+/// guard conditions, and static invariants. It does not prove that a publish, package, or signing
+/// operation succeeds end to end on the current toolchain.
+/// </summary>
+[TestClass]
+public sealed class WindowsDistributionPackagingContractTests
+{
+    private const string LauncherPath = "scripts/knownfirst.ps1";
+    private const string PortableScriptPath = "scripts/publish-windows-portable.ps1";
+    private const string MsixScriptPath = "scripts/publish-windows-msix.ps1";
+    private const string CommonHelperPath = "scripts/windows-distribution-common.ps1";
+
+    private const string WindowsTargetFramework = "net10.0-windows10.0.19041.0";
+    private const string ThumbprintEnvironmentVariable = "KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT";
+
+    /// <summary>
+    /// Properties that change what NuGet restore resolves, so a <c>--no-restore</c> publish cannot
+    /// introduce them afterwards.
+    /// </summary>
+    private static readonly string[] RestoreGraphAffectingProperties =
+    [
+        "Configuration",
+        "SelfContained",
+        "WindowsAppSDKSelfContained",
+        "WindowsPackageType",
+        "RuntimeIdentifierOverride",
+        "KnownFirstWindowsPortablePackaging",
+        "KnownFirstWindowsMsixPackaging",
+    ];
+
+    // === A. Launcher recognises both channels ==========================================
+
+    [TestMethod]
+    public void Launcher_DeclaresBothWindowsDistributionActionsAndPreservesTheExistingOnes()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+        var actions = ExtractValidateSetValues(launcher, "Action");
+
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                "Test", "GuiTest", "WindowsBuild", "AndroidTestPackage", "GooglePlayBundle",
+                "WindowsPortablePackage", "WindowsMsixPackage", "ValidateAll",
+            },
+            actions,
+            "The launcher must add exactly the two new Windows distribution actions and keep every existing action.");
+    }
+
+    [TestMethod]
+    public void Launcher_DeclaresMsixSigningWithExactlyNoneAndExternalDefaultingToNone()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+
+        CollectionAssert.AreEquivalent(
+            new[] { "None", "External" },
+            ExtractValidateSetValues(launcher, "MsixSigning"),
+            "MsixSigning must accept exactly None and External.");
+
+        Assert.IsTrue(
+            Regex.IsMatch(launcher, @"\[ValidateSet\('None',\s*'External'\)\][\s\r\n]*\[string\]\$MsixSigning\s*=\s*'None'"),
+            "MsixSigning must default to the unsigned None mode.");
+    }
+
+    [TestMethod]
+    public void Launcher_DispatchesBothWindowsDistributionActions()
+    {
+        var dispatch = ExtractFunctionBody(LoadRepositoryFile(LauncherPath), "Invoke-KnownFirstAction");
+
+        Assert.Contains("'WindowsPortablePackage' { return Invoke-WindowsPortablePackageAction }", dispatch);
+        Assert.Contains("'WindowsMsixPackage' { return Invoke-WindowsMsixPackageAction }", dispatch);
+    }
+
+    [TestMethod]
+    public void Launcher_RoutesTheInteractiveWindowsDistributionSubmenuToBothActions()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+        var submenu = ExtractFunctionBody(launcher, "Show-WindowsDistributionMenu");
+
+        Assert.Contains("Invoke-KnownFirstAction -SelectedAction 'WindowsPortablePackage'", submenu);
+        Assert.Contains("Invoke-KnownFirstAction -SelectedAction 'WindowsMsixPackage'", submenu);
+
+        // The submenu must be reachable from the top-level menu, and the top-level menu must not
+        // invoke the packaging actions directly (a single reachable route per action).
+        var mainMenu = ExtractFunctionBody(launcher, "Show-KnownFirstMenu");
+        Assert.Contains("Show-WindowsDistributionMenu", mainMenu);
+        Assert.DoesNotContain("Invoke-KnownFirstAction -SelectedAction 'WindowsPortablePackage'", mainMenu);
+        Assert.DoesNotContain("Invoke-KnownFirstAction -SelectedAction 'WindowsMsixPackage'", mainMenu);
+    }
+
+    // === B. Exact publish properties ====================================================
+
+    [TestMethod]
+    public void PortableScript_PublishesExactlyTheSelfContainedUnpackagedWindowsX64Release()
+    {
+        var arguments = ExtractArgumentArray(LoadRepositoryFile(PortableScriptPath), "publishArguments");
+
+        foreach (var expected in new[]
+        {
+            "\"publish\"",
+            "\"-f\", \"net10.0-windows10.0.19041.0\"",
+            "\"-c\", \"Release\"",
+            "\"--no-restore\"",
+            "\"-p:KnownFirstWindowsPortablePackaging=true\"",
+            "\"-p:RuntimeIdentifierOverride=win-x64\"",
+            "\"-p:WindowsPackageType=None\"",
+            "\"-p:WindowsAppSDKSelfContained=true\"",
+            "\"-p:SelfContained=true\"",
+            "\"-p:PublishAppXPackage=false\"",
+        })
+        {
+            Assert.Contains(expected, arguments, $"Portable publish arguments must contain {expected}.");
+        }
+
+        Assert.DoesNotContain("WindowsPackageType=MSIX", arguments, "The portable channel must never build a package.");
+        foreach (var forbidden in new[]
+        {
+            "AppxPackageSigningEnabled", "AppxPackageDir", "AppxBundle", "UapAppxPackageBuildMode",
+        })
+        {
+            Assert.DoesNotContain(forbidden, arguments,
+                $"The portable channel must never touch MSIX packaging property {forbidden}.");
+        }
+    }
+
+    [TestMethod]
+    public void MsixScript_PublishesExactlyTheX64ReleaseMsix()
+    {
+        var arguments = ExtractArgumentArray(LoadRepositoryFile(MsixScriptPath), "publishArguments");
+
+        foreach (var expected in new[]
+        {
+            "\"publish\"",
+            "\"-f\", \"net10.0-windows10.0.19041.0\"",
+            "\"-c\", \"Release\"",
+            "\"--no-restore\"",
+            "\"-p:KnownFirstWindowsMsixPackaging=true\"",
+            "\"-p:RuntimeIdentifierOverride=win-x64\"",
+            "\"-p:WindowsPackageType=MSIX\"",
+            "\"-p:AppxBundle=Never\"",
+            "\"-p:UapAppxPackageBuildMode=SideloadOnly\"",
+            "\"-p:SelfContained=true\"",
+            "\"-p:WindowsAppSDKSelfContained=true\"",
+        })
+        {
+            Assert.Contains(expected, arguments, $"MSIX publish arguments must contain {expected}.");
+        }
+
+        Assert.DoesNotContain("WindowsPackageType=None", arguments);
+        Assert.Contains("AppxPackageDir=", arguments, "The MSIX output directory must be pinned explicitly.");
+    }
+
+    [TestMethod]
+    public void MsixScript_DisablesSigningByDefaultAndEnablesItOnlyThroughAThumbprint()
+    {
+        var script = LoadRepositoryFile(MsixScriptPath);
+
+        Assert.Contains("-p:AppxPackageSigningEnabled=false", script,
+            "The default MSIX mode must produce an unsigned package.");
+        Assert.Contains("-p:AppxPackageSigningEnabled=true", script);
+        Assert.Contains("-p:PackageCertificateThumbprint=", script,
+            "External signing must be enabled only through an already installed certificate's thumbprint.");
+    }
+
+    [TestMethod]
+    public void BothScripts_RestoreTheIsolatedVariantBeforePublishingWithNoRestore()
+    {
+        foreach (var (scriptPath, packagingProperty) in new[]
+        {
+            (PortableScriptPath, "KnownFirstWindowsPortablePackaging"),
+            (MsixScriptPath, "KnownFirstWindowsMsixPackaging"),
+        })
+        {
+            var script = LoadRepositoryFile(scriptPath);
+            var restoreArguments = ExtractArgumentArray(script, "restoreArguments");
+            var publishArguments = ExtractArgumentArray(script, "publishArguments");
+
+            Assert.Contains("\"restore\"", restoreArguments);
+            Assert.Contains($"-p:{packagingProperty}=true", restoreArguments,
+                "The isolated intermediate tree needs its own restore; a shared restore would write the wrong assets file.");
+            Assert.Contains("\"--no-restore\"", publishArguments,
+                "The publish must consume the dedicated restore rather than restoring again.");
+
+            var restoreIndex = script.IndexOf("$restoreArguments", StringComparison.Ordinal);
+            var publishIndex = script.IndexOf("$publishArguments", StringComparison.Ordinal);
+            Assert.IsTrue(restoreIndex > 0 && publishIndex > restoreIndex,
+                $"{scriptPath} must restore before it publishes.");
+        }
+    }
+
+    /// <summary>
+    /// A <c>--no-restore</c> publish can only consume what the preceding restore resolved.
+    /// <c>SelfContained</c> and <c>WindowsAppSDKSelfContained</c> are restore-graph-affecting:
+    /// they are what place the .NET runtime pack and the Windows App SDK runtime content into
+    /// project.assets.json. Restoring without them and publishing with them yields NETSDK1112
+    /// ("the runtime pack ... was not downloaded"), or - worse - succeeds only on a machine where
+    /// an unrelated restore happened to populate those packs, making packaging irreproducible.
+    /// </summary>
+    [TestMethod]
+    public void BothScripts_RestoreWithEveryRestoreGraphAffectingPropertyThePublishRequires()
+    {
+        foreach (var scriptPath in new[] { PortableScriptPath, MsixScriptPath })
+        {
+            var script = LoadRepositoryFile(scriptPath);
+            var restoreProperties = ParseMsBuildProperties(ExtractArgumentArray(script, "restoreArguments"));
+            var publishProperties = ParseMsBuildProperties(ExtractArgumentArray(script, "publishArguments"));
+
+            foreach (var property in RestoreGraphAffectingProperties)
+            {
+                if (!publishProperties.TryGetValue(property, out var publishValue))
+                {
+                    continue;
+                }
+
+                Assert.IsTrue(restoreProperties.TryGetValue(property, out var restoreValue),
+                    $"{scriptPath}: publish sets -p:{property}={publishValue} but the restore does not set it at all. " +
+                    "A --no-restore publish cannot resolve packages the restore never considered.");
+                Assert.AreEqual(publishValue, restoreValue,
+                    $"{scriptPath}: -p:{property} must have the same value for restore and publish.");
+            }
+
+            // Stated explicitly, so removing either from the restore fails this test loudly even
+            // if the allowlist above is ever edited.
+            foreach (var required in new[] { "SelfContained", "WindowsAppSDKSelfContained" })
+            {
+                Assert.IsTrue(restoreProperties.TryGetValue(required, out var value) && value == "true",
+                    $"{scriptPath}: the restore must set -p:{required}=true.");
+                Assert.IsTrue(publishProperties.TryGetValue(required, out var publishValue) && publishValue == "true",
+                    $"{scriptPath}: the publish must set -p:{required}=true.");
+            }
+
+            Assert.Contains("-p:Configuration=Release", ExtractArgumentArray(script, "restoreArguments"),
+                $"{scriptPath}: the restore must pin the same configuration the publish builds.");
+        }
+    }
+
+    // === C. Existing actions are untouched ==============================================
+
+    [TestMethod]
+    public void WindowsBuildAction_RemainsAnUnpackagedCompileOnlyOperation()
+    {
+        var body = ExtractFunctionBody(LoadRepositoryFile(LauncherPath), "Invoke-WindowsBuildAction");
+
+        Assert.DoesNotContain("publish", body, "WindowsBuild must not publish.");
+        Assert.DoesNotContain("WindowsPackageType", body);
+        Assert.DoesNotContain("Appx", body);
+        Assert.DoesNotContain("SelfContained", body);
+        Assert.DoesNotContain("KnownFirstWindowsPortablePackaging", body);
+        Assert.DoesNotContain("KnownFirstWindowsMsixPackaging", body);
+        Assert.Contains("'build', $projectPath, '-c', $configuration, '-f', $windowsTargetFramework, '--no-restore'", body);
+    }
+
+    [TestMethod]
+    public void ValidateAllAction_KeepsItsExactFiveStepMatrixAndNoPackagingBehaviour()
+    {
+        var body = ExtractFunctionBody(LoadRepositoryFile(LauncherPath), "Invoke-ValidateAllAction");
+
+        foreach (var stateKey in new[]
+        {
+            "'Test'", "'WindowsBuild-Debug'", "'WindowsBuild-Release'",
+            "'AndroidBuildValidation-Debug'", "'AndroidBuildValidation-Release'",
+        })
+        {
+            Assert.Contains($"StateKey = {stateKey}", body, $"ValidateAll must keep its {stateKey} step.");
+        }
+
+        Assert.AreEqual(5, Regex.Matches(body, @"StateKey\s*=\s*'").Count,
+            "ValidateAll must keep exactly its five existing steps.");
+
+        Assert.DoesNotContain("publish", body, "ValidateAll must never publish or package.");
+        Assert.DoesNotContain("WindowsPackageType", body);
+        Assert.DoesNotContain("Appx", body);
+        Assert.DoesNotContain("WindowsPortablePackage", body);
+        Assert.DoesNotContain("WindowsMsixPackage", body);
+    }
+
+    // === D. Channel boundaries ============================================================
+
+    [TestMethod]
+    public void WindowsDistributionPaths_NeverInvokeAndroidBuildingOrPackaging()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+
+        foreach (var body in new[]
+        {
+            ExtractFunctionBody(launcher, "Invoke-WindowsPortablePackageAction"),
+            ExtractFunctionBody(launcher, "Invoke-WindowsMsixPackageAction"),
+            LoadRepositoryFile(PortableScriptPath),
+            LoadRepositoryFile(MsixScriptPath),
+        })
+        {
+            foreach (var forbidden in new[]
+            {
+                "net10.0-android", ".aab", ".apk", "AndroidPackageFormats", "AndroidKeyStore",
+                "jarsigner", "KNOWNFIRST_ANDROID_SIGNING_PASSWORD",
+                "publish-android-test-packages.ps1", "publish-google-play-bundle.ps1",
+            })
+            {
+                Assert.DoesNotContain(forbidden, body,
+                    $"A Windows distribution path must never reference Android packaging ({forbidden}).");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void WindowsDistributionPaths_NeverInstallUploadOrOperateADevice()
+    {
+        foreach (var script in new[] { LoadRepositoryFile(PortableScriptPath), LoadRepositoryFile(MsixScriptPath) })
+        {
+            foreach (var forbidden in new[]
+            {
+                "Add-AppxPackage", "Add-AppxProvisionedPackage", "Start-Process",
+                "Invoke-WebRequest", "Invoke-RestMethod", "curl", "StoreBroker",
+                "appinstaller", "adb", "Setup.exe", "msiexec", "WACK", "appcert",
+            })
+            {
+                Assert.DoesNotContain(forbidden, script, StringComparison.OrdinalIgnoreCase,
+                    $"Creating an artifact must never install, launch, upload, or publish it ({forbidden}).");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void MsixScript_ContainsNoSecretBearingCertificatePropertiesAndCreatesNoCertificate()
+    {
+        var script = LoadRepositoryFile(MsixScriptPath);
+        var launcher = LoadRepositoryFile(LauncherPath);
+
+        foreach (var forbidden in new[]
+        {
+            "PackageCertificateKeyFile", "PackageCertificatePassword",
+            "New-SelfSignedCertificate", "Import-PfxCertificate", "Import-Certificate",
+            ".pfx", "signtool", "CertUtil",
+        })
+        {
+            Assert.DoesNotContain(forbidden, script, StringComparison.OrdinalIgnoreCase,
+                $"Signing material must stay outside the repository ({forbidden}).");
+            Assert.DoesNotContain(forbidden, launcher, StringComparison.OrdinalIgnoreCase,
+                $"Signing material must stay outside the launcher ({forbidden}).");
+        }
+    }
+
+    [TestMethod]
+    public void Launcher_NeverHandlesTheSigningThumbprintItself()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+
+        // The launcher prints every command it runs and records parameter signatures in
+        // artifacts\launcher-state. It must therefore forward only the signing MODE and let the
+        // publishing script read the thumbprint from the environment itself, so the value can
+        // never reach a printed command line, a launcher log, or a state record.
+        Assert.DoesNotContain(ThumbprintEnvironmentVariable, launcher,
+            "The launcher must not read or forward the signing thumbprint.");
+        Assert.DoesNotContain("Thumbprint", launcher,
+            "The launcher must not handle certificate thumbprints at all.");
+
+        var msixAction = ExtractFunctionBody(launcher, "Invoke-WindowsMsixPackageAction");
+        Assert.Contains("MsixSigning", msixAction,
+            "The launcher forwards only the signing mode.");
+    }
+
+    // === E. Launcher state, outputs and reuse ==============================================
+
+    [TestMethod]
+    public void PortableAction_ExpectsBothTheArchiveAndItsChecksumSidecar()
+    {
+        var body = ExtractFunctionBody(LoadRepositoryFile(LauncherPath), "Invoke-WindowsPortablePackageAction");
+
+        Assert.Contains("$checksumPath = \"$zipPath.sha256.txt\"", body,
+            "The sidecar path must be derived from the archive path so the launcher's sidecar re-verification applies.");
+        AssertOutputFilesAre(body, "$zipPath, $checksumPath", "WindowsPortablePackage");
+    }
+
+    [TestMethod]
+    public void MsixAction_ExpectsBothThePackageAndItsChecksumSidecar()
+    {
+        var body = ExtractFunctionBody(LoadRepositoryFile(LauncherPath), "Invoke-WindowsMsixPackageAction");
+
+        Assert.Contains("$checksumPath = \"$msixPath.sha256.txt\"", body,
+            "The sidecar path must be derived from the package path so the launcher's sidecar re-verification applies.");
+        AssertOutputFilesAre(body, "$msixPath, $checksumPath", "WindowsMsixPackage");
+    }
+
+    [TestMethod]
+    public void StateKeys_AreDistinctPerChannelAndPerSigningModeAndDoNotCollideWithExistingKeys()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+        var portable = ExtractFunctionBody(launcher, "Invoke-WindowsPortablePackageAction");
+        var msix = ExtractFunctionBody(launcher, "Invoke-WindowsMsixPackageAction");
+
+        Assert.Contains("-StateKey 'WindowsPortablePackage-Release'", portable);
+        Assert.DoesNotContain("WindowsMsixPackage-", portable,
+            "The portable channel must never read or write an MSIX state record.");
+
+        Assert.Contains("\"WindowsMsixPackage-Release-$MsixSigning\"", msix,
+            "The MSIX state key must include the signing mode so a signed and an unsigned result can never be interchanged.");
+        Assert.DoesNotContain("WindowsPortablePackage-", msix,
+            "The MSIX channel must never read or write a portable state record.");
+
+        // The two new keys must not shadow any pre-existing state key.
+        foreach (var existingKey in new[]
+        {
+            "Test", "WindowsBuild-Debug", "WindowsBuild-Release",
+            "AndroidBuildValidation-Debug", "AndroidBuildValidation-Release",
+            "AndroidTestPackage-", "GooglePlayBundle",
+        })
+        {
+            Assert.DoesNotContain($"-StateKey '{existingKey}'", portable,
+                $"The portable channel must not reuse the existing {existingKey} state key.");
+            Assert.DoesNotContain($"-StateKey '{existingKey}'", msix,
+                $"The MSIX channel must not reuse the existing {existingKey} state key.");
+        }
+    }
+
+    [TestMethod]
+    public void BothActions_InvalidateOnTheLauncherAndTheirOwnPublishingScript()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+
+        var portable = ExtractFunctionBody(launcher, "Invoke-WindowsPortablePackageAction");
+        Assert.Contains("publish-windows-portable.ps1", portable);
+        Assert.Contains("knownfirst.ps1", portable);
+        Assert.DoesNotContain("publish-windows-msix.ps1", portable);
+
+        var msix = ExtractFunctionBody(launcher, "Invoke-WindowsMsixPackageAction");
+        Assert.Contains("publish-windows-msix.ps1", msix);
+        Assert.Contains("knownfirst.ps1", msix);
+        Assert.DoesNotContain("publish-windows-portable.ps1", msix);
+
+        // Both channels now share scripts/windows-distribution-common.ps1, so editing it must
+        // invalidate both reuse records - otherwise a changed naming rule would leave a stale
+        // record pointing at an artifact name that can no longer be produced.
+        foreach (var (body, ownScript) in new[]
+        {
+            (portable, "publish-windows-portable.ps1"),
+            (msix, "publish-windows-msix.ps1"),
+        })
+        {
+            var relevantScripts = Regex.Match(body, @"\$relevantScripts\s*=\s*@\((?<scripts>[\s\S]*?)\n\s*\)");
+            Assert.IsTrue(relevantScripts.Success, "Each action must declare its relevant script hashes.");
+
+            var declared = relevantScripts.Groups["scripts"].Value;
+            Assert.Contains("knownfirst.ps1", declared);
+            Assert.Contains("$scriptPath", declared, "The channel's own publishing script must be hashed.");
+            Assert.Contains("$commonPath", declared,
+                "A change to the shared helper must invalidate this channel's reuse record.");
+
+            // ...and those two variables must actually resolve to the intended files.
+            Assert.Contains($"$scriptPath = Join-Path $scriptRoot '{ownScript}'", body);
+            Assert.Contains("$commonPath = Join-Path $scriptRoot 'windows-distribution-common.ps1'", body);
+        }
+    }
+
+    [TestMethod]
+    public void WhatIf_CreatesNothingAtAllForEitherChannel()
+    {
+        var launcher = LoadRepositoryFile(LauncherPath);
+
+        foreach (var functionName in new[] { "Invoke-WindowsPortablePackageAction", "Invoke-WindowsMsixPackageAction" })
+        {
+            var body = ExtractFunctionBody(launcher, functionName);
+
+            var whatIfIndex = body.IndexOf("if ($WhatIf)", StringComparison.Ordinal);
+            Assert.IsTrue(whatIfIndex > 0, $"{functionName} must have a WhatIf branch.");
+
+            var closingIndex = body.IndexOf("\n    }", whatIfIndex, StringComparison.Ordinal);
+            Assert.IsTrue(closingIndex > whatIfIndex, $"{functionName} WhatIf branch must be delimited.");
+            var whatIfBranch = body.Substring(whatIfIndex, closingIndex - whatIfIndex);
+
+            Assert.Contains("[WhatIf] no commands executed.", whatIfBranch);
+            Assert.Contains("-Succeeded $true", whatIfBranch);
+            foreach (var forbidden in new[]
+            {
+                "Invoke-KnownFirstCommand", "New-LauncherLogPath", "New-Item",
+                "Save-LauncherState", "Compress-Archive", "Move-Item", "Out-File", "Set-Content",
+            })
+            {
+                Assert.DoesNotContain(forbidden, whatIfBranch,
+                    $"{functionName} WhatIf must not {forbidden}.");
+            }
+
+            // The WhatIf branch must return before any of the real work is reached.
+            Assert.IsTrue(
+                whatIfIndex < body.IndexOf("Invoke-KnownFirstCommand", StringComparison.Ordinal),
+                $"{functionName} must evaluate WhatIf before running any command.");
+        }
+    }
+
+    // === F. Fail-closed packaging safety ====================================================
+
+    [TestMethod]
+    public void BothScripts_FailClosedOnDirtyWorktreeCollisionAndUseLockStagingAndSidecar()
+    {
+        foreach (var scriptPath in new[] { PortableScriptPath, MsixScriptPath })
+        {
+            var script = LoadRepositoryFile(scriptPath);
+
+            Assert.Contains("$ErrorActionPreference = \"Stop\"", script);
+            Assert.Contains("git", script, "The artifact name carries a commit id, so HEAD must be resolved.");
+            Assert.Contains("status --porcelain", script,
+                "A commit id in a distribution filename must never describe a modified worktree.");
+            Assert.Contains("[System.IO.File]::Open", script, "Concurrent packaging must be serialised.");
+            Assert.Contains("'None'", script, "The packaging lock must be opened with FileShare.None.");
+            Assert.Contains("NewGuid", script, "Artifacts must be built in a staging directory.");
+            Assert.Contains("Final artifact paths already exist", script, "Final paths must fail closed on collision.");
+            Assert.Contains("KnownFirstProductVersion", script);
+            Assert.Contains("KnownFirstBuildNumber", script);
+
+            Assert.Contains("Move-Item -LiteralPath $staging", script,
+                "Finalisation must move the verified staged artifact into place.");
+            Assert.IsFalse(
+                Regex.IsMatch(script, @"Move-Item[^\r\n]*-Force"),
+                $"{scriptPath} must never finalise an artifact with -Force: an existing final artifact must fail closed, never be overwritten.");
+
+            // Same sidecar grammar as the Google Play bundle contract, so the launcher's existing
+            // sidecar re-verification in Test-LauncherStateReusable applies unchanged.
+            Assert.Contains(@"\A([a-f0-9]{64})[ \t]+([^\r\n]+)\r?\n?\z", script);
+            Assert.DoesNotContain(@"\s+", script, "The sidecar parser must not use a loose whitespace class.");
+
+            // Anchored at column zero so the OUTER packaging try/catch/finally is matched rather
+            // than an indented inner one (the portable script legitimately uses a nested
+            // try/finally to dispose a ZipArchive handle).
+            var outerCatch = Regex.Match(script, @"^catch \{", RegexOptions.Multiline);
+            var outerFinally = Regex.Match(script, @"^finally \{", RegexOptions.Multiline);
+            Assert.IsTrue(outerCatch.Success, $"{scriptPath} must have a top-level catch block.");
+            Assert.IsTrue(outerFinally.Success, $"{scriptPath} must have a top-level finally block.");
+            Assert.IsTrue(outerFinally.Index > outerCatch.Index,
+                $"{scriptPath} must use structured try/catch/finally.");
+
+            Assert.Contains("finalFilesCreated", script.Substring(outerCatch.Index, outerFinally.Index - outerCatch.Index),
+                "Files created by a failed invocation must be rolled back.");
+            Assert.Contains("Remove-Item", script.Substring(outerFinally.Index),
+                "The staging directory must be cleaned up on every exit path.");
+            Assert.Contains("throw $failureRecord", script,
+                "The original ErrorRecord must be preserved.");
+        }
+    }
+
+    [TestMethod]
+    public void PortableScript_ArchivesTheCompletePublishDirectoryAndProvesItIsSelfContained()
+    {
+        var script = LoadRepositoryFile(PortableScriptPath);
+
+        Assert.Contains("CreateFromDirectory", script,
+            "The complete publish directory must be archived, never a hand-picked file list.");
+        Assert.Contains("KnownFirst.exe", script);
+        Assert.Contains("KnownFirst.dll", script);
+        Assert.Contains("hostfxr.dll", script,
+            "A self-contained payload must carry the .NET host; its absence means SelfContained silently did not apply.");
+        Assert.Contains("Microsoft.WindowsAppRuntime.Bootstrap.dll", script,
+            "A self-contained unpackaged app must carry the Windows App SDK bootstrapper.");
+
+        // The name itself is owned by the shared helper; the architecture and extension are
+        // asserted there so there is exactly one place to change them.
+        var helper = LoadRepositoryFile(CommonHelperPath);
+        Assert.Contains("-win-x64-", helper, "The archive name must carry the architecture.");
+        Assert.Contains(".zip", helper);
+    }
+
+    // === G. Single source of truth for artifact naming and identity =======================
+
+    [TestMethod]
+    public void AllThreeScripts_ConsumeTheSharedArtifactNamingHelper()
+    {
+        foreach (var path in new[] { LauncherPath, PortableScriptPath, MsixScriptPath })
+        {
+            Assert.Contains("windows-distribution-common.ps1", LoadRepositoryFile(path),
+                $"{path} must dot-source the shared helper rather than derive artifact names itself.");
+        }
+
+        var launcher = LoadRepositoryFile(LauncherPath);
+        Assert.Contains("Get-KnownFirstPortableArchiveName", launcher);
+        Assert.Contains("Get-KnownFirstMsixPackageName", launcher);
+        Assert.Contains("Get-KnownFirstMsixSigningMarker", launcher);
+        Assert.Contains("Get-KnownFirstMsixIdentityMarker -ManifestPath", launcher);
+        Assert.Contains("Get-KnownFirstShortCommitPrefix", launcher);
+
+        Assert.Contains("Get-KnownFirstPortableArchiveName", LoadRepositoryFile(PortableScriptPath));
+        Assert.Contains("Get-KnownFirstZipFileEntryCount", LoadRepositoryFile(PortableScriptPath));
+
+        var msix = LoadRepositoryFile(MsixScriptPath);
+        Assert.Contains("Get-KnownFirstMsixPackageName", msix);
+        Assert.Contains("Get-KnownFirstMsixSigningMarker", msix);
+        Assert.Contains("Get-KnownFirstMsixIdentityMarker -ManifestPath", msix);
+        Assert.Contains("Select-KnownFirstMsixCandidate", msix);
+    }
+
+    [TestMethod]
+    public void NoCallerRedefinesTheArtifactNameTemplatesOrTheIdentityAndSigningMarkers()
+    {
+        var helper = LoadRepositoryFile(CommonHelperPath);
+
+        // The literal templates and marker literals must exist exactly once in the repository,
+        // inside the shared helper.
+        foreach (var soleTemplate in new[]
+        {
+            "KnownFirst-$ProductVersion-build$BuildNumber-win-x64-$ShortCommit.zip",
+            "KnownFirst-$ProductVersion-build$BuildNumber-x64-$ShortCommit-$SigningMarker-$IdentityMarker.msix",
+        })
+        {
+            Assert.Contains(soleTemplate, helper, "The shared helper owns the artifact name templates.");
+        }
+
+        // For the launcher only the two packaging actions are in scope: unrelated launcher code
+        // (for example Write-ReuseMessage's own short-SHA formatting) is not artifact naming.
+        var launcherScript = LoadRepositoryFile(LauncherPath);
+        var callers = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [$"{LauncherPath} (Invoke-WindowsPortablePackageAction)"] = ExtractFunctionBody(launcherScript, "Invoke-WindowsPortablePackageAction"),
+            [$"{LauncherPath} (Invoke-WindowsMsixPackageAction)"] = ExtractFunctionBody(launcherScript, "Invoke-WindowsMsixPackageAction"),
+            [PortableScriptPath] = LoadRepositoryFile(PortableScriptPath),
+            [MsixScriptPath] = LoadRepositoryFile(MsixScriptPath),
+        };
+
+        foreach (var (callerPath, caller) in callers)
+        {
+            Assert.DoesNotContain("-win-x64-$shortCommit.zip", caller,
+                $"{callerPath} must not re-derive the portable archive name.");
+            Assert.DoesNotContain("-x64-$shortCommit-$signingMarker-$identityMarker.msix", caller,
+                $"{callerPath} must not re-derive the MSIX package name.");
+            Assert.DoesNotContain("{ 'signed' }", caller,
+                $"{callerPath} must not re-derive the signing marker with an inline ternary.");
+            Assert.DoesNotContain("= 'devidentity'", caller,
+                $"{callerPath} must not assign the identity marker value itself.");
+            Assert.DoesNotContain("return 'devidentity'", caller,
+                $"{callerPath} must not re-derive the identity marker value.");
+            Assert.DoesNotContain("return 'storeidentity'", caller,
+                $"{callerPath} must not re-derive the identity marker value.");
+            Assert.DoesNotContain("Substring(0, 7)", caller,
+                $"{callerPath} must not re-derive the short commit prefix.");
+        }
+
+        // The helper is the only place these derivations live.
+        Assert.Contains("Substring(0, 7)", helper);
+        Assert.Contains("return 'devidentity'", helper);
+        Assert.Contains("return 'storeidentity'", helper);
+        Assert.Contains("return 'signed'", helper);
+        Assert.Contains("return 'unsigned'", helper);
+    }
+
+    [TestMethod]
+    public void SharedHelper_HasNoBuildPackageInstallNetworkOrSigningBehaviour()
+    {
+        var helper = LoadRepositoryFile(CommonHelperPath);
+
+        foreach (var forbidden in new[]
+        {
+            "dotnet ", "Invoke-KnownFirstCommand", "New-Item", "Set-Content", "Out-File",
+            "Move-Item", "Copy-Item", "Remove-Item", "::CreateFromDirectory", "Compress-Archive",
+            "Add-AppxPackage", "Invoke-WebRequest", "Invoke-RestMethod", "StoreBroker",
+            "KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT", "PackageCertificate",
+            "New-SelfSignedCertificate", ".pfx", "signtool", "& git", "git -C",
+            "$env:", "Get-Credential",
+        })
+        {
+            Assert.DoesNotContain(forbidden, helper, StringComparison.OrdinalIgnoreCase,
+                $"The shared helper must stay pure and side-effect free ({forbidden}).");
+        }
+    }
+
+    // --- Behavioral: signing marker and full artifact names -------------------------------
+
+    [TestMethod]
+    public void SigningMarker_MapsNoneToUnsignedAndExternalToSigned()
+    {
+        Assert.AreEqual("unsigned", InvokeHelper("Get-KnownFirstMsixSigningMarker -MsixSigning 'None'"));
+        Assert.AreEqual("signed", InvokeHelper("Get-KnownFirstMsixSigningMarker -MsixSigning 'External'"));
+    }
+
+    [TestMethod]
+    public void MsixArtifactName_CarriesTheCorrectSigningMarkerForBothModes()
+    {
+        // Exercises the production helper end to end for the current development Store identity.
+        foreach (var (signingMode, expectedSuffix) in new[]
+        {
+            ("None", "-unsigned-devidentity.msix"),
+            ("External", "-signed-devidentity.msix"),
+        })
+        {
+            var name = InvokeHelper($"""
+                $marker = Get-KnownFirstMsixSigningMarker -MsixSigning '{signingMode}'
+                Get-KnownFirstMsixPackageName -ProductVersion '1.0.0-beta.13' -BuildNumber '13' -ShortCommit 'd3a82be' -SigningMarker $marker -IdentityMarker 'devidentity'
+                """);
+
+            Assert.AreEqual($"KnownFirst-1.0.0-beta.13-build13-x64-d3a82be{expectedSuffix}", name,
+                $"MsixSigning={signingMode} must produce a correctly labelled artifact name.");
+        }
+    }
+
+    [TestMethod]
+    public void PortableArtifactName_IsDeterministicAndCarriesVersionBuildArchitectureAndCommit()
+    {
+        var name = InvokeHelper(
+            "Get-KnownFirstPortableArchiveName -ProductVersion '1.0.0-beta.13' -BuildNumber '13' -ShortCommit 'd3a82be'");
+
+        Assert.AreEqual("KnownFirst-1.0.0-beta.13-build13-win-x64-d3a82be.zip", name);
+    }
+
+    [TestMethod]
+    public void ShortCommitPrefix_IsAFixedSevenCharacterPrefixOfTheFullSha()
+    {
+        Assert.AreEqual("d3a82be", InvokeHelper(
+            "Get-KnownFirstShortCommitPrefix -HeadSha 'd3a82becf93efacae1ac9a745161837799a74cd8'"));
+        Assert.AreEqual(string.Empty, InvokeHelper("Get-KnownFirstShortCommitPrefix -HeadSha 'abc'"));
+    }
+
+    // --- Behavioral: MSIX candidate selection --------------------------------------------
+
+    [TestMethod]
+    public void MsixCandidateSelection_FailsClosedOnZeroCandidates()
+    {
+        var result = RunAgainstSyntheticAppPackages(msixFileNames: []);
+
+        Assert.AreNotEqual(0, result.ExitCode, $"Zero candidates must fail closed. StdOut: {result.StandardOutput}");
+        Assert.Contains("no .msix package was found", result.StandardError);
+    }
+
+    [TestMethod]
+    public void MsixCandidateSelection_SelectsTheSingleCandidate()
+    {
+        var result = RunAgainstSyntheticAppPackages(["KnownFirst_1.0.13.0_x64.msix"]);
+
+        Assert.AreEqual(0, result.ExitCode, $"Exactly one candidate must be selected. StdErr: {result.StandardError}");
+        Assert.Contains("KnownFirst_1.0.13.0_x64.msix", result.StandardOutput);
+    }
+
+    [TestMethod]
+    public void MsixCandidateSelection_FailsClosedOnMultipleCandidates()
+    {
+        var result = RunAgainstSyntheticAppPackages(["KnownFirst_1.0.13.0_x64.msix", "KnownFirst_1.0.12.0_x64.msix"]);
+
+        Assert.AreNotEqual(0, result.ExitCode, $"Two candidates must fail closed. StdOut: {result.StandardOutput}");
+        Assert.Contains("candidate selection is ambiguous", result.StandardError);
+    }
+
+    [TestMethod]
+    public void MsixCandidateSelection_FailsClosedWhenNoPackageDirectoryExists()
+    {
+        var result = RunAgainstSyntheticAppPackages(msixFileNames: null);
+
+        Assert.AreNotEqual(0, result.ExitCode, $"A missing package directory must fail closed. StdOut: {result.StandardOutput}");
+        Assert.Contains("no package directory was created", result.StandardError);
+    }
+
+    // --- Behavioral: ZIP file-entry counting ---------------------------------------------
+
+    [TestMethod]
+    public void ZipFileEntryCount_IgnoresEmptyDirectoryEntriesSoAValidPayloadIsNotRejected()
+    {
+        var root = CreateTemporaryProjectRoot();
+        try
+        {
+            // A representative self-contained payload plus one empty directory. Empty directories
+            // become their own ZIP entries, which previously made a valid archive look inflated.
+            var payload = Path.Combine(root, "publish");
+            Directory.CreateDirectory(payload);
+            foreach (var file in new[] { "KnownFirst.exe", "KnownFirst.dll", "hostfxr.dll", "Microsoft.WindowsAppRuntime.Bootstrap.dll" })
+            {
+                File.WriteAllText(Path.Combine(payload, file), "inert placeholder");
+            }
+            Directory.CreateDirectory(Path.Combine(payload, "nested"));
+            File.WriteAllText(Path.Combine(payload, "nested", "resources.pri"), "inert placeholder");
+            Directory.CreateDirectory(Path.Combine(payload, "an-empty-directory"));
+
+            var payloadFileCount = Directory.GetFiles(payload, "*", SearchOption.AllDirectories).Length;
+            Assert.AreEqual(5, payloadFileCount);
+
+            var archivePath = Path.Combine(root, "payload.zip");
+            System.IO.Compression.ZipFile.CreateFromDirectory(payload, archivePath);
+
+            // Precondition: the raw entry count really does exceed the file count, so this test
+            // would have caught the previous equality check.
+            using (var archive = System.IO.Compression.ZipFile.OpenRead(archivePath))
+            {
+                Assert.IsTrue(archive.Entries.Count > payloadFileCount,
+                    "Precondition: the empty directory must add an extra raw ZIP entry.");
+            }
+
+            var counted = InvokeHelper($"Get-KnownFirstZipFileEntryCount -ArchivePath '{archivePath.Replace("'", "''")}'");
+
+            Assert.AreEqual(payloadFileCount.ToString(), counted,
+                "Only file entries may be counted, so an empty directory cannot fail a valid payload.");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    // === G. Behavioral fragments (executed verbatim from the production scripts) ============
+
+    [TestMethod]
+    public void ExternalSigningThumbprint_FailsClosedWhenMissing()
+    {
+        var result = RunExternalSigningContract(thumbprint: null);
+
+        Assert.AreNotEqual(0, result.ExitCode,
+            $"A missing thumbprint must fail closed. StdOut: {result.StandardOutput}");
+        Assert.Contains("The external MSIX signing thumbprint is invalid or missing", result.StandardError);
+    }
+
+    [TestMethod]
+    public void ExternalSigningThumbprint_FailsClosedWhenMalformed()
+    {
+        foreach (var malformed in new[] { "not-a-thumbprint", "ABC123", new string('A', 39), new string('A', 41), new string('Z', 40) })
+        {
+            var result = RunExternalSigningContract(malformed);
+
+            Assert.AreNotEqual(0, result.ExitCode,
+                $"Thumbprint '{malformed}' must be rejected. StdOut: {result.StandardOutput}");
+            Assert.Contains("The external MSIX signing thumbprint is invalid or missing", result.StandardError);
+        }
+    }
+
+    [TestMethod]
+    public void ExternalSigningThumbprint_AcceptsExactlyFortyHexadecimalCharacters()
+    {
+        var result = RunExternalSigningContract("DE8B962E7BF797CB48CCF66C8BCACE65C6585E2F");
+
+        Assert.AreEqual(0, result.ExitCode,
+            $"A valid 40-character hexadecimal thumbprint must be accepted. StdErr: {result.StandardError}");
+        Assert.Contains("THUMBPRINT_ACCEPTED", result.StandardOutput);
+    }
+
+    [TestMethod]
+    public void UnsignedMode_NeverReadsTheSigningEnvironmentVariableAtAll()
+    {
+        var result = RunExternalSigningContract(thumbprint: null, signingMode: "None");
+
+        Assert.AreEqual(0, result.ExitCode,
+            $"The default unsigned mode must not require any external signing input. StdErr: {result.StandardError}");
+        Assert.Contains("THUMBPRINT_ACCEPTED", result.StandardOutput);
+    }
+
+    /// <summary>
+    /// Every required Partner Center identity component must be inspected. MAUI substitutes the
+    /// package Identity Name from <c>$(ApplicationId)</c>, which is a development identity and not
+    /// a name reserved in Partner Center, and it never substitutes Publisher or
+    /// PublisherDisplayName at all. Classification must therefore fail safe: any single remaining
+    /// placeholder yields <c>devidentity</c>.
+    /// </summary>
+    [TestMethod]
+    public void StoreIdentityClassification_TreatsAnyRemainingPlaceholderComponentAsDevelopmentIdentity()
+    {
+        const string realName = "ExampleReservedStoreName";
+        const string realPublisher = "CN=ExamplePublisherIdFromPartnerCenter";
+        const string realDisplayName = "Example Publisher Display Name";
+
+        foreach (var (identityName, publisher, publisherDisplayName, expected, description) in new[]
+        {
+            // 1. the manifest exactly as it exists on master today
+            ("maui-package-name-placeholder", "CN=User Name", "User Name", "devidentity", "all current placeholders"),
+            // 2. real Publisher but the Identity Name is still the MAUI placeholder
+            ("maui-package-name-placeholder", realPublisher, realDisplayName, "devidentity", "placeholder Identity Name"),
+            // 3. real Identity Name but the Publisher is still the template placeholder
+            (realName, "CN=User Name", realDisplayName, "devidentity", "placeholder Publisher"),
+            // 3b. real Identity Name and Publisher but placeholder PublisherDisplayName
+            (realName, realPublisher, "User Name", "devidentity", "placeholder PublisherDisplayName"),
+            // 4. all three explicitly non-placeholder
+            (realName, realPublisher, realDisplayName, "storeidentity", "all real identity values"),
+        })
+        {
+            var marker = RunStoreIdentityClassification(identityName, publisher, publisherDisplayName);
+
+            Assert.AreEqual(expected, marker,
+                $"{description}: Identity Name='{identityName}', Publisher='{publisher}', " +
+                $"PublisherDisplayName='{publisherDisplayName}' must classify as {expected}.");
+        }
+    }
+
+    [TestMethod]
+    public void StoreIdentityClassification_TreatsMissingOrEmptyIdentityComponentsAsDevelopmentIdentity()
+    {
+        // Fail safe: an incomplete manifest must never be presented as Store-submission ready.
+        Assert.AreEqual("devidentity", RunStoreIdentityClassification(
+            "ExampleReservedStoreName", "CN=ExamplePublisherIdFromPartnerCenter", string.Empty));
+        Assert.AreEqual("devidentity", RunStoreIdentityClassification(
+            "ExampleReservedStoreName", "   ", "Example Publisher Display Name"));
+    }
+
+    [TestMethod]
+    public void CurrentRepositoryManifest_ClassifiesAsDevelopmentIdentity()
+    {
+        // The real manifest, read by the real helper. The application must keep producing
+        // devidentity until authoritative Partner Center values exist.
+        var manifestPath = Path.Combine(GetRepositoryRoot(), "Platforms", "Windows", "Package.appxmanifest");
+        var marker = InvokeHelper($"Get-KnownFirstMsixIdentityMarker -ManifestPath '{manifestPath.Replace("'", "''")}'");
+
+        Assert.AreEqual("devidentity", marker,
+            "The current manifest still carries placeholder Partner Center identity values.");
+    }
+
+    [TestMethod]
+    public void MsixScript_ReportsThePlaceholderIdentityExplicitlyRatherThanSilentlyProceeding()
+    {
+        var script = LoadRepositoryFile(MsixScriptPath);
+
+        Assert.Contains("STORE_IDENTITY_PLACEHOLDER", script);
+        Assert.Contains("NOT a Microsoft Store submission candidate", script);
+    }
+
+    [TestMethod]
+    public void CurrentRepositoryManifest_StillCarriesThePlaceholderIdentity()
+    {
+        // Guards the assumption the artifact naming depends on: until real Partner Center values
+        // exist, every produced MSIX must be marked as a development-identity artifact. When this
+        // test starts failing, real Store identity has arrived and the docs must be reconciled.
+        var manifest = LoadRepositoryFile("Platforms/Windows/Package.appxmanifest");
+
+        Assert.Contains("CN=User Name", manifest);
+        Assert.Contains("<PublisherDisplayName>User Name</PublisherDisplayName>", manifest);
+    }
+
+    // === Helpers ==============================================================================
+
+    private static void AssertOutputFilesAre(string functionBody, string expectedOutputs, string channel)
+    {
+        var matches = Regex.Matches(functionBody, @"-OutputFiles\s+@\((?<outputs>[^\)]+)\)");
+        Assert.IsTrue(matches.Count >= 2,
+            $"{channel} must declare its expected outputs for both the reuse check and the state record.");
+
+        foreach (Match match in matches)
+        {
+            Assert.AreEqual(expectedOutputs, match.Groups["outputs"].Value.Trim(),
+                $"{channel} must expect exactly the artifact and its checksum sidecar.");
+        }
+    }
+
+    private static string[] ExtractValidateSetValues(string script, string parameterName)
+    {
+        var match = Regex.Match(
+            script,
+            @"\[ValidateSet\((?<values>[^\)]*)\)\][\s\r\n]*\[string\]\$" + Regex.Escape(parameterName) + @"\b");
+
+        Assert.IsTrue(match.Success, $"A ValidateSet for -{parameterName} must exist.");
+
+        return Regex.Matches(match.Groups["values"].Value, @"'(?<value>[^']+)'")
+            .Select(value => value.Groups["value"].Value)
+            .ToArray();
+    }
+
+    private static string ExtractFunctionBody(string script, string functionName)
+    {
+        var match = Regex.Match(
+            script,
+            @"function\s+" + Regex.Escape(functionName) + @"\s*\{(?<body>[\s\S]*?)\n\}",
+            RegexOptions.IgnoreCase);
+
+        Assert.IsTrue(match.Success, $"The function {functionName} must exist.");
+        return match.Groups["body"].Value;
+    }
+
+    private static string ExtractArgumentArray(string script, string variableName)
+    {
+        var match = Regex.Match(script, @"\$" + Regex.Escape(variableName) + @"\s*=\s*@\((?<args>[\s\S]*?)\n\s*\)");
+
+        Assert.IsTrue(match.Success, $"The ${variableName} array declaration must exist.");
+        return match.Groups["args"].Value;
+    }
+
+    private const string ExternalSigningStartMarker = "# --- BEGIN EXTERNAL SIGNING INPUT CONTRACT ---";
+    private const string ExternalSigningEndMarker = "# --- END EXTERNAL SIGNING INPUT CONTRACT ---";
+    private static string ExtractMarkedFragment(string scriptPath, string startMarker, string endMarker)
+    {
+        var script = LoadRepositoryFile(scriptPath);
+
+        var start = script.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.IsTrue(start >= 0, $"Production start marker '{startMarker}' was not found in {scriptPath}.");
+
+        var end = script.IndexOf(endMarker, start, StringComparison.Ordinal);
+        Assert.IsTrue(end > start, $"Production end marker '{endMarker}' was not found after the start marker.");
+
+        return script.Substring(start, end - start + endMarker.Length);
+    }
+
+    private sealed record PowerShellResult(int ExitCode, string StandardOutput, string StandardError);
+
+    private static PowerShellResult RunExternalSigningContract(string? thumbprint, string signingMode = "External")
+    {
+        var fragment = ExtractMarkedFragment(MsixScriptPath, ExternalSigningStartMarker, ExternalSigningEndMarker);
+
+        Assert.Contains(ThumbprintEnvironmentVariable, fragment,
+            "The extracted fragment must be the real external-signing input contract.");
+
+        var harness = new StringBuilder();
+        harness.AppendLine("$ErrorActionPreference = \"Stop\"");
+        harness.AppendLine($"$MsixSigning = '{signingMode}'");
+        harness.AppendLine(fragment);
+        harness.AppendLine("Write-Output \"THUMBPRINT_ACCEPTED\"");
+
+        return RunHarness(harness.ToString(), environment: thumbprint is null
+            ? null
+            : (ThumbprintEnvironmentVariable, thumbprint));
+    }
+
+    /// <summary>
+    /// Runs the real shared helper against a synthetic manifest and returns the classification.
+    /// </summary>
+    private static string RunStoreIdentityClassification(
+        string identityName,
+        string publisher,
+        string publisherDisplayName)
+    {
+        var root = CreateTemporaryProjectRoot();
+        try
+        {
+            var manifestPath = Path.Combine(root, "Package.appxmanifest");
+            File.WriteAllText(
+                manifestPath,
+                $"""
+                <?xml version="1.0" encoding="utf-8"?>
+                <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10">
+                  <Identity Name="{identityName}" Publisher="{publisher}" Version="0.0.0.0" />
+                  <Properties>
+                    <DisplayName>$placeholder$</DisplayName>
+                    <PublisherDisplayName>{publisherDisplayName}</PublisherDisplayName>
+                  </Properties>
+                </Package>
+                """);
+
+            return InvokeHelper($"Get-KnownFirstMsixIdentityMarker -ManifestPath '{manifestPath.Replace("'", "''")}'");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Runs the real shared candidate-selection logic against a synthetic AppPackages directory.
+    /// A null <paramref name="msixFileNames"/> means the directory itself is never created.
+    /// </summary>
+    private static PowerShellResult RunAgainstSyntheticAppPackages(string[]? msixFileNames)
+    {
+        var root = CreateTemporaryProjectRoot();
+        try
+        {
+            var appPackages = Path.Combine(root, "AppPackages");
+            if (msixFileNames is not null)
+            {
+                Directory.CreateDirectory(appPackages);
+                foreach (var fileName in msixFileNames)
+                {
+                    var nested = Path.Combine(appPackages, Path.GetFileNameWithoutExtension(fileName) + "_Test");
+                    Directory.CreateDirectory(nested);
+                    File.WriteAllText(Path.Combine(nested, fileName), "inert placeholder, not a real package");
+                }
+            }
+
+            var harness = new StringBuilder();
+            harness.AppendLine("$ErrorActionPreference = \"Stop\"");
+            harness.AppendLine($". '{HelperFullPath().Replace("'", "''")}'");
+            harness.AppendLine($"Select-KnownFirstMsixCandidate -AppxPackageDir '{appPackages.Replace("'", "''")}'");
+
+            return RunHarness(harness.ToString(), workingDirectory: root);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Dot-sources the real production helper and evaluates <paramref name="statements"/>,
+    /// returning trimmed stdout. Any non-zero exit fails the calling test.
+    /// </summary>
+    private static string InvokeHelper(string statements)
+    {
+        var harness = new StringBuilder();
+        harness.AppendLine("$ErrorActionPreference = \"Stop\"");
+        harness.AppendLine($". '{HelperFullPath().Replace("'", "''")}'");
+        harness.AppendLine(statements);
+
+        var result = RunHarness(harness.ToString());
+        Assert.AreEqual(0, result.ExitCode,
+            $"The shared helper harness failed.\nStatements:\n{statements}\nStdErr:\n{result.StandardError}");
+
+        return result.StandardOutput.Trim();
+    }
+
+    private static string HelperFullPath() =>
+        Path.Combine(GetRepositoryRoot(), CommonHelperPath.Replace('/', Path.DirectorySeparatorChar));
+
+    private static Dictionary<string, string> ParseMsBuildProperties(string argumentArray)
+    {
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (Match match in Regex.Matches(argumentArray, @"-p:(?<name>[A-Za-z0-9_]+)=(?<value>[^""']*)"))
+        {
+            properties[match.Groups["name"].Value] = match.Groups["value"].Value;
+        }
+        return properties;
+    }
+
+    private static PowerShellResult RunHarness(
+        string harnessScript,
+        (string Name, string Value)? environment = null,
+        string? workingDirectory = null)
+    {
+        var harnessRoot = workingDirectory ?? CreateTemporaryProjectRoot();
+        var ownsRoot = workingDirectory is null;
+
+        try
+        {
+            var harnessPath = Path.Combine(harnessRoot, "windows-distribution-contract-harness.ps1");
+            File.WriteAllText(harnessPath, harnessScript, new UTF8Encoding(false));
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                WorkingDirectory = harnessRoot,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(harnessPath);
+
+            // Always clear the variable first so a value in the developer's own environment can
+            // never make a fail-closed test pass by accident.
+            startInfo.Environment.Remove(ThumbprintEnvironmentVariable);
+            if (environment is { } value)
+            {
+                startInfo.Environment[value.Name] = value.Value;
+            }
+
+            using var process = Process.Start(startInfo);
+            Assert.IsNotNull(process, "powershell.exe could not be started.");
+
+            var standardOutput = process!.StandardOutput.ReadToEndAsync();
+            var standardError = process.StandardError.ReadToEndAsync();
+            Assert.IsTrue(process.WaitForExit(120000), "The contract harness did not exit within 120 seconds.");
+
+            return new PowerShellResult(
+                process.ExitCode,
+                standardOutput.GetAwaiter().GetResult(),
+                standardError.GetAwaiter().GetResult());
+        }
+        finally
+        {
+            if (ownsRoot)
+            {
+                Directory.Delete(harnessRoot, recursive: true);
+            }
+        }
+    }
+
+    private static string CreateTemporaryProjectRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "knownfirst-windows-dist-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    private static string LoadRepositoryFile(string relativePath)
+    {
+        var path = Path.Combine(GetRepositoryRoot(), relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.IsTrue(File.Exists(path), $"File not found: {path}");
+        return File.ReadAllText(path);
+    }
+
+    private static string GetRepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "KnownFirst.csproj")) &&
+                Directory.Exists(Path.Combine(directory.FullName, "scripts")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("Could not locate the KnownFirst repository root.");
+    }
+}

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-15 (PR #107 verified merged to `master` via merge commit `76e03f255445aa6416ba98727b4c69ff66b0f883`; `POST_MERGE_SYNC_ONLY` completed exactly once and must not be repeated; active package is `docs/windows-distribution-post-merge-reconciliation-v1` performing post-merge documentation reconciliation; Windows portable ZIP and MSIX packaging infrastructure is now merged on `master`; no real ZIP/MSIX package has yet been produced; Partner Center Store identity inputs remain unresolved template placeholders; Mandatory Pre-AAB Release-Readiness Gate has NOT passed and must be evaluated on the eventual exact merged candidate; KF-RELEASE-001 runtime packaging revalidation remains outstanding; P16-A remains merged binding source foundation; Priority 15 remains complete on `master`)
+2026-08-15 (PR #108 verified merged to `master` via merge commit `5d11187369ed64bf9abdea2288cd953e07bff4dc`; `POST_MERGE_SYNC_ONLY` completed exactly once and must not be repeated; all pre-gate feature, fix, and documentation foundations are merged on `master`; no repository-writing implementation or documentation package is active; repository is in an idle Beta-13 pre-gate state; Windows portable ZIP and MSIX packaging infrastructure is merged on `master`; no real ZIP/MSIX package has yet been produced; Partner Center Store identity inputs remain unresolved template placeholders; Mandatory Pre-AAB Release-Readiness Gate has NOT passed and must be evaluated on the live synchronized candidate HEAD; KF-RELEASE-001 runtime packaging revalidation remains outstanding; P16-A remains merged binding source foundation; Priority 15 remains complete on `master`)
 
 ## Repository
 
@@ -13,7 +13,7 @@
 
 ## Verified product-state milestone
 
-- Current verified `master` baseline: `76e03f255445aa6416ba98727b4c69ff66b0f883` (PR #107 merge commit). This is immutable historical merge evidence, not a permanent claim about the literal current `master` HEAD and not a frozen future Pre-AAB candidate; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Prior PR merge commits (PR #92 through PR #107) and their `POST_MERGE_SYNC_ONLY` completions remain historical and must not be repeated.
+- Current audited pre-gate foundation baseline: `5d11187369ed64bf9abdea2288cd953e07bff4dc` (PR #108 merge commit). This is immutable historical merge evidence, not a permanent claim about the literal current `master` HEAD and not a frozen future Pre-AAB candidate; discover the exact current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Prior PR merge commits (PR #92 through PR #108) and their `POST_MERGE_SYNC_ONLY` completions remain historical and must not be repeated. A subsequent documentation-only merge commit that normalizes pre-gate state does not require another documentation reconciliation merely to update a recorded hash.
 - Source-controlled application identity on `master`: `1.0.0-beta.13` (build 13). PR #92 (final head `774b2245f64a986fe004f4ebd3288747642bdb0f`) merged `release/1.0.0-beta.13-candidate-v1` into `master`; `1.0.0-beta.13` is now binding `master` identity — see "Beta 13 merged source identity" below. Merging is not a build, package, device-validation, or distribution event.
 - Confirmed distribution: `1.0.0-beta.12` / build 12 was distributed via Google Play Internal Testing and user-tested (confirmed 2026-07-30). No newer Android external distribution, AAB/APK package, Internal Testing release, installation, or user test has occurred since. Android compile builds have occurred as validation only.
 - Active database schema on master: SQLite `PRAGMA user_version` 10
@@ -174,7 +174,7 @@ The `Learning.Cards`/Sense `StableId` correction is the merged PR #87 package de
 - History: the first independent review found **0 BLOCKER / 2 MAJOR / 3 MINOR / 0 NIT**; the resulting initial hardening correction `9719f3089ea758a6a65b3c5378834c1367227116` is historical and superseded. A renewed independent static review found **0 BLOCKER / 2 MAJOR / 0 MINOR / 0 NIT** (late SDK-style `BaseIntermediateOutputPath` assignment risk; screenshot summary SHA-256/persisted-artifact mismatch); both are corrected in `4545fcc927ffdd787c548b447cbd21d087460e25`. Final bounded source-level validation was MSTest **160 passed / 0 failed / 0 skipped** and Node **7 passed / 0 failed / 0 cancelled / 0 skipped / 0 todo**, with pre/post `git diff --check` passed and all seven correction-file SHA-256 hashes unchanged.
 - **Current evidence boundary (unchanged by the merge):** P16-A is merged Android GUI-automation *source* infrastructure only. It has **not** been runtime-executed — no Android platform build, package, installation, Appium/UiAutomator2/Chromedriver runtime, rendered interaction, real screenshot evidence, ADB/device/emulator behavior, matrix-row automation, or CI evidence exists for it. `MANUAL_ANDROID_GUI` remains a distinct scope. P16-B and P16-C remain not started; no row of the GUI test matrix is automated.
 
-Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, KF-BACKUP-005A/005B/005C, P16-A, and PR #107 (Windows distribution packaging foundation) are all complete and merged on `master`; their history is unaffected.
+Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, KF-BACKUP-005A/005B/005C, P16-A, PR #107 (Windows distribution packaging foundation), and PR #108 (post-merge documentation reconciliation) are all complete and merged on `master`; their history is unaffected.
 
 ## Beta 13 merged source identity
 
@@ -186,28 +186,37 @@ Milestone 14A, 14B, KF-BACKUP-003 Package D, KF-BACKUP-004, KF-BACKUP-005A/005B/
 
 ## Current blocker or pending validation
 
-- None for merged PRs #92 through #107: all completed their full lifecycle on `master`, including `POST_MERGE_SYNC_ONLY` operations (each completed exactly once; none to be repeated).
+- None for merged PRs #92 through #108: all completed their full lifecycle on `master`, including `POST_MERGE_SYNC_ONLY` operations (each completed exactly once; none to be repeated).
 - The missing Android Release output directory fix is merged on `master` via PR #101; its repository defect is diagnosed and corrected with behavioral regression coverage. KF-RELEASE-001 runtime AAB workflow revalidation remains outstanding and deferred to authorized release preparation under `PACKAGE_ONLY`.
 - PR #104 merged narrow Windows Release storage isolation (`GuiTestProfile.cs`, `DiagnosticLogConfiguration.cs`, `LexicalDiagnosticLog.cs`, `Settings.razor`, `GuiTestProfileIndicator.razor`, `scripts/gui-tests/windows/run-windows-release-visual-check.ps1`) to enable safe local Gate-12 visual execution under disposable profile isolation.
 - PR #105 merged Schema7Fixture test directory isolation to resolve parallel test storage collisions under `%TEMP%\merge-safety-copies`.
 - PR #106 merged the Beta-13 Pre-AAB post-PR#105 documentation reconciliation.
 - PR #107 merged the Windows distribution packaging foundation (`publish-windows-portable.ps1`, `publish-windows-msix.ps1`, `knownfirst.ps1` actions `WindowsPortablePackage`/`WindowsMsixPackage`, shared helper `windows-distribution-common.ps1`, Store MSIX numeric version mapping `1.0.13.0`, and 45 deterministic contract tests).
-- Pre-PR candidate `FULL_VALIDATION` passed cleanly on feature head `e009a67b55652a5bcd9b6309b4ba9a3eff26de63` (1940/1940 tests, Windows/Android Debug/Release builds, 114/114 AOT assemblies); this remains historical pre-PR evidence and does not substitute for fresh exact-candidate Pre-AAB Gate evidence on merged master.
+- PR #108 merged the post-PR#107 Windows packaging documentation reconciliation.
 - Evidence boundary: No real portable ZIP or MSIX package has yet been produced; Partner Center Store identity values remain unresolved template placeholders (`devidentity`); this foundation does NOT authorize Store upload, installation, signing execution, or Android packaging.
-- Beta-13 release-readiness status: previous exact-HEAD Pre-AAB evidence belongs to `d3a82becf93efacae1ac9a745161837799a74cd8` only. Because PR #107 merged and this documentation reconciliation package creates new commits, prior exact-HEAD evidence remains historical. A fresh exact-HEAD Pre-AAB Release-Readiness Gate (including `FULL_VALIDATION`, automated Gate items 8–10 and 13–14, and safe Windows Gate items 11–12) must be evaluated on the eventual synchronized candidate HEAD after merge. Gate 15 manual Android validation and Gate 16/17 final release acceptance and AAB packaging remain separate, authorization-gated steps.
+- Beta-13 release-readiness status: previous exact-HEAD Pre-AAB evidence belongs to `d3a82becf93efacae1ac9a745161837799a74cd8` only. Because subsequent PRs merged and created new commits on `master`, prior exact-HEAD evidence remains historical. A fresh exact-HEAD Pre-AAB Release-Readiness Gate (including `FULL_VALIDATION`, automated Gate items 8–10 and 13–14, and safe Windows Gate items 11–12) must be evaluated on the live synchronized candidate HEAD when release preparation is authorized. Gate 15 manual Android validation and Gate 16/17 final release acceptance and AAB packaging remain separate, authorization-gated steps.
 
 ## Exact next action
 
-- Complete the `DOCUMENT_ONLY` post-merge reconciliation on branch `docs/windows-distribution-post-merge-reconciliation-v1`.
-- Proceed through the routine lifecycle stages (`COMMIT_ONLY`, mandatory pre-PR exact-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, owner manual merge, and `POST_MERGE_SYNC_ONLY`).
-- After synchronization on `master`, discover the new literal `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
-- When authorized to resume Beta-13 release preparation, execute the mandatory Pre-AAB Release-Readiness Gate on the synchronized candidate HEAD.
+- No repository-writing implementation or documentation package is currently active. The repository is in an idle Beta-13 pre-gate state on `master`.
+- When Beta-13 release preparation is explicitly authorized/resumed, dynamically discover the exact synchronized `master` HEAD per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- Perform the read-only Mandatory Pre-AAB Release-Readiness Gate documentation review for items 6 and 7 against that exact live HEAD.
+- If Gate items 6 and 7 are current and verified, proceed with exact-candidate automated evidence on that HEAD:
+  - Gate 8: `ALL_AUTOMATED` (MSTest + Node);
+  - Gate 9: `UI_CONTRACT_AUTOMATED`;
+  - Gate 10: Release configuration-sensitive contracts;
+  - Gate 13: `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`);
+  - Gate 14: Android Release source-generation, trimming, AOT (114/114), and warning review.
+- Proceed to Gate 11 (selected rendered GUI scenarios S14, S16, S19, S20, S30, S31, S32, S33, S35, S36) and Gate 12 (Windows Release rendered visual verification) under safe disposable profile isolation.
+- Gate 15 manual Android validation remains separately authorization-gated.
+- Gate 16 (Release acceptance review) and Gate 17 (Package Google Play bundle) remain pending.
+- Final Release AAB remains **NOT AUTHORIZED / NOT CREATED**. Real Windows portable ZIP or MSIX package generation remains separately authorization-gated.
 
 ## Concise new-chat handoff
 
 - Most recent recorded product-relevant milestone on `master`: `14138ccdab1e9b09a12ded002ff198d9b7312fcf` (PR #73, Milestone 14B merged).
-- Current verified `master` baseline: `76e03f255445aa6416ba98727b4c69ff66b0f883` (PR #107 merge commit). Discover future literal HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Prior merge evidence: PR #92 through PR #107; `POST_MERGE_SYNC_ONLY` operations must not be repeated.
+- Audited pre-gate foundation baseline: `5d11187369ed64bf9abdea2288cd953e07bff4dc` (PR #108 merge commit). Discover the literal current `master` HEAD dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Prior merge evidence: PR #92 through PR #108; `POST_MERGE_SYNC_ONLY` operations must not be repeated.
 - `DatabaseSchema.CurrentVersion` is **10** and Schema 10 is active on `master`.
 - Beta 12 / build 12 remains the last confirmed external distribution (Google Play Internal Testing, user-tested 2026-07-30). No newer external distribution has occurred.
-- Active package: `docs/windows-distribution-post-merge-reconciliation-v1` performing post-merge documentation closure following PR #107.
+- Active package: None (idle pre-gate master state; all pre-gate foundations merged).
 - Mandatory Pre-AAB Release-Readiness Gate has NOT passed; Gate 11/12, Gate 15, Gate 16/17, and KF-RELEASE-001 runtime packaging remain pending.

@@ -280,7 +280,7 @@ try {
 
     # Run the wrapped smoke test
     Log-Step -Name 'SmokeTestStarted' -Status 'Started'
-    $smokeTestPath = Join-Path $WorkingDirectory 'scripts\smoke-test-windows.ps1'
+    $smokeTestPath = Join-Path $WorkingDirectory 'scripts\validation\smoke-test-windows.ps1'
 
     $smokeOutput = @()
     $smokeExitCode = 0

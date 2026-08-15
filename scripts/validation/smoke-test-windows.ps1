@@ -74,7 +74,7 @@ function Test-StartupEvent {
     return $false
 }
 
-$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $projectPath = Join-Path $root 'KnownFirst.csproj'
 $solutionPath = Join-Path $root 'KnownFirst.slnx'
 $testProjectPath = Join-Path $root 'KnownFirst.Tests\KnownFirst.Tests.csproj'

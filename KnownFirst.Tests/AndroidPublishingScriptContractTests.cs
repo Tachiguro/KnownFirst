@@ -1,4 +1,4 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -62,8 +62,9 @@ public sealed class AndroidPublishingScriptContractTests
         var functionBody = match.Groups["body"].Value;
 
         Assert.IsTrue(
-            functionBody.Contains("publish-google-play-bundle.ps1"),
-            "Invoke-GooglePlayBundleAction must resolve publish-google-play-bundle.ps1."
+            functionBody.Contains("packaging\\publish-google-play-bundle.ps1") ||
+            functionBody.Contains("packaging/publish-google-play-bundle.ps1"),
+            "Invoke-GooglePlayBundleAction must resolve packaging/publish-google-play-bundle.ps1."
         );
         Assert.IsFalse(
             functionBody.Contains("-VersionCode"),
@@ -88,16 +89,13 @@ public sealed class AndroidPublishingScriptContractTests
     }
 
     [TestMethod]
-    public void LegacyScript_FailsClosedBeforeAnyBuildOrArtifactBehavior()
+    public void ObsoleteAndroidScripts_AreCompletelyRemoved()
     {
-        var legacyScript = LoadScript("scripts/publish-android-google-play.ps1");
-
-        Assert.IsTrue(legacyScript.Contains("throw "), "Legacy script must contain a throw statement.");
-        Assert.IsTrue(legacyScript.Contains("knownfirst.ps1 -Action GooglePlayBundle"), "Legacy script must point to the canonical entry point.");
-
-        Assert.IsFalse(legacyScript.Contains("dotnet publish"), "Legacy script must not contain dotnet publish.");
-        Assert.IsFalse(legacyScript.Contains("jarsigner"), "Legacy script must not contain jarsigner.");
-        Assert.IsFalse(legacyScript.Contains("Remove-Item"), "Legacy script must not delete files.");
+        var repoRoot = GetRepositoryRoot();
+        var legacyGooglePlay = Path.Combine(repoRoot, "scripts", "publish-android-google-play.ps1");
+        var legacyBeta = Path.Combine(repoRoot, "scripts", "publish-android-beta.ps1");
+        Assert.IsFalse(File.Exists(legacyGooglePlay), "scripts/publish-android-google-play.ps1 must not exist.");
+        Assert.IsFalse(File.Exists(legacyBeta), "scripts/publish-android-beta.ps1 must not exist.");
     }
 
     // B. Identity and boundaries
@@ -105,7 +103,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_ReadsIdentityFromKnownFirstProject()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         Assert.IsTrue(
             canonicalScript.Contains("KnownFirstProductVersion") && canonicalScript.Contains("KnownFirstBuildNumber"),
@@ -130,7 +128,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_OpensDeterministicLockWithFileShareNone()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         Assert.IsTrue(
             canonicalScript.Contains("[System.IO.File]::Open") && canonicalScript.Contains("'None'"),
@@ -141,7 +139,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_AcquiresLockBeforeCriticalOperations()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         var lockIndex = canonicalScript.IndexOf("[System.IO.File]::Open", StringComparison.OrdinalIgnoreCase);
         Assert.IsTrue(lockIndex > 0, "Lock acquisition must exist.");
@@ -160,7 +158,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_LockDisposalOccursInFinally()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         var finallyIndex = canonicalScript.IndexOf("finally", StringComparison.OrdinalIgnoreCase);
         Assert.IsTrue(finallyIndex > 0, "Finally block must exist.");
@@ -174,7 +172,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_EnforcesWarningsAsErrorsViaMSBuildEngineSwitch()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         var publishArgMatch = Regex.Match(
             canonicalScript,
@@ -196,7 +194,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_RemovesLastWriteTimeUtcFiltering()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         Assert.IsFalse(canonicalScript.Contains("LastWriteTimeUtc"), "No LastWriteTimeUtc filtering remains.");
 
@@ -208,7 +206,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_ValidatesEmptyPrePublishCandidateList()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         var cleanIndex = canonicalScript.IndexOf("dotnet clean", StringComparison.OrdinalIgnoreCase);
         var publishIndex = canonicalScript.IndexOf("dotnet @publishArguments", StringComparison.OrdinalIgnoreCase);
@@ -221,7 +219,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_FailsOnZeroOrMultiplePostPublishCandidates()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         var publishIndex = canonicalScript.IndexOf("dotnet @publishArguments", StringComparison.OrdinalIgnoreCase);
         var afterPublish = canonicalScript.Substring(publishIndex);
@@ -263,7 +261,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_SignatureVerificationIsStrictAndStaged()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         var verifyIndex = canonicalScript.IndexOf("-verify -strict", StringComparison.OrdinalIgnoreCase);
         var moveIndex = canonicalScript.IndexOf("Move-Item", StringComparison.OrdinalIgnoreCase);
@@ -275,7 +273,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_SidecarParserRejectsMultilineAndDoesNotUseWhitespaceRegex()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         Assert.IsFalse(canonicalScript.Contains(@"\s+"), "Sidecar parser must not use \\s+.");
         Assert.IsTrue(canonicalScript.Contains(@"\A") && canonicalScript.Contains(@"\z"), "Sidecar parser must anchor to start and end of string.");
@@ -285,7 +283,7 @@ public sealed class AndroidPublishingScriptContractTests
     [TestMethod]
     public void CanonicalScript_FailurePreservesOriginalErrorRecord()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         Assert.IsFalse(canonicalScript.Contains("$failureMessage = $_.Exception.Message"), "Script must not store only the exception message.");
         Assert.IsTrue(canonicalScript.Contains("throw $failureRecord") || Regex.IsMatch(canonicalScript, @"catch\s*\{[\s\S]*?throw\s+\$_[\s\S]*?\}"), "Catch must use bare throw or equivalent original-ErrorRecord-preserving flow.");
@@ -313,7 +311,7 @@ public sealed class AndroidPublishingScriptContractTests
 
     private static string ExtractStaleOutputCheckFragment()
     {
-        var canonicalScript = LoadScript("scripts/publish-google-play-bundle.ps1");
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
         var start = canonicalScript.IndexOf(StaleOutputCheckStartMarker, StringComparison.Ordinal);
         Assert.IsTrue(start >= 0, $"Production start marker '{StaleOutputCheckStartMarker}' was not found in the canonical script.");

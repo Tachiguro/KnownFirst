@@ -53,7 +53,7 @@ function Invoke-MsbuildProperties {
 	Fail ("MSBuild property output was not valid JSON for {0}`n{1}" -f $ProjectPath, $rawOutput)
 }
 
-$root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $solutionPath = Join-Path $root 'KnownFirst.slnx'
 $mainProjectPath = Join-Path $root 'KnownFirst.csproj'
 $coreProjectPath = Join-Path $root 'KnownFirst.Core\KnownFirst.Core.csproj'

@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import os
 import sys
 
@@ -9,10 +9,12 @@ except ImportError:
     sys.exit(1)
 
 def main():
-    src_path = "branding/knownfirst_picture.png"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
+    src_path = os.path.join(project_root, "branding", "knownfirst_picture.png")
 
     mode = "final"
-    out_dir = "Resources/AppIcon"
+    out_dir = os.path.join(project_root, "Resources", "AppIcon")
     if len(sys.argv) > 1 and sys.argv[1] == "--temp":
         mode = "temp"
         import tempfile

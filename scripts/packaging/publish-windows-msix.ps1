@@ -33,8 +33,8 @@
     requires the fourth section to be 0. See WindowsPackageVersionMappingTests.
 
     Safety model, build isolation, locking, staging, collision protection, and rollback behavior
-    match scripts/publish-windows-portable.ps1 and the other canonical packaging scripts in
-    scripts/.
+    match scripts/packaging/publish-windows-portable.ps1 and the other canonical packaging scripts in
+    scripts/packaging/.
 #>
 [CmdletBinding()]
 param(
@@ -43,7 +43,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $projectPath = Join-Path $projectRoot "KnownFirst.csproj"
 $targetFramework = "net10.0-windows10.0.19041.0"
 $runtimeIdentifier = "win-x64"

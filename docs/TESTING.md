@@ -103,7 +103,7 @@ Test classes do not currently use formal MSTest category attributes; filtering r
   - 1:1 property parity between dedicated restores and subsequent `--no-restore` publishes (`SelfContained=true`, `WindowsAppSDKSelfContained=true`, `WindowsPackageType`, `RuntimeIdentifierOverride=win-x64`, `Configuration=Release`, and packaging flags);
   - Build output and intermediate path redirection (`artifacts\build\windows-portable\`, `artifacts\build\windows-msix\`, `artifacts\obj\windows-portable\`, `artifacts\obj\windows-msix\`) leaving normal `bin\Release\` outputs unaffected;
   - Store-compliant numeric MSIX version mapping (`1.0.<BuildNumber>.0`, revision section 0) while preserving `1.0.0-beta.13` application runtime identity;
-  - Single source of truth for artifact naming, signing markers, Store identity classification, candidate selection, and ZIP file counting in `scripts/windows-distribution-common.ps1`;
+  - Single source of truth for artifact naming, signing markers, Store identity classification, candidate selection, and ZIP file counting in `scripts/packaging/windows-distribution-common.ps1`;
   - Fail-closed Partner Center Store identity placeholder classification (`devidentity` for template placeholders vs `storeidentity` for real values);
   - MSIX single-candidate selection (fail closed on 0 or multiple `.msix` files, select exact 1);
   - ZIP file-entry counting excluding empty directory entries;

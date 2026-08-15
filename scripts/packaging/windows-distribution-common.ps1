@@ -3,8 +3,8 @@
     Shared, side-effect-free helpers for the two Windows distribution channels.
 
 .DESCRIPTION
-    This file is dot-sourced by scripts/knownfirst.ps1, scripts/publish-windows-portable.ps1, and
-    scripts/publish-windows-msix.ps1 so that artifact naming and identity classification have a
+    This file is dot-sourced by scripts/knownfirst.ps1, scripts/packaging/publish-windows-portable.ps1, and
+    scripts/packaging/publish-windows-msix.ps1 so that artifact naming and identity classification have a
     single source of truth.
 
     The launcher must be able to predict the exact final artifact path before running anything, in

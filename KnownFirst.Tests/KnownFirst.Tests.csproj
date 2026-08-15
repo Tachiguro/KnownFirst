@@ -53,7 +53,7 @@
     <None Include="..\wwwroot\app.css" Link="Ui\app.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\wwwroot\js\knownfirst.js" Link="Ui\knownfirst.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\Study\PreparationService.cs" Link="Ui\PreparationService.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\scripts\publish-android-test-packages.ps1" Link="Ui\publish-android-test-packages.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\scripts\packaging\publish-android-test-packages.ps1" Link="Ui\publish-android-test-packages.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\scripts\knownfirst.ps1" Link="Ui\knownfirst.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\scripts\gui-tests\windows\run-scenario-startup-smoke.ps1" Link="Ui\run-scenario-startup-smoke.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\scripts\gui-tests\windows\lib\GuiTestRunnerCore.ps1" Link="Ui\GuiTestRunnerCore.ps1" CopyToOutputDirectory="PreserveNewest" />

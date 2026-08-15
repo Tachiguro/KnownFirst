@@ -1,6 +1,6 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-15
+**Status date:** 2026-08-16
 **State source:** Synchronized `master` baseline. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
@@ -51,14 +51,14 @@ This document records stable, verified architectural facts and current capabilit
 
 - **Repository Tooling & Path Portability (PR #111):** Organized script hierarchy (`scripts/packaging/`, `scripts/validation/`, `scripts/tools/`) with dynamic root resolution (`$PSScriptRoot` / `__file__`), eliminating fixed clone path dependencies.
 - **Safe Artifact Cleanup (PR #110):** Canonical launcher `Clean` and `Clean -Deep` actions with root safety validation, log retention pruning, and protection of user databases and release packages.
-- **Windows Distribution Packaging Infrastructure (PR #107):** Dedicated publishing scripts (`scripts/packaging/publish-windows-portable.ps1`, `scripts/packaging/publish-windows-msix.ps1`) supporting unpackaged win-x64 portable ZIP and MSIX packaging with SHA-256 sidecars, isolated build roots under `artifacts/build/` and `artifacts/obj/`, Store version mapping `1.0.13.0`, and contract test coverage.
+- **Windows Distribution Packaging Infrastructure (PR #107, PR #113, PR #114):** Dedicated publishing scripts (`scripts/packaging/publish-windows-portable.ps1`, `scripts/packaging/publish-windows-msix.ps1`) supporting unpackaged win-x64 portable ZIP and MSIX packaging with SHA-256 sidecars, isolated build roots under `artifacts/build/` and `artifacts/obj/`, Store version mapping `1.0.13.0`, and contract test coverage. On 2026-08-16, the canonical `WindowsPortablePackage` action was executed from synchronized `master` commit `9e455d0e03494cac8e713cd4d16c66946124f852`, producing verified self-contained archive `artifacts\windows-portable\KnownFirst-1.0.0-beta.13-build13-win-x64-9e455d0.zip` (SHA-256 `cebd84824aa4e7909edb3a6e83c467573c3e245535ae585b6be832934a45a81e`) with confirmed runtime payload markers.
 - **Windows Release Storage Isolation (PR #104):** Test-profile redirection under `artifacts/gui-tests/windows/profiles/` for safe local Gate-12 visual verification without touching real host data.
 - **Pre-AAB Gate Test Infrastructure (PR #94, PR #96):** Configuration-sensitive `DefineConstants` test coverage and MSBuild property analysis for Release gating.
 - **Android Rendered GUI Automation Foundation (PR #91 / P16-A):** MSBuild intermediate isolation and Release Notes screenshot capture foundation (P16-B/P16-C matrix automation pending).
 
 ## Evidence Boundaries & Release Limitations
 
-- **Release Packaging & Distribution Boundary:** Source merge is not a packaging or distribution event. No final Release AAB/APK package has been authorized or created for `1.0.0-beta.13`. No real Windows portable ZIP or MSIX package has been published or installed.
+- **Release Packaging & Distribution Boundary:** Source merge is not a packaging or distribution event. No final Release AAB/APK package has been authorized or created for `1.0.0-beta.13`. A real self-contained Windows Portable Release ZIP (`KnownFirst-1.0.0-beta.13-build13-win-x64-9e455d0.zip`) and matching SHA-256 sidecar were successfully produced and structurally verified from synchronized `master` commit `9e455d0e03494cac8e713cd4d16c66946124f852` on 2026-08-16. No real MSIX package has yet been produced; the Portable package has not been launched or installed on a clean/secondary PC, and no external distribution has occurred.
 - **Pre-AAB Release-Readiness Gate:** Mandatory pre-AAB release-readiness verification ([docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) §7) remains strictly required on the live candidate HEAD before any future release package creation.
 - **Store Identity:** Partner Center Store identity inputs remain template placeholders (`devidentity`).
 - **Support KnownFirst:** Unimplemented planned feature; completely absent from production rendering without placeholders.

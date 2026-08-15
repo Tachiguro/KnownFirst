@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Single entry point for the everyday KnownFirst local build/test/package operations.
 
@@ -25,8 +25,12 @@
 
 .PARAMETER Action
     Test | GuiTest | WindowsBuild | AndroidTestPackage | GooglePlayBundle |
-    WindowsPortablePackage | WindowsMsixPackage | ValidateAll
+    WindowsPortablePackage | WindowsMsixPackage | ValidateAll | Clean
     When omitted, the interactive menu is shown instead.
+
+    "Clean" removes regenerable build/intermediate outputs (bin, obj, TestResults,
+    artifacts\build\, artifacts\obj\, artifacts\gui-tests\), prunes old launcher logs,
+    and preserves distributable release packages and launcher state.
 
     The two Windows distribution actions create a distributable artifact and nothing else.
     "WindowsPortablePackage" produces a self-contained unpackaged win-x64 Release payload archived
@@ -59,6 +63,11 @@
     launcher log under artifacts\launcher-logs\, or a reusable-result record under
     artifacts\launcher-state\. This repository never creates, imports, or trusts a certificate,
     and never accepts a certificate file or a password.
+
+.PARAMETER Deep
+    Applies to -Action Clean only. Additionally removes .vs\ and artifacts\launcher-state\,
+    and removes all completed launcher logs while safely preserving the currently active log.
+    Distributable packages (.aab, .zip, .msix) are never deleted.
 
 .PARAMETER WhatIf
     Prints what each operation would do and its expected output path without running it.
@@ -105,7 +114,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Test', 'GuiTest', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'WindowsPortablePackage', 'WindowsMsixPackage', 'ValidateAll')]
+    [ValidateSet('Test', 'GuiTest', 'WindowsBuild', 'AndroidTestPackage', 'GooglePlayBundle', 'WindowsPortablePackage', 'WindowsMsixPackage', 'ValidateAll', 'Clean')]
     [string]$Action,
 
     [ValidateSet('Debug', 'Release', 'Diagnostic', 'DebugRelease', 'All')]
@@ -116,6 +125,8 @@ param(
 
     [ValidateSet('None', 'External')]
     [string]$MsixSigning = 'None',
+
+    [switch]$Deep,
 
     [switch]$WhatIf,
 
@@ -435,6 +446,50 @@ function Write-ReuseMessage {
 #     terminating error such as a `throw` inside a called .ps1 script) escape uncaught -
 #     every result comes back as a structured object instead.
 
+function Prune-LauncherLogs {
+    param(
+        [string]$CurrentLogPath = '',
+        [int]$KeepCount = 10
+    )
+
+    if (-not (Test-Path -LiteralPath $logRoot -PathType Container)) {
+        return 0
+    }
+
+    try {
+        # Log naming contract: [ActionName]-[yyyyMMdd-HHmmss].log
+        $logFiles = @(Get-ChildItem -LiteralPath $logRoot -File -Filter '*.log' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^[A-Za-z0-9_]+-\d{8}-\d{6}\.log$' })
+
+        if ($CurrentLogPath) {
+            $currentFull = [System.IO.Path]::GetFullPath($CurrentLogPath)
+            $logFiles = @($logFiles | Where-Object { [System.IO.Path]::GetFullPath($_.FullName) -ne $currentFull })
+        }
+
+        # Sort newest first
+        $sorted = @($logFiles | Sort-Object LastWriteTimeUtc -Descending)
+        $prunedCount = 0
+
+        if ($sorted.Count -gt $KeepCount) {
+            $toDelete = @($sorted | Select-Object -Skip $KeepCount)
+            foreach ($file in $toDelete) {
+                try {
+                    Remove-Item -LiteralPath $file.FullName -Force -ErrorAction SilentlyContinue
+                    $prunedCount++
+                }
+                catch {
+                    # Silently continue on file locks
+                }
+            }
+        }
+
+        return $prunedCount
+    }
+    catch {
+        return 0
+    }
+}
+
 function New-LauncherLogPath {
     param([Parameter(Mandatory = $true)][string]$ActionName)
 
@@ -442,6 +497,10 @@ function New-LauncherLogPath {
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $logPath = Join-Path $logRoot "$ActionName-$timestamp.log"
     New-Item -ItemType File -Path $logPath -Force | Out-Null
+
+    # Bounded retention on every execution: keep 10 newest completed logs
+    Prune-LauncherLogs -CurrentLogPath $logPath -KeepCount 10 | Out-Null
+
     return $logPath
 }
 
@@ -1245,6 +1304,167 @@ function Invoke-GuiTestAction {
         -RunDirectory $runDirectory -SummaryPath $summaryPath -ReportZipPath $reportZipPath
 }
 
+function Remove-AllowlistedTarget {
+    param(
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [switch]$IsWhatIf
+    )
+
+    # 1. Derive from dynamically discovered projectRoot
+    $resolved = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $RelativePath))
+    $canonicalRoot = $projectRoot.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+
+    # 2. Refuse escaping paths
+    if (-not $resolved.StartsWith($canonicalRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clean path outside repository root: $resolved"
+    }
+
+    # 3. Refuse repository root itself
+    if ($resolved -eq $projectRoot) {
+        throw "Refusing to clean repository root."
+    }
+
+    # 4. Prohibit protected roots and distributables
+    $prohibitedExact = @(
+        '.git', '.github', 'docs', 'Components', 'Data',
+        'KnownFirst.Core', 'KnownFirst.Tests', 'Localization',
+        'Models', 'Platforms', 'Properties', 'Resources',
+        'Services', 'branding', 'wwwroot',
+        'artifacts\android-google-play', 'artifacts\windows-portable', 'artifacts\windows-msix',
+        'artifacts\android', 'artifacts\android-beta',
+        'artifacts\diagnostics-export-import-audit', 'artifacts\gui-smoke', 'artifacts\recovery-verification'
+    )
+    foreach ($prohibited in $prohibitedExact) {
+        $prohibitedResolved = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $prohibited))
+        if ($resolved.Equals($prohibitedResolved, [StringComparison]::OrdinalIgnoreCase) -or
+            $resolved.StartsWith($prohibitedResolved.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean protected path: $resolved"
+        }
+    }
+
+    # 5. Check existence
+    if (-not (Test-Path -LiteralPath $resolved)) {
+        return [pscustomobject]@{
+            Path = $RelativePath
+            ResolvedPath = $resolved
+            Existed = $false
+            Removed = $false
+        }
+    }
+
+    # 6. Delete or WhatIf
+    if ($IsWhatIf) {
+        return [pscustomobject]@{
+            Path = $RelativePath
+            ResolvedPath = $resolved
+            Existed = $true
+            Removed = $false
+        }
+    }
+
+    Remove-Item -LiteralPath $resolved -Recurse -Force
+    return [pscustomobject]@{
+        Path = $RelativePath
+        ResolvedPath = $resolved
+        Existed = $true
+        Removed = $true
+    }
+}
+
+function Invoke-CleanAction {
+    $modeName = if ($Deep) { 'Deep' } else { 'Standard' }
+    Write-Host "KnownFirst clean ($modeName)" -ForegroundColor Green
+
+    $standardAllowlist = @(
+        'bin',
+        'obj',
+        'KnownFirst.Core\bin',
+        'KnownFirst.Core\obj',
+        'KnownFirst.Tests\bin',
+        'KnownFirst.Tests\obj',
+        'TestResults',
+        'artifacts\build',
+        'artifacts\obj',
+        'artifacts\gui-tests\windows\profiles',
+        'artifacts\gui-tests\windows\runs',
+        'artifacts\gui-tests\android\runs'
+    )
+
+    $deepAllowlist = @(
+        '.vs',
+        'artifacts\launcher-state'
+    )
+
+    $targets = @($standardAllowlist)
+    if ($Deep) {
+        $targets += $deepAllowlist
+    }
+
+    $logPath = ''
+    if (-not $WhatIf) {
+        $logPath = New-LauncherLogPath -ActionName 'Clean'
+    }
+
+    $deletedPaths = @()
+    $skippedPaths = @()
+
+    foreach ($relPath in $targets) {
+        $res = Remove-AllowlistedTarget -RelativePath $relPath -IsWhatIf:$WhatIf
+        if ($res.Existed) {
+            if ($WhatIf) {
+                Write-Host "[WhatIf] Would remove: $($res.Path)" -ForegroundColor Yellow
+                $deletedPaths += $res.Path
+            }
+            else {
+                Write-Host "Removed: $($res.Path)" -ForegroundColor Green
+                $deletedPaths += $res.Path
+            }
+        }
+        else {
+            $skippedPaths += $res.Path
+        }
+    }
+
+    # Prune launcher logs
+    $prunedLogCount = 0
+    $logKeepCount = if ($Deep) { 0 } else { 10 }
+    if ($WhatIf) {
+        if (Test-Path -LiteralPath $logRoot -PathType Container) {
+            $matchingLogs = @(Get-ChildItem -LiteralPath $logRoot -File -Filter '*.log' -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match '^[A-Za-z0-9_]+-\d{8}-\d{6}\.log$' })
+            if ($matchingLogs.Count -gt $logKeepCount) {
+                $prunedLogCount = $matchingLogs.Count - $logKeepCount
+            }
+        }
+        Write-Host "[WhatIf] Would prune $prunedLogCount launcher log(s) (retaining $logKeepCount completed logs)." -ForegroundColor Yellow
+    }
+    else {
+        $prunedLogCount = Prune-LauncherLogs -CurrentLogPath $logPath -KeepCount $logKeepCount
+        if ($prunedLogCount -gt 0) {
+            Write-Host "Pruned $prunedLogCount old launcher log(s)." -ForegroundColor Green
+        }
+    }
+
+    # Summary output
+    $deletedDisplay = if ($deletedPaths.Count -gt 0) { $deletedPaths -join ', ' } else { 'none' }
+    $skippedDisplay = if ($skippedPaths.Count -gt 0) { $skippedPaths -join ', ' } else { 'none' }
+
+    Write-Host ''
+    Write-Host "Mode: $modeName"
+    Write-Host "Deleted targets ($($deletedPaths.Count)): $deletedDisplay"
+    Write-Host "Skipped missing targets ($($skippedPaths.Count)): $skippedDisplay"
+    Write-Host "Launcher logs pruned: $prunedLogCount"
+    Write-Host 'Distributable release packages (artifacts\android-google-play, artifacts\windows-portable, artifacts\windows-msix) were preserved.' -ForegroundColor Cyan
+
+    $summary = "Clean ($modeName): $($deletedPaths.Count) removed, $($skippedPaths.Count) skipped, $prunedLogCount logs pruned. Distributables preserved."
+
+    if ($logPath -and (Test-Path -LiteralPath $logPath)) {
+        Add-Content -LiteralPath $logPath -Value $summary -Encoding UTF8
+    }
+
+    return New-ActionResult -ActionName 'Clean' -Succeeded $true -LogPath $logPath -Summary $summary
+}
+
 function Invoke-KnownFirstAction {
     param([Parameter(Mandatory = $true)][string]$SelectedAction)
 
@@ -1258,6 +1478,7 @@ function Invoke-KnownFirstAction {
             'WindowsPortablePackage' { return Invoke-WindowsPortablePackageAction }
             'WindowsMsixPackage' { return Invoke-WindowsMsixPackageAction }
             'ValidateAll' { return Invoke-ValidateAllAction }
+            'Clean' { return Invoke-CleanAction }
             default { throw "Unknown action: $SelectedAction" }
         }
     }
@@ -1478,6 +1699,42 @@ function Show-GuiTestMenu {
     }
 }
 
+function Show-CleanMenu {
+    Write-Host ''
+    Write-Host 'Clean generated outputs' -ForegroundColor Green
+    Write-Host '1. Standard clean (build, obj, TestResults, disposable test runs/profiles)'
+    Write-Host '2. Deep clean (standard clean + .vs and launcher state cache)'
+    Write-Host '3. Back'
+    Write-Host ''
+    Write-Host 'Distributable packages (.aab, .zip, .msix) are NEVER deleted.' -ForegroundColor DarkGray
+    Write-Host ''
+    $choice = Read-Host 'Choose an option (1-3)'
+
+    switch ($choice) {
+        '1' {
+            $script:Deep = $false
+            $result = Invoke-KnownFirstAction -SelectedAction 'Clean'
+            Write-ActionResult -Result $result
+            if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
+            return $true
+        }
+        '2' {
+            $script:Deep = $true
+            $result = Invoke-KnownFirstAction -SelectedAction 'Clean'
+            Write-ActionResult -Result $result
+            if (-not $result.Succeeded) { Read-Host 'Press Enter to return to the menu' }
+            return $true
+        }
+        '3' {
+            return $true
+        }
+        default {
+            Write-Host "Unrecognized option: $choice" -ForegroundColor Yellow
+            return $true
+        }
+    }
+}
+
 function Show-KnownFirstMenu {
     Write-Host ''
     Write-Host 'KnownFirst build launcher' -ForegroundColor Green
@@ -1488,9 +1745,10 @@ function Show-KnownFirstMenu {
     Write-Host '5. Build Android APK'
     Write-Host '6. Create Google Play AAB'
     Write-Host '7. Full validation (automated tests + Windows/Android builds)'
-    Write-Host '8. Exit'
+    Write-Host '8. Clean generated outputs (build, test, and intermediate caches)'
+    Write-Host '9. Exit'
     Write-Host ''
-    $choice = Read-Host 'Choose an option (1-8)'
+    $choice = Read-Host 'Choose an option (1-9)'
 
     switch ($choice) {
         '1' {
@@ -1528,6 +1786,10 @@ function Show-KnownFirstMenu {
             return $true
         }
         '8' {
+            Show-CleanMenu
+            return $true
+        }
+        '9' {
             Write-Host 'Exiting.'
             return $false
         }

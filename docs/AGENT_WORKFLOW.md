@@ -35,7 +35,7 @@ KnownFirst development follows a strict, isolated phase sequence. No programming
 
 1. **Focused TDD loop:** Write minimum focused tests first, confirm expected red failure, implement minimum code change, confirm focused tests pass green.
 2. **No automatic broad validation:** Full test suite runs, Windows smoke tests, manual GUI tests, and platform builds are separate authorized operations. Refer to [docs/TESTING.md](TESTING.md) for test scopes and [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for build procedures.
-3. **Single writing agent:** Only one writing agent may operate at a time in `C:\Dev\KnownFirst`. Subagents, delegated writers, background tasks, or task trackers require explicit user authorization.
+3. **Single writing agent:** Only one writing agent may operate at a time in the repository. Subagents, delegated writers, background tasks, or task trackers require explicit user authorization.
 4. **Direct verification outranks claims:** Direct repository and GitHub verification outranks remembered chat text and pasted agent reports. Technical reports from programming agents are written in English.
 
 ### TDD Evidence Requirement for Behavior-Changing IMPLEMENT Packages

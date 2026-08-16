@@ -203,6 +203,18 @@ The canonical launcher provides safe, fail-closed cleanup actions for regenerabl
 - Internal Testing and public Google Play promotion remain distinct distribution levels; passing this gate authorizes packaging, not a specific distribution level.
 - The unfinished-control and debug-UI prohibitions (items 2-5, 10, 12) apply to every future AAB candidate, not only the next one.
 
+### 7.1 Owner Risk Acceptance for Google Play Internal Testing
+
+For pre-release distribution exclusively to **Google Play Internal Testing** (and never for Closed Testing, Open Testing, Production, public store releases, or external public distribution):
+
+1. **Eligible Items:** The repository owner may explicitly record formal risk acceptance for remaining manual-only testing gaps under **Item 11** (rendered GUI matrix scenarios) and **Item 15** (manual Android device validation).
+2. **Explicit Authorization Required:** Owner risk acceptance is never inferred or delegated by default; it requires explicit repository-owner authorization specifying the exact skipped manual scope, the operational rationale (such as prioritizing real multi-device tester defect discovery over repeating manual scenarios on a single host), and the intended distribution level.
+3. **Truthful Evidence Recording:** Skipped manual items must **never** be labeled as `PASS`. They must be explicitly recorded in the target release-candidate evidence record (e.g. `docs/releases/1.0.0-beta.13.md`) using the exact status:
+   `SKIPPED / OWNER RISK ACCEPTED (INTERNAL TESTING ONLY)`
+4. **Strict Non-Waivable Invariants:** All automated tests (Items 8, 9), configuration-sensitive contracts (Item 10), exact-HEAD `FULL_VALIDATION` (Item 13), Android Release AOT/trimming/source-generation safeguards (Item 14), unfinished/debug UI prohibitions (Items 2–5, 12), repository/worktree cleanliness (Item 1), documentation currency (Items 6, 7), and cryptographic package signing remain 100% mandatory and strictly non-waivable.
+5. **Gate 17 Evaluation for Internal Testing:** For Google Play Internal Testing packaging, Gate Item 17 is satisfied once every non-waivable technical gate passes on the exact final `master` candidate commit and all eligible manual testing gaps have explicit, documented repository-owner risk acceptance.
+6. **Publication Boundary:** Risk acceptance authorizes neither package creation nor Google Play upload by itself; `PACKAGE_ONLY` `ANDROID_GOOGLE_PLAY_AAB` and subsequent Google Play upload remain separate, explicitly authorized operations.
+
 ## 8. FULL_RELEASE_OUTPUT_PACKAGE
 
 This composite operation is **never** inferred from feature completion, PR merge, synchronization, or an individual build request. It is executed **only** upon explicit user request after a milestone is reviewed, merged, and synchronized to `master`:

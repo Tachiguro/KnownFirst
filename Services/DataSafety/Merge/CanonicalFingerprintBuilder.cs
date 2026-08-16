@@ -14,7 +14,7 @@ namespace KnownFirst.Services.DataSafety.Merge;
 /// by its own explicit length rather than by scanning for a separator character.
 ///
 /// Every fingerprint family must start with a version/domain discriminator string (the constructor's
-/// <paramref name="domain"/> parameter, e.g. "KnownFirst.Merge.SourceMaterial.v1") so that two
+/// <c>domain</c> parameter, e.g. "KnownFirst.Merge.SourceMaterial.v1") so that two
 /// structurally similar identity definitions never collide on the same hash space.
 /// </summary>
 public sealed class CanonicalFingerprintBuilder

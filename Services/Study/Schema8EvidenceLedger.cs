@@ -7,7 +7,7 @@ namespace KnownFirst.Services.Study;
 
 /// <summary>
 /// Computes the effective-processed-evidence ledger for one Word (KF-MEANING-001 Slice 3), the input to
-/// Schema-8 eligibility (a <see cref="Models.PreparationState.Prepared"/> Word only re-qualifies when it
+/// Schema-8 eligibility (a <see cref="PreparationState.Prepared"/> Word only re-qualifies when it
 /// has evidence outside this set) and to freezing new candidate evidence.
 /// </summary>
 /// <remarks>

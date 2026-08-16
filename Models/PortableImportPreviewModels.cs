@@ -67,7 +67,7 @@ public sealed record PortableImportPreview(
 }
 
 /// <summary>
-/// Stable error codes specific to the preview surface that have no existing <see cref="BackupErrorCodes"/>
+/// Stable error codes specific to the preview surface that have no existing <see cref="Services.DataSafety.BackupErrorCodes"/>
 /// or <see cref="Services.DataSafety.Merge.MergePreflightErrorCodes"/> equivalent — a required merge
 /// decision or blocking prerequisite carries no <c>ErrorCode</c> on the underlying plan (it is not itself
 /// a failure, only a reason confirmation cannot proceed yet), so the preview surface needs its own stable

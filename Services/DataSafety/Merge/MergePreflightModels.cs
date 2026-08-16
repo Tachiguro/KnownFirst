@@ -64,7 +64,7 @@ public enum MergeEntityKind
 
 /// <summary>
 /// One of exactly six mutually-exclusive classifications a physical archive-side entity can receive.
-/// Every entity kind uses whichever subset applies to it; e.g. only <see cref="PreparedMeaning"/> ever
+/// Every entity kind uses whichever subset applies to it; e.g. only <see cref="MergeEntityKind.PreparedMeaning"/> ever
 /// produces <see cref="PreservedVariant"/> (design rule: "same SemanticMeaning plus different
 /// note/example/provenance: preserve exact content variant without creating a second semantic card"),
 /// and only <see cref="MergeEntityKind.LearningReview"/> ever produces <see cref="DeduplicatedEvent"/>
@@ -236,7 +236,7 @@ public enum SemanticMeaningGroupingChoice
 /// <summary>
 /// Required, blocking decision surfaced when a target and an archive PreparedItem share the same stable
 /// Word identity and the same source/explanation languages, and <b>neither</b> side carries any reliable
-/// sense discriminator (<see cref="SemanticMeaningIdentityPolicy.HasReliableSenseDiscriminator"/> is false
+/// sense discriminator (<see cref="SemanticMeaningIdentityPolicy.HasReliableSenseDiscriminator(KnownFirst.Models.Backup.BackupPreparedItem, string)"/> is false
 /// for both) — so their <see cref="SemanticMeaningIdentity"/> values collapsing to equal is not
 /// trustworthy evidence they are really the same sense, yet their Translation/answer text differs. The
 /// planner never guesses in this situation. Both exact meaning variants remain preserved regardless of

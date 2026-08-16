@@ -11,7 +11,7 @@ namespace KnownFirst.Services.DataSafety;
 /// is deliberately not claimed to be unforgeable across the whole assembly (an <c>internal</c>
 /// constructor is visible to every file compiled into this assembly, including tests); the guarantee
 /// this type actually provides is that <see cref="BackupArchiveWriter.WriteArchiveAsync"/> and
-/// <see cref="BackupArchiveWriterV2.WriteArchiveAsync"/> have statically different, non-interchangeable
+/// <see cref="BackupArchiveWriterV2"/> write methods have statically different, non-interchangeable
 /// signatures, so passing a Schema-8-derived capability to the v1 writer (or vice versa) is a compile
 /// error, not a runtime possibility to defend against.
 /// </summary>

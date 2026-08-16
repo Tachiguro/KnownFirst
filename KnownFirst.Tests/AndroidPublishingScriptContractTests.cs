@@ -436,4 +436,43 @@ public sealed class AndroidPublishingScriptContractTests
             Directory.Delete(projectRoot, recursive: true);
         }
     }
+
+    [TestMethod]
+    public void Launcher_ValidateAllAndroidReleaseBuild_EnforcesWarningStrictnessAndFreshCompilationParity()
+    {
+        var launcherScript = LoadScript("scripts/knownfirst.ps1");
+
+        var match = Regex.Match(
+            launcherScript,
+            @"function\s+Invoke-ValidateAllAction\s*\{(?<body>[\s\S]*?)\n\}",
+            RegexOptions.IgnoreCase
+        );
+
+        Assert.IsTrue(match.Success, "Invoke-ValidateAllAction function body must exist in knownfirst.ps1.");
+        var functionBody = match.Groups["body"].Value;
+
+        var androidReleaseStepMatch = Regex.Match(
+            functionBody,
+            @"DisplayName\s*=\s*'Android Release build'[\s\S]*?CommandArguments\s*=\s*@\((?<args>[^\)]+)\)",
+            RegexOptions.IgnoreCase
+        );
+
+        Assert.IsTrue(androidReleaseStepMatch.Success, "ValidateAll must define the 'Android Release build' step with CommandArguments.");
+        var argsString = androidReleaseStepMatch.Groups["args"].Value;
+
+        Assert.IsTrue(argsString.Contains("'build'"), "ValidateAll Android Release step must use 'build'.");
+        Assert.IsFalse(argsString.Contains("'publish'"), "ValidateAll Android Release step must not use 'publish'.");
+        Assert.IsTrue(argsString.Contains("'-c'") && argsString.Contains("'Release'"), "ValidateAll Android Release step must use Configuration 'Release'.");
+        Assert.IsTrue(argsString.Contains("'-f'") && (argsString.Contains("$androidTargetFramework") || argsString.Contains("'net10.0-android'")), "ValidateAll Android Release step must target net10.0-android.");
+        Assert.IsTrue(argsString.Contains("'-m:1'"), "ValidateAll Android Release step must retain '-m:1'.");
+        Assert.IsTrue(argsString.Contains("'--no-restore'"), "ValidateAll Android Release step must retain '--no-restore'.");
+        Assert.IsTrue(argsString.Contains("'-warnaserror'"), "ValidateAll Android Release step must contain '-warnaserror' for parity with AAB packaging.");
+        Assert.IsTrue(argsString.Contains("'-p:ILLinkTreatWarningsAsErrors=true'"), "ValidateAll Android Release step must contain '-p:ILLinkTreatWarningsAsErrors=true'.");
+        Assert.IsTrue(argsString.Contains("'--no-incremental'"), "ValidateAll Android Release step must contain '--no-incremental' to force fresh diagnostic evaluation.");
+
+        Assert.IsFalse(argsString.Contains("AndroidPackageFormats"), "ValidateAll Android Release build must not specify AndroidPackageFormats (creates no APK or AAB).");
+        Assert.IsFalse(argsString.Contains(".aab"), "ValidateAll Android Release build must not reference AAB output.");
+        Assert.IsFalse(argsString.Contains(".apk"), "ValidateAll Android Release build must not reference APK output.");
+        Assert.IsFalse(functionBody.Contains("publish-google-play-bundle.ps1"), "ValidateAll must not invoke publish-google-play-bundle.ps1.");
+    }
 }

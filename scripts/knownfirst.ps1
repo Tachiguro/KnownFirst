@@ -1163,7 +1163,7 @@ function Invoke-ValidateAllAction {
             OutputFiles = @((Join-Path $projectRoot "bin\Release\$androidTargetFramework\KnownFirst.dll"))
             RelevantScriptPaths = $launcherScript
             StepName = 'Android Release build'; FilePath = 'dotnet'
-            CommandArguments = @('build', $projectPath, '-c', 'Release', '-f', $androidTargetFramework, '-m:1', '--no-restore')
+            CommandArguments = @('build', $projectPath, '-c', 'Release', '-f', $androidTargetFramework, '-m:1', '-warnaserror', '-p:ILLinkTreatWarningsAsErrors=true', '--no-incremental', '--no-restore')
         }
     )
 

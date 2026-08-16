@@ -844,7 +844,7 @@ internal sealed class MergeWriterExecutor
     /// contract the planner classified with (<see cref="Schema9LearningReviewMergeIdentity"/>) so events the
     /// planner kept distinct are never silently re-collapsed here, and replays via
     /// <see cref="CardScheduleReplayer"/> from the card's own creation-time default
-    /// (<see cref="CardSchedule.New"/>) — the same initial state <see cref="Schema8LearningReviewReplayPolicy.FirstPreEventSchedule"/>
+    /// (<see cref="CardSchedule.New"/>) — the same initial state <see cref="Study.Schema8LearningReviewReplayPolicy.FirstPreEventSchedule"/>
     /// already uses for the analogous per-variant progress replay. Never touches PreferredMeaningId,
     /// SenseId, or Direction.
     /// </summary>

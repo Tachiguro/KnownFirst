@@ -129,7 +129,7 @@ public static class AnswerVariantRolePrecedencePolicy
 
 /// <summary>
 /// Stable-identity policy for <see cref="SemanticMeaningIdentity"/>. See the type's own doc comment for
-/// the field list and rationale. <paramref name="canonicalTopicOrDomain"/> defaults to empty because the
+/// the field list and rationale. <c>canonicalTopicOrDomain</c> defaults to empty because the
 /// current schema and archive format never persist topic/domain data (see architecture doc "Topic/domain
 /// persistence gap") — every caller today passes the default, so this parameter exists purely so the
 /// function is already correct once a future schema change adds the field.

@@ -12,6 +12,7 @@ public sealed class AppSettingsService : IAppSettingsService
     private const string CardDirectionPreferenceKey = "card_direction";
     private const string LearningModePreferenceKey = "learning_mode";
     private const string OnlineLookupConsentPreferenceKey = "online_lookup_consent";
+    private const string EnhancedTermRecognitionPreferenceKey = "enhanced_term_recognition_enabled";
     private readonly IPreferences _preferences;
     private readonly ILogger<AppSettingsService> _logger;
 
@@ -23,12 +24,14 @@ public sealed class AppSettingsService : IAppSettingsService
         CardDirection = ReadCardDirection();
         LearningMode = ReadLearningMode();
         HasOnlineLookupConsent = _preferences.Get(OnlineLookupConsentPreferenceKey, false);
+        EnhancedTermRecognitionEnabled = _preferences.Get(EnhancedTermRecognitionPreferenceKey, false);
         _logger.LogDebug(
-            "Application settings loaded. PreparationLimit = {PreparationLimit}, card direction = {CardDirection}, learning mode = {LearningMode}, online lookup consent = {HasOnlineLookupConsent}",
+            "Application settings loaded. PreparationLimit = {PreparationLimit}, card direction = {CardDirection}, learning mode = {LearningMode}, online lookup consent = {HasOnlineLookupConsent}, enhanced term recognition = {EnhancedTermRecognitionEnabled}",
             PreparationLimit,
             CardDirection,
             LearningMode,
-            HasOnlineLookupConsent);
+            HasOnlineLookupConsent,
+            EnhancedTermRecognitionEnabled);
     }
 
     public int PreparationLimit { get; private set; }
@@ -40,6 +43,8 @@ public sealed class AppSettingsService : IAppSettingsService
     public LearningMode LearningMode { get; private set; }
 
     public bool HasOnlineLookupConsent { get; private set; }
+
+    public bool EnhancedTermRecognitionEnabled { get; private set; }
 
     public void SetPreparationLimit(int preparationLimit)
     {
@@ -88,16 +93,27 @@ public sealed class AppSettingsService : IAppSettingsService
         _logger.LogInformation("Online dictionary lookup consent was revoked.");
     }
 
+    public void SetEnhancedTermRecognitionEnabled(bool enabled)
+    {
+        _preferences.Set(EnhancedTermRecognitionPreferenceKey, enabled);
+        EnhancedTermRecognitionEnabled = enabled;
+        _logger.LogInformation(
+            "Enhanced term recognition setting saved. EnhancedTermRecognitionEnabled = {EnhancedTermRecognitionEnabled}",
+            enabled);
+    }
+
     public void Reset()
     {
         _preferences.Remove(PreparationLimitPreferenceKey);
         _preferences.Remove(CardDirectionPreferenceKey);
         _preferences.Remove(LearningModePreferenceKey);
         _preferences.Remove(OnlineLookupConsentPreferenceKey);
+        _preferences.Remove(EnhancedTermRecognitionPreferenceKey);
         PreparationLimit = DefaultPreparationLimit;
         CardDirection = CardDirectionPreferencePolicy.DefaultPreference;
         LearningMode = LearningModePolicy.DefaultMode;
         HasOnlineLookupConsent = false;
+        EnhancedTermRecognitionEnabled = false;
         _logger.LogInformation("Application settings were reset to defaults.");
     }
 

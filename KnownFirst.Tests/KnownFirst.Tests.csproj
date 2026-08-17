@@ -102,6 +102,7 @@
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
     <Compile Include="..\Services\IAppSettingsService.cs" Link="Production\Services\IAppSettingsService.cs" />
+    <Compile Include="..\Services\AppSettingsService.cs" Link="Production\Services\AppSettingsService.cs" />
     <Compile Include="..\Services\IReleaseNotesService.cs" Link="Production\Services\IReleaseNotesService.cs" />
     <Compile Include="..\Services\IWhatsNewPreferenceStore.cs" Link="Production\Services\IWhatsNewPreferenceStore.cs" />
     <Compile Include="..\Services\ReleaseNotesService.cs" Link="Production\Services\ReleaseNotesService.cs" />

@@ -14,6 +14,8 @@ public interface IAppSettingsService
 
     bool HasOnlineLookupConsent { get; }
 
+    bool EnhancedTermRecognitionEnabled { get; }
+
     void SetPreparationLimit(int preparationLimit);
 
     void SetCardDirection(CardDirectionPreference preference);
@@ -23,6 +25,8 @@ public interface IAppSettingsService
     void GrantOnlineLookupConsent();
 
     void RevokeOnlineLookupConsent();
+
+    void SetEnhancedTermRecognitionEnabled(bool enabled);
 
     void Reset();
 }

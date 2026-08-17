@@ -1121,12 +1121,14 @@ public sealed class Schema8ActivationTests
         public CardDirectionPreference CardDirection => CardDirectionPreference.Both;
         public LearningMode LearningMode => LearningMode.Typing;
         public bool HasOnlineLookupConsent => false;
+        public bool EnhancedTermRecognitionEnabled => false;
 
         public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
         public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
         public void SetLearningMode(LearningMode mode) => throw new NotSupportedException();
         public void GrantOnlineLookupConsent() => throw new NotSupportedException();
         public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
+        public void SetEnhancedTermRecognitionEnabled(bool enabled) => throw new NotSupportedException();
         public void Reset() => throw new NotSupportedException();
     }
 }

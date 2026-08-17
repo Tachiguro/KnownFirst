@@ -316,12 +316,552 @@ public sealed class AndroidPublishingScriptContractTests
     {
         var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
 
-        var verifyIndex = canonicalScript.IndexOf("-verify -strict", StringComparison.OrdinalIgnoreCase);
+        var verifyIndex = canonicalScript.IndexOf("-verify", StringComparison.OrdinalIgnoreCase);
+        var strictIndex = canonicalScript.IndexOf("-strict", StringComparison.OrdinalIgnoreCase);
         var moveIndex = canonicalScript.IndexOf("Move-Item", StringComparison.OrdinalIgnoreCase);
 
-        Assert.IsTrue(verifyIndex > 0, "jarsigner uses -verify and -strict.");
+        Assert.IsTrue(verifyIndex > 0, "jarsigner uses -verify.");
+        Assert.IsTrue(strictIndex > 0, "jarsigner uses -strict.");
         Assert.IsTrue(verifyIndex < moveIndex, "jarsigner verifies against staged output before finalization.");
+        Assert.IsTrue(canonicalScript.Contains("Test-AabSignatureVerificationResult"), "publish script must invoke Test-AabSignatureVerificationResult.");
     }
+
+    [TestMethod]
+    public void CanonicalScript_SignatureVerification_ForcesDeterministicEnglishJvmLocale()
+    {
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
+
+        Assert.IsTrue(
+            canonicalScript.Contains("-J-Duser.language=en") && canonicalScript.Contains("-J-Duser.country=US"),
+            "Canonical publish script must pass -J-Duser.language=en and -J-Duser.country=US to jarsigner."
+        );
+    }
+
+    [TestMethod]
+    public void CanonicalScript_DefinesSignatureVerificationClassifierFunction()
+    {
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
+
+        Assert.IsTrue(
+            Regex.IsMatch(canonicalScript, @"function\s+Test-AabSignatureVerificationResult", RegexOptions.IgnoreCase),
+            "scripts/packaging/publish-google-play-bundle.ps1 must declare function Test-AabSignatureVerificationResult."
+        );
+    }
+
+    private static string ExtractSignatureClassifierFunctionFragment()
+    {
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
+
+        var match = Regex.Match(
+            canonicalScript,
+            @"function\s+Test-AabSignatureVerificationResult\s*\{(?<body>[\s\S]*?)\n\}",
+            RegexOptions.IgnoreCase
+        );
+        Assert.IsTrue(match.Success, "function Test-AabSignatureVerificationResult must exist in scripts/packaging/publish-google-play-bundle.ps1.");
+        return match.Value;
+    }
+
+    private static PowerShellResult RunSignatureClassifier(
+        int strictExitCode,
+        string[] strictOutput,
+        int nonStrictExitCode = -1,
+        string[]? nonStrictOutput = null)
+    {
+        var functionFragment = ExtractSignatureClassifierFunctionFragment();
+
+        var harness = new StringBuilder();
+        harness.AppendLine("$ErrorActionPreference = \"Stop\"");
+        harness.AppendLine(functionFragment);
+        harness.AppendLine();
+
+        harness.AppendLine($"$strictExitCode = {strictExitCode}");
+        harness.AppendLine("$strictOutput = @(");
+        foreach (var line in strictOutput)
+        {
+            harness.AppendLine($"    '{line.Replace("'", "''")}'");
+        }
+        harness.AppendLine(")");
+
+        harness.AppendLine($"$nonStrictExitCode = {nonStrictExitCode}");
+        harness.AppendLine("$nonStrictOutput = @(");
+        if (nonStrictOutput != null)
+        {
+            foreach (var line in nonStrictOutput)
+            {
+                harness.AppendLine($"    '{line.Replace("'", "''")}'");
+            }
+        }
+        harness.AppendLine(")");
+
+        harness.AppendLine("$res = Test-AabSignatureVerificationResult -StrictExitCode $strictExitCode -StrictOutput $strictOutput -NonStrictExitCode $nonStrictExitCode -NonStrictOutput $nonStrictOutput");
+        harness.AppendLine("Write-Output \"RESULT_IS_VALID=$($res.IsValid)\"");
+        harness.AppendLine("Write-Output \"RESULT_CLASSIFICATION=$($res.Classification)\"");
+        harness.AppendLine("Write-Output \"RESULT_SUMMARY=$($res.Summary)\"");
+
+        var tempDir = CreateTemporaryProjectRoot();
+        try
+        {
+            var harnessPath = Path.Combine(tempDir, "signature-classifier-harness.ps1");
+            File.WriteAllText(harnessPath, harness.ToString(), new UTF8Encoding(false));
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(harnessPath);
+
+            using var process = Process.Start(startInfo);
+            Assert.IsNotNull(process, "powershell.exe could not be started.");
+
+            var standardOutput = process!.StandardOutput.ReadToEnd();
+            var standardError = process.StandardError.ReadToEnd();
+            Assert.IsTrue(process.WaitForExit(120000), "The signature-classifier harness did not exit within 120 seconds.");
+
+            return new PowerShellResult(process.ExitCode, standardOutput, standardError);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(tempDir, true);
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+        }
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitZero_PassesImmediately()
+    {
+        var result = RunSignatureClassifier(
+            strictExitCode: 0,
+            strictOutput: new[] { "jar verified." }
+        );
+
+        Assert.AreEqual(0, result.ExitCode, $"Strict exit 0 must succeed. StdErr: {result.StandardError}");
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_IS_VALID=True"));
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_CLASSIFICATION=StrictVerified"));
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_NonStrictZero_ChainNotValidatedOnly_Passes()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose certificate chain is invalid. Reason: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target",
+            "",
+            "Re-run with the -verbose and -certs options for more details."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0,
+            nonStrictOutput: new[] { "jar verified." }
+        );
+
+        Assert.AreEqual(0, result.ExitCode, $"ChainNotValidated with non-strict exit 0 must pass. StdErr: {result.StandardError}");
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_IS_VALID=True"));
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_CLASSIFICATION=SelfSignedAllowed"));
+        Assert.IsTrue(result.StandardOutput.Contains("chainNotValidated"));
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_NonStrictZero_SignerSelfSignedOnly_Passes()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate is self-signed.",
+            "",
+            "Re-run with the -verbose and -certs options for more details."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0,
+            nonStrictOutput: new[] { "jar verified." }
+        );
+
+        Assert.AreEqual(0, result.ExitCode, $"SignerSelfSigned with non-strict exit 0 must pass. StdErr: {result.StandardError}");
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_IS_VALID=True"));
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_CLASSIFICATION=SelfSignedAllowed"));
+        Assert.IsTrue(result.StandardOutput.Contains("signerSelfSigned"));
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_NonStrictZero_BothExpectedTrustWarnings_Passes()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose certificate chain is invalid. Reason: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target",
+            "This jar contains entries whose signer certificate is self-signed.",
+            "",
+            "Warning:",
+            "This jar contains signatures that do not include a timestamp. Without a timestamp, users may not be able to validate this jar after any of the signer certificates expire (as early as 2036-07-14).",
+            "",
+            "Re-run with the -verbose and -certs options for more details."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0,
+            nonStrictOutput: new[] { "jar verified." }
+        );
+
+        Assert.AreEqual(0, result.ExitCode, $"Real candidate self-signed output with non-strict exit 0 must pass. StdErr: {result.StandardError}");
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_IS_VALID=True"));
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_CLASSIFICATION=SelfSignedAllowed"));
+        Assert.IsTrue(result.StandardOutput.Contains("chainNotValidated"));
+        Assert.IsTrue(result.StandardOutput.Contains("signerSelfSigned"));
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_NonStrictNonZero_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate is self-signed."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 1,
+            nonStrictOutput: new[] { "jarsigner: java.lang.SecurityException: digest mismatch" }
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Non-strict non-zero exit must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("non-strict cryptographic verification exited with code 1") ||
+            result.StandardError.Contains("non-strict"),
+            $"StandardError must report non-strict failure reason. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_ExpiredCert_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate has expired."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Expired certificate error must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("hasExpiredCert"),
+            $"StandardError must report normalized category 'hasExpiredCert'. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_ExpiredTsaCert_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose timestamp has expired:"
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Expired TSA certificate error must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("hasExpiredTsaCert"),
+            $"StandardError must report normalized category 'hasExpiredTsaCert'. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_NotYetValidCert_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate is not yet valid."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Not yet valid certificate error must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("notYetValidCert"),
+            $"StandardError must report normalized category 'notYetValidCert'. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_DisabledAlgorithm_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signature algorithm is disabled: MD5withRSA"
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Disabled algorithm error must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("disabledAlg"),
+            $"StandardError must report normalized category 'disabledAlg'. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_BadKeyUsage_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate's KeyUsage extension doesn't allow code signing."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Bad key usage error must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("badKeyUsage"),
+            $"StandardError must report normalized category 'badKeyUsage'. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_BadExtendedKeyUsage_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate's ExtendedKeyUsage extension doesn't allow code signing."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Bad extended key usage error must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("badExtendedKeyUsage"),
+            $"StandardError must report normalized category 'badExtendedKeyUsage'. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_UnsignedEntry_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains unsigned entries which have not been integrity-checked."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Unsigned entries error must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("hasUnsignedEntry"),
+            $"StandardError must report normalized category 'hasUnsignedEntry'. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_ExpectedWarningPlusUnknownSevereError_FailsClosedAndSanitizesOutput()
+    {
+        const string sensitiveMarker = "CN=SHOULD_NOT_APPEAR_IN_LOG";
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate is self-signed.",
+            $"An unknown strict signing error occurred: {sensitiveMarker}"
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Unknown severe error alongside expected warning must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("unknownStrictError"),
+            $"StandardError must report normalized category 'unknownStrictError'. Actual: {result.StandardError}"
+        );
+        Assert.IsFalse(
+            result.StandardError.Contains(sensitiveMarker),
+            $"StandardError must NOT contain raw unparsed error line text ('{sensitiveMarker}'). Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitFour_NoRecognizedAllowedDiagnostics_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Warning:",
+            "Some informational warning."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Exit code 4 without Error section must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("without extractable error diagnostics") || result.StandardError.Contains("failed"),
+            $"StandardError must report failure reason. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictExitOne_FailsClosed()
+    {
+        var strictOutput = new[]
+        {
+            "jarsigner: java.lang.SecurityException: corrupted jar"
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 1,
+            strictOutput: strictOutput
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Strict exit code 1 must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("strict verification exited with code 1"),
+            $"StandardError must report strict exit code 1. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_StrictUnexpectedExitCodes_FailClosed()
+    {
+        var result = RunSignatureClassifier(
+            strictExitCode: 8,
+            strictOutput: new[] { "some error" }
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "Strict exit code 8 must fail closed.");
+        Assert.IsTrue(
+            result.StandardError.Contains("strict verification exited with code 8"),
+            $"StandardError must report strict exit code 8. Actual: {result.StandardError}"
+        );
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_NoTimestampWarning_DoesNotSatisfyAllowedSevereRequirement()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Warning:",
+            "This jar contains signatures that do not include a timestamp. Without a timestamp, users may not be able to validate this jar after any of the signer certificates expire (as early as 2036-07-14)."
+        };
+
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0
+        );
+
+        Assert.AreNotEqual(0, result.ExitCode, "noTimestamp in Warning: section must not satisfy allowed severe error requirement.");
+    }
+
+    [TestMethod]
+    public void SignatureClassifier_SuccessDoesNotDependOnLiteralSuccessPhrase()
+    {
+        var strictOutput = new[]
+        {
+            "jar verified, with signer errors.",
+            "",
+            "Error:",
+            "This jar contains entries whose signer certificate is self-signed."
+        };
+
+        // Non-strict output has non-English or empty text, but exit code is 0
+        var result = RunSignatureClassifier(
+            strictExitCode: 4,
+            strictOutput: strictOutput,
+            nonStrictExitCode: 0,
+            nonStrictOutput: new[] { "JAR-Datei verifiziert." }
+        );
+
+        Assert.AreEqual(0, result.ExitCode, $"Non-strict exit 0 must pass regardless of non-strict text. StdErr: {result.StandardError}");
+        Assert.IsTrue(result.StandardOutput.Contains("RESULT_IS_VALID=True"));
+    }
+
 
     [TestMethod]
     public void CanonicalScript_SidecarParserRejectsMultilineAndDoesNotUseWhitespaceRegex()

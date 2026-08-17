@@ -42,6 +42,102 @@ function Get-KnownFirstVersionInfo {
     }
 }
 
+function Test-AabSignatureVerificationResult {
+    param(
+        [Parameter(Mandatory = $true)][int]$StrictExitCode,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][AllowNull()][string[]]$StrictOutput,
+        [Parameter(Mandatory = $false)][int]$NonStrictExitCode = -1,
+        [Parameter(Mandatory = $false)][AllowEmptyString()][AllowNull()][string[]]$NonStrictOutput = @()
+    )
+
+    if ($StrictExitCode -eq 0) {
+        return [pscustomobject]@{
+            IsValid = $true
+            Classification = "StrictVerified"
+            Summary = "Strict signature verification passed with exit code 0."
+        }
+    }
+
+    if ($StrictExitCode -ne 4) {
+        throw "AAB signature verification failed: strict verification exited with code $StrictExitCode."
+    }
+
+    if ($NonStrictExitCode -ne 0) {
+        throw "AAB signature verification failed: non-strict cryptographic verification exited with code $NonStrictExitCode."
+    }
+
+    $errorLines = @()
+    $inErrorSection = $false
+
+    foreach ($line in $StrictOutput) {
+        if ($null -eq $line) { continue }
+        $trimmed = $line.Trim()
+        if ($trimmed -eq "Error:") {
+            $inErrorSection = $true
+            continue
+        }
+        if ($inErrorSection) {
+            if ($trimmed -eq "Warning:" -or $trimmed.StartsWith("Re-run with", [System.StringComparison]::OrdinalIgnoreCase)) {
+                $inErrorSection = $false
+                break
+            }
+            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
+                $errorLines += $trimmed
+            }
+        }
+    }
+
+    if ($errorLines.Count -eq 0) {
+        throw "AAB signature verification failed: strict exit code 4 was returned without extractable error diagnostics."
+    }
+
+    $recognizedAllowedCategories = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($errLine in $errorLines) {
+        if ($errLine -match "timestamp has expired") {
+            throw "AAB signature verification failed: strict verification reported category 'hasExpiredTsaCert'."
+        }
+        elseif ($errLine -match "certificate has expired" -or $errLine -match "signer certificate has expired" -or $errLine -match "has expired") {
+            throw "AAB signature verification failed: strict verification reported category 'hasExpiredCert'."
+        }
+        elseif ($errLine -match "not yet valid" -or $errLine -match "is not yet valid") {
+            throw "AAB signature verification failed: strict verification reported category 'notYetValidCert'."
+        }
+        elseif ($errLine -match "algorithm is disabled" -or $errLine -match "signature algorithm is disabled") {
+            throw "AAB signature verification failed: strict verification reported category 'disabledAlg'."
+        }
+        elseif ($errLine -match "ExtendedKeyUsage") {
+            throw "AAB signature verification failed: strict verification reported category 'badExtendedKeyUsage'."
+        }
+        elseif ($errLine -match "KeyUsage") {
+            throw "AAB signature verification failed: strict verification reported category 'badKeyUsage'."
+        }
+        elseif ($errLine -match "unsigned entries") {
+            throw "AAB signature verification failed: strict verification reported category 'hasUnsignedEntry'."
+        }
+        elseif ($errLine -match "certificate chain is invalid" -or $errLine -match "PKIX path building failed") {
+            [void]$recognizedAllowedCategories.Add("chainNotValidated")
+        }
+        elseif ($errLine -match "signer certificate is self-signed") {
+            [void]$recognizedAllowedCategories.Add("signerSelfSigned")
+        }
+        else {
+            throw "AAB signature verification failed: strict verification reported category 'unknownStrictError'."
+        }
+    }
+
+    if ($recognizedAllowedCategories.Count -eq 0) {
+        throw "AAB signature verification failed: strict exit code 4 did not match any recognized allowed self-signed category."
+    }
+
+    $categoriesSummary = ($recognizedAllowedCategories | Sort-Object) -join ", "
+    return [pscustomobject]@{
+        IsValid = $true
+        Classification = "SelfSignedAllowed"
+        Summary = "AAB signature cryptographically verified (non-strict exit code 0); strict exit code 4 tolerated exclusively for recognized categories: [$categoriesSummary]."
+    }
+}
+
 $versionInfo = Get-KnownFirstVersionInfo -ProjectPath $projectPath
 
 $artifactRoot = Join-Path $projectRoot "artifacts\android-google-play"
@@ -179,9 +275,26 @@ try {
     }
 
     $jarSigner = Join-Path $javaHome "bin\jarsigner.exe"
-    $jarsignerOutput = & $jarSigner -verify -strict $stagingBundlePath 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "AAB signature verification failed with exit code $LASTEXITCODE."
+    $strictArgs = @("-J-Duser.language=en", "-J-Duser.country=US", "-verify", "-strict", $stagingBundlePath)
+    $strictOutput = & $jarSigner @strictArgs 2>&1
+    $strictExitCode = $LASTEXITCODE
+
+    $nonStrictExitCode = -1
+    $nonStrictOutput = @()
+    if ($strictExitCode -eq 4) {
+        $nonStrictArgs = @("-J-Duser.language=en", "-J-Duser.country=US", "-verify", $stagingBundlePath)
+        $nonStrictOutput = & $jarSigner @nonStrictArgs 2>&1
+        $nonStrictExitCode = $LASTEXITCODE
+    }
+
+    $verificationResult = Test-AabSignatureVerificationResult `
+        -StrictExitCode $strictExitCode `
+        -StrictOutput $strictOutput `
+        -NonStrictExitCode $nonStrictExitCode `
+        -NonStrictOutput $nonStrictOutput
+
+    if (-not $verificationResult.IsValid) {
+        throw "AAB signature verification could not be confirmed."
     }
 
     $stagedSha256 = (Get-FileHash -LiteralPath $stagingBundlePath -Algorithm SHA256).Hash.ToLowerInvariant()

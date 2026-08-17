@@ -644,4 +644,194 @@ public sealed class TextAnalyzerTests
         Assert.AreEqual("Arbeits-", content.Substring(arbeits.StartPosition, arbeits.Length));
         Assert.AreEqual("Arbeits-", arbeits.SurfaceForm);
     }
+
+    [TestMethod]
+    public void Analyze_MisspelledAlphabeticWords_SurviveWithExactCoordinates()
+    {
+        const string content = "The user entered wshcmashine and definitly mistyped them.";
+        var result = _analyzer.Analyze(content);
+
+        var misspelled1 = result.Candidates.SingleOrDefault(c => c.CanonicalTerm == "wshcmashine");
+        var misspelled2 = result.Candidates.SingleOrDefault(c => c.CanonicalTerm == "definitly");
+
+        Assert.IsNotNull(misspelled1);
+        Assert.IsNotNull(misspelled2);
+        Assert.AreEqual(TokenKind.Word, misspelled1.Kind);
+        Assert.AreEqual(TokenKind.Word, misspelled2.Kind);
+        Assert.AreEqual("W:wshcmashine", misspelled1.Identity);
+        Assert.AreEqual("W:definitly", misspelled2.Identity);
+
+        var occ1 = misspelled1.Occurrences.Single();
+        var occ2 = misspelled2.Occurrences.Single();
+        Assert.AreEqual("wshcmashine", occ1.SurfaceForm);
+        Assert.AreEqual("definitly", occ2.SurfaceForm);
+        Assert.AreEqual("wshcmashine", content.Substring(occ1.StartPosition, occ1.Length));
+        Assert.AreEqual("definitly", content.Substring(occ2.StartPosition, occ2.Length));
+    }
+
+    [TestMethod]
+    public void Analyze_CoinedAlphabeticWords_SurviveWithoutLexiconEvidence()
+    {
+        const string content = "Frobnicator and blorptastic synthetic tokens.";
+        var result = _analyzer.Analyze(content);
+
+        var frobnicator = result.Candidates.SingleOrDefault(c => c.CanonicalTerm == "Frobnicator");
+        var blorptastic = result.Candidates.SingleOrDefault(c => c.CanonicalTerm == "blorptastic");
+
+        Assert.IsNotNull(frobnicator);
+        Assert.IsNotNull(blorptastic);
+        Assert.AreEqual(TokenKind.Word, frobnicator.Kind);
+        Assert.AreEqual(TokenKind.Word, blorptastic.Kind);
+        Assert.AreEqual("W:frobnicator", frobnicator.Identity);
+        Assert.AreEqual("W:blorptastic", blorptastic.Identity);
+
+        var occ1 = frobnicator.Occurrences.Single();
+        var occ2 = blorptastic.Occurrences.Single();
+        Assert.AreEqual("Frobnicator", occ1.SurfaceForm);
+        Assert.AreEqual("blorptastic", occ2.SurfaceForm);
+        Assert.AreEqual("Frobnicator", content.Substring(occ1.StartPosition, occ1.Length));
+        Assert.AreEqual("blorptastic", content.Substring(occ2.StartPosition, occ2.Length));
+    }
+
+    [TestMethod]
+    public void Analyze_InternalApostrophes_PreserveCurrentTokenBoundariesAndCoordinates()
+    {
+        const string content = "It's clear they don't know O'Connor or O’Connor.";
+        var result = _analyzer.Analyze(content);
+
+        var its = result.Candidates.Single(c => c.CanonicalTerm == "It's");
+        var dont = result.Candidates.Single(c => c.CanonicalTerm == "don't");
+        var oconnorAscii = result.Candidates.Single(c => c.CanonicalTerm == "O'Connor");
+        var oconnorTypo = result.Candidates.Single(c => c.CanonicalTerm == "O’Connor");
+
+        Assert.AreEqual("W:it's", its.Identity);
+        Assert.AreEqual("W:don't", dont.Identity);
+        Assert.AreEqual("W:o'connor", oconnorAscii.Identity);
+        Assert.AreEqual("W:o’connor", oconnorTypo.Identity);
+
+        foreach (var candidate in new[] { its, dont, oconnorAscii, oconnorTypo })
+        {
+            var occ = candidate.Occurrences.Single();
+            Assert.AreEqual(candidate.CanonicalTerm, occ.SurfaceForm);
+            Assert.AreEqual(occ.SurfaceForm, content.Substring(occ.StartPosition, occ.Length));
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_TrailingApostrophe_PreservesCurrentTokenBoundary()
+    {
+        const string content = "The users' access remains protected.";
+        var result = _analyzer.Analyze(content);
+
+        var users = result.Candidates.Single(c => c.CanonicalTerm == "users");
+        var access = result.Candidates.Single(c => c.CanonicalTerm == "access");
+
+        var usersOcc = users.Occurrences.Single();
+        Assert.AreEqual("users", usersOcc.SurfaceForm);
+        Assert.AreEqual(4, usersOcc.StartPosition);
+        Assert.AreEqual(5, usersOcc.Length);
+        Assert.AreEqual("users", content.Substring(usersOcc.StartPosition, usersOcc.Length));
+
+        var accessOcc = access.Occurrences.Single();
+        Assert.AreEqual("access", accessOcc.SurfaceForm);
+        Assert.AreEqual(11, accessOcc.StartPosition);
+        Assert.AreEqual(6, accessOcc.Length);
+        Assert.AreEqual("access", content.Substring(accessOcc.StartPosition, accessOcc.Length));
+    }
+
+    [TestMethod]
+    public void Analyze_OrdinaryHyphenatedForm_PreservesCurrentClassification()
+    {
+        const string content = "A state-of-the-art approach.";
+        var result = _analyzer.Analyze(content);
+
+        var candidate = result.Candidates.Single(c => c.CanonicalTerm == "state-of-the-art");
+        Assert.AreEqual(TokenKind.TechnicalTerm, candidate.Kind);
+        Assert.AreEqual("T:state-of-the-art", candidate.Identity);
+
+        var occ = candidate.Occurrences.Single();
+        Assert.AreEqual("state-of-the-art", occ.SurfaceForm);
+        Assert.AreEqual("state-of-the-art", content.Substring(occ.StartPosition, occ.Length));
+    }
+
+    [TestMethod]
+    public void Analyze_UnlistedUppercaseSequences_PreserveCurrentClassification()
+    {
+        const string content = "NASA built the GPU for the LLM.";
+        var result = _analyzer.Analyze(content);
+
+        var nasa = result.Candidates.Single(c => c.CanonicalTerm == "NASA");
+        var gpu = result.Candidates.Single(c => c.CanonicalTerm == "GPU");
+        var llm = result.Candidates.Single(c => c.CanonicalTerm == "LLM");
+
+        Assert.AreEqual(TokenKind.Word, nasa.Kind);
+        Assert.AreEqual(TokenKind.Word, gpu.Kind);
+        Assert.AreEqual(TokenKind.Word, llm.Kind);
+
+        Assert.AreEqual("W:nasa", nasa.Identity);
+        Assert.AreEqual("W:gpu", gpu.Identity);
+        Assert.AreEqual("W:llm", llm.Identity);
+
+        foreach (var candidate in new[] { nasa, gpu, llm })
+        {
+            var occ = candidate.Occurrences.Single();
+            Assert.AreEqual(candidate.CanonicalTerm, occ.SurfaceForm);
+            Assert.AreEqual(occ.SurfaceForm, content.Substring(occ.StartPosition, occ.Length));
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_GermanWholeCompounds_CurrentlyRemainUndecomposed()
+    {
+        const string content = "Die Schreibmaschine, die Waschmaschine und das Arbeitszimmer.";
+        var result = _analyzer.Analyze(content, "de");
+
+        var terms = result.Candidates.Select(c => c.CanonicalTerm).ToArray();
+        CollectionAssert.Contains(terms, "Schreibmaschine");
+        CollectionAssert.Contains(terms, "Waschmaschine");
+        CollectionAssert.Contains(terms, "Arbeitszimmer");
+
+        CollectionAssert.DoesNotContain(terms, "schreiben");
+        CollectionAssert.DoesNotContain(terms, "Schreib");
+        CollectionAssert.DoesNotContain(terms, "Maschine");
+        CollectionAssert.DoesNotContain(terms, "waschen");
+        CollectionAssert.DoesNotContain(terms, "Wasch");
+        CollectionAssert.DoesNotContain(terms, "Arbeit");
+        CollectionAssert.DoesNotContain(terms, "Zimmer");
+
+        foreach (var compoundTerm in new[] { "Schreibmaschine", "Waschmaschine", "Arbeitszimmer" })
+        {
+            var candidate = result.Candidates.Single(c => c.CanonicalTerm == compoundTerm);
+            Assert.AreEqual(TokenKind.Word, candidate.Kind);
+            Assert.AreEqual($"W:{compoundTerm.ToLowerInvariant()}", candidate.Identity);
+            var occ = candidate.Occurrences.Single();
+            Assert.AreEqual(compoundTerm, occ.SurfaceForm);
+            Assert.AreEqual(compoundTerm, content.Substring(occ.StartPosition, occ.Length));
+        }
+    }
+
+    [TestMethod]
+    public void Analyze_GermanNonProcessCoordination_PreservesCurrentUnexpandedBehavior()
+    {
+        const string content = "Hardware- und Softwareentwicklung sind wichtig.";
+        var result = _analyzer.Analyze(content, "de");
+
+        var terms = result.Candidates.Select(c => c.CanonicalTerm).ToArray();
+
+        CollectionAssert.Contains(terms, "Hardware");
+        CollectionAssert.Contains(terms, "Softwareentwicklung");
+        CollectionAssert.DoesNotContain(terms, "Hardwareentwicklung");
+
+        var hardware = result.Candidates.Single(c => c.CanonicalTerm == "Hardware");
+        var hardwareOcc = hardware.Occurrences.Single();
+        Assert.AreEqual("Hardware", hardwareOcc.SurfaceForm);
+        Assert.AreEqual(0, hardwareOcc.StartPosition);
+        Assert.AreEqual(8, hardwareOcc.Length);
+        Assert.AreEqual("Hardware", content.Substring(hardwareOcc.StartPosition, hardwareOcc.Length));
+
+        var software = result.Candidates.Single(c => c.CanonicalTerm == "Softwareentwicklung");
+        var softwareOcc = software.Occurrences.Single();
+        Assert.AreEqual("Softwareentwicklung", softwareOcc.SurfaceForm);
+        Assert.AreEqual("Softwareentwicklung", content.Substring(softwareOcc.StartPosition, softwareOcc.Length));
+    }
 }

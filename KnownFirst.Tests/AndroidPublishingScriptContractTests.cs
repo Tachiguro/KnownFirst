@@ -204,6 +204,59 @@ public sealed class AndroidPublishingScriptContractTests
     }
 
     [TestMethod]
+    public void CanonicalScript_CleansTransientPublishDirectoryBeforeCandidateCheck()
+    {
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
+
+        var cleanIndex = canonicalScript.IndexOf("dotnet clean", StringComparison.OrdinalIgnoreCase);
+        var preCandidatesIndex = canonicalScript.IndexOf("$preCandidates =", StringComparison.OrdinalIgnoreCase);
+
+        Assert.IsTrue(cleanIndex > 0, "dotnet clean step must exist.");
+        Assert.IsTrue(preCandidatesIndex > cleanIndex, "Pre-candidates evaluation must occur after dotnet clean.");
+
+        var betweenCleanAndPreCandidates = canonicalScript.Substring(cleanIndex, preCandidatesIndex - cleanIndex);
+
+        Assert.IsTrue(
+            betweenCleanAndPreCandidates.Contains("publish") &&
+            (betweenCleanAndPreCandidates.Contains("Remove-Item") || betweenCleanAndPreCandidates.Contains("Directory]::Delete") || betweenCleanAndPreCandidates.Contains("Directory.Delete")),
+            "Canonical script must remove the transient publish directory between dotnet clean and pre-candidate check."
+        );
+        Assert.IsTrue(
+            betweenCleanAndPreCandidates.Contains("-LiteralPath") || betweenCleanAndPreCandidates.Contains("LiteralPath"),
+            "Transient publish cleanup must use literal path targeting."
+        );
+    }
+
+    [TestMethod]
+    public void CanonicalScript_TransientPublishCleanup_IsSafelyScopedToReleaseRoot()
+    {
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
+
+        var cleanIndex = canonicalScript.IndexOf("dotnet clean", StringComparison.OrdinalIgnoreCase);
+        var preCandidatesIndex = canonicalScript.IndexOf("$preCandidates =", StringComparison.OrdinalIgnoreCase);
+        var betweenCleanAndPreCandidates = canonicalScript.Substring(cleanIndex, preCandidatesIndex - cleanIndex);
+
+        Assert.IsTrue(
+            betweenCleanAndPreCandidates.Contains("$releaseRoot") || betweenCleanAndPreCandidates.Contains("bin\\Release\\net10.0-android"),
+            "Transient publish cleanup target must be derived strictly from $releaseRoot."
+        );
+        Assert.IsFalse(
+            betweenCleanAndPreCandidates.Contains("$artifactRoot"),
+            "Transient publish cleanup must not target or reference $artifactRoot."
+        );
+        Assert.IsFalse(
+            betweenCleanAndPreCandidates.Contains("$secretsRoot") || betweenCleanAndPreCandidates.Contains("$KeystorePath") || betweenCleanAndPreCandidates.Contains("$PasswordFilePath"),
+            "Transient publish cleanup must not target or reference secrets roots or files."
+        );
+        Assert.IsFalse(
+            betweenCleanAndPreCandidates.Contains("artifacts\\android-google-play") ||
+            betweenCleanAndPreCandidates.Contains("artifacts\\windows-portable") ||
+            betweenCleanAndPreCandidates.Contains("artifacts\\windows-msix"),
+            "Transient publish cleanup must not reference release distributable roots."
+        );
+    }
+
+    [TestMethod]
     public void CanonicalScript_ValidatesEmptyPrePublishCandidateList()
     {
         var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");

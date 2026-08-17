@@ -161,9 +161,12 @@ try {
         throw "Android Release AAB publish failed with exit code $LASTEXITCODE."
     }
 
-    $candidates = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "*-Signed.aab")
+    $candidates = @()
+    if (Test-Path -LiteralPath $publishDir -PathType Container) {
+        $candidates = @(Get-ChildItem -LiteralPath $publishDir -File -Filter "*-Signed.aab")
+    }
     if ($candidates.Count -eq 0) {
-        throw "Android Release publish completed, but no newly signed AAB was found under $releaseRoot."
+        throw "Android Release publish completed, but no newly signed AAB was found in $publishDir."
     }
     if ($candidates.Count -gt 1) {
         throw "Android Release publish completed, but candidate selection is ambiguous."

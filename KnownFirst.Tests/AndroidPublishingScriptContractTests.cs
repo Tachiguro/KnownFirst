@@ -491,6 +491,76 @@ public sealed class AndroidPublishingScriptContractTests
     }
 
     [TestMethod]
+    public void CanonicalScript_PostPublishCandidateDiscoveryIsScopedToPublishDirectoryNonRecursively()
+    {
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
+
+        var publishCommandIndex = canonicalScript.IndexOf("& dotnet @publishArguments", StringComparison.OrdinalIgnoreCase);
+        Assert.IsTrue(publishCommandIndex > 0, "dotnet publish command must exist in script.");
+
+        var postPublishSection = canonicalScript.Substring(publishCommandIndex);
+
+        var candidateMatch = Regex.Match(
+            postPublishSection,
+            @"\$candidates\s*=\s*@\((?<expr>[\s\S]*?Get-ChildItem[\s\S]*?)\)",
+            RegexOptions.IgnoreCase
+        );
+        Assert.IsTrue(candidateMatch.Success, "Post-publish candidate discovery statement must exist.");
+
+        var expr = candidateMatch.Groups["expr"].Value;
+
+        Assert.IsTrue(
+            expr.Contains("$publishDir"),
+            "Post-publish candidate discovery must be scoped directly to $publishDir rather than $releaseRoot."
+        );
+        Assert.IsFalse(
+            expr.Contains("$releaseRoot"),
+            "Post-publish candidate discovery must not query $releaseRoot."
+        );
+        Assert.IsFalse(
+            expr.Contains("-Recurse"),
+            "Post-publish candidate discovery must be non-recursive."
+        );
+        Assert.IsTrue(
+            expr.Contains("-Filter \"*-Signed.aab\"") || expr.Contains("-Filter '*-Signed.aab'"),
+            "Post-publish candidate discovery must filter for *-Signed.aab."
+        );
+    }
+
+    [TestMethod]
+    public void CanonicalScript_PrePublishStaleScanRemainsRecursiveAcrossReleaseRoot()
+    {
+        var canonicalScript = LoadScript("scripts/packaging/publish-google-play-bundle.ps1");
+
+        var publishCommandIndex = canonicalScript.IndexOf("& dotnet @publishArguments", StringComparison.OrdinalIgnoreCase);
+        Assert.IsTrue(publishCommandIndex > 0, "dotnet publish command must exist in script.");
+
+        var prePublishSection = canonicalScript.Substring(0, publishCommandIndex);
+
+        var preCandidateMatch = Regex.Match(
+            prePublishSection,
+            @"\$preCandidates\s*=\s*@\((?<expr>[\s\S]*?Get-ChildItem[\s\S]*?)\)",
+            RegexOptions.IgnoreCase
+        );
+        Assert.IsTrue(preCandidateMatch.Success, "Pre-publish candidate discovery statement must exist.");
+
+        var expr = preCandidateMatch.Groups["expr"].Value;
+
+        Assert.IsTrue(
+            expr.Contains("$releaseRoot"),
+            "Pre-publish stale candidate discovery must search $releaseRoot."
+        );
+        Assert.IsTrue(
+            expr.Contains("-Recurse"),
+            "Pre-publish stale candidate discovery must be recursive."
+        );
+        Assert.IsTrue(
+            expr.Contains("-Filter \"*-Signed.aab\"") || expr.Contains("-Filter '*-Signed.aab'"),
+            "Pre-publish stale candidate discovery must filter for *-Signed.aab."
+        );
+    }
+
+    [TestMethod]
     public void Launcher_ValidateAllAndroidReleaseBuild_EnforcesWarningStrictnessAndFreshCompilationParity()
     {
         var launcherScript = LoadScript("scripts/knownfirst.ps1");

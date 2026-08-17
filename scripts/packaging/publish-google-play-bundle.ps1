@@ -121,6 +121,18 @@ try {
     }
 
     $releaseRoot = Join-Path $projectRoot "bin\Release\net10.0-android"
+    $normalizedProjectRoot = [System.IO.Path]::GetFullPath($projectRoot)
+    $publishDir = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot "publish"))
+
+    if (-not $publishDir.StartsWith($normalizedProjectRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $publishDir.Equals($normalizedProjectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Transient publish directory path safety validation failed: target must remain strictly beneath project root."
+    }
+
+    if (Test-Path -LiteralPath $publishDir -PathType Container) {
+        [System.IO.Directory]::Delete($publishDir, $true)
+    }
+
     $preCandidates = @()
     if (Test-Path -LiteralPath $releaseRoot -PathType Container) {
         $preCandidates = @(Get-ChildItem -LiteralPath $releaseRoot -Recurse -File -Filter "*-Signed.aab")

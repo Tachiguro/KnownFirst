@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-18 (Documentation/governance reconciliation through PR #131; canonical `master` synchronized to `00adbe02c2cf10c6fa3ddd7db59cc748c3bc8faa`; PR #131 candidate `FULL_VALIDATION` [`ValidateAll-20260818-191908.log`] passed 2039/2039 tests, Windows/Android Debug/Release, 0 failures, exit code 0; final Beta-13 Release AAB remains NOT CREATED; subsequent Google Play Internal Testing upload/distribution NOT PERFORMED; Closed Testing, Open Testing, Production, and public rollout remain unauthorized).
+2026-08-18 (Current-work live-state semantics normalized: live canonical `master` identity is discovered dynamically from Git/GitHub per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md), rather than embedded as a mutable current SHA; final Beta-13 Release AAB remains NOT CREATED; subsequent Google Play Internal Testing upload/distribution NOT PERFORMED; Closed Testing, Open Testing, Production, and public rollout remain unauthorized).
 
 ## Repository and Worktree Governance
 
@@ -39,10 +39,11 @@ Every repository-writing package now requires a mandatory `DOCUMENT_ONLY` reconc
   - PR #129 (`feat: add enhanced term recognition setting`): Added persisted application-level `EnhancedTermRecognitionEnabled` foundation, default OFF; internal seam only, no visible Settings UI control; merged to `51a089811e09e3fd2194e54949f40cadb3ec110a`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #130 (`feat: add German term provenance and lexicon seam`): Added `IGermanLexicon` Core seam and German term provenance support; deterministic/offline lexical evidence foundation; production lexicon wiring and visible Settings UI remain deferred; merged to `1f9697ce15745c5630d5184e706bcf2282057306`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #131 (`feat: add conservative German compound decomposition`): Added conservative two-component German compound decomposition through the `IGermanLexicon` opt-in seam; whole source compound remains Direct; derived components require exactly one unambiguous fully lexicon-backed split; ambiguous/unsupported cases fail closed; production `TextReviewService` wiring and visible Settings UI remain deferred; merged to `00adbe02c2cf10c6fa3ddd7db59cc748c3bc8faa`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #132 (`docs: reconcile state and require documentation gate`): Reconciled durable documentation through PR #131 and established the mandatory `DOCUMENT_ONLY` pre-commit governance gate; merged to `b298969c8d9887e0a8a3a0a32f6a385038300577`. `POST_MERGE_SYNC_ONLY` completed.
 
 ## Verified Baseline & Release Boundaries
 
-- **Canonical `master` baseline:** Synchronized `master` at `00adbe02c2cf10c6fa3ddd7db59cc748c3bc8faa` (PR #131 merge commit). Prior PR merge commits and their `POST_MERGE_SYNC_ONLY` completions are historical facts; live current master identity is always discovered dynamically from Git/GitHub.
+- **Canonical `master` baseline:** Live canonical `master` identity is discovered dynamically from Git/GitHub per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Prior PR merge commits and their `POST_MERGE_SYNC_ONLY` completions are immutable historical facts recorded in the merged-package history above.
 - **Historical exact-master validation evidence:**
   - `ValidateAll-20260816-170329.log` on `f387f8a8...`: PASSED (1963/1963 automated tests, Windows Debug/Release, Android Debug/Release, 114/114 AOT, 0 prohibited release diagnostics).
   - `ValidateAll-20260816-194413.log` on `eb4a2302...`: PASSED (1963/1963 automated tests, Windows Debug/Release, Android Debug/Release, 114/114 AOT, 0 prohibited release diagnostics, 73/73 UI contract tests, 10/10 diagnostic gate tests).
@@ -54,7 +55,7 @@ Every repository-writing package now requires a mandatory `DOCUMENT_ONLY` reconc
 - **Historical packaging attempts:**
   - **Initial attempt on `eb4a2302...` (2026-08-16):** Canonical `GooglePlayBundle` execution failed (`GooglePlayBundle-20260816-195953.log`, exit code 1) because the publisher's `-warnaserror` promoted 8 XML documentation compiler warnings to errors. Resolved in PR #121.
   - **Second attempt on `38814434...` (2026-08-17):** Following Gate-17 certification on `38814434...`, canonical `GooglePlayBundle` execution failed (`GooglePlayBundle-20260817-021326.log`, exit code 1) before `dotnet publish` because stale `*-Signed.aab` output survived internal `dotnet clean` under `publish/`. Classified as `CANONICAL_PACKAGING_WORKFLOW_DEFECT` and resolved in PR #124.
-- **Pre-AAB Gate Status:** The earlier affirmative Gate-17 certifications and reports on `eb4a2302...`, `c9fc3fec...`, `e23c403...`, and `38814434...` are historical, superseded, or non-actionable due to contradictory packaging evidence or post-gate source changes. Gate 17 remains **NOT CERTIFIED** on the post-PR#131 lineage until documentation reconciliation completes, fresh exact-master validation passes on the live synchronized master, and a new final Pre-AAB `REVIEW_ONLY` certifies all gate items.
+- **Pre-AAB Gate Status:** The earlier affirmative Gate-17 certifications and reports on `eb4a2302...`, `c9fc3fec...`, `e23c403...`, and `38814434...` are historical, superseded, or non-actionable due to contradictory packaging evidence or post-gate source changes. The mandatory documentation/governance reconciliation prerequisite has completed. Gate 17 remains **NOT CERTIFIED** until fresh exact-master validation passes on the live synchronized `master` and a new final Pre-AAB `REVIEW_ONLY` certifies all gate items.
 - **Source identity:** `1.0.0-beta.13` (build 13) merged on `master` via PR #92. Merging is not a packaging, signing, or distribution event.
 - **Confirmed external distribution:** `1.0.0-beta.12` / build 12 (Google Play Internal Testing, confirmed 2026-07-30). No newer Android external distribution has occurred.
 - **Database schema:** SQLite `PRAGMA user_version` 10 on `master`.

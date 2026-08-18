@@ -834,4 +834,175 @@ public sealed class TextAnalyzerTests
         Assert.AreEqual("Softwareentwicklung", softwareOcc.SurfaceForm);
         Assert.AreEqual("Softwareentwicklung", content.Substring(softwareOcc.StartPosition, softwareOcc.Length));
     }
+
+    private const string TwoCompoundsContent = "Die Schreibmaschine steht hier. Die Waschmaschine läuft.";
+    private readonly IGermanLexicon _germanLexicon = new FixtureGermanLexicon();
+
+    [TestMethod]
+    public void Analyze_German_LexiconProvidedButFeatureDisabled_RemainsUndecomposed()
+    {
+        var result = _analyzer.Analyze(
+            TwoCompoundsContent,
+            "de",
+            enableGermanCompoundDecomposition: false,
+            germanLexicon: _germanLexicon);
+
+        Assert.IsTrue(result.Candidates.All(candidate => candidate.Provenance == CandidateProvenanceKind.Direct));
+        var terms = result.Candidates.Select(c => c.CanonicalTerm).ToArray();
+        CollectionAssert.Contains(terms, "Schreibmaschine");
+        CollectionAssert.Contains(terms, "Waschmaschine");
+        CollectionAssert.DoesNotContain(terms, "schreiben");
+        CollectionAssert.DoesNotContain(terms, "waschen");
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOnWithFixtureLexicon_AddsUniqueDerivedComponentsRetainingSourceCompound()
+    {
+        var result = _analyzer.Analyze(TwoCompoundsContent, "de", true, _germanLexicon);
+
+        var schreibmaschine = result.Candidates.Single(c => c.Identity == "W:schreibmaschine");
+        Assert.AreEqual(CandidateProvenanceKind.Direct, schreibmaschine.Provenance);
+        Assert.HasCount(1, schreibmaschine.Occurrences);
+
+        var waschmaschine = result.Candidates.Single(c => c.Identity == "W:waschmaschine");
+        Assert.AreEqual(CandidateProvenanceKind.Direct, waschmaschine.Provenance);
+        Assert.HasCount(1, waschmaschine.Occurrences);
+
+        var schreiben = result.Candidates.Single(c => c.Identity == "W:schreiben");
+        Assert.AreEqual(CandidateProvenanceKind.DerivedFromCompound, schreiben.Provenance);
+        Assert.AreEqual("schreiben", schreiben.CanonicalTerm);
+
+        var waschen = result.Candidates.Single(c => c.Identity == "W:waschen");
+        Assert.AreEqual(CandidateProvenanceKind.DerivedFromCompound, waschen.Provenance);
+        Assert.AreEqual("waschen", waschen.CanonicalTerm);
+
+        var maschine = result.Candidates.Single(c => c.Identity == "W:maschine");
+        Assert.AreEqual(CandidateProvenanceKind.DerivedFromCompound, maschine.Provenance);
+        Assert.AreEqual("Maschine", maschine.CanonicalTerm);
+        Assert.HasCount(2, maschine.DerivedEvidence);
+    }
+
+    [TestMethod]
+    public void Analyze_NonGermanSource_EnhancedOnWithFixtureLexicon_DoesNotDecompose()
+    {
+        var result = _analyzer.Analyze("Schreibmaschine test.", "en", true, _germanLexicon);
+
+        Assert.IsTrue(result.Candidates.All(candidate => candidate.Provenance == CandidateProvenanceKind.Direct));
+        Assert.IsFalse(result.Candidates.Any(c => c.Identity == "W:schreiben"));
+        Assert.IsFalse(result.Candidates.Any(c => c.Identity == "W:maschine"));
+        Assert.IsTrue(result.Candidates.Any(c => c.CanonicalTerm == "Schreibmaschine"));
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOnWithFixtureLexicon_UnknownGermanWordRemainsDirect()
+    {
+        const string content = "Die Zeppelinwerft bleibt unbekannt.";
+        var result = _analyzer.Analyze(content, "de", true, _germanLexicon);
+
+        Assert.IsTrue(result.Candidates.All(candidate => candidate.Provenance == CandidateProvenanceKind.Direct));
+        var zeppelinwerft = result.Candidates.Single(c => c.CanonicalTerm == "Zeppelinwerft");
+        Assert.HasCount(1, zeppelinwerft.Occurrences);
+        Assert.AreEqual(
+            "Zeppelinwerft",
+            content.Substring(zeppelinwerft.Occurrences[0].StartPosition, zeppelinwerft.Occurrences[0].Length));
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_DerivedCandidatesHaveZeroOccurrences()
+    {
+        var result = _analyzer.Analyze(TwoCompoundsContent, "de", true, _germanLexicon);
+
+        var derived = result.Candidates.Where(c => c.IsDerived).ToArray();
+        Assert.IsNotEmpty(derived);
+        Assert.IsTrue(derived.All(candidate => candidate.Occurrences.Count == 0));
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_DerivedTermEvidenceSpansCompleteSourceCompoundWithCorrectComponentForm()
+    {
+        var result = _analyzer.Analyze(TwoCompoundsContent, "de", true, _germanLexicon);
+
+        var schreiben = result.Candidates.Single(c => c.Identity == "W:schreiben");
+        var evidence = schreiben.DerivedEvidence.Single();
+        Assert.AreEqual("W:schreibmaschine", evidence.SourceIdentity);
+        Assert.AreEqual("Schreibmaschine", evidence.SourceSurfaceForm);
+        Assert.AreEqual("Schreib", evidence.ComponentForm);
+        Assert.AreEqual(
+            evidence.SourceSurfaceForm,
+            TwoCompoundsContent.Substring(evidence.SourceStartPosition, evidence.SourceLength));
+
+        var maschine = result.Candidates.Single(c => c.Identity == "W:maschine");
+        Assert.IsTrue(maschine.DerivedEvidence.All(e => e.ComponentForm == "maschine"));
+        CollectionAssert.AreEquivalent(
+            new[] { "W:schreibmaschine", "W:waschmaschine" },
+            maschine.DerivedEvidence.Select(e => e.SourceIdentity).ToArray());
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_InvariantValidatorAcceptsResult()
+    {
+        var result = _analyzer.Analyze(TwoCompoundsContent, "de", true, _germanLexicon);
+
+        var failures = AnalysisInvariantValidator.Validate(TwoCompoundsContent, result);
+
+        Assert.IsEmpty(failures);
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_LiteralOccurrenceCountUnchangedByDerivedCandidates()
+    {
+        var off = _analyzer.Analyze(TwoCompoundsContent, "de");
+        var on = _analyzer.Analyze(TwoCompoundsContent, "de", true, _germanLexicon);
+
+        Assert.AreEqual(off.OccurrenceCount, on.OccurrenceCount);
+        Assert.AreEqual(
+            on.OccurrenceCount,
+            on.Candidates.SelectMany(c => c.Occurrences).Count());
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_RepeatedSourceCompoundAggregatesIntoOneDerivedCandidateWithMultipleEvidence()
+    {
+        const string content = "Die Schreibmaschine steht hier. Die Schreibmaschine steht dort auch.";
+        var result = _analyzer.Analyze(content, "de", true, _germanLexicon);
+
+        var schreiben = result.Candidates.Where(c => c.Identity == "W:schreiben").ToArray();
+        Assert.HasCount(1, schreiben);
+        Assert.HasCount(2, schreiben[0].DerivedEvidence);
+
+        var maschine = result.Candidates.Where(c => c.Identity == "W:maschine").ToArray();
+        Assert.HasCount(1, maschine);
+        Assert.HasCount(2, maschine[0].DerivedEvidence);
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_ExistingDirectCandidateWinsOverCollidingDerivedIdentity()
+    {
+        const string content = "Die Schreibmaschine und die Maschine stehen hier.";
+        var result = _analyzer.Analyze(content, "de", true, _germanLexicon);
+
+        var maschineCandidates = result.Candidates.Where(c => c.Identity == "W:maschine").ToArray();
+        Assert.HasCount(1, maschineCandidates);
+        Assert.AreEqual(CandidateProvenanceKind.Direct, maschineCandidates[0].Provenance);
+        Assert.HasCount(1, maschineCandidates[0].Occurrences);
+
+        Assert.IsTrue(result.Candidates.Any(c => c.Identity == "W:schreiben" && c.IsDerived));
+    }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_DirectOrderUnchangedAndDerivedCandidatesAppendedDeterministically()
+    {
+        var off = _analyzer.Analyze(TwoCompoundsContent, "de");
+        var onFirst = _analyzer.Analyze(TwoCompoundsContent, "de", true, _germanLexicon);
+        var onSecond = _analyzer.Analyze(TwoCompoundsContent, "de", true, _germanLexicon);
+
+        var offIdentities = off.Candidates.Select(c => c.Identity).ToArray();
+        var onFirstIdentities = onFirst.Candidates.Select(c => c.Identity).ToArray();
+
+        CollectionAssert.AreEqual(offIdentities, onFirstIdentities[..offIdentities.Length]);
+        Assert.IsTrue(onFirstIdentities[offIdentities.Length..]
+            .All(identity => onFirst.Candidates.Single(c => c.Identity == identity).IsDerived));
+
+        CollectionAssert.AreEqual(onFirstIdentities, onSecond.Candidates.Select(c => c.Identity).ToArray());
+    }
 }

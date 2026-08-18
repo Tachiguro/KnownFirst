@@ -60,6 +60,8 @@ public static class AnalysisInvariantValidator
 
         foreach (var candidate in analysis.Candidates)
         {
+            ValidateProvenance(content, analysis, candidate, failures);
+
             var encounteredForms = EncounteredFormPolicy.Deduplicate(
                 candidate.Kind,
                 candidate.Occurrences.OrderBy(item => item.Order).Select(item => item.SurfaceForm));
@@ -120,6 +122,117 @@ public static class AnalysisInvariantValidator
         }
 
         return failures;
+    }
+
+    private static void ValidateProvenance(
+        string content,
+        TextAnalysisResult analysis,
+        VocabularyCandidate candidate,
+        List<AnalysisInvariantFailure> failures)
+    {
+        if (candidate.Provenance != CandidateProvenanceKind.DerivedFromCompound)
+        {
+            if (candidate.DerivedEvidence.Count != 0)
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DirectCandidateCarriesDerivedEvidence",
+                    $"Direct candidate {candidate.Identity} carries derivation evidence."));
+            }
+
+            return;
+        }
+
+        if (candidate.Occurrences.Count != 0)
+        {
+            failures.Add(new AnalysisInvariantFailure(
+                "DerivedCandidateCarriesLiteralOccurrences",
+                $"Derived candidate {candidate.Identity} claims {candidate.Occurrences.Count} literal occurrences."));
+        }
+
+        if (candidate.DerivedEvidence.Count == 0)
+        {
+            failures.Add(new AnalysisInvariantFailure(
+                "DerivedCandidateMissingEvidence",
+                $"Derived candidate {candidate.Identity} carries no derivation evidence."));
+            return;
+        }
+
+        foreach (var evidence in candidate.DerivedEvidence)
+        {
+            var hasSemanticFailure = false;
+
+            if (string.IsNullOrWhiteSpace(evidence.SourceSurfaceForm))
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceSourceSurfaceMissing",
+                    $"Derivation evidence for candidate {candidate.Identity} has no source surface form."));
+                hasSemanticFailure = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(evidence.SourceIdentity))
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceSourceIdentityMissing",
+                    $"Derivation evidence for candidate {candidate.Identity} has no source identity."));
+                hasSemanticFailure = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(evidence.ComponentForm))
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceComponentFormMissing",
+                    $"Derivation evidence for candidate {candidate.Identity} has no component form."));
+                hasSemanticFailure = true;
+            }
+
+            if (evidence.SourceLength <= 0)
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceSourceLengthInvalid",
+                    $"Derivation evidence for candidate {candidate.Identity} has a non-positive source length."));
+                hasSemanticFailure = true;
+            }
+
+            if (hasSemanticFailure)
+            {
+                continue;
+            }
+
+            if (!IsRangeValid(content.Length, evidence.SourceStartPosition, evidence.SourceLength))
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceRangeOutsideDocument",
+                    $"Derivation evidence for candidate {candidate.Identity} lies outside the original document."));
+                continue;
+            }
+
+            var exactSource = content.Substring(evidence.SourceStartPosition, evidence.SourceLength);
+            if (!string.Equals(exactSource, evidence.SourceSurfaceForm, StringComparison.Ordinal))
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceSubstringMismatch",
+                    $"Derivation evidence for candidate {candidate.Identity} does not equal its exact original substring."));
+            }
+
+            var containingSentences = analysis.Sentences.Where(sentence =>
+                evidence.SourceStartPosition >= sentence.StartPosition
+                && evidence.SourceStartPosition + evidence.SourceLength <= sentence.EndPosition)
+                .ToArray();
+            if (containingSentences.Length != 1)
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceSentenceMembershipInvalid",
+                    $"Derivation evidence for candidate {candidate.Identity} belongs to {containingSentences.Length} sentence spans instead of exactly one."));
+                continue;
+            }
+
+            if (containingSentences[0].Order != evidence.SourceSentenceOrder)
+            {
+                failures.Add(new AnalysisInvariantFailure(
+                    "DerivedEvidenceSentenceOrderMismatch",
+                    $"Derivation evidence for candidate {candidate.Identity} reports sentence {evidence.SourceSentenceOrder} but lies in sentence {containingSentences[0].Order}."));
+            }
+        }
     }
 
     private static bool IsRangeValid(int contentLength, int start, int length) =>

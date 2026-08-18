@@ -11,14 +11,14 @@ KnownFirst development follows a strict, isolated phase sequence. No programming
 1. **PLAN_ONLY:** Read-only analysis and proposal.
 2. **Plan/Implement Transition:** Satisfied by explicit user approval of the presented plan, or by standing orchestration delegation when `PLAN_ONLY` is complete, bounded, and exposes no unresolved material decision (see [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md)).
 3. **IMPLEMENT:** Minimum production change using focused TDD red/green loop (see [docs/TESTING.md](TESTING.md)).
-4. **TEST_ONLY:** Scoped test execution when explicitly requested.
-5. **DOCUMENT_ONLY:** Updating documentation for verified implementation when explicitly requested.
-6. **Document/Commit Transition:** Inspection of uncommitted changes, satisfied by explicit user review or by standing orchestration delegation under the same conditions as step 2.
+4. **REVIEW_ONLY:** Scoped diff and contract review. Findings requiring implementation corrections start a correction cycle; `DOCUMENT_ONLY` occurs after the final accepted implementation/review state.
+5. **DOCUMENT_ONLY:** Mandatory pre-commit documentation reconciliation gate. `COMMIT_ONLY` is strictly blocked until `DOCUMENT_ONLY` has reported either `DOCUMENTATION_RECONCILED_WITH_CHANGES` or `DOCUMENTATION_CURRENT_NO_CHANGES`. Standing orchestration delegation covers issuance of this phase without a fresh user request. Normal code/behavior package lifecycle: `PLAN_ONLY` → `IMPLEMENT` → focused verification → `REVIEW_ONLY` → mandatory `DOCUMENT_ONLY` → `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`. Documentation-only package lifecycle: `PLAN_ONLY` → `DOCUMENT_ONLY` → `REVIEW_ONLY` → `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+6. **Document/Commit Transition:** Strictly blocked until `DOCUMENT_ONLY` gate evidence (`DOCUMENTATION_RECONCILED_WITH_CHANGES` or `DOCUMENTATION_CURRENT_NO_CHANGES`) is on record for the package. Any required documentation edits must be included in the candidate commit before `FULL_VALIDATION`.
 7. **COMMIT_ONLY:** Staging explicit files and committing to create the candidate commit (HEAD).
 8. **Mandatory Pre-PR FULL_VALIDATION:** Running the complete `.\scripts\knownfirst.ps1 -Action ValidateAll` matrix on the exact candidate HEAD (`TEST_ONLY`). `PUSH_ONLY` and `PR_ONLY` are strictly blocked without this successful validation. Any subsequent repository-file modification or commit invalidates prior evidence and requires this gate to run again on the new HEAD.
 9. **PUSH_ONLY:** Pushing approved branch and validated commit to remote repository.
 10. **PR_ONLY:** Opening or updating a pull request containing exact-HEAD full-validation evidence.
-11. **REVIEW_ONLY:** Read-only review of PR or diff.
+11. **TEST_ONLY:** Scoped test execution when explicitly requested (separate from mandatory FULL_VALIDATION).
 12. **Correction Package:** Approved fixes for review findings (which start a new cycle and require full validation on the resulting HEAD).
 13. **Explicit User Merge Decision:** Separate user-driven merge. Never delegable, regardless of standing orchestration delegation.
 14. **POST_MERGE_SYNC_ONLY:** Fast-forward synchronizing local master after the user's verified manual GitHub merge. It does not authorize branch deletion, documentation changes, builds, tests, commits, pushes, or additional PR mutations.

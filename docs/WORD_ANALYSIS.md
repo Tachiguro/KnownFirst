@@ -208,6 +208,72 @@ The canonical vocabulary identities are normalized to their full forms:
 
 Crucially, the **original surface forms and coordinates** remain unchanged and fully traceable. For example, the `TokenOccurrence` for the first token retains `SurfaceForm = "Arbeits-"` (including the hyphen) and points to its exact original length, ensuring the original text invariant is strictly preserved.
 
+## Conservative German derived compound candidates
+
+This section defines the binding contract for optional, lexicon-backed decomposition of German compound words into derived vocabulary candidates.
+
+### Preconditions (all must hold)
+
+1. Source text language is German.
+2. The feature is explicitly enabled via `EnhancedTermRecognitionEnabled` (default OFF).
+3. An `IGermanLexicon` instance is supplied; without a lexicon the feature is inactive and existing behavior is unchanged.
+
+### Decomposition rule
+
+The decomposer attempts to split a German compound into exactly **two components** that are both fully confirmed by the lexicon. A split is accepted only when:
+
+- Exactly one distinct split position produces two non-empty substrings.
+- Both substrings are confirmed as lexicon lemmas.
+- No Fugen element (e.g. `-s-`, `-n-`) needs to be stripped or guessed to form either component; only a direct two-part boundary is accepted.
+- The split is unambiguous: if more than one valid split position exists, the decomposition fails closed (no derived candidates are produced for that compound).
+
+### Whole-compound behavior
+
+The source compound word always remains a **Direct** vocabulary candidate with its full original identity and all its `TokenOccurrence` rows. Decomposition never removes or demotes it.
+
+### Derived candidate contract
+
+For each accepted decomposition the decomposer produces derived candidates for each component:
+
+- **Provenance kind:** `CandidateProvenanceKind.DerivedFromCompound`.
+- **Identity:** the canonical lexicon lemma for that component (e.g. `schreiben`, `Maschine`).
+- **No fabricated literal `TokenOccurrence` rows:** derived candidates do not insert synthetic occurrence rows into the database. Their evidence is recorded through `DerivedTermEvidence`.
+- **`DerivedTermEvidence` fields retained:**
+  - source compound identity (the whole compound's learning term);
+  - exact source surface form as it appears in the original text;
+  - whole-compound start position and length within the document;
+  - sentence order (to preserve derivation context);
+  - literal component surface form used to confirm the split.
+
+### Candidate ordering and collision
+
+- Derived candidates are **appended** deterministically after all Direct candidates; existing Direct order is unchanged.
+- If a derived component identity collides with an existing Direct identity, the **Direct candidate wins** and the derived candidate is suppressed.
+- If multiple occurrences of the same source compound produce equivalent derivation groups, they are **grouped by identity** with multiple `DerivedTermEvidence` entries (one per occurrence), mirroring how Direct candidates accumulate multiple `TokenOccurrence` rows.
+
+### Scope boundary — what the decomposer does NOT do
+
+- No broad stemming or suffix removal.
+- No morphological guessing.
+- No network, provider, or online lookup.
+- No Fugen-element stripping (e.g. `-s-`, `-n-`, `-en-`, `-e-`).
+- No linking-element inference.
+- No multi-word or phrase decomposition.
+- No three-or-more component splits.
+- No decomposition when the lexicon is absent or the feature is disabled.
+
+### Examples
+
+**Accepted:**
+- `Schreibmaschine` → `schreiben` (lexicon: verb infinitive lemma) + `Maschine` (lexicon: noun)
+- `Waschmaschine` → `waschen` + `Maschine`
+
+**Fail-closed (under the current lexicon/policy):**
+- `Arbeitszimmer` — requires stripping the Fugen `-s-`; not attempted.
+- `Sicherheitsmanagement` — `Sicherheits-` is not a standalone lexicon lemma without stripping; not attempted.
+
+
+
 ## Encountered forms
 
 Encountered forms show genuinely distinct variants, not case duplicates.
@@ -476,6 +542,20 @@ Diagnostics:
 - each CVE/SHA extraction has a human-readable family reason
 - duplicate rejection has a reason
 - DEBUG-only UI unavailable in Release where practical
+
+Conservative German compound decomposition:
+
+- feature inactive when disabled or no lexicon supplied; existing behavior unchanged
+- unambiguous two-part split accepted (e.g. `Schreibmaschine` → `schreiben` + `Maschine`)
+- ambiguous split (multiple valid positions) produces no derived candidates
+- Fugen-element compounds fail closed (e.g. `Arbeitszimmer`, `Sicherheitsmanagement`)
+- source compound remains a Direct candidate with unchanged identity and occurrences
+- derived components carry `CandidateProvenanceKind.DerivedFromCompound`
+- derived candidates have no fabricated literal `TokenOccurrence` rows
+- `DerivedTermEvidence` retains source compound identity, surface form, start/length, sentence order, and component form
+- multiple occurrences of the same compound group by identity with multiple evidence entries
+- Direct identity wins over colliding Derived identity
+- derived candidates appended after all Direct candidates; Direct order unchanged
 
 ## Scope boundary
 

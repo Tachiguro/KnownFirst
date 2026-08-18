@@ -99,13 +99,13 @@ Standing delegation covers exactly these modes, applied one at a time in isolate
 - `PLAN_ONLY`
 - `IMPLEMENT`
 - `TEST_ONLY` (including the mandatory candidate-HEAD `FULL_VALIDATION` pre-PR gate)
-- `DOCUMENT_ONLY`
+- `DOCUMENT_ONLY` (mandatory pre-commit gate; must precede `COMMIT_ONLY` for every normal code/behavior package)
 - `REVIEW_ONLY`
 - `COMMIT_ONLY`
 - `PUSH_ONLY`
 - `PR_ONLY`
 
-Standing delegation covers mandatory pre-PR validation without requiring fresh per-PR user build authorization. For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT` without a ceremonial "approve plan" message; a reviewed change progresses through `COMMIT_ONLY`, mandatory candidate-HEAD `FULL_VALIDATION` (`TEST_ONLY`), `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
+Standing delegation covers mandatory pre-PR validation without requiring fresh per-PR user build authorization. For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT` without a ceremonial "approve plan" message; a reviewed change progresses through mandatory `DOCUMENT_ONLY`, `COMMIT_ONLY`, mandatory candidate-HEAD `FULL_VALIDATION` (`TEST_ONLY`), `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
 
 If `PLAN_ONLY`, or any later phase, exposes a genuine unresolved material decision (see Section E), ChatGPT must stop and ask the user regardless of standing delegation.
 
@@ -126,6 +126,7 @@ This matrix encompasses:
 
 **Gate Invariants & Semantics:**
 - **Exact-HEAD Evidence:** Validation evidence belongs to the exact final candidate commit SHA intended for the PR.
+- **Documentation Completeness:** `FULL_VALIDATION` must execute only after `COMMIT_ONLY` has captured the complete candidate — including any required documentation edits from the mandatory `DOCUMENT_ONLY` phase. Documentation edits after `FULL_VALIDATION` invalidate the evidence and require a new candidate commit and a new `FULL_VALIDATION` run.
 - **Placement:** Validation must execute after `COMMIT_ONLY` and before `PUSH_ONLY`.
 - **Fail-Closed Blocking:** `PUSH_ONLY` and `PR_ONLY` are strictly blocked unless that exact HEAD has a recorded successful full-validation result.
 - **Stale-Evidence Invalidation:** Any subsequent commit or repository-file modification invalidates the validation evidence and renders it stale; `ValidateAll` must run again on the new candidate HEAD before progression.
@@ -247,15 +248,64 @@ Refer to [docs/TESTING.md](TESTING.md) for exact test scope definitions. When th
 
 ## I. Documentation Phase
 
-`DOCUMENT_ONLY` follows verified implementation only when explicitly requested.
+`DOCUMENT_ONLY` is a **mandatory** pre-commit gate for every repository-writing package. It is never optional or conditional on a fresh explicit user request.
 
-Updates only:
+### Mandatory Documentation Gate Invariant
+
+`COMMIT_ONLY` is strictly blocked until `DOCUMENT_ONLY` has completed for the package and has reported either:
+- `DOCUMENTATION_RECONCILED_WITH_CHANGES` — at least one documentation file required a semantic edit. Any required edits must be part of the candidate commit before `FULL_VALIDATION`.
+- `DOCUMENTATION_CURRENT_NO_CHANGES` — all directly relevant documentation was inspected and is already accurate; no semantic edit is required. The `DOCUMENT_ONLY` report listing the inspected documents and the rationale for no-edit serves as the gate evidence for subsequent `COMMIT_ONLY`/`FULL_VALIDATION`/`PUSH_ONLY` prompts.
+
+**No-edit rule:** When all relevant documentation is already accurate, do NOT create artificial documentation churn. A genuine `DOCUMENTATION_CURRENT_NO_CHANGES` result satisfies the gate without a committed no-op change.
+
+**Any repository-file modification after `FULL_VALIDATION` — including documentation edits — invalidates the exact-HEAD evidence and requires a new candidate commit and a new `FULL_VALIDATION` run before `PUSH_ONLY` or `PR_ONLY`.**
+
+### Normal Code/Behavior Package Lifecycle
+
+```
+PLAN_ONLY
+  → IMPLEMENT
+  → focused verification (as applicable)
+  → REVIEW_ONLY
+  → mandatory DOCUMENT_ONLY
+  → COMMIT_ONLY (of the complete code/test/documentation candidate)
+  → exact-candidate-HEAD FULL_VALIDATION (TEST_ONLY)
+  → PUSH_ONLY
+  → PR_ONLY
+  → manual user merge
+  → POST_MERGE_SYNC_ONLY
+```
+
+Notes:
+- `REVIEW_ONLY` findings that require implementation corrections start a correction cycle; `DOCUMENT_ONLY` occurs after the final accepted implementation/review state.
+- Standing orchestration delegation covers issuance of the mandatory `DOCUMENT_ONLY` phase without requiring a fresh user request.
+- `FULL_VALIDATION` must run only after the complete code/test/documentation candidate has been committed.
+
+### Documentation-Only Package Lifecycle
+
+Documentation-only packages do not invent an `IMPLEMENT` phase:
+
+```
+PLAN_ONLY
+  → DOCUMENT_ONLY
+  → REVIEW_ONLY
+  → COMMIT_ONLY
+  → FULL_VALIDATION
+  → PUSH_ONLY
+  → PR_ONLY
+  → manual user merge
+  → POST_MERGE_SYNC_ONLY
+```
+
+### Scope of Documentation Updates
+
+Update only:
 - directly affected product, architecture, database, UI, or workflow contracts;
-- `CHANGELOG.md` for verified user-visible behavior;
+- `CHANGELOG.md` for verified user-visible or internal-foundation behavior changes;
 - concise user-facing release notes for the intended future release (see [docs/VERSIONING.md](VERSIONING.md));
 - `docs/CURRENT_WORK.md` when operational task state changes.
 
-Do not modify build documentation merely because a product feature changed. Build or package agents consume already approved release notes; they do not author feature descriptions.
+Do not modify build documentation merely because a product feature changed. Build or package agents consume already approved release notes; they do not author feature descriptions. Do not turn unrelated documents into churn.
 
 ## J. Git and PR Phases
 

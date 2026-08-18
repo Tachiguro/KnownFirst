@@ -1,6 +1,6 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-16
+**Status date:** 2026-08-18
 **State source:** Synchronized `master` baseline. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
@@ -55,6 +55,9 @@ This document records stable, verified architectural facts and current capabilit
 - **Windows Release Storage Isolation (PR #104):** Test-profile redirection under `artifacts/gui-tests/windows/profiles/` for safe local Gate-12 visual verification without touching real host data.
 - **Pre-AAB Gate Test Infrastructure (PR #94, PR #96):** Configuration-sensitive `DefineConstants` test coverage and MSBuild property analysis for Release gating.
 - **Android Rendered GUI Automation Foundation (PR #91 / P16-A):** MSBuild intermediate isolation and Release Notes screenshot capture foundation (P16-B/P16-C matrix automation pending).
+- **Enhanced Term Recognition Setting Foundation (PR #129):** Persisted application-level `EnhancedTermRecognitionEnabled` setting, default OFF. Internal seam only; no visible Settings UI control or production text-analysis wiring is present in this release.
+- **German Term Provenance & IGermanLexicon Core Seam (PR #130):** `IGermanLexicon` interface seam in `KnownFirst.Core` with German term provenance (`DerivedTermEvidence`) support in the text-analysis pipeline. Provides a deterministic, offline-capable lexical evidence foundation for German vocabulary analysis. Production lexicon implementations and visible Settings UI remain deferred.
+- **Conservative German Compound Decomposition Core Seam (PR #131):** `ConservativeGermanCompoundDecomposer` available through the `IGermanLexicon` opt-in seam. Decomposes a German compound into exactly one unambiguous, fully lexicon-backed two-component split; whole source compound remains a Direct candidate; derived components carry `CandidateProvenanceKind.DerivedFromCompound`. Ambiguous, unsupported, and Fugen-element cases fail closed without guessing. Production `TextReviewService` wiring and visible Settings UI remain deferred.
 
 ## Evidence Boundaries & Release Limitations
 

@@ -29,7 +29,11 @@ public sealed partial class TextAnalyzer
         _sentenceSegmenter = sentenceSegmenter ?? throw new ArgumentNullException(nameof(sentenceSegmenter));
     }
 
-    public TextAnalysisResult Analyze(string content, string? sourceLanguage = null)
+    public TextAnalysisResult Analyze(
+        string content,
+        string? sourceLanguage = null,
+        bool enableGermanCompoundDecomposition = false,
+        IGermanLexicon? germanLexicon = null)
     {
         ArgumentNullException.ThrowIfNull(content);
 
@@ -39,7 +43,7 @@ public sealed partial class TextAnalyzer
             content,
             sourceLanguage,
             extraction.Occurrences);
-        var candidates = normalizedOccurrences
+        var directCandidates = normalizedOccurrences
             .GroupBy(occurrence => occurrence.Identity, StringComparer.Ordinal)
             .Select(group =>
             {
@@ -62,11 +66,22 @@ public sealed partial class TextAnalyzer
             .OrderBy(candidate => candidate.Occurrences[0].Order)
             .ToArray();
 
+        var candidates = enableGermanCompoundDecomposition
+            && germanLexicon is not null
+            && IsGermanSourceLanguage(sourceLanguage)
+                ? AppendDerivedCompoundCandidates(directCandidates, germanLexicon)
+                : directCandidates;
+
         var result = new TextAnalysisResult(sentences, candidates, normalizedOccurrences.Count);
 
 #if DEBUG
-        var candidateGroups = candidates.Select(CreateCandidateGroupingAnalysis).ToArray();
-        var contexts = candidates.SelectMany(candidate => ContextSelectionPolicy.Select(
+        var candidateGroups = candidates
+            .Where(candidate => candidate.Provenance == CandidateProvenanceKind.Direct)
+            .Select(CreateCandidateGroupingAnalysis)
+            .ToArray();
+        var contexts = candidates
+            .Where(candidate => candidate.Provenance == CandidateProvenanceKind.Direct)
+            .SelectMany(candidate => ContextSelectionPolicy.Select(
                 content,
                 sentences,
                 candidate.Occurrences,
@@ -90,6 +105,104 @@ public sealed partial class TextAnalyzer
         ArgumentNullException.ThrowIfNull(content);
         return _sentenceSegmenter.Segment(content);
     }
+
+    private static IReadOnlyList<VocabularyCandidate> AppendDerivedCompoundCandidates(
+        IReadOnlyList<VocabularyCandidate> directCandidates,
+        IGermanLexicon lexicon)
+    {
+        var directIdentities = new HashSet<string>(
+            directCandidates.Select(candidate => candidate.Identity),
+            StringComparer.Ordinal);
+        var derivedByIdentity = new Dictionary<string, DerivedCandidateAccumulator>(StringComparer.Ordinal);
+
+        foreach (var candidate in directCandidates)
+        {
+            if (candidate.Kind != TokenKind.Word
+                || !ConservativeGermanCompoundDecomposer.TryDecompose(
+                    candidate.CanonicalTerm, lexicon, out var decomposition)
+                || decomposition is null)
+            {
+                continue;
+            }
+
+            AccumulateDerivedEvidence(candidate, decomposition.LeftComponent, directIdentities, derivedByIdentity);
+            AccumulateDerivedEvidence(candidate, decomposition.RightComponent, directIdentities, derivedByIdentity);
+        }
+
+        if (derivedByIdentity.Count == 0)
+        {
+            return directCandidates;
+        }
+
+        var derivedCandidates = derivedByIdentity
+            .Select(pair =>
+            {
+                var orderedEvidence = pair.Value.Evidence
+                    .OrderBy(evidence => evidence.SourceStartPosition)
+                    .ThenBy(evidence => evidence.SourceIdentity, StringComparer.Ordinal)
+                    .ToArray();
+                return new VocabularyCandidate(
+                    pair.Key,
+                    pair.Value.CanonicalTerm,
+                    TokenKind.Word,
+                    new Dictionary<string, int>(StringComparer.Ordinal),
+                    Array.Empty<TokenOccurrence>())
+                {
+                    Provenance = CandidateProvenanceKind.DerivedFromCompound,
+                    DerivedEvidence = orderedEvidence
+                };
+            })
+            .OrderBy(candidate => candidate.DerivedEvidence[0].SourceStartPosition)
+            .ThenBy(candidate => candidate.Identity, StringComparer.Ordinal)
+            .ToArray();
+
+        return directCandidates.Concat(derivedCandidates).ToArray();
+    }
+
+    private static void AccumulateDerivedEvidence(
+        VocabularyCandidate sourceCandidate,
+        GermanCompoundComponent component,
+        HashSet<string> directIdentities,
+        Dictionary<string, DerivedCandidateAccumulator> derivedByIdentity)
+    {
+        var resolution = VocabularyIdentityPolicy.Resolve(component.Lemma, TokenKind.Word);
+        if (directIdentities.Contains(resolution.Identity))
+        {
+            return;
+        }
+
+        if (!derivedByIdentity.TryGetValue(resolution.Identity, out var accumulator))
+        {
+            accumulator = new DerivedCandidateAccumulator(resolution.CanonicalTerm, new List<DerivedTermEvidence>());
+            derivedByIdentity[resolution.Identity] = accumulator;
+        }
+
+        foreach (var occurrence in sourceCandidate.Occurrences)
+        {
+            accumulator.Evidence.Add(new DerivedTermEvidence(
+                sourceCandidate.Identity,
+                occurrence.SurfaceForm,
+                occurrence.StartPosition,
+                occurrence.Length,
+                occurrence.SentenceOrder,
+                component.ComponentForm));
+        }
+    }
+
+    private static bool IsGermanSourceLanguage(string? sourceLanguage)
+    {
+        if (string.IsNullOrWhiteSpace(sourceLanguage))
+        {
+            return false;
+        }
+
+        var languageFamily = sourceLanguage.Trim()
+            .Replace('_', '-')
+            .Split('-', 2, StringSplitOptions.TrimEntries)[0];
+        return string.Equals(languageFamily, "de", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed record DerivedCandidateAccumulator(string CanonicalTerm, List<DerivedTermEvidence> Evidence);
 
     private static ExtractionResult ExtractOccurrences(
         string content,

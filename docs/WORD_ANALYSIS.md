@@ -301,7 +301,21 @@ Each shipped suffix is backed by a concrete, lexicon-confirmed example (see "Exa
 
 ### Production lexicon and application-integration status
 
-A production, offline `IGermanLexicon` implementation (`GeneratedGermanLexicon`, backed by `KnownFirst.Core/Text/German/Assets/german-lexicon.v2.kfgl`) exists and is wired into the application's `TextReviewService` analysis path, gated behind the persisted `EnhancedTermRecognitionEnabled` setting exposed in Settings. This decomposer contract — including the 2–4 component bound and the shipped `s`/`es`/`e` fallback set described above — is independently reviewed and approved, but still **uncommitted** as a working-tree candidate on `feature/german-enhanced-term-recognition-e2e-v1`; see [docs/PROJECT_STATE.md](PROJECT_STATE.md) and [docs/CURRENT_WORK.md](CURRENT_WORK.md) for exact provenance, counts, and lifecycle status. It is not yet packaged into a shipped Windows/Android build. Every rule above remains a description of the decomposer's contract against *any* `IGermanLexicon` instance, not a claim that this production lexicon is active in a release build.
+A production, offline `IGermanLexicon` implementation (`GeneratedGermanLexicon`, backed by `KnownFirst.Core/Text/German/Assets/german-lexicon.v2.kfgl`) exists and is wired into the application's `TextReviewService` analysis path, gated behind the persisted `EnhancedTermRecognitionEnabled` setting exposed in Settings. This decomposer contract — including the 2–4 component bound and the shipped `s`/`es`/`e` fallback set described above — is merged to `master` via PR #134 (merge commit `6c7a89ed6b4b0fc7701fdca8ec85a38b91bbeeb5`); see [docs/PROJECT_STATE.md](PROJECT_STATE.md) for exact provenance and counts. It is not yet packaged into a shipped Windows/Android build. Every rule above remains a description of the decomposer's contract against *any* `IGermanLexicon` instance, not a claim that this production lexicon is active in a release build.
+
+The post-review-completion lifecycle semantics in "Post-review derived-evidence context lifecycle" below (German Enhanced Term Recognition Package 5A) are independently reviewed and approved (0 BLOCKER / 0 MAJOR / 0 MINOR) but still an **uncommitted working-tree candidate** on branch `fix/german-derived-lifecycle-integrity-v1`; see [docs/CURRENT_WORK.md](CURRENT_WORK.md) for exact current lifecycle status.
+
+### Post-review derived-evidence context lifecycle
+
+This subsection extends the derived-candidate contract above with what happens after a review decision, once a derived candidate is decided Unknown.
+
+- A derived candidate still never receives a fabricated `TokenOccurrence`, before or after review completion.
+- Once a derived candidate is decided Unknown, its context source for Preparation is the retained `DerivedTermEvidence` — not a synthetic occurrence. The required `ReviewCandidate` and `DerivedTermEvidence` may survive normal review-session completion specifically so this context remains recoverable; see [docs/DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) "Schema-11 Derived-Term Evidence Contract" for the persistence-level lifecycle.
+- The target/source coordinates used for that context remain the complete real source-compound occurrence — never a fabricated sub-span for the derived component — exactly as the pre-review-completion contract already requires.
+- Preparation prefers ordinary occurrence-based context when at least one valid occurrence context exists; it falls back to derived evidence only when zero valid occurrence contexts remain. This applies identically to the review-words display path and the Accept path.
+- Invalid coordinates or a substring mismatch against the real document/sentence text fail closed (no context produced from that evidence row), consistent with the existing coordinate-validation invariants above.
+- Direct-vs-Derived identity resolution and prior-Known suppression are unchanged by this lifecycle: a permanently Known identity (whether established directly or through a prior derived occurrence) still suppresses a later derived candidate for the same identity.
+- When the retaining word later leaves the Unknown lifecycle through MarkKnown or Exclude, its retained evidence is cleaned up and no longer contributes context.
 
 ## Encountered forms
 

@@ -580,6 +580,211 @@ public sealed class TextReviewServiceTests
         Assert.AreEqual("Schreib", third.DerivationEvidence[0].ComponentForm);
     }
 
+    // ----- German Enhanced Term Recognition: Package 5A derived-term lifecycle integrity -----
+
+    /// <summary>
+    /// Drives an active review to completion for "Die Schreibmaschine steht hier.", deciding the derived
+    /// "maschine" candidate Unknown and every other candidate (the Direct compound, derived "schreiben",
+    /// and the ordinary Direct words "Die"/"steht"/"hier") Known. Direct candidates are appended before
+    /// derived ones in document order, so candidates cannot be selected by position.
+    /// </summary>
+    private static async Task<(int MaschineWordId, int SchreibenWordId, ReviewDecisionResult FinalDecision)>
+        CompleteGermanReviewWithMaschineUnknownAsync(TextReviewService service)
+    {
+        var maschineWordId = -1;
+        var schreibenWordId = -1;
+        ReviewDecisionResult? finalDecision = null;
+        while (await service.GetCurrentCandidateAsync() is { } candidate)
+        {
+            if (candidate.Identity == "W:maschine")
+            {
+                maschineWordId = candidate.WordId;
+                finalDecision = await service.DecideAsync(candidate.WordId, WordStatus.UnknownBacklog);
+                continue;
+            }
+
+            if (candidate.Identity == "W:schreiben")
+            {
+                schreibenWordId = candidate.WordId;
+            }
+
+            finalDecision = await service.DecideAsync(candidate.WordId, WordStatus.Known);
+        }
+
+        Assert.AreNotEqual(-1, maschineWordId, "The derived 'maschine' candidate must have been reviewed.");
+        Assert.AreNotEqual(-1, schreibenWordId, "The derived 'schreiben' candidate must have been reviewed.");
+        Assert.IsNotNull(finalDecision);
+        return (maschineWordId, schreibenWordId, finalDecision!);
+    }
+
+    [TestMethod]
+    public async Task CompletingReview_PreservesDerivationEvidenceForUnknownDerivedCandidate()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (maschineWordId, schreibenWordId, decision) = await CompleteGermanReviewWithMaschineUnknownAsync(service);
+        Assert.IsTrue(decision.IsComplete);
+
+        var (candidates, evidence, occurrences) = await _database.ReadAsync(async conn =>
+        {
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            var e = await conn.Table<DerivedTermEvidenceEntity>().ToListAsync();
+            var o = await conn.Table<WordOccurrenceEntity>().ToListAsync();
+            return (c, e, o);
+        });
+
+        var maschineCandidate = candidates.SingleOrDefault(c => c.WordId == maschineWordId);
+        Assert.IsNotNull(maschineCandidate, "The Unknown derived candidate's ReviewCandidateEntity must survive review completion.");
+        Assert.AreEqual(1, evidence.Count, "Only the Unknown derived candidate's evidence may survive review completion.");
+        Assert.AreEqual(maschineCandidate!.Id, evidence[0].ReviewCandidateId);
+        Assert.AreEqual("W:schreibmaschine", evidence[0].SourceIdentity);
+        Assert.AreEqual("Schreibmaschine", evidence[0].SourceSurfaceForm);
+        Assert.AreEqual(4, evidence[0].SourceStartPosition);
+        Assert.AreEqual(15, evidence[0].SourceLength);
+        Assert.AreEqual(0, evidence[0].SourceSentenceOrder);
+
+        Assert.IsFalse(candidates.Any(c => c.WordId == schreibenWordId), "A Known-decided derived candidate must still be cleaned up.");
+        Assert.AreEqual(0, occurrences.Count(o => o.WordId == maschineWordId), "No synthetic WordOccurrence may exist for the derived component.");
+    }
+
+    [TestMethod]
+    public async Task CompletingReview_PreservesSentenceSpanReferencedByDerivedEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (_, _, decision) = await CompleteGermanReviewWithMaschineUnknownAsync(service);
+        Assert.IsTrue(decision.IsComplete);
+
+        var sentences = await _database.ReadAsync(conn =>
+            conn.Table<SentenceSpanEntity>().Where(s => s.DocumentId == result.DocumentId).ToListAsync());
+        Assert.AreEqual(
+            1,
+            sentences.Count,
+            "The sentence span still referenced by surviving derived evidence must not be removed, even though no WordOccurrence references it anymore.");
+    }
+
+    [TestMethod]
+    public async Task Schema11Validation_AcceptsCompletedReviewWithRetainedUnknownDerivedEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (_, _, decision) = await CompleteGermanReviewWithMaschineUnknownAsync(service);
+        Assert.IsTrue(decision.IsComplete);
+
+        // Simulate an app restart: a fresh connection to the same database file re-runs the real startup
+        // initialization/validation path, including Schema11EvidenceValidator, against the retained evidence.
+        var reopenedConnection = new SQLiteAsyncConnection(_database.DatabasePath);
+        try
+        {
+            await DatabaseSchema.InitializeAsync(reopenedConnection);
+        }
+        finally
+        {
+            await reopenedConnection.CloseAsync();
+        }
+    }
+
+    [TestMethod]
+    public async Task PreviouslyKnownDirectIdentity_SuppressesLaterDerivedCandidate()
+    {
+        var now = DateTime.UtcNow;
+        var knownArbeit = new WordEntity
+        {
+            Language = "de",
+            CanonicalTerm = "Arbeit",
+            NormalizedTerm = "W:arbeit",
+            TokenKind = TokenKind.Word,
+            Status = WordStatus.Known,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        await _database.RunInTransactionAsync(conn => conn.Insert(knownArbeit));
+
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Das Arbeitszimmer ist groß.", "de", "de"));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (words, candidates) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            return (w, c);
+        });
+
+        var arbeitWord = words.Single(w => w.NormalizedTerm == "W:arbeit");
+        Assert.AreEqual(WordStatus.Known, arbeitWord.Status, "The permanently Known word must not be reset.");
+        Assert.IsFalse(
+            candidates.Any(c => c.WordId == arbeitWord.Id),
+            "A permanently Known identity must not be reintroduced as a derived review candidate.");
+
+        // The whole compound remains independently reviewable.
+        Assert.IsTrue(candidates.Any(c => words.Single(w => w.Id == c.WordId).NormalizedTerm == "W:arbeitszimmer"));
+    }
+
+    [TestMethod]
+    public async Task PreviouslyKnownDerivedIdentity_SuppressesLaterDerivedCandidate()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        // First import establishes "Arbeit" as Known purely through a derived occurrence (no standalone
+        // "Arbeit" ever appears literally in either document).
+        var firstResult = await service.ImportAsync(
+            new ImportTextRequest("German import 1", "Das Arbeitszimmer ist groß.", "de", "de"));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, firstResult.Outcome);
+
+        while (await service.GetCurrentCandidateAsync() is { } candidate)
+        {
+            await service.DecideAsync(candidate.WordId, WordStatus.Known);
+        }
+
+        var arbeitWordAfterFirstImport = await _database.ReadAsync(conn =>
+            conn.Table<WordEntity>().Where(w => w.NormalizedTerm == "W:arbeit").FirstOrDefaultAsync());
+        Assert.IsNotNull(arbeitWordAfterFirstImport, "The derived component must have created a Word row.");
+        Assert.AreEqual(WordStatus.Known, arbeitWordAfterFirstImport!.Status);
+
+        // Second, unrelated import contains a different compound that also derives "Arbeit".
+        var secondResult = await service.ImportAsync(
+            new ImportTextRequest("German import 2", "Der Arbeitsplatz ist frei.", "de", "de"));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, secondResult.Outcome);
+
+        var (words, candidates) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            return (w, c);
+        });
+
+        var arbeitWord = words.Single(w => w.NormalizedTerm == "W:arbeit");
+        Assert.AreEqual(WordStatus.Known, arbeitWord.Status);
+        Assert.IsFalse(
+            candidates.Any(c => c.WordId == arbeitWord.Id),
+            "An identity already Known via a prior derived occurrence must not be reintroduced as a new derived review candidate.");
+    }
+
     // ----- Package 3 correction: current-schema fail-closed regression coverage. A database that has
     // completed DatabaseSchema.InitializeAsync at CurrentVersion 11 is guaranteed to have a valid
     // DerivedTermEvidenceEntries table; if that table is later missing (corruption, external tampering),

@@ -25,7 +25,8 @@ internal sealed class FixtureGermanLexicon : IGermanLexicon
             ["Bund"] = new("Bund", GermanLexemeCategory.Noun),
             ["Land"] = new("Land", GermanLexemeCategory.Noun),
             ["Fenster"] = new("Fenster", GermanLexemeCategory.Noun),
-            ["Griff"] = new("Griff", GermanLexemeCategory.Noun)
+            ["Griff"] = new("Griff", GermanLexemeCategory.Noun),
+            ["Platz"] = new("Platz", GermanLexemeCategory.Noun)
         };
 
     private static readonly IReadOnlyDictionary<string, GermanCompoundStemEntry> Stems =
@@ -41,7 +42,8 @@ internal sealed class FixtureGermanLexicon : IGermanLexicon
             ["Bund"] = new("Bund", "Bund", GermanLexemeCategory.Noun),
             ["Land"] = new("Land", "Land", GermanLexemeCategory.Noun),
             ["Fenster"] = new("Fenster", "Fenster", GermanLexemeCategory.Noun),
-            ["Griff"] = new("Griff", "Griff", GermanLexemeCategory.Noun)
+            ["Griff"] = new("Griff", "Griff", GermanLexemeCategory.Noun),
+            ["Platz"] = new("Platz", "Platz", GermanLexemeCategory.Noun)
         };
 
     public bool TryLookupLemma(string form, out GermanLexemeEntry? entry)

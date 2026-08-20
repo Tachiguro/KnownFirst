@@ -5,7 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version 10 on `master`. Schema 10 is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below. Merged KF-BACKUP-005B changes portable Active learning-workflow behavior without changing the physical schema version or archive format; its binding current-master contract is recorded explicitly below.
+It describes the current SQLite model at schema version 11 on `master`. Schema 10 is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below; Schema 11 (German Enhanced Term Recognition derivation-evidence persistence) is documented in the [Schema-11 contract](#schema-11-derived-term-evidence-contract) section below. Merged KF-BACKUP-005B changes portable Active learning-workflow behavior without changing the physical schema version or archive format; its binding current-master contract is recorded explicitly below.
 
 ## Storage boundary
 
@@ -19,8 +19,8 @@ It describes the current SQLite model at schema version 10 on `master`. Schema 1
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **10** on `master`.
-A healthy initialized current database on master reports `PRAGMA user_version = 10`.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **11** on `master`.
+A healthy initialized current database on master reports `PRAGMA user_version = 11`.
 
 | Table | Responsibility |
 | --- | --- |
@@ -45,6 +45,7 @@ A healthy initialized current database on master reports `PRAGMA user_version = 
 | `AnswerVariants` | Distinct accepted answer expressions per Sense and answer language |
 | `SenseAnswerVariantAssignments` | Direction-specific Required/AcceptedOnly assignment, preferred flag, and Required-epoch boundary |
 | `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` mastery progress |
+| `DerivedTermEvidenceEntries` | German Enhanced Term Recognition (Schema 11): per-occurrence provenance for a derived compound component, always pointing at the complete whole-compound source span (never a synthetic component occurrence) |
 
 At schema 8 `LearningCards.MeaningId` no longer exists; the card's own preferred
 meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
@@ -53,6 +54,8 @@ meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
 At schema 9, `ReviewSessions` index constraints change to support multiple Completed sessions per `DocumentId`, while restricting to at most one Active session per `DocumentId`. `ReviewSessionStatus.Active = 0`, `ReviewSessionStatus.Completed = 1`.
 
 At schema 10, `LearningSessions` and `LearningSessionCards` carry immutable `StableId` columns and are constrained by unique indexes `IX_LearningSessions_StableId` and `IX_LearningSessionCards_StableId`.
+
+At schema 11, the new `DerivedTermEvidenceEntries` table records provenance for German derived-compound review candidates (`CandidateProvenanceKind.DerivedFromCompound`). A derived candidate never receives a synthetic `WordOccurrenceEntity`; instead its evidence row carries the source compound's identity, exact surface form, whole-compound `SourceStartPosition`/`SourceLength`, sentence order, and component form, always pointing at the real complete source-compound occurrence. Full binding contract: [Schema-11 contract](#schema-11-derived-term-evidence-contract) below and [docs/WORD_ANALYSIS.md](WORD_ANALYSIS.md) "Conservative German derived compound candidates."
 
 Relationships are represented by entity IDs and enforced by transactional
 service operations and tests. Do not introduce a competing representation of
@@ -98,21 +101,22 @@ not report success before the transaction commits.
 - Tests must cover at least the oldest explicitly supported source shape and
   the immediately preceding production schema.
 
-### Schema-10 activation behavior
+### Schema-11 activation behavior
 
 Initialization on master reads `PRAGMA user_version` before touching any table and then
 follows exactly one path:
 
 | Source version | Behavior |
 | --- | --- |
-| Fresh / empty database | Initializes directly to a validated schema 10. |
-| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8, schema 9, and finally to schema 10. |
-| 7 | Migrates to schema 8, then schema 9, and finally to schema 10. |
-| 8 | Validates schema-8 shape, then migrates to schema 9, and finally to schema 10. |
-| 9 | Validates schema-9 shape, then migrates to schema 10 (adds StableId columns, assigns bootstrap identities, creates unique indexes). |
-| 10 (valid) | Validation only. The database is inspected and never mutated. |
-| 10 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
-| Greater than 10 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
+| Fresh / empty database | Initializes directly to a validated schema 11. |
+| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8, schema 9, schema 10, and finally to schema 11. |
+| 7 | Migrates to schema 8, schema 9, schema 10, and finally to schema 11. |
+| 8 | Validates schema-8 shape, then migrates to schema 9, schema 10, and finally to schema 11. |
+| 9 | Validates schema-9 shape, then migrates to schema 10 (adds StableId columns, assigns bootstrap identities, creates unique indexes), and finally to schema 11. |
+| 10 | Validates schema-10 shape, then migrates to schema 11 (creates `DerivedTermEvidenceEntries`). |
+| 11 (valid) | Validation only. The database is inspected and never mutated. |
+| 11 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
+| Greater than 11 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
 
 The legacy enum backfills assign deterministic supported values for
 `Words.TokenKind`, `Words.PreparationState`, `Words.AutomaticInteractionMode`,
@@ -178,11 +182,13 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 
 ## Backup and restore boundary
 
-The supported portable format is the `.kfarchive` archive. A schema-10 database
+The supported portable format is the `.kfarchive` archive. A schema-10 or schema-11 database
 exports archive format **v2** (with trailing nullable workflow StableId extensions),
-and merge safety copies are captured as v2.
-Archive format **v1** remains readable and can still be restored into a schema-10
-target (upgraded in memory for Schema-10 targets).
+and merge safety copies are captured as v2. Schema 11 introduces no archive-format
+change: `DerivedTermEvidenceEntries` is never captured into any archive DTO field; see the
+[Schema-11 contract](#schema-11-derived-term-evidence-contract) below for the exact portable-export boundary.
+Archive format **v1** remains readable and can still be restored into a schema-10/11
+target (upgraded in memory).
 
 Import into an **empty** target uses restore-into-empty. Import into a **populated**
 target is merged transactionally: validation → preflight planning →
@@ -320,18 +326,17 @@ A `StableId` assigned to a `LearningSession` or `LearningSessionCard` row must n
 
 ### Schema-10 activation behavior
 
-Initialization on master reads `PRAGMA user_version` and then follows exactly one path:
+This table describes the schema-10 (StableId) migration step in isolation. Schema 10 is no longer the terminal version on `master`: a source-10 database is validated and then migrates onward to schema 11 — see [Schema-11 activation behavior](#schema-11-activation-behavior) above for the full current terminal path.
 
 | Source version | Behavior |
 | --- | --- |
-| Fresh / empty database | Initializes directly to a validated schema 10. |
-| 0–6 | Advances to schema-7 baseline, enum backfills, schema 8, schema 9, then schema 10. |
-| 7 | Migrates to schema 8, then schema 9, then schema 10. |
-| 8 | Validates schema-8 shape, migrates to schema 9, then schema 10. |
-| 9 | Validates schema-9 shape, then applies schema-10 migration (adds StableId columns, assigns bootstrap identities, creates unique indexes). |
-| 10 (valid) | Validates schema-10 shape. Database is inspected and never mutated. |
+| Fresh / empty database | Initializes directly to a validated schema 10, then continues to schema 11. |
+| 0–6 | Advances to schema-7 baseline, enum backfills, schema 8, schema 9, then schema 10 (then continues to schema 11). |
+| 7 | Migrates to schema 8, then schema 9, then schema 10 (then continues to schema 11). |
+| 8 | Validates schema-8 shape, migrates to schema 9, then schema 10 (then continues to schema 11). |
+| 9 | Validates schema-9 shape, then applies schema-10 migration (adds StableId columns, assigns bootstrap identities, creates unique indexes; then continues to schema 11). |
+| 10 (valid) | Validates schema-10 shape, then continues to schema 11. |
 | 10 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
-| Greater than 10 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
 
 The schema-10 migration is transactional and rollback-safe.
 
@@ -401,3 +406,23 @@ The stable workflow representation remains intentionally reusable by a later cro
 - **KF-BACKUP-005A:** Schema-10 stable learning-workflow identity foundation. Merged via PR #79 (merge commit `e56b8bfa27dfe1d630fbacfed24e6d56ea876026`); `POST_MERGE_SYNC_ONLY` completed successfully.
 - **KF-BACKUP-005B:** merged via PR #81 (feature commit `e8236bba3d23e942014e6979b661e0c77a2a3bdd`, merge commit `dc56e8412966ac32531c4b0358526582702d6d24`); `POST_MERGE_SYNC_ONLY` completed. It is binding current-master behavior for portable Active learning-workflow export and empty-target restore from durable state.
 - **KF-BACKUP-005C:** binding current-master populated-target Active workflow convergence and conflict safety, merged via PR #83 (merge commit `bed54d01624e80ca6dd5adf8af097e64fe33e588`); `POST_MERGE_SYNC_ONLY` completed successfully.
+
+---
+
+## Schema-11 Derived-Term Evidence Contract
+
+**Lifecycle status:** the `DerivedTermEvidenceEntries` table and `DatabaseSchema.CurrentVersion = 11` activation are binding current-`master` behavior, merged via PR #134 (merge commit `6c7a89ed6b4b0fc7701fdca8ec85a38b91bbeeb5`). The post-review-completion **retention/cleanup lifecycle** behavior described below (German Enhanced Term Recognition Package 5A) is an independently reviewed (0 BLOCKER / 0 MAJOR / 0 MINOR) but **still-uncommitted working-tree candidate** on branch `fix/german-derived-lifecycle-integrity-v1`; it is not yet on `master`. See [docs/CURRENT_WORK.md](CURRENT_WORK.md) for exact current lifecycle status.
+
+Schema 11 adds `DerivedTermEvidenceEntries` for German derived-compound review candidates (`CandidateProvenanceKind.DerivedFromCompound`). A derived candidate never receives a `WordOccurrenceEntity` — its `DerivedTermEvidenceEntity` row instead retains the whole-compound source identity, exact surface form, `SourceStartPosition`/`SourceLength` (always the complete source-compound occurrence, never a component sub-span), sentence order, and component form.
+
+Package 5A lifecycle behavior for this evidence:
+
+- When a derived candidate is decided `UnknownBacklog`, its owning `ReviewCandidateEntity` and `DerivedTermEvidenceEntity` row(s) may survive normal review-session completion (`TextReviewService.CompleteSession`), instead of being deleted along with every other candidate. Known/Ignored derived candidates, and every Direct candidate, continue to be cleaned up exactly as before.
+- This retention exists so Preparation can still recover a real source context for the derived word despite the deliberate absence of a synthetic `WordOccurrenceEntity`.
+- The `Document` and exact `SentenceSpan` that a surviving evidence row depends on must remain retained for as long as that evidence exists — generic maintenance cleanup (document/sentence-span sweeps reached from any unrelated review or preparation completion) must not delete them. Genuinely unreferenced documents/sentences with no retained derived evidence remain fully cleanup-eligible.
+- When the retaining word later leaves the Unknown lifecycle through MarkKnown or Exclude, its retained `DerivedTermEvidenceEntries` row(s) and owning `ReviewCandidateEntity` are deleted at that point — retained state does not leak indefinitely.
+- Every surviving `DerivedTermEvidenceEntity` row is validated on every database open (fail-closed) to reference an existing `ReviewCandidateEntity` → `ReviewSessionEntity` → `DocumentEntity`, an in-bounds source range whose substring matches the recorded surface form, exactly one matching `SentenceSpanEntity`, and a `WordEntity` for its source identity.
+
+### Portable-archive boundary for derived-term evidence
+
+`DerivedTermEvidenceEntries` is never captured into any archive DTO field, in either the full/internal backup or the portable-export capture path — no new archive version, no new DTO. Because that table is never exported, a Completed session's `ReviewCandidateEntity` row that exists solely to own retained derivation evidence would otherwise export as a provenance-less item on the target side; the portable mapper excludes exactly that specific candidate row from the exported review-workflow items. A Completed session's other, legitimate candidates (including ones written back by restore/merge) are unaffected and continue to export exactly as before. Cross-installation transport of the derived evidence itself remains unimplemented and is tracked as future work (see `docs/ROADMAP.md` and `docs/BACKLOG.md`, German Package 5A-2).

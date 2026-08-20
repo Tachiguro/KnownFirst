@@ -870,6 +870,21 @@ public sealed partial class PreparationService(
                 connection.Execute("DELETE FROM WordForms WHERE WordId = ?", word.Id);
                 connection.Execute("DELETE FROM ReviewStates WHERE WordId = ?", word.Id);
 
+                // A derived component's DerivedTermEvidenceEntries/owning ReviewCandidateEntity may have
+                // been retained by TextReviewService.CompleteSession while the word stayed Unknown (see
+                // there for why). The word is now leaving the Unknown lifecycle, so that retained state is
+                // no longer needed and must not leak indefinitely. DerivedTermEvidenceEntries is a Schema-11
+                // table and does not exist on a genuine Schema-7 database (German enhanced recognition
+                // requires Schema 11), so this cleanup is gated the same way AcceptAsync already branches.
+                if (AsSchema8CompatibleCapability(PreparationSchemaCapability.Resolve(connection)) is not null)
+                {
+                    connection.Execute(
+                        "DELETE FROM DerivedTermEvidenceEntries WHERE ReviewCandidateId IN (SELECT Id FROM ReviewCandidates WHERE WordId = ?)",
+                        word.Id);
+                }
+
+                connection.Execute("DELETE FROM ReviewCandidates WHERE WordId = ?", word.Id);
+
                 var now = clock.UtcNow;
                 word.Status = finalWordStatus;
                 word.PreparationState = PreparationState.Unprepared;
@@ -1199,6 +1214,19 @@ public sealed partial class PreparationService(
             byKey.TryAdd(key, (context, document));
         }
 
+        // A derived component intentionally has no WordOccurrenceEntity rows, so its display context can
+        // only come from any surviving DerivedTermEvidenceEntity it owns (retained only while the word
+        // remains Unknown, see TextReviewService.CompleteSession). That evidence's FK ownership chain back
+        // to this exact WordId is itself the attribution proof, so IsAttributableToCandidate's surface-form
+        // heuristic (built for occurrence-scanned text) does not apply here. Gated on the post-validation
+        // byKey count — not the raw occurrence row count — so this agrees with the Accept/frozen-evidence
+        // path (ResolveContextDataFromFrozenEvidence) even when raw occurrence rows exist but none of them
+        // actually validate; a corrupted/unusable occurrence row must never suppress the fallback.
+        if (byKey.Count == 0)
+        {
+            await AddDerivedEvidenceContextsAsync(connection, word, byKey);
+        }
+
         string explanationLanguage = word.Language;
         var lookupMode = LexicalLookupMode.Definition;
         string? targetLanguage = null;
@@ -1223,6 +1251,59 @@ public sealed partial class PreparationService(
         }
 
         return (contexts, explanationLanguage, lookupMode, targetLanguage);
+    }
+
+    /// <summary>
+    /// Async counterpart to <see cref="Schema8EvidenceScanner"/>'s derived-evidence fallback, for this
+    /// read-only display path: walks every <see cref="ReviewCandidateEntity"/> retained for
+    /// <paramref name="word"/> and, for each surviving <see cref="DerivedTermEvidenceEntity"/> row it owns,
+    /// builds a context from the real whole-compound source span via <see cref="TryCreateDerivedContext"/>.
+    /// </summary>
+    private static async Task AddDerivedEvidenceContextsAsync(
+        SQLiteAsyncConnection connection,
+        WordEntity word,
+        Dictionary<KnownFirst.Core.Preparation.ContextEvidenceKey, (PreparationContext Context, DocumentEntity Document)> byKey)
+    {
+        var candidateIds = (await connection.Table<ReviewCandidateEntity>()
+                .Where(candidate => candidate.WordId == word.Id)
+                .ToListAsync())
+            .Select(candidate => candidate.Id);
+
+        foreach (var candidateId in candidateIds)
+        {
+            var evidenceRows = await connection.Table<DerivedTermEvidenceEntity>()
+                .Where(evidence => evidence.ReviewCandidateId == candidateId)
+                .ToListAsync();
+            if (evidenceRows.Count == 0)
+            {
+                continue;
+            }
+
+            var candidate = await connection.FindAsync<ReviewCandidateEntity>(candidateId);
+            var session = candidate is null ? null : await connection.FindAsync<ReviewSessionEntity>(candidate.SessionId);
+            var document = session is null ? null : await connection.FindAsync<DocumentEntity>(session.DocumentId);
+            if (document is null)
+            {
+                continue;
+            }
+
+            foreach (var evidence in evidenceRows)
+            {
+                var sentence = await connection.Table<SentenceSpanEntity>()
+                    .Where(item => item.DocumentId == document.Id && item.Order == evidence.SourceSentenceOrder)
+                    .FirstOrDefaultAsync();
+                if (sentence is null || !TryCreateDerivedContext(document, sentence, evidence, out var contextData))
+                {
+                    continue;
+                }
+
+                var context = new PreparationContext(
+                    contextData.DocumentId, contextData.DocumentTitle, contextData.Text, contextData.TargetStart, contextData.TargetLength);
+                var key = KnownFirst.Core.Preparation.PreparationContextEvidencePolicy.CreateKey(
+                    context.DocumentId, context.Text, context.TargetStart, context.TargetLength);
+                byKey.TryAdd(key, (context, document));
+            }
+        }
     }
 
     private static List<ContextData> BuildContextData(SQLiteConnection connection, int wordId)
@@ -1334,6 +1415,50 @@ public sealed partial class PreparationService(
             text,
             relativeStart,
             occurrence.Length);
+        return true;
+    }
+
+    /// <summary>
+    /// Builds a <see cref="ContextData"/> from a derived component's surviving compound evidence — the
+    /// counterpart to <see cref="TryCreateContext"/> for a word that intentionally carries no
+    /// <see cref="WordOccurrenceEntity"/> (<c>CandidateProvenanceKind.DerivedFromCompound</c>). The target
+    /// span is always the evidence's own whole-compound <c>SourceStartPosition</c>/<c>SourceLength</c> —
+    /// never a fabricated sub-span for the derived component. Fails closed (returns false) whenever the
+    /// coordinates do not validate against the real document/sentence text.
+    /// </summary>
+    internal static bool TryCreateDerivedContext(
+        DocumentEntity document,
+        SentenceSpanEntity sentence,
+        DerivedTermEvidenceEntity evidence,
+        out ContextData context)
+    {
+        var relativeStart = evidence.SourceStartPosition - sentence.StartPosition;
+        if (relativeStart < 0
+            || evidence.SourceLength < 0
+            || relativeStart + evidence.SourceLength > sentence.Length
+            || sentence.StartPosition + sentence.Length > document.Content.Length)
+        {
+            context = null!;
+            return false;
+        }
+
+        var text = document.Content.Substring(sentence.StartPosition, sentence.Length);
+        if (!string.Equals(
+            text.Substring(relativeStart, evidence.SourceLength),
+            evidence.SourceSurfaceForm,
+            StringComparison.Ordinal))
+        {
+            context = null!;
+            return false;
+        }
+
+        context = new ContextData(
+            document.Id,
+            document.Title,
+            document.ExplanationLanguage,
+            text,
+            relativeStart,
+            evidence.SourceLength);
         return true;
     }
 

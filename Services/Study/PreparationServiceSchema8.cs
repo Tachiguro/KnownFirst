@@ -450,7 +450,8 @@ public sealed partial class PreparationService
         // its own recorded coordinates is not a surface form already registered for this Word.
         var recognizedSurfaceForms = LoadRecognizedSurfaceForms(connection, wordId);
         var byKey = new Dictionary<KnownFirst.Core.Preparation.ContextEvidenceKey, ContextData>();
-        foreach (var context in Schema8EvidenceScanner.EnumerateAllValidContexts(connection, wordId))
+        var occurrenceContexts = Schema8EvidenceScanner.EnumerateOccurrenceContexts(connection, wordId);
+        foreach (var context in occurrenceContexts)
         {
             if (!IsAttributableToCandidate(wordId, context.Text, context.TargetStart, context.TargetLength, recognizedSurfaceForms))
             {
@@ -460,6 +461,19 @@ public sealed partial class PreparationService
             var key = KnownFirst.Core.Preparation.PreparationContextEvidencePolicy.CreateKey(
                 context.DocumentId, context.Text, context.TargetStart, context.TargetLength);
             byKey.TryAdd(key, context);
+        }
+
+        // A derived component intentionally has no WordOccurrenceEntity rows: its surviving evidence's FK
+        // ownership chain back to this exact WordId is itself the attribution proof, so the surface-form
+        // heuristic above (built for occurrence-scanned text) does not apply here.
+        if (occurrenceContexts.Count == 0)
+        {
+            foreach (var context in Schema8EvidenceScanner.EnumerateDerivedEvidenceContexts(connection, wordId))
+            {
+                var key = KnownFirst.Core.Preparation.PreparationContextEvidencePolicy.CreateKey(
+                    context.DocumentId, context.Text, context.TargetStart, context.TargetLength);
+                byKey.TryAdd(key, context);
+            }
         }
 
         var result = new List<ContextData>();

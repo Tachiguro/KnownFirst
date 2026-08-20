@@ -1106,7 +1106,19 @@ public static class BackupModelMapperV2
         ReviewSessionEntity session, Schema8BackupSnapshot snapshot, Dictionary<int, string> reviewSessionIdMap,
         Dictionary<int, string> docIdMap, Dictionary<int, string> reviewCandidateIdMap, Dictionary<int, string> vocabIdMap)
     {
-        var items = snapshot.ReviewCandidates.Where(i => i.SessionId == session.Id).OrderBy(i => i.Order)
+        // German Enhanced Term Recognition Package 5A retains a derived component's ReviewCandidateEntity
+        // past review completion while the word stays Unknown, solely so its owning DerivedTermEvidenceEntries
+        // (never exported anywhere in the V2 archive) can back real Preparation context locally. A Completed
+        // session's other candidates — including ones legitimately written back by restore/merge for a
+        // completed history (see PortableExport_NeverEmitsTwoReviewItemsSharingOneVocabularyIdInOneWorkflow) —
+        // are unaffected and continue to export exactly as before. Only the specific candidate rows the
+        // Schema-11 enrichment step identified as owning derived evidence are excluded here, since exporting
+        // one without its evidence would be a provenance-less, newly-reachable shape this package does not
+        // intend to transport (Package 5A-2 territory).
+        var owningIds = snapshot.DerivedTermEvidenceOwningReviewCandidateIds;
+        var items = snapshot.ReviewCandidates.Where(i => i.SessionId == session.Id)
+            .Where(i => owningIds is null || !owningIds.Contains(i.Id))
+            .OrderBy(i => i.Order)
             .Select(i => new BackupVocabularyReviewItem(
                 reviewCandidateIdMap.TryGetValue(i.Id, out var rcId) ? rcId : "rc-000000-missing",
                 vocabIdMap.TryGetValue(i.WordId, out var vId) ? vId : "v-000000-missing",

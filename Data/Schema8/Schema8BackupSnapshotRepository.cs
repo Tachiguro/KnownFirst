@@ -198,6 +198,37 @@ public static class Schema8BackupSnapshotRepository
         };
     }
 
+    /// <summary>
+    /// Returns <paramref name="snapshot"/> enriched with the set of captured <c>ReviewCandidates</c> row
+    /// ids that own at least one Schema-11 <c>DerivedTermEvidenceEntries</c> row (German Enhanced Term
+    /// Recognition Package 5A). Issued as its own statement, exactly like
+    /// <see cref="WithSchema10LearningIdentities"/>, so the Schema-8/9/10 capture queries above stay
+    /// byte-for-byte valid against a database that has no <c>DerivedTermEvidenceEntries</c> table at all.
+    /// Callers must have resolved a <see cref="Services.DataSafety.ValidatedSchema11Capability"/> first.
+    /// Restricted to ids already present in <paramref name="snapshot"/>'s captured
+    /// <c>ReviewCandidates</c> — a row already excluded by a portable-export filter (e.g. an Active-session
+    /// candidate under <see cref="CapturePortableSnapshot"/>) is never spuriously reintroduced here.
+    /// </summary>
+    public static Schema8BackupSnapshot WithSchema11DerivedEvidenceOwningCandidateIds(
+        SQLiteConnection connection, Schema8BackupSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var candidateIds = snapshot.ReviewCandidates.Select(candidate => candidate.Id).ToHashSet();
+        var owningIds = connection.Query<DerivedEvidenceOwnerRow>(
+                "SELECT DISTINCT ReviewCandidateId FROM DerivedTermEvidenceEntries")
+            .Select(row => row.ReviewCandidateId)
+            .Where(candidateIds.Contains)
+            .ToHashSet();
+
+        return snapshot with { DerivedTermEvidenceOwningReviewCandidateIds = owningIds };
+    }
+
+    private sealed class DerivedEvidenceOwnerRow
+    {
+        public int ReviewCandidateId { get; set; }
+    }
+
     private static Dictionary<int, string> ReadStableIds(SQLiteConnection connection, string table) =>
         connection.Query<Schema10StableIdRow>($"SELECT Id, StableId FROM {table}")
             .ToDictionary(row => row.Id, row => row.StableId);

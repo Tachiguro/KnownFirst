@@ -21,6 +21,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\KnownFirst.Core\Text\German\Assets\german-lexicon.v2.kfgl" Link="Fixtures\German\german-lexicon.v2.kfgl" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Same source file as KnownFirst.csproj's EmbeddedResource, under the identical
+         LogicalName, so BundledGermanLexiconTests can exercise the real production
+         resource-resolution path against the real bundle bytes without a second on-disk copy
+         and without referencing the non-referenceable MAUI head project. -->
+    <EmbeddedResource Include="..\KnownFirst.Core\Text\German\Assets\german-lexicon.v2.kfgl" LogicalName="KnownFirst.Resources.German.german-lexicon.v2.kfgl" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Fixtures\Wiktionary\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\Wikipedia\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\ReviewWords.razor" Link="Ui\ReviewWords.razor" CopyToOutputDirectory="PreserveNewest" />
@@ -69,6 +78,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KnownFirst.Core\KnownFirst.Core.csproj" />
+    <ProjectReference Include="..\scripts\tools\GermanLexiconGenerator\GermanLexiconGenerator.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -92,6 +102,7 @@
     <Compile Include="..\Data\Migrations\Schema8\*.cs" Link="Production\Data\Migrations\Schema8\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Migrations\Schema9\*.cs" Link="Production\Data\Migrations\Schema9\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Migrations\Schema10\*.cs" Link="Production\Data\Migrations\Schema10\%(Filename)%(Extension)" />
+    <Compile Include="..\Data\Migrations\Schema11\*.cs" Link="Production\Data\Migrations\Schema11\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Schema8\*.cs" Link="Production\Data\Schema8\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Schema10\*.cs" Link="Production\Data\Schema10\%(Filename)%(Extension)" />
     <Compile Include="..\Models\*.cs" Link="Production\Models\%(Filename)%(Extension)" />

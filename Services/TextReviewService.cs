@@ -18,11 +18,32 @@ namespace KnownFirst.Services;
 public sealed class TextReviewService(
     IKnownFirstDatabase database,
     TextAnalyzer analyzer,
+    IAppSettingsService appSettings,
+    IGermanLexicon germanLexicon,
     ILogger<TextReviewService>? logger = null) : ITextReviewService
 {
+    private readonly IAppSettingsService _appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
+    private readonly IGermanLexicon _germanLexicon = germanLexicon ?? throw new ArgumentNullException(nameof(germanLexicon));
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly ILogger<TextReviewService> _logger =
         logger ?? NullLogger<TextReviewService>.Instance;
+
+    /// <summary>
+    /// Single centralized analyzer invocation for every analysis path in this service (the
+    /// productive import path and the DEBUG-only analysis report), so enhanced German term
+    /// recognition behaves identically everywhere text is analyzed. Reads the current
+    /// <see cref="IAppSettingsService.EnhancedTermRecognitionEnabled"/> value fresh on every
+    /// call — no restart is required after changing the setting. <see cref="TextAnalyzer"/>'s own
+    /// language gate (German source language only) decides whether the injected German lexicon
+    /// is ever actually queried; when the setting is off, the lexicon is never queried and the
+    /// production bundle it may lazily wrap is never loaded.
+    /// </summary>
+    private TextAnalysisResult AnalyzeContent(string content, string? textLanguage) =>
+        analyzer.Analyze(
+            content,
+            textLanguage,
+            _appSettings.EnhancedTermRecognitionEnabled,
+            _germanLexicon);
 
     public async Task<ImportAnalysisResult> ImportAsync(ImportTextRequest request)
     {
@@ -39,7 +60,7 @@ public sealed class TextReviewService(
         try
         {
             ValidateImport(request);
-            var analysis = analyzer.Analyze(request.Content, request.TextLanguage);
+            var analysis = AnalyzeContent(request.Content, request.TextLanguage);
             var contentFingerprint = CreateContentFingerprint(request.Content);
             _logger.LogDebug(
                 "Text analysis completed. Fingerprint = {ContentFingerprint}, sentence count = {SentenceCount}, candidate count = {CandidateCount}, occurrence count = {OccurrenceCount}, duration milliseconds = {DurationMilliseconds}",
@@ -177,6 +198,26 @@ public sealed class TextReviewService(
             })
             .ToArray();
 
+        var evidenceRows = await connection.Table<DerivedTermEvidenceEntity>()
+            .Where(evidence => evidence.ReviewCandidateId == candidate.Id)
+            .OrderBy(evidence => evidence.SourceStartPosition)
+            .ThenBy(evidence => evidence.SourceIdentity)
+            .ToListAsync();
+
+        var derivationEvidence = evidenceRows
+            .Select(evidence => new DerivedTermEvidence(
+                evidence.SourceIdentity,
+                evidence.SourceSurfaceForm,
+                evidence.SourceStartPosition,
+                evidence.SourceLength,
+                evidence.SourceSentenceOrder,
+                evidence.ComponentForm))
+            .ToArray();
+
+        var provenance = derivationEvidence.Length > 0
+            ? CandidateProvenanceKind.DerivedFromCompound
+            : CandidateProvenanceKind.Direct;
+
         return new ReviewCandidateDetails(
             document.Id,
             word.Id,
@@ -190,7 +231,9 @@ public sealed class TextReviewService(
             contexts,
             session.ReviewedCount,
             session.TotalCandidates,
-            session.ReviewedCount > 0);
+            session.ReviewedCount > 0,
+            provenance,
+            derivationEvidence);
     });
 
     public async Task<ReviewDecisionResult> DecideAsync(int wordId, WordStatus status)
@@ -293,7 +336,7 @@ public sealed class TextReviewService(
                 return null;
             }
 
-            var analysis = analyzer.Analyze(document.Content, document.TextLanguage);
+            var analysis = AnalyzeContent(document.Content, document.TextLanguage);
             var diagnostics = analysis.Diagnostics
                 ?? throw new InvalidOperationException("DEBUG word-analysis diagnostics were not created.");
             var sentences = analysis.Sentences.Select(sentence => new AnalysisSentenceDetails(
@@ -319,7 +362,7 @@ public sealed class TextReviewService(
 
     public async Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync()
     {
-        var schemaCapability = await database.ExecuteSnapshotAsync(BackupSchemaCapability.Resolve);
+        var capability = await database.ExecuteSnapshotAsync(BackupSchemaCapability.Resolve);
         return await database.ReadAsync(async connection =>
         {
         var documents = await connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToListAsync();
@@ -332,14 +375,14 @@ public sealed class TextReviewService(
         var preparationSessions = await connection.Table<PreparationSessionEntity>().OrderBy(item => item.Id).ToListAsync();
         var preparationCandidates = await connection.Table<PreparationCandidateEntity>().OrderBy(item => item.Id).ToListAsync();
         var meanings = await connection.Table<MeaningEntity>().OrderBy(item => item.Id).ToListAsync();
-        var learningCards = schemaCapability switch
+        var learningCards = capability switch
         {
             Schema7CapabilityResult => (await connection.Table<LearningCardEntity>()
                     .OrderBy(item => item.Id)
                     .ToListAsync())
                 .Select(card => DiagnosticLearningCardRow.FromSchema7(card))
                 .ToArray(),
-            Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult => (await connection.QueryAsync<DiagnosticLearningCardRow>(
+            Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult => (await connection.QueryAsync<DiagnosticLearningCardRow>(
                 """
                 SELECT Id, WordId, PreferredMeaningId AS MeaningId, Direction, State, DueAtUtc,
                        IntervalDays, EaseFactor, LastRating
@@ -347,7 +390,7 @@ public sealed class TextReviewService(
                 ORDER BY Id
                 """))
                 .ToArray(),
-            _ => throw new InvalidOperationException("Unsupported backup schema capability result.")
+            _ => throw new InvalidOperationException("Unsupported schema capability result.")
         };
         var learningReviews = await connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToListAsync();
         var learningSessions = await connection.Table<LearningSessionEntity>().OrderBy(item => item.Id).ToListAsync();
@@ -726,7 +769,7 @@ public sealed class TextReviewService(
                 analyzedCandidate.Occurrences);
             expectedPersistedOccurrenceCount += analyzedCandidate.Occurrences.Count;
 
-            connection.Insert(new ReviewCandidateEntity
+            var candidateEntity = new ReviewCandidateEntity
             {
                 SessionId = session.Id,
                 WordId = word.Id,
@@ -737,7 +780,25 @@ public sealed class TextReviewService(
                 PreviousDocumentCount = previousDocumentCount,
                 PreviousUpdatedAt = previousUpdatedAt,
                 WasWordCreatedForSession = wordWasCreated
-            });
+            };
+            connection.Insert(candidateEntity);
+
+            if (analyzedCandidate.Provenance == CandidateProvenanceKind.DerivedFromCompound)
+            {
+                foreach (var evidence in analyzedCandidate.DerivedEvidence)
+                {
+                    connection.Insert(new DerivedTermEvidenceEntity
+                    {
+                        ReviewCandidateId = candidateEntity.Id,
+                        SourceIdentity = evidence.SourceIdentity,
+                        SourceSurfaceForm = evidence.SourceSurfaceForm,
+                        SourceStartPosition = evidence.SourceStartPosition,
+                        SourceLength = evidence.SourceLength,
+                        SourceSentenceOrder = evidence.SourceSentenceOrder,
+                        ComponentForm = evidence.ComponentForm
+                    });
+                }
+            }
         }
 
         session.TotalCandidates = reviewOrder;
@@ -885,6 +946,9 @@ public sealed class TextReviewService(
             connection.Update(existingUnknown);
         }
 
+        connection.Execute(
+            "DELETE FROM DerivedTermEvidenceEntries WHERE ReviewCandidateId IN (SELECT Id FROM ReviewCandidates WHERE SessionId = ?)",
+            session.Id);
         connection.Execute("DELETE FROM WordOccurrences WHERE DocumentId = ?", session.DocumentId);
         connection.Execute("DELETE FROM SentenceSpans WHERE DocumentId = ?", session.DocumentId);
         connection.Execute("DELETE FROM ReviewCandidates WHERE SessionId = ?", session.Id);
@@ -949,6 +1013,9 @@ public sealed class TextReviewService(
 
         RemoveUnreferencedSentenceSpans(connection, affectedDocumentIds);
 
+        connection.Execute(
+            "DELETE FROM DerivedTermEvidenceEntries WHERE ReviewCandidateId IN (SELECT Id FROM ReviewCandidates WHERE SessionId = ?)",
+            session.Id);
         connection.Execute("DELETE FROM ReviewCandidates WHERE SessionId = ?", session.Id);
 
         if (session.UnknownCount == 0 && existingUnknownWordIds.Length == 0)

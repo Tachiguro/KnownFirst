@@ -1,7 +1,7 @@
 namespace KnownFirst.Core.Text;
 
 /// <summary>
-/// One lexicon-resolved component of a conservative two-component German compound decomposition.
+/// One lexicon-resolved component of a conservative German compound decomposition.
 /// </summary>
 /// <param name="ComponentForm">
 /// The literal substring of the source compound this component was resolved from. Carries no

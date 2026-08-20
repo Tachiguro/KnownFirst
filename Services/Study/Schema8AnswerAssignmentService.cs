@@ -88,11 +88,11 @@ public sealed class Schema8AnswerAssignmentService
         }
 
         // ---- 2. Capability and physical shape (fail-closed before anything is read semantically) ----
-        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult))
+        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult))
         {
             throw Schema8LearningDataException.Create(
                 Schema8LearningDataErrorCode.InvalidCardGraph,
-                "Answer assignments can only be mutated against a validated Schema-8 or Schema-9 database.");
+                "Answer assignments can only be mutated against a validated Schema-8, Schema-9, Schema-10, or Schema-11 database.");
         }
 
         // ---- 3. Direction and referenced rows ----

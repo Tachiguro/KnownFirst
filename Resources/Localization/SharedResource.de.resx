@@ -651,6 +651,21 @@
   <data name="Settings_LearningModeSaved" xml:space="preserve">
     <value>Lernmodus gespeichert.</value>
   </data>
+  <data name="Settings_EnhancedTermRecognition" xml:space="preserve">
+    <value>Erweiterte Begriffserkennung</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionHelp" xml:space="preserve">
+    <value>Erkennt zusätzliche deutsche Wortbestandteile, etwa Bestandteile von Komposita, mit einem lokalen, offline arbeitenden Erkennungsmodell. Das ist unabhängig von der Online-Wörterbuchabfrage und sendet nie Daten über das Netzwerk.</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionOn" xml:space="preserve">
+    <value>An</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionOff" xml:space="preserve">
+    <value>Aus</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionSaved" xml:space="preserve">
+    <value>Einstellung für erweiterte Begriffserkennung gespeichert.</value>
+  </data>
   <data name="Settings_OnlineDictionary" xml:space="preserve">
     <value>Online-Wörterbuch</value>
   </data>

@@ -637,6 +637,26 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void KnownFirstProject_EmbedsGermanLexiconBundleExactlyOnceUnderExplicitResourceName()
+    {
+        var project = LoadUi("KnownFirst.csproj");
+
+        Assert.AreEqual(
+            1,
+            CountOccurrences(project, "<EmbeddedResource Include=\"KnownFirst.Core\\Text\\German\\Assets\\german-lexicon.v2.kfgl\""),
+            "KnownFirst.csproj must reference the German lexicon bundle exactly once.");
+        Assert.Contains(
+            $"LogicalName=\"{KnownFirst.Services.Lexical.BundledGermanLexicon.ResourceName}\"",
+            project);
+
+        // Not a MauiAsset: MauiAsset ships a loose file read via async platform FileSystem APIs.
+        // The bundle must instead be an EmbeddedResource so the production wrapper can open it
+        // with one explicit, synchronous, name-based stream open — no async-over-sync on the UI
+        // thread, no platform filesystem assumptions, no resource/assembly scanning.
+        Assert.DoesNotContain("<MauiAsset Include=\"KnownFirst.Core", project, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void Import_UsesExplicitLookupModeAndRejectsIdenticalTargetLanguage()
     {
         var markup = LoadUi("ImportText.razor");
@@ -1345,6 +1365,33 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("AppSettings.GrantOnlineLookupConsent()", markup);
         Assert.Contains("_onlineConsentActivated = true", markup);
         Assert.Contains("_onlineConsentRevoked = false", markup);
+    }
+
+    [TestMethod]
+    public void Settings_OffersEnhancedTermRecognitionToggleBoundToExistingSettingWithoutOnlineConsent()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var sectionStart = markup.IndexOf("id=\"enhanced-term-recognition-title\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, sectionStart);
+        var sectionEnd = markup.IndexOf("</section>", sectionStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(sectionStart, sectionEnd);
+        var section = markup[sectionStart..sectionEnd];
+
+        Assert.Contains("Settings_EnhancedTermRecognition\"", section);
+        Assert.Contains("Settings_EnhancedTermRecognitionHelp", section);
+        Assert.Contains("Settings_EnhancedTermRecognitionOn", section);
+        Assert.Contains("Settings_EnhancedTermRecognitionOff", section);
+        Assert.Contains("Settings_EnhancedTermRecognitionSaved", section);
+        Assert.Contains("_enhancedTermRecognitionEnabled", section);
+        Assert.Contains("SetEnhancedTermRecognition", section);
+
+        Assert.DoesNotContain("HasOnlineLookupConsent", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("GrantOnlineLookupConsent", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", section, StringComparison.Ordinal);
+
+        Assert.Contains("AppSettings.SetEnhancedTermRecognitionEnabled(enabled)", markup);
+        Assert.Contains("AppSettings.EnhancedTermRecognitionEnabled", markup);
     }
 
     [TestMethod]

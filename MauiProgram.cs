@@ -100,6 +100,10 @@ public static class MauiProgram
         builder.Services.AddSingleton<IDashboardService, DashboardService>();
         builder.Services.AddSingleton<ISentenceSegmenter, DeterministicSentenceSegmenter>();
         builder.Services.AddSingleton<TextAnalyzer>();
+        // German Enhanced Term Recognition (Package 2): the production offline IGermanLexicon,
+        // lazily backed by the embedded german-lexicon.v2.kfgl bundle. Registering it does not
+        // load the ~11 MB bundle; only an actual enhanced German lookup does.
+        builder.Services.AddSingleton<IGermanLexicon, BundledGermanLexicon>();
         builder.Services.AddSingleton<ITextReviewService, TextReviewService>();
 #if DEBUG
         builder.Services.AddSingleton<DebugLearningClock>(_ => new(TimeProvider.System));

@@ -13,7 +13,7 @@
         <Nullable>enable</Nullable>
         <NeutralLanguage>en</NeutralLanguage>
         <Configurations>Debug;Release;BetaDiagnostic</Configurations>
-        <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;KnownFirst.Core\**;KnownFirst.Tests\**;artifacts\**;temp\**;TestResults\**;.vs\**;**\*.log;**\*.binlog</DefaultItemExcludes>
+        <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;KnownFirst.Core\**;KnownFirst.Tests\**;artifacts\**;temp\**;TestResults\**;.vs\**;**\*.log;**\*.binlog;scripts\tools\GermanLexiconGenerator\**</DefaultItemExcludes>
 
         <!-- Enable XAML source generation for faster build times and improved performance.
              This generates C# code from XAML at compile time instead of runtime inflation.
@@ -184,6 +184,17 @@
 
         <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
         <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- German Enhanced Term Recognition (Package 2): the single approved Package-1
+             production German morphology lexicon bundle, embedded directly into this assembly
+             under one explicit, stable resource name — never assembly/resource scanning, never a
+             loose file the app reads by mutable path. No per-target-framework condition, so the
+             same single bundle ships for both Windows and Android. See
+             Services\Lexical\BundledGermanLexicon.cs. -->
+        <EmbeddedResource Include="KnownFirst.Core\Text\German\Assets\german-lexicon.v2.kfgl"
+                           LogicalName="KnownFirst.Resources.German.german-lexicon.v2.kfgl" />
     </ItemGroup>
 
     <ItemGroup>

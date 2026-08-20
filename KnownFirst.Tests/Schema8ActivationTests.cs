@@ -34,7 +34,7 @@ public sealed class Schema8ActivationTests
 
             BackupSchemaCapabilityResult? capability = null;
             await connection.RunInTransactionAsync(sqlite => capability = BackupSchemaCapability.Resolve(sqlite));
-            Assert.IsInstanceOfType<Schema10CapabilityResult>(capability);
+            Assert.IsInstanceOfType<Schema11CapabilityResult>(capability);
         }
         finally
         {
@@ -645,8 +645,8 @@ public sealed class Schema8ActivationTests
             learningCapability = LearningSchemaCapability.Resolve(connection);
             preparationCapability = PreparationSchemaCapability.Resolve(connection);
         });
-        Assert.IsInstanceOfType<LearningSchema10CapabilityResult>(learningCapability);
-        Assert.IsInstanceOfType<PreparationSchema10CapabilityResult>(preparationCapability);
+        Assert.IsInstanceOfType<LearningSchema11CapabilityResult>(learningCapability);
+        Assert.IsInstanceOfType<PreparationSchema11CapabilityResult>(preparationCapability);
 
         var clock = new FakeClock(DateTime.UtcNow.AddDays(1));
         var learning = new LearningService(

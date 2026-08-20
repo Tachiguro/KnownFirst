@@ -5,13 +5,14 @@ using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Migrations.Schema10;
+using KnownFirst.Data.Migrations.Schema11;
 using SQLite;
 
 namespace KnownFirst.Data;
 
 public static class DatabaseSchema
 {
-    public const int CurrentVersion = 10;
+    public const int CurrentVersion = 11;
 
     public static async Task InitializeAsync(SQLiteAsyncConnection connection)
     {
@@ -44,7 +45,12 @@ public static class DatabaseSchema
             await Schema9DormantMigration.ApplyAsync(connection);
         }
 
-        await Schema10DormantMigration.ApplyAsync(connection);
+        if (existingVersion <= Schema10DormantMigration.TargetVersion)
+        {
+            await Schema10DormantMigration.ApplyAsync(connection);
+        }
+
+        await Schema11DormantMigration.ApplyAsync(connection);
         await connection.ExecuteAsync("DELETE FROM LexicalCache WHERE CacheKey NOT LIKE 'v2|%'");
     }
 

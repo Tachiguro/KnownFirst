@@ -141,6 +141,7 @@ public sealed class BackupService(
                     Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
@@ -247,12 +248,13 @@ public sealed class BackupService(
                     Schema8CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
             });
 
-            if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult) && targetHasDurableData)
+            if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult) && targetHasDurableData)
             {
                 return await ImportIntoPopulatedSchema8Async(validated, cancellationToken);
             }
@@ -289,6 +291,7 @@ public sealed class BackupService(
                     case Schema8CapabilityResult:
                     case Schema9CapabilityResult:
                     case Schema10CapabilityResult:
+                    case Schema11CapabilityResult:
                         if (Schema8BackupImportRepository.HasDurableUserData(connection))
                         {
                             return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
@@ -298,9 +301,9 @@ public sealed class BackupService(
                             ? validated.V2.Payload
                             : BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
 
-                        // Schema 9 shares Schema 8's meaning-centric data model exactly (index-only
-                        // activation), so a fresh proof object satisfies the repository's Schema-8 capability
-                        // requirement identically to a resolved one.
+                        // Schema 9, 10, and 11 share Schema 8's meaning-centric data model (additive
+                        // stable-id / derivation-evidence activations), so a fresh proof object satisfies
+                        // the repository's Schema-8 capability requirement identically to a resolved one.
                         var schema8ImportCapability = resolvedCapability is Schema8CapabilityResult schema8
                             ? schema8.Capability
                             : new ValidatedSchema8Capability();
@@ -478,6 +481,12 @@ public sealed class BackupService(
                 var payloadV2FromSchema10 = BackupModelMapperV2.MapToExternal(schema10.Snapshot);
                 await BackupArchiveWriterV2.WriteArchiveAsync(
                     payloadV2FromSchema10, platformInfo, schema10.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
+                break;
+
+            case CapturedSchema11SnapshotEnvelope schema11:
+                var payloadV2FromSchema11 = BackupModelMapperV2.MapToExternal(schema11.Snapshot);
+                await BackupArchiveWriterV2.WriteArchiveAsync(
+                    payloadV2FromSchema11, platformInfo, schema11.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
                 break;
 
             default:

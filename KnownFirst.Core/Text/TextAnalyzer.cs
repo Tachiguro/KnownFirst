@@ -125,8 +125,10 @@ public sealed partial class TextAnalyzer
                 continue;
             }
 
-            AccumulateDerivedEvidence(candidate, decomposition.LeftComponent, directIdentities, derivedByIdentity);
-            AccumulateDerivedEvidence(candidate, decomposition.RightComponent, directIdentities, derivedByIdentity);
+            foreach (var component in decomposition.Components)
+            {
+                AccumulateDerivedEvidence(candidate, component, directIdentities, derivedByIdentity);
+            }
         }
 
         if (derivedByIdentity.Count == 0)

@@ -103,10 +103,10 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
         }
 
-        if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult)
+        if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult)
         {
             var useSchema10ActiveLearningPreflightCapture =
-                archiveContainsActiveLearning && targetCapability is Schema10CapabilityResult;
+                archiveContainsActiveLearning && targetCapability is Schema10CapabilityResult or Schema11CapabilityResult;
             KnownFirst.Data.Schema8.Schema8PortableSnapshotCaptureResult captureResultV2;
             try
             {
@@ -118,7 +118,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
                     var captured = useSchema10ActiveLearningPreflightCapture
                         ? Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForSchema10ActiveLearningMergePreflight(connection)
                         : Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
-                    return captured.Snapshot is null || BackupSchemaCapability.Resolve(connection) is not Schema10CapabilityResult
+                    return captured.Snapshot is null || BackupSchemaCapability.Resolve(connection) is not (Schema10CapabilityResult or Schema11CapabilityResult)
                         ? captured
                         : captured with
                         {

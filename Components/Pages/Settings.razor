@@ -211,6 +211,33 @@
         }
     </section>
 
+    <section class="settings-card" aria-labelledby="enhanced-term-recognition-title">
+        <h2 id="enhanced-term-recognition-title">@Localizer["Settings_EnhancedTermRecognition"]</h2>
+        <p id="enhanced-term-recognition-help" class="setting-help">@Localizer["Settings_EnhancedTermRecognitionHelp"]</p>
+        <div class="choice-grid choice-grid-two" role="group" aria-describedby="enhanced-term-recognition-help">
+            <button type="button"
+                    id="enhanced-term-recognition-on-button"
+                    class="choice-button @(_enhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@_enhancedTermRecognitionEnabled"
+                    @onclick="() => SetEnhancedTermRecognition(true)">
+                @Localizer["Settings_EnhancedTermRecognitionOn"]
+            </button>
+            <button type="button"
+                    id="enhanced-term-recognition-off-button"
+                    class="choice-button @(!_enhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@(!_enhancedTermRecognitionEnabled)"
+                    @onclick="() => SetEnhancedTermRecognition(false)">
+                @Localizer["Settings_EnhancedTermRecognitionOff"]
+            </button>
+        </div>
+        @if (_enhancedTermRecognitionSaved)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">
+                @Localizer["Settings_EnhancedTermRecognitionSaved"]
+            </p>
+        }
+    </section>
+
     <section class="settings-card" aria-labelledby="portable-data-title">
         <h2 id="portable-data-title">@Localizer["Settings_PortableData"]</h2>
         <p>@Localizer["Settings_PortableDataDescription"]</p>
@@ -464,6 +491,8 @@
     private bool _learningModeSaved;
     private bool _onlineConsentRevoked;
     private bool _onlineConsentActivated;
+    private bool _enhancedTermRecognitionEnabled;
+    private bool _enhancedTermRecognitionSaved;
     private bool _isPortableDataOperation;
     private bool _portableDataOperationFailed;
     private string? _portableDataMessageKey;
@@ -502,6 +531,7 @@
         _selectedPreparationLimit = AppSettings.PreparationLimit;
         _selectedCardDirection = AppSettings.CardDirection;
         _selectedLearningMode = AppSettings.LearningMode;
+        _enhancedTermRecognitionEnabled = AppSettings.EnhancedTermRecognitionEnabled;
         _languageConfirmation = SettingsFeedback.ConsumePendingLanguageConfirmation();
         _hasActiveReview = await TextReviewService.GetActiveReviewAsync() is not null;
     }
@@ -650,6 +680,18 @@
         AppSettings.SetLearningMode(mode);
         _selectedLearningMode = AppSettings.LearningMode;
         _learningModeSaved = true;
+    }
+
+    private void SetEnhancedTermRecognition(bool enabled)
+    {
+        if (_enhancedTermRecognitionEnabled == enabled)
+        {
+            return;
+        }
+
+        AppSettings.SetEnhancedTermRecognitionEnabled(enabled);
+        _enhancedTermRecognitionEnabled = AppSettings.EnhancedTermRecognitionEnabled;
+        _enhancedTermRecognitionSaved = true;
     }
 
     private void RevokeOnlineConsent()

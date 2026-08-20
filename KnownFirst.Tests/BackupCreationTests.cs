@@ -1444,7 +1444,17 @@ public class BackupCreationTests
     {
         await using var database = new TemporarySchema8Database("knownfirst-review-export-invariant");
         await database.InitializeAsync();
-        var service = new KnownFirst.Services.TextReviewService(database, new KnownFirst.Core.Text.TextAnalyzer());
+        // This test characterizes the portable-export duplicate-vocabulary-id invariant, not literal-version
+        // behavior. The fixture upgrades immediately after construction so TextReviewService's
+        // review-selection/completion methods, which now require the current schema, keep working; the
+        // later Schema8BackupSnapshotRepository capture call is schema-version-agnostic at the raw-table
+        // level (Schema 9-11 share Schema 8's meaning-centric data model exactly).
+        await database.UpgradeToCurrentSchemaAsync();
+        var service = new KnownFirst.Services.TextReviewService(
+            database,
+            new KnownFirst.Core.Text.TextAnalyzer(),
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
 
         var importResult = await service.ImportAsync(new KnownFirst.Models.ImportTextRequest(
             "Repeated identity document",

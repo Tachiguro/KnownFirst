@@ -49,8 +49,14 @@ public sealed class DiagnosticsExportImportStaleReaderRegressionTests
     {
         _database = new TemporarySchema8Database("knownfirst-stale-reader-regression");
         await _database.InitializeAsync();
+        // This class characterizes a stale-reader defect in the JSON envelope PreparationService writes,
+        // not any behavior tied to a literal PRAGMA user_version — the codec-written envelope shape is
+        // unchanged across Schema 8-11. TextReviewService's review-selection/completion methods used for
+        // setup now require the current schema, so the fixture upgrades immediately after construction.
+        await _database.UpgradeToCurrentSchemaAsync();
         _clock = new FakeClock(Now);
-        _review = new TextReviewService(_database, new TextAnalyzer());
+        _review = new TextReviewService(
+            _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
         _provider = new MutableProvider(_clock);
         _preparation = CreatePreparationService(_provider);
     }

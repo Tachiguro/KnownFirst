@@ -272,6 +272,38 @@ public sealed class WindowsPackageVersionMappingTests
         }
     }
 
+    // --- Nested tool-project isolation ------------------------------------------------------
+
+    /// <summary>
+    /// The root KnownFirst application project must never compile C# files belonging to the
+    /// nested offline maintenance tool at <c>scripts\tools\GermanLexiconGenerator\</c>, including
+    /// files under that project's own <c>obj\</c>/<c>bin\</c> trees. That nested project builds
+    /// its own assembly attributes and AssemblyInfo; if the root SDK-style default Compile glob
+    /// ever re-absorbs any file under that directory, the shared attributes collide with the
+    /// root project's own generated ones (CS0579) as soon as both projects have been built once.
+    /// This asserts the real evaluated Compile item set, not just the DefaultItemExcludes text,
+    /// so it remains correct regardless of which generated file names the tool project produces.
+    /// </summary>
+    [TestMethod]
+    public void DefaultCompileItems_ExcludeTheEntireNestedGermanLexiconGeneratorProjectTree()
+    {
+        var generatorRoot = Path.Combine(FindRepositoryRoot(), "scripts", "tools", "GermanLexiconGenerator");
+
+        foreach (var (scenario, configuration) in new[] { ("Windows Debug", "Debug"), ("Windows Release", "Release") })
+        {
+            var compileItemFullPaths = EvaluateCompileItemFullPaths(WindowsTargetFramework, configuration);
+
+            var offendingItems = compileItemFullPaths
+                .Where(fullPath => fullPath.StartsWith(generatorRoot, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            Assert.IsEmpty(offendingItems,
+                $"{scenario} must not compile any file under the nested GermanLexiconGenerator project " +
+                $"tree ({generatorRoot}), including its own obj\\/bin\\ trees. Offending items: " +
+                string.Join(", ", offendingItems));
+        }
+    }
+
     // --- RuntimeIdentifierOverride bridge ----------------------------------------------------
 
     [TestMethod]
@@ -504,6 +536,52 @@ public sealed class WindowsPackageVersionMappingTests
         foreach (var property in QueriedProperties)
         {
             result[property] = evaluated.GetProperty(property).GetString() ?? string.Empty;
+        }
+        return result;
+    }
+
+    private static List<string> EvaluateCompileItemFullPaths(string targetFramework, string configuration)
+    {
+        var root = FindRepositoryRoot();
+        var csprojPath = Path.Combine(root, "KnownFirst.csproj");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            WorkingDirectory = root,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("msbuild");
+        startInfo.ArgumentList.Add(csprojPath);
+        startInfo.ArgumentList.Add("-getItem:Compile");
+        startInfo.ArgumentList.Add($"-p:Configuration={configuration}");
+        startInfo.ArgumentList.Add($"-p:TargetFramework={targetFramework}");
+        startInfo.ArgumentList.Add("-nologo");
+        startInfo.ArgumentList.Add("-verbosity:quiet");
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start the dotnet msbuild evaluation process.");
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        var stdout = stdoutTask.GetAwaiter().GetResult();
+        var stderr = stderrTask.GetAwaiter().GetResult();
+
+        Assert.AreEqual(0, process.ExitCode,
+            $"dotnet msbuild -getItem:Compile (TargetFramework={targetFramework}, Configuration={configuration}) " +
+            $"exited {process.ExitCode}.\nstdout:\n{stdout}\nstderr:\n{stderr}");
+
+        using var document = JsonDocument.Parse(stdout);
+        var items = document.RootElement.GetProperty("Items").GetProperty("Compile");
+
+        var result = new List<string>();
+        foreach (var item in items.EnumerateArray())
+        {
+            result.Add(item.GetProperty("FullPath").GetString() ?? string.Empty);
         }
         return result;
     }

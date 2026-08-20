@@ -982,6 +982,7 @@ public sealed class TextReviewService(
             .Distinct()
             .ToArray();
         var affectedDocumentIds = new HashSet<int> { session.DocumentId };
+        var protectedSentenceOrders = new HashSet<int>();
 
         foreach (var candidate in candidates)
         {
@@ -1009,14 +1010,48 @@ public sealed class TextReviewService(
             }
 
             connection.Update(word);
+
+            // A derived component decided Unknown keeps its DerivedTermEvidenceEntries and owning
+            // ReviewCandidateEntity: derived candidates never receive a WordOccurrenceEntity (per the
+            // German derived-compound contract), so this evidence is the only durable link back to where
+            // the term actually appeared, and PreparationService needs it to build real source-compound
+            // context later. Known/Ignored derived candidates, and every non-derived candidate, are
+            // cleaned up exactly as before.
+            var candidateEvidence = connection.Table<DerivedTermEvidenceEntity>()
+                .Where(evidence => evidence.ReviewCandidateId == candidate.Id)
+                .ToList();
+            if (word.Status == WordStatus.UnknownBacklog && candidateEvidence.Count > 0)
+            {
+                foreach (var evidence in candidateEvidence)
+                {
+                    protectedSentenceOrders.Add(evidence.SourceSentenceOrder);
+                }
+
+                continue;
+            }
+
+            foreach (var evidence in candidateEvidence)
+            {
+                connection.Delete(evidence);
+            }
+
+            connection.Delete(candidate);
         }
 
-        RemoveUnreferencedSentenceSpans(connection, affectedDocumentIds);
+        // A sentence span still referenced by a just-preserved evidence row above must survive even when
+        // no WordOccurrence references it anymore (e.g. the source compound itself was decided Known and
+        // its own occurrence was just deleted): Schema11EvidenceValidator requires exactly one matching
+        // SentenceSpan for every surviving evidence row on every future database open.
+        var protectedSentenceSpanIds = protectedSentenceOrders.Count == 0
+            ? new HashSet<int>()
+            : connection.Table<SentenceSpanEntity>()
+                .Where(sentence => sentence.DocumentId == session.DocumentId)
+                .ToList()
+                .Where(sentence => protectedSentenceOrders.Contains(sentence.Order))
+                .Select(sentence => sentence.Id)
+                .ToHashSet();
 
-        connection.Execute(
-            "DELETE FROM DerivedTermEvidenceEntries WHERE ReviewCandidateId IN (SELECT Id FROM ReviewCandidates WHERE SessionId = ?)",
-            session.Id);
-        connection.Execute("DELETE FROM ReviewCandidates WHERE SessionId = ?", session.Id);
+        RemoveUnreferencedSentenceSpans(connection, affectedDocumentIds, protectedSentenceSpanIds);
 
         if (session.UnknownCount == 0 && existingUnknownWordIds.Length == 0)
         {
@@ -1133,7 +1168,8 @@ public sealed class TextReviewService(
 
     private static void RemoveUnreferencedSentenceSpans(
         SQLiteConnection connection,
-        IEnumerable<int> documentIds)
+        IEnumerable<int> documentIds,
+        IReadOnlySet<int> protectedSentenceSpanIds)
     {
         foreach (var documentId in documentIds.Distinct())
         {
@@ -1141,6 +1177,11 @@ public sealed class TextReviewService(
                          .Where(sentence => sentence.DocumentId == documentId)
                          .ToList())
             {
+                if (protectedSentenceSpanIds.Contains(sentence.Id))
+                {
+                    continue;
+                }
+
                 var isReferenced = connection.Table<WordOccurrenceEntity>()
                     .Any(occurrence => occurrence.SentenceSpanId == sentence.Id);
                 if (!isReferenced)

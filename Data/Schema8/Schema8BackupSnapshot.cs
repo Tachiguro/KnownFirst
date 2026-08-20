@@ -18,6 +18,16 @@ namespace KnownFirst.Data.Schema8;
 /// to read. Both maps are <see langword="null"/> for a Schema-8/9 capture and populated for a Schema-10
 /// capture — which is exactly the distinction the archive writer needs in order to decide whether it may
 /// emit identities at all.</para>
+///
+/// <para><c>DerivedTermEvidenceOwningReviewCandidateIds</c> is the German Enhanced Term Recognition
+/// Package 5A counterpart: the set of captured <c>ReviewCandidates</c> row ids that own at least one
+/// Schema-11 <c>DerivedTermEvidenceEntries</c> row, keyed by physical row id exactly like the Schema-10
+/// maps above and for the same reason — <c>DerivedTermEvidenceEntries</c> does not exist below Schema 11.
+/// It carries no evidence content itself (that table is never captured or exported here at all); it exists
+/// solely so <see cref="Services.DataSafety.BackupModelMapperV2"/> can exclude a Completed session's
+/// derived-evidence-only retained candidate from the exported <c>Items</c> list without disturbing any
+/// other candidate a Completed session may legitimately carry (e.g. one written back by restore/merge).
+/// <see langword="null"/> below Schema 11.</para>
 /// </summary>
 public sealed record Schema8BackupSnapshot(
     IReadOnlyList<DocumentEntity> Documents,
@@ -41,4 +51,5 @@ public sealed record Schema8BackupSnapshot(
     IReadOnlyList<LearningSessionEntity> LearningSessions,
     IReadOnlyList<Schema8QueueRow> LearningSessionCards,
     IReadOnlyDictionary<int, string>? LearningSessionStableIds = null,
-    IReadOnlyDictionary<int, string>? LearningQueueStableIds = null);
+    IReadOnlyDictionary<int, string>? LearningQueueStableIds = null,
+    IReadOnlySet<int>? DerivedTermEvidenceOwningReviewCandidateIds = null);

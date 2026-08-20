@@ -60,8 +60,10 @@ public static class BackupSnapshotCapture
                     connection, Schema8BackupSnapshotRepository.CapturePortableSnapshotSchema10(connection)),
                 schema10.Capability),
             Schema11CapabilityResult schema11 => new CapturedSchema11SnapshotEnvelope(
-                Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
-                    connection, Schema8BackupSnapshotRepository.CapturePortableSnapshotSchema10(connection)),
+                Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(
+                    connection,
+                    Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                        connection, Schema8BackupSnapshotRepository.CapturePortableSnapshotSchema10(connection))),
                 schema11.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
@@ -85,8 +87,10 @@ public static class BackupSnapshotCapture
                     connection, Schema8BackupSnapshotRepository.CaptureSnapshot(connection)),
                 schema10.Capability),
             Schema11CapabilityResult schema11 => new CapturedSchema11SnapshotEnvelope(
-                Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
-                    connection, Schema8BackupSnapshotRepository.CaptureSnapshot(connection)),
+                Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(
+                    connection,
+                    Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                        connection, Schema8BackupSnapshotRepository.CaptureSnapshot(connection))),
                 schema11.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };

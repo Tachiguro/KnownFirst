@@ -1005,4 +1005,34 @@ public sealed class TextAnalyzerTests
 
         CollectionAssert.AreEqual(onFirstIdentities, onSecond.Candidates.Select(c => c.Identity).ToArray());
     }
+
+    [TestMethod]
+    public void Analyze_German_EnhancedOn_ThreeComponentCompound_EmitsAllDerivedComponentsAndKeepsWholeDirect()
+    {
+        const string content = "Das Schreibsicherheitzimmer wird geprüft.";
+        var result = _analyzer.Analyze(content, "de", true, _germanLexicon);
+
+        var whole = result.Candidates.Single(c => c.CanonicalTerm == "Schreibsicherheitzimmer");
+        Assert.AreEqual(CandidateProvenanceKind.Direct, whole.Provenance);
+        Assert.HasCount(1, whole.Occurrences);
+
+        var schreiben = result.Candidates.Single(c => c.Identity == "W:schreiben");
+        var sicherheit = result.Candidates.Single(c => c.Identity == "W:sicherheit");
+        var zimmer = result.Candidates.Single(c => c.Identity == "W:zimmer");
+
+        foreach (var derived in new[] { schreiben, sicherheit, zimmer })
+        {
+            Assert.AreEqual(CandidateProvenanceKind.DerivedFromCompound, derived.Provenance);
+            Assert.IsEmpty(derived.Occurrences);
+            var evidence = derived.DerivedEvidence.Single();
+            Assert.AreEqual("W:schreibsicherheitzimmer", evidence.SourceIdentity);
+            Assert.AreEqual("Schreibsicherheitzimmer", evidence.SourceSurfaceForm);
+            Assert.AreEqual(
+                evidence.SourceSurfaceForm,
+                content.Substring(evidence.SourceStartPosition, evidence.SourceLength));
+        }
+
+        var failures = AnalysisInvariantValidator.Validate(content, result);
+        Assert.IsEmpty(failures);
+    }
 }

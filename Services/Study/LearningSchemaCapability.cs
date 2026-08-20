@@ -1,6 +1,7 @@
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Migrations.Schema10;
+using KnownFirst.Data.Migrations.Schema11;
 using SQLite;
 
 namespace KnownFirst.Services.Study;
@@ -55,6 +56,18 @@ public sealed class ValidatedLearningSchema10Capability
     public const int SchemaVersion = 10;
 }
 
+/// <summary>The Schema-11 counterpart of <see cref="ValidatedLearningSchema10Capability"/>
+/// (German enhanced term recognition derivation evidence persistence). The learning-relevant data
+/// model is untouched by Schema 11; every existing learning behaviour is unchanged.</summary>
+public sealed class ValidatedLearningSchema11Capability
+{
+    internal ValidatedLearningSchema11Capability()
+    {
+    }
+
+    public const int SchemaVersion = 11;
+}
+
 public abstract record LearningSchemaCapabilityResult;
 
 public sealed record LearningSchema7CapabilityResult(ValidatedLearningSchema7Capability Capability)
@@ -67,6 +80,9 @@ public sealed record LearningSchema9CapabilityResult(ValidatedLearningSchema9Cap
     : LearningSchemaCapabilityResult;
 
 public sealed record LearningSchema10CapabilityResult(ValidatedLearningSchema10Capability Capability)
+    : LearningSchemaCapabilityResult;
+
+public sealed record LearningSchema11CapabilityResult(ValidatedLearningSchema11Capability Capability)
     : LearningSchemaCapabilityResult;
 
 /// <summary>
@@ -96,13 +112,13 @@ public sealed class LearningSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch, string? shapeDetail) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version: {shapeDetail}"
-        : $"PRAGMA user_version {foundVersion} is not a supported learning source version; only 7, 8, 9, and 10 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported learning source version; only 7, 8, 9, 10, and 11 are accepted.";
 }
 
 /// <summary>
 /// Resolves the active learning schema from the validated <c>PRAGMA user_version</c> plus the physical
 /// shape (KF-MEANING-001 Slice 4, architecture doc §4.8.2). Schema 8 is never inferred from the presence of
-/// a single optional table or column: the shared <see cref="Schema8ShapeValidator"/> decides, and since
+/// a single optional table or column: the shared shape validators decide, and since
 /// Slice 4 it additionally requires <c>SenseAnswerVariantAssignments.RequiredSinceUtc</c>, so an incomplete
 /// version-8 shape fails here rather than later through a raw "no such column" SQL error.
 /// </summary>
@@ -146,6 +162,14 @@ public static class LearningSchemaCapability
                 }
 
                 return new LearningSchema10CapabilityResult(new ValidatedLearningSchema10Capability());
+
+            case ValidatedLearningSchema11Capability.SchemaVersion:
+                if (!Schema11ShapeValidator.IsValidDatabase(connection, out var schema11Detail))
+                {
+                    throw new LearningSchemaCapabilityException(userVersion, shapeMismatch: true, schema11Detail);
+                }
+
+                return new LearningSchema11CapabilityResult(new ValidatedLearningSchema11Capability());
 
             default:
                 throw new LearningSchemaCapabilityException(userVersion, shapeMismatch: false);

@@ -77,7 +77,13 @@ public sealed record ReviewCandidateDetails(
     IReadOnlyList<ReviewContext> Contexts,
     int ReviewedCount,
     int TotalCandidates,
-    bool CanUndo);
+    bool CanUndo,
+    CandidateProvenanceKind Provenance = CandidateProvenanceKind.Direct,
+    IReadOnlyList<DerivedTermEvidence>? DerivationEvidence = null)
+{
+    public IReadOnlyList<DerivedTermEvidence> DerivationEvidence { get; init; } =
+        DerivationEvidence ?? Array.Empty<DerivedTermEvidence>();
+}
 
 public sealed record CompletedReviewSummary(
     int SessionId,

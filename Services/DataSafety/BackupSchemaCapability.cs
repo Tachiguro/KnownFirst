@@ -1,6 +1,7 @@
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Migrations.Schema10;
+using KnownFirst.Data.Migrations.Schema11;
 using SQLite;
 
 namespace KnownFirst.Services.DataSafety;
@@ -60,6 +61,21 @@ public sealed class ValidatedSchema10Capability
     public const int SchemaVersion = 10;
 }
 
+/// <summary>The Schema-11 counterpart of <see cref="ValidatedSchema10Capability"/>
+/// (German enhanced term recognition derivation evidence persistence). Schema 11 keeps
+/// Schema 10's meaning-centric data model and learning-identity code paths exactly; it adds
+/// <c>DerivedTermEvidenceEntries</c> for active review provenance. Because active review is
+/// not portable, portable payload v2 remains identical to Schema 10 while recording source
+/// schema 11 in archive manifests.</summary>
+public sealed class ValidatedSchema11Capability
+{
+    internal ValidatedSchema11Capability()
+    {
+    }
+
+    public const int SchemaVersion = 11;
+}
+
 public abstract record BackupSchemaCapabilityResult;
 
 public sealed record Schema7CapabilityResult(ValidatedSchema7Capability Capability) : BackupSchemaCapabilityResult;
@@ -69,6 +85,8 @@ public sealed record Schema8CapabilityResult(ValidatedSchema8Capability Capabili
 public sealed record Schema9CapabilityResult(ValidatedSchema9Capability Capability) : BackupSchemaCapabilityResult;
 
 public sealed record Schema10CapabilityResult(ValidatedSchema10Capability Capability) : BackupSchemaCapabilityResult;
+
+public sealed record Schema11CapabilityResult(ValidatedSchema11Capability Capability) : BackupSchemaCapabilityResult;
 
 /// <summary>
 /// Thrown by <see cref="BackupSchemaCapability.Resolve"/> for every rejection case: an unsupported
@@ -94,12 +112,12 @@ public sealed class BackupSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
-        : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7, 8, 9, and 10 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7, 8, 9, 10, and 11 are accepted.";
 }
 
 /// <summary>
 /// Trusted, single-source schema-capability check for the backup/restore subsystem (KF-MEANING-001
-/// Slice 2, architecture doc §4.8.2). Reads <c>PRAGMA user_version</c>, accepts exactly 7 or 8,
+/// Slice 2, architecture doc §4.8.2). Reads <c>PRAGMA user_version</c>, accepts exactly 7, 8, 9, 10, or 11,
 /// validates the expected physical shape for whichever version was reported, and fails closed
 /// (throws <see cref="BackupSchemaCapabilityException"/>) if the version and the physical shape
 /// disagree, or if any other version is reported. Never infers capability from optional table or
@@ -146,6 +164,14 @@ public static class BackupSchemaCapability
                 }
 
                 return new Schema10CapabilityResult(new ValidatedSchema10Capability());
+
+            case ValidatedSchema11Capability.SchemaVersion:
+                if (!Schema11ShapeValidator.IsValidDatabase(connection, out _))
+                {
+                    throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: true);
+                }
+
+                return new Schema11CapabilityResult(new ValidatedSchema11Capability());
 
             default:
                 throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: false);

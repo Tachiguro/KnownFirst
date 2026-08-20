@@ -1,6 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Review;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
@@ -23,7 +24,8 @@ public sealed class TextReviewServiceTests
     {
         _database = new TemporaryDatabase();
         await _database.InitializeAsync();
-        _service = new TextReviewService(_database, new TextAnalyzer());
+        _service = new TextReviewService(
+            _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new ThrowingGermanLexicon());
     }
 
     [TestCleanup]
@@ -41,7 +43,8 @@ public sealed class TextReviewServiceTests
         var cardId = await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
         await DatabaseSchema.InitializeAsync(fixture.Connection);
         var database = new ExistingFixtureDatabase(fixture);
-        var service = new TextReviewService(database, new TextAnalyzer());
+        var service = new TextReviewService(
+            database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new ThrowingGermanLexicon());
 
         var diagnostics = await service.GetDiagnosticsAsync();
 
@@ -86,6 +89,588 @@ public sealed class TextReviewServiceTests
                 occurrence.SurfaceForm,
                 stored.Document.Content.Substring(occurrence.StartPosition, occurrence.Length));
         }
+    }
+
+    // ----- German Enhanced Term Recognition: Package 2 TextReviewService wiring -----
+
+    [TestMethod]
+    public async Task EnhancedRecognitionDisabled_DoesNotUseGermanLexicon()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: false);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new ThrowingGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+        var words = await _database.ReadAsync(connection => connection.Table<WordEntity>().ToListAsync());
+        Assert.IsFalse(words.Any(word => word.NormalizedTerm == "W:schreiben"));
+        Assert.IsFalse(words.Any(word => word.NormalizedTerm == "W:maschine"));
+    }
+
+    [TestMethod]
+    public async Task EnhancedRecognitionEnabled_GermanImport_UsesGermanCompoundRecognition()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+        var words = await _database.ReadAsync(connection => connection.Table<WordEntity>().ToListAsync());
+        var normalizedTerms = words.Select(word => word.NormalizedTerm).ToArray();
+
+        CollectionAssert.Contains(normalizedTerms, "W:schreibmaschine");
+        CollectionAssert.Contains(normalizedTerms, "W:schreiben");
+        CollectionAssert.Contains(normalizedTerms, "W:maschine");
+
+        var schreibmaschineWord = words.Single(word => word.NormalizedTerm == "W:schreibmaschine");
+        var schreibenWord = words.Single(word => word.NormalizedTerm == "W:schreiben");
+        var maschineWord = words.Single(word => word.NormalizedTerm == "W:maschine");
+
+        Assert.IsGreaterThanOrEqualTo(1, schreibmaschineWord.TotalOccurrenceCount);
+        Assert.AreEqual(0, schreibenWord.TotalOccurrenceCount);
+        Assert.AreEqual(0, maschineWord.TotalOccurrenceCount);
+
+        var candidateOrders = await _database.ReadAsync(connection =>
+            connection.Table<ReviewCandidateEntity>().ToListAsync());
+        Assert.IsTrue(candidateOrders.Any(candidate => candidate.WordId == schreibmaschineWord.Id));
+        Assert.IsTrue(candidateOrders.Any(candidate => candidate.WordId == schreibenWord.Id));
+        Assert.IsTrue(candidateOrders.Any(candidate => candidate.WordId == maschineWord.Id));
+    }
+
+    [TestMethod]
+    public async Task EnhancedRecognitionEnabled_NonGermanImport_DoesNotUseGermanLexicon()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new ThrowingGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("English import", "The writing machine works well.", "en", "en"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+    }
+
+    // ----- German Enhanced Term Recognition: Package 3 Persistence & Read Model -----
+
+    [TestMethod]
+    public async Task EnhancedRecognition_GermanImport_PersistsExactDerivationEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (words, candidates, evidence) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            var e = await conn.Table<DerivedTermEvidenceEntity>().ToListAsync();
+            return (w, c, e);
+        });
+
+        var schreibmaschineWord = words.Single(w => w.NormalizedTerm == "W:schreibmaschine");
+        var schreibenWord = words.Single(w => w.NormalizedTerm == "W:schreiben");
+        var maschineWord = words.Single(w => w.NormalizedTerm == "W:maschine");
+
+        var schreibmaschineCandidate = candidates.Single(c => c.WordId == schreibmaschineWord.Id);
+        var schreibenCandidate = candidates.Single(c => c.WordId == schreibenWord.Id);
+        var maschineCandidate = candidates.Single(c => c.WordId == maschineWord.Id);
+
+        var directEvidence = evidence.Where(e => e.ReviewCandidateId == schreibmaschineCandidate.Id).ToList();
+        Assert.IsEmpty(directEvidence, "Direct candidates must persist zero evidence rows.");
+
+        var schreibenEvidence = evidence.Where(e => e.ReviewCandidateId == schreibenCandidate.Id).ToList();
+        Assert.AreEqual(1, schreibenEvidence.Count);
+        Assert.AreEqual("W:schreibmaschine", schreibenEvidence[0].SourceIdentity);
+        Assert.AreEqual("Schreibmaschine", schreibenEvidence[0].SourceSurfaceForm);
+        Assert.AreEqual(4, schreibenEvidence[0].SourceStartPosition);
+        Assert.AreEqual(15, schreibenEvidence[0].SourceLength);
+        Assert.AreEqual(0, schreibenEvidence[0].SourceSentenceOrder);
+        Assert.AreEqual("Schreib", schreibenEvidence[0].ComponentForm);
+
+        var maschineEvidence = evidence.Where(e => e.ReviewCandidateId == maschineCandidate.Id).ToList();
+        Assert.AreEqual(1, maschineEvidence.Count);
+        Assert.AreEqual("W:schreibmaschine", maschineEvidence[0].SourceIdentity);
+        Assert.AreEqual("Schreibmaschine", maschineEvidence[0].SourceSurfaceForm);
+        Assert.AreEqual(4, maschineEvidence[0].SourceStartPosition);
+        Assert.AreEqual(15, maschineEvidence[0].SourceLength);
+        Assert.AreEqual(0, maschineEvidence[0].SourceSentenceOrder);
+        Assert.AreEqual("maschine", maschineEvidence[0].ComponentForm);
+    }
+
+    [TestMethod]
+    public async Task EnhancedRecognition_KnownSourceCompound_PersistsEvidenceWithoutSourceOccurrence()
+    {
+        var now = DateTime.UtcNow;
+        var knownWord = new WordEntity
+        {
+            Language = "de",
+            CanonicalTerm = "Schreibmaschine",
+            NormalizedTerm = "W:schreibmaschine",
+            TokenKind = TokenKind.Word,
+            Status = WordStatus.Known,
+            TotalOccurrenceCount = 5,
+            DocumentCount = 2,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        await _database.RunInTransactionAsync(conn => conn.Insert(knownWord));
+
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (words, candidates, occurrences, evidence) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            var o = await conn.Table<WordOccurrenceEntity>().Where(item => item.DocumentId == result.DocumentId).ToListAsync();
+            var e = await conn.Table<DerivedTermEvidenceEntity>().ToListAsync();
+            return (w, c, o, e);
+        });
+
+        var sourceWord = words.Single(w => w.NormalizedTerm == "W:schreibmaschine");
+        Assert.AreEqual(WordStatus.Known, sourceWord.Status);
+        Assert.AreEqual(0, occurrences.Count(o => o.WordId == sourceWord.Id), "Known source compound must have no new occurrences in this document.");
+
+        var schreibenWord = words.Single(w => w.NormalizedTerm == "W:schreiben");
+        var schreibenCandidate = candidates.Single(c => c.WordId == schreibenWord.Id);
+        var schreibenEvidence = evidence.Where(e => e.ReviewCandidateId == schreibenCandidate.Id).ToList();
+
+        Assert.AreEqual(1, schreibenEvidence.Count);
+        Assert.AreEqual("W:schreibmaschine", schreibenEvidence[0].SourceIdentity);
+        Assert.AreEqual("Schreibmaschine", schreibenEvidence[0].SourceSurfaceForm);
+        Assert.AreEqual(4, schreibenEvidence[0].SourceStartPosition);
+        Assert.AreEqual(15, schreibenEvidence[0].SourceLength);
+    }
+
+    [TestMethod]
+    public async Task EnhancedRecognition_IgnoredSourceCompound_PersistsEvidenceWithoutSourceOccurrence()
+    {
+        var now = DateTime.UtcNow;
+        var ignoredWord = new WordEntity
+        {
+            Language = "de",
+            CanonicalTerm = "Schreibmaschine",
+            NormalizedTerm = "W:schreibmaschine",
+            TokenKind = TokenKind.Word,
+            Status = WordStatus.Ignored,
+            TotalOccurrenceCount = 0,
+            DocumentCount = 0,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        await _database.RunInTransactionAsync(conn => conn.Insert(ignoredWord));
+
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (candidates, occurrences, evidence) = await _database.ReadAsync(async conn =>
+        {
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            var o = await conn.Table<WordOccurrenceEntity>().Where(item => item.DocumentId == result.DocumentId).ToListAsync();
+            var e = await conn.Table<DerivedTermEvidenceEntity>().ToListAsync();
+            return (c, o, e);
+        });
+
+        Assert.AreEqual(0, occurrences.Count(o => o.WordId == ignoredWord.Id));
+        Assert.IsNotEmpty(evidence);
+    }
+
+    [TestMethod]
+    public async Task EnhancedRecognition_UnknownBacklogSourceCompound_PersistsEvidence()
+    {
+        var now = DateTime.UtcNow;
+        var unknownWord = new WordEntity
+        {
+            Language = "de",
+            CanonicalTerm = "Schreibmaschine",
+            NormalizedTerm = "W:schreibmaschine",
+            TokenKind = TokenKind.Word,
+            Status = WordStatus.UnknownBacklog,
+            TotalOccurrenceCount = 1,
+            DocumentCount = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        await _database.RunInTransactionAsync(conn => conn.Insert(unknownWord));
+
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (words, candidates, occurrences, evidence) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            var o = await conn.Table<WordOccurrenceEntity>().Where(item => item.DocumentId == result.DocumentId).ToListAsync();
+            var e = await conn.Table<DerivedTermEvidenceEntity>().ToListAsync();
+            return (w, c, o, e);
+        });
+
+        Assert.AreEqual(1, occurrences.Count(o => o.WordId == unknownWord.Id));
+        Assert.IsFalse(candidates.Any(c => c.WordId == unknownWord.Id));
+
+        var schreibenWord = words.Single(w => w.NormalizedTerm == "W:schreiben");
+        var schreibenCandidate = candidates.Single(c => c.WordId == schreibenWord.Id);
+        var schreibenEvidence = evidence.Where(e => e.ReviewCandidateId == schreibenCandidate.Id).ToList();
+        Assert.AreEqual(1, schreibenEvidence.Count);
+    }
+
+    [TestMethod]
+    public async Task EnhancedRecognition_RepeatedSourceOccurrences_PersistDistinctEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier. Eine zweite Schreibmaschine ist da.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (words, candidates, evidence) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            var e = await conn.Table<DerivedTermEvidenceEntity>().ToListAsync();
+            return (w, c, e);
+        });
+
+        var schreibenWord = words.Single(w => w.NormalizedTerm == "W:schreiben");
+        var schreibenCandidate = candidates.Single(c => c.WordId == schreibenWord.Id);
+        var schreibenEvidence = evidence
+            .Where(e => e.ReviewCandidateId == schreibenCandidate.Id)
+            .OrderBy(e => e.SourceStartPosition)
+            .ToList();
+
+        Assert.AreEqual(2, schreibenEvidence.Count);
+        Assert.AreEqual(4, schreibenEvidence[0].SourceStartPosition);
+        Assert.AreEqual(44, schreibenEvidence[1].SourceStartPosition);
+    }
+
+    [TestMethod]
+    public async Task EnhancedRecognition_MultipleSourceCompoundsForSameDerivedIdentity_RemainDistinct()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine und die Waschmaschine stehen hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (words, candidates, evidence) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var c = await conn.Table<ReviewCandidateEntity>().ToListAsync();
+            var e = await conn.Table<DerivedTermEvidenceEntity>().ToListAsync();
+            return (w, c, e);
+        });
+
+        var maschineWord = words.Single(w => w.NormalizedTerm == "W:maschine");
+        var maschineCandidate = candidates.Single(c => c.WordId == maschineWord.Id);
+        var maschineEvidence = evidence
+            .Where(e => e.ReviewCandidateId == maschineCandidate.Id)
+            .OrderBy(e => e.SourceStartPosition)
+            .ToList();
+
+        Assert.AreEqual(2, maschineEvidence.Count);
+        Assert.AreEqual("W:schreibmaschine", maschineEvidence[0].SourceIdentity);
+        Assert.AreEqual("W:waschmaschine", maschineEvidence[1].SourceIdentity);
+    }
+
+    [TestMethod]
+    public async Task DirectCandidate_PersistsNoDerivationEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Hier steht ein Baum.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var evidenceCount = await _database.ReadAsync(conn =>
+            conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.AreEqual(0, evidenceCount);
+    }
+
+    [TestMethod]
+    public async Task DerivedCandidate_HasNoFabricatedWordOccurrence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var (words, occurrences) = await _database.ReadAsync(async conn =>
+        {
+            var w = await conn.Table<WordEntity>().ToListAsync();
+            var o = await conn.Table<WordOccurrenceEntity>().Where(item => item.DocumentId == result.DocumentId).ToListAsync();
+            return (w, o);
+        });
+
+        var schreibenWord = words.Single(w => w.NormalizedTerm == "W:schreiben");
+        var maschineWord = words.Single(w => w.NormalizedTerm == "W:maschine");
+
+        Assert.AreEqual(0, occurrences.Count(o => o.WordId == schreibenWord.Id));
+        Assert.AreEqual(0, occurrences.Count(o => o.WordId == maschineWord.Id));
+    }
+
+    [TestMethod]
+    public async Task Undo_PreservesDerivationEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var candidate1 = await service.GetCurrentCandidateAsync();
+        Assert.IsNotNull(candidate1);
+        await service.DecideAsync(candidate1.WordId, WordStatus.Known);
+
+        var candidate2 = await service.GetCurrentCandidateAsync();
+        Assert.IsNotNull(candidate2);
+        await service.DecideAsync(candidate2.WordId, WordStatus.Known);
+
+        var undone = await service.UndoPreviousDecisionAsync();
+        Assert.IsTrue(undone);
+
+        var evidenceCount = await _database.ReadAsync(conn =>
+            conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.IsTrue(evidenceCount > 0, "Undo must preserve all persisted derivation evidence rows.");
+    }
+
+    [TestMethod]
+    public async Task DiscardActiveImport_RemovesDerivationEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        var evidenceBefore = await _database.ReadAsync(conn =>
+            conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.IsTrue(evidenceBefore > 0);
+
+        await service.DiscardActiveImportAsync();
+
+        var evidenceAfter = await _database.ReadAsync(conn =>
+            conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.AreEqual(0, evidenceAfter, "DiscardActiveImport must remove all derivation evidence rows.");
+    }
+
+    [TestMethod]
+    public async Task CompletingReview_RemovesDerivationEvidence()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Die Schreibmaschine steht hier.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        while (true)
+        {
+            var candidate = await service.GetCurrentCandidateAsync();
+            if (candidate is null)
+            {
+                break;
+            }
+
+            var decision = await service.DecideAsync(candidate.WordId, WordStatus.Known);
+            if (decision.IsComplete)
+            {
+                break;
+            }
+        }
+
+        var evidenceAfter = await _database.ReadAsync(conn =>
+            conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.AreEqual(0, evidenceAfter, "Completing review must remove all derivation evidence rows.");
+    }
+
+    [TestMethod]
+    public async Task GetCurrentCandidateAsync_ReturnsDerivedEvidenceAndProvenance()
+    {
+        var settings = new FixedEnhancedRecognitionSettings(enabled: true);
+        var service = new TextReviewService(
+            _database, new TextAnalyzer(), settings, new FixtureGermanLexicon());
+
+        var result = await service.ImportAsync(
+            new ImportTextRequest("German import", "Schreibmaschine.", "de", "de"));
+
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        // Candidate 0 is direct (Schreibmaschine)
+        var first = await service.GetCurrentCandidateAsync();
+        Assert.IsNotNull(first);
+        Assert.AreEqual("W:schreibmaschine", first.Identity);
+        Assert.AreEqual(CandidateProvenanceKind.Direct, first.Provenance);
+        Assert.IsEmpty(first.DerivationEvidence);
+
+        await service.DecideAsync(first.WordId, WordStatus.Known);
+
+        // Candidate 1 is derived (maschine)
+        var second = await service.GetCurrentCandidateAsync();
+        Assert.IsNotNull(second);
+        Assert.AreEqual("W:maschine", second.Identity);
+        Assert.AreEqual(CandidateProvenanceKind.DerivedFromCompound, second.Provenance);
+        Assert.AreEqual(0, second.OccurrenceCount);
+        Assert.IsEmpty(second.Contexts);
+        Assert.AreEqual(1, second.DerivationEvidence.Count);
+        Assert.AreEqual("W:schreibmaschine", second.DerivationEvidence[0].SourceIdentity);
+        Assert.AreEqual("Schreibmaschine", second.DerivationEvidence[0].SourceSurfaceForm);
+        Assert.AreEqual("maschine", second.DerivationEvidence[0].ComponentForm);
+
+        await service.DecideAsync(second.WordId, WordStatus.Known);
+
+        // Candidate 2 is derived (schreiben)
+        var third = await service.GetCurrentCandidateAsync();
+        Assert.IsNotNull(third);
+        Assert.AreEqual("W:schreiben", third.Identity);
+        Assert.AreEqual(CandidateProvenanceKind.DerivedFromCompound, third.Provenance);
+        Assert.AreEqual(0, third.OccurrenceCount);
+        Assert.IsEmpty(third.Contexts);
+        Assert.AreEqual(1, third.DerivationEvidence.Count);
+        Assert.AreEqual("W:schreibmaschine", third.DerivationEvidence[0].SourceIdentity);
+        Assert.AreEqual("Schreibmaschine", third.DerivationEvidence[0].SourceSurfaceForm);
+        Assert.AreEqual("Schreib", third.DerivationEvidence[0].ComponentForm);
+    }
+
+    // ----- Package 3 correction: current-schema fail-closed regression coverage. A database that has
+    // completed DatabaseSchema.InitializeAsync at CurrentVersion 11 is guaranteed to have a valid
+    // DerivedTermEvidenceEntries table; if that table is later missing (corruption, external tampering),
+    // TextReviewService must fail closed rather than silently degrading to Direct/skipped cleanup. -----
+
+    private Task DropDerivedTermEvidenceEntriesTableAsync() =>
+        _database.RunInTransactionAsync(connection =>
+        {
+            connection.Execute("DROP TABLE DerivedTermEvidenceEntries");
+            return true;
+        });
+
+    [TestMethod]
+    public async Task GetCurrentCandidateAsync_MissingSchema11EvidenceTable_FailsInsteadOfReturningDirect()
+    {
+        var result = await _service.ImportAsync(CreateRequest("Bank matters. The bank is open."));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        await DropDerivedTermEvidenceEntriesTableAsync();
+
+        await Assert.ThrowsExactlyAsync<SQLiteException>(() => _service.GetCurrentCandidateAsync());
+    }
+
+    [TestMethod]
+    public async Task DiscardActiveImport_MissingSchema11EvidenceTable_FailsInsteadOfSkippingCleanup()
+    {
+        var result = await _service.ImportAsync(CreateRequest("Bank matters. The bank is open."));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        await DropDerivedTermEvidenceEntriesTableAsync();
+
+        await Assert.ThrowsExactlyAsync<SQLiteException>(() => _service.DiscardActiveImportAsync());
+    }
+
+    [TestMethod]
+    public async Task CompleteSession_MissingSchema11EvidenceTable_FailsInsteadOfSkippingCleanup()
+    {
+        var result = await _service.ImportAsync(CreateRequest("Bank matters. The bank is open."));
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        // Decide every candidate but the last one, so the session is exactly one decision away from
+        // completing. GetCurrentCandidateAsync must still see the honest evidence table at this point.
+        ReviewCandidateDetails? finalCandidate;
+        while (true)
+        {
+            var candidate = await _service.GetCurrentCandidateAsync();
+            Assert.IsNotNull(candidate);
+            if (candidate.ReviewedCount == candidate.TotalCandidates - 1)
+            {
+                finalCandidate = candidate;
+                break;
+            }
+
+            await _service.DecideAsync(candidate.WordId, WordStatus.Known);
+        }
+
+        await DropDerivedTermEvidenceEntriesTableAsync();
+
+        // The completing decision drives CompleteSession, which must fail closed on the missing table
+        // rather than silently skipping the DerivedTermEvidenceEntries cleanup statement.
+        await Assert.ThrowsExactlyAsync<SQLiteException>(
+            () => _service.DecideAsync(finalCandidate!.WordId, WordStatus.Known));
+    }
+
+    private sealed class FixedEnhancedRecognitionSettings(bool enabled) : IAppSettingsService
+    {
+        public int PreparationLimit => 20;
+        public IReadOnlyList<int> SupportedPreparationLimits => [20];
+        public CardDirectionPreference CardDirection => CardDirectionPreference.Both;
+        public LearningMode LearningMode => LearningMode.Automatic;
+        public bool HasOnlineLookupConsent => false;
+        public bool EnhancedTermRecognitionEnabled => enabled;
+
+        public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
+        public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
+        public void SetLearningMode(LearningMode mode) => throw new NotSupportedException();
+        public void GrantOnlineLookupConsent() => throw new NotSupportedException();
+        public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
+        public void SetEnhancedTermRecognitionEnabled(bool value) => throw new NotSupportedException();
+        public void Reset() => throw new NotSupportedException();
+    }
+
+    private sealed class ThrowingGermanLexicon : IGermanLexicon
+    {
+        public bool TryLookupLemma(string form, out GermanLexemeEntry? entry) =>
+            throw new InvalidOperationException(
+                "The German lexicon must not be queried when enhanced recognition is inactive for this analysis.");
+
+        public bool TryLookupStem(string componentForm, out GermanCompoundStemEntry? entry) =>
+            throw new InvalidOperationException(
+                "The German lexicon must not be queried when enhanced recognition is inactive for this analysis.");
     }
 
     [TestMethod]
@@ -313,7 +898,8 @@ public sealed class TextReviewServiceTests
         var first = await _service.GetCurrentCandidateAsync();
         await _service.DecideAsync(first!.WordId, WordStatus.Known);
 
-        var recreatedService = new TextReviewService(_database, new TextAnalyzer());
+        var recreatedService = new TextReviewService(
+            _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new ThrowingGermanLexicon());
         var resumed = await recreatedService.GetCurrentCandidateAsync();
         var persisted = await _database.ReadAsync(connection =>
             connection.FindAsync<WordEntity>(first.WordId));
@@ -516,7 +1102,9 @@ public sealed class TextReviewServiceTests
         });
         var invalidService = new TextReviewService(
             _database,
-            new TextAnalyzer(new InvalidSentenceSegmenter()));
+            new TextAnalyzer(new InvalidSentenceSegmenter()),
+            new DisabledEnhancedRecognitionSettings(),
+            new ThrowingGermanLexicon());
 
         var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => invalidService.ImportAsync(CreateRequest("New content.")));
@@ -1126,7 +1714,7 @@ public sealed class TextReviewServiceTests
             }
 
             _connection ??= new SQLiteAsyncConnection(DatabasePath);
-            await Schema7Fixture.InitializeEmptyAsync(_connection);
+            await DatabaseSchema.InitializeAsync(_connection);
             _initialized = true;
         }
 

@@ -651,6 +651,21 @@
   <data name="Settings_LearningModeSaved" xml:space="preserve">
     <value>Режим изучения сохранён.</value>
   </data>
+  <data name="Settings_EnhancedTermRecognition" xml:space="preserve">
+    <value>Расширенное распознавание терминов</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionHelp" xml:space="preserve">
+    <value>Распознаёт дополнительные части немецких слов, например компоненты сложных слов, с помощью локальной офлайн-модели распознавания. Это не связано с онлайн-поиском в словаре и никогда не передаёт данные по сети.</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionOn" xml:space="preserve">
+    <value>Вкл.</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionOff" xml:space="preserve">
+    <value>Выкл.</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionSaved" xml:space="preserve">
+    <value>Настройка расширенного распознавания терминов сохранена.</value>
+  </data>
   <data name="Settings_OnlineDictionary" xml:space="preserve">
     <value>Онлайн-словарь</value>
   </data>

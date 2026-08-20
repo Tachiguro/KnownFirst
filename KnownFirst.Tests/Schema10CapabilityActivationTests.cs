@@ -1,4 +1,5 @@
 using KnownFirst.Data;
+using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Services.DataSafety;
 using KnownFirst.Services.Study;
 using SQLite;
@@ -24,7 +25,7 @@ public sealed class Schema10CapabilityActivationTests
     public async Task Schema10Database_ResolvesAllThreeCapabilityFamilies()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
         Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -44,7 +45,7 @@ public sealed class Schema10CapabilityActivationTests
     public async Task Schema10Database_SupportsPortableExportAndFullBackupCapture()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
         Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -61,7 +62,7 @@ public sealed class Schema10CapabilityActivationTests
     public async Task Schema10Database_WithoutActiveWorkflow_CapturesAMergeSafetyCopy()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
         Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -81,7 +82,7 @@ public sealed class Schema10CapabilityActivationTests
     public async Task Characterization_Schema10Database_WithActiveLearningWorkflow_StillBlocksMergeSafetyCopy()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
         Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -101,7 +102,7 @@ public sealed class Schema10CapabilityActivationTests
     public async Task Characterization_OrdinaryPortableExport_StillExcludesActiveLearningSessions()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
         Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>

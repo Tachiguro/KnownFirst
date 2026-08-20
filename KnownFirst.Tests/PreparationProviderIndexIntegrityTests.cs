@@ -31,8 +31,13 @@ public sealed class PreparationProviderIndexIntegrityTests
     {
         _database = new TemporarySchema8Database("knownfirst-schema8-provider-index");
         await _database.InitializeAsync();
+        // This class characterizes provider/index integrity, not literal-version behavior. The fixture
+        // upgrades immediately after construction so TextReviewService's review-selection/completion
+        // setup methods, which now require the current schema, keep working.
+        await _database.UpgradeToCurrentSchemaAsync();
         _clock = new FakeClock(Now);
-        _review = new TextReviewService(_database, new TextAnalyzer());
+        _review = new TextReviewService(
+            _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
         _provider = new MutableProvider(_clock);
         _preparation = new PreparationService(
             _database,
@@ -186,7 +191,8 @@ public sealed class PreparationSchema7MetadataZeroMutationTests
         try
         {
             var clock = new FakeClock(Now);
-            var review = new TextReviewService(database, new TextAnalyzer());
+            var review = new TextReviewService(
+                database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
             var provider = new FixedMeaningProvider(clock);
             var preparation = new PreparationService(
                 database,
@@ -200,10 +206,40 @@ public sealed class PreparationSchema7MetadataZeroMutationTests
             var request = new ImportTextRequest($"Document {Guid.NewGuid():N}", "bank text here.", "en", LexicalLookupMode.Definition, null);
             var result = await review.ImportAsync(request);
             Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
-            while (await review.GetCurrentCandidateAsync() is { } candidate)
+
+            // This fixture must stay at genuine Schema 7 throughout, so PreparationService.AcceptAsync's
+            // zero-mutation-on-validation-failure guarantee is proven against the real oldest supported
+            // physical shape rather than an upgraded one. TextReviewService.GetCurrentCandidateAsync/
+            // DecideAsync-to-completion now require the current schema (DerivedTermEvidenceEntries), so the
+            // review-completion outcome this test needs (the imported word reaching UnknownBacklog with no
+            // Active review session left blocking PreparationService.StartAsync) is applied directly instead.
+            await database.RunInTransactionAsync(connection =>
             {
-                await review.DecideAsync(candidate.WordId, WordStatus.UnknownBacklog);
-            }
+                var session = connection.Table<ReviewSessionEntity>().Single();
+                var candidates = connection.Table<ReviewCandidateEntity>()
+                    .Where(c => c.SessionId == session.Id)
+                    .ToList();
+                foreach (var candidate in candidates)
+                {
+                    var word = connection.Find<WordEntity>(candidate.WordId)
+                        ?? throw new InvalidOperationException("A review candidate has no word record.");
+                    word.Status = WordStatus.UnknownBacklog;
+                    connection.Update(word);
+
+                    // PreparationService.ReviewIsResolved requires the candidate's own Status to have moved
+                    // off Unreviewed (not just the word), exactly as TextReviewService.DecideAsync would do.
+                    candidate.Status = WordStatus.UnknownBacklog;
+                    candidate.DecidedAt = DateTime.UtcNow;
+                    connection.Update(candidate);
+                }
+
+                session.Status = ReviewSessionStatus.Completed;
+                session.CompletedAt = DateTime.UtcNow;
+                session.ReviewedCount = candidates.Count;
+                session.UnknownCount = candidates.Count;
+                connection.Update(session);
+                return true;
+            });
 
             await preparation.StartAsync(PreparationMethod.Manual, 1);
             var item = await preparation.LookupCurrentAsync();

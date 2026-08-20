@@ -2,6 +2,7 @@ using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
+using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Models;
 using KnownFirst.Services;
@@ -33,7 +34,8 @@ public sealed class StudyWorkflowServiceTests
         _database = new TemporaryKnownFirstDatabase("knownfirst-study");
         await _database.InitializeAsync();
         _clock = new FakeClock(Now);
-        _review = new TextReviewService(_database, new TextAnalyzer());
+        _review = new TextReviewService(
+            _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
         _provider = new MutableDictionaryProvider(_clock);
         _preparation = CreatePreparationService(_provider);
         _learning = CreateLearningService();
@@ -450,6 +452,15 @@ public sealed class StudyWorkflowServiceTests
             Word = await connection.FindAsync<WordEntity>(item.WordId),
             Cards = await connection.Table<LearningCardEntity>().Where(card => card.WordId == item.WordId).CountAsync(),
             Candidate = await connection.FindAsync<PreparationCandidateEntity>(item.CandidateId)
+        });
+        // The exclude workflow above ran at this fixture's genuine Schema-7 baseline. The remaining
+        // assertions exercise TextReviewService.GetCurrentCandidateAsync directly, which now requires the
+        // current schema (DerivedTermEvidenceEntries), so the fixture is explicitly advanced here — after
+        // the Schema-7 preparation-exclude characterization already completed.
+        await _database.ReadAsync(async connection =>
+        {
+            await DatabaseSchema.InitializeAsync(connection);
+            return true;
         });
         var import = await _review.ImportAsync(Request("network protection."));
         var reviewCandidate = await _review.GetCurrentCandidateAsync();
@@ -1399,6 +1410,35 @@ public sealed class StudyWorkflowServiceTests
     {
         await ImportWithSingleUnknownAsync("network alpha.", "network");
         await ImportWithSingleUnknownAsync("network beta.", "network");
+
+        // "alpha" and "beta" were decided Known by the imports above; a real completed review already
+        // removes a Known word's occurrences (TextReviewService.CompleteSession, exercised and asserted
+        // directly in TextReviewServiceTests). That is only this test's fixture precondition here, so
+        // that once MarkPermanentlyKnownAsync below also removes "network"'s own remaining occurrences,
+        // both source documents become genuinely occurrence-free — the state the production cleanup
+        // this test verifies (LearningService.MarkPermanentlyKnownAsync + DocumentCleanupOperations)
+        // actually requires before it can act. "network"'s own occurrences are deliberately left
+        // present here: their removal, and the resulting document/sentence/context cleanup, is exactly
+        // what this test proves the production service performs.
+        await _database.RunInTransactionAsync(connection =>
+        {
+            var words = connection.Table<WordEntity>().ToList();
+            foreach (var term in new[] { "alpha", "beta" })
+            {
+                var word = words.Single(w => string.Equals(w.CanonicalTerm, term, StringComparison.OrdinalIgnoreCase));
+                foreach (var occurrence in connection.Table<WordOccurrenceEntity>().Where(o => o.WordId == word.Id).ToList())
+                {
+                    connection.Delete(occurrence);
+                }
+
+                word.TotalOccurrenceCount = 0;
+                word.DocumentCount = 0;
+                connection.Update(word);
+            }
+
+            return true;
+        });
+
         var item = await PrepareExistingBacklogAsync(CardDirectionPreference.Both);
 
         var changed = await _learning.MarkPermanentlyKnownAsync(item.WordId, confirmed: true);
@@ -1475,25 +1515,59 @@ public sealed class StudyWorkflowServiceTests
     {
         var result = await _review.ImportAsync(request);
         Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
-        while (await _review.GetCurrentCandidateAsync() is { } candidate)
-        {
-            await _review.DecideAsync(candidate.WordId, WordStatus.UnknownBacklog);
-        }
+        await SeedResolvedReviewStateAsync(_ => WordStatus.UnknownBacklog);
     }
 
     private async Task ImportWithSingleUnknownAsync(string content, string unknownTerm)
     {
         var result = await _review.ImportAsync(Request(content));
         Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
-        while (await _review.GetCurrentCandidateAsync() is { } candidate)
-        {
-            await _review.DecideAsync(
-                candidate.WordId,
-                string.Equals(candidate.Candidate, unknownTerm, StringComparison.OrdinalIgnoreCase)
-                    ? WordStatus.UnknownBacklog
-                    : WordStatus.Known);
-        }
+        await SeedResolvedReviewStateAsync(word =>
+            string.Equals(word.CanonicalTerm, unknownTerm, StringComparison.OrdinalIgnoreCase)
+                ? WordStatus.UnknownBacklog
+                : WordStatus.Known);
     }
+
+    /// <summary>
+    /// Seeds the durable review-resolved fixture facts PreparationService/LearningService require
+    /// downstream: each candidate's Word.Status moves off Unreviewed to the given status, the owning
+    /// ReviewCandidate.Status is updated to match (PreparationService.ReviewIsResolved requires this),
+    /// and the ReviewSession leaves Active so it no longer blocks PreparationService.StartAsync's
+    /// no-active-review precondition. This fixture is deliberately kept at genuine Schema 7 throughout
+    /// this class (TextReviewService.GetCurrentCandidateAsync/DecideAsync-to-completion now require the
+    /// current schema), so this seeds the same persisted facts directly instead. It intentionally does
+    /// not touch WordOccurrences, WordForms, SentenceSpans, or Documents, and does not delete
+    /// ReviewCandidates — this is fixture seeding of named facts, not a review-completion workflow.
+    /// </summary>
+    private Task SeedResolvedReviewStateAsync(Func<WordEntity, WordStatus> decide) =>
+        _database.RunInTransactionAsync(connection =>
+        {
+            var session = connection.Table<ReviewSessionEntity>()
+                .Single(s => s.Status == ReviewSessionStatus.Active);
+            var candidates = connection.Table<ReviewCandidateEntity>()
+                .Where(c => c.SessionId == session.Id)
+                .ToList();
+
+            foreach (var candidate in candidates)
+            {
+                var word = connection.Find<WordEntity>(candidate.WordId)
+                    ?? throw new InvalidOperationException("A review candidate has no word record.");
+                var status = decide(word);
+
+                word.Status = status;
+                word.UpdatedAt = DateTime.UtcNow;
+                connection.Update(word);
+
+                candidate.Status = status;
+                candidate.DecidedAt = DateTime.UtcNow;
+                connection.Update(candidate);
+            }
+
+            session.Status = ReviewSessionStatus.Completed;
+            session.CompletedAt = DateTime.UtcNow;
+            connection.Update(session);
+            return true;
+        });
 
     private Task SeedUnknownWordsAsync(int count) => _database.RunInTransactionAsync(connection =>
     {

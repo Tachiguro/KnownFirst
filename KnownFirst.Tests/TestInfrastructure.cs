@@ -231,6 +231,23 @@ internal sealed class TemporarySchema8Database : IKnownFirstDatabase, IAsyncDisp
         _migrated = true;
     }
 
+    /// <summary>
+    /// Test-only opt-in transition from this fixture's frozen Schema-8 baseline to the real current
+    /// schema, via the same <see cref="DatabaseSchema.InitializeAsync"/> path production uses. Call this
+    /// only at the exact point a test begins exercising current-schema behavior (e.g.
+    /// <c>TextReviewService</c>'s <c>DerivedTermEvidenceEntries</c>-dependent methods) — never implicitly
+    /// from <see cref="InitializeAsync"/> itself, so tests that intentionally characterize the frozen
+    /// Schema-8 shape, capability resolution, or lazy-upgrade behavior remain unaffected unless they opt
+    /// in explicitly. Operates only on this fixture's own isolated temporary connection/file. Does not
+    /// hide the resulting <c>PRAGMA user_version</c>: callers can read it back through <see cref="ReadAsync{T}"/>
+    /// exactly as with any other operation.
+    /// </summary>
+    public async Task UpgradeToCurrentSchemaAsync()
+    {
+        await InitializeAsync();
+        await DatabaseSchema.InitializeAsync(_connection!);
+    }
+
     public async Task<T> ReadAsync<T>(Func<SQLiteAsyncConnection, Task<T>> operation)
     {
         await _gate.WaitAsync();

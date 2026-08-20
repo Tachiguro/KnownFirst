@@ -34,8 +34,14 @@ public sealed class PreparationServiceSchema8LazyUpgradeTests
     {
         _database = new TemporarySchema8Database("knownfirst-schema8-lazy-upgrade");
         await _database.InitializeAsync();
+        // This class characterizes the JSON PreparationCandidate ResultJson envelope lazy-upgrade policy,
+        // not literal-PRAGMA-version behavior — ResultJson content is manually seeded per test regardless
+        // of schema version. The fixture upgrades immediately after construction so TextReviewService's
+        // review-selection/completion setup methods, which now require the current schema, keep working.
+        await _database.UpgradeToCurrentSchemaAsync();
         _clock = new FakeClock(Now);
-        _review = new TextReviewService(_database, new TextAnalyzer());
+        _review = new TextReviewService(
+            _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
         _preparation = new PreparationService(
             _database,
             new LexicalEnrichmentService(

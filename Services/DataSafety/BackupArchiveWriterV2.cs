@@ -62,6 +62,25 @@ public static class BackupArchiveWriterV2
             payload, platformInfo, ValidatedSchema10Capability.SchemaVersion, timestampUtc, destinationStream, cancellationToken);
     }
 
+    /// <summary>The Schema-11 counterpart. Records
+    /// <see cref="ValidatedSchema11Capability.SchemaVersion"/> (11) as the manifest's
+    /// <c>SourceDatabaseSchemaVersion</c>, and enforces persistent learning workflow identities identically to Schema 10.</summary>
+    public static Task WriteArchiveAsync(
+        BackupPayloadV2 payload,
+        IBackupPlatformInfo platformInfo,
+        ValidatedSchema11Capability capability,
+        DateTime timestampUtc,
+        Stream destinationStream,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(capability);
+        ArgumentNullException.ThrowIfNull(payload);
+        BackupModelContractV2.ValidateLearningWorkflowStableIds(
+            ValidatedSchema11Capability.SchemaVersion, payload);
+        return WriteArchiveCoreAsync(
+            payload, platformInfo, ValidatedSchema11Capability.SchemaVersion, timestampUtc, destinationStream, cancellationToken);
+    }
+
     private static async Task WriteArchiveCoreAsync(
         BackupPayloadV2 payload,
         IBackupPlatformInfo platformInfo,

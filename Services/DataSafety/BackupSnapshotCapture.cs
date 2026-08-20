@@ -35,6 +35,11 @@ public sealed record CapturedSchema10SnapshotEnvelope(
     Schema8BackupSnapshot Snapshot,
     ValidatedSchema10Capability Capability) : CapturedBackupSnapshotEnvelope;
 
+/// <summary>The Schema-11 counterpart of <see cref="CapturedSchema10SnapshotEnvelope"/>.</summary>
+public sealed record CapturedSchema11SnapshotEnvelope(
+    Schema8BackupSnapshot Snapshot,
+    ValidatedSchema11Capability Capability) : CapturedBackupSnapshotEnvelope;
+
 public static class BackupSnapshotCapture
 {
     /// <summary>Portable/user-export capture (workflow-filtered), dispatched by validated schema
@@ -54,6 +59,10 @@ public static class BackupSnapshotCapture
                 Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
                     connection, Schema8BackupSnapshotRepository.CapturePortableSnapshotSchema10(connection)),
                 schema10.Capability),
+            Schema11CapabilityResult schema11 => new CapturedSchema11SnapshotEnvelope(
+                Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                    connection, Schema8BackupSnapshotRepository.CapturePortableSnapshotSchema10(connection)),
+                schema11.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
     }
@@ -75,6 +84,10 @@ public static class BackupSnapshotCapture
                 Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
                     connection, Schema8BackupSnapshotRepository.CaptureSnapshot(connection)),
                 schema10.Capability),
+            Schema11CapabilityResult schema11 => new CapturedSchema11SnapshotEnvelope(
+                Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                    connection, Schema8BackupSnapshotRepository.CaptureSnapshot(connection)),
+                schema11.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
     }
@@ -110,6 +123,11 @@ public sealed record MergeSafetyCopySchema10Captured(
     Schema8BackupSnapshot Snapshot,
     ValidatedSchema10Capability Capability) : MergeSafetyCopyCaptureEnvelope;
 
+/// <summary>The Schema-11 counterpart of <see cref="MergeSafetyCopySchema10Captured"/>.</summary>
+public sealed record MergeSafetyCopySchema11Captured(
+    Schema8BackupSnapshot Snapshot,
+    ValidatedSchema11Capability Capability) : MergeSafetyCopyCaptureEnvelope;
+
 public static class BackupMergeSafetyCopySnapshotCapture
 {
     public static MergeSafetyCopyCaptureEnvelope CaptureForMergeSafetyCopy(SQLiteConnection connection)
@@ -142,6 +160,14 @@ public static class BackupMergeSafetyCopySnapshotCapture
                     : new MergeSafetyCopySchema10Captured(
                         Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, v2ResultForSchema10.Snapshot!),
                         schema10.Capability);
+
+            case Schema11CapabilityResult schema11:
+                var v2ResultForSchema11 = Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
+                return v2ResultForSchema11.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
+                    ? new MergeSafetyCopyCaptureBlocked()
+                    : new MergeSafetyCopySchema11Captured(
+                        Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, v2ResultForSchema11.Snapshot!),
+                        schema11.Capability);
 
             default:
                 throw new InvalidOperationException("Unrecognized backup schema capability result.");

@@ -33,7 +33,8 @@ public sealed class MvpCorePolicyTests
 
         await using var database = new TemporaryKnownFirstDatabase("knownfirst-review-candidate-invariant");
         await database.InitializeAsync();
-        var service = new TextReviewService(database, new TextAnalyzer());
+        var service = new TextReviewService(
+            database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
 
         var result = await service.ImportAsync(new ImportTextRequest(
             "Repeated identity document",

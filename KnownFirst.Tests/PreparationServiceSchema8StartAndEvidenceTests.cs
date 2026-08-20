@@ -32,8 +32,13 @@ public sealed class PreparationServiceSchema8StartAndEvidenceTests
     {
         _database = new TemporarySchema8Database("knownfirst-schema8-start");
         await _database.InitializeAsync();
+        // This class characterizes preparation-start/evidence behavior, not literal-version behavior. The
+        // fixture upgrades immediately after construction so TextReviewService's review-selection/completion
+        // setup methods, which now require the current schema, keep working.
+        await _database.UpgradeToCurrentSchemaAsync();
         _clock = new FakeClock(Now);
-        _review = new TextReviewService(_database, new TextAnalyzer());
+        _review = new TextReviewService(
+            _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
         _provider = new MutableProvider(_clock);
         _preparation = new PreparationService(
             _database,

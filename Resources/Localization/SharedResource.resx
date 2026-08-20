@@ -651,6 +651,21 @@
   <data name="Settings_LearningModeSaved" xml:space="preserve">
     <value>Learning mode saved.</value>
   </data>
+  <data name="Settings_EnhancedTermRecognition" xml:space="preserve">
+    <value>Enhanced term recognition</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionHelp" xml:space="preserve">
+    <value>Identifies additional German word parts, such as compound components, using an offline, local recognition model. This is separate from the online dictionary lookup and never sends anything over the network.</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="Settings_EnhancedTermRecognitionSaved" xml:space="preserve">
+    <value>Enhanced term recognition setting saved.</value>
+  </data>
   <data name="Settings_OnlineDictionary" xml:space="preserve">
     <value>Online dictionary</value>
   </data>

@@ -220,12 +220,17 @@ This section defines the binding contract for optional, lexicon-backed decomposi
 
 ### Decomposition rule
 
-The decomposer attempts to split a German compound into exactly **two components** that are both fully confirmed by the lexicon. A split is accepted only when:
+The decomposer attempts to split a German compound into an ordered sequence of **2 to 4 components**, each fully confirmed by the lexicon. Standalone tokens outside a recognized compound are never affected — this rule applies only while decomposing a candidate compound word.
 
-- Exactly one distinct split position produces two non-empty substrings.
-- Both substrings are confirmed as lexicon lemmas.
-- No Fugen element (e.g. `-s-`, `-n-`) needs to be stripped or guessed to form either component; only a direct two-part boundary is accepted.
-- The split is unambiguous: if more than one valid split position exists, the decomposition fails closed (no derived candidates are produced for that compound).
+- Every candidate component span must be at least 2 characters long before any fallback interpretation is considered.
+- Every component except the final (head) one may resolve as any supported lexicon category (`Noun`, `Verb`, `Adjective`); the final component must resolve specifically as `GermanLexemeCategory.Noun`.
+- For each component span, **literal lexicon resolution is attempted first** (the exact substring, or its first-letter upper-cased form). A successful literal match wins outright for that span; no fallback interpretation is even considered once literal resolution succeeds.
+- Only when literal resolution fails may a bounded, lexicon-confirmed **fallback** be considered: stripping one candidate suffix from the end of the span and re-resolving the remainder (see "Shipped fallback suffixes" below). Fallback resolution is single-step — a stripped remainder is never itself stripped again — and every fallback result must independently resolve through the same `IGermanLexicon` contract as a literal match. This is not general stemming or heuristic morphology: only the explicitly shipped, bounded suffix set is ever tried.
+- A word that itself resolves as a single valid lexicon entry, with no genuine split, is **not** treated as a one-component "decomposition" of itself — a decomposition always requires splitting into at least 2 components.
+- **Ambiguity fails closed** in every one of these cases, without any preference/tie-break heuristic:
+  - zero complete valid partitions of the whole word exist;
+  - more than one complete valid partition exists (whether differing in split position, component count, or fallback interpretation);
+  - more than one genuinely distinct, independently lexicon-confirmed fallback interpretation exists for the same component span.
 
 ### Whole-compound behavior
 
@@ -233,17 +238,17 @@ The source compound word always remains a **Direct** vocabulary candidate with i
 
 ### Derived candidate contract
 
-For each accepted decomposition the decomposer produces derived candidates for each component:
+For each accepted decomposition the decomposer produces one derived candidate for every ordered component (2 to 4, per the bound above):
 
 - **Provenance kind:** `CandidateProvenanceKind.DerivedFromCompound`.
-- **Identity:** the canonical lexicon lemma for that component (e.g. `schreiben`, `Maschine`).
+- **Identity:** the canonical lexicon lemma for that component (e.g. `schreiben`, `Maschine`, `Arbeit`, `Griff`).
 - **No fabricated literal `TokenOccurrence` rows:** derived candidates do not insert synthetic occurrence rows into the database. Their evidence is recorded through `DerivedTermEvidence`.
-- **`DerivedTermEvidence` fields retained:**
+- **`DerivedTermEvidence` fields retained (unchanged by multi-component/fallback support):**
   - source compound identity (the whole compound's learning term);
   - exact source surface form as it appears in the original text;
-  - whole-compound start position and length within the document;
+  - whole-compound start position and length within the document — always the **complete source-compound occurrence**, never a sub-span of it, regardless of which component or how many components were derived;
   - sentence order (to preserve derivation context);
-  - literal component surface form used to confirm the split.
+  - the component's literal or fallback-resolved form (`ComponentForm`). This field carries **no independent source-coordinate semantics** — it is informational text only, never used to compute or validate a position/length in the document; the source-position truth is always the whole-compound occurrence above.
 
 ### Candidate ordering and collision
 
@@ -251,28 +256,52 @@ For each accepted decomposition the decomposer produces derived candidates for e
 - If a derived component identity collides with an existing Direct identity, the **Direct candidate wins** and the derived candidate is suppressed.
 - If multiple occurrences of the same source compound produce equivalent derivation groups, they are **grouped by identity** with multiple `DerivedTermEvidence` entries (one per occurrence), mirroring how Direct candidates accumulate multiple `TokenOccurrence` rows.
 
+### Shipped fallback suffixes
+
+The fallback mechanism is **one unified, closed suffix-stripping path** — it does not run two independently executed mechanisms for "linking elements" and "de-inflection." The currently shipped candidate-suffix set is exactly:
+
+- `s`
+- `es`
+- `e`
+
+Each shipped suffix is backed by a concrete, lexicon-confirmed example (see "Examples" below). Other suffixes from the broader German linking/inflection inventory (`n`, `en`, `er`) were evaluated during planning but are **not** shipped in this package: no sufficiently conservative, lexicon-backed justification was established for them. A compound that would only decompose via one of these unshipped suffixes fails closed rather than guessing.
+
 ### Scope boundary — what the decomposer does NOT do
 
-- No broad stemming or suffix removal.
-- No morphological guessing.
+- No broad stemming or general suffix removal — only the small, fixed, shipped suffix set (`s`, `es`, `e`) is ever tried, and only as a fallback after literal resolution fails.
+- No morphological guessing beyond that fixed set.
 - No network, provider, or online lookup.
-- No Fugen-element stripping (e.g. `-s-`, `-n-`, `-en-`, `-e-`).
-- No linking-element inference.
+- No `n`, `en`, or `er` linking/inflection suffixes (evaluated but intentionally not shipped).
+- No umlaut-mutating fallback forms.
+- No component span shorter than 2 characters.
+- No more than 4 components in one decomposition.
+- No stacking of more than one fallback interpretation on the same component (a stripped remainder is never stripped again).
 - No multi-word or phrase decomposition.
-- No three-or-more component splits.
+- No standalone-token normalization — this mechanism only ever applies while decomposing a recognized compound word, never to an ordinary reviewed token.
 - No decomposition when the lexicon is absent or the feature is disabled.
 
 ### Examples
 
-**Accepted:**
+**Accepted (literal resolution only):**
 - `Schreibmaschine` → `schreiben` (lexicon: verb infinitive lemma) + `Maschine` (lexicon: noun)
 - `Waschmaschine` → `waschen` + `Maschine`
 
-**Fail-closed (under the current lexicon/policy):**
-- `Arbeitszimmer` — requires stripping the Fugen `-s-`; not attempted.
-- `Sicherheitsmanagement` — `Sicherheits-` is not a standalone lexicon lemma without stripping; not attempted.
+**Accepted (via the shipped `s`/`es` linking-element fallback):**
+- `Arbeitszimmer` → `Arbeit` + `Zimmer` (linking `s` stripped from `Arbeits-`)
+- `Sicherheitsmanagement` → `Sicherheit` + `Management` (linking `s` stripped from `Sicherheits-`)
+- `Bundesland` → `Bund` + `Land` (linking `es` stripped from `Bundes-`)
 
+**Accepted (via the shipped `e` de-inflection fallback):**
+- `Fenstergriffe` → `Fenster` + `Griff` (plural surface form `griffe` normalizes to the lexicon-confirmed singular lemma `Griff` by stripping `e`)
 
+**Fail-closed:**
+- A compound that would only decompose via an unshipped `n`/`en`/`er` linking or de-inflection suffix.
+- A word that itself resolves as a single lexicon entry, with no genuine multi-component split (e.g. `Zimmer` alone).
+- A compound admitting more than one complete valid partition, or a component span admitting more than one genuinely distinct fallback interpretation.
+
+### Production lexicon and application-integration status
+
+A production, offline `IGermanLexicon` implementation (`GeneratedGermanLexicon`, backed by `KnownFirst.Core/Text/German/Assets/german-lexicon.v2.kfgl`) exists and is wired into the application's `TextReviewService` analysis path, gated behind the persisted `EnhancedTermRecognitionEnabled` setting exposed in Settings. This decomposer contract — including the 2–4 component bound and the shipped `s`/`es`/`e` fallback set described above — is independently reviewed and approved, but still **uncommitted** as a working-tree candidate on `feature/german-enhanced-term-recognition-e2e-v1`; see [docs/PROJECT_STATE.md](PROJECT_STATE.md) and [docs/CURRENT_WORK.md](CURRENT_WORK.md) for exact provenance, counts, and lifecycle status. It is not yet packaged into a shipped Windows/Android build. Every rule above remains a description of the decomposer's contract against *any* `IGermanLexicon` instance, not a claim that this production lexicon is active in a release build.
 
 ## Encountered forms
 
@@ -546,13 +575,22 @@ Diagnostics:
 Conservative German compound decomposition:
 
 - feature inactive when disabled or no lexicon supplied; existing behavior unchanged
-- unambiguous two-part split accepted (e.g. `Schreibmaschine` → `schreiben` + `Maschine`)
-- ambiguous split (multiple valid positions) produces no derived candidates
-- Fugen-element compounds fail closed (e.g. `Arbeitszimmer`, `Sicherheitsmanagement`)
+- unambiguous literal split accepted (e.g. `Schreibmaschine` → `schreiben` + `Maschine`)
+- unambiguous split via the shipped `s`/`es` linking-element fallback accepted (e.g. `Arbeitszimmer` → `Arbeit` + `Zimmer`, `Sicherheitsmanagement` → `Sicherheit` + `Management`, `Bundesland` → `Bund` + `Land`)
+- unambiguous split via the shipped `e` de-inflection fallback accepted (e.g. `Fenstergriffe` → `Fenster` + `Griff`)
+- literal resolution wins outright even when a fallback interpretation would also independently resolve for the same span
+- valid unique 3-component and 4-component decompositions accepted in order
+- a decomposition requiring more than 4 components fails closed
+- a component span shorter than 2 characters is never attempted
+- the final/head component must resolve as `GermanLexemeCategory.Noun`; a compound whose only possible final component resolves as a different category fails closed
+- a word that itself resolves as a single lexicon entry, with no genuine split, is not accepted as a one-component decomposition
+- ambiguous split (multiple valid complete partitions, of the same or different component counts) produces no derived candidates
+- more than one genuinely distinct fallback interpretation for the same component span produces no derived candidates for that compound
+- an unshipped linking/de-inflection suffix (`n`, `en`, `er`) never causes a match; the compound fails closed
 - source compound remains a Direct candidate with unchanged identity and occurrences
 - derived components carry `CandidateProvenanceKind.DerivedFromCompound`
 - derived candidates have no fabricated literal `TokenOccurrence` rows
-- `DerivedTermEvidence` retains source compound identity, surface form, start/length, sentence order, and component form
+- `DerivedTermEvidence` retains source compound identity, surface form, start/length, sentence order, and component form, and always points to the complete source-compound occurrence regardless of component count
 - multiple occurrences of the same compound group by identity with multiple evidence entries
 - Direct identity wins over colliding Derived identity
 - derived candidates appended after all Direct candidates; Direct order unchanged

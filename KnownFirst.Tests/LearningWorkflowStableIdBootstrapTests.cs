@@ -33,8 +33,8 @@ public sealed class LearningWorkflowStableIdBootstrapTests
         await DatabaseSchema.InitializeAsync(installationA.Connection);
         await DatabaseSchema.InitializeAsync(installationB.Connection);
 
-        Assert.AreEqual(Schema10, await installationA.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
-        Assert.AreEqual(Schema10, await installationB.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await installationA.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await installationB.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var sessionsA = await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(installationA);
         var sessionsB = await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(installationB);
@@ -65,7 +65,7 @@ public sealed class LearningWorkflowStableIdBootstrapTests
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
         await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var session = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture)).Single();
         Assert.AreEqual(
@@ -88,7 +88,7 @@ public sealed class LearningWorkflowStableIdBootstrapTests
         Assert.AreEqual(2, sharedTimestampCount, "The fixture must genuinely contain two sessions at one StartedAtUtc.");
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var sessions = await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture);
         Assert.HasCount(2, sessions);
@@ -104,7 +104,7 @@ public sealed class LearningWorkflowStableIdBootstrapTests
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var assigned = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture)).Single();
         Assert.AreEqual(
@@ -142,7 +142,7 @@ public sealed class LearningWorkflowStableIdBootstrapTests
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
 
         await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var before = await Schema10LegacyLearningFixtures.LoadQueueStableIdsAsync(fixture);
         Assert.HasCount(2, before);
@@ -167,7 +167,7 @@ public sealed class LearningWorkflowStableIdBootstrapTests
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
         await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var before = await Schema10LegacyLearningFixtures.LoadQueueStableIdsAsync(fixture);
         var sourceRow = before[0];

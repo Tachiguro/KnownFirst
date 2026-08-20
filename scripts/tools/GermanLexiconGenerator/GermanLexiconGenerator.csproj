@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>KnownFirst.Tools.GermanLexicon</RootNamespace>
+    <!--
+      Offline maintenance tool: parses the pinned upstream German morphological dictionary and
+      generates the compact runtime index consumed by KnownFirst.Core.Text.German.GeneratedGermanLexicon.
+      Not referenced by KnownFirst.csproj (the shipped app) and not part of any Windows/Android build.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\KnownFirst.Core\KnownFirst.Core.csproj" />
+  </ItemGroup>
+
+</Project>

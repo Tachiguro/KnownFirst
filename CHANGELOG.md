@@ -8,6 +8,7 @@ and uses the application's prerelease version identifiers.
 
 ### Added
 
+- Retained German derived-term provenance (Schema-11 `DerivedTermEvidence`) now travels through portable backup/restore and cross-installation merge, alongside the ordinary retained review candidate it belongs to, so Preparation can recover real source-compound context on another installation the same way it already can locally. No database schema-version bump; the portable archive format remains V2.
 - Windows portable ZIP packaging foundation: `scripts/publish-windows-portable.ps1` and canonical launcher action `WindowsPortablePackage` producing a self-contained, unpackaged x64 Release ZIP archive with a SHA-256 sidecar under `artifacts/windows-portable/` as a manual replacement channel.
 - Windows MSIX packaging foundation: `scripts/publish-windows-msix.ps1` and canonical launcher action `WindowsMsixPackage` producing an x64 Release MSIX package with a SHA-256 sidecar under `artifacts/windows-msix/`, with unsigned default and optional certificate thumbprint signing via external environment variable (`KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT`).
 - Shared distribution helper `scripts/windows-distribution-common.ps1` providing a single source of truth for artifact naming, signing markers, Store identity classification, candidate selection, and ZIP file-entry counting.

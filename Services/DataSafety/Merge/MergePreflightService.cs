@@ -118,13 +118,29 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
                     var captured = useSchema10ActiveLearningPreflightCapture
                         ? Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForSchema10ActiveLearningMergePreflight(connection)
                         : Data.Schema8.Schema8BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
-                    return captured.Snapshot is null || BackupSchemaCapability.Resolve(connection) is not (Schema10CapabilityResult or Schema11CapabilityResult)
-                        ? captured
-                        : captured with
-                        {
-                            Snapshot = Data.Schema8.Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
-                                connection, captured.Snapshot)
-                        };
+                    if (captured.Snapshot is null)
+                    {
+                        return captured;
+                    }
+
+                    var resolvedTargetCapability = BackupSchemaCapability.Resolve(connection);
+                    var enrichedSnapshot = captured.Snapshot;
+                    if (resolvedTargetCapability is Schema10CapabilityResult or Schema11CapabilityResult)
+                    {
+                        enrichedSnapshot = Data.Schema8.Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
+                            connection, enrichedSnapshot);
+                    }
+
+                    // German Enhanced Term Recognition Package 5A-2: the target payload the planner
+                    // classifies against must see the same transported evidence a Schema-11 target already
+                    // holds, or every archive evidence row would misclassify as New on every re-import.
+                    if (resolvedTargetCapability is Schema11CapabilityResult)
+                    {
+                        enrichedSnapshot = Data.Schema8.Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(
+                            connection, enrichedSnapshot);
+                    }
+
+                    return captured with { Snapshot = enrichedSnapshot };
                 });
             }
             catch (OperationCanceledException)

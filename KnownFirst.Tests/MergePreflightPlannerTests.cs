@@ -1470,6 +1470,7 @@ public sealed class MergePreflightPlannerTests
         [],
         new BackupLearningDataV2([], []),
         new BackupWorkflowDataV2(reviewWorkflows ?? [], preparationWorkflows ?? [], []),
+        [],
         new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
 
     // ---- Stage 1 characterization: unchanged Schema-7 and unrelated-decision behaviour ----
@@ -1942,7 +1943,8 @@ public sealed class MergePreflightPlannerTests
             [],
             new BackupLearningDataV2([card], reviewRows),
             new BackupWorkflowDataV2([], [], []),
-            new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
+            [],
+        new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
     }
 
     private static List<MergePlanAction> ReviewActions(MergePreflightPlan plan) =>

@@ -72,3 +72,13 @@ public readonly record struct LearningReviewFingerprint(string Value)
 {
     public override string ToString() => Value;
 }
+
+/// <summary>
+/// German Enhanced Term Recognition Package 5A-2: the stable cross-installation identity of one
+/// <c>DerivedTermEvidenceEntity</c> row. Contains no SQLite id and no archive-local id — see
+/// <see cref="DerivedTermEvidenceMergeIdentity"/> for the exact composition.
+/// </summary>
+public readonly record struct DerivedTermEvidenceIdentity(string Value)
+{
+    public override string ToString() => Value;
+}

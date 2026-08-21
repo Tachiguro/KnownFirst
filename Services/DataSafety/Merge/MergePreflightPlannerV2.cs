@@ -834,16 +834,28 @@ public static class MergePreflightPlannerV2
         // Both the session and its candidates match by full-history v2 identity, so a divergent completed
         // history is simply New — never a WorkflowStatusConflictDecision and never a
         // WorkflowHistorySchemaMigrationRequired prerequisite (both remain valid for the Schema-7 path).
+        var targetDocLanguageByLocalId = target.SourceMaterials.ToDictionary(d => d.Id, d => d.TextLanguage, StringComparer.Ordinal);
+        var archiveDocLanguageByLocalId = archive.SourceMaterials.ToDictionary(d => d.Id, d => d.TextLanguage, StringComparer.Ordinal);
+
         var targetReviewCandidateIdentities = new HashSet<ReviewCandidateIdentity>();
+        // German Enhanced Term Recognition Package 5A-2: every candidate's own resolvable identity plus its
+        // owning document's language, keyed by the archive review-item id — needed below to classify
+        // DerivedTermEvidence rows without recomputing session/candidate identities a second time.
+        var targetReviewCandidateIdentityByItemLocalId = new Dictionary<string, ReviewCandidateIdentity>(StringComparer.Ordinal);
+        var targetDocumentLanguageByItemLocalId = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var session in target.Workflows.VocabularyReviews)
         {
             var sessionIdentity = MergePreflightPlanner.Resolve(
                 targetReviewSessionIdentityByLocalId, session.Id, "target review session identity map");
+            var documentLanguage = MergePreflightPlanner.Resolve(
+                targetDocLanguageByLocalId, session.SourceMaterialId, "target review session document language");
             foreach (var item in session.Items)
             {
                 var vocabIdentity = MergePreflightPlanner.Resolve(targetVocabByLocalId, item.VocabularyId, "target review item vocabulary");
-                targetReviewCandidateIdentities.Add(
-                    ReviewWorkflowIdentityPolicy.ComputeCandidateIdentityV2(sessionIdentity, vocabIdentity));
+                var candidateIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentityV2(sessionIdentity, vocabIdentity);
+                targetReviewCandidateIdentities.Add(candidateIdentity);
+                targetReviewCandidateIdentityByItemLocalId[item.Id] = candidateIdentity;
+                targetDocumentLanguageByItemLocalId[item.Id] = documentLanguage;
             }
         }
 
@@ -851,6 +863,10 @@ public static class MergePreflightPlannerV2
         // writer would have to insert two rows carrying one v2 identity. Fail closed before recording any
         // action for the duplicate workflow or its candidates, exactly as the target side does.
         var archiveReviewSessionIdentities = new HashSet<ReviewSessionIdentity>();
+        // German Enhanced Term Recognition Package 5A-2: the archive-side counterparts of the target maps
+        // above.
+        var archiveReviewCandidateIdentityByItemLocalId = new Dictionary<string, ReviewCandidateIdentity>(StringComparer.Ordinal);
+        var archiveDocumentLanguageByItemLocalId = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var session in archive.Workflows.VocabularyReviews)
         {
             var identity = ComputeReviewSessionIdentityV2(
@@ -871,6 +887,8 @@ public static class MergePreflightPlannerV2
 
             Record(MergeEntityKind.VocabularyReviewWorkflow, identity.Value, session.Id, classification, reason);
 
+            var documentLanguage = MergePreflightPlanner.Resolve(
+                archiveDocLanguageByLocalId, session.SourceMaterialId, "archive review session document language");
             foreach (var item in session.Items)
             {
                 var vocabIdentity = MergePreflightPlanner.Resolve(archiveVocabByLocalId, item.VocabularyId, "archive review item vocabulary");
@@ -883,7 +901,56 @@ public static class MergePreflightPlannerV2
                     : "review-item-exact-duplicate";
 
                 Record(MergeEntityKind.VocabularyReviewItem, itemIdentity.Value, item.Id, itemClassification, itemReason);
+                archiveReviewCandidateIdentityByItemLocalId[item.Id] = itemIdentity;
+                archiveDocumentLanguageByItemLocalId[item.Id] = documentLanguage;
             }
+        }
+
+        // DerivedTermEvidence (German Enhanced Term Recognition Package 5A-2)
+        //
+        // Its own merge entity kind rather than being hidden inside VocabularyReviewItem classification,
+        // since one owning candidate can carry zero, one, or several independently-classified evidence rows.
+        // Identity is the owning candidate's stable ReviewCandidateIdentity plus the source-compound's own
+        // VocabularyIdentity (owning-document language + SourceIdentity) plus the physical range/component
+        // fields — never an archive-local id, and never re-deriving the candidate's own identity twice.
+        var targetDerivedEvidenceIdentities = new HashSet<DerivedTermEvidenceIdentity>();
+        foreach (var evidence in target.DerivedTermEvidence)
+        {
+            var candidateIdentity = MergePreflightPlanner.Resolve(
+                targetReviewCandidateIdentityByItemLocalId, evidence.ReviewItemId, "target derived evidence owning review item");
+            var documentLanguage = MergePreflightPlanner.Resolve(
+                targetDocumentLanguageByItemLocalId, evidence.ReviewItemId, "target derived evidence owning document language");
+            var sourceCompoundVocabularyIdentity = VocabularyMergeIdentityPolicy.Compute(documentLanguage, evidence.SourceIdentity);
+            targetDerivedEvidenceIdentities.Add(DerivedTermEvidenceMergeIdentity.Compute(
+                candidateIdentity, sourceCompoundVocabularyIdentity, evidence.SourceStartPosition,
+                evidence.SourceLength, evidence.SourceSentenceOrder, evidence.ComponentForm));
+        }
+
+        for (var derivedEvidenceIndex = 0; derivedEvidenceIndex < archive.DerivedTermEvidence.Count; derivedEvidenceIndex++)
+        {
+            var evidence = archive.DerivedTermEvidence[derivedEvidenceIndex];
+            var candidateIdentity = MergePreflightPlanner.Resolve(
+                archiveReviewCandidateIdentityByItemLocalId, evidence.ReviewItemId, "archive derived evidence owning review item");
+            var documentLanguage = MergePreflightPlanner.Resolve(
+                archiveDocumentLanguageByItemLocalId, evidence.ReviewItemId, "archive derived evidence owning document language");
+            var sourceCompoundVocabularyIdentity = VocabularyMergeIdentityPolicy.Compute(documentLanguage, evidence.SourceIdentity);
+            var evidenceIdentity = DerivedTermEvidenceMergeIdentity.Compute(
+                candidateIdentity, sourceCompoundVocabularyIdentity, evidence.SourceStartPosition,
+                evidence.SourceLength, evidence.SourceSentenceOrder, evidence.ComponentForm);
+
+            var evidenceClassification = targetDerivedEvidenceIdentities.Contains(evidenceIdentity)
+                ? MergeEntityClassification.ExactDuplicateSkipped
+                : MergeEntityClassification.New;
+            var evidenceReason = evidenceClassification == MergeEntityClassification.New
+                ? "derived-term-evidence-new"
+                : "derived-term-evidence-exact-duplicate";
+
+            Record(
+                MergeEntityKind.DerivedTermEvidence,
+                evidenceIdentity.Value,
+                DerivedTermEvidenceMergeIdentity.ArchiveActionKey(derivedEvidenceIndex),
+                evidenceClassification,
+                evidenceReason);
         }
 
         // PreparationWorkflow + PreparationItem

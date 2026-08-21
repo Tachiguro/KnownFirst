@@ -170,7 +170,9 @@ public static class BackupMergeSafetyCopySnapshotCapture
                 return v2ResultForSchema11.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
                     ? new MergeSafetyCopyCaptureBlocked()
                     : new MergeSafetyCopySchema11Captured(
-                        Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, v2ResultForSchema11.Snapshot!),
+                        Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(
+                            connection,
+                            Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, v2ResultForSchema11.Snapshot!)),
                         schema11.Capability);
 
             default:

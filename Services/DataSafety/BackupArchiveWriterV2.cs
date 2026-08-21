@@ -442,6 +442,71 @@ public static class BackupArchiveWriterV2
             }
             ValidateVariantForCard(progress.AnswerVariantId, card, variantById, assignmentLookup, allowNull: false);
         }
+
+        // ---- DerivedTermEvidence (German Enhanced Term Recognition Package 5A-2) ----
+        //
+        // Mirrors Data/Migrations/Schema11/Schema11EvidenceValidator.cs's binding physical invariants at the
+        // archive-DTO level: owning-reference resolution through the review-item chain to its document,
+        // blank-field/range/sentence-containment/surface-form/vocabulary-identity checks, and duplicate
+        // semantic evidence — never a weaker portable-only rule.
+        var reviewItemOwnerDocumentId = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var workflow in payload.Workflows.VocabularyReviews)
+        {
+            foreach (var item in workflow.Items)
+            {
+                reviewItemOwnerDocumentId[item.Id] = workflow.SourceMaterialId;
+            }
+        }
+
+        var vocabularyIdentities = new HashSet<(string Language, string IdentityKey)>(
+            payload.Vocabulary.Select(v => (v.Language, v.IdentityKey)));
+        var derivedEvidenceKeys = new HashSet<(string ReviewItemId, string SourceIdentity, int Start, int Length, string ComponentForm)>();
+
+        foreach (var evidence in payload.DerivedTermEvidence)
+        {
+            if (!derivedEvidenceKeys.Add((evidence.ReviewItemId, evidence.SourceIdentity, evidence.SourceStartPosition, evidence.SourceLength, evidence.ComponentForm)))
+            {
+                throw new BackupFormatException(BackupErrorCodes.DuplicateId);
+            }
+
+            if (!reviewItemOwnerDocumentId.TryGetValue(evidence.ReviewItemId, out var documentId))
+            {
+                throw new BackupFormatException(BackupErrorCodes.MissingReference);
+            }
+
+            var document = payload.SourceMaterials.FirstOrDefault(d => d.Id == documentId)
+                ?? throw new BackupFormatException(BackupErrorCodes.MissingReference);
+
+            var widenedEnd = (long)evidence.SourceStartPosition + evidence.SourceLength;
+            if (widenedEnd < 0 || widenedEnd > document.OriginalText.Length)
+            {
+                throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+            }
+
+            var actualSubstring = document.OriginalText.Substring(evidence.SourceStartPosition, evidence.SourceLength);
+            if (!string.Equals(actualSubstring, evidence.SourceSurfaceForm, StringComparison.Ordinal))
+            {
+                throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+            }
+
+            var matchingSentences = document.Sentences.Where(s => s.Order == evidence.SourceSentenceOrder).ToList();
+            if (matchingSentences.Count != 1)
+            {
+                throw new BackupFormatException(BackupErrorCodes.MissingReference);
+            }
+
+            var sentence = matchingSentences[0];
+            var widenedSentenceEnd = (long)sentence.Start + sentence.Length;
+            if (evidence.SourceStartPosition < sentence.Start || widenedEnd > widenedSentenceEnd)
+            {
+                throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+            }
+
+            if (!vocabularyIdentities.Contains((document.TextLanguage, evidence.SourceIdentity)))
+            {
+                throw new BackupFormatException(BackupErrorCodes.MissingReference);
+            }
+        }
     }
 
     /// <summary>A variant is "valid for a card's Sense and direction" when it belongs to the card's

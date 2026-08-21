@@ -50,6 +50,7 @@ internal sealed class MergeWriterExecutor
     private readonly Dictionary<string, int> _variantIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _cardIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _reviewSessionIds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> _reviewCandidateIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _preparationSessionIds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> _learningSessionIds = new(StringComparer.Ordinal);
 
@@ -130,6 +131,7 @@ internal sealed class MergeWriterExecutor
         WriteCards();
         _failureInjector?.AtCheckpoint(Checkpoints.AfterCardsBeforeLearningHistory);
         WriteVocabularyReviewWorkflows();
+        WriteDerivedTermEvidence();
         WritePreparationWorkflows();
         WriteLearningWorkflows();
         WriteLearningReviews();
@@ -628,26 +630,61 @@ internal sealed class MergeWriterExecutor
             foreach (var item in source.Items.OrderBy(item => item.Order))
             {
                 var itemAction = GetAction(MergeEntityKind.VocabularyReviewItem, item.Id);
-                if (itemAction.Classification != MergeEntityClassification.New)
+                int candidateId;
+                if (itemAction.Classification == MergeEntityClassification.New)
                 {
-                    continue;
+                    var candidateEntity = new ReviewCandidateEntity
+                    {
+                        SessionId = sessionId,
+                        WordId = RequireId(_wordIds, item.VocabularyId),
+                        Order = item.Order,
+                        Status = BackupEnumMappings.ToPersistence(item.Status),
+                        PreviousWordStatus = BackupEnumMappings.ToPersistence(item.PreviousKnowledgeState),
+                        PreviousTotalOccurrenceCount = item.PreviousTotalOccurrenceCount,
+                        PreviousDocumentCount = item.PreviousDocumentCount,
+                        PreviousUpdatedAt = item.PreviousUpdatedAtUtc,
+                        DecisionSequence = item.DecisionSequence,
+                        WasWordCreatedForSession = item.WasVocabularyCreatedForSession,
+                        DecidedAt = item.DecidedAtUtc
+                    };
+                    Insert(candidateEntity);
+                    candidateId = candidateEntity.Id;
+                }
+                else
+                {
+                    // German Enhanced Term Recognition Package 5A-2: an exact-duplicate candidate is never
+                    // reinserted, but its final local id must still resolve — a transported evidence row may
+                    // reference this exact item even though the candidate itself already existed.
+                    candidateId = ResolveExisting(_targetIndex.ReviewCandidateIdByIdentity, new ReviewCandidateIdentity(itemAction.StableIdentity));
                 }
 
-                Insert(new ReviewCandidateEntity
-                {
-                    SessionId = sessionId,
-                    WordId = RequireId(_wordIds, item.VocabularyId),
-                    Order = item.Order,
-                    Status = BackupEnumMappings.ToPersistence(item.Status),
-                    PreviousWordStatus = BackupEnumMappings.ToPersistence(item.PreviousKnowledgeState),
-                    PreviousTotalOccurrenceCount = item.PreviousTotalOccurrenceCount,
-                    PreviousDocumentCount = item.PreviousDocumentCount,
-                    PreviousUpdatedAt = item.PreviousUpdatedAtUtc,
-                    DecisionSequence = item.DecisionSequence,
-                    WasWordCreatedForSession = item.WasVocabularyCreatedForSession,
-                    DecidedAt = item.DecidedAtUtc
-                });
+                _reviewCandidateIds[item.Id] = candidateId;
             }
+        }
+    }
+
+    // ---- 11a-2. DerivedTermEvidence (German Enhanced Term Recognition Package 5A-2) ----
+    private void WriteDerivedTermEvidence()
+    {
+        for (var index = 0; index < _archive.DerivedTermEvidence.Count; index++)
+        {
+            var source = _archive.DerivedTermEvidence[index];
+            var action = GetAction(MergeEntityKind.DerivedTermEvidence, DerivedTermEvidenceMergeIdentity.ArchiveActionKey(index));
+            if (action.Classification != MergeEntityClassification.New)
+            {
+                continue;
+            }
+
+            Insert(new DerivedTermEvidenceEntity
+            {
+                ReviewCandidateId = RequireId(_reviewCandidateIds, source.ReviewItemId),
+                SourceIdentity = source.SourceIdentity,
+                SourceSurfaceForm = source.SourceSurfaceForm,
+                SourceStartPosition = source.SourceStartPosition,
+                SourceLength = source.SourceLength,
+                SourceSentenceOrder = source.SourceSentenceOrder,
+                ComponentForm = source.ComponentForm
+            });
         }
     }
 

@@ -78,6 +78,7 @@ public static class Schema8BackupImportRepository
         var variantIds = new Dictionary<string, int>(StringComparer.Ordinal);
         var cardIds = new Dictionary<string, int>(StringComparer.Ordinal);
         var reviewSessionIds = new Dictionary<string, int>(StringComparer.Ordinal);
+        var reviewCandidateIds = new Dictionary<string, int>(StringComparer.Ordinal);
         var preparationSessionIds = new Dictionary<string, int>(StringComparer.Ordinal);
         var learningSessionIds = new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -360,7 +361,7 @@ public static class Schema8BackupImportRepository
 
             foreach (var sourceItem in source.Items.OrderBy(item => item.Order))
             {
-                Insert(connection, new ReviewCandidateEntity
+                var candidateEntity = new ReviewCandidateEntity
                 {
                     SessionId = session.Id,
                     WordId = RequireId(wordIds, sourceItem.VocabularyId),
@@ -373,8 +374,26 @@ public static class Schema8BackupImportRepository
                     DecisionSequence = sourceItem.DecisionSequence,
                     WasWordCreatedForSession = sourceItem.WasVocabularyCreatedForSession,
                     DecidedAt = sourceItem.DecidedAtUtc
-                }, cancellationToken, failureInjector, ref mutationCount);
+                };
+                Insert(connection, candidateEntity, cancellationToken, failureInjector, ref mutationCount);
+                reviewCandidateIds.Add(sourceItem.Id, candidateEntity.Id);
             }
+        }
+
+        // German Enhanced Term Recognition Package 5A-2: transported DerivedTermEvidence rows, resolved to
+        // the just-inserted local ReviewCandidate ids above. Never synthesizes a WordOccurrence.
+        foreach (var source in payload.DerivedTermEvidence)
+        {
+            Insert(connection, new DerivedTermEvidenceEntity
+            {
+                ReviewCandidateId = RequireId(reviewCandidateIds, source.ReviewItemId),
+                SourceIdentity = source.SourceIdentity,
+                SourceSurfaceForm = source.SourceSurfaceForm,
+                SourceStartPosition = source.SourceStartPosition,
+                SourceLength = source.SourceLength,
+                SourceSentenceOrder = source.SourceSentenceOrder,
+                ComponentForm = source.ComponentForm
+            }, cancellationToken, failureInjector, ref mutationCount);
         }
 
         foreach (var source in payload.Workflows.PreparationBatches)

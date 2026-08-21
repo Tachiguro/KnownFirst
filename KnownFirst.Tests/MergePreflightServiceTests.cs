@@ -124,6 +124,7 @@ public sealed class MergePreflightServiceTests
             Array.Empty<BackupAnswerVariantProgress>(),
             new BackupLearningDataV2(Array.Empty<BackupLearningCardV2>(), Array.Empty<BackupLearningReviewV2>()),
             new BackupWorkflowDataV2(Array.Empty<BackupVocabularyReviewWorkflow>(), Array.Empty<BackupPreparationWorkflow>(), Array.Empty<BackupLearningWorkflowV2>()),
+            Array.Empty<BackupDerivedTermEvidenceV2>(),
             EmptyExtensions());
 
     [TestMethod]
@@ -431,6 +432,7 @@ public sealed class MergePreflightServiceTests
                 PreparationBatches: Array.Empty<BackupPreparationWorkflow>(),
                 LearningSessions: Array.Empty<BackupLearningWorkflowV2>()
             ),
+            DerivedTermEvidence: Array.Empty<BackupDerivedTermEvidenceV2>(),
             Extensions: EmptyExtensions());
 
         var plan = MergePreflightPlannerV2.CreatePlan(targetPayload, archivePayload, CreateDummyManifestInfo());
@@ -475,6 +477,7 @@ public sealed class MergePreflightServiceTests
                 PreparationBatches: Array.Empty<BackupPreparationWorkflow>(),
                 LearningSessions: new[] { new BackupLearningWorkflowV2("ls1", BackupLearningSessionStatus.Active, 1, 0, 0, 0, 0, 0, DateTime.UtcNow, DateTime.UtcNow, null, new[] { new BackupLearningQueueItemV2("qi1", "c1", 0, true, false, false, false, false, false, null, null, TargetAnswerVariantId: null) }) }
             ),
+            DerivedTermEvidence: Array.Empty<BackupDerivedTermEvidenceV2>(),
             Extensions: EmptyExtensions());
 
         var plan = MergePreflightPlannerV2.CreatePlan(targetPayload, archivePayload, CreateDummyManifestInfo());
@@ -509,6 +512,7 @@ public sealed class MergePreflightServiceTests
                 PreparationBatches: Array.Empty<BackupPreparationWorkflow>(),
                 LearningSessions: Array.Empty<BackupLearningWorkflowV2>()
             ),
+            DerivedTermEvidence: Array.Empty<BackupDerivedTermEvidenceV2>(),
             Extensions: EmptyExtensions());
 
         var ex = Assert.ThrowsExactly<MergePlanningException>(() =>
@@ -538,6 +542,7 @@ public sealed class MergePreflightServiceTests
             AnswerVariantProgress: Array.Empty<BackupAnswerVariantProgress>(),
             Learning: new BackupLearningDataV2(Array.Empty<BackupLearningCardV2>(), Array.Empty<BackupLearningReviewV2>()),
             Workflows: new BackupWorkflowDataV2(Array.Empty<BackupVocabularyReviewWorkflow>(), Array.Empty<BackupPreparationWorkflow>(), Array.Empty<BackupLearningWorkflowV2>()),
+            DerivedTermEvidence: Array.Empty<BackupDerivedTermEvidenceV2>(),
             Extensions: EmptyExtensions());
 
         var ex = Assert.ThrowsExactly<MergePlanningException>(() =>
@@ -612,6 +617,7 @@ public sealed class MergePreflightServiceTests
                         startedAtUtc, startedAtUtc, startedAtUtc,
                         new[] { new BackupLearningQueueItemV2("qi1", "c1", 0, true, false, true, false, false, true, BackupReviewRating.Good, startedAtUtc, TargetAnswerVariantId: null) })
                 }),
+            DerivedTermEvidence: Array.Empty<BackupDerivedTermEvidenceV2>(),
             Extensions: EmptyExtensions());
 
         var targetPayload = BuildPayload("target-session", firstStart);
@@ -654,6 +660,7 @@ public sealed class MergePreflightServiceTests
                         DateTime.UtcNow, DateTime.UtcNow, DateTime.UtcNow,
                         new[] { new BackupLearningQueueItemV2("qi1", "missing-card", 0, true, false, true, false, false, true, BackupReviewRating.Good, DateTime.UtcNow, TargetAnswerVariantId: null) })
                 }),
+            DerivedTermEvidence: Array.Empty<BackupDerivedTermEvidenceV2>(),
             Extensions: EmptyExtensions());
 
         Assert.ThrowsExactly<KeyNotFoundException>(() =>

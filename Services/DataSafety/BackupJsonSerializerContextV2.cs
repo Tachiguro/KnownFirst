@@ -36,6 +36,7 @@ namespace KnownFirst.Services.DataSafety;
 [JsonSerializable(typeof(BackupFormRelation))]
 [JsonSerializable(typeof(BackupLearningWorkflowV2))]
 [JsonSerializable(typeof(BackupLearningQueueItemV2))]
+[JsonSerializable(typeof(BackupDerivedTermEvidenceV2))]
 [JsonSerializable(typeof(BackupExtensions))]
 [JsonSerializable(typeof(BackupExtensionPayload))]
 [JsonSerializable(typeof(BackupFormatVersionEnvelope))]

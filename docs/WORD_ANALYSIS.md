@@ -303,7 +303,7 @@ Each shipped suffix is backed by a concrete, lexicon-confirmed example (see "Exa
 
 A production, offline `IGermanLexicon` implementation (`GeneratedGermanLexicon`, backed by `KnownFirst.Core/Text/German/Assets/german-lexicon.v2.kfgl`) exists and is wired into the application's `TextReviewService` analysis path, gated behind the persisted `EnhancedTermRecognitionEnabled` setting exposed in Settings. This decomposer contract — including the 2–4 component bound and the shipped `s`/`es`/`e` fallback set described above — is merged to `master` via PR #134 (merge commit `6c7a89ed6b4b0fc7701fdca8ec85a38b91bbeeb5`); see [docs/PROJECT_STATE.md](PROJECT_STATE.md) for exact provenance and counts. It is not yet packaged into a shipped Windows/Android build. Every rule above remains a description of the decomposer's contract against *any* `IGermanLexicon` instance, not a claim that this production lexicon is active in a release build.
 
-The post-review-completion lifecycle semantics in "Post-review derived-evidence context lifecycle" below (German Enhanced Term Recognition Package 5A) are independently reviewed and approved (0 BLOCKER / 0 MAJOR / 0 MINOR) but still an **uncommitted working-tree candidate** on branch `fix/german-derived-lifecycle-integrity-v1`; see [docs/CURRENT_WORK.md](CURRENT_WORK.md) for exact current lifecycle status.
+The post-review-completion lifecycle semantics in "Post-review derived-evidence context lifecycle" below (German Enhanced Term Recognition Package 5A) are binding current-`master` behavior, merged via PR #135 (merge commit `683f34473dd21417be9d8e1b60d04de539fb35a8`); see [docs/CURRENT_WORK.md](CURRENT_WORK.md) for exact current lifecycle status.
 
 ### Post-review derived-evidence context lifecycle
 

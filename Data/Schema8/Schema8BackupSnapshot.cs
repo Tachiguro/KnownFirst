@@ -23,11 +23,16 @@ namespace KnownFirst.Data.Schema8;
 /// Package 5A counterpart: the set of captured <c>ReviewCandidates</c> row ids that own at least one
 /// Schema-11 <c>DerivedTermEvidenceEntries</c> row, keyed by physical row id exactly like the Schema-10
 /// maps above and for the same reason — <c>DerivedTermEvidenceEntries</c> does not exist below Schema 11.
-/// It carries no evidence content itself (that table is never captured or exported here at all); it exists
-/// solely so <see cref="Services.DataSafety.BackupModelMapperV2"/> can exclude a Completed session's
-/// derived-evidence-only retained candidate from the exported <c>Items</c> list without disturbing any
-/// other candidate a Completed session may legitimately carry (e.g. one written back by restore/merge).
 /// <see langword="null"/> below Schema 11.</para>
+///
+/// <para><c>DerivedTermEvidence</c> is the German Enhanced Term Recognition Package 5A-2 counterpart: the
+/// actual captured <c>DerivedTermEvidenceEntries</c> rows, restricted to owning candidates already present
+/// in this snapshot's captured <c>ReviewCandidates</c> — a row already excluded by a portable-export filter
+/// (e.g. an Active-session candidate) is never spuriously reintroduced here. Package 5A-2 transports this
+/// content through <see cref="Services.DataSafety.BackupModelMapperV2"/> instead of excluding the owning
+/// candidate; the exclusion <see cref="DerivedTermEvidenceOwningReviewCandidateIds"/> once existed for is
+/// superseded, but the field itself is retained because it remains a correct, harmless description of
+/// which candidates own evidence. <see langword="null"/> below Schema 11.</para>
 /// </summary>
 public sealed record Schema8BackupSnapshot(
     IReadOnlyList<DocumentEntity> Documents,
@@ -52,4 +57,5 @@ public sealed record Schema8BackupSnapshot(
     IReadOnlyList<Schema8QueueRow> LearningSessionCards,
     IReadOnlyDictionary<int, string>? LearningSessionStableIds = null,
     IReadOnlyDictionary<int, string>? LearningQueueStableIds = null,
-    IReadOnlySet<int>? DerivedTermEvidenceOwningReviewCandidateIds = null);
+    IReadOnlySet<int>? DerivedTermEvidenceOwningReviewCandidateIds = null,
+    IReadOnlyList<DerivedTermEvidenceEntity>? DerivedTermEvidence = null);

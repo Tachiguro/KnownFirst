@@ -182,18 +182,16 @@ public sealed class GermanDerivedTermPreparationTests
     }
 
     /// <summary>
-    /// Review-correction (MAJOR): before Package 5A, a Completed ReviewSession's ReviewCandidates were
-    /// always fully deleted by normal in-app completion, so the portable-archive export's candidate-item
-    /// list was always empty for such a Completed session. Package 5A's retention of an Unknown derived
-    /// candidate's ReviewCandidateEntity makes a non-empty item list reachable for a normally-completed
-    /// session for the first time. This must not export that specific derived-evidence-only candidate
-    /// (DerivedTermEvidenceEntries themselves are still never exported anywhere, so such an item would
-    /// carry no provenance on the target side) — while a Completed session's other, non-derived candidates
-    /// (e.g. one legitimately written back by restore/merge) must keep exporting exactly as before; see
-    /// <see cref="BackupCreationTests.PortableExport_NeverEmitsTwoReviewItemsSharingOneVocabularyIdInOneWorkflow"/>.
+    /// Package 5A-2 supersedes the temporary Package 5A provenance-loss guard: the guard existed only
+    /// because the archive had no way to transport <see cref="DerivedTermEvidenceEntity"/> rows alongside
+    /// the retained candidate, so exporting the candidate alone would have produced a provenance-less item
+    /// on the target side. Now that evidence transport exists, the retained candidate must be exported
+    /// faithfully through the normal completed-session archive path, exactly like any other candidate; see
+    /// <see cref="BackupCreationTests.PortableExport_NeverEmitsTwoReviewItemsSharingOneVocabularyIdInOneWorkflow"/>
+    /// for the unrelated non-derived-candidate case this must not disturb.
     /// </summary>
     [TestMethod]
-    public async Task PortableArchiveExport_DoesNotExportRetainedCandidateItemsForCompletedSession()
+    public async Task PortableExport_RetainsCandidateItemForCompletedSession()
     {
         await ImportGermanReviewWithMaschineUnknownAsync();
 
@@ -203,8 +201,9 @@ public sealed class GermanDerivedTermPreparationTests
         Schema8BackupSnapshot? snapshot = null;
         await _database.RunInTransactionAsync(conn =>
         {
-            var captured = Schema8BackupSnapshotRepository.CaptureSnapshot(conn);
-            snapshot = Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(conn, captured);
+            var captured = BackupSnapshotCapture.CaptureForExport(conn);
+            Assert.IsInstanceOfType<CapturedSchema11SnapshotEnvelope>(captured);
+            snapshot = ((CapturedSchema11SnapshotEnvelope)captured).Snapshot;
             return true;
         });
         Assert.IsNotNull(snapshot);
@@ -212,17 +211,265 @@ public sealed class GermanDerivedTermPreparationTests
             0,
             snapshot!.ReviewCandidates.Count,
             "Precondition: the raw snapshot capture must still see the retained candidate row internally.");
-        Assert.IsNotEmpty(
-            snapshot.DerivedTermEvidenceOwningReviewCandidateIds!,
-            "Precondition: the Schema-11 enrichment step must identify the retained candidate as derived-evidence-owning.");
 
         var payload = BackupModelMapperV2.MapToExternal(snapshot);
 
         var completedWorkflow = payload.Workflows.VocabularyReviews
             .Single(workflow => workflow.Status == BackupReviewSessionStatus.Completed);
-        Assert.IsEmpty(
+        Assert.IsNotEmpty(
             completedWorkflow.Items,
-            "A Completed review session must not export a candidate item that is retained only for its derived-evidence provenance.");
+            "Ordinary portable export must faithfully export the retained candidate through the normal completed-session archive path.");
+        AssertMaschineEvidenceIsExported(payload, completedWorkflow);
+    }
+
+    /// <summary>Full/internal backup capture must retain the candidate exactly like ordinary portable export.</summary>
+    [TestMethod]
+    public async Task FullBackup_RetainsCandidateItemForCompletedSession()
+    {
+        await ImportGermanReviewWithMaschineUnknownAsync();
+
+        Schema8BackupSnapshot? snapshot = null;
+        await _database.RunInTransactionAsync(conn =>
+        {
+            var captured = BackupSnapshotCapture.CaptureFullForBackup(conn);
+            Assert.IsInstanceOfType<CapturedSchema11SnapshotEnvelope>(captured);
+            snapshot = ((CapturedSchema11SnapshotEnvelope)captured).Snapshot;
+            return true;
+        });
+
+        var payload = BackupModelMapperV2.MapToExternal(snapshot!);
+        var completedWorkflow = payload.Workflows.VocabularyReviews
+            .Single(workflow => workflow.Status == BackupReviewSessionStatus.Completed);
+        Assert.IsNotEmpty(
+            completedWorkflow.Items,
+            "Full/internal backup capture must faithfully export the retained candidate, exactly like ordinary portable export.");
+        AssertMaschineEvidenceIsExported(payload, completedWorkflow);
+    }
+
+    /// <summary>Asserts the transported evidence for the retained "maschine" candidate is present in
+    /// <paramref name="payload"/> and points back at the real whole-compound source span.</summary>
+    private static void AssertMaschineEvidenceIsExported(BackupPayloadV2 payload, BackupVocabularyReviewWorkflow completedWorkflow)
+    {
+        var maschineVocabularyId = payload.Vocabulary.Single(v => v.IdentityKey == "W:maschine").Id;
+        var maschineItem = completedWorkflow.Items.Single(item => item.VocabularyId == maschineVocabularyId);
+        var evidence = payload.DerivedTermEvidence.Where(e => e.ReviewItemId == maschineItem.Id).ToList();
+        Assert.IsNotEmpty(evidence, "The retained candidate's derivation evidence must be transported in the portable archive.");
+        var single = evidence.Single();
+        Assert.AreEqual("Schreibmaschine", single.SourceSurfaceForm);
+        Assert.AreEqual(0, single.SourceSentenceOrder);
+        Assert.IsGreaterThanOrEqualTo(0, single.SourceStartPosition);
+        Assert.IsGreaterThan(0, single.SourceLength);
+        Assert.IsNotEmpty(single.ComponentForm);
+        Assert.IsNotEmpty(single.SourceIdentity);
+    }
+
+    /// <summary>
+    /// The merge-safety-copy capture path is the one Schema-11 snapshot-capture call site that currently
+    /// never applies the Schema-11 derived-evidence enrichment at all (unlike ordinary export and full
+    /// backup, which already call it). This proves the gap directly against the enrichment field the
+    /// current production code already exposes, without depending on any not-yet-existing archive DTO.
+    /// </summary>
+    [TestMethod]
+    public async Task MergeSafetyCopyCapture_EnrichesDerivedEvidenceOwningCandidateId()
+    {
+        var maschineWordId = await ImportGermanReviewWithMaschineUnknownAsync();
+        var candidate = await _database.ReadAsync(conn =>
+            conn.Table<ReviewCandidateEntity>().Where(c => c.WordId == maschineWordId).FirstAsync());
+
+        Schema8BackupSnapshot? snapshot = null;
+        await _database.RunInTransactionAsync(conn =>
+        {
+            var captured = BackupMergeSafetyCopySnapshotCapture.CaptureForMergeSafetyCopy(conn);
+            Assert.IsInstanceOfType<MergeSafetyCopySchema11Captured>(captured);
+            snapshot = ((MergeSafetyCopySchema11Captured)captured).Snapshot;
+            return true;
+        });
+
+        Assert.IsNotNull(snapshot!.DerivedTermEvidenceOwningReviewCandidateIds,
+            "Merge safety copy capture must apply the same Schema-11 derived-evidence enrichment as ordinary export and full backup.");
+        Assert.IsTrue(
+            snapshot.DerivedTermEvidenceOwningReviewCandidateIds!.Contains(candidate.Id),
+            "The retained candidate's own row id must appear in the merge-safety-copy enrichment set.");
+
+        var payload = BackupModelMapperV2.MapToExternal(snapshot);
+        var completedWorkflow = payload.Workflows.VocabularyReviews
+            .Single(workflow => workflow.Status == BackupReviewSessionStatus.Completed);
+        AssertMaschineEvidenceIsExported(payload, completedWorkflow);
+    }
+
+    /// <summary>Proves the transported evidence survives a real source-generated V2 archive write/read
+    /// round-trip (never a reflection-based path), through the exact production writer/reader pair.</summary>
+    [TestMethod]
+    public async Task PortableExport_DerivedEvidenceRoundTripsThroughSourceGeneratedArchive()
+    {
+        await ImportGermanReviewWithMaschineUnknownAsync();
+
+        Schema8BackupSnapshot? snapshot = null;
+        ValidatedSchema11Capability? capability = null;
+        await _database.RunInTransactionAsync(conn =>
+        {
+            var captured = BackupSnapshotCapture.CaptureForExport(conn);
+            Assert.IsInstanceOfType<CapturedSchema11SnapshotEnvelope>(captured);
+            var envelope = (CapturedSchema11SnapshotEnvelope)captured;
+            snapshot = envelope.Snapshot;
+            capability = envelope.Capability;
+            return true;
+        });
+
+        var payload = BackupModelMapperV2.MapToExternal(snapshot!);
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(
+            payload, new Schema8BackupFixtureBuilders.FakePlatformInfo(), capability!, DateTime.UtcNow, stream, CancellationToken.None);
+        stream.Position = 0;
+
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None);
+        Assert.IsNotNull(validated.V2);
+        var roundTripped = validated.V2!.Payload;
+
+        Assert.AreEqual(payload.DerivedTermEvidence.Count, roundTripped.DerivedTermEvidence.Count);
+        Assert.IsGreaterThan(0, roundTripped.DerivedTermEvidence.Count);
+
+        var completedWorkflow = roundTripped.Workflows.VocabularyReviews
+            .Single(workflow => workflow.Status == BackupReviewSessionStatus.Completed);
+        AssertMaschineEvidenceIsExported(roundTripped, completedWorkflow);
+    }
+
+    /// <summary>
+    /// Package 5A-2 empty-target restore: the transported evidence must be recreated in a freshly restored
+    /// database, referencing exactly one real local <see cref="ReviewCandidateEntity"/> row — never a
+    /// synthesized <see cref="WordOccurrenceEntity"/>, and never multiplying the candidate.
+    /// </summary>
+    [TestMethod]
+    public async Task EmptyTargetRestore_RecreatesRetainedDerivedEvidence()
+    {
+        await ImportGermanReviewWithMaschineUnknownAsync();
+
+        using var archiveStream = new MemoryStream();
+        var sourceService = new BackupService(_database, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
+
+        await using var target = new TemporarySchema8Database("knownfirst-german-derived-restore-target");
+        await target.UpgradeToCurrentSchemaAsync();
+        var targetService = new BackupService(target, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+
+        archiveStream.Position = 0;
+        var result = await targetService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status);
+
+        var evidenceRows = await target.ReadAsync(conn => conn.Table<DerivedTermEvidenceEntity>().ToListAsync());
+        Assert.IsNotEmpty(evidenceRows, "Empty-target restore must recreate the transported derivation evidence.");
+        var evidenceRow = evidenceRows.Single();
+        Assert.AreEqual("Schreibmaschine", evidenceRow.SourceSurfaceForm);
+        Assert.AreEqual(0, evidenceRow.SourceSentenceOrder);
+        Assert.IsGreaterThan(0, evidenceRow.SourceLength);
+
+        var owningCandidateCount = await target.ReadAsync(conn =>
+            conn.Table<ReviewCandidateEntity>().Where(c => c.Id == evidenceRow.ReviewCandidateId).CountAsync());
+        Assert.AreEqual(1, owningCandidateCount, "The restored evidence must reference exactly one real local ReviewCandidate row.");
+
+        var restoredOccurrenceCount = await target.ReadAsync(conn =>
+            conn.Table<WordOccurrenceEntity>().CountAsync());
+        Assert.AreEqual(0, restoredOccurrenceCount, "Restore must never synthesize a WordOccurrence for transported evidence.");
+    }
+
+    /// <summary>
+    /// Multiple transported evidence rows sharing one owning candidate archive reference must still resolve
+    /// to exactly one local candidate after restore — never one candidate per evidence row.
+    /// </summary>
+    [TestMethod]
+    public async Task EmptyTargetRestore_MultipleEvidenceRowsForOneCandidateProduceExactlyOneCandidate()
+    {
+        var maschineWordId = await ImportGermanReviewWithMaschineUnknownAsync();
+        var candidate = await _database.ReadAsync(conn =>
+            conn.Table<ReviewCandidateEntity>().Where(c => c.WordId == maschineWordId).FirstAsync());
+        await _database.RunInTransactionAsync(conn =>
+        {
+            var existing = conn.Table<DerivedTermEvidenceEntity>().Where(e => e.ReviewCandidateId == candidate.Id).First();
+            conn.Insert(new DerivedTermEvidenceEntity
+            {
+                ReviewCandidateId = candidate.Id,
+                SourceIdentity = existing.SourceIdentity,
+                SourceSurfaceForm = existing.SourceSurfaceForm,
+                SourceStartPosition = existing.SourceStartPosition,
+                SourceLength = existing.SourceLength,
+                SourceSentenceOrder = existing.SourceSentenceOrder,
+                // Distinct ComponentForm so this remains a second, physically distinct row under the real
+                // Schema-11 unique index rather than colliding with the original.
+                ComponentForm = existing.ComponentForm + "-alt"
+            });
+            return true;
+        });
+
+        var evidenceCountBefore = await _database.ReadAsync(conn => conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.AreEqual(2, evidenceCountBefore, "Precondition: two evidence rows must now share one owning candidate.");
+
+        using var archiveStream = new MemoryStream();
+        var sourceService = new BackupService(_database, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
+
+        await using var target = new TemporarySchema8Database("knownfirst-german-derived-restore-multi-evidence");
+        await target.UpgradeToCurrentSchemaAsync();
+        var targetService = new BackupService(target, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+
+        archiveStream.Position = 0;
+        var result = await targetService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status);
+
+        var restoredEvidenceCount = await target.ReadAsync(conn => conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.AreEqual(2, restoredEvidenceCount, "Both transported evidence rows must be restored.");
+
+        var restoredWordCandidateCount = await target.ReadAsync(async conn =>
+        {
+            var word = await conn.Table<WordEntity>().Where(w => w.NormalizedTerm == "W:maschine").FirstAsync();
+            return await conn.Table<ReviewCandidateEntity>().Where(c => c.WordId == word.Id).CountAsync();
+        });
+        Assert.AreEqual(1, restoredWordCandidateCount, "Two evidence rows sharing one owning candidate must produce exactly one restored candidate.");
+    }
+
+    /// <summary>Preparation against a freshly restored database must build its display context from the
+    /// restored evidence, exactly as it does against the original database.</summary>
+    [TestMethod]
+    public async Task EmptyTargetRestore_RestoredEvidenceProvidesPreparationSourceCompoundContext()
+    {
+        await ImportGermanReviewWithMaschineUnknownAsync();
+
+        using var archiveStream = new MemoryStream();
+        var sourceService = new BackupService(_database, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+        await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
+
+        await using var target = new TemporarySchema8Database("knownfirst-german-derived-restore-preparation");
+        await target.UpgradeToCurrentSchemaAsync();
+        var targetService = new BackupService(target, new Schema8BackupFixtureBuilders.FakePlatformInfo());
+
+        archiveStream.Position = 0;
+        var result = await targetService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status);
+
+        var targetPreparation = new PreparationService(
+            target,
+            new LexicalEnrichmentService(
+                new AcronymExpansionDetector(),
+                new MeaningRanker(),
+                new LexicalCacheRepository(target),
+                new LexicalLookupProviderResolver([_provider])),
+            _clock);
+        try
+        {
+            await targetPreparation.StartAsync(PreparationMethod.Manual, 20);
+            var item = await targetPreparation.LookupCurrentAsync();
+            Assert.IsNotNull(item);
+            Assert.IsNotEmpty(item!.Contexts, "Preparation against the restored database must build real context from the restored derived evidence.");
+            var context = item.Contexts[0];
+            Assert.AreEqual("Die Schreibmaschine steht hier.", context.Text);
+            Assert.AreEqual(
+                "Schreibmaschine",
+                context.Text.Substring(context.TargetStart, context.TargetLength));
+        }
+        finally
+        {
+            await targetPreparation.CancelPrefetchAsync();
+        }
     }
 
     /// <summary>

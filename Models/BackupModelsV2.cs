@@ -206,6 +206,30 @@ public sealed record BackupWorkflowDataV2(
     IReadOnlyList<BackupPreparationWorkflow> PreparationBatches,
     IReadOnlyList<BackupLearningWorkflowV2> LearningSessions);
 
+/// <summary>
+/// German Enhanced Term Recognition Package 5A-2: transports one Schema-11 <c>DerivedTermEvidenceEntries</c>
+/// row. <paramref name="ReviewItemId"/> is the owning <see cref="BackupVocabularyReviewItem.Id"/> archive
+/// reference — never a target-local id, and never itself an identity component (restore/merge resolve it
+/// to whichever local <c>ReviewCandidate</c> row the owning item's stable identity matches, so multiple
+/// evidence rows referencing the same owning item can never multiply the candidate). This row carries no
+/// archive-local id of its own: nothing else references an evidence row by id, and the physical Schema-11
+/// uniqueness (<c>ReviewCandidateId, SourceIdentity, SourceStartPosition, SourceLength, ComponentForm</c>)
+/// already gives every row a stable position within its owning item, so a dedicated id would be unused
+/// bookkeeping (mirrors the existing <c>BackupSenseAnswerVariantAssignment</c>/<c>BackupLearningReview</c>
+/// precedent of "no independent archive id for a row addressed by content"). <paramref name="SourceIdentity"/>,
+/// <paramref name="SourceSurfaceForm"/>, <paramref name="SourceStartPosition"/>, <paramref name="SourceLength"/>,
+/// <paramref name="SourceSentenceOrder"/>, and <paramref name="ComponentForm"/> are the exact transported
+/// fields of <see cref="Data.Entities.DerivedTermEvidenceEntity"/> / <see cref="Core.Text.DerivedTermEvidence"/>.
+/// </summary>
+public sealed record BackupDerivedTermEvidenceV2(
+    string ReviewItemId,
+    string SourceIdentity,
+    string SourceSurfaceForm,
+    int SourceStartPosition,
+    int SourceLength,
+    int SourceSentenceOrder,
+    string ComponentForm);
+
 public sealed record BackupRecordCountsV2(
     int SourceMaterials,
     int SentenceRanges,
@@ -226,7 +250,8 @@ public sealed record BackupRecordCountsV2(
     int Senses,
     int AnswerVariants,
     int SenseAnswerVariantAssignments,
-    int AnswerVariantProgress);
+    int AnswerVariantProgress,
+    int DerivedTermEvidence);
 
 public sealed record BackupManifestV2(
     int FormatVersion,
@@ -249,6 +274,7 @@ public sealed record BackupPayloadV2(
     IReadOnlyList<BackupAnswerVariantProgress> AnswerVariantProgress,
     BackupLearningDataV2 Learning,
     BackupWorkflowDataV2 Workflows,
+    IReadOnlyList<BackupDerivedTermEvidenceV2> DerivedTermEvidence,
     BackupExtensions Extensions);
 
 /// <summary>Minimal envelope used only to peek a manifest's <c>formatVersion</c> field before deciding

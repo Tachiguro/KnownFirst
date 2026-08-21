@@ -296,6 +296,7 @@ internal static class Schema8BackupFixtureBuilders
             [], [vocabulary], [sense], [meaning], [variant], [assignment], [],
             new BackupLearningDataV2([card], []),
             new BackupWorkflowDataV2([], [], []),
+            [],
             new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
     }
 

@@ -74,6 +74,15 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
                     targetSnapshot = Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, targetSnapshot);
                 }
 
+                // German Enhanced Term Recognition Package 5A-2: same reasoning as MergePreflightService —
+                // the writer's own recomputed plan and MergeWriterTargetIndex must see the target's already-
+                // transported evidence, or it would misclassify as New and collide with the Schema-11
+                // physical unique index on re-import.
+                if (capability is Schema11CapabilityResult)
+                {
+                    targetSnapshot = Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(connection, targetSnapshot);
+                }
+
                 cancellationToken.ThrowIfCancellationRequested();
                 var targetPayload = BackupModelMapperV2.MapToExternal(targetSnapshot);
 

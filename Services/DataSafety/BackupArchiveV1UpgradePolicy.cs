@@ -351,6 +351,7 @@ public static class BackupArchiveV1UpgradePolicy
             progressOut,
             new BackupLearningDataV2(cardsOut, reviewsOut),
             new BackupWorkflowDataV2(payload.Workflows.VocabularyReviews, payload.Workflows.PreparationBatches, learningWorkflowsOut),
+            [],
             payload.Extensions);
     }
 

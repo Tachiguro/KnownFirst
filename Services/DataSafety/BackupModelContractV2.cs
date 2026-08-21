@@ -110,6 +110,11 @@ public static class BackupModelContractV2
             ValidateLearningWorkflow(Require(workflow, BackupErrorCodes.InvariantViolation));
         }
 
+        foreach (var evidence in ValidateCollection(payload.DerivedTermEvidence))
+        {
+            ValidateDerivedTermEvidence(Require(evidence, BackupErrorCodes.InvariantViolation));
+        }
+
         ValidateExtensions(extensions);
         ValidateRecordCountsShape(CountRecordsWithoutValidation(payload));
     }
@@ -210,7 +215,8 @@ public static class BackupModelContractV2
         payload.Senses.Count,
         payload.AnswerVariants.Count,
         payload.SenseAnswerVariantAssignments.Count,
-        payload.AnswerVariantProgress.Count);
+        payload.AnswerVariantProgress.Count,
+        payload.DerivedTermEvidence.Count);
 
     private static void ValidateSourceMaterial(BackupSourceMaterial item)
     {
@@ -537,6 +543,24 @@ public static class BackupModelContractV2
         }
     }
 
+    /// <summary>
+    /// Field-shape validation only (non-null/non-empty strings, non-negative/positive numbers) — mirrors
+    /// the same minimal-shape pattern <see cref="ValidateVocabularyReviewWorkflow"/>'s item loop already
+    /// uses. Cross-referential invariants (owning-reference resolution, document/sentence range containment,
+    /// surface-form/vocabulary-identity match, duplicate semantic evidence) require other collections and
+    /// belong to <see cref="BackupArchiveWriterV2.ValidatePayloadGraphV2"/> instead.
+    /// </summary>
+    private static void ValidateDerivedTermEvidence(BackupDerivedTermEvidenceV2 evidence)
+    {
+        ValidateArchiveId(evidence.ReviewItemId);
+        ValidateRequiredString(evidence.SourceIdentity);
+        ValidateRequiredString(evidence.SourceSurfaceForm);
+        ValidateNonNegative(evidence.SourceStartPosition);
+        ValidatePositive(evidence.SourceLength);
+        ValidateNonNegative(evidence.SourceSentenceOrder);
+        ValidateRequiredString(evidence.ComponentForm);
+    }
+
     private static void ValidateExtensions(BackupExtensions extensions)
     {
         var features = Require(extensions.Features, BackupErrorCodes.InvariantViolation);
@@ -562,7 +586,7 @@ public static class BackupModelContractV2
             counts.VocabularyReviewWorkflows, counts.VocabularyReviewItems, counts.PreparationWorkflows,
             counts.PreparationItems, counts.LearningCards, counts.LearningReviews, counts.LearningWorkflows,
             counts.LearningQueueItems, counts.Senses, counts.AnswerVariants,
-            counts.SenseAnswerVariantAssignments, counts.AnswerVariantProgress
+            counts.SenseAnswerVariantAssignments, counts.AnswerVariantProgress, counts.DerivedTermEvidence
         ];
 
         if (values.Any(value => value < 0)

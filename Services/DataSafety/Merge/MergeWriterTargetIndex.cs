@@ -34,6 +34,7 @@ internal sealed class MergeWriterTargetIndex
     public IReadOnlyDictionary<AnswerVariantIdentity, int> AnswerVariantIdByIdentity { get; }
     public IReadOnlyDictionary<FutureCardIdentity, int> CardIdByIdentity { get; }
     public IReadOnlyDictionary<ReviewSessionIdentity, int> ReviewSessionIdByIdentity { get; }
+    public IReadOnlyDictionary<ReviewCandidateIdentity, int> ReviewCandidateIdByIdentity { get; }
     public IReadOnlyDictionary<PreparationSessionIdentity, int> PreparationSessionIdByIdentity { get; }
     public IReadOnlyDictionary<string, int> LearningSessionIdByIdentity { get; }
 
@@ -49,6 +50,7 @@ internal sealed class MergeWriterTargetIndex
         IReadOnlyDictionary<AnswerVariantIdentity, int> answerVariantIdByIdentity,
         IReadOnlyDictionary<FutureCardIdentity, int> cardIdByIdentity,
         IReadOnlyDictionary<ReviewSessionIdentity, int> reviewSessionIdByIdentity,
+        IReadOnlyDictionary<ReviewCandidateIdentity, int> reviewCandidateIdByIdentity,
         IReadOnlyDictionary<PreparationSessionIdentity, int> preparationSessionIdByIdentity,
         IReadOnlyDictionary<string, int> learningSessionIdByIdentity)
     {
@@ -63,6 +65,7 @@ internal sealed class MergeWriterTargetIndex
         AnswerVariantIdByIdentity = answerVariantIdByIdentity;
         CardIdByIdentity = cardIdByIdentity;
         ReviewSessionIdByIdentity = reviewSessionIdByIdentity;
+        ReviewCandidateIdByIdentity = reviewCandidateIdByIdentity;
         PreparationSessionIdByIdentity = preparationSessionIdByIdentity;
         LearningSessionIdByIdentity = learningSessionIdByIdentity;
     }
@@ -146,11 +149,12 @@ internal sealed class MergeWriterTargetIndex
         // only surviving outcome summary. Reference resolution stays here, so a dangling document or
         // vocabulary reference still surfaces exactly as it did before.
         var reviewSessionIdByIdentity = new Dictionary<ReviewSessionIdentity, int>();
+        var reviewCandidateIdByIdentity = new Dictionary<ReviewCandidateIdentity, int>();
         foreach (var session in snapshot.ReviewSessions)
         {
             var docIdentity = documentIdentityByDocumentId[session.DocumentId];
-            var candidates = snapshot.ReviewCandidates
-                .Where(candidate => candidate.SessionId == session.Id)
+            var sessionCandidates = snapshot.ReviewCandidates.Where(candidate => candidate.SessionId == session.Id).ToList();
+            var candidates = sessionCandidates
                 .Select(candidate => Schema9ReviewSessionRowIdentities.BuildCandidateContent(
                     candidate, wordIdentityByWordId[candidate.WordId]))
                 .ToList();
@@ -164,6 +168,16 @@ internal sealed class MergeWriterTargetIndex
             if (!reviewSessionIdByIdentity.TryAdd(result.Identity, session.Id))
             {
                 throw new BackupFormatException(BackupErrorCodes.DuplicateId);
+            }
+
+            // German Enhanced Term Recognition Package 5A-2: every candidate's own resolvable identity,
+            // needed so the writer can find the final local candidate id for a matched (ExactDuplicateSkipped)
+            // candidate — never only for newly-inserted ones — before attaching transported evidence to it.
+            foreach (var candidate in sessionCandidates)
+            {
+                var candidateIdentity = ReviewWorkflowIdentityPolicy.ComputeCandidateIdentityV2(
+                    result.Identity, wordIdentityByWordId[candidate.WordId]);
+                reviewCandidateIdByIdentity[candidateIdentity] = candidate.Id;
             }
         }
 
@@ -212,7 +226,7 @@ internal sealed class MergeWriterTargetIndex
         return new MergeWriterTargetIndex(
             wordIdByIdentity, wordIdentityByWordId, documentIdByIdentity, documentIdentityByDocumentId,
             sentenceIdByIdentity, senseIdByIdentity, senseIdentityBySenseId, meaningIdByIdentity,
-            answerVariantIdByIdentity, cardIdByIdentity, reviewSessionIdByIdentity,
+            answerVariantIdByIdentity, cardIdByIdentity, reviewSessionIdByIdentity, reviewCandidateIdByIdentity,
             preparationSessionIdByIdentity, learningSessionIdByIdentity);
     }
 

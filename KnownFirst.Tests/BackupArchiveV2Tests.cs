@@ -249,6 +249,154 @@ public sealed class BackupArchiveV2Tests
             roundTripped.SenseAnswerVariantAssignments.Select(a => a.StableId).ToList());
     }
 
+    /// <summary>
+    /// German Enhanced Term Recognition Package 5A-2: an archive holding no derived-term evidence at all
+    /// (the ordinary case for every non-German or non-derived-candidate workflow) must remain fully readable
+    /// by the current reader/validator — the new <c>DerivedTermEvidence</c> collection and record count are
+    /// simply empty/zero, never a validation failure.
+    /// </summary>
+    [TestMethod]
+    public async Task HistoricalArchiveWithoutDerivedEvidence_RemainsReadable()
+    {
+        await using var fixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        var snapshot = await CaptureSchema8SnapshotAsync(fixture);
+        var capability = await ResolveSchema8CapabilityAsync(fixture);
+        var payload = BackupModelMapperV2.MapToExternal(snapshot);
+        Assert.IsEmpty(payload.DerivedTermEvidence, "Precondition: this fixture carries no German derived-term evidence.");
+
+        using var stream = new MemoryStream();
+        await BackupArchiveWriterV2.WriteArchiveAsync(payload, new Schema8BackupFixtureBuilders.FakePlatformInfo(), capability, DateTime.UtcNow, stream, CancellationToken.None);
+        stream.Position = 0;
+
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None);
+        Assert.IsNotNull(validated.V2);
+        Assert.IsEmpty(validated.V2!.Payload.DerivedTermEvidence);
+        Assert.AreEqual(0, validated.V2.Manifest.RecordCounts.DerivedTermEvidence);
+    }
+
+    // ---- German Enhanced Term Recognition Package 5A-2: DerivedTermEvidence graph validation ----
+    //
+    // Mirrors the binding Schema-11 physical invariants (Data/Migrations/Schema11/Schema11EvidenceValidator.cs)
+    // at the archive-DTO level. Every test below mutates exactly one field of an otherwise-valid minimal
+    // payload and asserts the graph validator fails closed before any mutation would occur.
+
+    private static (BackupPayloadV2 Payload, BackupDerivedTermEvidenceV2 Evidence) BuildValidDerivedTermEvidencePayload()
+    {
+        const string content = "Die Schreibmaschine steht hier.";
+        const string compound = "Schreibmaschine";
+        var start = content.IndexOf(compound, StringComparison.Ordinal);
+        var ts = Schema8BackupFixtureBuilders.Slice4Boundary.BaseUtc;
+
+        var sourceMaterial = new BackupSourceMaterial(
+            "sm-1", "Doc", "de", "de", BackupLexicalLookupMode.Definition, null, content,
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(content))).ToLowerInvariant(),
+            ts, 5,
+            [new BackupSentenceRange("ss-1", 0, 0, content.Length)],
+            []);
+
+        var derivedVocab = new BackupVocabularyItem(
+            "v-derived", "de", "maschine", "W:maschine", BackupTokenKind.Word, BackupKnowledgeState.UnknownBacklog,
+            BackupPreparationState.Unprepared, 0, 1, ts, ts, [],
+            new BackupAutomaticLearningState(BackupLearningInteractionMode.Reading, 0, 0, 0, false), []);
+
+        var sourceVocab = new BackupVocabularyItem(
+            "v-source", "de", "schreibmaschine", "W:schreibmaschine", BackupTokenKind.Word, BackupKnowledgeState.Known,
+            BackupPreparationState.Unprepared, 1, 1, ts, ts, [],
+            new BackupAutomaticLearningState(BackupLearningInteractionMode.Reading, 0, 0, 0, false), []);
+
+        var reviewItem = new BackupVocabularyReviewItem(
+            "rc-1", "v-derived", 0, BackupKnowledgeState.UnknownBacklog, BackupKnowledgeState.Unreviewed, 0, 0, ts, 1, true, ts);
+
+        var workflow = new BackupVocabularyReviewWorkflow(
+            "vr-1", "sm-1", BackupReviewSessionStatus.Completed, 1, 1, 0, 1, 0, 1, ts, ts, [reviewItem]);
+
+        var evidence = new BackupDerivedTermEvidenceV2("rc-1", "W:schreibmaschine", compound, start, compound.Length, 0, "Schreib");
+
+        var payload = new BackupPayloadV2(
+            [sourceMaterial], [derivedVocab, sourceVocab], [], [], [], [], [],
+            new BackupLearningDataV2([], []),
+            new BackupWorkflowDataV2([workflow], [], []),
+            [evidence],
+            new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
+
+        return (payload, evidence);
+    }
+
+    [TestMethod]
+    public void GraphValidation_ValidDerivedTermEvidence_Passes()
+    {
+        var (payload, _) = BuildValidDerivedTermEvidencePayload();
+        BackupArchiveWriterV2.ValidatePayloadGraphV2(payload);
+    }
+
+    [TestMethod]
+    public void GraphValidation_RejectsDerivedEvidenceWithMissingOwningReviewItem()
+    {
+        var (payload, evidence) = BuildValidDerivedTermEvidencePayload();
+        var malformed = payload with { DerivedTermEvidence = [evidence with { ReviewItemId = "rc-missing" }] };
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => BackupArchiveWriterV2.ValidatePayloadGraphV2(malformed));
+        Assert.AreEqual(BackupErrorCodes.MissingReference, exception.Code);
+    }
+
+    [TestMethod]
+    public void GraphValidation_RejectsDerivedEvidenceRangeOutsideDocument()
+    {
+        var (payload, evidence) = BuildValidDerivedTermEvidencePayload();
+        var malformed = payload with { DerivedTermEvidence = [evidence with { SourceStartPosition = 9999 }] };
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => BackupArchiveWriterV2.ValidatePayloadGraphV2(malformed));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+    }
+
+    [TestMethod]
+    public void GraphValidation_RejectsDerivedEvidenceSurfaceFormNotMatchingDocument()
+    {
+        var (payload, evidence) = BuildValidDerivedTermEvidencePayload();
+        var wrongSurface = new string('X', evidence.SourceSurfaceForm.Length);
+        var malformed = payload with { DerivedTermEvidence = [evidence with { SourceSurfaceForm = wrongSurface }] };
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => BackupArchiveWriterV2.ValidatePayloadGraphV2(malformed));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+    }
+
+    [TestMethod]
+    public void GraphValidation_RejectsDerivedEvidenceWithMissingSentenceSpan()
+    {
+        var (payload, evidence) = BuildValidDerivedTermEvidencePayload();
+        var malformed = payload with { DerivedTermEvidence = [evidence with { SourceSentenceOrder = 5 }] };
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => BackupArchiveWriterV2.ValidatePayloadGraphV2(malformed));
+        Assert.AreEqual(BackupErrorCodes.MissingReference, exception.Code);
+    }
+
+    [TestMethod]
+    public void GraphValidation_RejectsDerivedEvidenceRangeNotContainedInSentence()
+    {
+        var (payload, evidence) = BuildValidDerivedTermEvidencePayload();
+        var narrowSentence = payload.SourceMaterials[0].Sentences[0] with { Length = 3 };
+        var malformed = payload with
+        {
+            SourceMaterials = [payload.SourceMaterials[0] with { Sentences = [narrowSentence] }]
+        };
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => BackupArchiveWriterV2.ValidatePayloadGraphV2(malformed));
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+    }
+
+    [TestMethod]
+    public void GraphValidation_RejectsDerivedEvidenceSourceIdentityWithNoMatchingVocabulary()
+    {
+        var (payload, evidence) = BuildValidDerivedTermEvidencePayload();
+        var malformed = payload with { DerivedTermEvidence = [evidence with { SourceIdentity = "W:doesnotexist" }] };
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => BackupArchiveWriterV2.ValidatePayloadGraphV2(malformed));
+        Assert.AreEqual(BackupErrorCodes.MissingReference, exception.Code);
+    }
+
+    [TestMethod]
+    public void GraphValidation_RejectsDuplicateSemanticDerivedEvidence()
+    {
+        var (payload, evidence) = BuildValidDerivedTermEvidencePayload();
+        var malformed = payload with { DerivedTermEvidence = [evidence, evidence] };
+        var exception = Assert.ThrowsExactly<BackupFormatException>(() => BackupArchiveWriterV2.ValidatePayloadGraphV2(malformed));
+        Assert.AreEqual(BackupErrorCodes.DuplicateId, exception.Code);
+    }
+
     // ---- Core 9: a v2 archive restored into a Schema-7 target rejects safely with zero mutation ----
 
     [TestMethod]
@@ -1304,6 +1452,7 @@ public sealed class BackupArchiveV2Tests
                 [], [vocab], [sense], [meaning], [variant], [assignment], [],
                 new BackupLearningDataV2([card], []),
                 new BackupWorkflowDataV2([], [], []),
+                [],
                 new BackupExtensions(new Dictionary<string, BackupExtensionPayload>()));
         }
 

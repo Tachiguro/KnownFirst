@@ -59,7 +59,12 @@ public enum MergeEntityKind
     Sense,
     AnswerVariant,
     SenseAnswerVariantAssignment,
-    AnswerVariantProgress
+    AnswerVariantProgress,
+
+    /// <summary>German Enhanced Term Recognition Package 5A-2: its own merge entity kind rather than being
+    /// hidden inside <see cref="VocabularyReviewItem"/> classification, since one owning candidate can carry
+    /// zero, one, or several independently-classified evidence rows.</summary>
+    DerivedTermEvidence
 }
 
 /// <summary>

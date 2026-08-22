@@ -68,6 +68,17 @@ public sealed class ValidatedLearningSchema11Capability
     public const int SchemaVersion = 11;
 }
 
+/// <summary>The Schema-12 counterpart of <see cref="ValidatedLearningSchema11Capability"/>
+/// (Learning day state and daily new-word limit grant persistence).</summary>
+public sealed class ValidatedLearningSchema12Capability
+{
+    internal ValidatedLearningSchema12Capability()
+    {
+    }
+
+    public const int SchemaVersion = 12;
+}
+
 public abstract record LearningSchemaCapabilityResult;
 
 public sealed record LearningSchema7CapabilityResult(ValidatedLearningSchema7Capability Capability)
@@ -83,6 +94,9 @@ public sealed record LearningSchema10CapabilityResult(ValidatedLearningSchema10C
     : LearningSchemaCapabilityResult;
 
 public sealed record LearningSchema11CapabilityResult(ValidatedLearningSchema11Capability Capability)
+    : LearningSchemaCapabilityResult;
+
+public sealed record LearningSchema12CapabilityResult(ValidatedLearningSchema12Capability Capability)
     : LearningSchemaCapabilityResult;
 
 /// <summary>
@@ -112,7 +126,7 @@ public sealed class LearningSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch, string? shapeDetail) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version: {shapeDetail}"
-        : $"PRAGMA user_version {foundVersion} is not a supported learning source version; only 7, 8, 9, 10, and 11 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported learning source version; only 7, 8, 9, 10, 11, and 12 are accepted.";
 }
 
 /// <summary>
@@ -170,6 +184,14 @@ public static class LearningSchemaCapability
                 }
 
                 return new LearningSchema11CapabilityResult(new ValidatedLearningSchema11Capability());
+
+            case ValidatedLearningSchema12Capability.SchemaVersion:
+                if (!KnownFirst.Data.Migrations.Schema12.Schema12ShapeValidator.IsValidDatabase(connection, out var schema12Detail))
+                {
+                    throw new LearningSchemaCapabilityException(userVersion, shapeMismatch: true, schema12Detail);
+                }
+
+                return new LearningSchema12CapabilityResult(new ValidatedLearningSchema12Capability());
 
             default:
                 throw new LearningSchemaCapabilityException(userVersion, shapeMismatch: false);

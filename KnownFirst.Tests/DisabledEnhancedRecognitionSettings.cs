@@ -17,6 +17,9 @@ internal sealed class DisabledEnhancedRecognitionSettings : IAppSettingsService
     public LearningMode LearningMode => LearningMode.Automatic;
     public bool HasOnlineLookupConsent => false;
     public bool EnhancedTermRecognitionEnabled => false;
+    public LearningTimezoneMode LearningTimezoneMode => LearningTimezoneMode.System;
+    public string? ExplicitLearningTimezoneId => null;
+    public int LearningDayCutoffMinutes => 0;
 
     public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
     public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
@@ -24,5 +27,8 @@ internal sealed class DisabledEnhancedRecognitionSettings : IAppSettingsService
     public void GrantOnlineLookupConsent() => throw new NotSupportedException();
     public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
     public void SetEnhancedTermRecognitionEnabled(bool value) => throw new NotSupportedException();
+    public void SetLearningTimezoneMode(LearningTimezoneMode mode) => throw new NotSupportedException();
+    public void SetExplicitLearningTimezoneId(string? timezoneId) => throw new NotSupportedException();
+    public void SetLearningDayCutoffMinutes(int minutes) => throw new NotSupportedException();
     public void Reset() => throw new NotSupportedException();
 }

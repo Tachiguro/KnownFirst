@@ -45,6 +45,7 @@ public sealed partial class PreparationService(
             PreparationSchema9CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema10CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema11CapabilityResult => new ValidatedPreparationSchema8Capability(),
+            PreparationSchema12CapabilityResult => new ValidatedPreparationSchema8Capability(),
             _ => null
         };
 #if DEBUG

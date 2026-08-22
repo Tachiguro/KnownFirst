@@ -113,7 +113,7 @@ internal static class DocumentCleanupOperations
     private static (IReadOnlySet<int> OwningCandidateIds, IReadOnlySet<int> ProtectedSentenceSpanIds)
         ResolveRetainedDerivedEvidenceProtection(SQLiteConnection connection)
     {
-        if (PreparationSchemaCapability.Resolve(connection) is not PreparationSchema11CapabilityResult)
+        if (PreparationSchemaCapability.Resolve(connection) is not (PreparationSchema11CapabilityResult or PreparationSchema12CapabilityResult))
         {
             return (new HashSet<int>(), new HashSet<int>());
         }

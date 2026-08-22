@@ -372,8 +372,18 @@ public sealed class GermanDerivedTermPreparationTests
         await _database.RunInTransactionAsync(conn =>
         {
             var captured = BackupMergeSafetyCopySnapshotCapture.CaptureForMergeSafetyCopy(conn);
-            Assert.IsInstanceOfType<MergeSafetyCopySchema11Captured>(captured);
-            snapshot = ((MergeSafetyCopySchema11Captured)captured).Snapshot;
+            if (captured is MergeSafetyCopySchema12Captured schema12)
+            {
+                snapshot = schema12.Snapshot;
+            }
+            else if (captured is MergeSafetyCopySchema11Captured schema11)
+            {
+                snapshot = schema11.Snapshot;
+            }
+            else
+            {
+                Assert.Fail($"Expected Schema 11 or 12 captured merge safety copy, got {captured.GetType().Name}");
+            }
             return true;
         });
 
@@ -718,6 +728,9 @@ public sealed class GermanDerivedTermPreparationTests
         public LearningMode LearningMode => LearningMode.Automatic;
         public bool HasOnlineLookupConsent => false;
         public bool EnhancedTermRecognitionEnabled => true;
+        public LearningTimezoneMode LearningTimezoneMode => LearningTimezoneMode.System;
+        public string? ExplicitLearningTimezoneId => null;
+        public int LearningDayCutoffMinutes => 0;
 
         public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
         public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
@@ -725,6 +738,9 @@ public sealed class GermanDerivedTermPreparationTests
         public void GrantOnlineLookupConsent() => throw new NotSupportedException();
         public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
         public void SetEnhancedTermRecognitionEnabled(bool value) => throw new NotSupportedException();
+        public void SetLearningTimezoneMode(LearningTimezoneMode mode) => throw new NotSupportedException();
+        public void SetExplicitLearningTimezoneId(string? timezoneId) => throw new NotSupportedException();
+        public void SetLearningDayCutoffMinutes(int minutes) => throw new NotSupportedException();
         public void Reset() => throw new NotSupportedException();
     }
 

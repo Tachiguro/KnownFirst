@@ -53,7 +53,7 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
                 cancellationToken.ThrowIfCancellationRequested();
 
                 var capability = BackupSchemaCapability.Resolve(connection);
-                if (capability is not (Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult))
+                if (capability is not (Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult))
                 {
                     return new MergeWriteResult(MergeWriteStatus.Failed, MergeWriterErrorCodes.TargetNotSchema8);
                 }
@@ -68,8 +68,8 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
                     ?? throw new InvalidOperationException("Snapshot capture reported success without a snapshot.");
 
                 // Same enrichment the preflight capture performs, so the plan recomputed below is built
-                // over identical target identities and a Schema-10/11 target's rows match by StableId.
-                if (capability is Schema10CapabilityResult or Schema11CapabilityResult)
+                // over identical target identities and a Schema-10/11/12 target's rows match by StableId.
+                if (capability is Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult)
                 {
                     targetSnapshot = Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(connection, targetSnapshot);
                 }
@@ -78,7 +78,7 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
                 // the writer's own recomputed plan and MergeWriterTargetIndex must see the target's already-
                 // transported evidence, or it would misclassify as New and collide with the Schema-11
                 // physical unique index on re-import.
-                if (capability is Schema11CapabilityResult)
+                if (capability is Schema11CapabilityResult or Schema12CapabilityResult)
                 {
                     targetSnapshot = Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(connection, targetSnapshot);
                 }

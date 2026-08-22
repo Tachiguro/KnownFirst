@@ -103,10 +103,10 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
         }
 
-        if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult)
+        if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult)
         {
             var useSchema10ActiveLearningPreflightCapture =
-                archiveContainsActiveLearning && targetCapability is Schema10CapabilityResult or Schema11CapabilityResult;
+                archiveContainsActiveLearning && targetCapability is Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult;
             KnownFirst.Data.Schema8.Schema8PortableSnapshotCaptureResult captureResultV2;
             try
             {
@@ -125,7 +125,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
 
                     var resolvedTargetCapability = BackupSchemaCapability.Resolve(connection);
                     var enrichedSnapshot = captured.Snapshot;
-                    if (resolvedTargetCapability is Schema10CapabilityResult or Schema11CapabilityResult)
+                    if (resolvedTargetCapability is Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult)
                     {
                         enrichedSnapshot = Data.Schema8.Schema8BackupSnapshotRepository.WithSchema10LearningIdentities(
                             connection, enrichedSnapshot);
@@ -134,7 +134,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
                     // German Enhanced Term Recognition Package 5A-2: the target payload the planner
                     // classifies against must see the same transported evidence a Schema-11 target already
                     // holds, or every archive evidence row would misclassify as New on every re-import.
-                    if (resolvedTargetCapability is Schema11CapabilityResult)
+                    if (resolvedTargetCapability is Schema11CapabilityResult or Schema12CapabilityResult)
                     {
                         enrichedSnapshot = Data.Schema8.Schema8BackupSnapshotRepository.WithSchema11DerivedEvidenceOwningCandidateIds(
                             connection, enrichedSnapshot);

@@ -103,6 +103,7 @@
     <Compile Include="..\Data\Migrations\Schema9\*.cs" Link="Production\Data\Migrations\Schema9\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Migrations\Schema10\*.cs" Link="Production\Data\Migrations\Schema10\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Migrations\Schema11\*.cs" Link="Production\Data\Migrations\Schema11\%(Filename)%(Extension)" />
+    <Compile Include="..\Data\Migrations\Schema12\*.cs" Link="Production\Data\Migrations\Schema12\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Schema8\*.cs" Link="Production\Data\Schema8\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Schema10\*.cs" Link="Production\Data\Schema10\%(Filename)%(Extension)" />
     <Compile Include="..\Models\*.cs" Link="Production\Models\%(Filename)%(Extension)" />
@@ -117,6 +118,7 @@
     <Compile Include="..\Services\IReleaseNotesService.cs" Link="Production\Services\IReleaseNotesService.cs" />
     <Compile Include="..\Services\IWhatsNewPreferenceStore.cs" Link="Production\Services\IWhatsNewPreferenceStore.cs" />
     <Compile Include="..\Services\ReleaseNotesService.cs" Link="Production\Services\ReleaseNotesService.cs" />
+    <Compile Include="..\Services\Time\*.cs" Link="Production\Services\Time\%(Filename)%(Extension)" />
     <Compile Include="..\Services\Diagnostics\DiagnosticLogOptions.cs" Link="Production\Services\Diagnostics\DiagnosticLogOptions.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticLogConfiguration.cs" Link="Production\Services\Diagnostics\DiagnosticLogConfiguration.cs" />
     <Compile Include="..\Services\Diagnostics\DiagnosticsJsonSerializerContext.cs" Link="Production\Services\Diagnostics\DiagnosticsJsonSerializerContext.cs" />

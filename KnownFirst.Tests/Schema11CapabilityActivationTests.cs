@@ -4,6 +4,10 @@ using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
+using KnownFirst.Data.Migrations.Schema10;
+using KnownFirst.Data.Migrations.Schema11;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
@@ -24,15 +28,24 @@ public sealed class Schema11CapabilityActivationTests
     private static async Task<Schema7Fixture> CreateSchema11EmptyFixtureAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema8DormantMigration.ApplyAsync(fixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
+        await Schema11DormantMigration.ApplyAsync(fixture.Connection);
         return fixture;
+    }
+
+    private static async Task MigrateToSchema11Async(Schema7Fixture fixture)
+    {
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
+        await Schema11DormantMigration.ApplyAsync(fixture.Connection);
     }
 
     [TestMethod]
     public async Task Schema11Database_ResolvesAllThreeCapabilityFamilies()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         Assert.AreEqual(Schema11, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -52,7 +65,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_SupportsPortableExportAndFullBackupCapture()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         Assert.AreEqual(Schema11, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -69,7 +82,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_OrdinaryPortableExport_PreservesActiveLearningSession()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         Assert.AreEqual(Schema11, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -86,7 +99,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_WithoutActiveWorkflow_CapturesAMergeSafetyCopy()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         Assert.AreEqual(Schema11, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -102,7 +115,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Characterization_Schema11Database_WithActiveLearningWorkflow_StillBlocksMergeSafetyCopy()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         Assert.AreEqual(Schema11, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         await fixture.Connection.RunInTransactionAsync(connection =>
@@ -118,7 +131,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_MalformedShape_FailsClosedAcrossAllThreeCapabilities()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         // Drop the Schema-11 table while user_version remains 11
         await fixture.Connection.ExecuteAsync("DROP TABLE DerivedTermEvidenceEntries");
 
@@ -139,28 +152,28 @@ public sealed class Schema11CapabilityActivationTests
     }
 
     [TestMethod]
-    public async Task Schema11Database_PRAGMA12_ThrowsUnsupportedVersion()
+    public async Task Schema11Database_PRAGMA13_ThrowsUnsupportedVersion()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 12");
+        await MigrateToSchema11Async(fixture);
+        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 13");
 
         await fixture.Connection.RunInTransactionAsync(connection =>
         {
             var backupEx = Assert.ThrowsExactly<BackupSchemaCapabilityException>(
                 () => BackupSchemaCapability.Resolve(connection));
             Assert.IsFalse(backupEx.ShapeMismatch);
-            Assert.AreEqual(12, backupEx.FoundVersion);
+            Assert.AreEqual(13, backupEx.FoundVersion);
 
             var prepEx = Assert.ThrowsExactly<PreparationSchemaCapabilityException>(
                 () => PreparationSchemaCapability.Resolve(connection));
             Assert.IsFalse(prepEx.ShapeMismatch);
-            Assert.AreEqual(12, prepEx.FoundVersion);
+            Assert.AreEqual(13, prepEx.FoundVersion);
 
             var learnEx = Assert.ThrowsExactly<LearningSchemaCapabilityException>(
                 () => LearningSchemaCapability.Resolve(connection));
             Assert.IsFalse(learnEx.ShapeMismatch);
-            Assert.AreEqual(12, learnEx.FoundVersion);
+            Assert.AreEqual(13, learnEx.FoundVersion);
         });
     }
 
@@ -181,7 +194,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_PreviewPortableImport_PopulatedTargetRoutesToMergePreflight()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
         var backupService = new BackupService(database, new Schema8BackupFixtureBuilders.FakePlatformInfo());
 
@@ -242,7 +255,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_PreparationWorkflow_Succeeds()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
         var prepService = new PreparationService(database, new NoOpLexicalEnrichmentService(), new FakeClock(DateTime.UtcNow));
 
@@ -254,7 +267,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_DashboardAndLearningWorkflow_Succeeds()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
         var dashboardService = new DashboardService(database);
         var learningService = new LearningService(
@@ -271,7 +284,7 @@ public sealed class Schema11CapabilityActivationTests
     public async Task Schema11Database_GetDiagnosticsAsync_SucceedsViaCapability()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
         var reviewService = new TextReviewService(
             database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
@@ -284,7 +297,7 @@ public sealed class Schema11CapabilityActivationTests
     private static async Task<MemoryStream> CreateValidArchiveV2StreamAsync()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await MigrateToSchema11Async(fixture);
         var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
         var backupService = new BackupService(database, new Schema8BackupFixtureBuilders.FakePlatformInfo());
 

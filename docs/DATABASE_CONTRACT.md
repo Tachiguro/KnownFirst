@@ -19,9 +19,8 @@ It describes the current SQLite model at schema version 11 on `master`. Schema 1
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **11** on `master`.
-A healthy initialized current database on master reports `PRAGMA user_version = 11`.
-On candidate branch `feature/daily-new-word-limit-learning-day-v1` (Daily New-Word Limit & Learning-Day Infrastructure, Slice 1), `DatabaseSchema.CurrentVersion` advances to **12**.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **12** on `master`.
+A healthy initialized current database on master reports `PRAGMA user_version = 12`.
 
 | Table | Responsibility |
 | --- | --- |
@@ -47,8 +46,8 @@ On candidate branch `feature/daily-new-word-limit-learning-day-v1` (Daily New-Wo
 | `SenseAnswerVariantAssignments` | Direction-specific Required/AcceptedOnly assignment, preferred flag, and Required-epoch boundary |
 | `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` mastery progress |
 | `DerivedTermEvidenceEntries` | German Enhanced Term Recognition (Schema 11): per-occurrence provenance for a derived compound component, always pointing at the complete whole-compound source span (never a synthetic component occurrence) |
-| `LearningDayState` | Learning-Day Infrastructure (Schema 12 candidate): singleton record (`Id = 1`) tracking active budget day / Bridge phase, current day ordinal, frozen day boundaries, effective timezone/cutoff, and Bridge target state |
-| `LearningDayGrants` | Daily New-Word Budget (Schema 12 candidate): durable record of admitted genuinely-new `WordId`s per logical learning day ordinal with immutable `SlotOrdinal` assignments; independent of learning-graph deletions |
+| `LearningDayState` | Learning-Day Infrastructure (Schema 12): singleton record (`Id = 1`) tracking active budget day / Bridge phase, current day ordinal, frozen day boundaries, effective timezone/cutoff, and Bridge target state |
+| `LearningDayGrants` | Daily New-Word Budget (Schema 12): durable record of admitted genuinely-new `WordId`s per logical learning day ordinal with immutable `SlotOrdinal` assignments; independent of learning-graph deletions |
 
 At schema 8 `LearningCards.MeaningId` no longer exists; the card's own preferred
 meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
@@ -106,29 +105,30 @@ not report success before the transaction commits.
 - Tests must cover at least the oldest explicitly supported source shape and
   the immediately preceding production schema.
 
-### Schema-11 activation behavior
+### Schema-12 activation behavior
 
 Initialization on master reads `PRAGMA user_version` before touching any table and then
 follows exactly one path:
 
 | Source version | Behavior |
 | --- | --- |
-| Fresh / empty database | Initializes directly to a validated schema 11. |
-| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8, schema 9, schema 10, and finally to schema 11. |
-| 7 | Migrates to schema 8, schema 9, schema 10, and finally to schema 11. |
-| 8 | Validates schema-8 shape, then migrates to schema 9, schema 10, and finally to schema 11. |
-| 9 | Validates schema-9 shape, then migrates to schema 10 (adds StableId columns, assigns bootstrap identities, creates unique indexes), and finally to schema 11. |
-| 10 | Validates schema-10 shape, then migrates to schema 11 (creates `DerivedTermEvidenceEntries`). |
-| 11 (valid) | Validation only. The database is inspected and never mutated. |
-| 11 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
-| Greater than 11 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
+| Fresh / empty database | Initializes directly to a validated schema 12. |
+| 0–6 | Creates or updates the registered tables to reach the schema-7 baseline boundary, applies the legacy enum backfills, and then migrates to schema 8, schema 9, schema 10, schema 11, and finally to schema 12. |
+| 7 | Migrates to schema 8, schema 9, schema 10, schema 11, and finally to schema 12. |
+| 8 | Validates schema-8 shape, then migrates to schema 9, schema 10, schema 11, and finally to schema 12. |
+| 9 | Validates schema-9 shape, then migrates to schema 10 (adds StableId columns, assigns bootstrap identities, creates unique indexes), schema 11, and finally to schema 12. |
+| 10 | Validates schema-10 shape, then migrates to schema 11 (creates `DerivedTermEvidenceEntries`), and finally to schema 12. |
+| 11 | Validates schema-11 shape, then migrates to schema 12 (creates `LearningDayState` and `LearningDayGrants` tables). |
+| 12 (valid) | Validation only. The database is inspected and never mutated. |
+| 12 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
+| Greater than 12 | Rejected with `DatabaseSchemaCompatibilityException` before any table or cache change. |
 
 The legacy enum backfills assign deterministic supported values for
 `Words.TokenKind`, `Words.PreparationState`, `Words.AutomaticInteractionMode`,
 `Meanings.TokenKind`, `WordOccurrences.TechnicalFamily`, and the
 `Documents`/`LexicalCache` lookup mode before activation.
 
-The 7 → 8 → 9 → 10 migrations run inside real SQLite transactions. They are rollback-safe,
+The 7 → 8 → 9 → 10 → 11 → 12 migrations run inside real SQLite transactions. They are rollback-safe,
 cancellation-safe, and retryable.
 
 **Schema 9 Migration (Source 8, Target 9):**
@@ -449,9 +449,9 @@ Package 5A lifecycle behavior for this evidence:
 
 ---
 
-## Schema-12 Learning-Day and Daily New-Word Budget Contract (Candidate on feature/daily-new-word-limit-learning-day-v1)
+## Schema-12 Learning-Day and Daily New-Word Budget Contract (Merged Production State)
 
-**Lifecycle status:** candidate branch `feature/daily-new-word-limit-learning-day-v1` (Daily New-Word Limit & Learning-Day Infrastructure, Slice 1). Implementation and independent review complete; `master` remains Schema 11 until merged.
+**Lifecycle status:** merged production `master` state via PR #142 (`feat: add daily new-word learning-day budget`; merge commit `34afed431711dd165b334d66b50b251a839faf02`). `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are 12 on `master`.
 
 Schema 12 introduces durable logical learning-day state, frozen timezone and cutoff tracking, Bridge intervals, and daily new-word grant tracking.
 

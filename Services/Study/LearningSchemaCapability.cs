@@ -57,7 +57,6 @@ public sealed class ValidatedLearningSchema10Capability
 }
 
 /// <summary>The Schema-11 counterpart of <see cref="ValidatedLearningSchema10Capability"/>
-/// <summary>The Schema-11 counterpart of <see cref="ValidatedLearningSchema10Capability"/>
 /// (German enhanced term recognition derivation evidence persistence). The learning-relevant data
 /// model is untouched by Schema 11; every existing learning behaviour is unchanged.</summary>
 public sealed class ValidatedLearningSchema11Capability

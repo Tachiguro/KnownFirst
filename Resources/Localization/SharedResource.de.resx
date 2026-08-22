@@ -315,6 +315,9 @@
   <data name="Review_Candidate" xml:space="preserve">
     <value>Kandidat</value>
   </data>
+  <data name="Review_DerivedFromCompound" xml:space="preserve">
+    <value>Dieses Wort stammt aus dem deutschen Kompositum „{0}“.</value>
+  </data>
   <data name="Review_TokenKind" xml:space="preserve">
     <value>Tokenart</value>
   </data>

@@ -33,6 +33,7 @@ public sealed class GermanDerivedTermPreparationTests
     private TextReviewService _review = null!;
     private FixedMeaningProvider _provider = null!;
     private PreparationService _preparation = null!;
+    private LearningService _learning = null!;
 
     [TestInitialize]
     public async Task InitializeAsync()
@@ -51,6 +52,11 @@ public sealed class GermanDerivedTermPreparationTests
                 new MeaningRanker(),
                 new LexicalCacheRepository(_database),
                 new LexicalLookupProviderResolver([_provider])),
+            _clock);
+        _learning = new LearningService(
+            _database,
+            new SimpleSpacedRepetitionScheduler(),
+            new SpellingAnswerComparer(),
             _clock);
     }
 
@@ -179,6 +185,92 @@ public sealed class GermanDerivedTermPreparationTests
 
         var word = await _database.ReadAsync(conn => conn.Table<WordEntity>().Where(w => w.Id == maschineWordId).FirstAsync());
         Assert.AreEqual(WordStatus.Known, word.Status);
+    }
+
+    /// <summary>
+    /// Package 5B: native (non-merge) Exclude counterpart to
+    /// <see cref="CompletingPreparationWithoutLearning_RemovesRetainedDerivationEvidence"/>. Both MarkKnown
+    /// and Exclude route through the same shared <c>PreparationService.CompleteWithoutLearningAsync</c>
+    /// cleanup, so this test is characterization/regression-hardening evidence protecting that shared path
+    /// against future divergence between the two callers, not a new production behavior.
+    /// </summary>
+    [TestMethod]
+    public async Task CompletingPreparationWithoutLearning_ExcludeRemovesRetainedDerivationEvidence()
+    {
+        var maschineWordId = await ImportGermanReviewWithMaschineUnknownAsync();
+
+        var evidenceBefore = await _database.ReadAsync(conn =>
+            conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.IsGreaterThan(0, evidenceBefore, "Retained derivation evidence must exist before Exclude.");
+        var candidateCountBefore = await _database.ReadAsync(conn =>
+            conn.Table<ReviewCandidateEntity>().Where(c => c.WordId == maschineWordId).CountAsync());
+        Assert.IsGreaterThan(0, candidateCountBefore, "The owning ReviewCandidate must be retained before Exclude.");
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 20);
+        var item = await _preparation.GetCurrentAsync();
+        Assert.IsNotNull(item);
+        Assert.AreEqual(maschineWordId, item!.WordId);
+
+        await _preparation.ExcludeAsync(item.CandidateId);
+
+        var evidenceAfter = await _database.ReadAsync(conn =>
+            conn.Table<DerivedTermEvidenceEntity>().CountAsync());
+        Assert.AreEqual(0, evidenceAfter, "Exclude must remove retained derivation evidence once the word leaves the Unknown lifecycle.");
+        var candidateCountAfter = await _database.ReadAsync(conn =>
+            conn.Table<ReviewCandidateEntity>().Where(c => c.WordId == maschineWordId).CountAsync());
+        Assert.AreEqual(0, candidateCountAfter, "Exclude must remove the retained owning ReviewCandidate.");
+
+        var word = await _database.ReadAsync(conn => conn.Table<WordEntity>().Where(w => w.Id == maschineWordId).FirstAsync());
+        Assert.AreEqual(WordStatus.Ignored, word.Status);
+    }
+
+    /// <summary>
+    /// Package 5B: end-to-end characterization proof that an accepted derived word enters the normal
+    /// Preparation-to-Learning pipeline exactly like any other prepared word. No code anywhere downstream of
+    /// Preparation Accept branches on <see cref="CandidateProvenanceKind"/> (verified by inspection), so this
+    /// is expected to pass immediately without any production change; it exists to protect that guarantee
+    /// against future regression.
+    /// </summary>
+    [TestMethod]
+    public async Task DerivedUnknownAccept_EntersNormalLearningPathWithoutDuplicateIdentity()
+    {
+        var maschineWordId = await ImportGermanReviewWithMaschineUnknownAsync();
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 20);
+        var item = await _preparation.LookupCurrentAsync();
+        Assert.IsNotNull(item);
+        Assert.AreEqual(maschineWordId, item!.WordId);
+
+        await _preparation.AcceptAsync(item.CandidateId, InputFrom(item, 0), CardDirectionPreference.TermToMeaning);
+
+        var cardsAfterAccept = await _database.ReadAsync(conn =>
+            conn.Table<LearningCardEntity>().Where(c => c.WordId == maschineWordId).ToListAsync());
+        Assert.HasCount(
+            1,
+            cardsAfterAccept,
+            "Accepting the derived term must create exactly one normal learning card, with no duplicate/synthetic identity created because of provenance.");
+        var cardId = cardsAfterAccept[0].Id;
+
+        var loadResult = await _learning.GetOrStartAsync();
+        Assert.IsNotNull(loadResult.Card);
+        Assert.AreEqual(
+            maschineWordId,
+            loadResult.Card!.WordId,
+            "The derived word must enter the normal learning queue exactly like any other prepared word.");
+
+        await _learning.RevealAnswerAsync(loadResult.Card.QueueItemId);
+        await _learning.RateAsync(loadResult.Card.QueueItemId, ReviewRating.Good);
+
+        var reviewsAfterRating = await _database.ReadAsync(conn =>
+            conn.Table<LearningReviewEntity>().Where(r => r.CardId == cardId).ToListAsync());
+        Assert.HasCount(
+            1,
+            reviewsAfterRating,
+            "Rating the derived word's card must produce exactly one LearningReview row.");
+
+        var finalCardCount = await _database.ReadAsync(conn =>
+            conn.Table<LearningCardEntity>().Where(c => c.WordId == maschineWordId).CountAsync());
+        Assert.AreEqual(1, finalCardCount, "Rating must not create a second card for the same derived word.");
     }
 
     /// <summary>

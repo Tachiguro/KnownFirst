@@ -37,6 +37,11 @@
                 <p class="candidate-label">@Localizer["Review_Candidate"]</p>
                 <h2>@_candidate.Candidate</h2>
 
+                @if (_candidate.Provenance == CandidateProvenanceKind.DerivedFromCompound && _candidate.DerivationEvidence.Count > 0 && DerivationSourceLabel is not null)
+                {
+                    <p class="derivation-notice">@Localizer["Review_DerivedFromCompound", DerivationSourceLabel]</p>
+                }
+
                 <details class="candidate-details-panel">
                     <summary>@Localizer["Review_Details"]</summary>
                     <dl class="candidate-details">
@@ -212,6 +217,21 @@
     private ReviewContext? CurrentContext => _candidate is null || _candidate.Contexts.Count == 0
         ? null
         : _candidate.Contexts[_contextIndex];
+
+    private string? DerivationSourceLabel => _candidate is null
+        ? null
+        : BuildDerivationSourceLabel(_candidate.DerivationEvidence);
+
+    private static string? BuildDerivationSourceLabel(IReadOnlyList<DerivedTermEvidence> derivationEvidence)
+    {
+        var sources = derivationEvidence
+            .Select(evidence => evidence.SourceSurfaceForm)
+            .Where(form => !string.IsNullOrWhiteSpace(form))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return sources.Length == 0 ? null : string.Join(", ", sources);
+    }
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

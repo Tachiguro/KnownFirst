@@ -476,6 +476,27 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void ReviewWords_DerivedCandidateShowsSourceCompoundNoticeOutsideCollapsedDetails()
+    {
+        var markup = LoadUi("ReviewWords.razor");
+
+        Assert.Contains("CandidateProvenanceKind.DerivedFromCompound", markup);
+        Assert.Contains("_candidate.DerivationEvidence.Count > 0", markup);
+        Assert.Contains("class=\"derivation-notice\"", markup);
+        Assert.Contains("Review_DerivedFromCompound", markup);
+        Assert.Contains("SourceSurfaceForm", markup);
+        Assert.DoesNotContain("SourceIdentity", markup);
+
+        var derivationNoticeIndex = markup.IndexOf("derivation-notice", StringComparison.Ordinal);
+        var detailsPanelIndex = markup.IndexOf("<details class=\"candidate-details-panel\">", StringComparison.Ordinal);
+        Assert.IsTrue(derivationNoticeIndex >= 0, "The derivation notice markup must exist.");
+        Assert.IsTrue(detailsPanelIndex >= 0, "The collapsed details panel must exist.");
+        Assert.IsTrue(
+            derivationNoticeIndex < detailsPanelIndex,
+            "The derivation notice must appear before the collapsed details panel so it is visible without expanding it.");
+    }
+
+    [TestMethod]
     public void MobileTitle_IsNotDuplicatedAndHomeShowsKnownFirstOnce()
     {
         var pageHeaderStyles = LoadUi("PageHeader.razor.css");

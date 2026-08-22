@@ -315,6 +315,9 @@
   <data name="Review_Candidate" xml:space="preserve">
     <value>Кандидат</value>
   </data>
+  <data name="Review_DerivedFromCompound" xml:space="preserve">
+    <value>Это слово образовано от немецкого сложного слова «{0}».</value>
+  </data>
   <data name="Review_TokenKind" xml:space="preserve">
     <value>Тип токена</value>
   </data>

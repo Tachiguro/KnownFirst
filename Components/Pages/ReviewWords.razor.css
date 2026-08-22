@@ -83,7 +83,8 @@ dd {
     font-weight: 750;
 }
 
-.context-notice {
+.context-notice,
+.derivation-notice {
     margin: var(--space-6) 0 0;
     color: var(--color-muted);
 }

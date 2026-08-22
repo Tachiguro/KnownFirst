@@ -7,6 +7,7 @@ using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models;
 using KnownFirst.Services;
+using KnownFirst.Services.Time;
 using SQLite;
 using System.Text.Json;
 
@@ -20,6 +21,7 @@ public sealed class LearningService : ILearningService
     private readonly IClock clock;
     private readonly IAppSettingsService? appSettings;
     private readonly ISchema8LearningFailureInjector? schema8FailureInjector;
+    private readonly ILearningTimezoneResolver _timezoneResolver;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
 
     /// <summary>
@@ -35,7 +37,7 @@ public sealed class LearningService : ILearningService
         ISpacedRepetitionScheduler scheduler,
         SpellingAnswerComparer spellingComparer,
         IClock clock)
-        : this(database, scheduler, spellingComparer, clock, null)
+        : this(database, scheduler, spellingComparer, clock, null, null, null)
     {
     }
 
@@ -45,7 +47,8 @@ public sealed class LearningService : ILearningService
         SpellingAnswerComparer spellingComparer,
         IClock clock,
         IAppSettingsService? appSettings,
-        ISchema8LearningFailureInjector? schema8FailureInjector = null)
+        ISchema8LearningFailureInjector? schema8FailureInjector = null,
+        ILearningTimezoneResolver? timezoneResolver = null)
     {
         this.database = database;
         this.scheduler = scheduler;
@@ -53,7 +56,15 @@ public sealed class LearningService : ILearningService
         this.clock = clock;
         this.appSettings = appSettings;
         this.schema8FailureInjector = schema8FailureInjector;
+        _timezoneResolver = timezoneResolver ?? new LearningTimezoneResolver();
     }
+
+    private static bool IsSchema8OrNewer(LearningSchemaCapabilityResult capability) =>
+        capability is LearningSchema8CapabilityResult
+            or LearningSchema9CapabilityResult
+            or LearningSchema10CapabilityResult
+            or LearningSchema11CapabilityResult
+            or LearningSchema12CapabilityResult;
 
     public async Task<LearningLoadResult> GetOrStartAsync()
     {
@@ -64,7 +75,7 @@ public sealed class LearningService : ILearningService
             // one transaction and never performs a second read. Schema 7 keeps its existing two-step shape.
             var schema8Result = await database.RunInTransactionAsync<LearningLoadResult?>(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult)
+                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
                 {
                     return GetOrStartSchema8(connection);
                 }
@@ -87,7 +98,7 @@ public sealed class LearningService : ILearningService
         {
             await database.RunInTransactionAsync(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult)
+                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
                 {
                     RevealAnswerSchema8(connection, queueItemId);
                     return true;
@@ -124,7 +135,7 @@ public sealed class LearningService : ILearningService
             // One transaction for both schemas. The Schema-8 pending-match handoff is stored only after the
             // transaction has committed successfully.
             var outcome = await database.RunInTransactionAsync(connection =>
-                LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult
+                IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection))
                     ? CheckSpellingSchema8(connection, queueItemId, enteredAnswer)
                     : new Schema8SpellingOutcome(
                         CheckSpellingSchema7(connection, queueItemId, enteredAnswer), null, IsSchema8: false));
@@ -226,7 +237,7 @@ public sealed class LearningService : ILearningService
         {
             var schema8Outcome = await database.RunInTransactionAsync<Schema8RatingOutcome?>(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult)
+                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
                 {
                     return PersistRatingSchema8(
                         connection, queueItemId, rating, fromIncorrectSpellingCheck: false);
@@ -303,7 +314,7 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult)
+                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
                 {
                     return MarkPermanentlyKnownSchema8(connection, wordId);
                 }
@@ -1433,8 +1444,12 @@ public sealed class LearningService : ILearningService
         }
 
         // 40-41: the owning session's result is captured inside the transaction and returned after commit.
+        var dayState = EnsureDayStateSchema12(connection, reviewedAtUtc);
+        var limitN = appSettings is not null
+            ? PreparationLimitPolicy.Normalize(appSettings.PreparationLimit)
+            : PreparationLimitPolicy.DefaultLimit;
         return new Schema8RatingOutcome(
-            finalSession.Id, BuildSchema8ResultForSession(connection, finalSession.Id));
+            finalSession.Id, BuildSchema8ResultForSession(connection, finalSession.Id, dayState, limitN, reviewedAtUtc));
     }
 
     /// <summary>
@@ -1671,12 +1686,129 @@ public sealed class LearningService : ILearningService
         return true;
     }
 
+    private Schema12LearningDayStateRow? EnsureDayStateSchema12(SQLiteConnection connection, DateTime nowUtc)
+    {
+        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema12CapabilityResult)
+        {
+            return null;
+        }
+
+        var mode = appSettings?.LearningTimezoneMode ?? LearningTimezoneMode.System;
+        var explicitId = appSettings?.ExplicitLearningTimezoneId;
+        var cutoff = appSettings?.LearningDayCutoffMinutes ?? LearningDayConfiguration.DefaultCutoffMinutes;
+
+        var requestedTz = _timezoneResolver.ResolveEffectiveTimeZone(mode, explicitId);
+        var requestedCutoff = LearningDayConfiguration.NormalizeCutoffMinutes(cutoff);
+
+        var dayState = Schema8LearningRepository.LoadLearningDayState(connection);
+        if (dayState is null)
+        {
+            var (startUtc, endUtc, _) = LearningDayBoundaryPolicy.CalculateDayBoundariesUtc(nowUtc, requestedTz, requestedCutoff);
+            dayState = new Schema12LearningDayStateRow
+            {
+                Id = 1,
+                Phase = LearningDayPhase.ActiveBudgetDay,
+                DayOrdinal = 1,
+                ActiveDayStartUtc = startUtc,
+                ActiveDayEndUtc = endUtc,
+                FrozenTimeZoneId = requestedTz.Id,
+                FrozenCutoffMinutes = requestedCutoff,
+                BridgeStartedUtc = null,
+                BridgeTargetTimeZoneId = null,
+                BridgeTargetCutoffMinutes = null,
+                BridgeTargetUtc = null,
+                UpdatedAtUtc = nowUtc
+            };
+            Schema8LearningRepository.UpsertLearningDayState(connection, dayState);
+            return dayState;
+        }
+
+        if (dayState.Phase == LearningDayPhase.ActiveBudgetDay)
+        {
+            if (nowUtc >= dayState.ActiveDayEndUtc)
+            {
+                var nextStartUtc = LearningDayBoundaryPolicy.CalculateNextDayStartAtOrAfter(
+                    dayState.ActiveDayEndUtc, requestedTz, requestedCutoff);
+
+                if (nextStartUtc == dayState.ActiveDayEndUtc || nowUtc >= nextStartUtc)
+                {
+                    var (startUtc, endUtc, _) = LearningDayBoundaryPolicy.CalculateDayBoundariesUtc(nowUtc, requestedTz, requestedCutoff);
+                    dayState.Phase = LearningDayPhase.ActiveBudgetDay;
+                    dayState.DayOrdinal++;
+                    dayState.ActiveDayStartUtc = startUtc;
+                    dayState.ActiveDayEndUtc = endUtc;
+                    dayState.FrozenTimeZoneId = requestedTz.Id;
+                    dayState.FrozenCutoffMinutes = requestedCutoff;
+                    dayState.BridgeStartedUtc = null;
+                    dayState.BridgeTargetTimeZoneId = null;
+                    dayState.BridgeTargetCutoffMinutes = null;
+                    dayState.BridgeTargetUtc = null;
+                    dayState.UpdatedAtUtc = nowUtc;
+                    Schema8LearningRepository.UpsertLearningDayState(connection, dayState);
+                }
+                else
+                {
+                    dayState.Phase = LearningDayPhase.Bridge;
+                    dayState.BridgeStartedUtc = dayState.ActiveDayEndUtc;
+                    dayState.BridgeTargetTimeZoneId = requestedTz.Id;
+                    dayState.BridgeTargetCutoffMinutes = requestedCutoff;
+                    dayState.BridgeTargetUtc = nextStartUtc;
+                    dayState.UpdatedAtUtc = nowUtc;
+                    Schema8LearningRepository.UpsertLearningDayState(connection, dayState);
+                }
+            }
+
+            return dayState;
+        }
+
+        if (dayState.Phase == LearningDayPhase.Bridge)
+        {
+            var bridgeAnchor = dayState.BridgeStartedUtc ?? dayState.ActiveDayEndUtc;
+            var bridgeTargetUtc = LearningDayBoundaryPolicy.CalculateNextDayStartAtOrAfter(
+                bridgeAnchor, requestedTz, requestedCutoff);
+
+            if (nowUtc >= bridgeTargetUtc)
+            {
+                var (startUtc, endUtc, _) = LearningDayBoundaryPolicy.CalculateDayBoundariesUtc(nowUtc, requestedTz, requestedCutoff);
+                dayState.Phase = LearningDayPhase.ActiveBudgetDay;
+                dayState.DayOrdinal++;
+                dayState.ActiveDayStartUtc = startUtc;
+                dayState.ActiveDayEndUtc = endUtc;
+                dayState.FrozenTimeZoneId = requestedTz.Id;
+                dayState.FrozenCutoffMinutes = requestedCutoff;
+                dayState.BridgeStartedUtc = null;
+                dayState.BridgeTargetTimeZoneId = null;
+                dayState.BridgeTargetCutoffMinutes = null;
+                dayState.BridgeTargetUtc = null;
+                dayState.UpdatedAtUtc = nowUtc;
+                Schema8LearningRepository.UpsertLearningDayState(connection, dayState);
+            }
+            else
+            {
+                dayState.BridgeTargetTimeZoneId = requestedTz.Id;
+                dayState.BridgeTargetCutoffMinutes = requestedCutoff;
+                dayState.BridgeTargetUtc = bridgeTargetUtc;
+                dayState.UpdatedAtUtc = nowUtc;
+                Schema8LearningRepository.UpsertLearningDayState(connection, dayState);
+            }
+
+            return dayState;
+        }
+
+        return dayState;
+    }
+
     /// <summary>
-    /// The Schema-8 <c>GetOrStartAsync</c> loader. Package 1 creates and freezes the queue atomically but
-    /// deliberately does not construct a card view; presentation and continuation belong to Package 2.
+    /// The Schema-8/12 <c>GetOrStartAsync</c> loader.
     /// </summary>
     private LearningLoadResult GetOrStartSchema8(SQLiteConnection connection)
     {
+        var selectionNow = Schema8Utc.Normalize(clock.UtcNow);
+        var dayState = EnsureDayStateSchema12(connection, selectionNow);
+        var limitN = appSettings is not null
+            ? PreparationLimitPolicy.Normalize(appSettings.PreparationLimit)
+            : PreparationLimitPolicy.DefaultLimit;
+
         var activeSessions = Schema8LearningRepository.LoadActiveSessions(connection);
         if (activeSessions.Count > 1)
         {
@@ -1687,37 +1819,181 @@ public sealed class LearningService : ILearningService
         if (activeSessions.Count == 1)
         {
             var active = activeSessions[0];
-            if (Schema8LearningRepository.CountIncompleteQueueRows(connection, active.Id) > 0)
+            var incompleteRows = Schema8LearningRepository.LoadIncompleteQueueRowsForSession(connection, active.Id);
+            if (incompleteRows.Count == 0)
             {
-                // An incomplete active session suppresses every older completed summary.
-                return BuildSchema8ResultForSession(connection, active.Id);
-            }
-
-            var totalQueueRows = Schema8LearningRepository.CountQueueRows(connection, active.Id);
-            var reviewCount = Schema8LearningRepository.CountReviewsForSession(connection, active.Id);
-            if (totalQueueRows == 0 && reviewCount == 0)
-            {
-                Schema8LearningRepository.DeleteSession(connection, active.Id);
+                var totalQueueRows = Schema8LearningRepository.CountQueueRows(connection, active.Id);
+                var reviewCount = Schema8LearningRepository.CountReviewsForSession(connection, active.Id);
+                if (totalQueueRows == 0 && reviewCount == 0)
+                {
+                    Schema8LearningRepository.DeleteSession(connection, active.Id);
+                }
+                else
+                {
+                    active.TotalCards = totalQueueRows;
+                    active.CompletedCards = Schema8LearningRepository
+                        .LoadQueueRowsForSession(connection, active.Id).Count(row => row.IsCompleted);
+                    active.AgainCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Again);
+                    active.HardCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Hard);
+                    active.GoodCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Good);
+                    active.EasyCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Easy);
+                    active.Status = LearningSessionStatus.Completed;
+                    active.CompletedAtUtc ??= selectionNow;
+                    active.UpdatedAtUtc = selectionNow;
+                    Schema8LearningRepository.UpdateSessionCounters(connection, active);
+                    return new LearningLoadResult(null, BuildSchema8Summary(connection, active));
+                }
             }
             else
             {
-                var now = Schema8Utc.Normalize(clock.UtcNow);
-                active.TotalCards = totalQueueRows;
-                active.CompletedCards = Schema8LearningRepository
-                    .LoadQueueRowsForSession(connection, active.Id).Count(row => row.IsCompleted);
-                active.AgainCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Again);
-                active.HardCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Hard);
-                active.GoodCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Good);
-                active.EasyCount = Schema8LearningRepository.CountReviewsWithRating(connection, active.Id, ReviewRating.Easy);
-                active.Status = LearningSessionStatus.Completed;
-                active.CompletedAtUtc ??= now;
-                active.UpdatedAtUtc = now;
-                Schema8LearningRepository.UpdateSessionCounters(connection, active);
-                return new LearningLoadResult(null, BuildSchema8Summary(connection, active));
+                if (dayState is not null)
+                {
+                    ReconcileActiveSessionSchema8(connection, active, dayState, limitN, selectionNow);
+                }
+                return BuildSchema8ResultForSession(connection, active.Id, dayState, limitN, selectionNow);
             }
         }
 
-        var selectionNow = Schema8Utc.Normalize(clock.UtcNow);
+        return CreateNewSessionSchema8(connection, dayState, limitN, selectionNow);
+    }
+
+    private void ReconcileActiveSessionSchema8(
+        SQLiteConnection connection,
+        Schema8SessionCounterRow active,
+        Schema12LearningDayStateRow dayState,
+        int limitN,
+        DateTime selectionNow)
+    {
+        var initialTotalCards = active.TotalCards;
+        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        foreach (var card in cards)
+        {
+            ValidateSchema8CardState(card);
+        }
+        var cardsById = cards.ToDictionary(c => c.Id);
+        var wordsById = Schema8LearningRepository.LoadQueueWords(connection)
+            .ToDictionary(w => w.Id);
+
+        var incompleteRows = Schema8LearningRepository.LoadIncompleteQueueRowsForSession(connection, active.Id);
+        var incompleteCardIds = incompleteRows.Select(r => r.CardId).ToHashSet();
+
+        // Phase A: Carry-over grant bootstrap for genuinely-new words
+        var existingGrants = Schema8LearningRepository.LoadGrantsForDay(connection, dayState.DayOrdinal);
+        var existingGrantedWordIds = existingGrants.Select(g => g.WordId).ToHashSet();
+        var nextSlotOrdinal = existingGrants.Count > 0 ? existingGrants.Max(g => g.SlotOrdinal) + 1 : 0;
+
+        var distinctIncompleteWordIds = incompleteRows
+            .Select(r => cardsById.GetValueOrDefault(r.CardId)?.WordId)
+            .Where(wid => wid.HasValue)
+            .Select(wid => wid!.Value)
+            .Distinct()
+            .ToList();
+
+        foreach (var wordId in distinctIncompleteWordIds)
+        {
+            if (!existingGrantedWordIds.Contains(wordId) && !Schema8LearningRepository.HasEverBeenLearned(connection, wordId))
+            {
+                Schema8LearningRepository.InsertDayGrant(connection, dayState.DayOrdinal, wordId, nextSlotOrdinal++, selectionNow);
+                existingGrantedWordIds.Add(wordId);
+            }
+        }
+
+        // Phase B: Fresh fill for genuinely-new words up to N
+        if (dayState.Phase == LearningDayPhase.ActiveBudgetDay)
+        {
+            var currentGrantCount = Schema8LearningRepository.CountGrantsForDay(connection, dayState.DayOrdinal);
+            if (currentGrantCount < limitN)
+            {
+                var remainingCapacity = limitN - currentGrantCount;
+                var candidateWords = wordsById.Values
+                    .Where(w => !existingGrantedWordIds.Contains(w.Id) && !Schema8LearningRepository.HasEverBeenLearned(connection, w.Id))
+                    .OrderByDescending(w => w.TotalOccurrenceCount)
+                    .ThenBy(w => w.CreatedAt)
+                    .ThenBy(w => w.CanonicalTerm, StringComparer.Ordinal)
+                    .Take(remainingCapacity)
+                    .ToList();
+
+                var sessionQueueRows = Schema8LearningRepository.LoadQueueRowsForSession(connection, active.Id);
+                var maxQueueOrder = sessionQueueRows.Count > 0 ? sessionQueueRows.Max(r => r.QueueOrder) : -1;
+
+                foreach (var word in candidateWords)
+                {
+                    Schema8LearningRepository.InsertDayGrant(connection, dayState.DayOrdinal, word.Id, nextSlotOrdinal++, selectionNow);
+                    existingGrantedWordIds.Add(word.Id);
+
+                    var newCardsForWord = cards
+                        .Where(c => c.WordId == word.Id && c.State == CardState.New && !incompleteCardIds.Contains(c.Id))
+                        .OrderBy(c => c.Direction)
+                        .ThenBy(c => c.Id);
+
+                    foreach (var card in newCardsForWord)
+                    {
+                        var target = SelectSchema8QueueTarget(connection, card, wordsById);
+                        if (target.HasValue)
+                        {
+                            ValidateSchema8PreferredMeaning(connection, card, card.SenseId!.Value);
+                            maxQueueOrder++;
+                            Schema8LearningRepository.InsertQueueRow(connection, active.Id, card.Id, maxQueueOrder, isDueCard: false, target.Value);
+                            active.TotalCards++;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Phase C: Old-work reconciliation (outside due cards and already-learned New sibling cards)
+        var dueCards = cards
+            .Where(c => c.State is CardState.Learning or CardState.Review or CardState.Relearning
+                && Schema8Utc.Normalize(c.DueAtUtc) <= selectionNow
+                && !incompleteCardIds.Contains(c.Id))
+            .OrderBy(c => Schema8Utc.Normalize(c.DueAtUtc))
+            .ThenBy(c => c.Id)
+            .ToList();
+
+        var siblingNewCards = cards
+            .Where(c => c.State == CardState.New
+                && Schema8LearningRepository.HasEverBeenLearned(connection, c.WordId)
+                && !incompleteCardIds.Contains(c.Id))
+            .OrderByDescending(c => wordsById.GetValueOrDefault(c.WordId)?.TotalOccurrenceCount ?? 0)
+            .ThenBy(c => wordsById.GetValueOrDefault(c.WordId)?.CreatedAt ?? DateTime.MaxValue)
+            .ThenBy(c => wordsById.GetValueOrDefault(c.WordId)?.CanonicalTerm, StringComparer.Ordinal)
+            .ThenBy(c => c.Direction)
+            .ThenBy(c => c.Id)
+            .ToList();
+
+        var allReconcileCards = dueCards.Concat(siblingNewCards).ToList();
+        if (allReconcileCards.Count > 0)
+        {
+            var sessionQueueRows = Schema8LearningRepository.LoadQueueRowsForSession(connection, active.Id);
+            var maxQueueOrder = sessionQueueRows.Count > 0 ? sessionQueueRows.Max(r => r.QueueOrder) : -1;
+
+            foreach (var card in allReconcileCards)
+            {
+                var target = SelectSchema8QueueTarget(connection, card, wordsById);
+                if (target.HasValue)
+                {
+                    ValidateSchema8PreferredMeaning(connection, card, card.SenseId!.Value);
+                    maxQueueOrder++;
+                    var isDue = card.State != CardState.New;
+                    Schema8LearningRepository.InsertQueueRow(connection, active.Id, card.Id, maxQueueOrder, isDue, target.Value);
+                    active.TotalCards++;
+                }
+            }
+        }
+
+        if (active.TotalCards != initialTotalCards)
+        {
+            active.UpdatedAtUtc = selectionNow;
+            Schema8LearningRepository.UpdateSessionCounters(connection, active);
+        }
+    }
+
+    private LearningLoadResult CreateNewSessionSchema8(
+        SQLiteConnection connection,
+        Schema12LearningDayStateRow? dayState,
+        int limitN,
+        DateTime selectionNow)
+    {
         var cards = Schema8LearningRepository.LoadAllCards(connection);
         foreach (var card in cards)
         {
@@ -1726,23 +2002,71 @@ public sealed class LearningService : ILearningService
 
         var wordsById = Schema8LearningRepository.LoadQueueWords(connection)
             .ToDictionary(word => word.Id);
+
         var dueCards = cards
             .Where(card => card.State is not (CardState.New or CardState.Suspended or CardState.Retired)
                 && Schema8Utc.Normalize(card.DueAtUtc) <= selectionNow)
             .OrderBy(card => Schema8Utc.Normalize(card.DueAtUtc))
             .ThenBy(card => card.Id)
             .ToArray();
-        var newCards = cards
-            .Where(card => card.State == CardState.New)
+
+        var siblingNewCards = cards
+            .Where(card => card.State == CardState.New && Schema8LearningRepository.HasEverBeenLearned(connection, card.WordId))
             .OrderByDescending(card => wordsById.GetValueOrDefault(card.WordId)?.TotalOccurrenceCount ?? 0)
             .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CreatedAt ?? DateTime.MaxValue)
             .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CanonicalTerm, StringComparer.Ordinal)
             .ThenBy(card => card.Direction)
             .ThenBy(card => card.Id)
             .ToArray();
+
+        var genuinelyNewWords = wordsById.Values
+            .Where(word => !Schema8LearningRepository.HasEverBeenLearned(connection, word.Id))
+            .OrderByDescending(word => word.TotalOccurrenceCount)
+            .ThenBy(word => word.CreatedAt)
+            .ThenBy(word => word.CanonicalTerm, StringComparer.Ordinal)
+            .ToList();
+
+        var admittedGenuinelyNewCards = new List<Schema8CardRow>();
+        if (dayState is null)
+        {
+            admittedGenuinelyNewCards.AddRange(
+                cards.Where(card => card.State == CardState.New && !Schema8LearningRepository.HasEverBeenLearned(connection, card.WordId))
+                    .OrderByDescending(card => wordsById.GetValueOrDefault(card.WordId)?.TotalOccurrenceCount ?? 0)
+                    .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CreatedAt ?? DateTime.MaxValue)
+                    .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CanonicalTerm, StringComparer.Ordinal)
+                    .ThenBy(card => card.Direction)
+                    .ThenBy(card => card.Id));
+        }
+        else if (dayState.Phase == LearningDayPhase.ActiveBudgetDay)
+        {
+            var existingGrants = Schema8LearningRepository.LoadGrantsForDay(connection, dayState.DayOrdinal);
+            var nextSlotOrdinal = existingGrants.Count > 0 ? existingGrants.Max(g => g.SlotOrdinal) + 1 : 0;
+            var remainingCapacity = limitN - existingGrants.Count;
+
+            if (remainingCapacity > 0)
+            {
+                var grantedWordIds = existingGrants.Select(g => g.WordId).ToHashSet();
+                var wordsToAdmit = genuinelyNewWords
+                    .Where(w => !grantedWordIds.Contains(w.Id))
+                    .Take(remainingCapacity)
+                    .ToList();
+
+                foreach (var word in wordsToAdmit)
+                {
+                    Schema8LearningRepository.InsertDayGrant(connection, dayState.DayOrdinal, word.Id, nextSlotOrdinal++, selectionNow);
+                    var cardsForWord = cards
+                        .Where(c => c.WordId == word.Id && c.State == CardState.New)
+                        .OrderBy(c => c.Direction)
+                        .ThenBy(c => c.Id);
+                    admittedGenuinelyNewCards.AddRange(cardsForWord);
+                }
+            }
+        }
+
         var dueIds = dueCards.Select(card => card.Id).ToHashSet();
         var selections = new List<Schema8QueueSelection>();
-        foreach (var card in dueCards.Concat(newCards))
+
+        foreach (var card in dueCards.Concat(siblingNewCards).Concat(admittedGenuinelyNewCards))
         {
             var target = SelectSchema8QueueTarget(connection, card, wordsById);
             if (target.HasValue)
@@ -1763,13 +2087,54 @@ public sealed class LearningService : ILearningService
                     selection.TargetAnswerVariantId);
             }
 
-            return BuildSchema8ResultForSession(connection, sessionId);
+            return BuildSchema8ResultForSession(connection, sessionId, dayState, limitN, selectionNow);
         }
 
         var latestCompleted = Schema8LearningRepository.LoadLatestCompletedSession(connection);
         return latestCompleted is null
             ? new LearningLoadResult(null, null)
             : new LearningLoadResult(null, BuildSchema8Summary(connection, latestCompleted));
+    }
+
+    private static bool IsCardPresentable(
+        SQLiteConnection connection,
+        Schema8CardRow card,
+        Schema12LearningDayStateRow dayState,
+        int limitN,
+        DateTime nowUtc)
+    {
+        if (card.State is CardState.Suspended or CardState.Retired)
+        {
+            return false;
+        }
+
+        if (card.State is CardState.Learning or CardState.Review or CardState.Relearning)
+        {
+            return Schema8Utc.Normalize(card.DueAtUtc) <= nowUtc;
+        }
+
+        if (card.State == CardState.New)
+        {
+            if (Schema8LearningRepository.HasEverBeenLearned(connection, card.WordId))
+            {
+                return true;
+            }
+
+            if (dayState.Phase == LearningDayPhase.Bridge)
+            {
+                return false;
+            }
+
+            var grant = Schema8LearningRepository.LoadGrantForDayAndWord(connection, dayState.DayOrdinal, card.WordId);
+            if (grant is null)
+            {
+                return false;
+            }
+
+            return grant.SlotOrdinal < limitN;
+        }
+
+        return false;
     }
 
     private static int? SelectSchema8QueueTarget(
@@ -1858,7 +2223,12 @@ public sealed class LearningService : ILearningService
     }
 
     /// <summary>The result of exactly the owning session — never another session's summary.</summary>
-    private LearningLoadResult BuildSchema8ResultForSession(SQLiteConnection connection, int sessionId)
+    private LearningLoadResult BuildSchema8ResultForSession(
+        SQLiteConnection connection,
+        int sessionId,
+        Schema12LearningDayStateRow? dayState = null,
+        int? limitN = null,
+        DateTime? selectionNow = null)
     {
         var session = Schema8LearningRepository.LoadSession(connection, sessionId)
             ?? throw Reject(Schema8LearningDataErrorCode.SessionMissingForRatedQueueItem,
@@ -1869,10 +2239,37 @@ public sealed class LearningService : ILearningService
             return new LearningLoadResult(null, BuildSchema8Summary(connection, session));
         }
 
-        var queue = Schema8LearningRepository.LoadFirstIncompleteQueueRow(connection, session.Id)
-            ?? throw Reject(Schema8LearningDataErrorCode.InvalidQueueState,
-                $"Active session {session.Id} has no incomplete queue row.");
-        return new LearningLoadResult(BuildSchema8CardView(connection, queue.Id), null);
+        var incompleteRows = Schema8LearningRepository.LoadIncompleteQueueRowsForSession(connection, session.Id);
+        if (incompleteRows.Count == 0)
+        {
+            return new LearningLoadResult(null, null);
+        }
+
+        if (dayState is null)
+        {
+            return new LearningLoadResult(BuildSchema8CardView(connection, incompleteRows[0].Id), null);
+        }
+
+        var now = selectionNow ?? Schema8Utc.Normalize(clock.UtcNow);
+        var effectiveLimit = limitN ?? (appSettings is not null
+            ? PreparationLimitPolicy.Normalize(appSettings.PreparationLimit)
+            : PreparationLimitPolicy.DefaultLimit);
+
+        foreach (var row in incompleteRows)
+        {
+            var card = Schema8LearningRepository.LoadCard(connection, row.CardId);
+            if (card is null)
+            {
+                continue;
+            }
+
+            if (IsCardPresentable(connection, card, dayState, effectiveLimit, now))
+            {
+                return new LearningLoadResult(BuildSchema8CardView(connection, row.Id), null);
+            }
+        }
+
+        return new LearningLoadResult(null, null);
     }
 
     private LearningCardView BuildSchema8CardView(SQLiteConnection connection, int queueItemId)
@@ -1944,6 +2341,17 @@ public sealed class LearningService : ILearningService
 
     private static LearningSessionSummary BuildSchema8Summary(
         SQLiteConnection connection, Schema8SessionCounterRow session) => new(
+        session.Id,
+        session.CompletedCards,
+        session.AgainCount,
+        session.HardCount,
+        session.GoodCount,
+        session.EasyCount,
+        Schema8LearningRepository.SelectNextDueAtUtc(connection),
+        Schema8LearningRepository.CountRemainingUnprepared(connection));
+
+    private static LearningSessionSummary BuildSchema8Summary(
+        SQLiteConnection connection, LearningSessionEntity session) => new(
         session.Id,
         session.CompletedCards,
         session.AgainCount,

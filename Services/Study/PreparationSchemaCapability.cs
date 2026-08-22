@@ -2,6 +2,7 @@ using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Data.Migrations.Schema11;
+using KnownFirst.Data.Migrations.Schema12;
 using SQLite;
 
 namespace KnownFirst.Services.Study;
@@ -68,6 +69,15 @@ public sealed class ValidatedPreparationSchema11Capability
     public const int SchemaVersion = 11;
 }
 
+public sealed class ValidatedPreparationSchema12Capability
+{
+    internal ValidatedPreparationSchema12Capability()
+    {
+    }
+
+    public const int SchemaVersion = 12;
+}
+
 public abstract record PreparationSchemaCapabilityResult;
 
 public sealed record PreparationSchema7CapabilityResult(ValidatedPreparationSchema7Capability Capability)
@@ -83,6 +93,9 @@ public sealed record PreparationSchema10CapabilityResult(ValidatedPreparationSch
     : PreparationSchemaCapabilityResult;
 
 public sealed record PreparationSchema11CapabilityResult(ValidatedPreparationSchema11Capability Capability)
+    : PreparationSchemaCapabilityResult;
+
+public sealed record PreparationSchema12CapabilityResult(ValidatedPreparationSchema12Capability Capability)
     : PreparationSchemaCapabilityResult;
 
 /// <summary>
@@ -110,12 +123,12 @@ public sealed class PreparationSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
-        : $"PRAGMA user_version {foundVersion} is not a supported preparation source/target version; only 7, 8, 9, 10, and 11 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported preparation source/target version; only 7, 8, 9, 10, 11, and 12 are accepted.";
 }
 
 /// <summary>
 /// Trusted, single-source schema-capability check for the preparation subsystem (KF-MEANING-001 Slice 3).
-/// Reads <c>PRAGMA user_version</c>, accepts exactly 7, 8, 9, 10, or 11, validates the expected physical shape for
+/// Reads <c>PRAGMA user_version</c>, accepts exactly 7, 8, 9, 10, 11, or 12, validates the expected physical shape for
 /// whichever version was reported via the same shape validators the backup subsystem
 /// already uses, and fails closed (throws <see cref="PreparationSchemaCapabilityException"/>) if the
 /// version and the physical shape disagree, or if any other version is reported. Never infers capability
@@ -171,6 +184,14 @@ public static class PreparationSchemaCapability
                 }
 
                 return new PreparationSchema11CapabilityResult(new ValidatedPreparationSchema11Capability());
+
+            case ValidatedPreparationSchema12Capability.SchemaVersion:
+                if (!Schema12ShapeValidator.IsValidDatabase(connection, out _))
+                {
+                    throw new PreparationSchemaCapabilityException(userVersion, shapeMismatch: true);
+                }
+
+                return new PreparationSchema12CapabilityResult(new ValidatedPreparationSchema12Capability());
 
             default:
                 throw new PreparationSchemaCapabilityException(userVersion, shapeMismatch: false);

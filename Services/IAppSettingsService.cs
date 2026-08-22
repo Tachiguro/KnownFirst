@@ -16,6 +16,12 @@ public interface IAppSettingsService
 
     bool EnhancedTermRecognitionEnabled { get; }
 
+    LearningTimezoneMode LearningTimezoneMode { get; }
+
+    string? ExplicitLearningTimezoneId { get; }
+
+    int LearningDayCutoffMinutes { get; }
+
     void SetPreparationLimit(int preparationLimit);
 
     void SetCardDirection(CardDirectionPreference preference);
@@ -27,6 +33,12 @@ public interface IAppSettingsService
     void RevokeOnlineLookupConsent();
 
     void SetEnhancedTermRecognitionEnabled(bool enabled);
+
+    void SetLearningTimezoneMode(LearningTimezoneMode mode);
+
+    void SetExplicitLearningTimezoneId(string? timezoneId);
+
+    void SetLearningDayCutoffMinutes(int minutes);
 
     void Reset();
 }

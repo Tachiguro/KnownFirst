@@ -606,4 +606,114 @@ public static class Schema8LearningRepository
             WHERE State <> ? AND State <> ?
             """,
             (int)CardState.Retired, (int)CardState.Suspended).FirstOrDefault()?.Value;
+
+    // ---- Schema 12 Learning Day & Daily Limit ----
+
+    public static bool HasEverBeenLearned(SQLiteConnection connection, int wordId) =>
+        connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*)
+            FROM LearningReviews r
+            JOIN LearningCards c ON r.CardId = c.Id
+            WHERE c.WordId = ?
+            """,
+            wordId) > 0;
+
+    public static List<Schema8QueueTargetRow> LoadIncompleteQueueRowsForSession(SQLiteConnection connection, int sessionId) =>
+        connection.Query<Schema8QueueTargetRow>(
+            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0 ORDER BY QueueOrder, Id",
+            sessionId);
+
+    public static Schema12LearningDayStateRow? LoadLearningDayState(SQLiteConnection connection)
+    {
+        if (!Schema12DdlTableExists(connection, "LearningDayState"))
+        {
+            return null;
+        }
+
+        return connection.Query<Schema12LearningDayStateRow>(
+            """
+            SELECT Id, Phase, DayOrdinal, ActiveDayStartUtc, ActiveDayEndUtc, FrozenTimeZoneId,
+                   FrozenCutoffMinutes, BridgeStartedUtc, BridgeTargetTimeZoneId,
+                   BridgeTargetCutoffMinutes, BridgeTargetUtc, UpdatedAtUtc
+            FROM LearningDayState
+            WHERE Id = 1
+            """).FirstOrDefault();
+    }
+
+    public static void UpsertLearningDayState(SQLiteConnection connection, Schema12LearningDayStateRow state)
+    {
+        connection.Execute(
+            """
+            INSERT OR REPLACE INTO LearningDayState
+                (Id, Phase, DayOrdinal, ActiveDayStartUtc, ActiveDayEndUtc, FrozenTimeZoneId,
+                 FrozenCutoffMinutes, BridgeStartedUtc, BridgeTargetTimeZoneId,
+                 BridgeTargetCutoffMinutes, BridgeTargetUtc, UpdatedAtUtc)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (int)state.Phase, state.DayOrdinal, state.ActiveDayStartUtc, state.ActiveDayEndUtc,
+            state.FrozenTimeZoneId, state.FrozenCutoffMinutes, state.BridgeStartedUtc,
+            state.BridgeTargetTimeZoneId, state.BridgeTargetCutoffMinutes,
+            state.BridgeTargetUtc, state.UpdatedAtUtc);
+    }
+
+    public static List<Schema12LearningDayGrantRow> LoadGrantsForDay(SQLiteConnection connection, int dayOrdinal)
+    {
+        if (!Schema12DdlTableExists(connection, "LearningDayGrants"))
+        {
+            return [];
+        }
+
+        return connection.Query<Schema12LearningDayGrantRow>(
+            """
+            SELECT Id, DayOrdinal, WordId, SlotOrdinal, GrantedAtUtc
+            FROM LearningDayGrants
+            WHERE DayOrdinal = ?
+            ORDER BY SlotOrdinal, Id
+            """,
+            dayOrdinal);
+    }
+
+    public static Schema12LearningDayGrantRow? LoadGrantForDayAndWord(SQLiteConnection connection, int dayOrdinal, int wordId)
+    {
+        if (!Schema12DdlTableExists(connection, "LearningDayGrants"))
+        {
+            return null;
+        }
+
+        return connection.Query<Schema12LearningDayGrantRow>(
+            """
+            SELECT Id, DayOrdinal, WordId, SlotOrdinal, GrantedAtUtc
+            FROM LearningDayGrants
+            WHERE DayOrdinal = ? AND WordId = ?
+            LIMIT 1
+            """,
+            dayOrdinal, wordId).FirstOrDefault();
+    }
+
+    public static int CountGrantsForDay(SQLiteConnection connection, int dayOrdinal)
+    {
+        if (!Schema12DdlTableExists(connection, "LearningDayGrants"))
+        {
+            return 0;
+        }
+
+        return connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM LearningDayGrants WHERE DayOrdinal = ?", dayOrdinal);
+    }
+
+    public static void InsertDayGrant(
+        SQLiteConnection connection, int dayOrdinal, int wordId, int slotOrdinal, DateTime grantedAtUtc)
+    {
+        connection.Execute(
+            """
+            INSERT INTO LearningDayGrants (DayOrdinal, WordId, SlotOrdinal, GrantedAtUtc)
+            VALUES (?, ?, ?, ?)
+            """,
+            dayOrdinal, wordId, slotOrdinal, grantedAtUtc);
+    }
+
+    private static bool Schema12DdlTableExists(SQLiteConnection connection, string table) =>
+        connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table) > 0;
 }

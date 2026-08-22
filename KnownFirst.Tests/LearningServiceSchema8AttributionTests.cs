@@ -3125,6 +3125,9 @@ public sealed class LearningServiceSchema8AttributionTests
         public LearningMode LearningMode => learningMode;
         public bool HasOnlineLookupConsent => false;
         public bool EnhancedTermRecognitionEnabled => false;
+        public LearningTimezoneMode LearningTimezoneMode => LearningTimezoneMode.System;
+        public string? ExplicitLearningTimezoneId => null;
+        public int LearningDayCutoffMinutes => 0;
 
         public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
         public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
@@ -3132,6 +3135,9 @@ public sealed class LearningServiceSchema8AttributionTests
         public void GrantOnlineLookupConsent() => throw new NotSupportedException();
         public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
         public void SetEnhancedTermRecognitionEnabled(bool enabled) => throw new NotSupportedException();
+        public void SetLearningTimezoneMode(LearningTimezoneMode mode) => throw new NotSupportedException();
+        public void SetExplicitLearningTimezoneId(string? timezoneId) => throw new NotSupportedException();
+        public void SetLearningDayCutoffMinutes(int minutes) => throw new NotSupportedException();
         public void Reset() => throw new NotSupportedException();
     }
 }

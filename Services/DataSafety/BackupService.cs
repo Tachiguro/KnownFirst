@@ -142,6 +142,7 @@ public sealed class BackupService(
                     Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
@@ -249,12 +250,13 @@ public sealed class BackupService(
                     Schema9CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
             });
 
-            if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult) && targetHasDurableData)
+            if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult) && targetHasDurableData)
             {
                 return await ImportIntoPopulatedSchema8Async(validated, cancellationToken);
             }
@@ -292,6 +294,7 @@ public sealed class BackupService(
                     case Schema9CapabilityResult:
                     case Schema10CapabilityResult:
                     case Schema11CapabilityResult:
+                    case Schema12CapabilityResult:
                         if (Schema8BackupImportRepository.HasDurableUserData(connection))
                         {
                             return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);

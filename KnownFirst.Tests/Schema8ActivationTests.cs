@@ -34,7 +34,7 @@ public sealed class Schema8ActivationTests
 
             BackupSchemaCapabilityResult? capability = null;
             await connection.RunInTransactionAsync(sqlite => capability = BackupSchemaCapability.Resolve(sqlite));
-            Assert.IsInstanceOfType<Schema11CapabilityResult>(capability);
+            Assert.IsInstanceOfType<Schema12CapabilityResult>(capability);
         }
         finally
         {
@@ -645,8 +645,8 @@ public sealed class Schema8ActivationTests
             learningCapability = LearningSchemaCapability.Resolve(connection);
             preparationCapability = PreparationSchemaCapability.Resolve(connection);
         });
-        Assert.IsInstanceOfType<LearningSchema11CapabilityResult>(learningCapability);
-        Assert.IsInstanceOfType<PreparationSchema11CapabilityResult>(preparationCapability);
+        Assert.IsInstanceOfType<LearningSchema12CapabilityResult>(learningCapability);
+        Assert.IsInstanceOfType<PreparationSchema12CapabilityResult>(preparationCapability);
 
         var clock = new FakeClock(DateTime.UtcNow.AddDays(1));
         var learning = new LearningService(
@@ -1122,6 +1122,9 @@ public sealed class Schema8ActivationTests
         public LearningMode LearningMode => LearningMode.Typing;
         public bool HasOnlineLookupConsent => false;
         public bool EnhancedTermRecognitionEnabled => false;
+        public LearningTimezoneMode LearningTimezoneMode => LearningTimezoneMode.System;
+        public string? ExplicitLearningTimezoneId => null;
+        public int LearningDayCutoffMinutes => 0;
 
         public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
         public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
@@ -1129,6 +1132,9 @@ public sealed class Schema8ActivationTests
         public void GrantOnlineLookupConsent() => throw new NotSupportedException();
         public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
         public void SetEnhancedTermRecognitionEnabled(bool enabled) => throw new NotSupportedException();
+        public void SetLearningTimezoneMode(LearningTimezoneMode mode) => throw new NotSupportedException();
+        public void SetExplicitLearningTimezoneId(string? timezoneId) => throw new NotSupportedException();
+        public void SetLearningDayCutoffMinutes(int minutes) => throw new NotSupportedException();
         public void Reset() => throw new NotSupportedException();
     }
 }

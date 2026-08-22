@@ -16,12 +16,11 @@ public sealed class Schema11MigrationTests
     private const int Schema11 = 11;
 
     [TestMethod]
-    public void CurrentVersion_IsSchema11()
+    public void SchemaVersion_IsAtLeastSchema11()
     {
-        Assert.AreEqual(
-            Schema11,
-            DatabaseSchema.CurrentVersion,
-            "Schema 11 is the active schema when derived term evidence persistence is introduced.");
+        Assert.IsTrue(
+            DatabaseSchema.CurrentVersion >= Schema11,
+            "DatabaseSchema.CurrentVersion must be at least Schema 11.");
     }
 
     [TestMethod]
@@ -34,7 +33,7 @@ public sealed class Schema11MigrationTests
             connection = new SQLiteAsyncConnection(path);
             await DatabaseSchema.InitializeAsync(connection);
 
-            Assert.AreEqual(Schema11, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual(1, await connection.ExecuteScalarAsync<int>(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'DerivedTermEvidenceEntries'"));
             Assert.AreEqual(1, await connection.ExecuteScalarAsync<int>(
@@ -57,14 +56,14 @@ public sealed class Schema11MigrationTests
         {
             connection = new SQLiteAsyncConnection(path);
             await DatabaseSchema.InitializeAsync(connection);
-            Assert.AreEqual(Schema11, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
             // If Schema10DormantMigration were executed against a Schema-11 database, its future-version guard
             // (TargetVersion = 10) would throw Schema10MigrationException.FutureVersion(11).
             // Reinitialization must succeed cleanly without throwing.
             await DatabaseSchema.InitializeAsync(connection);
 
-            Assert.AreEqual(Schema11, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         }
         finally
         {
@@ -81,6 +80,7 @@ public sealed class Schema11MigrationTests
         {
             connection = new SQLiteAsyncConnection(path);
             await DatabaseSchema.InitializeAsync(connection);
+            await connection.ExecuteAsync("PRAGMA user_version = 11");
 
             // Corrupt Schema-11 shape by dropping the required evidence index
             await connection.ExecuteAsync("DROP INDEX IX_DerivedTermEvidenceEntries_Candidate_Source_Range_Component");
@@ -109,16 +109,16 @@ public sealed class Schema11MigrationTests
                 setup.Execute("INSERT INTO FutureSentinel (Id, Value) VALUES (1, 'preserve-me')");
                 setup.Execute("CREATE TABLE LexicalCache (Id INTEGER PRIMARY KEY, CacheKey TEXT NOT NULL)");
                 setup.Execute("INSERT INTO LexicalCache (Id, CacheKey) VALUES (1, 'legacy|preserve-me')");
-                setup.Execute($"PRAGMA user_version = {Schema11 + 1}");
+                setup.Execute($"PRAGMA user_version = {DatabaseSchema.CurrentVersion + 1}");
             }
 
             connection = new SQLiteAsyncConnection(path);
             var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
                 () => DatabaseSchema.InitializeAsync(connection));
 
-            Assert.AreEqual(Schema11 + 1, exception.FoundVersion);
-            Assert.AreEqual(Schema11, exception.SupportedVersion);
-            Assert.AreEqual(Schema11 + 1, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(DatabaseSchema.CurrentVersion + 1, exception.FoundVersion);
+            Assert.AreEqual(DatabaseSchema.CurrentVersion, exception.SupportedVersion);
+            Assert.AreEqual(DatabaseSchema.CurrentVersion + 1, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual("preserve-me", await connection.ExecuteScalarAsync<string>(
                 "SELECT Value FROM FutureSentinel WHERE Id = 1"));
             Assert.AreEqual("legacy|preserve-me", await connection.ExecuteScalarAsync<string>(
@@ -144,7 +144,7 @@ public sealed class Schema11MigrationTests
         // Migrate to Schema 11 through DatabaseSchema
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
-        Assert.AreEqual(Schema11, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(0, await fixture.Connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM DerivedTermEvidenceEntries"));
 
@@ -170,10 +170,10 @@ public sealed class Schema11MigrationTests
 
         Assert.AreEqual(7, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
-        // InitializeAsync runs full chain: 7 -> 8 -> 9 -> 10 -> 11
+        // InitializeAsync runs full chain: 7 -> 8 -> 9 -> 10 -> 11 -> 12
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
-        Assert.AreEqual(Schema11, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(1, await fixture.Connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'DerivedTermEvidenceEntries'"));
         Assert.AreEqual(1, await fixture.Connection.ExecuteScalarAsync<int>(

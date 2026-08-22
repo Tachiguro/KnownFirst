@@ -21,6 +21,7 @@ It describes the current SQLite model at schema version 11 on `master`. Schema 1
 
 `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **11** on `master`.
 A healthy initialized current database on master reports `PRAGMA user_version = 11`.
+On candidate branch `feature/daily-new-word-limit-learning-day-v1` (Daily New-Word Limit & Learning-Day Infrastructure, Slice 1), `DatabaseSchema.CurrentVersion` advances to **12**.
 
 | Table | Responsibility |
 | --- | --- |
@@ -46,6 +47,8 @@ A healthy initialized current database on master reports `PRAGMA user_version = 
 | `SenseAnswerVariantAssignments` | Direction-specific Required/AcceptedOnly assignment, preferred flag, and Required-epoch boundary |
 | `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` mastery progress |
 | `DerivedTermEvidenceEntries` | German Enhanced Term Recognition (Schema 11): per-occurrence provenance for a derived compound component, always pointing at the complete whole-compound source span (never a synthetic component occurrence) |
+| `LearningDayState` | Learning-Day Infrastructure (Schema 12 candidate): singleton record (`Id = 1`) tracking active budget day / Bridge phase, current day ordinal, frozen day boundaries, effective timezone/cutoff, and Bridge target state |
+| `LearningDayGrants` | Daily New-Word Budget (Schema 12 candidate): durable record of admitted genuinely-new `WordId`s per logical learning day ordinal with immutable `SlotOrdinal` assignments; independent of learning-graph deletions |
 
 At schema 8 `LearningCards.MeaningId` no longer exists; the card's own preferred
 meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
@@ -56,6 +59,8 @@ At schema 9, `ReviewSessions` index constraints change to support multiple Compl
 At schema 10, `LearningSessions` and `LearningSessionCards` carry immutable `StableId` columns and are constrained by unique indexes `IX_LearningSessions_StableId` and `IX_LearningSessionCards_StableId`.
 
 At schema 11, the new `DerivedTermEvidenceEntries` table records provenance for German derived-compound review candidates (`CandidateProvenanceKind.DerivedFromCompound`). A derived candidate never receives a synthetic `WordOccurrenceEntity`; instead its evidence row carries the source compound's identity, exact surface form, whole-compound `SourceStartPosition`/`SourceLength`, sentence order, and component form, always pointing at the real complete source-compound occurrence. Full binding contract: [Schema-11 contract](#schema-11-derived-term-evidence-contract) below and [docs/WORD_ANALYSIS.md](WORD_ANALYSIS.md) "Conservative German derived compound candidates."
+
+At schema 12 (candidate branch), `LearningDayState` and `LearningDayGrants` track durable logical learning days, timezone/cutoff freeze, Bridge intervals, and daily new-word grant ordinals. These tables are strictly installation-local and excluded from portable export/merge. Full binding contract: [Schema-12 contract](#schema-12-learning-day-and-daily-new-word-budget-contract-candidate-on-featuredaily-new-word-limit-learning-day-v1) below.
 
 Relationships are represented by entity IDs and enforced by transactional
 service operations and tests. Do not introduce a competing representation of
@@ -441,3 +446,71 @@ Package 5A lifecycle behavior for this evidence:
 - **Populated-target merge:** `DerivedTermEvidence` is its own merge entity kind (not folded into `VocabularyReviewItem` classification). Its semantic merge identity is installation-independent — built from the owning candidate's existing `ReviewCandidateIdentity`, the source compound's own vocabulary identity (owning-document language plus `SourceIdentity`), `SourceStartPosition`, `SourceLength`, `SourceSentenceOrder`, and `ComponentForm` — with no SQLite id and no archive-local id participating (`SourceSurfaceForm` is deliberately excluded, since the graph-validation contract already proves it is fully determined by the owning document plus the source range). Merge is additive only: exact semantic duplicates are skipped, target-only evidence is untouched, there is no overwrite or delete, and the transported evidence attaches to the one resolved final `ReviewCandidate`, whether that candidate was newly inserted in this merge or already matched by identity. Repeated or two-installation exchange of unchanged content converges without duplicating candidates or evidence (proven by focused tests; the tests confirm no duplicate physical rows are ever created, though they do not currently assert every plan-classification-level detail field-by-field).
 - **Lifecycle parity for transported evidence:** imported/merged evidence participates in the same Package-5A lifecycle as natively created evidence — Preparation can recover real source-compound context from it, MarkKnown and Exclude both remove the evidence and its owning retained candidate, and generic document/sentence-span cleanup continues to protect the Document/SentenceSpan dependency for as long as retained evidence (native or transported) exists.
 - **Test evidence and completed lifecycle:** an independent `REVIEW_ONLY` found no production-code defect; two MAJOR test-coverage gaps (Exclude cleanup and generic-cleanup protection for imported/merged evidence) were closed by focused characterization/hardening tests that passed immediately, and a combined focused scope of 4 tests passed 4/0. The final independent `REVIEW_ONLY` reported 0 BLOCKER / 0 MAJOR findings. Exact-head `FULL_VALIDATION` on the validated PR head: 2248 passed / 0 failed, Windows Debug/Release PASS, Android Debug/Release PASS, exit code 0 (log `artifacts/launcher-logs/ValidateAll-20260821-233217.log`). `POST_MERGE_SYNC_ONLY` completed successfully; no lifecycle steps remain pending for Package 5A-2. See [docs/CURRENT_WORK.md](CURRENT_WORK.md) and [docs/PROJECT_STATE.md](PROJECT_STATE.md) for exact current status.
+
+---
+
+## Schema-12 Learning-Day and Daily New-Word Budget Contract (Candidate on feature/daily-new-word-limit-learning-day-v1)
+
+**Lifecycle status:** candidate branch `feature/daily-new-word-limit-learning-day-v1` (Daily New-Word Limit & Learning-Day Infrastructure, Slice 1). Implementation and independent review complete; `master` remains Schema 11 until merged.
+
+Schema 12 introduces durable logical learning-day state, frozen timezone and cutoff tracking, Bridge intervals, and daily new-word grant tracking.
+
+### Schema-12 migration intent
+
+1. **Durable learning-day state:** Tracks the current logical learning day ordinal, active phase (`ActiveBudgetDay` or `Bridge`), frozen day start and end timestamps in UTC, and effective timezone and cutoff configurations.
+2. **Durable new-word grants:** Records distinct genuinely-new `WordId`s admitted per logical learning day ordinal with immutable `SlotOrdinal` assignments ($0 \dots N-1$).
+3. **Installation-local isolation:** Schema-12 learning-day state and grants are strictly local device state. They are excluded from portable `.kfarchive` export, full backup, merge safety copy, and populated-target merge. The portable archive format remains V2.
+4. **Resilience to learning-graph deletion:** `LearningDayGrants` deliberately contains no foreign key constraints to `Words` or `LearningCards`. If an admitted word is later marked Permanently Known or its learning cards are removed, its historical grant record remains intact and its slot is not reopened on the same day.
+
+### Physical tables
+
+#### 1. `LearningDayState` (Singleton)
+
+A single-row table enforced by table constraint `CHECK (Id = 1)`.
+
+| Column | Type | Nullable | Description |
+| --- | --- | --- | --- |
+| `Id` | `INTEGER PRIMARY KEY` | No | Fixed primary key value `1`. |
+| `Phase` | `INTEGER` | No | Enum `LearningDayPhase`: `1 = ActiveBudgetDay`, `2 = Bridge`. |
+| `DayOrdinal` | `INTEGER` | No | Monotonically increasing positive integer identifying the logical learning day. |
+| `ActiveDayStartUtc` | `DATETIME` | No | UTC start timestamp of the active budget day. |
+| `ActiveDayEndUtc` | `DATETIME` | No | UTC end timestamp of the active budget day. |
+| `FrozenTimeZoneId` | `TEXT` | No | Timezone identifier frozen for the active budget day. |
+| `FrozenCutoffMinutes` | `INTEGER` | No | Cutoff minute-of-day ($0 \dots 1439$) frozen for the active budget day (default 0). |
+| `BridgeStartedUtc` | `DATETIME` | Yes | UTC timestamp when the Bridge phase began (null during `ActiveBudgetDay`). |
+| `BridgeTargetTimeZoneId` | `TEXT` | Yes | Target timezone identifier for Bridge completion. |
+| `BridgeTargetCutoffMinutes` | `INTEGER` | Yes | Target cutoff minutes for Bridge completion. |
+| `BridgeTargetUtc` | `DATETIME` | Yes | UTC boundary timestamp when the Bridge phase ends. |
+| `UpdatedAtUtc` | `DATETIME` | No | Last update timestamp in UTC. |
+
+#### 2. `LearningDayGrants`
+
+Records each genuinely-new `WordId` admitted to a logical learning day.
+
+| Column | Type | Nullable | Description |
+| --- | --- | --- | --- |
+| `Id` | `INTEGER PRIMARY KEY AUTOINCREMENT` | No | Row identifier. |
+| `DayOrdinal` | `INTEGER` | No | Logical learning day ordinal matching `LearningDayState.DayOrdinal`. |
+| `WordId` | `INTEGER` | No | Vocabulary identity admitted. No foreign key constraint. |
+| `SlotOrdinal` | `INTEGER` | No | 0-based immutable presentation order within the day's budget ($0, 1, \dots, N-1$). |
+| `GrantedAtUtc` | `DATETIME` | No | UTC timestamp when the grant was issued. |
+
+**Indexes:**
+- `IX_LearningDayGrants_DayOrdinal_WordId` (UNIQUE on `DayOrdinal, WordId`): ensures a `WordId` receives at most one grant per logical day.
+- `IX_LearningDayGrants_DayOrdinal_SlotOrdinal` (UNIQUE on `DayOrdinal, SlotOrdinal`): ensures slot ordinals are unique within a logical day.
+
+### Schema-12 activation behavior
+
+| Source version | Behavior |
+| --- | --- |
+| Fresh / empty database | Initializes directly to a validated schema 12. |
+| 11 | Migrates to schema 12 (creates `LearningDayState` and `LearningDayGrants` tables and unique indexes, sets `PRAGMA user_version = 12`). |
+| 12 (valid) | Validation only. The database is inspected and never mutated. |
+| 12 (malformed) | Fails closed. Nothing is repaired and nothing is written. |
+| Greater than 12 | Rejected with `DatabaseSchemaCompatibilityException`. |
+
+### Installation-local boundary and archive compatibility
+
+- **Archive format:** Remains V2. No V3 format is introduced.
+- **Export/Import:** `LearningDayState` and `LearningDayGrants` are never serialized into portable archives or backups. Restore into empty installations or merge into populated installations initializes fresh local learning-day state upon first learning access.
+- **Merge isolation:** Populated-target merge operates entirely independent of target learning-day state and grants.

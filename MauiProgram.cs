@@ -150,6 +150,7 @@ public static class MauiProgram
         }
 #endif
         builder.Services.AddSingleton<IPreparationService, PreparationService>();
+        builder.Services.AddSingleton<KnownFirst.Services.Time.ILearningTimezoneResolver, KnownFirst.Services.Time.LearningTimezoneResolver>();
         builder.Services.AddSingleton<ILearningService, LearningService>();
         builder.Services.AddSingleton<IWorkflowStateService, WorkflowStateService>();
         builder.Services.AddSingleton<IWorkflowChangeNotifier, WorkflowChangeNotifier>();

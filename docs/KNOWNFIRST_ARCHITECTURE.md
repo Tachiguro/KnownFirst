@@ -86,10 +86,12 @@ Rules:
 - application reset restores the System selection and reapplies the supported device language
 - theme choices are System, Light, and Dark
 - theme changes apply immediately and persist
-- the preparation limit defaults to 10
+- the preparation limit ("New words per day") defaults to 10
 - the preparation limit may be set to 5, 10, 20, 30, or 50
-- 50 is the hard maximum for newly prepared vocabulary in one daily batch
-- due reviews never count against the new-vocabulary limit
+- 50 is the hard maximum for newly admitted genuinely-new vocabulary per logical learning day
+- due reviews and already-learned New sibling cards never count against the new-vocabulary limit
+- the learning timezone mode may be set to System or Explicit (defaults to System, resolving to the OS-configured timezone)
+- the learning day cutoff defaults to 00:00 (minute-of-day 0, configurable)
 - card direction defaults to Both directions
 - the learning mode may be set to Reading, Typing, or Automatic, and defaults to Automatic
 
@@ -939,6 +941,32 @@ Review intervals continue to grow. They do not end automatically after 7 or 14 d
 A card rated Again may appear once again at the end of the current session. Repeated Again ratings must not create an endless session.
 
 A future milestone may implement FSRS with a configurable desired retention. The current data model must not prevent that migration.
+
+### 21.2 Daily new-word budget, learning-day boundaries, and Bridge state
+
+1. **Daily New-Word Budget ($N$):**
+   - The preparation limit setting governs the daily new-word admission budget ($N \in \{5, 10, 20, 30, 50\}$, default 10).
+   - $N$ is enforced as a hard daily maximum of distinct genuinely-new `WordId`s per logical learning day.
+   - One `WordId` consumes exactly one slot regardless of directions (`TermToMeaning`, `MeaningToTerm`), senses, or card count.
+   - "Genuinely new" means no persisted genuine `LearningReview` / rating exists for any card of that `WordId`. Queueing, rendering, reveal, typing checks, and `LearningDayGrant` evidence do not count as learning.
+   - Admitted words receive immutable `SlotOrdinal` assignments ($0, 1, \dots, N-1$). Reducing $N$ preserves existing queue rows, grants, and order, but restricts presentation to items with `SlotOrdinal < N`. Deferred items remain durably persisted. Raising $N$ admits additional candidates into higher slot ordinals.
+   - Same-day ratings or marking an admitted word Permanently Known never reopens or recycles a slot on the same day.
+
+2. **Learning-Day Boundaries & ActiveDay Freeze:**
+   - The learning time zone is resolved from `LearningTimezoneMode` (`System` or `Explicit`). `System` resolves to the device OS-configured timezone.
+   - The learning day cutoff defaults to `00:00` (minute-of-day 0, configurable).
+   - The active budget day freezes its effective timezone, cutoff, start timestamp, and end timestamp until transition. Configuration changes do not retroactively alter the active day.
+
+3. **Bridge Phase:**
+   - When the active day ends, the next regular boundary under the requested configuration is calculated.
+   - Exact boundary equality transitions immediately to the next `ActiveBudgetDay` with no Bridge.
+   - If the next regular boundary is in the future, the system enters `Bridge` phase.
+   - Bridge grants 0 new-word budget and blocks genuinely-new cards from being presented, while due reviews and already-learned New sibling cards continue outside $N$.
+
+4. **Active-Session Rollover Reconciliation:**
+   - Active sessions surviving day rollover consume the new day's slots with carry-over genuinely-new words first.
+   - If carry-over count $K < N$, remaining capacity admits fresh candidates. If $K \ge N$, no fresh candidates are admitted and excess carry-over grants remain durable but deferred.
+   - Deduplication inspects incomplete queue representation rather than historical completed rows. Completed rows may recur when due again; incomplete ordinary/Again rows prevent duplicate appends.
 
 ---
 

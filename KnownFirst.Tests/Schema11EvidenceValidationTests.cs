@@ -178,9 +178,9 @@ public sealed class Schema11EvidenceValidationTests
             });
             Assert.IsFalse(isValid, "Corrupted evidence entry must fail validation.");
 
-            var exception = await Assert.ThrowsExactlyAsync<Schema11MigrationException>(
+            var exception = await Assert.ThrowsExactlyAsync<KnownFirst.Data.Migrations.Schema12.Schema12MigrationException>(
                 () => DatabaseSchema.InitializeAsync(connection));
-            Assert.AreEqual("schema11-migration-already-applied-shape-invalid", exception.ErrorCode);
+            Assert.AreEqual("schema12-migration-already-applied-shape-invalid", exception.ErrorCode);
         }
         finally
         {

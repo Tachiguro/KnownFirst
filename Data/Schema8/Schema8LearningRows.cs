@@ -127,3 +127,28 @@ public sealed class Schema8IdRow
 {
     public int Id { get; set; }
 }
+
+public sealed class Schema12LearningDayStateRow
+{
+    public int Id { get; set; }
+    public LearningDayPhase Phase { get; set; }
+    public int DayOrdinal { get; set; }
+    public DateTime ActiveDayStartUtc { get; set; }
+    public DateTime ActiveDayEndUtc { get; set; }
+    public string FrozenTimeZoneId { get; set; } = string.Empty;
+    public int FrozenCutoffMinutes { get; set; }
+    public DateTime? BridgeStartedUtc { get; set; }
+    public string? BridgeTargetTimeZoneId { get; set; }
+    public int? BridgeTargetCutoffMinutes { get; set; }
+    public DateTime? BridgeTargetUtc { get; set; }
+    public DateTime UpdatedAtUtc { get; set; }
+}
+
+public sealed class Schema12LearningDayGrantRow
+{
+    public int Id { get; set; }
+    public int DayOrdinal { get; set; }
+    public int WordId { get; set; }
+    public int SlotOrdinal { get; set; }
+    public DateTime GrantedAtUtc { get; set; }
+}

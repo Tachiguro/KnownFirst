@@ -1,6 +1,6 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-22
+**Status date:** 2026-08-23
 **State source:** Synchronized `master` baseline. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
@@ -11,7 +11,7 @@ This document records stable, verified architectural facts and current capabilit
 | :--- | :--- |
 | **Project** | KnownFirst |
 | **Source Version (`master`)** | `1.0.0-beta.13` (build 13) — merged via PR #92 |
-| **Active Database Schema** | SQLite `PRAGMA user_version` 11 |
+| **Active Database Schema** | SQLite `PRAGMA user_version` 12 |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
 | **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). `1.0.0-beta.13` has not been distributed. |
@@ -116,11 +116,11 @@ Package 5B adds a minimal, always-visible Review Words derivation-source indicat
 - **Evidence boundary (explicit):** the `IMPLEMENT`/`REVIEW_ONLY` evidence above proves only source/markup-contract checks and automated service/integration-characterization tests against isolated temporary SQLite databases. The exact-head `FULL_VALIDATION` evidence additionally proves the complete automated test suite and Windows/Android Debug/Release build success for that exact commit. Neither proves rendered GUI/WebView correctness, device/emulator runtime behavior, APK/AAB installation behavior, signing correctness, or Google Play/store readiness.
 - **Remaining lifecycle:** none. `DOCUMENT_ONLY`, `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY` are all complete for Package 5B.
 
-## Daily New-Word Budget & Learning-Day Infrastructure — Candidate Slice 1 (`feature/daily-new-word-limit-learning-day-v1`)
+## Daily New-Word Budget & Learning-Day Infrastructure — Slice 1 (Merged Production State)
 
-**Lifecycle status:** active candidate package on branch `feature/daily-new-word-limit-learning-day-v1`. Implementation and independent review complete with status `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`. `DOCUMENT_ONLY` reconciliation in progress. Master baseline remains `e50a4469e2ac16bb78774238740cedc73b611d7f` / Schema 11 / Archive V2.
+**Lifecycle status:** merged production `master` state via PR #142 (`feat: add daily new-word learning-day budget`; merge commit `34afed431711dd165b334d66b50b251a839faf02`; validated PR head `e7b6a0ad6a1159f94035b813bf747325bc314e8a`). Exact-head `FULL_VALIDATION` on the validated PR head: 2276 passed / 0 failed / 0 skipped, Windows Debug PASS, Windows Release PASS, Android Debug PASS, Android Release PASS, strict warning/linking gate PASS with 0 warnings / 0 errors, exit code 0 (log `artifacts/launcher-logs/ValidateAll-20260823-004831.log`). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion = 12` is active on `master`.
 
-This candidate slice establishes the non-visual daily new-word budget, durable `ActiveBudgetDay` and `Bridge` state, timezone/cutoff infrastructure, Schema-12 persistence, and active-session rollover reconciliation:
+This merged slice establishes the non-visual daily new-word budget, durable `ActiveBudgetDay` and `Bridge` state, timezone/cutoff infrastructure, Schema-12 persistence, and active-session rollover reconciliation:
 
 - **Hard Daily New-Word Limit:** The existing `PreparationLimit` ($N \in \{5, 10, 20, 30, 50\}$, default 10) governs the daily new-word admission budget. $N$ is enforced as a hard maximum of distinct genuinely-new `WordId`s per logical learning day.
 - **Single `WordId` Slot Consumption:** Exactly one slot is consumed per `WordId` regardless of whether the word has multiple card directions (`TermToMeaning`, `MeaningToTerm`) or multiple senses.

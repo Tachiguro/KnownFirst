@@ -29,6 +29,7 @@ public static class LearningTimezoneCatalog
 
     private static readonly IReadOnlyList<LearningTimezoneOption> Entries = Array.AsReadOnly(
     [
+        Create("Pacific/Pago_Pago"),
         Create("Pacific/Honolulu"),
         Create("America/Anchorage"),
         Create("America/Los_Angeles"),
@@ -74,7 +75,10 @@ public static class LearningTimezoneCatalog
         Create("Australia/Adelaide"),
         Create("Australia/Sydney"),
         Create("Asia/Vladivostok"),
-        Create("Pacific/Auckland")
+        Create("Pacific/Auckland"),
+        Create("Pacific/Chatham"),
+        Create("Pacific/Tongatapu"),
+        Create("Pacific/Kiritimati")
     ]);
 
     private static readonly HashSet<string> EntryIds =

@@ -48,6 +48,7 @@
     <None Include="..\Components\Layout\MainLayout.razor.css" Link="Ui\MainLayout.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Layout\NavMenu.razor.css" Link="Ui\NavMenu.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Settings.razor" Link="Ui\Settings.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\Settings.razor.css" Link="Ui\Settings.razor.css" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\Learn.razor" Link="Ui\Learn.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\PrepareWords.razor" Link="Ui\PrepareWords.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Pages\PrepareWords.razor.css" Link="Ui\PrepareWords.razor.css" CopyToOutputDirectory="PreserveNewest" />

@@ -25,6 +25,12 @@ public sealed class LearningTimezoneCatalogTests
     }
 
     [TestMethod]
+    public void Catalog_ContainsExactlyFiftyCuratedEntries()
+    {
+        Assert.AreEqual(50, LearningTimezoneCatalog.Options.Count);
+    }
+
+    [TestMethod]
     public void Catalog_ContainsNoDuplicateTimezoneIds()
     {
         var duplicates = LearningTimezoneCatalog.Options
@@ -123,6 +129,23 @@ public sealed class LearningTimezoneCatalogTests
     }
 
     [TestMethod]
+    public void Catalog_CoversInhabitedEdgeTimezones()
+    {
+        Assert.IsTrue(LearningTimezoneCatalog.ContainsTimezoneId("Pacific/Pago_Pago"), "Pacific/Pago_Pago (UTC-11) is missing.");
+        Assert.IsTrue(LearningTimezoneCatalog.ContainsTimezoneId("Pacific/Chatham"), "Pacific/Chatham (UTC+12:45) is missing.");
+        Assert.IsTrue(LearningTimezoneCatalog.ContainsTimezoneId("Pacific/Tongatapu"), "Pacific/Tongatapu (UTC+13) is missing.");
+        Assert.IsTrue(LearningTimezoneCatalog.ContainsTimezoneId("Pacific/Kiritimati"), "Pacific/Kiritimati (UTC+14) is missing.");
+    }
+
+    [TestMethod]
+    public void Catalog_StaticOrderIsOrderedWestToEastFromPagoPagoToKiritimati()
+    {
+        var options = LearningTimezoneCatalog.Options;
+        Assert.AreEqual("Pacific/Pago_Pago", options[0].TimezoneId, "First catalog entry must be Pacific/Pago_Pago.");
+        Assert.AreEqual("Pacific/Kiritimati", options[^1].TimezoneId, "Last catalog entry must be Pacific/Kiritimati.");
+    }
+
+    [TestMethod]
     public void FormatUtcOffset_IsDeterministicAndCultureIndependent()
     {
         var previousCulture = CultureInfo.CurrentCulture;
@@ -190,6 +213,22 @@ public sealed class LearningTimezoneCatalogTests
         Assert.AreEqual(
             "(UTC+00:00) UTC",
             LearningTimezoneLabelFormatter.FormatOptionLabel(utc, NorthernWinterInstantUtc, "UTC"));
+    }
+
+    [TestMethod]
+    public void FormatOptionLabel_PacificChathamFollowsFractionalDaylightSavingTimeAtFixedInstants()
+    {
+        var chatham = TimeZoneInfo.FindSystemTimeZoneById("Pacific/Chatham");
+
+        // In July (Northern Summer / Southern Winter), Chatham is on Standard Time: UTC+12:45
+        Assert.AreEqual(
+            "(UTC+12:45) Chatham Islands",
+            LearningTimezoneLabelFormatter.FormatOptionLabel(chatham, NorthernSummerInstantUtc, "Chatham Islands"));
+
+        // In January (Northern Winter / Southern Summer), Chatham is on Daylight Saving Time: UTC+13:45
+        Assert.AreEqual(
+            "(UTC+13:45) Chatham Islands",
+            LearningTimezoneLabelFormatter.FormatOptionLabel(chatham, NorthernWinterInstantUtc, "Chatham Islands"));
     }
 
     [TestMethod]

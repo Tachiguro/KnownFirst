@@ -1587,6 +1587,12 @@
   <data name="Settings_LearningDayCutoffSaved" xml:space="preserve">
     <value>Beginn des Lerntags gespeichert.</value>
   </data>
+  <data name="Settings_LearningDayCutoffHours" xml:space="preserve">
+    <value>Stunde</value>
+  </data>
+  <data name="Settings_LearningDayCutoffMinutes" xml:space="preserve">
+    <value>Minute</value>
+  </data>
   <data name="Settings_RestoreDefaults" xml:space="preserve">
     <value>Standardeinstellungen wiederherstellen</value>
   </data>
@@ -1604,6 +1610,9 @@
   </data>
   <data name="Settings_RestoreDefaultsError" xml:space="preserve">
     <value>Die Standardeinstellungen konnten nicht wiederhergestellt werden.</value>
+  </data>
+  <data name="Timezone_City_Pacific_Pago_Pago" xml:space="preserve">
+    <value>Pago Pago</value>
   </data>
   <data name="Timezone_City_Pacific_Honolulu" xml:space="preserve">
     <value>Honolulu</value>
@@ -1742,5 +1751,14 @@
   </data>
   <data name="Timezone_City_Pacific_Auckland" xml:space="preserve">
     <value>Auckland</value>
+  </data>
+  <data name="Timezone_City_Pacific_Chatham" xml:space="preserve">
+    <value>Chatham-Inseln</value>
+  </data>
+  <data name="Timezone_City_Pacific_Tongatapu" xml:space="preserve">
+    <value>Nukuʻalofa</value>
+  </data>
+  <data name="Timezone_City_Pacific_Kiritimati" xml:space="preserve">
+    <value>Kiritimati</value>
   </data>
 </root>

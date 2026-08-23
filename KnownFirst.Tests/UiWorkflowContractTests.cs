@@ -1678,10 +1678,10 @@ public sealed class UiWorkflowContractTests
         "card-direction-title",
         "learning-mode-title",
         "enhanced-term-recognition-title",
-        "restore-defaults-title",
         "online-lookup-title",
         "portable-data-title",
         "help-and-support-title",
+        "restore-defaults-title",
         "reset-data-title"
     ];
 
@@ -1714,23 +1714,94 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void Settings_EnhancedTermRecognitionPrecedesRestoreDefaultsAndOnlineDictionary()
+    public void Settings_RestoreDefaultsFollowsHelpAndSupportAndPrecedesResetData()
     {
         var markup = LoadUi("Settings.razor");
 
-        var enhancedTermRecognition = markup.IndexOf(
-            "aria-labelledby=\"enhanced-term-recognition-title\"",
+        var helpAndSupport = markup.IndexOf(
+            "aria-labelledby=\"help-and-support-title\"",
             StringComparison.Ordinal);
         var restoreDefaults = markup.IndexOf(
             "aria-labelledby=\"restore-defaults-title\"",
             StringComparison.Ordinal);
-        var onlineDictionary = markup.IndexOf(
-            "aria-labelledby=\"online-lookup-title\"",
+        var resetData = markup.IndexOf(
+            "aria-labelledby=\"reset-data-title\"",
             StringComparison.Ordinal);
 
-        Assert.IsGreaterThanOrEqualTo(0, enhancedTermRecognition);
-        Assert.IsGreaterThan(enhancedTermRecognition, restoreDefaults);
-        Assert.IsGreaterThan(restoreDefaults, onlineDictionary);
+        Assert.IsGreaterThanOrEqualTo(0, helpAndSupport);
+        Assert.IsGreaterThan(helpAndSupport, restoreDefaults);
+        Assert.IsGreaterThan(restoreDefaults, resetData);
+    }
+
+    [TestMethod]
+    public void Settings_CardDirectionsRendersDefaultFirstOrder()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "card-direction-title");
+
+        var both = section.IndexOf("CardDirectionPreference.Both", StringComparison.Ordinal);
+        var termToMeaning = section.IndexOf("CardDirectionPreference.TermToMeaning", StringComparison.Ordinal);
+        var meaningToTerm = section.IndexOf("CardDirectionPreference.MeaningToTerm", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, both);
+        Assert.IsGreaterThan(both, termToMeaning);
+        Assert.IsGreaterThan(termToMeaning, meaningToTerm);
+
+        var bothLabel = section.IndexOf("Settings_CardDirectionBoth", StringComparison.Ordinal);
+        var termToMeaningLabel = section.IndexOf("Settings_CardDirectionTermToMeaning", StringComparison.Ordinal);
+        var meaningToTermLabel = section.IndexOf("Settings_CardDirectionMeaningToTerm", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, bothLabel);
+        Assert.IsGreaterThan(bothLabel, termToMeaningLabel);
+        Assert.IsGreaterThan(termToMeaningLabel, meaningToTermLabel);
+    }
+
+    [TestMethod]
+    public void Settings_LearningModeRendersDefaultFirstOrder()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "learning-mode-title");
+
+        var automatic = section.IndexOf("LearningMode.Automatic", StringComparison.Ordinal);
+        var reading = section.IndexOf("LearningMode.Reading", StringComparison.Ordinal);
+        var typing = section.IndexOf("LearningMode.Typing", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, automatic);
+        Assert.IsGreaterThan(automatic, reading);
+        Assert.IsGreaterThan(reading, typing);
+
+        var automaticLabel = section.IndexOf("Settings_LearningModeAutomatic", StringComparison.Ordinal);
+        var readingLabel = section.IndexOf("Settings_LearningModeReading", StringComparison.Ordinal);
+        var typingLabel = section.IndexOf("Settings_LearningModeTyping", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, automaticLabel);
+        Assert.IsGreaterThan(automaticLabel, readingLabel);
+        Assert.IsGreaterThan(readingLabel, typingLabel);
+    }
+
+    [TestMethod]
+    public void Settings_LearningTimezoneEffectiveStatusHasExplicitSpacingSeparation()
+    {
+        var markup = LoadUi("Settings.razor");
+        var styles = LoadUi("Settings.razor.css");
+        var section = ExtractSettingsSection(markup, "learning-timezone-title");
+
+        Assert.Contains("id=\"learning-timezone-effective\"", section);
+        Assert.IsTrue(
+            section.Contains("class=\"setting-status\"", StringComparison.Ordinal)
+            || section.Contains("class=\"setting-help setting-status\"", StringComparison.Ordinal)
+            || section.Contains("class=\"setting-effective\"", StringComparison.Ordinal),
+            "The effective timezone element must declare a dedicated status/effective class for spacing separation.");
+
+        Assert.IsTrue(
+            styles.Contains(".setting-status", StringComparison.Ordinal)
+            || styles.Contains("#learning-timezone-effective", StringComparison.Ordinal)
+            || styles.Contains(".setting-effective", StringComparison.Ordinal),
+            "Settings.razor.css must define explicit spacing rules for the effective timezone status line.");
+        Assert.IsTrue(
+            styles.Contains("var(--space-3)", StringComparison.Ordinal)
+            || styles.Contains("var(--space-4)", StringComparison.Ordinal),
+            "Settings.razor.css must use an existing spacing scale variable for the status separation.");
     }
 
     [TestMethod]
@@ -1775,15 +1846,23 @@ public sealed class UiWorkflowContractTests
 
         Assert.Contains("Settings_LearningDayCutoff\"", section);
         Assert.Contains("Settings_LearningDayCutoffHelp", section);
-        Assert.Contains("id=\"learning-day-cutoff-input\"", section);
-        Assert.Contains("type=\"time\"", section);
-        Assert.Contains("step=\"60\"", section);
+        Assert.Contains("id=\"learning-day-cutoff-hour\"", section);
+        Assert.Contains("id=\"learning-day-cutoff-minute\"", section);
+        Assert.Contains("class=\"time-separator\"", section);
+        Assert.DoesNotContain("type=\"time\"", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("AM", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("PM", section, StringComparison.Ordinal);
 
-        Assert.DoesNotContain("<select", section, StringComparison.Ordinal);
-        Assert.DoesNotContain(":00\">", section, StringComparison.Ordinal);
+        // Verify 24-hour and 60-minute loops with D2 invariant formatting
+        Assert.Contains("h < 24", section);
+        Assert.Contains("m < 60", section);
+        Assert.Contains("Settings_LearningDayCutoffHours", section);
+        Assert.Contains("Settings_LearningDayCutoffMinutes", section);
+        Assert.Contains("_selectedLearningDayCutoffHour", section);
+        Assert.Contains("_selectedLearningDayCutoffMinute", section);
 
         Assert.Contains("AppSettings.SetLearningDayCutoffMinutes", markup);
-        Assert.Contains("LearningDayCutoffFormatter", markup);
+        Assert.Contains("SyncLearningDayCutoffFields", markup);
     }
 
     [TestMethod]

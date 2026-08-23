@@ -1,6 +1,7 @@
 @page "/settings"
 @implements IAsyncDisposable
 @using KnownFirst.Models.Backup
+@using System.Globalization
 @inject ILanguageSelectionService LanguageSelection
 @inject IThemeService ThemeService
 @inject IAppSettingsService AppSettings
@@ -136,7 +137,7 @@
                 }
             </select>
         </div>
-        <p id="learning-timezone-effective" class="setting-help">
+        <p id="learning-timezone-effective" class="setting-status">
             @Localizer["Settings_LearningTimezoneEffective", EffectiveLearningTimezoneOffsetLabel]
         </p>
         @if (_learningTimezoneSaved)
@@ -148,19 +149,32 @@
     </section>
 
     <section class="settings-card" aria-labelledby="learning-day-cutoff-title">
-        <h2 id="learning-day-cutoff-title">
-            <label for="learning-day-cutoff-input">@Localizer["Settings_LearningDayCutoff"]</label>
-        </h2>
+        <h2 id="learning-day-cutoff-title">@Localizer["Settings_LearningDayCutoff"]</h2>
         <p id="learning-day-cutoff-help" class="setting-help">@Localizer["Settings_LearningDayCutoffHelp"]</p>
         <div class="field-group">
-            @* The raw HH:mm string is handled directly instead of through @bind so the stored
-               cutoff stays an exact, culture-independent minute value. *@
-            <input id="learning-day-cutoff-input"
-                   type="time"
-                   step="60"
-                   aria-describedby="learning-day-cutoff-help"
-                   value="@_selectedLearningDayCutoffText"
-                   @onchange="SaveLearningDayCutoff" />
+            <div class="time-select-group" role="group" aria-labelledby="learning-day-cutoff-title" aria-describedby="learning-day-cutoff-help">
+                <select id="learning-day-cutoff-hour"
+                        aria-label="@Localizer["Settings_LearningDayCutoffHours"]"
+                        @bind="_selectedLearningDayCutoffHour"
+                        @bind:after="SaveLearningDayCutoff">
+                    @for (var h = 0; h < 24; h++)
+                    {
+                        var hourText = h.ToString("D2", CultureInfo.InvariantCulture);
+                        <option value="@hourText">@hourText</option>
+                    }
+                </select>
+                <span class="time-separator" aria-hidden="true">:</span>
+                <select id="learning-day-cutoff-minute"
+                        aria-label="@Localizer["Settings_LearningDayCutoffMinutes"]"
+                        @bind="_selectedLearningDayCutoffMinute"
+                        @bind:after="SaveLearningDayCutoff">
+                    @for (var m = 0; m < 60; m++)
+                    {
+                        var minuteText = m.ToString("D2", CultureInfo.InvariantCulture);
+                        <option value="@minuteText">@minuteText</option>
+                    }
+                </select>
+            </div>
         </div>
         @if (_learningDayCutoffSaved)
         {
@@ -168,11 +182,21 @@
                 @Localizer["Settings_LearningDayCutoffSaved"]
             </p>
         }
+        else if (_learningDayCutoffChangeFailed)
+        {
+            <p class="setting-feedback setting-feedback-error" role="alert">@Localizer["Settings_SaveError"]</p>
+        }
     </section>
 
     <section class="settings-card" aria-labelledby="card-direction-title">
         <h2 id="card-direction-title">@Localizer["Settings_CardDirection"]</h2>
         <div class="choice-grid choice-grid-three">
+            <button type="button"
+                    class="choice-button @(_selectedCardDirection == CardDirectionPreference.Both ? "active" : null)"
+                    aria-pressed="@(_selectedCardDirection == CardDirectionPreference.Both)"
+                    @onclick="() => SelectCardDirection(CardDirectionPreference.Both)">
+                @Localizer["Settings_CardDirectionBoth"]
+            </button>
             <button type="button"
                     class="choice-button @(_selectedCardDirection == CardDirectionPreference.TermToMeaning ? "active" : null)"
                     aria-pressed="@(_selectedCardDirection == CardDirectionPreference.TermToMeaning)"
@@ -184,12 +208,6 @@
                     aria-pressed="@(_selectedCardDirection == CardDirectionPreference.MeaningToTerm)"
                     @onclick="() => SelectCardDirection(CardDirectionPreference.MeaningToTerm)">
                 @Localizer["Settings_CardDirectionMeaningToTerm"]
-            </button>
-            <button type="button"
-                    class="choice-button @(_selectedCardDirection == CardDirectionPreference.Both ? "active" : null)"
-                    aria-pressed="@(_selectedCardDirection == CardDirectionPreference.Both)"
-                    @onclick="() => SelectCardDirection(CardDirectionPreference.Both)">
-                @Localizer["Settings_CardDirectionBoth"]
             </button>
         </div>
         @if (_cardDirectionSaved)
@@ -205,6 +223,12 @@
         <p class="setting-help">@Localizer["Settings_LearningModeHelp"]</p>
         <div class="choice-grid choice-grid-three">
             <button type="button"
+                    class="choice-button @(_selectedLearningMode == LearningMode.Automatic ? "active" : null)"
+                    aria-pressed="@(_selectedLearningMode == LearningMode.Automatic)"
+                    @onclick="() => SelectLearningMode(LearningMode.Automatic)">
+                @Localizer["Settings_LearningModeAutomatic"]
+            </button>
+            <button type="button"
                     class="choice-button @(_selectedLearningMode == LearningMode.Reading ? "active" : null)"
                     aria-pressed="@(_selectedLearningMode == LearningMode.Reading)"
                     @onclick="() => SelectLearningMode(LearningMode.Reading)">
@@ -215,12 +239,6 @@
                     aria-pressed="@(_selectedLearningMode == LearningMode.Typing)"
                     @onclick="() => SelectLearningMode(LearningMode.Typing)">
                 @Localizer["Settings_LearningModeTyping"]
-            </button>
-            <button type="button"
-                    class="choice-button @(_selectedLearningMode == LearningMode.Automatic ? "active" : null)"
-                    aria-pressed="@(_selectedLearningMode == LearningMode.Automatic)"
-                    @onclick="() => SelectLearningMode(LearningMode.Automatic)">
-                @Localizer["Settings_LearningModeAutomatic"]
             </button>
         </div>
         @if (_learningModeSaved)
@@ -254,59 +272,6 @@
         {
             <p class="setting-feedback setting-feedback-success" role="status">
                 @Localizer["Settings_EnhancedTermRecognitionSaved"]
-            </p>
-        }
-    </section>
-
-    <section class="settings-card" aria-labelledby="restore-defaults-title">
-        <h2 id="restore-defaults-title">@Localizer["Settings_RestoreDefaults"]</h2>
-        <p class="setting-help">@Localizer["Settings_RestoreDefaultsDescription"]</p>
-        @if (!_showRestoreDefaultsConfirmation)
-        {
-            <button id="restore-defaults-button"
-                    type="button"
-                    class="button button-secondary"
-                    @ref="_restoreDefaultsButton"
-                    @onclick="ShowRestoreDefaultsConfirmation">
-                @Localizer["Settings_RestoreDefaults"]
-            </button>
-        }
-        else
-        {
-            <div id="restore-defaults-confirmation"
-                 class="restore-defaults-confirmation"
-                 role="group"
-                 aria-labelledby="restore-defaults-confirmation-message"
-                 @onkeydown="HandleRestoreDefaultsDialogKeyDown">
-                <p id="restore-defaults-confirmation-message">@Localizer["Settings_RestoreDefaultsConfirmMessage"]</p>
-                <div class="button-row">
-                    <button id="restore-defaults-cancel-button"
-                            type="button"
-                            class="button button-secondary"
-                            @ref="_cancelRestoreDefaultsButton"
-                            @onclick="CancelRestoreDefaults">
-                        @Localizer["Common_Cancel"]
-                    </button>
-                    <button id="restore-defaults-confirm-button"
-                            type="button"
-                            class="button button-primary"
-                            @onclick="RestoreDefaults">
-                        @Localizer["Settings_RestoreDefaultsConfirmAction"]
-                    </button>
-                </div>
-            </div>
-        }
-
-        @if (_restoreDefaultsSucceeded)
-        {
-            <p id="restore-defaults-success" class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
-                @Localizer["Settings_RestoreDefaultsSuccess"]
-            </p>
-        }
-        else if (_restoreDefaultsFailed)
-        {
-            <p id="restore-defaults-error" class="setting-feedback setting-feedback-error" role="alert">
-                @Localizer["Settings_RestoreDefaultsError"]
             </p>
         }
     </section>
@@ -526,6 +491,59 @@
         </p>
     </section>
 
+    <section class="settings-card" aria-labelledby="restore-defaults-title">
+        <h2 id="restore-defaults-title">@Localizer["Settings_RestoreDefaults"]</h2>
+        <p class="setting-help">@Localizer["Settings_RestoreDefaultsDescription"]</p>
+        @if (!_showRestoreDefaultsConfirmation)
+        {
+            <button id="restore-defaults-button"
+                    type="button"
+                    class="button button-secondary"
+                    @ref="_restoreDefaultsButton"
+                    @onclick="ShowRestoreDefaultsConfirmation">
+                @Localizer["Settings_RestoreDefaults"]
+            </button>
+        }
+        else
+        {
+            <div id="restore-defaults-confirmation"
+                 class="restore-defaults-confirmation"
+                 role="group"
+                 aria-labelledby="restore-defaults-confirmation-message"
+                 @onkeydown="HandleRestoreDefaultsDialogKeyDown">
+                <p id="restore-defaults-confirmation-message">@Localizer["Settings_RestoreDefaultsConfirmMessage"]</p>
+                <div class="button-row">
+                    <button id="restore-defaults-cancel-button"
+                            type="button"
+                            class="button button-secondary"
+                            @ref="_cancelRestoreDefaultsButton"
+                            @onclick="CancelRestoreDefaults">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button id="restore-defaults-confirm-button"
+                            type="button"
+                            class="button button-primary"
+                            @onclick="RestoreDefaults">
+                        @Localizer["Settings_RestoreDefaultsConfirmAction"]
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (_restoreDefaultsSucceeded)
+        {
+            <p id="restore-defaults-success" class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                @Localizer["Settings_RestoreDefaultsSuccess"]
+            </p>
+        }
+        else if (_restoreDefaultsFailed)
+        {
+            <p id="restore-defaults-error" class="setting-feedback setting-feedback-error" role="alert">
+                @Localizer["Settings_RestoreDefaultsError"]
+            </p>
+        }
+    </section>
+
     <section class="settings-card danger-zone" aria-labelledby="reset-data-title">
         <h2 id="reset-data-title">@Localizer["Settings_ResetData"]</h2>
         <p>@Localizer["Settings_ResetDescription"]</p>
@@ -603,9 +621,10 @@
     private bool _enhancedTermRecognitionSaved;
     private string _selectedLearningTimezoneValue = SystemLearningTimezoneValue;
     private bool _learningTimezoneSaved;
-    private string _selectedLearningDayCutoffText =
-        LearningDayCutoffFormatter.ToWallClockText(LearningDayConfiguration.DefaultCutoffMinutes);
+    private string _selectedLearningDayCutoffHour = "00";
+    private string _selectedLearningDayCutoffMinute = "00";
     private bool _learningDayCutoffSaved;
+    private bool _learningDayCutoffChangeFailed;
     private bool _showRestoreDefaultsConfirmation;
     private bool _revealRestoreDefaultsConfirmation;
     private bool _returnFocusToRestoreDefaultsButton;
@@ -664,8 +683,14 @@
         _selectedLearningMode = AppSettings.LearningMode;
         _enhancedTermRecognitionEnabled = AppSettings.EnhancedTermRecognitionEnabled;
         _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
-        _selectedLearningDayCutoffText =
-            LearningDayCutoffFormatter.ToWallClockText(AppSettings.LearningDayCutoffMinutes);
+        SyncLearningDayCutoffFields();
+    }
+
+    private void SyncLearningDayCutoffFields()
+    {
+        var normalized = LearningDayConfiguration.NormalizeCutoffMinutes(AppSettings.LearningDayCutoffMinutes);
+        _selectedLearningDayCutoffHour = (normalized / 60).ToString("D2", CultureInfo.InvariantCulture);
+        _selectedLearningDayCutoffMinute = (normalized % 60).ToString("D2", CultureInfo.InvariantCulture);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -865,24 +890,33 @@
         }
     }
 
-    private void SaveLearningDayCutoff(ChangeEventArgs eventArgs)
+    private void SaveLearningDayCutoff()
     {
         _learningDayCutoffSaved = false;
+        _learningDayCutoffChangeFailed = false;
 
         try
         {
-            AppSettings.SetLearningDayCutoffMinutes(
-                LearningDayCutoffFormatter.ParseWallClockText(eventArgs.Value?.ToString()));
-            _learningDayCutoffSaved = true;
+            if (int.TryParse(_selectedLearningDayCutoffHour, NumberStyles.None, CultureInfo.InvariantCulture, out var hour)
+                && int.TryParse(_selectedLearningDayCutoffMinute, NumberStyles.None, CultureInfo.InvariantCulture, out var minute))
+            {
+                var cutoffMinutes = (hour * 60) + minute;
+                AppSettings.SetLearningDayCutoffMinutes(cutoffMinutes);
+                _learningDayCutoffSaved = true;
+            }
+            else
+            {
+                _learningDayCutoffChangeFailed = true;
+            }
         }
         catch (Exception exception)
         {
             Logger.LogError(exception, "The learning day cutoff could not be saved.");
+            _learningDayCutoffChangeFailed = true;
         }
         finally
         {
-            _selectedLearningDayCutoffText =
-                LearningDayCutoffFormatter.ToWallClockText(AppSettings.LearningDayCutoffMinutes);
+            SyncLearningDayCutoffFields();
         }
     }
 

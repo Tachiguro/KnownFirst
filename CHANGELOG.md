@@ -6,29 +6,30 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
-### Added
+## [1.0.0-beta.13] - 2026-08-23 (merged source — next Internal Testing candidate, not yet gated or distributed)
 
-- Review Words now shows a minimal, always-visible source-compound indication for derived German candidates, so a user reviewing a component word can see which compound it came from without needing to open the metadata details panel.
-- Retained German derived-term provenance (Schema-11 `DerivedTermEvidence`) now travels through portable backup/restore and cross-installation merge, alongside the ordinary retained review candidate it belongs to, so Preparation can recover real source-compound context on another installation the same way it already can locally. No database schema-version bump; the portable archive format remains V2.
-- Windows portable ZIP packaging foundation: `scripts/publish-windows-portable.ps1` and canonical launcher action `WindowsPortablePackage` producing a self-contained, unpackaged x64 Release ZIP archive with a SHA-256 sidecar under `artifacts/windows-portable/` as a manual replacement channel.
-- Windows MSIX packaging foundation: `scripts/publish-windows-msix.ps1` and canonical launcher action `WindowsMsixPackage` producing an x64 Release MSIX package with a SHA-256 sidecar under `artifacts/windows-msix/`, with unsigned default and optional certificate thumbprint signing via external environment variable (`KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT`).
-- Shared distribution helper `scripts/windows-distribution-common.ps1` providing a single source of truth for artifact naming, signing markers, Store identity classification, candidate selection, and ZIP file-entry counting.
-
-### Changed
-
-- Windows MSIX packaging maps `ApplicationDisplayVersion` to `1.0.<BuildNumber>` and `ApplicationVersion` to `0` to produce Store-compliant four-part version `1.0.13.0` while preserving application runtime product identity (`1.0.0-beta.13` / build `13`).
-- Packaging build and intermediate outputs are isolated under `artifacts/build/` and `artifacts/obj/` so normal `bin/Release/` outputs backing validation evidence remain untouched.
-
-## [1.0.0-beta.13] - 2026-08-13 (merged source — next Internal Testing candidate, not yet gated or distributed)
-
-**`1.0.0-beta.13` / build `13` is merged source on `master` via PR #92 (final PR head `774b2245f64a986fe004f4ebd3288747642bdb0f`, merge commit `a5a9e734af0db0639a38471433748e334ca34d65`); local `POST_MERGE_SYNC_ONLY` completed exactly once. Merging is not a build, package, signing, device-validation, or distribution event: `1.0.0-beta.13` has not passed the mandatory exact-candidate Pre-AAB Release-Readiness Gate, and has not been packaged as an AAB, signed, installed on a device, uploaded to Google Play, or distributed to testers. The last confirmed externally distributed and device-tested release remains `1.0.0-beta.12` / build `12` (2026-07-30); see [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) and [docs/releases/1.0.0-beta.13.md](docs/releases/1.0.0-beta.13.md) for the Beta-13 evidence record.**
+**`1.0.0-beta.13` / build `13` is merged source on `master` via PR #92 through PR #145 (current synchronized master `35cd15bf3e0dda0816bb2dd2c9dc35fa91ddd430`). Merging is not a build, package, signing, device-validation, or distribution event: `1.0.0-beta.13` has not passed the mandatory exact-candidate Pre-AAB Release-Readiness Gate, and has not been packaged as an AAB, signed, installed on a device, uploaded to Google Play, or distributed to testers. The last confirmed externally distributed and device-tested release remains `1.0.0-beta.12` / build `12` (2026-07-30); see [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) and [docs/releases/1.0.0-beta.13.md](docs/releases/1.0.0-beta.13.md) for the Beta-13 evidence record.**
 
 ### Added
 
+- German Enhanced Term Recognition: production offline German morphology lexicon (`german-lexicon.v2.kfgl`) integrated into the text-analysis pipeline, supporting conservative 2–4 component compound decomposition and derivation analysis (PR #134, PR #135).
+- Review Words now displays a minimal, always-visible source-compound notice for derived German review candidates, identifying the parent compound directly from the card list without opening metadata panels (PR #140).
+- Retained German derived-term provenance (Schema-11 `DerivedTermEvidence`) travels through portable backup/restore and cross-installation merge in archive format V2, preserving source-compound context across devices (PR #135, PR #137).
+- Daily new-word limit ($N \in \{5, 10, 20, 30, 50\}$, default 10) with Schema-12 persistence (`LearningDayState`, `LearningDayGrants`), logical learning-day boundary, and active-session rollover reconciliation (PR #142).
+- Settings now provides a comprehensive settings surface:
+  - Daily new-word limit selector ($N \in \{5, 10, 20, 30, 50\}$).
+  - Learning timezone configuration: System device timezone or 50 curated IANA zones spanning inhabited UTC-11 through UTC+14 with dynamic DST-aware labels.
+  - Deterministic 24-hour learning-day cutoff selector (`00..23` hour and `00..59` minute selectors, formatted as `HH:mm`).
+  - Enhanced term recognition toggle (default ON).
+  - Default-first option layouts for Card directions and Learning mode.
+  - Distinct "Restore default settings" (non-destructive reset of preferences and defaults, preserving online dictionary consent and learning state) and "Reset all application data" (destructive complete data reset) (PR #144).
 - Settings now provides a functional "Report a bug" action under Help and Support. It opens the user's email application with the support address (`Tachiguro+KnownFirst_BugReport@gmail.com`), a versioned subject, and structured template prompts while including only safe technical metadata and never sending automatically. If the email application cannot be opened, a fallback action allows copying the support address to the clipboard.
 - Settings now provides a reopenable release-note history under Help and Support. Earlier release notes can be viewed again at any time, including after the one-time What's New notice has been dismissed, and they are listed newest first (Milestone 14B, PR #73).
 - Portable import preview UI with read-only preview before confirmation, distinguishing restore (empty target), merge (populated target), and no-change (duplicate import) cases; localized EN/DE/RU coverage for preview, result, and failure handling (PR #45).
 - Schema-10 portable export now carries a supported Active learning session together with its persisted queue and committed review history. Restoring into an empty installation resumes the session from its last durably committed state (KF-BACKUP-005A/005B, PR #79/#81). Restoring into a populated, learning-quiescent installation additively merges that Active session using the same preview/merge/no-change safety contract already established for Completed content, including exact same-workflow convergence to no-change and a non-executable, zero-mutation outcome for any conflicting Active state (KF-BACKUP-005C, PR #83).
+- Windows portable ZIP packaging foundation: `scripts/packaging/publish-windows-portable.ps1` and canonical launcher action `WindowsPortablePackage` producing a self-contained, unpackaged x64 Release ZIP archive with a SHA-256 sidecar under `artifacts/windows-portable/` as a manual replacement channel.
+- Windows MSIX packaging foundation: `scripts/packaging/publish-windows-msix.ps1` and canonical launcher action `WindowsMsixPackage` producing an x64 Release MSIX package with a SHA-256 sidecar under `artifacts/windows-msix/`, with unsigned default and optional certificate thumbprint signing via external environment variable (`KNOWNFIRST_WINDOWS_MSIX_CERT_THUMBPRINT`).
+- Shared distribution helper `scripts/packaging/windows-distribution-common.ps1` providing a single source of truth for artifact naming, signing markers, Store identity classification, candidate selection, and ZIP file-entry counting.
 - A localized Beta 13 What's New entry (English, German, Russian) covering populated-target backup merge, strengthened backup/import safety, portable learning-session resume, and the reopenable release-note history.
 
 ### Fixed
@@ -41,10 +42,13 @@ and uses the application's prerelease version identifiers.
 
 ### Changed
 
+- Database schema advances to **12** (`PRAGMA user_version = 12`), adding immutable `StableId` columns in Schema 10, `DerivedTermEvidence` in Schema 11, and `LearningDayState`/`LearningDayGrants` in Schema 12. The `.kfarchive` outer format remains **V2**; no archive V3 was introduced.
+- Enhanced Term Recognition missing-preference default resolves to ON (`EnhancedTermRecognitionPolicy.DefaultEnabled = true`), while explicitly persisted `false` remains OFF (PR #144).
+- Windows MSIX packaging maps `ApplicationDisplayVersion` to `1.0.<BuildNumber>` and `ApplicationVersion` to `0` to produce Store-compliant four-part version `1.0.13.0` while preserving application runtime product identity (`1.0.0-beta.13` / build `13`).
+- Packaging build and intermediate outputs are isolated under `artifacts/build/` and `artifacts/obj/` so normal `bin/Release/` outputs backing validation evidence remain untouched.
 - `LearningSession` identity now includes `StartedAtUtc`, `CompletedAtUtc`, ordered queue digest, and per-item `Rating`, so distinct real sessions using the same card set no longer collapse into one (PR #45).
 - Schema 9 activates completed review-session history storage by replacing the unconditional `ReviewSessions(DocumentId)` uniqueness rule with one-Active/multiple-Completed index semantics (PR #51).
 - Package A adds deterministic Schema-9 completed-review identities, preflight classification, duplicate rejection, and target-index parity (PR #52). Writer-level convergence (Package B, PR #65) and two-installation cross-convergence hardening (Package C, PR #68) are both now complete and merged.
-- Database schema advances to **10** (`PRAGMA user_version = 10`), adding immutable `StableId` columns to `LearningSessions` and `LearningSessionCards` as the stable identity foundation for the Active-workflow portability above (KF-BACKUP-005A, PR #79). The `.kfarchive` outer format remains **V2**; no archive V3 was introduced.
 - Product version raised to `1.0.0-beta.13` (build `13`). Package ID (`com.tachiguro.knownfirst`), signing configuration, and the portable archive outer format are unchanged.
 
 ### Internal
@@ -52,10 +56,9 @@ and uses the application's prerelease version identifiers.
 - An Android-only automated GUI-navigation test foundation (P16-A) was merged as source infrastructure under a dedicated, isolated `com.tachiguro.knownfirst.guitest` identity (PR #91). It is test tooling, not a product feature: it has not been runtime-executed, does not automate any row of the GUI test matrix, and establishes no Android platform build, packaging, or device evidence.
 - The unfinished "Support KnownFirst" and "Report a bug" placeholder controls and their shared placeholder-handler behavior were removed from the production Settings source (Milestone 14A, PR #71); they were not rendered to users before removal and this is a source-cleanliness change, not a user-facing behavior change.
 - The canonical Google Play packaging script now treats an absent post-clean Android Release output directory as zero stale candidates rather than raising a terminating error, with isolated behavioral regression tests (PR #101).
-- Documentation-governance packages D1-D5 reconciled `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, and related contracts with merged product state on an ongoing basis (PRs #53-#64 and subsequent per-package closures). These are repository-governance changes only.
-- Persisted application-level `EnhancedTermRecognitionEnabled` foundation, default OFF (PR #129). This is an internal seam only; no Settings UI control or production text-analysis wiring exposes this setting in the current release.
-- `IGermanLexicon` Core seam and German term provenance (`DerivedTermEvidence`) support added to the text-analysis pipeline (PR #130). Deterministic, offline-capable lexical evidence foundation for German vocabulary analysis. Production lexicon implementations and Settings UI remain deferred.
-- Conservative two-component German compound decomposition available through the `IGermanLexicon` opt-in seam (PR #131). Whole source compound remains a Direct candidate; derived components carry `CandidateProvenanceKind.DerivedFromCompound`; ambiguous, unsupported, and Fugen-element cases fail closed. Production `TextReviewService` wiring and Settings UI remain deferred.
+- Documentation-governance packages D1-D5 reconciled `CURRENT_WORK.md`, `PROJECT_STATE.md`, `ROADMAP.md`, and related contracts with merged product state on an ongoing basis (PRs #53-#64 and subsequent per-package closures).
+- German Enhanced Term Recognition text-analysis pipeline, offline morphology lexicon, and characterization coverage foundations were merged across PRs #128, #129, #130, #131, #134, #135, #137, and #140.
+- Daily new-word budget infrastructure and Settings GUI Slice 2A were merged across PRs #142, #144, and #145.
 
 ## [1.0.0-beta.12] - 2026-07-30 (confirmed distributed)
 

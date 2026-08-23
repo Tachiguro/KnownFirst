@@ -28,7 +28,9 @@ public sealed class AppSettingsService : IAppSettingsService
         CardDirection = ReadCardDirection();
         LearningMode = ReadLearningMode();
         HasOnlineLookupConsent = _preferences.Get(OnlineLookupConsentPreferenceKey, false);
-        EnhancedTermRecognitionEnabled = _preferences.Get(EnhancedTermRecognitionPreferenceKey, false);
+        EnhancedTermRecognitionEnabled = _preferences.Get(
+            EnhancedTermRecognitionPreferenceKey,
+            EnhancedTermRecognitionPolicy.DefaultEnabled);
         LearningTimezoneMode = ReadLearningTimezoneMode();
         ExplicitLearningTimezoneId = ReadExplicitLearningTimezoneId();
         LearningDayCutoffMinutes = ReadLearningDayCutoffMinutes();
@@ -166,7 +168,7 @@ public sealed class AppSettingsService : IAppSettingsService
         CardDirection = CardDirectionPreferencePolicy.DefaultPreference;
         LearningMode = LearningModePolicy.DefaultMode;
         HasOnlineLookupConsent = false;
-        EnhancedTermRecognitionEnabled = false;
+        EnhancedTermRecognitionEnabled = EnhancedTermRecognitionPolicy.DefaultEnabled;
         LearningTimezoneMode = LearningTimezoneMode.System;
         ExplicitLearningTimezoneId = null;
         LearningDayCutoffMinutes = LearningDayConfiguration.DefaultCutoffMinutes;

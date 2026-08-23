@@ -1,4 +1,4 @@
-﻿.settings-page {
+.settings-page {
     width: min(100%, 48rem);
     margin: 0 auto;
 }
@@ -67,6 +67,12 @@
     line-height: 1.5;
 }
 
+.setting-status {
+    margin: var(--space-3) 0 0;
+    color: var(--color-muted);
+    line-height: 1.5;
+}
+
 .field-group label {
     font-weight: 700;
 }
@@ -81,6 +87,27 @@
     color: var(--color-text);
 }
 
+.time-select-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.time-select-group select {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 12rem;
+}
+
+.time-separator {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-muted);
+    user-select: none;
+    line-height: 1;
+}
+
 .danger-zone {
     border-color: var(--color-danger-border);
 }
@@ -93,6 +120,20 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-3);
+}
+
+/* Neutral confirmation for the non-destructive "Restore default settings" action. It deliberately
+   avoids the danger palette used by the destructive full application reset. */
+.restore-defaults-confirmation {
+    padding: clamp(var(--space-4), 4vw, var(--space-6));
+    border: 1px solid var(--color-border);
+    border-radius: 1.1rem;
+    background: var(--color-surface-muted);
+    scroll-margin-block: var(--space-4);
+}
+
+.restore-defaults-confirmation > p:first-child {
+    margin-top: 0;
 }
 
 .setting-feedback {

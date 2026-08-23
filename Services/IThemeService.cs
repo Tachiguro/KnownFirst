@@ -2,7 +2,7 @@ using KnownFirst.Core.Settings;
 
 namespace KnownFirst.Services;
 
-public interface IThemeService
+public interface IThemeService : IThemePreferenceReset
 {
     event EventHandler? ThemeChanged;
 
@@ -15,6 +15,4 @@ public interface IThemeService
     void Initialize(Microsoft.Maui.Controls.Application application);
 
     bool SetPreference(ThemePreference preference);
-
-    void ResetPreference();
 }

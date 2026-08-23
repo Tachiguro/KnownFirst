@@ -72,6 +72,12 @@ public static class MauiProgram
         builder.Services.AddSingleton<INavigationHistoryService, NavigationHistoryService>();
         builder.Services.AddSingleton<IAppSettingsService, AppSettingsService>();
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
+        builder.Services.AddSingleton<KnownFirst.Services.Settings.ISettingsDefaultsService>(serviceProvider =>
+            new KnownFirst.Services.Settings.SettingsDefaultsService(
+                serviceProvider.GetRequiredService<IAppSettingsService>(),
+                serviceProvider.GetRequiredService<IThemeService>(),
+                serviceProvider.GetRequiredService<ILanguageSelectionService>(),
+                serviceProvider.GetRequiredService<ILogger<KnownFirst.Services.Settings.SettingsDefaultsService>>()));
         builder.Services.AddSingleton<IWhatsNewPreferenceStore, MauiWhatsNewPreferenceStore>();
         builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
         builder.Services.AddSingleton<IBugReportLauncherService, BugReportLauncherService>();

@@ -46,7 +46,7 @@ This document records stable, verified architectural facts and current capabilit
 - functional "Report a bug" email composer action launching with structured template prompts and clipboard copy fallback;
 - one-time localized What's New notice shown once per version;
 - transactional local persistence (Schema 11), startup maintenance, and bounded structured diagnostics;
-- production offline German Enhanced Term Recognition (default OFF, `EnhancedTermRecognitionEnabled` in Settings): conservative German compound decomposition against the production `GeneratedGermanLexicon`, wired into `TextReviewService` analysis, with Schema-11 `DerivedTermEvidence` persistence.
+- production offline German Enhanced Term Recognition (default OFF on `master`, `EnhancedTermRecognitionEnabled` in Settings): conservative German compound decomposition against the production `GeneratedGermanLexicon`, wired into `TextReviewService` analysis, with Schema-11 `DerivedTermEvidence` persistence. A candidate branch in progress (Settings GUI & Learning-Day Defaults — Slice 2A, branch `feature/settings-gui-learning-day-defaults-v1`; initial commit `0d0d5b9f52a7823cb793dea94ca319f48fae9ec7`, UI corrections reviewed) changes the missing-preference default to ON; this is candidate state, not yet merged `master` state — see [docs/CURRENT_WORK.md](CURRENT_WORK.md) "Settings GUI & Learning-Day Defaults — Slice 2A (Candidate in Progress)".
 
 ## Development, Tooling & Packaging Foundations
 

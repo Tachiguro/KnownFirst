@@ -632,4 +632,107 @@ public sealed class LocalizationResourceTests
                 element => element.Element("value")?.Value ?? string.Empty,
                 StringComparer.Ordinal);
     }
+
+    private static readonly string[] RequiredSettingsGuiSliceTwoAKeys =
+    [
+        "Settings_LearningTimezone",
+        "Settings_LearningTimezoneHelp",
+        "Settings_LearningTimezoneSystem",
+        "Settings_LearningTimezoneEffective",
+        "Settings_LearningTimezoneSaved",
+        "Settings_LearningDayCutoff",
+        "Settings_LearningDayCutoffHelp",
+        "Settings_LearningDayCutoffSaved",
+        "Settings_RestoreDefaults",
+        "Settings_RestoreDefaultsDescription",
+        "Settings_RestoreDefaultsConfirmMessage",
+        "Settings_RestoreDefaultsConfirmAction",
+        "Settings_RestoreDefaultsSuccess",
+        "Settings_RestoreDefaultsError"
+    ];
+
+    [TestMethod]
+    public void Resources_SettingsGuiSliceTwoAKeysExistInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        foreach (var key in RequiredSettingsGuiSliceTwoAKeys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), "The English resource key '" + key + "' is missing.");
+            Assert.IsTrue(german.ContainsKey(key), "The German resource key '" + key + "' is missing.");
+            Assert.IsTrue(russian.ContainsKey(key), "The Russian resource key '" + key + "' is missing.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), "The English value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), "The German value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), "The Russian value for '" + key + "' is empty.");
+        }
+    }
+
+    [TestMethod]
+    public void Resources_EveryCuratedTimezoneCityKeyExistsInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        foreach (var option in KnownFirst.Core.Settings.LearningTimezoneCatalog.Options)
+        {
+            var key = option.CityResourceKey;
+
+            Assert.IsTrue(english.ContainsKey(key), "The English resource key '" + key + "' is missing.");
+            Assert.IsTrue(german.ContainsKey(key), "The German resource key '" + key + "' is missing.");
+            Assert.IsTrue(russian.ContainsKey(key), "The Russian resource key '" + key + "' is missing.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), "The English value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), "The German value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), "The Russian value for '" + key + "' is empty.");
+        }
+    }
+
+    [TestMethod]
+    public void Resources_TimezoneCityNamesUseCyrillicInTheRussianResource()
+    {
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        Assert.AreEqual("Берлин", russian["Timezone_City_Europe_Berlin"]);
+        Assert.AreEqual("Нью-Йорк", russian["Timezone_City_America_New_York"]);
+        Assert.AreEqual("Токио", russian["Timezone_City_Asia_Tokyo"]);
+    }
+
+    [TestMethod]
+    public void Resources_TimezoneCityKeysCarryNoFormatPlaceholders()
+    {
+        var placeholderPattern = new System.Text.RegularExpressions.Regex(@"\{\d+\}");
+
+        foreach (var fileName in new[] { "SharedResource.resx", "SharedResource.de.resx", "SharedResource.ru.resx" })
+        {
+            var resources = LoadResources(fileName);
+
+            foreach (var option in KnownFirst.Core.Settings.LearningTimezoneCatalog.Options)
+            {
+                Assert.IsEmpty(
+                    placeholderPattern.Matches(resources[option.CityResourceKey]),
+                    "Timezone city names must not contain format placeholders: "
+                        + fileName + ":" + option.CityResourceKey);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void Resources_LearningTimezoneEffectiveLabelKeepsExactlyOnePlaceholder()
+    {
+        var placeholderPattern = new System.Text.RegularExpressions.Regex(@"\{\d+\}");
+
+        foreach (var fileName in new[] { "SharedResource.resx", "SharedResource.de.resx", "SharedResource.ru.resx" })
+        {
+            var resources = LoadResources(fileName);
+
+            Assert.HasCount(
+                1,
+                placeholderPattern.Matches(resources["Settings_LearningTimezoneEffective"]),
+                fileName + " must keep exactly one placeholder for Settings_LearningTimezoneEffective.");
+        }
+    }
 }

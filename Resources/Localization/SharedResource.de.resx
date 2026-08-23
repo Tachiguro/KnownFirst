@@ -1563,4 +1563,202 @@
   <data name="WhatsNew_Beta13_Bullet4" xml:space="preserve">
     <value>Frühere Versionshinweise lassen sich jederzeit in den Einstellungen unter Hilfe und Support erneut öffnen.</value>
   </data>
+  <data name="Settings_LearningTimezone" xml:space="preserve">
+    <value>Lern-Zeitzone</value>
+  </data>
+  <data name="Settings_LearningTimezoneHelp" xml:space="preserve">
+    <value>Wähle die Zeitzone, die über Beginn und Ende deines Lerntags entscheidet. Die Option System verwendet die Zeitzone dieses Geräts; Standort, Netzwerk oder Konto werden nicht verwendet.</value>
+  </data>
+  <data name="Settings_LearningTimezoneSystem" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="Settings_LearningTimezoneEffective" xml:space="preserve">
+    <value>Aktuelle Lern-Zeitzone: {0}</value>
+  </data>
+  <data name="Settings_LearningTimezoneSaved" xml:space="preserve">
+    <value>Lern-Zeitzone gespeichert.</value>
+  </data>
+  <data name="Settings_LearningDayCutoff" xml:space="preserve">
+    <value>Neuer Lerntag beginnt um</value>
+  </data>
+  <data name="Settings_LearningDayCutoffHelp" xml:space="preserve">
+    <value>Ortszeit, zu der ein neuer Lerntag beginnt, interpretiert in der gewählten Lern-Zeitzone. Jede Uhrzeit ist minutengenau wählbar.</value>
+  </data>
+  <data name="Settings_LearningDayCutoffSaved" xml:space="preserve">
+    <value>Beginn des Lerntags gespeichert.</value>
+  </data>
+  <data name="Settings_LearningDayCutoffHours" xml:space="preserve">
+    <value>Stunde</value>
+  </data>
+  <data name="Settings_LearningDayCutoffMinutes" xml:space="preserve">
+    <value>Minute</value>
+  </data>
+  <data name="Settings_RestoreDefaults" xml:space="preserve">
+    <value>Standardeinstellungen wiederherstellen</value>
+  </data>
+  <data name="Settings_RestoreDefaultsDescription" xml:space="preserve">
+    <value>Setzt die Einstellungen auf dieser Seite sowie Erscheinungsbild und Sprache auf die Standardwerte zurück. Dein Wortschatz, dein Lernfortschritt und importierte Texte bleiben erhalten.</value>
+  </data>
+  <data name="Settings_RestoreDefaultsConfirmMessage" xml:space="preserve">
+    <value>Alle Einstellungen auf die Standardwerte zurücksetzen? Es werden keine Lerndaten gelöscht.</value>
+  </data>
+  <data name="Settings_RestoreDefaultsConfirmAction" xml:space="preserve">
+    <value>Standardwerte wiederherstellen</value>
+  </data>
+  <data name="Settings_RestoreDefaultsSuccess" xml:space="preserve">
+    <value>Standardeinstellungen wiederhergestellt.</value>
+  </data>
+  <data name="Settings_RestoreDefaultsError" xml:space="preserve">
+    <value>Die Standardeinstellungen konnten nicht wiederhergestellt werden.</value>
+  </data>
+  <data name="Timezone_City_Pacific_Pago_Pago" xml:space="preserve">
+    <value>Pago Pago</value>
+  </data>
+  <data name="Timezone_City_Pacific_Honolulu" xml:space="preserve">
+    <value>Honolulu</value>
+  </data>
+  <data name="Timezone_City_America_Anchorage" xml:space="preserve">
+    <value>Anchorage</value>
+  </data>
+  <data name="Timezone_City_America_Los_Angeles" xml:space="preserve">
+    <value>Los Angeles</value>
+  </data>
+  <data name="Timezone_City_America_Denver" xml:space="preserve">
+    <value>Denver</value>
+  </data>
+  <data name="Timezone_City_America_Chicago" xml:space="preserve">
+    <value>Chicago</value>
+  </data>
+  <data name="Timezone_City_America_Mexico_City" xml:space="preserve">
+    <value>Mexiko-Stadt</value>
+  </data>
+  <data name="Timezone_City_America_New_York" xml:space="preserve">
+    <value>New York</value>
+  </data>
+  <data name="Timezone_City_America_Bogota" xml:space="preserve">
+    <value>Bogotá</value>
+  </data>
+  <data name="Timezone_City_America_Halifax" xml:space="preserve">
+    <value>Halifax</value>
+  </data>
+  <data name="Timezone_City_America_Santiago" xml:space="preserve">
+    <value>Santiago de Chile</value>
+  </data>
+  <data name="Timezone_City_America_Sao_Paulo" xml:space="preserve">
+    <value>São Paulo</value>
+  </data>
+  <data name="Timezone_City_America_Argentina_Buenos_Aires" xml:space="preserve">
+    <value>Buenos Aires</value>
+  </data>
+  <data name="Timezone_City_Atlantic_Azores" xml:space="preserve">
+    <value>Azoren</value>
+  </data>
+  <data name="Timezone_City_UTC" xml:space="preserve">
+    <value>UTC</value>
+  </data>
+  <data name="Timezone_City_Atlantic_Reykjavik" xml:space="preserve">
+    <value>Reykjavík</value>
+  </data>
+  <data name="Timezone_City_Europe_London" xml:space="preserve">
+    <value>London</value>
+  </data>
+  <data name="Timezone_City_Europe_Lisbon" xml:space="preserve">
+    <value>Lissabon</value>
+  </data>
+  <data name="Timezone_City_Africa_Lagos" xml:space="preserve">
+    <value>Lagos</value>
+  </data>
+  <data name="Timezone_City_Europe_Berlin" xml:space="preserve">
+    <value>Berlin</value>
+  </data>
+  <data name="Timezone_City_Europe_Paris" xml:space="preserve">
+    <value>Paris</value>
+  </data>
+  <data name="Timezone_City_Europe_Madrid" xml:space="preserve">
+    <value>Madrid</value>
+  </data>
+  <data name="Timezone_City_Europe_Rome" xml:space="preserve">
+    <value>Rom</value>
+  </data>
+  <data name="Timezone_City_Europe_Warsaw" xml:space="preserve">
+    <value>Warschau</value>
+  </data>
+  <data name="Timezone_City_Europe_Athens" xml:space="preserve">
+    <value>Athen</value>
+  </data>
+  <data name="Timezone_City_Europe_Helsinki" xml:space="preserve">
+    <value>Helsinki</value>
+  </data>
+  <data name="Timezone_City_Africa_Cairo" xml:space="preserve">
+    <value>Kairo</value>
+  </data>
+  <data name="Timezone_City_Africa_Johannesburg" xml:space="preserve">
+    <value>Johannesburg</value>
+  </data>
+  <data name="Timezone_City_Asia_Jerusalem" xml:space="preserve">
+    <value>Jerusalem</value>
+  </data>
+  <data name="Timezone_City_Europe_Moscow" xml:space="preserve">
+    <value>Moskau</value>
+  </data>
+  <data name="Timezone_City_Europe_Istanbul" xml:space="preserve">
+    <value>Istanbul</value>
+  </data>
+  <data name="Timezone_City_Asia_Dubai" xml:space="preserve">
+    <value>Dubai</value>
+  </data>
+  <data name="Timezone_City_Asia_Karachi" xml:space="preserve">
+    <value>Karatschi</value>
+  </data>
+  <data name="Timezone_City_Asia_Yekaterinburg" xml:space="preserve">
+    <value>Jekaterinburg</value>
+  </data>
+  <data name="Timezone_City_Asia_Kolkata" xml:space="preserve">
+    <value>Kolkata</value>
+  </data>
+  <data name="Timezone_City_Asia_Dhaka" xml:space="preserve">
+    <value>Dhaka</value>
+  </data>
+  <data name="Timezone_City_Asia_Bangkok" xml:space="preserve">
+    <value>Bangkok</value>
+  </data>
+  <data name="Timezone_City_Asia_Jakarta" xml:space="preserve">
+    <value>Jakarta</value>
+  </data>
+  <data name="Timezone_City_Asia_Novosibirsk" xml:space="preserve">
+    <value>Nowosibirsk</value>
+  </data>
+  <data name="Timezone_City_Asia_Shanghai" xml:space="preserve">
+    <value>Shanghai</value>
+  </data>
+  <data name="Timezone_City_Asia_Singapore" xml:space="preserve">
+    <value>Singapur</value>
+  </data>
+  <data name="Timezone_City_Asia_Tokyo" xml:space="preserve">
+    <value>Tokio</value>
+  </data>
+  <data name="Timezone_City_Asia_Seoul" xml:space="preserve">
+    <value>Seoul</value>
+  </data>
+  <data name="Timezone_City_Australia_Adelaide" xml:space="preserve">
+    <value>Adelaide</value>
+  </data>
+  <data name="Timezone_City_Australia_Sydney" xml:space="preserve">
+    <value>Sydney</value>
+  </data>
+  <data name="Timezone_City_Asia_Vladivostok" xml:space="preserve">
+    <value>Wladiwostok</value>
+  </data>
+  <data name="Timezone_City_Pacific_Auckland" xml:space="preserve">
+    <value>Auckland</value>
+  </data>
+  <data name="Timezone_City_Pacific_Chatham" xml:space="preserve">
+    <value>Chatham-Inseln</value>
+  </data>
+  <data name="Timezone_City_Pacific_Tongatapu" xml:space="preserve">
+    <value>Nukuʻalofa</value>
+  </data>
+  <data name="Timezone_City_Pacific_Kiritimati" xml:space="preserve">
+    <value>Kiritimati</value>
+  </data>
 </root>

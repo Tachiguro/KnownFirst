@@ -1667,4 +1667,361 @@ public sealed class UiWorkflowContractTests
             || markup.Contains("FocusAsync", StringComparison.Ordinal));
         Assert.Contains("Escape", markup);
     }
+
+    private static readonly string[] RequiredSettingsSectionOrder =
+    [
+        "language-setting-title",
+        "appearance-setting-title",
+        "preparation-limit-title",
+        "learning-timezone-title",
+        "learning-day-cutoff-title",
+        "card-direction-title",
+        "learning-mode-title",
+        "enhanced-term-recognition-title",
+        "online-lookup-title",
+        "portable-data-title",
+        "help-and-support-title",
+        "restore-defaults-title",
+        "reset-data-title"
+    ];
+
+    [TestMethod]
+    public void Settings_RendersTheRequiredThirteenSectionProductOrder()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var previousIndex = -1;
+        var previousId = string.Empty;
+
+        foreach (var sectionId in RequiredSettingsSectionOrder)
+        {
+            var index = markup.IndexOf(
+                "aria-labelledby=\"" + sectionId + "\"",
+                StringComparison.Ordinal);
+
+            Assert.IsGreaterThanOrEqualTo(
+                0,
+                index,
+                "The Settings section '" + sectionId + "' is missing.");
+            Assert.IsGreaterThan(
+                previousIndex,
+                index,
+                "The Settings section '" + sectionId + "' must follow '" + previousId + "'.");
+
+            previousIndex = index;
+            previousId = sectionId;
+        }
+    }
+
+    [TestMethod]
+    public void Settings_RestoreDefaultsFollowsHelpAndSupportAndPrecedesResetData()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var helpAndSupport = markup.IndexOf(
+            "aria-labelledby=\"help-and-support-title\"",
+            StringComparison.Ordinal);
+        var restoreDefaults = markup.IndexOf(
+            "aria-labelledby=\"restore-defaults-title\"",
+            StringComparison.Ordinal);
+        var resetData = markup.IndexOf(
+            "aria-labelledby=\"reset-data-title\"",
+            StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, helpAndSupport);
+        Assert.IsGreaterThan(helpAndSupport, restoreDefaults);
+        Assert.IsGreaterThan(restoreDefaults, resetData);
+    }
+
+    [TestMethod]
+    public void Settings_CardDirectionsRendersDefaultFirstOrder()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "card-direction-title");
+
+        var both = section.IndexOf("CardDirectionPreference.Both", StringComparison.Ordinal);
+        var termToMeaning = section.IndexOf("CardDirectionPreference.TermToMeaning", StringComparison.Ordinal);
+        var meaningToTerm = section.IndexOf("CardDirectionPreference.MeaningToTerm", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, both);
+        Assert.IsGreaterThan(both, termToMeaning);
+        Assert.IsGreaterThan(termToMeaning, meaningToTerm);
+
+        var bothLabel = section.IndexOf("Settings_CardDirectionBoth", StringComparison.Ordinal);
+        var termToMeaningLabel = section.IndexOf("Settings_CardDirectionTermToMeaning", StringComparison.Ordinal);
+        var meaningToTermLabel = section.IndexOf("Settings_CardDirectionMeaningToTerm", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, bothLabel);
+        Assert.IsGreaterThan(bothLabel, termToMeaningLabel);
+        Assert.IsGreaterThan(termToMeaningLabel, meaningToTermLabel);
+    }
+
+    [TestMethod]
+    public void Settings_LearningModeRendersDefaultFirstOrder()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "learning-mode-title");
+
+        var automatic = section.IndexOf("LearningMode.Automatic", StringComparison.Ordinal);
+        var reading = section.IndexOf("LearningMode.Reading", StringComparison.Ordinal);
+        var typing = section.IndexOf("LearningMode.Typing", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, automatic);
+        Assert.IsGreaterThan(automatic, reading);
+        Assert.IsGreaterThan(reading, typing);
+
+        var automaticLabel = section.IndexOf("Settings_LearningModeAutomatic", StringComparison.Ordinal);
+        var readingLabel = section.IndexOf("Settings_LearningModeReading", StringComparison.Ordinal);
+        var typingLabel = section.IndexOf("Settings_LearningModeTyping", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, automaticLabel);
+        Assert.IsGreaterThan(automaticLabel, readingLabel);
+        Assert.IsGreaterThan(readingLabel, typingLabel);
+    }
+
+    [TestMethod]
+    public void Settings_LearningTimezoneEffectiveStatusHasExplicitSpacingSeparation()
+    {
+        var markup = LoadUi("Settings.razor");
+        var styles = LoadUi("Settings.razor.css");
+        var section = ExtractSettingsSection(markup, "learning-timezone-title");
+
+        Assert.Contains("id=\"learning-timezone-effective\"", section);
+        Assert.IsTrue(
+            section.Contains("class=\"setting-status\"", StringComparison.Ordinal)
+            || section.Contains("class=\"setting-help setting-status\"", StringComparison.Ordinal)
+            || section.Contains("class=\"setting-effective\"", StringComparison.Ordinal),
+            "The effective timezone element must declare a dedicated status/effective class for spacing separation.");
+
+        Assert.IsTrue(
+            styles.Contains(".setting-status", StringComparison.Ordinal)
+            || styles.Contains("#learning-timezone-effective", StringComparison.Ordinal)
+            || styles.Contains(".setting-effective", StringComparison.Ordinal),
+            "Settings.razor.css must define explicit spacing rules for the effective timezone status line.");
+        Assert.IsTrue(
+            styles.Contains("var(--space-3)", StringComparison.Ordinal)
+            || styles.Contains("var(--space-4)", StringComparison.Ordinal),
+            "Settings.razor.css must use an existing spacing scale variable for the status separation.");
+    }
+
+    [TestMethod]
+    public void Settings_OffersACuratedLearningTimezoneControlWithoutLocationOrNetworkDependencies()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "learning-timezone-title");
+
+        Assert.Contains("Settings_LearningTimezone\"", section);
+        Assert.Contains("Settings_LearningTimezoneHelp", section);
+        Assert.Contains("Settings_LearningTimezoneSystem", section);
+        Assert.Contains("id=\"learning-timezone-select\"", section);
+        Assert.Contains("LearningTimezoneCatalog.Options", section);
+        Assert.Contains("SelectLearningTimezone", section);
+
+        Assert.Contains("AppSettings.SetLearningTimezoneMode", markup);
+        Assert.Contains("AppSettings.SetExplicitLearningTimezoneId", markup);
+        Assert.Contains("LearningTimezoneMode.Explicit", markup);
+        Assert.Contains("LearningTimezoneMode.System", markup);
+
+        Assert.DoesNotContain("Geolocation", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Permissions.", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("HttpClient", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Settings_LearningTimezoneLabelsAreComputedForTheCurrentInstantAndNotPersistedOffsets()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.Contains("LearningTimezoneLabelFormatter", markup);
+        Assert.Contains("DateTime.UtcNow", markup);
+        Assert.DoesNotContain("SetExplicitLearningTimezoneId(offset", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("BaseUtcOffset.ToString", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Settings_OffersAMinutePrecisionLearningDayCutoffControl()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "learning-day-cutoff-title");
+
+        Assert.Contains("Settings_LearningDayCutoff\"", section);
+        Assert.Contains("Settings_LearningDayCutoffHelp", section);
+        Assert.Contains("id=\"learning-day-cutoff-hour\"", section);
+        Assert.Contains("id=\"learning-day-cutoff-minute\"", section);
+        Assert.Contains("class=\"time-separator\"", section);
+        Assert.DoesNotContain("type=\"time\"", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("AM", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("PM", section, StringComparison.Ordinal);
+
+        // Verify 24-hour and 60-minute loops with D2 invariant formatting
+        Assert.Contains("h < 24", section);
+        Assert.Contains("m < 60", section);
+        Assert.Contains("Settings_LearningDayCutoffHours", section);
+        Assert.Contains("Settings_LearningDayCutoffMinutes", section);
+        Assert.Contains("_selectedLearningDayCutoffHour", section);
+        Assert.Contains("_selectedLearningDayCutoffMinute", section);
+
+        Assert.Contains("AppSettings.SetLearningDayCutoffMinutes", markup);
+        Assert.Contains("SyncLearningDayCutoffFields", markup);
+    }
+
+    [TestMethod]
+    public void Settings_RestoreDefaultsIsANonDestructiveActionSeparateFromFullReset()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "restore-defaults-title");
+
+        Assert.Contains("Settings_RestoreDefaults\"", section);
+        Assert.Contains("Settings_RestoreDefaultsDescription", section);
+        Assert.Contains("id=\"restore-defaults-button\"", section);
+        Assert.Contains("SettingsDefaults.RestoreDefaults()", markup);
+
+        Assert.DoesNotContain("danger-zone", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("button-danger", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-destructive-confirm", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("Database.ResetAsync", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("Preferences.Clear", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResetDataAsync", section, StringComparison.Ordinal);
+        Assert.DoesNotContain("Settings_ResetData\"", section, StringComparison.Ordinal);
+
+        var restoreHandler = ExtractMethodBody(markup, "private void RestoreDefaults()");
+        Assert.Contains("SettingsDefaults.RestoreDefaults()", restoreHandler);
+        Assert.DoesNotContain("Database", restoreHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("Preferences.Clear", restoreHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkflowChangeNotifier", restoreHandler, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Settings_RestoreDefaultsNeverAltersOnlineDictionaryConsent()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var restoreHandler = ExtractMethodBody(markup, "private void RestoreDefaults()");
+
+        Assert.DoesNotContain("OnlineLookupConsent", restoreHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("_onlineConsentRevoked", restoreHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("_onlineConsentActivated", restoreHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("RestoreDefaultsForFullReset", restoreHandler, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Settings_FullResetRevokesOnlineDictionaryConsentThroughItsOwnDedicatedPath()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        var resetHandler = ExtractMethodBody(markup, "private async Task ResetDataAsync()");
+
+        Assert.Contains("SettingsDefaults.RestoreDefaultsForFullReset()", resetHandler);
+        Assert.DoesNotContain("SettingsDefaults.RestoreDefaults()", resetHandler, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Settings_FullResetRemainsLastDestructiveAndStructurallySeparateFromRestoreDefaults()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "reset-data-title");
+
+        Assert.Contains("danger-zone", section);
+        Assert.Contains("button button-danger", section);
+        Assert.Contains("data-destructive-confirm", section);
+        Assert.Contains("ResetDataAsync", section);
+        Assert.DoesNotContain("RestoreDefaults", section, StringComparison.Ordinal);
+
+        var resetHandler = ExtractMethodBody(markup, "private async Task ResetDataAsync()");
+        Assert.Contains("await Database.ResetAsync();", resetHandler);
+        Assert.Contains("Preferences.Clear();", resetHandler);
+        Assert.Contains("WorkflowChangeNotifier.NotifyChanged();", resetHandler);
+
+        var resetSectionIndex = markup.LastIndexOf(
+            "<section class=\"settings-card danger-zone\" aria-labelledby=\"reset-data-title\"",
+            StringComparison.Ordinal);
+        var lastSectionIndex = markup.LastIndexOf(
+            "<section class=\"settings-card",
+            StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, resetSectionIndex);
+        Assert.AreEqual(
+            lastSectionIndex,
+            resetSectionIndex,
+            "The destructive full reset must remain the last Settings section.");
+    }
+
+    [TestMethod]
+    public void Settings_DefaultsComeFromRepositoryPoliciesRatherThanRazorLiterals()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.Contains("AppSettings.SupportedPreparationLimits", markup);
+        Assert.Contains("AppSettings.PreparationLimit", markup);
+        Assert.Contains("AppSettings.CardDirection", markup);
+        Assert.Contains("AppSettings.LearningMode", markup);
+        Assert.Contains("AppSettings.EnhancedTermRecognitionEnabled", markup);
+        Assert.Contains("AppSettings.LearningDayCutoffMinutes", markup);
+        Assert.Contains("AppSettings.LearningTimezoneMode", markup);
+        Assert.Contains("AppSettings.ExplicitLearningTimezoneId", markup);
+    }
+
+    [TestMethod]
+    public void Settings_ExistingReleaseNoteHistoryAndSupportContractsRemainIntact()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "help-and-support-title");
+
+        Assert.Contains("id=\"settings-release-notes-link\"", section);
+        Assert.Contains("href=\"release-notes\"", section);
+        Assert.Contains("WhatsNew_Title", section);
+        Assert.Contains("id=\"settings-report-bug-button\"", section);
+        Assert.Contains("BuildIdentityService.GetFormattedBuildIdentity()", section);
+    }
+
+    private static string ExtractSettingsSection(string markup, string sectionTitleId)
+    {
+        var titleIndex = markup.IndexOf(
+            "aria-labelledby=\"" + sectionTitleId + "\"",
+            StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(
+            0,
+            titleIndex,
+            "The Settings section '" + sectionTitleId + "' is missing.");
+
+        var start = markup.LastIndexOf("<section", titleIndex, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(
+            0,
+            start,
+            "The Settings section '" + sectionTitleId + "' has no opening element.");
+
+        var end = markup.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.IsGreaterThan(start, end);
+
+        return markup[start..end];
+    }
+
+    private static string ExtractMethodBody(string markup, string signature)
+    {
+        var start = markup.IndexOf(signature, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start, "The method '" + signature + "' is missing.");
+
+        var braceStart = markup.IndexOf('{', start);
+        Assert.IsGreaterThan(start, braceStart);
+
+        var depth = 0;
+        for (var index = braceStart; index < markup.Length; index++)
+        {
+            if (markup[index] == '{')
+            {
+                depth++;
+            }
+            else if (markup[index] == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return markup[braceStart..(index + 1)];
+                }
+            }
+        }
+
+        Assert.Fail("The method '" + signature + "' is not correctly delimited.");
+        return string.Empty;
+    }
 }

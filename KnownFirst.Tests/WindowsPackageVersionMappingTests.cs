@@ -37,13 +37,13 @@ public sealed class WindowsPackageVersionMappingTests
     private const string MsixPackagingProperty = "KnownFirstWindowsMsixPackaging";
 
     private const string ExpectedProductVersion = "1.0.0-beta.13";
-    private const string ExpectedBuildNumber = "13";
+    private const string ExpectedBuildNumber = "14";
 
     /// <summary>The unmodified Windows numeric display version (KnownFirst.csproj).</summary>
     private const string ExpectedDefaultWindowsDisplayVersion = "1.0.0";
 
     /// <summary>Store-valid four-part package version for the current build number.</summary>
-    private const string ExpectedMsixPackageVersion = "1.0.13.0";
+    private const string ExpectedMsixPackageVersion = "1.0.14.0";
 
     private static readonly string[] QueriedProperties =
     [
@@ -65,7 +65,7 @@ public sealed class WindowsPackageVersionMappingTests
     {
         var properties = EvaluateWindowsRelease((MsixPackagingProperty, "true"));
 
-        Assert.AreEqual("1.0.13", properties["ApplicationDisplayVersion"],
+        Assert.AreEqual("1.0.14", properties["ApplicationDisplayVersion"],
             "The MSIX variant must place the build number in the third version section.");
         Assert.AreEqual("0", properties["ApplicationVersion"],
             "The MSIX variant must leave the Store-reserved revision section at 0.");

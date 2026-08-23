@@ -215,7 +215,7 @@ This section defines the binding contract for optional, lexicon-backed decomposi
 ### Preconditions (all must hold)
 
 1. Source text language is German.
-2. The feature is explicitly enabled via `EnhancedTermRecognitionEnabled` (default OFF).
+2. The feature is gated by `EnhancedTermRecognitionEnabled` (default OFF on `master`; a reviewed, uncommitted candidate — Settings GUI & Learning-Day Defaults — Slice 2A, branch `feature/settings-gui-learning-day-defaults-v1` — changes the missing-preference default to ON without altering this gating mechanism itself; an explicitly persisted `false` always remains OFF regardless of the default. See [docs/CURRENT_WORK.md](CURRENT_WORK.md) "Settings GUI & Learning-Day Defaults — Slice 2A (Reviewed Candidate — Not Yet Committed)").
 3. An `IGermanLexicon` instance is supplied; without a lexicon the feature is inactive and existing behavior is unchanged.
 
 ### Decomposition rule

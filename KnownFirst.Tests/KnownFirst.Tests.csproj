@@ -134,6 +134,7 @@
     <Compile Include="..\Services\DataSafety\*.cs" Link="Production\Services\DataSafety\%(Filename)%(Extension)" />
     <Compile Include="..\Services\DataSafety\Merge\*.cs" Link="Production\Services\DataSafety\Merge\%(Filename)%(Extension)" />
     <Compile Include="..\Services\Isolation\*.cs" Link="Production\Services\Isolation\%(Filename)%(Extension)" />
+    <Compile Include="..\Services\Settings\*.cs" Link="Production\Services\Settings\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

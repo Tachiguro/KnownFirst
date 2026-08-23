@@ -15,6 +15,8 @@
 @inject IBackupService BackupService
 @inject IPortableArchiveFileService PortableArchiveFiles
 @inject KnownFirst.Services.Study.IWorkflowChangeNotifier WorkflowChangeNotifier
+@inject KnownFirst.Services.Settings.ISettingsDefaultsService SettingsDefaults
+@inject KnownFirst.Services.Time.ILearningTimezoneResolver LearningTimezoneResolver
 @inject Microsoft.Maui.Storage.IPreferences Preferences
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
@@ -117,6 +119,57 @@
         }
     </section>
 
+    <section class="settings-card" aria-labelledby="learning-timezone-title">
+        <h2 id="learning-timezone-title">
+            <label for="learning-timezone-select">@Localizer["Settings_LearningTimezone"]</label>
+        </h2>
+        <p id="learning-timezone-help" class="setting-help">@Localizer["Settings_LearningTimezoneHelp"]</p>
+        <div class="field-group">
+            <select id="learning-timezone-select"
+                    aria-describedby="learning-timezone-help"
+                    @bind="_selectedLearningTimezoneValue"
+                    @bind:after="SelectLearningTimezone">
+                <option value="@SystemLearningTimezoneValue">@Localizer["Settings_LearningTimezoneSystem"]</option>
+                @foreach (var option in LearningTimezoneCatalog.Options)
+                {
+                    <option value="@option.TimezoneId">@GetLearningTimezoneOptionLabel(option)</option>
+                }
+            </select>
+        </div>
+        <p id="learning-timezone-effective" class="setting-help">
+            @Localizer["Settings_LearningTimezoneEffective", EffectiveLearningTimezoneOffsetLabel]
+        </p>
+        @if (_learningTimezoneSaved)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                @Localizer["Settings_LearningTimezoneSaved"]
+            </p>
+        }
+    </section>
+
+    <section class="settings-card" aria-labelledby="learning-day-cutoff-title">
+        <h2 id="learning-day-cutoff-title">
+            <label for="learning-day-cutoff-input">@Localizer["Settings_LearningDayCutoff"]</label>
+        </h2>
+        <p id="learning-day-cutoff-help" class="setting-help">@Localizer["Settings_LearningDayCutoffHelp"]</p>
+        <div class="field-group">
+            @* The raw HH:mm string is handled directly instead of through @bind so the stored
+               cutoff stays an exact, culture-independent minute value. *@
+            <input id="learning-day-cutoff-input"
+                   type="time"
+                   step="60"
+                   aria-describedby="learning-day-cutoff-help"
+                   value="@_selectedLearningDayCutoffText"
+                   @onchange="SaveLearningDayCutoff" />
+        </div>
+        @if (_learningDayCutoffSaved)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                @Localizer["Settings_LearningDayCutoffSaved"]
+            </p>
+        }
+    </section>
+
     <section class="settings-card" aria-labelledby="card-direction-title">
         <h2 id="card-direction-title">@Localizer["Settings_CardDirection"]</h2>
         <div class="choice-grid choice-grid-three">
@@ -178,6 +231,86 @@
         }
     </section>
 
+    <section class="settings-card" aria-labelledby="enhanced-term-recognition-title">
+        <h2 id="enhanced-term-recognition-title">@Localizer["Settings_EnhancedTermRecognition"]</h2>
+        <p id="enhanced-term-recognition-help" class="setting-help">@Localizer["Settings_EnhancedTermRecognitionHelp"]</p>
+        <div class="choice-grid choice-grid-two" role="group" aria-describedby="enhanced-term-recognition-help">
+            <button type="button"
+                    id="enhanced-term-recognition-on-button"
+                    class="choice-button @(_enhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@_enhancedTermRecognitionEnabled"
+                    @onclick="() => SetEnhancedTermRecognition(true)">
+                @Localizer["Settings_EnhancedTermRecognitionOn"]
+            </button>
+            <button type="button"
+                    id="enhanced-term-recognition-off-button"
+                    class="choice-button @(!_enhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@(!_enhancedTermRecognitionEnabled)"
+                    @onclick="() => SetEnhancedTermRecognition(false)">
+                @Localizer["Settings_EnhancedTermRecognitionOff"]
+            </button>
+        </div>
+        @if (_enhancedTermRecognitionSaved)
+        {
+            <p class="setting-feedback setting-feedback-success" role="status">
+                @Localizer["Settings_EnhancedTermRecognitionSaved"]
+            </p>
+        }
+    </section>
+
+    <section class="settings-card" aria-labelledby="restore-defaults-title">
+        <h2 id="restore-defaults-title">@Localizer["Settings_RestoreDefaults"]</h2>
+        <p class="setting-help">@Localizer["Settings_RestoreDefaultsDescription"]</p>
+        @if (!_showRestoreDefaultsConfirmation)
+        {
+            <button id="restore-defaults-button"
+                    type="button"
+                    class="button button-secondary"
+                    @ref="_restoreDefaultsButton"
+                    @onclick="ShowRestoreDefaultsConfirmation">
+                @Localizer["Settings_RestoreDefaults"]
+            </button>
+        }
+        else
+        {
+            <div id="restore-defaults-confirmation"
+                 class="restore-defaults-confirmation"
+                 role="group"
+                 aria-labelledby="restore-defaults-confirmation-message"
+                 @onkeydown="HandleRestoreDefaultsDialogKeyDown">
+                <p id="restore-defaults-confirmation-message">@Localizer["Settings_RestoreDefaultsConfirmMessage"]</p>
+                <div class="button-row">
+                    <button id="restore-defaults-cancel-button"
+                            type="button"
+                            class="button button-secondary"
+                            @ref="_cancelRestoreDefaultsButton"
+                            @onclick="CancelRestoreDefaults">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button id="restore-defaults-confirm-button"
+                            type="button"
+                            class="button button-primary"
+                            @onclick="RestoreDefaults">
+                        @Localizer["Settings_RestoreDefaultsConfirmAction"]
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (_restoreDefaultsSucceeded)
+        {
+            <p id="restore-defaults-success" class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+                @Localizer["Settings_RestoreDefaultsSuccess"]
+            </p>
+        }
+        else if (_restoreDefaultsFailed)
+        {
+            <p id="restore-defaults-error" class="setting-feedback setting-feedback-error" role="alert">
+                @Localizer["Settings_RestoreDefaultsError"]
+            </p>
+        }
+    </section>
+
     <section class="settings-card" aria-labelledby="online-lookup-title">
         <h2 id="online-lookup-title">@Localizer["Settings_OnlineDictionary"]</h2>
         <p>@Localizer[AppSettings.HasOnlineLookupConsent
@@ -207,33 +340,6 @@
         {
             <p class="setting-feedback setting-feedback-success" role="status">
                 @Localizer["Settings_OnlineConsentActivated"]
-            </p>
-        }
-    </section>
-
-    <section class="settings-card" aria-labelledby="enhanced-term-recognition-title">
-        <h2 id="enhanced-term-recognition-title">@Localizer["Settings_EnhancedTermRecognition"]</h2>
-        <p id="enhanced-term-recognition-help" class="setting-help">@Localizer["Settings_EnhancedTermRecognitionHelp"]</p>
-        <div class="choice-grid choice-grid-two" role="group" aria-describedby="enhanced-term-recognition-help">
-            <button type="button"
-                    id="enhanced-term-recognition-on-button"
-                    class="choice-button @(_enhancedTermRecognitionEnabled ? "active" : null)"
-                    aria-pressed="@_enhancedTermRecognitionEnabled"
-                    @onclick="() => SetEnhancedTermRecognition(true)">
-                @Localizer["Settings_EnhancedTermRecognitionOn"]
-            </button>
-            <button type="button"
-                    id="enhanced-term-recognition-off-button"
-                    class="choice-button @(!_enhancedTermRecognitionEnabled ? "active" : null)"
-                    aria-pressed="@(!_enhancedTermRecognitionEnabled)"
-                    @onclick="() => SetEnhancedTermRecognition(false)">
-                @Localizer["Settings_EnhancedTermRecognitionOff"]
-            </button>
-        </div>
-        @if (_enhancedTermRecognitionSaved)
-        {
-            <p class="setting-feedback setting-feedback-success" role="status">
-                @Localizer["Settings_EnhancedTermRecognitionSaved"]
             </p>
         }
     </section>
@@ -476,6 +582,8 @@
 </section>
 
 @code {
+    private const string SystemLearningTimezoneValue = "system";
+
     private string _selectedLanguagePreference = LanguageSelectionService.EnglishLanguageCode;
     private ThemePreference _selectedTheme = ThemePreference.System;
     private int _selectedPreparationLimit = AppSettingsService.DefaultPreparationLimit;
@@ -493,6 +601,18 @@
     private bool _onlineConsentActivated;
     private bool _enhancedTermRecognitionEnabled;
     private bool _enhancedTermRecognitionSaved;
+    private string _selectedLearningTimezoneValue = SystemLearningTimezoneValue;
+    private bool _learningTimezoneSaved;
+    private string _selectedLearningDayCutoffText =
+        LearningDayCutoffFormatter.ToWallClockText(LearningDayConfiguration.DefaultCutoffMinutes);
+    private bool _learningDayCutoffSaved;
+    private bool _showRestoreDefaultsConfirmation;
+    private bool _revealRestoreDefaultsConfirmation;
+    private bool _returnFocusToRestoreDefaultsButton;
+    private bool _restoreDefaultsSucceeded;
+    private bool _restoreDefaultsFailed;
+    private ElementReference _restoreDefaultsButton;
+    private ElementReference _cancelRestoreDefaultsButton;
     private bool _isPortableDataOperation;
     private bool _portableDataOperationFailed;
     private string? _portableDataMessageKey;
@@ -526,14 +646,26 @@
 
     protected override async Task OnInitializedAsync()
     {
+        SyncSettingsStateFromServices();
+        _languageConfirmation = SettingsFeedback.ConsumePendingLanguageConfirmation();
+        _hasActiveReview = await TextReviewService.GetActiveReviewAsync() is not null;
+    }
+
+    /// <summary>
+    /// Refreshes every locally mirrored control value from the settings services. Defaults always
+    /// originate from the repository policies/services, never from literals in this component.
+    /// </summary>
+    private void SyncSettingsStateFromServices()
+    {
         _selectedLanguagePreference = CurrentLanguagePreferenceValue;
         _selectedTheme = ThemeService.Preference;
         _selectedPreparationLimit = AppSettings.PreparationLimit;
         _selectedCardDirection = AppSettings.CardDirection;
         _selectedLearningMode = AppSettings.LearningMode;
         _enhancedTermRecognitionEnabled = AppSettings.EnhancedTermRecognitionEnabled;
-        _languageConfirmation = SettingsFeedback.ConsumePendingLanguageConfirmation();
-        _hasActiveReview = await TextReviewService.GetActiveReviewAsync() is not null;
+        _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
+        _selectedLearningDayCutoffText =
+            LearningDayCutoffFormatter.ToWallClockText(AppSettings.LearningDayCutoffMinutes);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -559,6 +691,16 @@
         {
             _returnFocusToImportButton = false;
             await _dataImportButton.FocusAsync();
+        }
+        else if (_revealRestoreDefaultsConfirmation)
+        {
+            _revealRestoreDefaultsConfirmation = false;
+            await _cancelRestoreDefaultsButton.FocusAsync(preventScroll: true);
+        }
+        else if (_returnFocusToRestoreDefaultsButton)
+        {
+            _returnFocusToRestoreDefaultsButton = false;
+            await _restoreDefaultsButton.FocusAsync();
         }
     }
 
@@ -655,6 +797,140 @@
         {
             Logger.LogError(exception, "The preparation limit could not be saved.");
             _preparationLimitChangeFailed = true;
+        }
+    }
+
+    private string CurrentLearningTimezoneValue =>
+        AppSettings.LearningTimezoneMode == LearningTimezoneMode.Explicit
+        && LearningTimezoneCatalog.ContainsTimezoneId(AppSettings.ExplicitLearningTimezoneId)
+            ? AppSettings.ExplicitLearningTimezoneId!
+            : SystemLearningTimezoneValue;
+
+    /// <summary>
+    /// The offset shown next to the control is always recomputed from <see cref="TimeZoneInfo"/>
+    /// for the current instant, so it follows daylight saving time instead of a stored offset.
+    /// </summary>
+    private string EffectiveLearningTimezoneOffsetLabel =>
+        LearningTimezoneLabelFormatter.FormatUtcOffset(
+            LearningTimezoneResolver.ResolveEffectiveTimeZone(
+                AppSettings.LearningTimezoneMode,
+                AppSettings.ExplicitLearningTimezoneId),
+            DateTime.UtcNow);
+
+    private string GetLearningTimezoneOptionLabel(LearningTimezoneOption option)
+    {
+        string cityName = Localizer[option.CityResourceKey];
+
+        try
+        {
+            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(option.TimezoneId);
+            return LearningTimezoneLabelFormatter.FormatOptionLabel(timeZone, DateTime.UtcNow, cityName);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return cityName;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            return cityName;
+        }
+    }
+
+    private void SelectLearningTimezone()
+    {
+        _learningTimezoneSaved = false;
+
+        try
+        {
+            if (string.Equals(_selectedLearningTimezoneValue, SystemLearningTimezoneValue, StringComparison.Ordinal))
+            {
+                AppSettings.SetLearningTimezoneMode(LearningTimezoneMode.System);
+                AppSettings.SetExplicitLearningTimezoneId(null);
+            }
+            else if (LearningTimezoneCatalog.ContainsTimezoneId(_selectedLearningTimezoneValue))
+            {
+                AppSettings.SetExplicitLearningTimezoneId(_selectedLearningTimezoneValue);
+                AppSettings.SetLearningTimezoneMode(LearningTimezoneMode.Explicit);
+            }
+
+            _learningTimezoneSaved = true;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The learning time zone could not be saved.");
+        }
+        finally
+        {
+            _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
+        }
+    }
+
+    private void SaveLearningDayCutoff(ChangeEventArgs eventArgs)
+    {
+        _learningDayCutoffSaved = false;
+
+        try
+        {
+            AppSettings.SetLearningDayCutoffMinutes(
+                LearningDayCutoffFormatter.ParseWallClockText(eventArgs.Value?.ToString()));
+            _learningDayCutoffSaved = true;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The learning day cutoff could not be saved.");
+        }
+        finally
+        {
+            _selectedLearningDayCutoffText =
+                LearningDayCutoffFormatter.ToWallClockText(AppSettings.LearningDayCutoffMinutes);
+        }
+    }
+
+    private void ShowRestoreDefaultsConfirmation()
+    {
+        _restoreDefaultsSucceeded = false;
+        _restoreDefaultsFailed = false;
+        _showRestoreDefaultsConfirmation = true;
+        _revealRestoreDefaultsConfirmation = true;
+    }
+
+    private void CancelRestoreDefaults()
+    {
+        _showRestoreDefaultsConfirmation = false;
+        _returnFocusToRestoreDefaultsButton = true;
+    }
+
+    private void HandleRestoreDefaultsDialogKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Escape")
+        {
+            CancelRestoreDefaults();
+        }
+    }
+
+    /// <summary>
+    /// Non-destructive restore of settings, theme, and language defaults. It never resets the
+    /// database, never clears the whole preference store, and never removes user learning content.
+    /// The user's current online dictionary lookup consent is left exactly as it is; only the
+    /// destructive full application reset revokes it.
+    /// </summary>
+    private void RestoreDefaults()
+    {
+        _restoreDefaultsSucceeded = false;
+        _restoreDefaultsFailed = false;
+
+        try
+        {
+            SettingsDefaults.RestoreDefaults();
+            SyncSettingsStateFromServices();
+            _showRestoreDefaultsConfirmation = false;
+            _restoreDefaultsSucceeded = true;
+            _returnFocusToRestoreDefaultsButton = true;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The default settings could not be restored.");
+            _restoreDefaultsFailed = true;
         }
     }
 
@@ -1082,12 +1358,8 @@
         {
             await Database.ResetAsync();
             Preferences.Clear();
-            ThemeService.ResetPreference();
-            AppSettings.Reset();
-            _selectedCardDirection = AppSettings.CardDirection;
-            _selectedLearningMode = AppSettings.LearningMode;
-            LanguageSelection.ResetToDeviceLanguage();
-            _selectedLanguagePreference = CurrentLanguagePreferenceValue;
+            SettingsDefaults.RestoreDefaultsForFullReset();
+            SyncSettingsStateFromServices();
             _showResetConfirmation = false;
             _resetSucceeded = true;
             _returnFocusToResetButton = true;

@@ -789,4 +789,39 @@ public sealed class LocalizationResourceTests
             Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), "The Russian value for '" + key + "' is empty.");
         }
     }
+
+    private static readonly string[] RequiredOnboardingSliceFiveKeys =
+    [
+        "Onboarding_DisplayNameTitle",
+        "Onboarding_DisplayNameDescription",
+        "Onboarding_WorkflowTitle",
+        "Onboarding_WorkflowStep1",
+        "Onboarding_WorkflowStep2",
+        "Onboarding_WorkflowStep3",
+        "Onboarding_OnlineLookupTitle",
+        "Onboarding_OnlineLookupDescription",
+        "Onboarding_EnhancedTermRecognitionTitle",
+        "Onboarding_EnhancedTermRecognitionDescription",
+        "Onboarding_PracticeTitle",
+        "Onboarding_PracticeDescription",
+    ];
+
+    [TestMethod]
+    public void Resources_OnboardingSliceFiveKeysExistInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        foreach (var key in RequiredOnboardingSliceFiveKeys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), "The English resource key '" + key + "' is missing.");
+            Assert.IsTrue(german.ContainsKey(key), "The German resource key '" + key + "' is missing.");
+            Assert.IsTrue(russian.ContainsKey(key), "The Russian resource key '" + key + "' is missing.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), "The English value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), "The German value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), "The Russian value for '" + key + "' is empty.");
+        }
+    }
 }

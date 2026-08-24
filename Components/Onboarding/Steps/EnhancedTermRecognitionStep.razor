@@ -1,0 +1,53 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@using KnownFirst.Services
+@inject IAppSettingsService AppSettings
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-etr-step">
+    <h1 class="onboarding-title" id="onboarding-etr-title">@Localizer["Onboarding_EnhancedTermRecognitionTitle"]</h1>
+    <p class="onboarding-concept">@Localizer["Onboarding_EnhancedTermRecognitionDescription"]</p>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-etr-title">
+        <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-etr-title">
+            <button type="button"
+                    id="onboarding-etr-on-button"
+                    class="choice-button @(AppSettings.EnhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@AppSettings.EnhancedTermRecognitionEnabled"
+                    @onclick="() => SetEtr(true)">
+                @Localizer["Settings_EnhancedTermRecognitionOn"]
+            </button>
+            <button type="button"
+                    id="onboarding-etr-off-button"
+                    class="choice-button @(!AppSettings.EnhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@(!AppSettings.EnhancedTermRecognitionEnabled)"
+                    @onclick="() => SetEtr(false)">
+                @Localizer["Settings_EnhancedTermRecognitionOff"]
+            </button>
+        </div>
+    </section>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-etr-continue-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="OnContinue">
+            @Localizer["Common_Continue"]
+        </button>
+        <button type="button"
+                id="onboarding-etr-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private void SetEtr(bool enabled)
+    {
+        AppSettings.SetEnhancedTermRecognitionEnabled(enabled);
+    }
+}

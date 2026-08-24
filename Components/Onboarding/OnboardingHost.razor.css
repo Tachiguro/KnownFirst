@@ -76,3 +76,63 @@
     font-size: 1rem;
     font-weight: 600;
 }
+
+.onboarding-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background-color: var(--kf-color-surface, #1e293b);
+    border: 1px solid var(--kf-color-border, #334155);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+}
+
+.onboarding-workflow-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.onboarding-workflow-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    background-color: var(--kf-color-surface, #1e293b);
+    border: 1px solid var(--kf-color-border, #334155);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+}
+
+.workflow-step-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background-color: var(--kf-color-primary, #3b82f6);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.workflow-step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.workflow-step-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--kf-color-text-primary, #ffffff);
+}
+
+.workflow-step-text {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    margin: 0;
+    color: var(--kf-color-text-secondary, #94a3b8);
+}

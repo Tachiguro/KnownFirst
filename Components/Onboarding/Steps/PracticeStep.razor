@@ -1,0 +1,94 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@using KnownFirst.Core.Settings
+@using KnownFirst.Services
+@inject IAppSettingsService AppSettings
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-practice-step">
+    <h1 class="onboarding-title" id="onboarding-practice-title">@Localizer["Onboarding_PracticeTitle"]</h1>
+    <p class="onboarding-concept">@Localizer["Onboarding_PracticeDescription"]</p>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-card-direction-title">
+        <h2 id="onboarding-card-direction-title" class="onboarding-section-title">@Localizer["Settings_CardDirection"]</h2>
+        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-card-direction-title">
+            <button type="button"
+                    id="onboarding-card-direction-both"
+                    class="choice-button @(AppSettings.CardDirection == CardDirectionPreference.Both ? "active" : null)"
+                    aria-pressed="@(AppSettings.CardDirection == CardDirectionPreference.Both)"
+                    @onclick="() => SetCardDirection(CardDirectionPreference.Both)">
+                @Localizer["Settings_CardDirectionBoth"]
+            </button>
+            <button type="button"
+                    id="onboarding-card-direction-term-to-meaning"
+                    class="choice-button @(AppSettings.CardDirection == CardDirectionPreference.TermToMeaning ? "active" : null)"
+                    aria-pressed="@(AppSettings.CardDirection == CardDirectionPreference.TermToMeaning)"
+                    @onclick="() => SetCardDirection(CardDirectionPreference.TermToMeaning)">
+                @Localizer["Settings_CardDirectionTermToMeaning"]
+            </button>
+            <button type="button"
+                    id="onboarding-card-direction-meaning-to-term"
+                    class="choice-button @(AppSettings.CardDirection == CardDirectionPreference.MeaningToTerm ? "active" : null)"
+                    aria-pressed="@(AppSettings.CardDirection == CardDirectionPreference.MeaningToTerm)"
+                    @onclick="() => SetCardDirection(CardDirectionPreference.MeaningToTerm)">
+                @Localizer["Settings_CardDirectionMeaningToTerm"]
+            </button>
+        </div>
+    </section>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-learning-mode-title">
+        <h2 id="onboarding-learning-mode-title" class="onboarding-section-title">@Localizer["Settings_LearningMode"]</h2>
+        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-learning-mode-title">
+            <button type="button"
+                    id="onboarding-learning-mode-automatic"
+                    class="choice-button @(AppSettings.LearningMode == LearningMode.Automatic ? "active" : null)"
+                    aria-pressed="@(AppSettings.LearningMode == LearningMode.Automatic)"
+                    @onclick="() => SetLearningMode(LearningMode.Automatic)">
+                @Localizer["Settings_LearningModeAutomatic"]
+            </button>
+            <button type="button"
+                    id="onboarding-learning-mode-reading"
+                    class="choice-button @(AppSettings.LearningMode == LearningMode.Reading ? "active" : null)"
+                    aria-pressed="@(AppSettings.LearningMode == LearningMode.Reading)"
+                    @onclick="() => SetLearningMode(LearningMode.Reading)">
+                @Localizer["Settings_LearningModeReading"]
+            </button>
+            <button type="button"
+                    id="onboarding-learning-mode-typing"
+                    class="choice-button @(AppSettings.LearningMode == LearningMode.Typing ? "active" : null)"
+                    aria-pressed="@(AppSettings.LearningMode == LearningMode.Typing)"
+                    @onclick="() => SetLearningMode(LearningMode.Typing)">
+                @Localizer["Settings_LearningModeTyping"]
+            </button>
+        </div>
+    </section>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-practice-continue-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="OnContinue">
+            @Localizer["Common_Continue"]
+        </button>
+        <button type="button"
+                id="onboarding-practice-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private void SetCardDirection(CardDirectionPreference preference)
+    {
+        AppSettings.SetCardDirection(preference);
+    }
+
+    private void SetLearningMode(LearningMode mode)
+    {
+        AppSettings.SetLearningMode(mode);
+    }
+}

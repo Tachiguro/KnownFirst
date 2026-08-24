@@ -1,0 +1,50 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-workflow-step">
+    <h1 class="onboarding-title" id="onboarding-workflow-title">@Localizer["Onboarding_WorkflowTitle"]</h1>
+    
+    <div class="onboarding-workflow-list" role="list">
+        <div class="onboarding-workflow-item" role="listitem">
+            <span class="workflow-step-badge" aria-hidden="true">1</span>
+            <div class="workflow-step-content">
+                <h2 class="workflow-step-title">@Localizer["Navigation_ImportText"]</h2>
+                <p class="workflow-step-text">@Localizer["Onboarding_WorkflowStep1"]</p>
+            </div>
+        </div>
+        <div class="onboarding-workflow-item" role="listitem">
+            <span class="workflow-step-badge" aria-hidden="true">2</span>
+            <div class="workflow-step-content">
+                <h2 class="workflow-step-title">@Localizer["Navigation_ReviewWords"]</h2>
+                <p class="workflow-step-text">@Localizer["Onboarding_WorkflowStep2"]</p>
+            </div>
+        </div>
+        <div class="onboarding-workflow-item" role="listitem">
+            <span class="workflow-step-badge" aria-hidden="true">3</span>
+            <div class="workflow-step-content">
+                <h2 class="workflow-step-title">@Localizer["Navigation_Learn"]</h2>
+                <p class="workflow-step-text">@Localizer["Onboarding_WorkflowStep3"]</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-workflow-continue-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="OnContinue">
+            @Localizer["Common_Continue"]
+        </button>
+        <button type="button"
+                id="onboarding-workflow-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+}

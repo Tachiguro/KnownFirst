@@ -1803,4 +1803,40 @@
   <data name="Onboarding_WelcomeConcept" xml:space="preserve">
     <value>Eigene Texte mitbringen → Bekanntes markieren → KnownFirst konzentriert das Lernen auf das Wesentliche.</value>
   </data>
+  <data name="Onboarding_DisplayNameTitle" xml:space="preserve">
+    <value>Anzeigename</value>
+  </data>
+  <data name="Onboarding_DisplayNameDescription" xml:space="preserve">
+    <value>Wähle einen optionalen Namen für dieses Gerät. Dein Name wird nur lokal gespeichert.</value>
+  </data>
+  <data name="Onboarding_WorkflowTitle" xml:space="preserve">
+    <value>Wie KnownFirst funktioniert</value>
+  </data>
+  <data name="Onboarding_WorkflowStep1" xml:space="preserve">
+    <value>Füge einen beliebigen Text in deiner Zielsprache ein oder importiere ihn.</value>
+  </data>
+  <data name="Onboarding_WorkflowStep2" xml:space="preserve">
+    <value>Überprüfe extrahierte Wörter und markiere bekannte Begriffe.</value>
+  </data>
+  <data name="Onboarding_WorkflowStep3" xml:space="preserve">
+    <value>Übe die verbleibenden neuen Wörter mit täglichen Wiederholungen.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupTitle" xml:space="preserve">
+    <value>Online-Wörterbuchabfrage</value>
+  </data>
+  <data name="Onboarding_OnlineLookupDescription" xml:space="preserve">
+    <value>Wenn aktiviert, kann KnownFirst Definitionen über Online-Wörterbücher abrufen. Es werden keine persönlichen Daten übertragen.</value>
+  </data>
+  <data name="Onboarding_EnhancedTermRecognitionTitle" xml:space="preserve">
+    <value>Erweiterte Begriffserkennung</value>
+  </data>
+  <data name="Onboarding_EnhancedTermRecognitionDescription" xml:space="preserve">
+    <value>Die erweiterte Begriffserkennung kann zusätzliche nützliche Begriffe wie Bestandteile deutscher Komposita erkennen und für die Durchsicht bereitstellen.</value>
+  </data>
+  <data name="Onboarding_PracticeTitle" xml:space="preserve">
+    <value>Übungseinstellungen</value>
+  </data>
+  <data name="Onboarding_PracticeDescription" xml:space="preserve">
+    <value>Passe an, wie Vokabelkarten während täglicher Lerneinheiten angezeigt und abgefragt werden.</value>
+  </data>
 </root>

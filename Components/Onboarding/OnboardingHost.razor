@@ -1,5 +1,6 @@
 @namespace KnownFirst.Components.Onboarding
 @implements IDisposable
+@using KnownFirst.Components.Onboarding.Steps
 @using KnownFirst.Core.Language
 @using KnownFirst.Core.Settings
 @using KnownFirst.Services.Onboarding
@@ -11,62 +12,84 @@
 <div class="onboarding-host">
     <main class="onboarding-main" tabindex="-1">
         <div class="onboarding-container">
-            @if (_currentStep == OnboardingStep.WelcomeLanguage)
+            @switch (_currentStep)
             {
-                <div class="onboarding-step onboarding-welcome-step">
-                    <h1 class="onboarding-title" id="onboarding-welcome-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
-                    <p class="onboarding-concept">@Localizer["Onboarding_WelcomeConcept"]</p>
+                case OnboardingStep.WelcomeLanguage:
+                    <div class="onboarding-step onboarding-welcome-step">
+                        <h1 class="onboarding-title" id="onboarding-welcome-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
+                        <p class="onboarding-concept">@Localizer["Onboarding_WelcomeConcept"]</p>
 
-                    <section class="onboarding-language-section" aria-labelledby="onboarding-language-title">
-                        <h2 id="onboarding-language-title" class="onboarding-section-title">@Localizer["Settings_UILanguage"]</h2>
-                        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-language-title">
+                        <section class="onboarding-language-section" aria-labelledby="onboarding-language-title">
+                            <h2 id="onboarding-language-title" class="onboarding-section-title">@Localizer["Settings_UILanguage"]</h2>
+                            <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-language-title">
+                                <button type="button"
+                                        id="onboarding-lang-en"
+                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "choice-button-active" : "choice-button-idle")"
+                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "true" : "false")"
+                                        @onclick="() => SetLanguage(LanguageSelectionService.EnglishLanguageCode)">
+                                    @Localizer["Settings_English"]
+                                </button>
+                                <button type="button"
+                                        id="onboarding-lang-de"
+                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "choice-button-active" : "choice-button-idle")"
+                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "true" : "false")"
+                                        @onclick="() => SetLanguage(LanguageSelectionService.GermanLanguageCode)">
+                                    @Localizer["Settings_German"]
+                                </button>
+                                <button type="button"
+                                        id="onboarding-lang-ru"
+                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "choice-button-active" : "choice-button-idle")"
+                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "true" : "false")"
+                                        @onclick="() => SetLanguage(LanguageSelectionService.RussianLanguageCode)">
+                                    @Localizer["Settings_Russian"]
+                                </button>
+                            </div>
+                        </section>
+
+                        <div class="onboarding-actions">
                             <button type="button"
-                                    id="onboarding-lang-en"
-                                    class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                    aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "true" : "false")"
-                                    @onclick="() => SetLanguage(LanguageSelectionService.EnglishLanguageCode)">
-                                @Localizer["Settings_English"]
-                            </button>
-                            <button type="button"
-                                    id="onboarding-lang-de"
-                                    class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                    aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "true" : "false")"
-                                    @onclick="() => SetLanguage(LanguageSelectionService.GermanLanguageCode)">
-                                @Localizer["Settings_German"]
-                            </button>
-                            <button type="button"
-                                    id="onboarding-lang-ru"
-                                    class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                    aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "true" : "false")"
-                                    @onclick="() => SetLanguage(LanguageSelectionService.RussianLanguageCode)">
-                                @Localizer["Settings_Russian"]
+                                    id="onboarding-continue-button"
+                                    class="button button-primary onboarding-continue-button"
+                                    @onclick="AdvanceToNextStep">
+                                @Localizer["Common_Continue"]
                             </button>
                         </div>
-                    </section>
+                    </div>
+                    break;
 
-                    <div class="onboarding-actions">
-                        <button type="button"
-                                id="onboarding-continue-button"
-                                class="button button-primary onboarding-continue-button"
-                                @onclick="AdvanceToNextStep">
-                            @Localizer["Common_Continue"]
-                        </button>
+                case OnboardingStep.DisplayName:
+                    <DisplayNameStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    break;
+
+                case OnboardingStep.Workflow:
+                    <WorkflowStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    break;
+
+                case OnboardingStep.OnlineLookup:
+                    <OnlineLookupStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    break;
+
+                case OnboardingStep.EnhancedTermRecognition:
+                    <EnhancedTermRecognitionStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    break;
+
+                case OnboardingStep.Practice:
+                    <PracticeStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    break;
+
+                default:
+                    <div class="onboarding-step onboarding-step-shell">
+                        <h1 class="onboarding-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
+                        <div class="onboarding-actions">
+                            <button type="button"
+                                    id="onboarding-back-button"
+                                    class="button button-secondary onboarding-back-button"
+                                    @onclick="GoToPreviousStep">
+                                @Localizer["Common_Back"]
+                            </button>
+                        </div>
                     </div>
-                </div>
-            }
-            else
-            {
-                <div class="onboarding-step onboarding-step-shell">
-                    <h1 class="onboarding-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
-                    <div class="onboarding-actions">
-                        <button type="button"
-                                id="onboarding-back-button"
-                                class="button button-secondary onboarding-back-button"
-                                @onclick="GoToPreviousStep">
-                            @Localizer["Common_Back"]
-                        </button>
-                    </div>
-                </div>
+                    break;
             }
         </div>
     </main>
@@ -107,7 +130,7 @@
 
     private void AdvanceToNextStep()
     {
-        if (_currentStep == OnboardingStep.WelcomeLanguage && OnboardingStepPolicy.TryGetNext(_currentStep, out var nextStep))
+        if (_currentStep < OnboardingStep.DailyPace && OnboardingStepPolicy.TryGetNext(_currentStep, out var nextStep))
         {
             _currentStep = nextStep;
             OnboardingProgressStore.SetCurrentStep(_currentStep);

@@ -1,0 +1,63 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@using KnownFirst.Services
+@inject IAppSettingsService AppSettings
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-online-lookup-step">
+    <h1 class="onboarding-title" id="onboarding-online-lookup-title">@Localizer["Onboarding_OnlineLookupTitle"]</h1>
+    <p class="onboarding-concept">@Localizer["Onboarding_OnlineLookupDescription"]</p>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-online-lookup-title">
+        <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-online-lookup-title">
+            <button type="button"
+                    id="onboarding-online-lookup-on-button"
+                    class="choice-button @(AppSettings.HasOnlineLookupConsent ? "active" : null)"
+                    aria-pressed="@AppSettings.HasOnlineLookupConsent"
+                    @onclick="() => SetConsent(true)">
+                @Localizer["Settings_EnhancedTermRecognitionOn"]
+            </button>
+            <button type="button"
+                    id="onboarding-online-lookup-off-button"
+                    class="choice-button @(!AppSettings.HasOnlineLookupConsent ? "active" : null)"
+                    aria-pressed="@(!AppSettings.HasOnlineLookupConsent)"
+                    @onclick="() => SetConsent(false)">
+                @Localizer["Settings_EnhancedTermRecognitionOff"]
+            </button>
+        </div>
+        <p class="setting-help">
+            @Localizer[AppSettings.HasOnlineLookupConsent ? "Settings_OnlineConsentGranted" : "Settings_OnlineConsentNotGranted"]
+        </p>
+    </section>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-online-lookup-continue-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="OnContinue">
+            @Localizer["Common_Continue"]
+        </button>
+        <button type="button"
+                id="onboarding-online-lookup-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private void SetConsent(bool enabled)
+    {
+        if (enabled)
+        {
+            AppSettings.GrantOnlineLookupConsent();
+        }
+        else
+        {
+            AppSettings.RevokeOnlineLookupConsent();
+        }
+    }
+}

@@ -41,6 +41,11 @@
     <None Include="..\Components\Routes.razor" Link="Ui\Routes.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Onboarding\OnboardingHost.razor" Link="Ui\OnboardingHost.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Components\Onboarding\OnboardingHost.razor.css" Link="Ui\OnboardingHost.razor.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Onboarding\Steps\DisplayNameStep.razor" Link="Ui\Steps\DisplayNameStep.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Onboarding\Steps\WorkflowStep.razor" Link="Ui\Steps\WorkflowStep.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Onboarding\Steps\OnlineLookupStep.razor" Link="Ui\Steps\OnlineLookupStep.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Onboarding\Steps\EnhancedTermRecognitionStep.razor" Link="Ui\Steps\EnhancedTermRecognitionStep.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Onboarding\Steps\PracticeStep.razor" Link="Ui\Steps\PracticeStep.razor" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Services\Study\DebugLearningClock.cs" Link="Ui\DebugLearningClock.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\docs\GUI_TEST_MATRIX.md" Link="Docs\GUI_TEST_MATRIX.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\App.xaml.cs" Link="Ui\App.xaml.cs" CopyToOutputDirectory="PreserveNewest" />

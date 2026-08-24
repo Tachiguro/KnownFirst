@@ -1839,4 +1839,28 @@
   <data name="Onboarding_PracticeDescription" xml:space="preserve">
     <value>Настройте, как карточки со словами отображаются и проверяются во время ежедневных занятий.</value>
   </data>
+  <data name="Onboarding_DailyPaceTitle" xml:space="preserve">
+    <value>Ежедневный лимит новых слов</value>
+  </data>
+  <data name="Onboarding_DailyPaceDescription" xml:space="preserve">
+    <value>Выберите, сколько новых слов будет добавляться в каждый учебный день.</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingTitle" xml:space="preserve">
+    <value>Учебный день и часовой пояс</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingDescription" xml:space="preserve">
+    <value>Настройте свой часовой пояс и время, когда начинается новый учебный день.</value>
+  </data>
+  <data name="Onboarding_SummaryTitle" xml:space="preserve">
+    <value>Итоги настройки</value>
+  </data>
+  <data name="Onboarding_SummaryDisplayNameNotSet" xml:space="preserve">
+    <value>Не указано</value>
+  </data>
+  <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
+    <value>Системный</value>
+  </data>
+  <data name="Onboarding_FinishSetup" xml:space="preserve">
+    <value>Завершить настройку</value>
+  </data>
 </root>

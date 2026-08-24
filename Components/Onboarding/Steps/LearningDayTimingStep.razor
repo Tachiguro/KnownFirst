@@ -1,0 +1,147 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@using System.Globalization
+@using KnownFirst.Core.Settings
+@using KnownFirst.Services
+@inject IAppSettingsService AppSettings
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-timing-step">
+    <h1 class="onboarding-title" id="onboarding-timing-title">@Localizer["Onboarding_LearningDayTimingTitle"]</h1>
+    <p class="onboarding-concept">@Localizer["Onboarding_LearningDayTimingDescription"]</p>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-timezone-title">
+        <h2 id="onboarding-timezone-title" class="onboarding-section-title">@Localizer["Settings_LearningTimezone"]</h2>
+        <p id="onboarding-timezone-help" class="setting-help">@Localizer["Settings_LearningTimezoneHelp"]</p>
+        <div class="field-group">
+            <select id="onboarding-learning-timezone-select"
+                    aria-describedby="onboarding-timezone-help"
+                    @bind="_selectedLearningTimezoneValue"
+                    @bind:after="SelectLearningTimezone">
+                <option value="@SystemLearningTimezoneValue">@Localizer["Settings_LearningTimezoneSystem"]</option>
+                @foreach (var option in LearningTimezoneCatalog.Options)
+                {
+                    <option value="@option.TimezoneId">@GetLearningTimezoneOptionLabel(option)</option>
+                }
+            </select>
+        </div>
+        <p id="onboarding-timezone-effective" class="setting-status">
+            @Localizer["Settings_LearningTimezoneEffective", EffectiveLearningTimezoneOffsetLabel]
+        </p>
+    </section>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-cutoff-title">
+        <h2 id="onboarding-cutoff-title" class="onboarding-section-title">@Localizer["Settings_LearningDayCutoff"]</h2>
+        <p id="onboarding-cutoff-help" class="setting-help">@Localizer["Settings_LearningDayCutoffHelp"]</p>
+        <div class="field-group">
+            <div class="time-select-group" role="group" aria-labelledby="onboarding-cutoff-title" aria-describedby="onboarding-cutoff-help">
+                <select id="onboarding-learning-day-cutoff-hour"
+                        aria-label="@Localizer["Settings_LearningDayCutoffHours"]"
+                        @bind="_selectedCutoffHour"
+                        @bind:after="SaveLearningDayCutoff">
+                    @for (var h = 0; h < 24; h++)
+                    {
+                        var hourText = h.ToString("D2", CultureInfo.InvariantCulture);
+                        <option value="@hourText">@hourText</option>
+                    }
+                </select>
+                <span class="time-separator" aria-hidden="true">:</span>
+                <select id="onboarding-learning-day-cutoff-minute"
+                        aria-label="@Localizer["Settings_LearningDayCutoffMinutes"]"
+                        @bind="_selectedCutoffMinute"
+                        @bind:after="SaveLearningDayCutoff">
+                    @for (var m = 0; m < 60; m++)
+                    {
+                        var minuteText = m.ToString("D2", CultureInfo.InvariantCulture);
+                        <option value="@minuteText">@minuteText</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </section>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-timing-continue-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="OnContinue">
+            @Localizer["Common_Continue"]
+        </button>
+        <button type="button"
+                id="onboarding-timing-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    private const string SystemLearningTimezoneValue = "system";
+
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private string _selectedLearningTimezoneValue = SystemLearningTimezoneValue;
+    private string _selectedCutoffHour = "04";
+    private string _selectedCutoffMinute = "00";
+
+    protected override void OnInitialized()
+    {
+        _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
+        var cutoff = AppSettings.LearningDayCutoffMinutes;
+        _selectedCutoffHour = (cutoff / 60).ToString("D2", CultureInfo.InvariantCulture);
+        _selectedCutoffMinute = (cutoff % 60).ToString("D2", CultureInfo.InvariantCulture);
+    }
+
+    private string CurrentLearningTimezoneValue =>
+        AppSettings.LearningTimezoneMode == LearningTimezoneMode.Explicit
+        && LearningTimezoneCatalog.ContainsTimezoneId(AppSettings.ExplicitLearningTimezoneId)
+            ? AppSettings.ExplicitLearningTimezoneId!
+            : SystemLearningTimezoneValue;
+
+    private string EffectiveLearningTimezoneOffsetLabel =>
+        LearningTimezoneLabelFormatter.FormatUtcOffset(
+            LearningTimezoneResolver.ResolveEffectiveTimeZone(
+                AppSettings.LearningTimezoneMode,
+                AppSettings.ExplicitLearningTimezoneId),
+            DateTime.UtcNow);
+
+    private string GetLearningTimezoneOptionLabel(LearningTimezoneOption option)
+    {
+        string cityName = Localizer[option.CityResourceKey];
+        try
+        {
+            var timeZone = TimeZoneInfo.FindSystemTimeZoneById(option.TimezoneId);
+            return LearningTimezoneLabelFormatter.FormatOptionLabel(timeZone, DateTime.UtcNow, cityName);
+        }
+        catch
+        {
+            return cityName;
+        }
+    }
+
+    private void SelectLearningTimezone()
+    {
+        if (string.Equals(_selectedLearningTimezoneValue, SystemLearningTimezoneValue, StringComparison.Ordinal))
+        {
+            AppSettings.SetLearningTimezoneMode(LearningTimezoneMode.System);
+            AppSettings.SetExplicitLearningTimezoneId(null);
+        }
+        else if (LearningTimezoneCatalog.ContainsTimezoneId(_selectedLearningTimezoneValue))
+        {
+            AppSettings.SetExplicitLearningTimezoneId(_selectedLearningTimezoneValue);
+            AppSettings.SetLearningTimezoneMode(LearningTimezoneMode.Explicit);
+        }
+
+        _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
+    }
+
+    private void SaveLearningDayCutoff()
+    {
+        if (int.TryParse(_selectedCutoffHour, NumberStyles.None, CultureInfo.InvariantCulture, out var hour)
+            && int.TryParse(_selectedCutoffMinute, NumberStyles.None, CultureInfo.InvariantCulture, out var minute))
+        {
+            AppSettings.SetLearningDayCutoffMinutes((hour * 60) + minute);
+        }
+    }
+}

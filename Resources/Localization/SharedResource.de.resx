@@ -1839,4 +1839,28 @@
   <data name="Onboarding_PracticeDescription" xml:space="preserve">
     <value>Passe an, wie Vokabelkarten während täglicher Lerneinheiten angezeigt und abgefragt werden.</value>
   </data>
+  <data name="Onboarding_DailyPaceTitle" xml:space="preserve">
+    <value>Tägliches Neuwort-Budget</value>
+  </data>
+  <data name="Onboarding_DailyPaceDescription" xml:space="preserve">
+    <value>Wähle, wie viele neue Wörter an jedem Lerntag neu eingeführt werden sollen.</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingTitle" xml:space="preserve">
+    <value>Lerntag &amp; Zeitzone</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingDescription" xml:space="preserve">
+    <value>Konfiguriere deine Zeitzone und die Uhrzeit, zu der ein neuer Lerntag beginnt.</value>
+  </data>
+  <data name="Onboarding_SummaryTitle" xml:space="preserve">
+    <value>Übersicht der Einstellungen</value>
+  </data>
+  <data name="Onboarding_SummaryDisplayNameNotSet" xml:space="preserve">
+    <value>Nicht festgelegt</value>
+  </data>
+  <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
+    <value>Systemstandard</value>
+  </data>
+  <data name="Onboarding_FinishSetup" xml:space="preserve">
+    <value>Einrichtung abschließen</value>
+  </data>
 </root>

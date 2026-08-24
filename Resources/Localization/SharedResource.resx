@@ -1839,4 +1839,28 @@
   <data name="Onboarding_PracticeDescription" xml:space="preserve">
     <value>Configure how vocabulary cards are presented and tested during daily study sessions.</value>
   </data>
+  <data name="Onboarding_DailyPaceTitle" xml:space="preserve">
+    <value>Daily New-Word Budget</value>
+  </data>
+  <data name="Onboarding_DailyPaceDescription" xml:space="preserve">
+    <value>Choose how many new words you want to introduce each Learning Day.</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingTitle" xml:space="preserve">
+    <value>Learning Day &amp; Time Zone</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingDescription" xml:space="preserve">
+    <value>Configure your time zone and the time when a new Learning Day begins.</value>
+  </data>
+  <data name="Onboarding_SummaryTitle" xml:space="preserve">
+    <value>Setup Summary</value>
+  </data>
+  <data name="Onboarding_SummaryDisplayNameNotSet" xml:space="preserve">
+    <value>Not set</value>
+  </data>
+  <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
+    <value>System default</value>
+  </data>
+  <data name="Onboarding_FinishSetup" xml:space="preserve">
+    <value>Finish Setup</value>
+  </data>
 </root>

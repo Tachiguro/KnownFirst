@@ -1,0 +1,179 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@using System.Globalization
+@using KnownFirst.Core.Settings
+@using KnownFirst.Services
+@inject IAppSettingsService AppSettings
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-daily-pace-step">
+    <h1 class="onboarding-title" id="onboarding-daily-pace-title">@Localizer["Onboarding_DailyPaceTitle"]</h1>
+    <p class="onboarding-concept">@Localizer["Onboarding_DailyPaceDescription"]</p>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-daily-pace-title">
+        <h2 id="onboarding-daily-pace-section-title" class="onboarding-section-title">@Localizer["Settings_PreparationLimit"]</h2>
+        <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-daily-pace-section-title">
+            <button type="button"
+                    id="onboarding-daily-pace-preset-1"
+                    class="choice-button @(IsPresetActive(1) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(1)"
+                    @onclick="() => SelectPreset(1)">
+                1
+            </button>
+            <button type="button"
+                    id="onboarding-daily-pace-preset-5"
+                    class="choice-button choice-button-recommended @(IsPresetActive(5) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(5)"
+                    @onclick="() => SelectPreset(5)">
+                <span class="choice-value">5</span>
+                <span class="choice-tag">@Localizer["Settings_PreparationLimitRecommendedTag"]</span>
+            </button>
+            <button type="button"
+                    id="onboarding-daily-pace-preset-10"
+                    class="choice-button @(IsPresetActive(10) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(10)"
+                    @onclick="() => SelectPreset(10)">
+                10
+            </button>
+            <button type="button"
+                    id="onboarding-daily-pace-preset-custom"
+                    class="choice-button @(_isCustomActive ? "active" : null)"
+                    aria-pressed="@_isCustomActive"
+                    @onclick="SelectCustom">
+                @Localizer["Settings_PreparationLimitCustom"]
+            </button>
+        </div>
+
+        @if (_isCustomActive)
+        {
+            <div class="field-group" id="onboarding-daily-pace-custom-group">
+                <label for="onboarding-daily-pace-input">@Localizer["Settings_PreparationLimitCustomLabel"]</label>
+                <input id="onboarding-daily-pace-input"
+                       type="number"
+                       class="text-input"
+                       min="1"
+                       max="50"
+                       step="1"
+                       aria-describedby="onboarding-daily-pace-help"
+                       @bind="_customLimitInput"
+                       @bind:event="oninput"
+                       @bind:after="OnCustomInputChanged" />
+                <p id="onboarding-daily-pace-help" class="setting-help">@Localizer["Settings_PreparationLimitCustomHelp"]</p>
+            </div>
+        }
+
+        @if (ShowHighLimitWarning)
+        {
+            <p id="onboarding-daily-pace-warning" class="setting-feedback setting-feedback-advisory" role="status" aria-live="polite">
+                @Localizer["Settings_PreparationLimitHighWarning"]
+            </p>
+        }
+
+        @if (_customLimitValidationError is not null)
+        {
+            <p id="onboarding-daily-pace-custom-error" class="setting-feedback setting-feedback-error" role="alert">
+                @Localizer[_customLimitValidationError]
+            </p>
+        }
+    </section>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-daily-pace-continue-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="HandleContinue">
+            @Localizer["Common_Continue"]
+        </button>
+        <button type="button"
+                id="onboarding-daily-pace-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private int _selectedPreparationLimit;
+    private bool _isCustomActive;
+    private string _customLimitInput = string.Empty;
+    private string? _customLimitValidationError;
+
+    protected override void OnInitialized()
+    {
+        _selectedPreparationLimit = AppSettings.PreparationLimit;
+        _isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);
+        _customLimitInput = _selectedPreparationLimit.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private bool IsPresetActive(int limit) => !_isCustomActive && _selectedPreparationLimit == limit;
+
+    private bool ShowHighLimitWarning
+    {
+        get
+        {
+            if (_isCustomActive)
+            {
+                return int.TryParse(_customLimitInput, NumberStyles.None, CultureInfo.InvariantCulture, out var customVal)
+                    && PreparationLimitPolicy.IsValid(customVal)
+                    && PreparationLimitPolicy.IsHighLimit(customVal);
+            }
+
+            return PreparationLimitPolicy.IsHighLimit(_selectedPreparationLimit);
+        }
+    }
+
+    private void SelectPreset(int limit)
+    {
+        _isCustomActive = false;
+        _selectedPreparationLimit = limit;
+        _customLimitInput = limit.ToString(CultureInfo.InvariantCulture);
+        _customLimitValidationError = null;
+        AppSettings.SetPreparationLimit(limit);
+    }
+
+    private void SelectCustom()
+    {
+        _isCustomActive = true;
+        _customLimitValidationError = null;
+        OnCustomInputChanged();
+    }
+
+    private void OnCustomInputChanged()
+    {
+        if (!_isCustomActive)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_customLimitInput))
+        {
+            _customLimitValidationError = "Settings_PreparationLimitCustomRangeError";
+            return;
+        }
+
+        if (int.TryParse(_customLimitInput, NumberStyles.None, CultureInfo.InvariantCulture, out var customValue)
+            && PreparationLimitPolicy.IsValid(customValue))
+        {
+            _customLimitValidationError = null;
+            AppSettings.SetPreparationLimit(customValue);
+            _selectedPreparationLimit = customValue;
+        }
+        else
+        {
+            _customLimitValidationError = "Settings_PreparationLimitCustomRangeError";
+        }
+    }
+
+    private async Task HandleContinue()
+    {
+        if (_isCustomActive && _customLimitValidationError is not null)
+        {
+            return;
+        }
+
+        await OnContinue.InvokeAsync();
+    }
+}

@@ -22,7 +22,7 @@
     }
     else if (_isOnboardingActive)
     {
-        <KnownFirst.Components.Onboarding.OnboardingHost />
+        <KnownFirst.Components.Onboarding.OnboardingHost OnCompleted="HandleOnboardingCompleted" />
     }
     else
     {
@@ -42,6 +42,11 @@
     private bool _isOnboardingActive =>
         OnboardingStateStore.GetState() is KnownFirst.Core.Settings.OnboardingState.Required
             or KnownFirst.Core.Settings.OnboardingState.InProgress;
+
+    private void HandleOnboardingCompleted()
+    {
+        StateHasChanged();
+    }
 
     protected override void OnInitialized()
     {

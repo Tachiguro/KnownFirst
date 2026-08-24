@@ -98,7 +98,54 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
-    public void OnboardingHost_RendersStepsTwoThroughSixAndStopsAtDailyPaceBoundary()
+    public void DailyPaceStep_ReusesPreparationLimitPolicyAndPresets()
+    {
+        var markup = LoadStepUi("DailyPaceStep.razor");
+
+        Assert.Contains("PreparationLimitPolicy", markup);
+        Assert.Contains("IAppSettingsService", markup);
+        Assert.Contains("SetPreparationLimit", markup);
+        Assert.Contains("Onboarding_DailyPaceTitle", markup);
+        Assert.Contains("Onboarding_DailyPaceDescription", markup);
+        Assert.Contains("Settings_PreparationLimitHighWarning", markup);
+        Assert.Contains("<h1", markup);
+        Assert.DoesNotContain("NavMenu", markup);
+        Assert.DoesNotContain("WhatsNewModal", markup);
+    }
+
+    [TestMethod]
+    public void LearningDayTimingStep_ReusesTimezoneCatalogAndCutoff()
+    {
+        var markup = LoadStepUi("LearningDayTimingStep.razor");
+
+        Assert.Contains("LearningTimezoneCatalog", markup);
+        Assert.Contains("IAppSettingsService", markup);
+        Assert.Contains("SetLearningDayCutoffMinutes", markup);
+        Assert.Contains("Onboarding_LearningDayTimingTitle", markup);
+        Assert.Contains("Onboarding_LearningDayTimingDescription", markup);
+        Assert.Contains("<h1", markup);
+        Assert.DoesNotContain("NavMenu", markup);
+        Assert.DoesNotContain("WhatsNewModal", markup);
+    }
+
+    [TestMethod]
+    public void SummaryStep_DisplaysPersistedChoicesAndFinishButton()
+    {
+        var markup = LoadStepUi("SummaryStep.razor");
+
+        Assert.Contains("IAppSettingsService", markup);
+        Assert.Contains("IDisplayNameStore", markup);
+        Assert.Contains("ILanguageSelectionService", markup);
+        Assert.Contains("Onboarding_SummaryTitle", markup);
+        Assert.Contains("Onboarding_FinishSetup", markup);
+        Assert.Contains("id=\"onboarding-finish-button\"", markup);
+        Assert.Contains("<h1", markup);
+        Assert.DoesNotContain("NavMenu", markup);
+        Assert.DoesNotContain("WhatsNewModal", markup);
+    }
+
+    [TestMethod]
+    public void OnboardingHost_RendersAllNineStepsAndHandlesCompletion()
     {
         var markup = LoadUi("OnboardingHost.razor");
 
@@ -107,6 +154,19 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("OnlineLookupStep", markup);
         Assert.Contains("EnhancedTermRecognitionStep", markup);
         Assert.Contains("PracticeStep", markup);
-        Assert.DoesNotContain("OnboardingState.Completed", markup);
+        Assert.Contains("DailyPaceStep", markup);
+        Assert.Contains("LearningDayTimingStep", markup);
+        Assert.Contains("SummaryStep", markup);
+        Assert.Contains("OnCompleted", markup);
+        Assert.Contains("OnboardingState.Completed", markup);
+    }
+
+    [TestMethod]
+    public void Routes_PassesCompletionCallbackToOnboardingHost()
+    {
+        var markup = LoadUi("Routes.razor");
+
+        Assert.Contains("OnboardingHost", markup);
+        Assert.Contains("OnCompleted=", markup);
     }
 }

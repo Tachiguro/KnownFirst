@@ -2,12 +2,25 @@ using KnownFirst.Core.Settings;
 using KnownFirst.Services;
 using KnownFirst.Services.Settings;
 using Microsoft.Maui.Storage;
+using System.Text.RegularExpressions;
 
 namespace KnownFirst.Tests;
 
 [TestClass]
 public sealed class OnboardingStepContractTests
 {
+    private static readonly string[] StepFileNames =
+    [
+        "DisplayNameStep.razor",
+        "WorkflowStep.razor",
+        "OnlineLookupStep.razor",
+        "EnhancedTermRecognitionStep.razor",
+        "PracticeStep.razor",
+        "DailyPaceStep.razor",
+        "LearningDayTimingStep.razor",
+        "SummaryStep.razor",
+    ];
+
     private static string LoadStepUi(string fileName) => File.ReadAllText(Path.Combine(
         AppContext.BaseDirectory,
         "Ui",
@@ -220,6 +233,156 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("<h1", markup);
         Assert.DoesNotContain("NavMenu", markup);
         Assert.DoesNotContain("WhatsNewModal", markup);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceThree_OnboardingUsesGlobalThemeAndSpacingWithoutOwningSharedControls()
+    {
+        var styles = LoadUi("OnboardingHost.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var sharedStyles = LoadUi("app.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.DoesNotContain("--kf-color-", styles, StringComparison.Ordinal);
+        Assert.Contains("var(--color-background)", styles);
+        Assert.Contains("var(--color-surface)", styles);
+        Assert.Contains("var(--color-text)", styles);
+        Assert.Contains("var(--color-muted)", styles);
+        Assert.Contains("var(--color-border)", styles);
+        Assert.Contains("var(--color-primary)", styles);
+
+        Assert.Contains(".onboarding-container ::deep .onboarding-step", styles);
+        Assert.Contains(".onboarding-container ::deep .onboarding-actions", styles);
+        Assert.Contains("padding: var(--space-8) var(--space-6)", styles);
+        Assert.Contains("gap: var(--space-8)", styles);
+        Assert.Contains("gap: var(--space-6)", styles);
+        Assert.Contains("gap: var(--space-3)", styles);
+        var literalSpacing = Regex.Match(
+            styles,
+            @"(?:gap|margin(?:-[a-z]+)?|padding(?:-[a-z]+)?)\s*:\s*[^;]*(?:0\.75|1|1\.25|1\.5|2)rem");
+        Assert.IsFalse(literalSpacing.Success, "Onboarding layout spacing must use the shared --space-* scale: " + literalSpacing.Value);
+
+        foreach (var sharedOwner in new[] { ".button {", ".choice-button {", ".text-input {", ".field-group {" })
+        {
+            Assert.Contains("\n" + sharedOwner, sharedStyles);
+            Assert.DoesNotContain("\n" + sharedOwner, styles);
+        }
+
+        Assert.DoesNotContain("min-height: 2.75rem", styles, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceThree_EveryOnboardingButtonUsesSharedSemanticOrChoiceStyling()
+    {
+        var sources = StepFileNames
+            .Select(fileName => (Name: fileName, Markup: LoadStepUi(fileName)))
+            .Append(("OnboardingHost.razor", LoadUi("OnboardingHost.razor")));
+
+        var actionButtonCount = 0;
+        foreach (var (name, markup) in sources)
+        {
+            foreach (Match match in Regex.Matches(markup, @"<button\b[\s\S]*?</button>"))
+            {
+                var button = match.Value;
+                if (button.Contains("choice-button", StringComparison.Ordinal))
+                {
+                    Assert.DoesNotContain("class=\"button choice-button", button, StringComparison.Ordinal);
+                    continue;
+                }
+
+                actionButtonCount++;
+                var usesSemanticButton = button.Contains("class=\"button button-primary", StringComparison.Ordinal)
+                    || button.Contains("class=\"button button-secondary", StringComparison.Ordinal)
+                    || button.Contains("class=\"button button-danger", StringComparison.Ordinal);
+                Assert.IsTrue(
+                    usesSemanticButton,
+                    $"{name} contains an action button without a shared semantic .button variant: {button}");
+            }
+        }
+
+        Assert.IsGreaterThan(0, actionButtonCount);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceThree_AllChoicesUseSharedActiveStateAndAriaPressed()
+    {
+        var onboardingMarkup = string.Join(
+            Environment.NewLine,
+            StepFileNames.Select(LoadStepUi).Append(LoadUi("OnboardingHost.razor")));
+
+        Assert.DoesNotContain("choice-button-active", onboardingMarkup, StringComparison.Ordinal);
+        Assert.DoesNotContain("choice-button-idle", onboardingMarkup, StringComparison.Ordinal);
+
+        var choices = Regex.Matches(onboardingMarkup, @"<button\b[\s\S]*?</button>")
+            .Cast<Match>()
+            .Where(match => match.Value.Contains("choice-button", StringComparison.Ordinal))
+            .ToArray();
+        Assert.IsGreaterThan(0, choices.Length);
+        foreach (var choice in choices)
+        {
+            Assert.Contains("aria-pressed=", choice.Value);
+            Assert.Contains("\"active\"", choice.Value);
+        }
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceThree_FieldsReuseSharedInputTreatmentAndNativeTimezoneSelect()
+    {
+        var displayName = LoadStepUi("DisplayNameStep.razor");
+        var dailyPace = LoadStepUi("DailyPaceStep.razor");
+        var learningDay = LoadStepUi("LearningDayTimingStep.razor");
+
+        Assert.Contains("class=\"field-group\"", displayName);
+        Assert.Contains("class=\"text-input\"", displayName);
+        Assert.Contains("class=\"field-group\"", dailyPace);
+        Assert.Contains("class=\"text-input\"", dailyPace);
+        Assert.Contains("<select id=\"onboarding-learning-timezone-select\"", learningDay);
+        Assert.Contains("class=\"field-group\"", learningDay);
+        Assert.DoesNotContain("custom-dropdown", learningDay, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceThree_OnlineConsentUsesPrimaryGrantAndConfirmedDangerRevocation()
+    {
+        var markup = LoadStepUi("OnlineLookupStep.razor");
+
+        Assert.Contains("if (AppSettings.HasOnlineLookupConsent)", markup);
+        Assert.Contains("id=\"onboarding-online-consent-activate-button\"", markup);
+        Assert.Contains("class=\"button button-primary\"", markup);
+        Assert.Contains("@onclick=\"ActivateOnlineConsent\"", markup);
+        Assert.Contains("id=\"onboarding-online-consent-revoke-button\"", markup);
+        Assert.Contains("class=\"button button-danger\"", markup);
+        Assert.Contains("@onclick=\"ShowOnlineConsentRevokeConfirmation\"", markup);
+        Assert.Contains("if (!_showOnlineConsentRevokeConfirmation)", markup);
+        Assert.Contains("id=\"onboarding-online-consent-revoke-confirmation\"", markup);
+        Assert.Contains("class=\"destructive-confirmation\"", markup);
+        Assert.Contains("Settings_RevokeOnlineConsentConfirmMessage", markup);
+        Assert.Contains("id=\"onboarding-online-consent-revoke-cancel-button\"", markup);
+        Assert.Contains("class=\"button button-secondary\"", markup);
+        Assert.Contains("@onclick=\"CancelOnlineConsentRevocation\"", markup);
+        Assert.Contains("id=\"onboarding-online-consent-revoke-confirm-button\"", markup);
+        Assert.Contains("@onclick=\"ConfirmOnlineConsentRevocation\"", markup);
+
+        var showHandler = ExtractMethodBody(markup, "private void ShowOnlineConsentRevokeConfirmation()");
+        var cancelHandler = ExtractMethodBody(markup, "private void CancelOnlineConsentRevocation()");
+        var confirmHandler = ExtractMethodBody(markup, "private void ConfirmOnlineConsentRevocation()");
+        var activateHandler = ExtractMethodBody(markup, "private void ActivateOnlineConsent()");
+
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", showHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", cancelHandler, StringComparison.Ordinal);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = true;", showHandler);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", cancelHandler);
+        Assert.Contains("AppSettings.RevokeOnlineLookupConsent();", confirmHandler);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", confirmHandler);
+        Assert.Contains("AppSettings.GrantOnlineLookupConsent();", activateHandler);
+        Assert.AreEqual(1, Regex.Matches(markup, "GrantOnlineLookupConsent").Count);
+        Assert.AreEqual(1, Regex.Matches(markup, "RevokeOnlineLookupConsent").Count);
+
+        var continueButtonStart = markup.IndexOf("id=\"onboarding-online-lookup-continue-button\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, continueButtonStart);
+        var continueButtonEnd = markup.IndexOf("</button>", continueButtonStart, StringComparison.Ordinal);
+        Assert.IsGreaterThan(continueButtonStart, continueButtonEnd);
+        var continueButton = markup[continueButtonStart..continueButtonEnd];
+        Assert.Contains("@onclick=\"OnContinue\"", continueButton);
+        Assert.DoesNotContain("GrantOnlineLookupConsent", continueButton, StringComparison.Ordinal);
     }
 
     [TestMethod]

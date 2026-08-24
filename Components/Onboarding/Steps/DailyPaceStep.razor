@@ -17,8 +17,8 @@
                     class="choice-button choice-button-recommended @(IsPresetActive(5) ? "active" : null)"
                     aria-pressed="@IsPresetActive(5)"
                     @onclick="() => SelectPreset(5)">
-                <span class="choice-value">5</span>
-                <span class="choice-tag">@Localizer["Settings_PreparationLimitRecommended"]</span>
+                <span class="preset-value">5</span>
+                <span class="preset-recommended-badge">@Localizer["Settings_PreparationLimitRecommended"]</span>
             </button>
             <button type="button"
                     id="onboarding-daily-pace-preset-1"

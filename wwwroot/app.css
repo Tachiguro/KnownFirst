@@ -268,6 +268,27 @@ select:disabled {
     color: var(--color-primary);
 }
 
+.choice-button-recommended {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+}
+
+.preset-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.preset-recommended-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    opacity: 0.9;
+}
+
 .field-group {
     display: grid;
     gap: var(--space-2);
@@ -285,6 +306,27 @@ select:disabled {
     border-radius: 0.7rem;
     background: var(--color-input-background);
     color: var(--color-text);
+}
+
+.time-select-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.time-select-group select {
+    min-width: 0;
+    max-width: 12rem;
+    flex: 1 1 0;
+}
+
+.time-separator {
+    color: var(--color-muted);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
 }
 
 .text-input {

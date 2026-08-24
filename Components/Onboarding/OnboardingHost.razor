@@ -25,22 +25,22 @@
                             <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-language-title">
                                 <button type="button"
                                         id="onboarding-lang-en"
-                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "true" : "false")"
+                                        class="choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "active" : null)"
+                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode)"
                                         @onclick="() => SetLanguage(LanguageSelectionService.EnglishLanguageCode)">
                                     @Localizer["Settings_English"]
                                 </button>
                                 <button type="button"
                                         id="onboarding-lang-de"
-                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "true" : "false")"
+                                        class="choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "active" : null)"
+                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode)"
                                         @onclick="() => SetLanguage(LanguageSelectionService.GermanLanguageCode)">
                                     @Localizer["Settings_German"]
                                 </button>
                                 <button type="button"
                                         id="onboarding-lang-ru"
-                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "true" : "false")"
+                                        class="choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "active" : null)"
+                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode)"
                                         @onclick="() => SetLanguage(LanguageSelectionService.RussianLanguageCode)">
                                     @Localizer["Settings_Russian"]
                                 </button>

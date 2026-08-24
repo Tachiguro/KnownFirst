@@ -47,7 +47,8 @@
     text-align: center;
 }
 
-.onboarding-container ::deep .onboarding-language-section {
+.onboarding-container ::deep .onboarding-language-section,
+.onboarding-container ::deep .onboarding-appearance-section {
     display: grid;
     gap: var(--space-3);
     margin-top: var(--space-4);

@@ -82,4 +82,34 @@ public sealed class LanguagePreferencePolicyTests
     {
         Assert.AreEqual("en", LanguagePreferencePolicy.Normalize("EN-gb"));
     }
+
+    [TestMethod]
+    [DataRow("en", true, "en")]
+    [DataRow("en-US", true, "en")]
+    [DataRow("de", true, "de")]
+    [DataRow("de-DE", true, "de")]
+    [DataRow("ru", true, "ru")]
+    [DataRow("ru-KZ", true, "ru")]
+    [DataRow("pl-PL", false, "en")]
+    [DataRow("fr-FR", false, "en")]
+    [DataRow(null, false, "en")]
+    [DataRow("not-a-culture", false, "en")]
+    public void VisualConsistencySliceFour_DeviceCultureClassificationReportsSupportAndEffectiveLanguage(
+        string? deviceCulture,
+        bool expectedSupported,
+        string expectedEffectiveLanguage)
+    {
+        var method = typeof(LanguagePreferencePolicy).GetMethod(
+            "ClassifyDeviceCulture",
+            [typeof(string)]);
+
+        Assert.IsNotNull(method, "LanguagePreferencePolicy must expose the Slice-4 pure device-culture classification.");
+
+        var result = method.Invoke(null, [deviceCulture]);
+        Assert.IsNotNull(result);
+
+        var resultType = result.GetType();
+        Assert.AreEqual(expectedSupported, resultType.GetProperty("IsSupported")?.GetValue(result));
+        Assert.AreEqual(expectedEffectiveLanguage, resultType.GetProperty("EffectiveLanguage")?.GetValue(result));
+    }
 }

@@ -448,6 +448,29 @@ public sealed class LocalizationResourceTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceFour_SystemLanguageStatusKeysExistInAllSupportedLanguages()
+    {
+        var resourceSets = new[]
+        {
+            LoadResources("SharedResource.resx"),
+            LoadResources("SharedResource.de.resx"),
+            LoadResources("SharedResource.ru.resx")
+        };
+
+        foreach (var resources in resourceSets)
+        {
+            Assert.IsTrue(resources.ContainsKey("Onboarding_SystemLanguageDetected"));
+            Assert.IsTrue(resources.ContainsKey("Onboarding_SystemLanguageUnsupported"));
+            Assert.Contains("{0}", resources["Onboarding_SystemLanguageDetected"]);
+            Assert.Contains("{1}", resources["Onboarding_SystemLanguageDetected"]);
+        }
+
+        Assert.Contains("KnownFirst", resourceSets[0]["Onboarding_SystemLanguageUnsupported"]);
+        Assert.Contains("KnownFirst", resourceSets[1]["Onboarding_SystemLanguageUnsupported"]);
+        Assert.Contains("KnownFirst", resourceSets[2]["Onboarding_SystemLanguageUnsupported"]);
+    }
+
+    [TestMethod]
     public void Resources_EveryEnglishKeyHasGermanCounterpart()
     {
         var english = LoadResources("SharedResource.resx");

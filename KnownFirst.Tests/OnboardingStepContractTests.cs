@@ -236,6 +236,72 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceFour_WelcomeOffersSystemLanguageAndAppearanceThroughExistingServices()
+    {
+        var markup = LoadUi("OnboardingHost.razor");
+
+        var systemLanguage = markup.IndexOf("id=\"onboarding-lang-system\"", StringComparison.Ordinal);
+        var english = markup.IndexOf("id=\"onboarding-lang-en\"", StringComparison.Ordinal);
+        var german = markup.IndexOf("id=\"onboarding-lang-de\"", StringComparison.Ordinal);
+        var russian = markup.IndexOf("id=\"onboarding-lang-ru\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, systemLanguage);
+        Assert.IsGreaterThan(systemLanguage, english);
+        Assert.IsGreaterThan(english, german);
+        Assert.IsGreaterThan(german, russian);
+
+        Assert.Contains("LanguageSelection.IsSystemPreferenceActive ? \"active\" : null", markup);
+        Assert.Contains("!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode", markup);
+        Assert.Contains("SetLanguage(LanguagePreferencePolicy.SystemPreferenceCode)", markup);
+        Assert.Contains("@inject IDeviceCultureProvider DeviceCultureProvider", markup);
+        Assert.Contains("DeviceCultureProvider.GetDeviceCultureName()", markup);
+        Assert.Contains("LanguagePreferencePolicy.ClassifyDeviceCulture", markup);
+        Assert.Contains("@if (LanguageSelection.IsSystemPreferenceActive)", markup);
+        Assert.Contains("Onboarding_SystemLanguageDetected", markup);
+        Assert.Contains("@if (!_deviceLanguageClassification.IsSupported)", markup);
+        Assert.Contains("Onboarding_SystemLanguageUnsupported", markup);
+
+        var languageSection = markup.IndexOf("class=\"onboarding-language-section\"", StringComparison.Ordinal);
+        var appearanceSection = markup.IndexOf("class=\"onboarding-appearance-section\"", StringComparison.Ordinal);
+        var continueButton = markup.IndexOf("id=\"onboarding-continue-button\"", StringComparison.Ordinal);
+        Assert.IsGreaterThan(languageSection, appearanceSection, "Appearance must follow Language in the existing Welcome step.");
+        Assert.IsGreaterThan(appearanceSection, continueButton, "Appearance must remain inside Welcome before Continue.");
+
+        var systemTheme = markup.IndexOf("id=\"onboarding-theme-system\"", StringComparison.Ordinal);
+        var lightTheme = markup.IndexOf("id=\"onboarding-theme-light\"", StringComparison.Ordinal);
+        var darkTheme = markup.IndexOf("id=\"onboarding-theme-dark\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, systemTheme);
+        Assert.IsGreaterThan(systemTheme, lightTheme);
+        Assert.IsGreaterThan(lightTheme, darkTheme);
+        Assert.Contains("@inject IThemeService ThemeService", markup);
+        Assert.Contains("ThemeService.Preference == ThemePreference.System", markup);
+        Assert.Contains("ThemeService.Preference == ThemePreference.Light", markup);
+        Assert.Contains("ThemeService.Preference == ThemePreference.Dark", markup);
+        Assert.Contains("ThemeService.SetPreference(preference)", markup);
+
+        Assert.Contains("class=\"choice-grid", markup);
+        Assert.Contains("class=\"choice-button", markup);
+        Assert.Contains("aria-pressed=", markup);
+        Assert.DoesNotContain("AppearanceStep", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFour_SummaryReportsPreferenceModesInsteadOfEffectiveValues()
+    {
+        var markup = LoadStepUi("SummaryStep.razor");
+
+        Assert.Contains("LanguageSelection.IsSystemPreferenceActive", markup);
+        Assert.Contains("Settings_UILanguageSystem", markup);
+        Assert.Contains("LanguageSelection.CurrentUiLanguage", markup);
+        Assert.Contains("@inject IThemeService ThemeService", markup);
+        Assert.Contains("ThemeService.Preference", markup);
+        Assert.Contains("Settings_Appearance", markup);
+        Assert.Contains("Settings_AppearanceSystem", markup);
+        Assert.Contains("Settings_AppearanceLight", markup);
+        Assert.Contains("Settings_AppearanceDark", markup);
+        Assert.DoesNotContain("EffectiveTheme", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void VisualConsistencySliceThree_OnboardingUsesGlobalThemeAndSpacingWithoutOwningSharedControls()
     {
         var styles = LoadUi("OnboardingHost.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);

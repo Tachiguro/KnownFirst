@@ -22,11 +22,13 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 - **Package id (checkpoint trailers):** `visual-consistency-v1`.
 - **Package objective:** Unify Settings and onboarding around shared KnownFirst visual primitives.
 - **Declared ordered slices:**
-  1. Shared visual primitives + Settings normalization.
-  2. Daily-budget parity.
-  3. Onboarding control/layout normalization.
-  4. System language + Appearance parity.
-  5. Responsive/accessibility hardening.
+  1. Shared visual primitives + Settings normalization. (Completed — Checkpoint `1/5`)
+  2. Daily-budget parity. (Completed — Checkpoint `2/5`)
+  3. Onboarding control/layout normalization. (Completed — Checkpoint `3/5`)
+  4. System language + Appearance parity. (Completed — Checkpoint `4/5`)
+  5. Responsive/accessibility hardening. (Completed — Checkpoint `5/5`)
+- **Review & post-review status:** Consolidated review completed; the single MAJOR finding regarding onboarding Online Dictionary consent revocation focus transfer, Escape handling, and focus restoration was resolved in correction commit `3b07f4ffe5b07180ed303921a04fa4e557566285` (`fix: restore onboarding revoke focus flow`); focused post-review verification completed with status `POST_REVIEW_CORRECTION_APPROVED_FOR_DOCUMENT_ONLY`.
+- **Lifecycle status:** Implementation and review approved; package-level documentation reconciliation in progress (`DOCUMENT_ONLY`); candidate finalization (`COMMIT_ONLY`), exact-candidate `FULL_VALIDATION`, push, PR, and manual merge remain pending.
 - **Production baseline:** PR #155 is merged and is the production baseline for this package.
 - **Explicit non-goals:** Home personalization, Settings information-architecture redesign, learning algorithms, schema/archive changes, cloud/accounts, new languages, and packaging/release/device work.
 - **Persistence boundary:** This package does not change settings, consent, onboarding, schema, or archive persistence semantics. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.

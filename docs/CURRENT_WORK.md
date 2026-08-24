@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-24 (Active package is KnownFirst Settings + Onboarding Visual Consistency on branch `fix/visual-consistency-settings-onboarding-v1`. PR #155 is the merged production baseline; Schema is 12; Archive format is V2).
+2026-08-25 (Neutral post-merge state on master@d8e14a699ef52030d542309015064d8ac0668508 following manual merge and POST_MERGE_SYNC_ONLY of PR #156; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,25 +17,15 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** KnownFirst Settings + Onboarding Visual Consistency.
-- **Branch:** `fix/visual-consistency-settings-onboarding-v1`.
-- **Package id (checkpoint trailers):** `visual-consistency-v1`.
-- **Package objective:** Unify Settings and onboarding around shared KnownFirst visual primitives.
-- **Declared ordered slices:**
-  1. Shared visual primitives + Settings normalization. (Completed — Checkpoint `1/5`)
-  2. Daily-budget parity. (Completed — Checkpoint `2/5`)
-  3. Onboarding control/layout normalization. (Completed — Checkpoint `3/5`)
-  4. System language + Appearance parity. (Completed — Checkpoint `4/5`)
-  5. Responsive/accessibility hardening. (Completed — Checkpoint `5/5`)
-- **Review & post-review status:** Consolidated review completed; the single MAJOR finding regarding onboarding Online Dictionary consent revocation focus transfer, Escape handling, and focus restoration was resolved in correction commit `3b07f4ffe5b07180ed303921a04fa4e557566285` (`fix: restore onboarding revoke focus flow`); focused post-review verification completed with status `POST_REVIEW_CORRECTION_APPROVED_FOR_DOCUMENT_ONLY`.
-- **Lifecycle status:** Implementation and review approved; package-level documentation reconciliation in progress (`DOCUMENT_ONLY`); candidate finalization (`COMMIT_ONLY`), exact-candidate `FULL_VALIDATION`, push, PR, and manual merge remain pending.
-- **Production baseline:** PR #155 is merged and is the production baseline for this package.
-- **Explicit non-goals:** Home personalization, Settings information-architecture redesign, learning algorithms, schema/archive changes, cloud/accounts, new languages, and packaging/release/device work.
-- **Persistence boundary:** This package does not change settings, consent, onboarding, schema, or archive persistence semantics. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
-- **Slice completion source:** Completed slices are read from `KnownFirst-Checkpoint:` trailers in the branch's Git history, correlated against the declared slice list above, per the interruption/resume contract in [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
+- **Active work package:** None (Neutral post-merge state on `master`).
+- **Current canonical baseline:** PR #156 is merged on `master` at commit `d8e14a699ef52030d542309015064d8ac0668508`.
+- **Lifecycle status:** PR #156 (`fix: unify settings and onboarding visual consistency`) successfully completed its full multi-slice lifecycle: implementation checkpoints `1/5` through `5/5`, consolidated review, post-review correction (`3b07f4ffe5b07180ed303921a04fa4e557566285`), documentation candidate finalization (`571165cfd055ce9c5004c1d53f2ae6c6b005abb4`), exact-candidate `FULL_VALIDATION` (2541 tests passed, 0 warnings/errors), push, PR #156, manual user merge, and `POST_MERGE_SYNC_ONLY`. No repository-writing package is currently in flight.
+- **Next planned work:** Milestone 19h (Home Personalization & Greeting) remains the next planned feature milestone on the Roadmap, pending explicit orchestration authorization.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
-  - PR #155: Merged production baseline for the visual-consistency package.
+  - PR #156 (`fix: unify settings and onboarding visual consistency`): Unified Settings and onboarding around shared KnownFirst visual primitives (`.choice-grid`, `.choice-button.active`, `.field-group`, `.text-input`, `.button-row`, `.setting-feedback`, `.destructive-confirmation`), aligned Daily Budget UX visual order (`5 Recommended`, `1`, `10`, `Custom`) and range/validation contracts, added onboarding System Language and Appearance selection in Step 1, and normalized inline destructive confirmation for Online Dictionary consent revocation. Merged to `d8e14a699ef52030d542309015064d8ac0668508`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #155 (`feat: add first-run onboarding and daily budget ux`): Merged First-Run Onboarding & Daily-Budget UX Core package (`onboarding-core-v1`). Merged to `537e68eedf78dadb7b1ebff539954cd4d83228bf`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #144 (`feat: add settings GUI and learning-day defaults`): Merged Settings GUI & Learning-Day Defaults Slice 2A. `POST_MERGE_SYNC_ONLY` completed.
   - PR #149 (`release: bump beta13 build number to 14`): Bumped version code to 14 for Google Play replacement bundle. Merged to `35cd15bf3e0dda0816bb2dd2c9dc35fa91ddd430`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #152 (`docs: record build14 aab packaging evidence`): Reconciled durable release documentation with physical Google Play AAB bundle `KnownFirst-1.0.0-beta.13-code14.aab` produced and verified locally on certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Merged to `2a5b10735a1ea27e3db348e0cd855d7768376372`. `POST_MERGE_SYNC_ONLY` completed.

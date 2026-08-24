@@ -141,19 +141,19 @@
         <p id="preparation-limit-help" class="setting-help">@Localizer["Settings_PreparationLimitHelp"]</p>
         <div class="choice-grid choice-grid-two" role="group" aria-labelledby="preparation-limit-title" aria-describedby="preparation-limit-help">
             <button type="button"
-                    id="preparation-limit-preset-1"
-                    class="choice-button @(IsPresetActive(1) ? "active" : null)"
-                    aria-pressed="@IsPresetActive(1)"
-                    @onclick="() => SelectPreset(1)">
-                1
-            </button>
-            <button type="button"
                     id="preparation-limit-preset-5"
                     class="choice-button choice-button-recommended @(IsPresetActive(5) ? "active" : null)"
                     aria-pressed="@IsPresetActive(5)"
                     @onclick="() => SelectPreset(5)">
                 <span class="preset-value">5</span>
                 <span class="preset-recommended-badge">@Localizer["Settings_PreparationLimitRecommended"]</span>
+            </button>
+            <button type="button"
+                    id="preparation-limit-preset-1"
+                    class="choice-button @(IsPresetActive(1) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(1)"
+                    @onclick="() => SelectPreset(1)">
+                1
             </button>
             <button type="button"
                     id="preparation-limit-preset-10"

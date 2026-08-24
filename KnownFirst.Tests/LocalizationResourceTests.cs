@@ -695,6 +695,34 @@ public sealed class LocalizationResourceTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceTwo_DailyBudgetUiUsesExistingLocalizedKeysWithoutLeaks()
+    {
+        var uiRoot = Path.Combine(AppContext.BaseDirectory, "Ui");
+        var settingsMarkup = File.ReadAllText(Path.Combine(uiRoot, "Settings.razor"));
+        var onboardingMarkup = File.ReadAllText(Path.Combine(uiRoot, "Steps", "DailyPaceStep.razor"));
+
+        foreach (var markup in new[] { settingsMarkup, onboardingMarkup })
+        {
+            Assert.Contains("Localizer[\"Settings_PreparationLimitRecommended\"]", markup);
+            Assert.Contains("\"Settings_PreparationLimitCustomInvalid\"", markup);
+            Assert.Contains("@Localizer[_customLimitValidationError]", markup);
+            Assert.DoesNotContain("Settings_PreparationLimitRecommendedTag", markup, StringComparison.Ordinal);
+            Assert.DoesNotContain("Settings_PreparationLimitCustomRangeError", markup, StringComparison.Ordinal);
+        }
+
+        foreach (var fileName in new[] { "SharedResource.resx", "SharedResource.de.resx", "SharedResource.ru.resx" })
+        {
+            var resources = LoadResources(fileName);
+            Assert.IsTrue(resources.ContainsKey("Settings_PreparationLimitRecommended"));
+            Assert.IsTrue(resources.ContainsKey("Settings_PreparationLimitCustomInvalid"));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Settings_PreparationLimitRecommended"]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Settings_PreparationLimitCustomInvalid"]));
+            Assert.IsFalse(resources.ContainsKey("Settings_PreparationLimitRecommendedTag"));
+            Assert.IsFalse(resources.ContainsKey("Settings_PreparationLimitCustomRangeError"));
+        }
+    }
+
+    [TestMethod]
     public void Resources_SettingsGuiSliceTwoAKeysExistInAllSupportedLanguages()
     {
         var english = LoadResources("SharedResource.resx");

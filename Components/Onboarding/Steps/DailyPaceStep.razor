@@ -13,19 +13,19 @@
         <h2 id="onboarding-daily-pace-section-title" class="onboarding-section-title">@Localizer["Settings_PreparationLimit"]</h2>
         <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-daily-pace-section-title">
             <button type="button"
-                    id="onboarding-daily-pace-preset-1"
-                    class="choice-button @(IsPresetActive(1) ? "active" : null)"
-                    aria-pressed="@IsPresetActive(1)"
-                    @onclick="() => SelectPreset(1)">
-                1
-            </button>
-            <button type="button"
                     id="onboarding-daily-pace-preset-5"
                     class="choice-button choice-button-recommended @(IsPresetActive(5) ? "active" : null)"
                     aria-pressed="@IsPresetActive(5)"
                     @onclick="() => SelectPreset(5)">
                 <span class="choice-value">5</span>
-                <span class="choice-tag">@Localizer["Settings_PreparationLimitRecommendedTag"]</span>
+                <span class="choice-tag">@Localizer["Settings_PreparationLimitRecommended"]</span>
+            </button>
+            <button type="button"
+                    id="onboarding-daily-pace-preset-1"
+                    class="choice-button @(IsPresetActive(1) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(1)"
+                    @onclick="() => SelectPreset(1)">
+                1
             </button>
             <button type="button"
                     id="onboarding-daily-pace-preset-10"
@@ -150,7 +150,7 @@
 
         if (string.IsNullOrWhiteSpace(_customLimitInput))
         {
-            _customLimitValidationError = "Settings_PreparationLimitCustomRangeError";
+            _customLimitValidationError = "Settings_PreparationLimitCustomInvalid";
             return;
         }
 
@@ -158,20 +158,29 @@
             && PreparationLimitPolicy.IsValid(customValue))
         {
             _customLimitValidationError = null;
-            AppSettings.SetPreparationLimit(customValue);
-            _selectedPreparationLimit = customValue;
         }
         else
         {
-            _customLimitValidationError = "Settings_PreparationLimitCustomRangeError";
+            _customLimitValidationError = "Settings_PreparationLimitCustomInvalid";
         }
     }
 
     private async Task HandleContinue()
     {
-        if (_isCustomActive && _customLimitValidationError is not null)
+        if (_isCustomActive)
         {
-            return;
+            if (!int.TryParse(_customLimitInput, NumberStyles.None, CultureInfo.InvariantCulture, out var customValue)
+                || !PreparationLimitPolicy.IsValid(customValue))
+            {
+                _customLimitValidationError = "Settings_PreparationLimitCustomInvalid";
+                return;
+            }
+
+            AppSettings.SetPreparationLimit(customValue);
+            _selectedPreparationLimit = AppSettings.PreparationLimit;
+            _isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);
+            _customLimitInput = _selectedPreparationLimit.ToString(CultureInfo.InvariantCulture);
+            _customLimitValidationError = null;
         }
 
         await OnContinue.InvokeAsync();

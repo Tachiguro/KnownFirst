@@ -114,6 +114,84 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceTwo_DailyPaceUsesBindingOrderSharedStateAndConditionalNumericEditor()
+    {
+        var markup = LoadStepUi("DailyPaceStep.razor");
+
+        var recommended = markup.IndexOf("id=\"onboarding-daily-pace-preset-5\"", StringComparison.Ordinal);
+        var one = markup.IndexOf("id=\"onboarding-daily-pace-preset-1\"", StringComparison.Ordinal);
+        var ten = markup.IndexOf("id=\"onboarding-daily-pace-preset-10\"", StringComparison.Ordinal);
+        var custom = markup.IndexOf("id=\"onboarding-daily-pace-preset-custom\"", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, recommended);
+        Assert.IsGreaterThan(recommended, one, "The recommended value 5 must render before preset 1.");
+        Assert.IsGreaterThan(one, ten, "Preset 1 must render before preset 10.");
+        Assert.IsGreaterThan(ten, custom, "Preset 10 must render before Custom.");
+
+        Assert.Contains("class=\"choice-button choice-button-recommended @(IsPresetActive(5) ? \"active\" : null)\"", markup);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(5)\"", markup);
+        Assert.Contains("class=\"choice-button @(IsPresetActive(1) ? \"active\" : null)\"", markup);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(1)\"", markup);
+        Assert.Contains("class=\"choice-button @(IsPresetActive(10) ? \"active\" : null)\"", markup);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(10)\"", markup);
+        Assert.Contains("class=\"choice-button @(_isCustomActive ? \"active\" : null)\"", markup);
+        Assert.Contains("aria-pressed=\"@_isCustomActive\"", markup);
+
+        var customCondition = markup.IndexOf("@if (_isCustomActive)", StringComparison.Ordinal);
+        var customInput = markup.IndexOf("id=\"onboarding-daily-pace-input\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, customCondition);
+        Assert.IsGreaterThan(customCondition, customInput, "The numeric editor must exist only inside the Custom-state block.");
+        Assert.Contains("class=\"text-input\"", markup);
+        Assert.Contains("type=\"number\"", markup);
+        Assert.Contains("min=\"1\"", markup);
+        Assert.Contains("max=\"50\"", markup);
+        Assert.Contains("step=\"1\"", markup);
+    }
+
+    [TestMethod]
+    [DataRow(1, false)]
+    [DataRow(5, false)]
+    [DataRow(10, false)]
+    [DataRow(20, true)]
+    public void VisualConsistencySliceTwo_DailyPaceCanonicalizesCustomOnlyWhenContinueCommits(
+        int committedValue,
+        bool remainsCustom)
+    {
+        var markup = LoadStepUi("DailyPaceStep.razor");
+        var inputChanged = ExtractMethodBody(markup, "private void OnCustomInputChanged()");
+        var handleContinue = ExtractMethodBody(markup, "private async Task HandleContinue()");
+
+        Assert.AreEqual(remainsCustom, !PreparationLimitPolicy.IsPreset(committedValue));
+        Assert.Contains("@bind:event=\"oninput\"", markup);
+        Assert.Contains("@bind:after=\"OnCustomInputChanged\"", markup);
+        Assert.DoesNotContain("SetPreparationLimit", inputChanged, StringComparison.Ordinal);
+        Assert.DoesNotContain("PreparationLimitPolicy.IsPreset", inputChanged, StringComparison.Ordinal);
+        Assert.Contains("AppSettings.SetPreparationLimit", handleContinue);
+        Assert.Contains("PreparationLimitPolicy.IsPreset", handleContinue);
+        Assert.Contains("OnContinue.InvokeAsync", handleContinue);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceTwo_DailyPaceHighBudgetWarningIsPolicyDrivenAndNonBlocking()
+    {
+        var markup = LoadStepUi("DailyPaceStep.razor");
+        var warningStart = markup.IndexOf("private bool ShowHighLimitWarning", StringComparison.Ordinal);
+        var selectPresetStart = markup.IndexOf("private void SelectPreset", warningStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, warningStart);
+        Assert.IsGreaterThan(warningStart, selectPresetStart);
+        var warningProperty = markup[warningStart..selectPresetStart];
+        var handleContinue = ExtractMethodBody(markup, "private async Task HandleContinue()");
+
+        Assert.Contains("PreparationLimitPolicy.IsValid", warningProperty);
+        Assert.Contains("PreparationLimitPolicy.RequiresHighBudgetWarning", warningProperty);
+        Assert.DoesNotContain("RequiresHighBudgetWarning", handleContinue, StringComparison.Ordinal);
+        Assert.IsFalse(PreparationLimitPolicy.RequiresHighBudgetWarning(15));
+        Assert.IsTrue(PreparationLimitPolicy.RequiresHighBudgetWarning(16));
+        Assert.IsTrue(PreparationLimitPolicy.RequiresHighBudgetWarning(50));
+        Assert.IsFalse(PreparationLimitPolicy.RequiresHighBudgetWarning(51));
+    }
+
+    [TestMethod]
     public void LearningDayTimingStep_ReusesTimezoneCatalogAndCutoff()
     {
         var markup = LoadStepUi("LearningDayTimingStep.razor");
@@ -169,5 +247,34 @@ public sealed class OnboardingStepContractTests
 
         Assert.Contains("OnboardingHost", markup);
         Assert.Contains("OnCompleted=", markup);
+    }
+
+    private static string ExtractMethodBody(string markup, string signature)
+    {
+        var start = markup.IndexOf(signature, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start, "The method '" + signature + "' is missing.");
+
+        var braceStart = markup.IndexOf('{', start);
+        Assert.IsGreaterThan(start, braceStart);
+
+        var depth = 0;
+        for (var index = braceStart; index < markup.Length; index++)
+        {
+            if (markup[index] == '{')
+            {
+                depth++;
+            }
+            else if (markup[index] == '}')
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return markup[braceStart..(index + 1)];
+                }
+            }
+        }
+
+        Assert.Fail("The method '" + signature + "' is not correctly delimited.");
+        return string.Empty;
     }
 }

@@ -2153,6 +2153,82 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceTwo_SettingsDailyBudgetUsesBindingOrderAndSharedStateVocabulary()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        var recommended = section.IndexOf("id=\"preparation-limit-preset-5\"", StringComparison.Ordinal);
+        var one = section.IndexOf("id=\"preparation-limit-preset-1\"", StringComparison.Ordinal);
+        var ten = section.IndexOf("id=\"preparation-limit-preset-10\"", StringComparison.Ordinal);
+        var custom = section.IndexOf("id=\"preparation-limit-custom\"", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, recommended);
+        Assert.IsGreaterThan(recommended, one, "The recommended value 5 must render before preset 1.");
+        Assert.IsGreaterThan(one, ten, "Preset 1 must render before preset 10.");
+        Assert.IsGreaterThan(ten, custom, "Preset 10 must render before Custom.");
+
+        Assert.Contains("class=\"choice-button choice-button-recommended @(IsPresetActive(5) ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(5)\"", section);
+        Assert.Contains("class=\"choice-button @(IsPresetActive(1) ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(1)\"", section);
+        Assert.Contains("class=\"choice-button @(IsPresetActive(10) ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(10)\"", section);
+        Assert.Contains("class=\"choice-button @(_isCustomActive ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@_isCustomActive\"", section);
+        Assert.Contains("Localizer[\"Settings_PreparationLimitRecommended\"]", section);
+        Assert.Contains("Localizer[\"Settings_PreparationLimitCustom\"]", section);
+    }
+
+    [TestMethod]
+    [DataRow(1, false)]
+    [DataRow(5, false)]
+    [DataRow(10, false)]
+    [DataRow(20, true)]
+    public void VisualConsistencySliceTwo_SettingsCustomCanonicalizesOnlyAtSaveBoundary(
+        int committedValue,
+        bool remainsCustom)
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+        var selectCustom = ExtractMethodBody(markup, "private void SelectCustom()");
+        var saveCustom = ExtractMethodBody(markup, "private void SaveCustomPreparationLimit()");
+
+        Assert.AreEqual(remainsCustom, !KnownFirst.Core.Settings.PreparationLimitPolicy.IsPreset(committedValue));
+        Assert.Contains("@bind:event=\"oninput\"", section);
+        Assert.DoesNotContain("SetPreparationLimit", selectCustom, StringComparison.Ordinal);
+        Assert.DoesNotContain("PreparationLimitPolicy.IsPreset", selectCustom, StringComparison.Ordinal);
+        Assert.Contains("AppSettings.SetPreparationLimit(customValue);", saveCustom);
+        Assert.Contains("_selectedPreparationLimit = AppSettings.PreparationLimit;", saveCustom);
+        Assert.Contains("_isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);", saveCustom);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceTwo_SettingsCustomEditorIsConditionalBoundedAndHighValuesRemainAdvisory()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+        var customCondition = section.IndexOf("@if (_isCustomActive)", StringComparison.Ordinal);
+        var customInput = section.IndexOf("id=\"preparation-limit-custom-input\"", StringComparison.Ordinal);
+        var saveCustom = ExtractMethodBody(markup, "private void SaveCustomPreparationLimit()");
+
+        Assert.IsGreaterThanOrEqualTo(0, customCondition);
+        Assert.IsGreaterThan(customCondition, customInput, "The numeric editor must exist only inside the Custom-state block.");
+        Assert.Contains("class=\"text-input\"", section);
+        Assert.Contains("type=\"number\"", section);
+        Assert.Contains("min=\"1\"", section);
+        Assert.Contains("max=\"50\"", section);
+        Assert.Contains("step=\"1\"", section);
+        Assert.Contains("PreparationLimitPolicy.IsValid(customValue)", saveCustom);
+        Assert.DoesNotContain("RequiresHighBudgetWarning", saveCustom, StringComparison.Ordinal);
+        Assert.IsFalse(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(15));
+        Assert.IsTrue(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(16));
+        Assert.IsTrue(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(20));
+        Assert.IsTrue(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(50));
+        Assert.IsFalse(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(51));
+    }
+
+    [TestMethod]
     public void Settings_DailyBudgetCardCustomInputEnforcesOneToFiftyBoundsAndValidation()
     {
         var markup = LoadUi("Settings.razor");

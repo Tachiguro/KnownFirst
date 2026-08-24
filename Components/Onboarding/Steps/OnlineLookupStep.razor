@@ -18,6 +18,7 @@
                 <button type="button"
                         id="onboarding-online-consent-revoke-button"
                         class="button button-danger"
+                        @ref="_onlineConsentRevokeButton"
                         @onclick="ShowOnlineConsentRevokeConfirmation">
                     @Localizer["Settings_RevokeOnlineConsent"]
                 </button>
@@ -27,7 +28,8 @@
                 <div id="onboarding-online-consent-revoke-confirmation"
                      class="destructive-confirmation"
                      role="alertdialog"
-                     aria-labelledby="onboarding-online-consent-revoke-confirmation-message">
+                     aria-labelledby="onboarding-online-consent-revoke-confirmation-message"
+                     @onkeydown="HandleOnlineConsentRevokeDialogKeyDown">
                     <p id="onboarding-online-consent-revoke-confirmation-message">
                         @Localizer["Settings_RevokeOnlineConsentConfirmMessage"]
                     </p>
@@ -35,6 +37,7 @@
                         <button type="button"
                                 id="onboarding-online-consent-revoke-cancel-button"
                                 class="button button-secondary"
+                                @ref="_cancelOnlineConsentRevokeButton"
                                 @onclick="CancelOnlineConsentRevocation">
                             @Localizer["Common_Cancel"]
                         </button>
@@ -83,6 +86,24 @@
     [Parameter] public EventCallback OnBack { get; set; }
 
     private bool _showOnlineConsentRevokeConfirmation;
+    private bool _revealOnlineConsentRevokeConfirmation;
+    private bool _returnFocusToOnlineConsentRevokeButton;
+    private ElementReference _onlineConsentRevokeButton;
+    private ElementReference _cancelOnlineConsentRevokeButton;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_revealOnlineConsentRevokeConfirmation)
+        {
+            _revealOnlineConsentRevokeConfirmation = false;
+            await _cancelOnlineConsentRevokeButton.FocusAsync(preventScroll: true);
+        }
+        else if (_returnFocusToOnlineConsentRevokeButton)
+        {
+            _returnFocusToOnlineConsentRevokeButton = false;
+            await _onlineConsentRevokeButton.FocusAsync();
+        }
+    }
 
     private void ActivateOnlineConsent()
     {
@@ -93,11 +114,21 @@
     private void ShowOnlineConsentRevokeConfirmation()
     {
         _showOnlineConsentRevokeConfirmation = true;
+        _revealOnlineConsentRevokeConfirmation = true;
     }
 
     private void CancelOnlineConsentRevocation()
     {
         _showOnlineConsentRevokeConfirmation = false;
+        _returnFocusToOnlineConsentRevokeButton = true;
+    }
+
+    private void HandleOnlineConsentRevokeDialogKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Escape")
+        {
+            CancelOnlineConsentRevocation();
+        }
     }
 
     private void ConfirmOnlineConsentRevocation()

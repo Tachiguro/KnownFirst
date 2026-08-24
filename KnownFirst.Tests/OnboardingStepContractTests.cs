@@ -452,6 +452,55 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencyPostReviewConsentFocus_OnboardingRevocationUsesPostRenderFocusLifecycle()
+    {
+        var markup = LoadStepUi("OnlineLookupStep.razor");
+
+        Assert.Contains("@ref=\"_onlineConsentRevokeButton\"", markup);
+        Assert.Contains("@ref=\"_cancelOnlineConsentRevokeButton\"", markup);
+        Assert.Contains("private ElementReference _onlineConsentRevokeButton;", markup);
+        Assert.Contains("private ElementReference _cancelOnlineConsentRevokeButton;", markup);
+
+        var showHandler = ExtractMethodBody(markup, "private void ShowOnlineConsentRevokeConfirmation()");
+        var cancelHandler = ExtractMethodBody(markup, "private void CancelOnlineConsentRevocation()");
+        var afterRenderHandler = ExtractMethodBody(markup, "protected override async Task OnAfterRenderAsync(bool firstRender)");
+
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = true;", showHandler);
+        Assert.Contains("_revealOnlineConsentRevokeConfirmation = true;", showHandler);
+        Assert.DoesNotContain("FocusAsync", showHandler, StringComparison.Ordinal);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", cancelHandler);
+        Assert.Contains("_returnFocusToOnlineConsentRevokeButton = true;", cancelHandler);
+        Assert.DoesNotContain("FocusAsync", cancelHandler, StringComparison.Ordinal);
+        Assert.Contains("_revealOnlineConsentRevokeConfirmation = false;", afterRenderHandler);
+        Assert.Contains("await _cancelOnlineConsentRevokeButton.FocusAsync(preventScroll: true);", afterRenderHandler);
+        Assert.Contains("_returnFocusToOnlineConsentRevokeButton = false;", afterRenderHandler);
+        Assert.Contains("await _onlineConsentRevokeButton.FocusAsync();", afterRenderHandler);
+    }
+
+    [TestMethod]
+    public void VisualConsistencyPostReviewConsentFocus_EscapeUsesNonDestructiveCancelAndPreservesAlertDialog()
+    {
+        var markup = LoadStepUi("OnlineLookupStep.razor");
+
+        Assert.Contains("role=\"alertdialog\"", markup);
+        Assert.Contains("aria-labelledby=\"onboarding-online-consent-revoke-confirmation-message\"", markup);
+        Assert.Contains("@onkeydown=\"HandleOnlineConsentRevokeDialogKeyDown\"", markup);
+
+        var showHandler = ExtractMethodBody(markup, "private void ShowOnlineConsentRevokeConfirmation()");
+        var cancelHandler = ExtractMethodBody(markup, "private void CancelOnlineConsentRevocation()");
+        var escapeHandler = ExtractMethodBody(markup, "private void HandleOnlineConsentRevokeDialogKeyDown(KeyboardEventArgs eventArgs)");
+        var confirmHandler = ExtractMethodBody(markup, "private void ConfirmOnlineConsentRevocation()");
+
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", showHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", cancelHandler, StringComparison.Ordinal);
+        Assert.Contains("eventArgs.Key == \"Escape\"", escapeHandler);
+        Assert.Contains("CancelOnlineConsentRevocation();", escapeHandler);
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", escapeHandler, StringComparison.Ordinal);
+        Assert.Contains("AppSettings.RevokeOnlineLookupConsent();", confirmHandler);
+        Assert.AreEqual(1, Regex.Matches(markup, "RevokeOnlineLookupConsent").Count);
+    }
+
+    [TestMethod]
     public void VisualConsistencySliceFive_OnboardingFieldsHaveExplicitAccessibleNames()
     {
         var displayName = LoadStepUi("DisplayNameStep.razor");

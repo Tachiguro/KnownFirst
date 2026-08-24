@@ -6,6 +6,18 @@ and uses the application's prerelease version identifiers.
 
 ## [Unreleased]
 
+### Added
+
+- Dedicated first-run onboarding experience guiding new installations through initial application language selection, optional local display name, core learning concepts, online dictionary lookup consent, term recognition, study practice directions, daily learning pace, and learning day timing.
+- Resumable onboarding: setup progress is persisted locally across application restarts, automatically resuming at the current step and completing into the main application.
+- Optional local Display Name configurable during onboarding or in Settings, stored strictly locally on the device.
+- Daily new-word budget presets (`1`, `5 Recommended`, `10`, and `Custom`) with an expanded technical range (`1..50`), updated recommended default of `5` new words per day, and a non-blocking study workload advisory for custom values above `15`.
+
+### Changed
+
+- Default daily new-word budget for fresh installations and default restorations updated from `10` to `5` words per day (existing grandfathered installations preserve their established limit).
+- Settings now provides a dedicated Display Name card in third position (Language, Appearance, Display Name, New words per day).
+
 ## [1.0.0-beta.13] - 2026-08-23 (merged source — next Internal Testing candidate, not yet gated or distributed)
 
 **`1.0.0-beta.13` / build `13` is merged source on `master` via PR #92 through PR #145 (current synchronized master `35cd15bf3e0dda0816bb2dd2c9dc35fa91ddd430`). Merging is not a build, package, signing, device-validation, or distribution event: `1.0.0-beta.13` has not passed the mandatory exact-candidate Pre-AAB Release-Readiness Gate, and has not been packaged as an AAB, signed, installed on a device, uploaded to Google Play, or distributed to testers. The last confirmed externally distributed and device-tested release remains `1.0.0-beta.12` / build `12` (2026-07-30); see [docs/releases/1.0.0-beta.12.md](docs/releases/1.0.0-beta.12.md) and [docs/releases/1.0.0-beta.13.md](docs/releases/1.0.0-beta.13.md) for the Beta-13 evidence record.**

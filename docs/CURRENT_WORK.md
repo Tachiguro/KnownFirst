@@ -20,16 +20,17 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 - **Active work package:** First-Run Onboarding + Daily New-Word Budget UX Core.
 - **Branch:** `feature/onboarding-daily-budget-ux-core-v1`.
 - **Package id (checkpoint trailers):** `onboarding-core-v1`.
-- **Package objective:** Implement the remaining first-run onboarding core and daily new-word budget UX as one coherent multi-slice package: an optional application-local Display Name, a range-based daily-budget policy (`1..50`, default and recommended `5`, presets `1 / 5 / 10`, non-blocking warning above `15`) that never silently changes an existing installation's effective behavior, and a dedicated nine-screen onboarding experience with deterministic persisted resume behind a routing gate.
-- **Declared ordered slices:**
+- **Package objective:** Implement the first-run onboarding core and daily new-word budget UX as one coherent multi-slice package: an optional application-local Display Name, a range-based daily-budget policy (`1..50`, default and recommended `5`, presets `1 / 5 / 10`, non-blocking warning above `15`) that never silently changes an existing installation's effective behavior, and a dedicated nine-screen onboarding experience with deterministic persisted resume behind a routing gate.
+- **Declared ordered slices (all 6 slices and post-review correction complete):**
   1. Display Name persistence + Settings.
   2. Daily Budget Domain Policy.
   3. Daily Budget Settings UX.
   4. Onboarding Host + Lifecycle Resume Shell.
   5. Onboarding Core Choices.
   6. Onboarding Pace, Learning Day, Summary & Completion.
+- **Post-review correction:** Hardened completion persistence sequence (`IOnboardingCompletionService`), spy-based execution ordering tests, fail-closed exception boundaries, explicit `InProgress` + `onboarding_step` Restore Defaults preservation test, and package diff whitespace hygiene.
 - **Explicit non-goals:** Home greeting/personalization remains a later package. Also excluded: dashboard redesign, account/cloud identity, additional UI languages, Russian source-text recognition, new learning algorithms, schema 13, archive format V3, APK/AAB creation, signing/release/upload/store work, and physical-device or manual GUI execution.
-- **Persistence boundary:** Onboarding and Display Name state are application-local Preferences, never SQLite. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+- **Persistence boundary:** Onboarding, progress, and Display Name state are application-local Preferences, never SQLite. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Slice completion source:** Completed slices are read from `KnownFirst-Checkpoint:` trailers in the branch's Git history, correlated against the declared slice list above, per the interruption/resume contract in [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
@@ -167,7 +168,7 @@ Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding i
 ### First-Run Onboarding & Daily-Budget UX sequence
 
 1. ~~**Install-Origin Foundation & Reset Contracts.**~~ Completed — merged via PR #153 (merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`).
-2. **First-Run Onboarding + Daily New-Word Budget UX Core (active package `onboarding-core-v1`).** Six declared slices on `feature/onboarding-daily-budget-ux-core-v1`, listed under "Active Work Package" above. Slice progress is read from the branch's `KnownFirst-Checkpoint:` trailers.
+2. **First-Run Onboarding + Daily New-Word Budget UX Core (active package `onboarding-core-v1`).** Six declared slices and post-review correction implemented and reviewed on `feature/onboarding-daily-budget-ux-core-v1`.
 3. **Home greeting/personalization.** Planned as a separate later package after the onboarding core package closes.
 
 ### German Enhanced Term Recognition sequence — complete through Package 5B

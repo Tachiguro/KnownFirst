@@ -48,7 +48,8 @@ This document records stable, verified architectural facts and current capabilit
 - transactional local persistence (Schema 11), startup maintenance, and bounded structured diagnostics;
 - production offline German Enhanced Term Recognition (missing-preference default ON on `master` via PR #144, `EnhancedTermRecognitionEnabled` in Settings): conservative German compound decomposition against the production `GeneratedGermanLexicon`, wired into `TextReviewService` analysis, with Schema-11 `DerivedTermEvidence` persistence;
 - full Settings GUI exposing learning timezone (System or 50 curated IANA zones spanning inhabited UTC-11 through UTC+14, with dynamic DST-aware labels), deterministic 24-hour learning-day cutoff (`00..23` hour, `00..59` minute selectors), default-first card direction and learning mode choices, non-destructive Restore Defaults preserving online dictionary consent, and destructive Full Reset revoking consent (merged via PR #144);
-- preference-backed onboarding state foundation (`Required`, `InProgress`, `Completed`), startup install-origin classification distinguishing fresh from grandfathered existing installations, grandfathered 10-word daily budget pinning, and reset contracts (merged via PR #153).
+- preference-backed onboarding state foundation (`Required`, `InProgress`, `Completed`), startup install-origin classification distinguishing fresh from grandfathered existing installations, grandfathered 10-word daily budget pinning, and reset contracts (merged via PR #153);
+- dedicated 9-screen first-run onboarding host with restart resume, optional local Display Name, daily new-word budget range policy (`1..50`, default/recommended `5`, presets `1 / 5 / 10`, advisory warning `>15`), What's New completion coordination, and reset preservation contracts (candidate feature package `onboarding-core-v1`).
 
 ## Development, Tooling & Packaging Foundations
 
@@ -158,7 +159,41 @@ This merged foundation slice establishes preference-backed onboarding state, sta
 - **Grandfathered Daily-Budget Pinning:** Grandfathered existing installations without an explicit `preparation_limit` preference have the legacy effective value `10` pinned to `preparation_limit` so future default changes will not alter their established study rhythm. Existing explicit values are preserved; fresh installations are not pinned. `PreparationLimitPolicy.DefaultLimit` remains 10 with existing presets ($N \in \{5, 10, 20, 30, 50\}$).
 - **Reset Contracts:** Destructive full reset sets `OnboardingState.Required` first before default restoration recreates legacy markers; online dictionary consent remains unconditionally revoked. Non-destructive "Restore default settings" leaves onboarding state untouched and preserves current online dictionary consent.
 - **Persistence Boundary:** Onboarding state and install-origin markers are Preferences/application-local state, not SQLite. `DatabaseSchema.CurrentVersion` remains 12 and archive format remains V2.
-- **Explicit Non-Goals:** Visible first-run onboarding UI, route gating, display name, new presets (1 / 5 / 10 / Custom), default budget change to 5, and Home personalization are not implemented in this foundation slice and remain planned for later slices.
+
+## First-Run Onboarding & Daily-Budget UX Core (Candidate Feature Package on `feature/onboarding-daily-budget-ux-core-v1`)
+
+**Lifecycle status:** Implemented, corrected, and independently reviewed on branch `feature/onboarding-daily-budget-ux-core-v1` (candidate HEAD `c9d15007398afd309a6c28710ae5c08dbbe55a4b`). This is candidate branch state, not yet merged to `master`.
+
+This multi-slice package completes first-run onboarding and daily new-word budget UX:
+
+- **Dedicated First-Run Onboarding Host:** Rendered outside the standard `Router`/`MainLayout` tree whenever `OnboardingState` is `Required` or `InProgress`. Normal navigation chrome (desktop sidebar, mobile headers) and the `WhatsNewModal` are suppressed during onboarding.
+  1. *Welcome & UI Language:* Introduces the core concept and allows selecting English, German, or Russian.
+  2. *Display Name:* Optional local name configuration.
+  3. *Workflow:* Concise 3-step explanation of importing text, reviewing words, and practicing vocabulary.
+  4. *Online Lookup:* Privacy-sensitive dictionary lookup consent (default OFF, requires affirmative user action).
+  5. *Enhanced Term Recognition:* Opt-in German compound decomposition toggle (default ON).
+  6. *Practice Setup:* Choice of Card Direction (Both, Term->Meaning, Meaning->Term) and Learning Mode (Automatic, Reading, Typing).
+  7. *Daily Pace:* Daily new-word budget selection (`1`, `5 Recommended`, `10`, `Custom`).
+  8. *Learning Day Timing:* Timezone selection (System vs 50 curated IANA cities) and 24-hour cutoff time (`HH:mm`).
+  9. *Summary:* Review of all selected configuration and explicit Finish Setup action.
+- **Lifecycle & Resume Safety:** Current step is persisted locally under `onboarding_step` via `IOnboardingProgressStore`. Unrecognized or invalid stored values normalize safely to the first step (`WelcomeLanguage`). No global Skip action exists.
+- **Terminal Completion Coordination:** Coordinated via `IOnboardingCompletionService` / `OnboardingCompletionService` in strict sequence:
+  1. Marks current build version seen in the What's New store (`whats_new_seen_version`) so What's New is suppressed on first run.
+  2. Persists durable `OnboardingState.Completed`.
+  3. Clears `onboarding_step` progress.
+  4. Only after successful persistence raises `OnCompleted` callback to `Routes.razor` for same-process transition to the standard Router/MainLayout shell.
+- **Optional Local Display Name:** Stored under `display_name` via `IDisplayNameStore` / `MauiDisplayNameStore`. Strictly device-local; not an account or profile; excluded from SQLite and portable archives. Blank or whitespace inputs map to absent (`null`). Editable and removable in Settings.
+- **Daily New-Word Budget Domain Policy:**
+  - Technical valid range: contiguous `1..50` in `PreparationLimitPolicy`.
+  - Product default and recommended value: `5`.
+  - Presets: `1`, `5`, `10`.
+  - Custom values: Any valid integer $1..50$. Values above `15` render a localized, non-blocking workload advisory warning.
+  - Existing grandfathered installations without explicit limit retain their pinned effective value `10`.
+  - Invalid stored values normalize to `5`.
+- **Reset Invariants:**
+  - *Destructive Full Reset:* Sets `OnboardingState.Required`, clears progress, clears Display Name, revokes online lookup consent, and resets daily budget to `5`.
+  - *Non-Destructive Restore Default Settings:* Preserves `OnboardingState` and `onboarding_step` progress, preserves Display Name, preserves online lookup consent, and resets daily budget to `5`.
+- **Persistence Boundary:** Database schema remains 12; portable archive format remains V2. All onboarding, progress, and Display Name states reside in application Preferences.
 
 ## Evidence Boundaries & Release Limitations
 

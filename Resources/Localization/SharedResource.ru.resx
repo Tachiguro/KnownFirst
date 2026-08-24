@@ -699,6 +699,9 @@
   <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
     <value>Отозвать согласие на онлайн-поиск</value>
   </data>
+  <data name="Settings_RevokeOnlineConsentConfirmMessage" xml:space="preserve">
+    <value>Отозвать согласие на использование онлайн-словаря? Онлайн-поиск будет недоступен, пока вы снова его не активируете.</value>
+  </data>
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Согласие на онлайн-поиск отозвано.</value>
   </data>
@@ -1802,6 +1805,12 @@
   </data>
   <data name="Onboarding_WelcomeConcept" xml:space="preserve">
     <value>Добавляйте свои тексты → отмечайте знакомые слова → KnownFirst фокусирует изучение на остальном.</value>
+  </data>
+  <data name="Onboarding_SystemLanguageDetected" xml:space="preserve">
+    <value>Определённый язык системы: {0} ({1})</value>
+  </data>
+  <data name="Onboarding_SystemLanguageUnsupported" xml:space="preserve">
+    <value>Этот системный язык пока не поддерживается. KnownFirst автоматически будет использовать английский.</value>
   </data>
   <data name="Onboarding_DisplayNameTitle" xml:space="preserve">
     <value>Отображаемое имя</value>

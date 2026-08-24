@@ -60,6 +60,32 @@ public sealed class OnboardingHostTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceFour_OnboardingStepIdentitiesRemainExactlyOneThroughNine()
+    {
+        var expected = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            [nameof(OnboardingStep.WelcomeLanguage)] = 1,
+            [nameof(OnboardingStep.DisplayName)] = 2,
+            [nameof(OnboardingStep.Workflow)] = 3,
+            [nameof(OnboardingStep.OnlineLookup)] = 4,
+            [nameof(OnboardingStep.EnhancedTermRecognition)] = 5,
+            [nameof(OnboardingStep.Practice)] = 6,
+            [nameof(OnboardingStep.DailyPace)] = 7,
+            [nameof(OnboardingStep.LearningDayTiming)] = 8,
+            [nameof(OnboardingStep.Summary)] = 9
+        };
+
+        var actual = Enum.GetValues<OnboardingStep>()
+            .ToDictionary(step => step.ToString(), step => (int)step, StringComparer.Ordinal);
+
+        CollectionAssert.AreEquivalent(expected.Keys.ToArray(), actual.Keys.ToArray());
+        foreach (var entry in expected)
+        {
+            Assert.AreEqual(entry.Value, actual[entry.Key], entry.Key);
+        }
+    }
+
+    [TestMethod]
     public void OnboardingStepPolicy_TryGetNext_FollowsStrictSequentialOrder()
     {
         var current = OnboardingStep.WelcomeLanguage;

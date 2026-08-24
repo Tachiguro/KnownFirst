@@ -162,10 +162,10 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.5 Settings
 
 - The complete page is scrollable.
-- Display Name card in third position offers bounded input with Save and Remove actions, persisting local name or removing when cleared.
-- New words per day offers 4-preset selection (1, 5 Recommended, 10, Custom); selecting Custom reveals an accessible numeric input with immediate validation (1..50) and a non-blocking workload warning above 15.
+- Display Name card in third position offers bounded input with Save and Remove actions, persisting local name or removing when cleared (with danger styling for name removal).
+- New words per day offers 4-preset selection in visual order (5 Recommended, 1, 10, Custom); selecting Custom reveals an accessible numeric input with immediate validation (1..50), non-blocking workload warning above 15, and canonicalization at the semantic save boundary.
 - Reset confirmation and all its actions remain reachable and fully visible.
-- Destructive settings are clear without consuming disproportionate space.
+- Destructive settings are clear without consuming disproportionate space; Online Dictionary consent revocation uses an inline confirmation dialog matching the destructive confirmation pattern.
 - Unfinished support actions (such as Support KnownFirst) are absent from production Settings rendering; no placeholder or "coming soon" control appears.
 - Diagnostic actions remain logically grouped, visually marked as diagnostic, and gated so they are absent in Release.
 - The remaining Settings content, including the build identity, stays structurally clear, correctly labelled, and accessible.
@@ -184,10 +184,10 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.7 First-run onboarding
 
 - Onboarding is hosted in a dedicated fullscreen shell without normal navigation chrome (desktop sidebar, mobile headers) or the What's New modal.
-- The workflow progresses logically across nine ordered steps with Back and Continue actions; the final summary screen provides the Finish action. No global Skip action exists.
+- The workflow progresses logically across nine ordered steps with Back and Continue actions; the Welcome step provides System language and Appearance (System, Light, Dark) selection; the final summary screen provides the Finish action. No global Skip action exists.
 - The Display Name step allows continuing with or without a name.
-- Online dictionary lookup consent is presented clearly with a privacy-sensitive default (Off), requiring affirmative user activation to enable.
-- Daily Pace presents 4 presets (1, 5 Recommended, 10, Custom); selecting Custom reveals an accessible numeric input with immediate validation (1..50) and a non-blocking workload warning above 15.
+- Online dictionary lookup consent is presented clearly with a privacy-sensitive default (Off), requiring affirmative user activation to enable, and an inline destructive confirmation dialog for revocation.
+- Daily Pace presents 4 presets in consistent order (5 Recommended, 1, 10, Custom); selecting Custom reveals an accessible numeric input with immediate validation (1..50), non-blocking workload warning above 15, and canonicalization at the semantic Continue boundary.
 - Learning Day Timing provides timezone and 24-hour cutoff selectors with accessible labelling.
 - Localized EN, DE, and RU strings render cleanly without truncation, horizontal overflow, or broken layout across all required viewports (320px up to 1440px).
 - Finishing onboarding persists completion, clears progress, and transitions cleanly to the standard application shell in the same running process.
@@ -202,6 +202,7 @@ For every interactive control:
 - Activating it performs the stated action exactly once.
 - Its enabled and disabled states match whether the action is currently valid.
 - It produces immediate visible feedback.
+- Selected choice state must be communicated visually (e.g. active border/background) and programmatically via `aria-pressed`.
 - Cancel returns to the prior logical state without applying pending changes.
 
 ## 11. Confirmations and revealed content
@@ -209,11 +210,14 @@ For every interactive control:
 Destructive actions use one consistent inline pattern:
 
 - The normal state shows one red trigger button.
-- Opening confirmation hides the trigger at the same logical location.
+- Opening confirmation hides the trigger at the same logical location and displays an inline alert dialog.
 - The open state shows a neutral Cancel action and a red final action.
 - Both actions are fully visible, and the confirmation scrolls into view.
+- Revealed destructive confirmations receive initial post-render focus on the Cancel action.
 - Enter never confirms a destructive action.
 - Escape cancels and restores the original state.
+- Dismissing the confirmation via Cancel or Escape restores focus to the triggering action button.
+- Only activating the destructive Confirm action executes the destructive operation.
 
 Automatic scrolling is appropriate when newly revealed validation errors, manual-entry fallbacks, retry areas, or confirmation areas would otherwise be missed. Normal actions must not cause gratuitous scrolling. Focus moves to the first useful control in newly revealed content and returns sensibly when that content closes.
 

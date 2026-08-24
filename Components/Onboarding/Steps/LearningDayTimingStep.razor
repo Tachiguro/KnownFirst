@@ -16,6 +16,7 @@
         <p id="onboarding-timezone-help" class="setting-help">@Localizer["Settings_LearningTimezoneHelp"]</p>
         <div class="field-group">
             <select id="onboarding-learning-timezone-select"
+                    aria-labelledby="onboarding-timezone-title"
                     aria-describedby="onboarding-timezone-help"
                     @bind="_selectedLearningTimezoneValue"
                     @bind:after="SelectLearningTimezone">

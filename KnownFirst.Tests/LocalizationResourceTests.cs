@@ -254,6 +254,7 @@ public sealed class LocalizationResourceTests
         "Settings_OnlineConsentGranted",
         "Settings_OnlineConsentNotGranted",
         "Settings_RevokeOnlineConsent",
+        "Settings_RevokeOnlineConsentConfirmMessage",
         "Settings_OnlineConsentRevoked",
         "Settings_ActivateOnlineConsent",
         "Settings_OnlineConsentActivated",
@@ -432,6 +433,42 @@ public sealed class LocalizationResourceTests
         "Diagnostics_DebugResetTime",
         "Diagnostics_DebugTimeUpdated"
     ];
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_ConsentConfirmationKeysExistInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        const string confirmationKey = "Settings_RevokeOnlineConsentConfirmMessage";
+
+        Assert.IsTrue(english.ContainsKey(confirmationKey), "The English consent-revocation confirmation is missing.");
+        Assert.IsTrue(german.ContainsKey(confirmationKey), "The German consent-revocation confirmation is missing.");
+        Assert.IsTrue(russian.ContainsKey(confirmationKey), "The Russian consent-revocation confirmation is missing.");
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFour_SystemLanguageStatusKeysExistInAllSupportedLanguages()
+    {
+        var resourceSets = new[]
+        {
+            LoadResources("SharedResource.resx"),
+            LoadResources("SharedResource.de.resx"),
+            LoadResources("SharedResource.ru.resx")
+        };
+
+        foreach (var resources in resourceSets)
+        {
+            Assert.IsTrue(resources.ContainsKey("Onboarding_SystemLanguageDetected"));
+            Assert.IsTrue(resources.ContainsKey("Onboarding_SystemLanguageUnsupported"));
+            Assert.Contains("{0}", resources["Onboarding_SystemLanguageDetected"]);
+            Assert.Contains("{1}", resources["Onboarding_SystemLanguageDetected"]);
+        }
+
+        Assert.Contains("KnownFirst", resourceSets[0]["Onboarding_SystemLanguageUnsupported"]);
+        Assert.Contains("KnownFirst", resourceSets[1]["Onboarding_SystemLanguageUnsupported"]);
+        Assert.Contains("KnownFirst", resourceSets[2]["Onboarding_SystemLanguageUnsupported"]);
+    }
 
     [TestMethod]
     public void Resources_EveryEnglishKeyHasGermanCounterpart()
@@ -677,6 +714,34 @@ public sealed class LocalizationResourceTests
             Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), "The English value for '" + key + "' is empty.");
             Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), "The German value for '" + key + "' is empty.");
             Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), "The Russian value for '" + key + "' is empty.");
+        }
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceTwo_DailyBudgetUiUsesExistingLocalizedKeysWithoutLeaks()
+    {
+        var uiRoot = Path.Combine(AppContext.BaseDirectory, "Ui");
+        var settingsMarkup = File.ReadAllText(Path.Combine(uiRoot, "Settings.razor"));
+        var onboardingMarkup = File.ReadAllText(Path.Combine(uiRoot, "Steps", "DailyPaceStep.razor"));
+
+        foreach (var markup in new[] { settingsMarkup, onboardingMarkup })
+        {
+            Assert.Contains("Localizer[\"Settings_PreparationLimitRecommended\"]", markup);
+            Assert.Contains("\"Settings_PreparationLimitCustomInvalid\"", markup);
+            Assert.Contains("@Localizer[_customLimitValidationError]", markup);
+            Assert.DoesNotContain("Settings_PreparationLimitRecommendedTag", markup, StringComparison.Ordinal);
+            Assert.DoesNotContain("Settings_PreparationLimitCustomRangeError", markup, StringComparison.Ordinal);
+        }
+
+        foreach (var fileName in new[] { "SharedResource.resx", "SharedResource.de.resx", "SharedResource.ru.resx" })
+        {
+            var resources = LoadResources(fileName);
+            Assert.IsTrue(resources.ContainsKey("Settings_PreparationLimitRecommended"));
+            Assert.IsTrue(resources.ContainsKey("Settings_PreparationLimitCustomInvalid"));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Settings_PreparationLimitRecommended"]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Settings_PreparationLimitCustomInvalid"]));
+            Assert.IsFalse(resources.ContainsKey("Settings_PreparationLimitRecommendedTag"));
+            Assert.IsFalse(resources.ContainsKey("Settings_PreparationLimitCustomRangeError"));
         }
     }
 

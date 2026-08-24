@@ -1,10 +1,16 @@
 .settings-page {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-4);
     width: min(100%, 48rem);
     margin: 0 auto;
 }
 
 .settings-card {
-    margin-top: var(--space-4);
+    display: grid;
+    min-width: 0;
+    gap: var(--space-4);
+    margin: 0;
     padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-border);
     border-radius: 1.1rem;
@@ -13,115 +19,14 @@
 }
 
 .settings-card h2 {
-    margin: 0 0 var(--space-4);
+    margin: 0;
     word-break: normal; overflow-wrap: break-word; hyphens: auto;
     font-size: 1.2rem;
 }
 
-.choice-grid {
-    display: grid;
-    gap: var(--space-3);
-}
-
-.choice-grid-two {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.choice-grid-three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.choice-button {
-    min-width: 0;
-    min-height: 3.5rem;
-    padding: var(--space-3);
-    word-break: normal; overflow-wrap: break-word; hyphens: auto;
-    border: 1px solid var(--color-input-border);
-    border-radius: 0.8rem;
-    background: var(--color-surface-elevated);
-    color: var(--color-text);
-    cursor: pointer;
-    font-weight: 700;
-    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.choice-button:hover {
-    border-color: var(--color-border-strong);
-}
-
-.choice-button.active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-soft);
-    color: var(--color-primary);
-    box-shadow: inset 0 0 0 1px var(--color-primary);
-}
-
-.field-group {
-    display: grid;
-    gap: var(--space-2);
-}
-
-.setting-help {
-    margin: calc(-1 * var(--space-2)) 0 var(--space-4);
-    color: var(--color-muted);
-    line-height: 1.5;
-}
-
-.setting-status {
-    margin: var(--space-3) 0 0;
-    color: var(--color-muted);
-    line-height: 1.5;
-}
-
-.field-group label {
-    font-weight: 700;
-}
-
-.field-group select {
-    width: 100%;
-    min-height: 3.25rem;
-    padding: var(--space-3) var(--space-8) var(--space-3) var(--space-4);
-    border: 1px solid var(--color-input-border);
-    border-radius: 0.7rem;
-    background: var(--color-input-background);
-    color: var(--color-text);
-}
-
-.field-group .text-input {
-    width: 100%;
-    min-height: 3.25rem;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--color-input-border);
-    border-radius: 0.7rem;
-    background: var(--color-input-background);
-    color: var(--color-text);
-    font: inherit;
-}
-
-.field-group .text-input:focus-visible {
-    outline: 3px solid var(--color-focus-ring);
-    outline-offset: 2px;
-}
-
-.time-select-group {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-}
-
-.time-select-group select {
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 12rem;
-}
-
-.time-separator {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--color-muted);
-    user-select: none;
-    line-height: 1;
+.settings-card > p,
+.settings-card > h3 {
+    margin: 0;
 }
 
 .danger-zone {
@@ -132,15 +37,12 @@
     color: var(--color-muted);
 }
 
-.button-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-}
-
 /* Neutral confirmation for the non-destructive "Restore default settings" action. It deliberately
    avoids the danger palette used by the destructive full application reset. */
 .restore-defaults-confirmation {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-4);
     padding: clamp(var(--space-4), 4vw, var(--space-6));
     border: 1px solid var(--color-border);
     border-radius: 1.1rem;
@@ -149,76 +51,34 @@
 }
 
 .restore-defaults-confirmation > p:first-child {
-    margin-top: 0;
-}
-
-.setting-feedback {
-    margin: var(--space-4) 0 0;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid;
-    border-radius: 0.75rem;
-    line-height: 1.4;
-}
-
-.setting-feedback-success {
-    border-color: var(--color-success-border);
-    background: var(--color-success-surface);
-    color: var(--color-success);
-}
-
-.setting-feedback-error {
-    border-color: var(--color-danger-border);
-    background: var(--color-danger-surface);
-    color: var(--color-danger);
-}
-
-.setting-feedback-advisory {
-    border-color: var(--color-border-strong);
-    background: var(--color-surface-muted);
-    color: var(--color-text);
-}
-
-.choice-button-recommended {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-1);
-}
-
-.preset-value {
-    font-size: 1.1rem;
-    font-weight: 700;
-    line-height: 1;
-}
-
-.preset-recommended-badge {
-    font-size: 0.75rem;
-    font-weight: 600;
-    opacity: 0.9;
-    line-height: 1;
-}
-
-.custom-limit-field-group {
-    margin-top: var(--space-4);
+    margin: 0;
 }
 
 .custom-input-row {
     display: flex;
+    min-width: 0;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-3);
     max-width: 24rem;
 }
 
 .custom-input-row .text-input {
-    width: 8rem;
+    width: auto;
+    min-width: 0;
     min-height: 3.25rem;
+    flex: 1 1 8rem;
 }
 
-.support-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
+.bug-report-address {
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+.build-identity {
+    margin: 0;
+    font-size: 0.8rem;
+    opacity: 0.7;
 }
 
 .reset-confirmation > p {
@@ -226,7 +86,7 @@
 }
 
 .import-preview-panel {
-    margin-top: var(--space-4);
+    min-width: 0;
     padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-border);
     border-radius: 1.1rem;
@@ -236,7 +96,7 @@
 }
 
 .import-preview-panel > p:first-child {
-    margin-top: 0;
+    margin: 0;
 }
 
 .import-preview-counts {
@@ -246,20 +106,8 @@
     line-height: 1.6;
 }
 
-@media (max-width: 520px) {
-    .choice-grid-three {
-        grid-template-columns: 1fr;
-    }
-}
-
 @media (max-width: 380px) {
-    .choice-grid-two {
-        grid-template-columns: 1fr;
-    }
-
-    .settings-card > .button,
-    .button-row .button,
-    .support-actions .button {
+    .settings-card > .button {
         width: 100%;
     }
 }

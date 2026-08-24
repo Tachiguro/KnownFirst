@@ -139,6 +139,7 @@ h1:focus {
 
 .button {
     display: inline-flex;
+    min-width: 0;
     min-height: 3rem;
     align-items: center;
     justify-content: center;
@@ -149,16 +150,19 @@ h1:focus {
     cursor: pointer;
     font-weight: 700;
     line-height: 1.25;
+    overflow-wrap: break-word;
     text-decoration: none;
     transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
+    white-space: normal;
 }
 
-.button:hover {
+.button:not(:disabled):hover {
     transform: translateY(-1px);
 }
 
 .button:focus-visible,
 .choice-button:focus-visible,
+.text-input:focus-visible,
 select:focus-visible,
 a:focus-visible {
     outline: 3px solid var(--color-focus-ring);
@@ -166,8 +170,10 @@ a:focus-visible {
 }
 
 .button:disabled,
-.choice-button:disabled {
-    cursor: wait;
+.choice-button:disabled,
+.text-input:disabled,
+select:disabled {
+    cursor: not-allowed;
     opacity: 0.56;
     transform: none;
 }
@@ -177,7 +183,7 @@ a:focus-visible {
     color: var(--color-primary-contrast);
 }
 
-.button-primary:hover {
+.button-primary:not(:disabled):hover {
     background: var(--color-primary-hover);
 }
 
@@ -187,7 +193,7 @@ a:focus-visible {
     color: var(--color-text);
 }
 
-.button-secondary:hover {
+.button-secondary:not(:disabled):hover {
     border-color: var(--color-border-strong);
 }
 
@@ -197,7 +203,7 @@ a:focus-visible {
     color: var(--color-debug-text);
 }
 
-.button-debug:hover {
+.button-debug:not(:disabled):hover {
     background: var(--color-debug-hover);
     color: var(--color-debug-text);
 }
@@ -221,8 +227,169 @@ a:focus-visible {
     color: var(--color-danger-contrast);
 }
 
-.button-danger:hover {
+.button-danger:not(:disabled):hover {
     background: var(--color-danger-hover);
+}
+
+.choice-grid {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-3);
+}
+
+.choice-grid-two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choice-grid-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.choice-button {
+    min-width: 0;
+    min-height: 3.5rem;
+    padding: var(--space-3);
+    overflow-wrap: break-word;
+    border: 1px solid var(--color-input-border);
+    border-radius: 0.8rem;
+    background: var(--color-surface-elevated);
+    color: var(--color-text);
+    cursor: pointer;
+    font-weight: 700;
+    hyphens: auto;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+    word-break: normal;
+}
+
+.choice-button:not(:disabled):hover {
+    border-color: var(--color-border-strong);
+}
+
+.choice-button.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    box-shadow: inset 0 0 0 1px var(--color-primary);
+    color: var(--color-primary);
+}
+
+.choice-button-recommended {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+}
+
+.preset-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.preset-recommended-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    opacity: 0.9;
+}
+
+.field-group {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-2);
+}
+
+.field-group label {
+    font-weight: 700;
+}
+
+.field-group select {
+    width: 100%;
+    min-height: 3.25rem;
+    padding: var(--space-3) var(--space-8) var(--space-3) var(--space-4);
+    border: 1px solid var(--color-input-border);
+    border-radius: 0.7rem;
+    background: var(--color-input-background);
+    color: var(--color-text);
+}
+
+.time-select-group {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.time-select-group select {
+    min-width: 0;
+    max-width: 12rem;
+    flex: 1 1 0;
+}
+
+.time-separator {
+    color: var(--color-muted);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
+}
+
+.text-input {
+    width: 100%;
+    min-height: 3.25rem;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-input-border);
+    border-radius: 0.7rem;
+    background: var(--color-input-background);
+    color: var(--color-text);
+    font: inherit;
+}
+
+.button-row {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.setting-help,
+.setting-status {
+    margin: 0;
+    color: var(--color-muted);
+    line-height: 1.5;
+}
+
+.setting-feedback {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid;
+    border-radius: 0.75rem;
+    line-height: 1.4;
+}
+
+.setting-feedback > * {
+    margin: 0;
+}
+
+.setting-feedback-success {
+    border-color: var(--color-success-border);
+    background: var(--color-success-surface);
+    color: var(--color-success);
+}
+
+.setting-feedback-error {
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-surface);
+    color: var(--color-danger);
+}
+
+.setting-feedback-advisory {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-muted);
+    color: var(--color-text);
 }
 
 .app-status {
@@ -329,6 +496,9 @@ a:focus-visible {
 }
 
 .destructive-confirmation {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-4);
     padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-danger-border);
     border-radius: 1.1rem;
@@ -340,7 +510,7 @@ a:focus-visible {
 
 .destructive-confirmation h3:first-child,
 .destructive-confirmation p:first-child {
-    margin-top: 0;
+    margin: 0;
 }
 
 .workflow-scroll-area {
@@ -392,6 +562,22 @@ a:focus-visible {
     font-weight: 400;
     margin-left: 0.5em;
     opacity: 0.8;
+}
+
+@media (max-width: 520px) {
+    .choice-grid-three {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 380px) {
+    .choice-grid-two {
+        grid-template-columns: 1fr;
+    }
+
+    .button-row > .button {
+        width: 100%;
+    }
 }
 
 @media (min-width: 800px) {

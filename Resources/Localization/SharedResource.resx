@@ -699,6 +699,9 @@
   <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
     <value>Revoke online lookup consent</value>
   </data>
+  <data name="Settings_RevokeOnlineConsentConfirmMessage" xml:space="preserve">
+    <value>Revoke online dictionary consent? Online lookup will remain unavailable until you activate it again.</value>
+  </data>
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Online lookup consent was revoked.</value>
   </data>
@@ -1802,6 +1805,12 @@
   </data>
   <data name="Onboarding_WelcomeConcept" xml:space="preserve">
     <value>Bring your own text → mark what you already know → KnownFirst focuses learning on what remains.</value>
+  </data>
+  <data name="Onboarding_SystemLanguageDetected" xml:space="preserve">
+    <value>Detected system language: {0} ({1})</value>
+  </data>
+  <data name="Onboarding_SystemLanguageUnsupported" xml:space="preserve">
+    <value>This system language is not supported yet. KnownFirst will use English automatically.</value>
   </data>
   <data name="Onboarding_DisplayNameTitle" xml:space="preserve">
     <value>Display Name</value>

@@ -7,6 +7,7 @@
 @inject IAppSettingsService AppSettings
 @inject IDisplayNameStore DisplayNameStore
 @inject ILanguageSelectionService LanguageSelection
+@inject IThemeService ThemeService
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-summary-step">
@@ -16,7 +17,11 @@
         <dl class="summary-list">
             <div class="summary-item">
                 <dt>@Localizer["Settings_UILanguage"]</dt>
-                <dd>@GetLanguageDisplayName(LanguageSelection.CurrentUiLanguage)</dd>
+                <dd>@GetLanguagePreferenceDisplayName()</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_Appearance"]</dt>
+                <dd>@GetAppearancePreferenceDisplayName()</dd>
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_DisplayName"]</dt>
@@ -73,11 +78,26 @@
     [Parameter] public EventCallback OnFinish { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
-    private string GetLanguageDisplayName(string code) => code switch
+    private string GetLanguagePreferenceDisplayName()
     {
-        LanguageSelectionService.GermanLanguageCode => Localizer["Settings_German"],
-        LanguageSelectionService.RussianLanguageCode => Localizer["Settings_Russian"],
-        _ => Localizer["Settings_English"]
+        if (LanguageSelection.IsSystemPreferenceActive)
+        {
+            return Localizer["Settings_UILanguageSystem"];
+        }
+
+        return LanguageSelection.CurrentUiLanguage switch
+        {
+            LanguageSelectionService.GermanLanguageCode => Localizer["Settings_German"],
+            LanguageSelectionService.RussianLanguageCode => Localizer["Settings_Russian"],
+            _ => Localizer["Settings_English"]
+        };
+    }
+
+    private string GetAppearancePreferenceDisplayName() => ThemeService.Preference switch
+    {
+        ThemePreference.Light => Localizer["Settings_AppearanceLight"],
+        ThemePreference.Dark => Localizer["Settings_AppearanceDark"],
+        _ => Localizer["Settings_AppearanceSystem"]
     };
 
     private string GetCardDirectionLabel(CardDirectionPreference preference) => preference switch

@@ -1,13 +1,17 @@
 @namespace KnownFirst.Components.Onboarding
 @implements IDisposable
+@using System.Globalization
 @using KnownFirst.Components.Onboarding.Steps
 @using KnownFirst.Core.Language
 @using KnownFirst.Core.Settings
+@using KnownFirst.Services
 @using KnownFirst.Services.Onboarding
 @inject IOnboardingStateStore OnboardingStateStore
 @inject IOnboardingProgressStore OnboardingProgressStore
 @inject IOnboardingCompletionService CompletionService
 @inject ILanguageSelectionService LanguageSelection
+@inject IDeviceCultureProvider DeviceCultureProvider
+@inject IThemeService ThemeService
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-host">
@@ -22,27 +26,76 @@
 
                         <section class="onboarding-language-section" aria-labelledby="onboarding-language-title">
                             <h2 id="onboarding-language-title" class="onboarding-section-title">@Localizer["Settings_UILanguage"]</h2>
-                            <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-language-title">
+                            <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-language-title">
+                                <button type="button"
+                                        id="onboarding-lang-system"
+                                        class="choice-button @(LanguageSelection.IsSystemPreferenceActive ? "active" : null)"
+                                        aria-pressed="@LanguageSelection.IsSystemPreferenceActive"
+                                        @onclick="() => SetLanguage(LanguagePreferencePolicy.SystemPreferenceCode)">
+                                    @Localizer["Settings_UILanguageSystem"]
+                                </button>
                                 <button type="button"
                                         id="onboarding-lang-en"
-                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "true" : "false")"
+                                        class="choice-button @(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "active" : null)"
+                                        aria-pressed="@(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode)"
                                         @onclick="() => SetLanguage(LanguageSelectionService.EnglishLanguageCode)">
                                     @Localizer["Settings_English"]
                                 </button>
                                 <button type="button"
                                         id="onboarding-lang-de"
-                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "true" : "false")"
+                                        class="choice-button @(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "active" : null)"
+                                        aria-pressed="@(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode)"
                                         @onclick="() => SetLanguage(LanguageSelectionService.GermanLanguageCode)">
                                     @Localizer["Settings_German"]
                                 </button>
                                 <button type="button"
                                         id="onboarding-lang-ru"
-                                        class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "choice-button-active" : "choice-button-idle")"
-                                        aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "true" : "false")"
+                                        class="choice-button @(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "active" : null)"
+                                        aria-pressed="@(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode)"
                                         @onclick="() => SetLanguage(LanguageSelectionService.RussianLanguageCode)">
                                     @Localizer["Settings_Russian"]
+                                </button>
+                            </div>
+
+                            @if (LanguageSelection.IsSystemPreferenceActive)
+                            {
+                                <div id="onboarding-system-language-status" class="onboarding-system-language-status" role="status" aria-live="polite">
+                                    <p class="setting-status">
+                                        @Localizer["Onboarding_SystemLanguageDetected", GetDetectedDeviceCultureDisplayName(), DetectedDeviceCultureCode]
+                                    </p>
+                                    @if (!_deviceLanguageClassification.IsSupported)
+                                    {
+                                        <p id="onboarding-system-language-fallback" class="setting-feedback setting-feedback-advisory">
+                                            @Localizer["Onboarding_SystemLanguageUnsupported"]
+                                        </p>
+                                    }
+                                </div>
+                            }
+                        </section>
+
+                        <section class="onboarding-appearance-section" aria-labelledby="onboarding-appearance-title">
+                            <h2 id="onboarding-appearance-title" class="onboarding-section-title">@Localizer["Settings_Appearance"]</h2>
+                            <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-appearance-title">
+                                <button type="button"
+                                        id="onboarding-theme-system"
+                                        class="choice-button @(ThemeService.Preference == ThemePreference.System ? "active" : null)"
+                                        aria-pressed="@(ThemeService.Preference == ThemePreference.System)"
+                                        @onclick="() => SelectTheme(ThemePreference.System)">
+                                    @Localizer["Settings_AppearanceSystem"]
+                                </button>
+                                <button type="button"
+                                        id="onboarding-theme-light"
+                                        class="choice-button @(ThemeService.Preference == ThemePreference.Light ? "active" : null)"
+                                        aria-pressed="@(ThemeService.Preference == ThemePreference.Light)"
+                                        @onclick="() => SelectTheme(ThemePreference.Light)">
+                                    @Localizer["Settings_AppearanceLight"]
+                                </button>
+                                <button type="button"
+                                        id="onboarding-theme-dark"
+                                        class="choice-button @(ThemeService.Preference == ThemePreference.Dark ? "active" : null)"
+                                        aria-pressed="@(ThemeService.Preference == ThemePreference.Dark)"
+                                        @onclick="() => SelectTheme(ThemePreference.Dark)">
+                                    @Localizer["Settings_AppearanceDark"]
                                 </button>
                             </div>
                         </section>
@@ -112,6 +165,9 @@
     [Parameter] public EventCallback OnCompleted { get; set; }
 
     private OnboardingStep _currentStep = OnboardingStepPolicy.FirstStep;
+    private string _detectedDeviceCultureName = string.Empty;
+    private DeviceLanguageClassification _deviceLanguageClassification =
+        new(false, LanguagePreferencePolicy.EnglishLanguageCode);
 
     protected override void OnInitialized()
     {
@@ -130,6 +186,11 @@
             _currentStep = OnboardingStepPolicy.FirstStep;
         }
 
+        if (LanguageSelection.IsSystemPreferenceActive)
+        {
+            RefreshDeviceCultureStatus();
+        }
+
         LanguageSelection.UiLanguageChanged += OnUiLanguageChanged;
     }
 
@@ -141,6 +202,39 @@
     private void SetLanguage(string languageCode)
     {
         LanguageSelection.SetUiLanguage(languageCode);
+
+        if (LanguageSelection.IsSystemPreferenceActive)
+        {
+            RefreshDeviceCultureStatus();
+        }
+    }
+
+    private void SelectTheme(ThemePreference preference)
+    {
+        ThemeService.SetPreference(preference);
+    }
+
+    private string DetectedDeviceCultureCode =>
+        string.IsNullOrWhiteSpace(_detectedDeviceCultureName)
+            ? "?"
+            : _detectedDeviceCultureName.Trim();
+
+    private string GetDetectedDeviceCultureDisplayName()
+    {
+        try
+        {
+            return CultureInfo.GetCultureInfo(DetectedDeviceCultureCode.Replace('_', '-')).DisplayName;
+        }
+        catch (CultureNotFoundException)
+        {
+            return DetectedDeviceCultureCode;
+        }
+    }
+
+    private void RefreshDeviceCultureStatus()
+    {
+        _detectedDeviceCultureName = DeviceCultureProvider.GetDeviceCultureName();
+        _deviceLanguageClassification = LanguagePreferencePolicy.ClassifyDeviceCulture(_detectedDeviceCultureName);
     }
 
     private void AdvanceToNextStep()

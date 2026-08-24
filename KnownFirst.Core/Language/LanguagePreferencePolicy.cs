@@ -1,4 +1,10 @@
+using System.Globalization;
+
 namespace KnownFirst.Core.Language;
+
+public readonly record struct DeviceLanguageClassification(
+    bool IsSupported,
+    string EffectiveLanguage);
 
 public static class LanguagePreferencePolicy
 {
@@ -62,6 +68,28 @@ public static class LanguagePreferencePolicy
             EnglishLanguageCode => EnglishLanguageCode,
             _ => EnglishLanguageCode
         };
+    }
+
+    public static DeviceLanguageClassification ClassifyDeviceCulture(string? deviceCulture)
+    {
+        if (string.IsNullOrWhiteSpace(deviceCulture))
+        {
+            return new DeviceLanguageClassification(false, EnglishLanguageCode);
+        }
+
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(deviceCulture.Trim().Replace('_', '-'));
+            var languageFamily = culture.TwoLetterISOLanguageName.ToLowerInvariant();
+
+            return TryNormalizeSupportedLanguage(languageFamily, out var effectiveLanguage)
+                ? new DeviceLanguageClassification(true, effectiveLanguage)
+                : new DeviceLanguageClassification(false, EnglishLanguageCode);
+        }
+        catch (CultureNotFoundException)
+        {
+            return new DeviceLanguageClassification(false, EnglishLanguageCode);
+        }
     }
 
     public static bool TryNormalizeSupportedLanguage(string? value, out string normalizedLanguage)

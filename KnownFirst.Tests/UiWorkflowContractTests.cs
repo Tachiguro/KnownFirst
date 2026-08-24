@@ -1389,6 +1389,228 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceOne_SharedPrimitivesHaveOneGlobalOwnerAndSettingsConsumesThem()
+    {
+        var markup = LoadUi("Settings.razor");
+        var sharedStyles = LoadUi("app.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var settingsStyles = LoadUi("Settings.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        string[] sharedRuleOwners =
+        [
+            ".choice-grid {",
+            ".choice-button {",
+            ".choice-button.active {",
+            ".field-group {",
+            ".text-input {",
+            ".button-row {",
+            ".setting-feedback {",
+            ".setting-feedback-success {",
+            ".setting-feedback-error {",
+        ];
+
+        foreach (var ruleOwner in sharedRuleOwners)
+        {
+            var rootedRuleOwner = "\n" + ruleOwner;
+            Assert.Contains(rootedRuleOwner, sharedStyles, "The shared stylesheet must own " + ruleOwner + ".");
+            Assert.DoesNotContain(rootedRuleOwner, settingsStyles, "Settings must not duplicate the shared " + ruleOwner + " primitive.");
+        }
+
+        Assert.Contains("\n.setting-help,", sharedStyles);
+        Assert.Contains("\n.setting-status {", sharedStyles);
+        Assert.DoesNotContain("\n.setting-help", settingsStyles);
+        Assert.DoesNotContain("\n.setting-status", settingsStyles);
+
+        var activeRule = ExtractCssRule(sharedStyles, ".choice-button.active");
+        Assert.Contains("var(--color-primary)", activeRule);
+        Assert.Contains("var(--color-primary-soft)", activeRule);
+        Assert.Contains(".button:not(:disabled):hover", sharedStyles);
+        Assert.Contains(".choice-button:not(:disabled):hover", sharedStyles);
+        Assert.DoesNotContain("\n.button:hover", sharedStyles);
+        Assert.DoesNotContain("\n.choice-button:hover", sharedStyles);
+        Assert.Contains(".button:focus-visible", sharedStyles);
+        Assert.Contains(".text-input:focus-visible", sharedStyles);
+
+        Assert.Contains("class=\"choice-grid", markup);
+        Assert.Contains("class=\"choice-button", markup);
+        Assert.Contains("class=\"field-group", markup);
+        Assert.Contains("class=\"text-input\"", markup);
+        Assert.Contains("class=\"button-row\"", markup);
+        Assert.Contains("class=\"setting-help\"", markup);
+        Assert.Contains("class=\"setting-feedback", markup);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SharedControlsProtectFocusGeometryAndLongLabels()
+    {
+        var sharedStyles = LoadUi("app.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var buttonRule = ExtractCssRule(sharedStyles, ".button {");
+        var choiceRule = ExtractCssRule(sharedStyles, ".choice-button {");
+
+        Assert.Contains("min-height: 3rem", buttonRule);
+        Assert.Contains("min-width: 0", buttonRule);
+        Assert.Contains("overflow-wrap: break-word", buttonRule);
+        Assert.Contains("white-space: normal", buttonRule);
+        Assert.IsFalse(
+            System.Text.RegularExpressions.Regex.IsMatch(buttonRule, @"(?m)^\s*height\s*:"),
+            "Shared action buttons must grow from min-height rather than use a fixed height.");
+
+        Assert.Contains("min-height: 3.5rem", choiceRule);
+        Assert.Contains("min-width: 0", choiceRule);
+        Assert.Contains("overflow-wrap: break-word", choiceRule);
+        Assert.IsFalse(
+            System.Text.RegularExpressions.Regex.IsMatch(choiceRule, @"(?m)^\s*height\s*:"),
+            "Shared choice buttons must grow from min-height rather than use a fixed height.");
+
+        Assert.Contains(".button:focus-visible,\n.choice-button:focus-visible,\n.text-input:focus-visible,\nselect:focus-visible", sharedStyles);
+        Assert.Contains("outline: 3px solid var(--color-focus-ring)", sharedStyles);
+        Assert.Contains(".button:disabled,\n.choice-button:disabled,\n.text-input:disabled,\nselect:disabled", sharedStyles);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SharedBreakpointsCollapseChoicesAndStackStandardActions()
+    {
+        var sharedStyles = LoadUi("app.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var settingsStyles = LoadUi("Settings.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("@media (max-width: 520px)", sharedStyles);
+        Assert.Contains(".choice-grid-three {\n        grid-template-columns: 1fr;", sharedStyles);
+        Assert.Contains("@media (max-width: 380px)", sharedStyles);
+        Assert.Contains(".choice-grid-two {\n        grid-template-columns: 1fr;", sharedStyles);
+        Assert.Contains(".button-row > .button {\n        width: 100%;", sharedStyles);
+        Assert.DoesNotContain(".choice-grid-three", settingsStyles, StringComparison.Ordinal);
+        Assert.DoesNotContain(".choice-grid-two", settingsStyles, StringComparison.Ordinal);
+
+        var buttonRowRule = ExtractCssRule(sharedStyles, ".button-row {");
+        Assert.Contains("min-width: 0", buttonRowRule);
+        Assert.Contains("flex-wrap: wrap", buttonRowRule);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SettingsRowsReleaseIntrinsicWidthsAtNarrowViewports()
+    {
+        var styles = LoadUi("Settings.razor.css");
+        var pageRule = ExtractCssRule(styles, ".settings-page");
+        var cardRule = ExtractCssRule(styles, ".settings-card");
+        var customRowRule = ExtractCssRule(styles, ".custom-input-row");
+        var customInputRule = ExtractCssRule(styles, ".custom-input-row .text-input");
+
+        Assert.Contains("min-width: 0", pageRule);
+        Assert.Contains("min-width: 0", cardRule);
+        Assert.Contains("min-width: 0", customRowRule);
+        Assert.Contains("flex-wrap: wrap", customRowRule);
+        Assert.Contains("flex:", customInputRule);
+        Assert.Contains("min-width: 0", customInputRule);
+        Assert.DoesNotContain("width: 8rem", customInputRule, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SettingsLabelsAdvisoryAndDestructiveDialogsRemainAccessible()
+    {
+        var markup = LoadUi("Settings.razor");
+        var dailyPace = ExtractSettingsSection(markup, "preparation-limit-title");
+        var onlineLookup = ExtractSettingsSection(markup, "online-lookup-title");
+        var resetData = ExtractSettingsSection(markup, "reset-data-title");
+
+        Assert.Contains("<label for=\"display-name\"", markup);
+        Assert.Contains("<label for=\"preparation-limit-custom-input\"", markup);
+        Assert.Contains("<label for=\"learning-timezone-select\"", markup);
+        Assert.Contains("aria-label=\"@Localizer[\"Settings_LearningDayCutoffHours\"]\"", markup);
+        Assert.Contains("aria-label=\"@Localizer[\"Settings_LearningDayCutoffMinutes\"]\"", markup);
+
+        Assert.Contains("id=\"preparation-limit-warning\"", dailyPace);
+        Assert.Contains("setting-feedback-advisory", dailyPace);
+        Assert.Contains("role=\"status\"", dailyPace);
+        Assert.DoesNotContain("aria-live=\"assertive\"", dailyPace, StringComparison.Ordinal);
+
+        Assert.Contains("role=\"alertdialog\"", onlineLookup);
+        Assert.Contains("aria-labelledby=\"online-consent-revoke-confirmation-message\"", onlineLookup);
+        Assert.Contains("id=\"online-consent-revoke-cancel-button\"", onlineLookup);
+        Assert.Contains("class=\"button button-secondary\"", onlineLookup);
+        Assert.Contains("id=\"online-consent-revoke-confirm-button\"", onlineLookup);
+        Assert.Contains("class=\"button button-danger\"", onlineLookup);
+
+        Assert.Contains("role=\"alertdialog\"", resetData);
+        Assert.Contains("aria-labelledby=\"reset-confirmation-message\"", resetData);
+        Assert.Contains("id=\"reset-confirm-cancel-button\"", resetData);
+        Assert.Contains("id=\"reset-confirm-confirm-button\"", resetData);
+        Assert.Contains("data-destructive-confirm", resetData);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_SettingsUsesStructuralSpacingWithoutMagicMargins()
+    {
+        var markup = LoadUi("Settings.razor");
+        var styles = LoadUi("Settings.razor.css");
+        var pageRule = ExtractCssRule(styles, ".settings-page");
+        var cardRule = ExtractCssRule(styles, ".settings-card");
+
+        Assert.Contains("display: grid", pageRule);
+        Assert.Contains("gap: var(--space-4)", pageRule);
+        Assert.Contains("margin: 0", cardRule);
+        Assert.DoesNotContain("margin-top", cardRule, StringComparison.Ordinal);
+        Assert.DoesNotContain("calc(-1 *", styles, StringComparison.Ordinal);
+
+        var helpSection = ExtractSettingsSection(markup, "help-and-support-title");
+        Assert.DoesNotContain("style=", helpSection, StringComparison.Ordinal);
+        Assert.Contains("class=\"build-identity\"", helpSection);
+        Assert.Contains("class=\"setting-help bug-report-address\"", helpSection);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_SettingsActionsUseStandardSemanticStyles()
+    {
+        var markup = LoadUi("Settings.razor");
+        var displayNameSection = ExtractSettingsSection(markup, "display-name-title");
+        var onlineLookupSection = ExtractSettingsSection(markup, "online-lookup-title");
+        var restoreDefaultsSection = ExtractSettingsSection(markup, "restore-defaults-title");
+        var resetDataSection = ExtractSettingsSection(markup, "reset-data-title");
+
+        var removeNameButtonStart = displayNameSection.IndexOf("id=\"display-name-remove-button\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, removeNameButtonStart);
+        var removeNameButton = displayNameSection[removeNameButtonStart..];
+        Assert.Contains("class=\"button button-danger\"", removeNameButton);
+
+        Assert.Contains("id=\"online-consent-revoke-button\"", onlineLookupSection);
+        Assert.Contains("class=\"button button-danger\"", onlineLookupSection);
+        Assert.Contains("id=\"online-consent-activate-button\"", onlineLookupSection);
+        Assert.Contains("class=\"button button-primary\"", onlineLookupSection);
+
+        Assert.DoesNotContain("button-danger", restoreDefaultsSection, StringComparison.Ordinal);
+        Assert.Contains("class=\"button button-secondary\"", restoreDefaultsSection);
+        Assert.Contains("class=\"button button-danger\"", resetDataSection);
+        Assert.Contains("data-destructive-confirm", resetDataSection);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_OnlineConsentRevocationRequiresInlineConfirmation()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "online-lookup-title");
+
+        Assert.Contains("if (!_showOnlineConsentRevokeConfirmation)", section);
+        Assert.Contains("id=\"online-consent-revoke-confirmation\"", section);
+        Assert.Contains("class=\"destructive-confirmation\"", section);
+        Assert.Contains("Settings_RevokeOnlineConsentConfirmMessage", section);
+        Assert.Contains("id=\"online-consent-revoke-cancel-button\"", section);
+        Assert.Contains("class=\"button button-secondary\"", section);
+        Assert.Contains("@onclick=\"CancelOnlineConsentRevocation\"", section);
+        Assert.Contains("id=\"online-consent-revoke-confirm-button\"", section);
+        Assert.Contains("class=\"button button-danger\"", section);
+        Assert.Contains("data-destructive-confirm", section);
+        Assert.Contains("@onclick=\"ConfirmOnlineConsentRevocation\"", section);
+
+        var showHandler = ExtractMethodBody(markup, "private void ShowOnlineConsentRevokeConfirmation()");
+        var cancelHandler = ExtractMethodBody(markup, "private void CancelOnlineConsentRevocation()");
+        var confirmHandler = ExtractMethodBody(markup, "private void ConfirmOnlineConsentRevocation()");
+
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", showHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", cancelHandler, StringComparison.Ordinal);
+        Assert.Contains("AppSettings.RevokeOnlineLookupConsent();", confirmHandler);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", cancelHandler);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", confirmHandler);
+    }
+
+    [TestMethod]
     public void Settings_OffersEnhancedTermRecognitionToggleBoundToExistingSettingWithoutOnlineConsent()
     {
         var markup = LoadUi("Settings.razor");
@@ -1832,7 +2054,7 @@ public sealed class UiWorkflowContractTests
     public void Settings_LearningTimezoneEffectiveStatusHasExplicitSpacingSeparation()
     {
         var markup = LoadUi("Settings.razor");
-        var styles = LoadUi("Settings.razor.css");
+        var styles = LoadUi("app.css");
         var section = ExtractSettingsSection(markup, "learning-timezone-title");
 
         Assert.Contains("id=\"learning-timezone-effective\"", section);
@@ -1846,11 +2068,11 @@ public sealed class UiWorkflowContractTests
             styles.Contains(".setting-status", StringComparison.Ordinal)
             || styles.Contains("#learning-timezone-effective", StringComparison.Ordinal)
             || styles.Contains(".setting-effective", StringComparison.Ordinal),
-            "Settings.razor.css must define explicit spacing rules for the effective timezone status line.");
+            "The shared stylesheet must define explicit spacing rules for the effective timezone status line.");
         Assert.IsTrue(
             styles.Contains("var(--space-3)", StringComparison.Ordinal)
             || styles.Contains("var(--space-4)", StringComparison.Ordinal),
-            "Settings.razor.css must use an existing spacing scale variable for the status separation.");
+            "The shared stylesheet must use an existing spacing scale variable for the status separation.");
     }
 
     [TestMethod]
@@ -2028,6 +2250,82 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceTwo_SettingsDailyBudgetUsesBindingOrderAndSharedStateVocabulary()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        var recommended = section.IndexOf("id=\"preparation-limit-preset-5\"", StringComparison.Ordinal);
+        var one = section.IndexOf("id=\"preparation-limit-preset-1\"", StringComparison.Ordinal);
+        var ten = section.IndexOf("id=\"preparation-limit-preset-10\"", StringComparison.Ordinal);
+        var custom = section.IndexOf("id=\"preparation-limit-custom\"", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, recommended);
+        Assert.IsGreaterThan(recommended, one, "The recommended value 5 must render before preset 1.");
+        Assert.IsGreaterThan(one, ten, "Preset 1 must render before preset 10.");
+        Assert.IsGreaterThan(ten, custom, "Preset 10 must render before Custom.");
+
+        Assert.Contains("class=\"choice-button choice-button-recommended @(IsPresetActive(5) ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(5)\"", section);
+        Assert.Contains("class=\"choice-button @(IsPresetActive(1) ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(1)\"", section);
+        Assert.Contains("class=\"choice-button @(IsPresetActive(10) ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@IsPresetActive(10)\"", section);
+        Assert.Contains("class=\"choice-button @(_isCustomActive ? \"active\" : null)\"", section);
+        Assert.Contains("aria-pressed=\"@_isCustomActive\"", section);
+        Assert.Contains("Localizer[\"Settings_PreparationLimitRecommended\"]", section);
+        Assert.Contains("Localizer[\"Settings_PreparationLimitCustom\"]", section);
+    }
+
+    [TestMethod]
+    [DataRow(1, false)]
+    [DataRow(5, false)]
+    [DataRow(10, false)]
+    [DataRow(20, true)]
+    public void VisualConsistencySliceTwo_SettingsCustomCanonicalizesOnlyAtSaveBoundary(
+        int committedValue,
+        bool remainsCustom)
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+        var selectCustom = ExtractMethodBody(markup, "private void SelectCustom()");
+        var saveCustom = ExtractMethodBody(markup, "private void SaveCustomPreparationLimit()");
+
+        Assert.AreEqual(remainsCustom, !KnownFirst.Core.Settings.PreparationLimitPolicy.IsPreset(committedValue));
+        Assert.Contains("@bind:event=\"oninput\"", section);
+        Assert.DoesNotContain("SetPreparationLimit", selectCustom, StringComparison.Ordinal);
+        Assert.DoesNotContain("PreparationLimitPolicy.IsPreset", selectCustom, StringComparison.Ordinal);
+        Assert.Contains("AppSettings.SetPreparationLimit(customValue);", saveCustom);
+        Assert.Contains("_selectedPreparationLimit = AppSettings.PreparationLimit;", saveCustom);
+        Assert.Contains("_isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);", saveCustom);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceTwo_SettingsCustomEditorIsConditionalBoundedAndHighValuesRemainAdvisory()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+        var customCondition = section.IndexOf("@if (_isCustomActive)", StringComparison.Ordinal);
+        var customInput = section.IndexOf("id=\"preparation-limit-custom-input\"", StringComparison.Ordinal);
+        var saveCustom = ExtractMethodBody(markup, "private void SaveCustomPreparationLimit()");
+
+        Assert.IsGreaterThanOrEqualTo(0, customCondition);
+        Assert.IsGreaterThan(customCondition, customInput, "The numeric editor must exist only inside the Custom-state block.");
+        Assert.Contains("class=\"text-input\"", section);
+        Assert.Contains("type=\"number\"", section);
+        Assert.Contains("min=\"1\"", section);
+        Assert.Contains("max=\"50\"", section);
+        Assert.Contains("step=\"1\"", section);
+        Assert.Contains("PreparationLimitPolicy.IsValid(customValue)", saveCustom);
+        Assert.DoesNotContain("RequiresHighBudgetWarning", saveCustom, StringComparison.Ordinal);
+        Assert.IsFalse(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(15));
+        Assert.IsTrue(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(16));
+        Assert.IsTrue(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(20));
+        Assert.IsTrue(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(50));
+        Assert.IsFalse(KnownFirst.Core.Settings.PreparationLimitPolicy.RequiresHighBudgetWarning(51));
+    }
+
+    [TestMethod]
     public void Settings_DailyBudgetCardCustomInputEnforcesOneToFiftyBoundsAndValidation()
     {
         var markup = LoadUi("Settings.razor");
@@ -2160,5 +2458,15 @@ public sealed class UiWorkflowContractTests
 
         Assert.Fail("The method '" + signature + "' is not correctly delimited.");
         return string.Empty;
+    }
+
+    private static string ExtractCssRule(string styles, string selector)
+    {
+        var start = styles.IndexOf(selector, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start, "The CSS selector '" + selector + "' is missing.");
+
+        var end = styles.IndexOf('}', start);
+        Assert.IsGreaterThan(start, end, "The CSS selector '" + selector + "' has no closing brace.");
+        return styles[start..(end + 1)];
     }
 }

@@ -699,6 +699,9 @@
   <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
     <value>Отозвать согласие на онлайн-поиск</value>
   </data>
+  <data name="Settings_RevokeOnlineConsentConfirmMessage" xml:space="preserve">
+    <value>Отозвать согласие на использование онлайн-словаря? Онлайн-поиск будет недоступен, пока вы снова его не активируете.</value>
+  </data>
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Согласие на онлайн-поиск отозвано.</value>
   </data>

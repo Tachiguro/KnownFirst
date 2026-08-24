@@ -699,6 +699,9 @@
   <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
     <value>Revoke online lookup consent</value>
   </data>
+  <data name="Settings_RevokeOnlineConsentConfirmMessage" xml:space="preserve">
+    <value>Revoke online dictionary consent? Online lookup will remain unavailable until you activate it again.</value>
+  </data>
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Online lookup consent was revoked.</value>
   </data>

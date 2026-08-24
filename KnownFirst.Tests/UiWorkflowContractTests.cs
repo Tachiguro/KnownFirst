@@ -1389,6 +1389,131 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceOne_SharedPrimitivesHaveOneGlobalOwnerAndSettingsConsumesThem()
+    {
+        var markup = LoadUi("Settings.razor");
+        var sharedStyles = LoadUi("app.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var settingsStyles = LoadUi("Settings.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        string[] sharedRuleOwners =
+        [
+            ".choice-grid {",
+            ".choice-button {",
+            ".choice-button.active {",
+            ".field-group {",
+            ".text-input {",
+            ".button-row {",
+            ".setting-feedback {",
+            ".setting-feedback-success {",
+            ".setting-feedback-error {",
+        ];
+
+        foreach (var ruleOwner in sharedRuleOwners)
+        {
+            var rootedRuleOwner = "\n" + ruleOwner;
+            Assert.Contains(rootedRuleOwner, sharedStyles, "The shared stylesheet must own " + ruleOwner + ".");
+            Assert.DoesNotContain(rootedRuleOwner, settingsStyles, "Settings must not duplicate the shared " + ruleOwner + " primitive.");
+        }
+
+        Assert.Contains("\n.setting-help,", sharedStyles);
+        Assert.Contains("\n.setting-status {", sharedStyles);
+        Assert.DoesNotContain("\n.setting-help", settingsStyles);
+        Assert.DoesNotContain("\n.setting-status", settingsStyles);
+
+        var activeRule = ExtractCssRule(sharedStyles, ".choice-button.active");
+        Assert.Contains("var(--color-primary)", activeRule);
+        Assert.Contains("var(--color-primary-soft)", activeRule);
+        Assert.Contains(".button:not(:disabled):hover", sharedStyles);
+        Assert.Contains(".choice-button:not(:disabled):hover", sharedStyles);
+        Assert.DoesNotContain("\n.button:hover", sharedStyles);
+        Assert.DoesNotContain("\n.choice-button:hover", sharedStyles);
+        Assert.Contains(".button:focus-visible", sharedStyles);
+        Assert.Contains(".text-input:focus-visible", sharedStyles);
+
+        Assert.Contains("class=\"choice-grid", markup);
+        Assert.Contains("class=\"choice-button", markup);
+        Assert.Contains("class=\"field-group", markup);
+        Assert.Contains("class=\"text-input\"", markup);
+        Assert.Contains("class=\"button-row\"", markup);
+        Assert.Contains("class=\"setting-help\"", markup);
+        Assert.Contains("class=\"setting-feedback", markup);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_SettingsUsesStructuralSpacingWithoutMagicMargins()
+    {
+        var markup = LoadUi("Settings.razor");
+        var styles = LoadUi("Settings.razor.css");
+        var pageRule = ExtractCssRule(styles, ".settings-page");
+        var cardRule = ExtractCssRule(styles, ".settings-card");
+
+        Assert.Contains("display: grid", pageRule);
+        Assert.Contains("gap: var(--space-4)", pageRule);
+        Assert.Contains("margin: 0", cardRule);
+        Assert.DoesNotContain("margin-top", cardRule, StringComparison.Ordinal);
+        Assert.DoesNotContain("calc(-1 *", styles, StringComparison.Ordinal);
+
+        var helpSection = ExtractSettingsSection(markup, "help-and-support-title");
+        Assert.DoesNotContain("style=", helpSection, StringComparison.Ordinal);
+        Assert.Contains("class=\"build-identity\"", helpSection);
+        Assert.Contains("class=\"setting-help bug-report-address\"", helpSection);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_SettingsActionsUseStandardSemanticStyles()
+    {
+        var markup = LoadUi("Settings.razor");
+        var displayNameSection = ExtractSettingsSection(markup, "display-name-title");
+        var onlineLookupSection = ExtractSettingsSection(markup, "online-lookup-title");
+        var restoreDefaultsSection = ExtractSettingsSection(markup, "restore-defaults-title");
+        var resetDataSection = ExtractSettingsSection(markup, "reset-data-title");
+
+        var removeNameButtonStart = displayNameSection.IndexOf("id=\"display-name-remove-button\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, removeNameButtonStart);
+        var removeNameButton = displayNameSection[removeNameButtonStart..];
+        Assert.Contains("class=\"button button-danger\"", removeNameButton);
+
+        Assert.Contains("id=\"online-consent-revoke-button\"", onlineLookupSection);
+        Assert.Contains("class=\"button button-danger\"", onlineLookupSection);
+        Assert.Contains("id=\"online-consent-activate-button\"", onlineLookupSection);
+        Assert.Contains("class=\"button button-primary\"", onlineLookupSection);
+
+        Assert.DoesNotContain("button-danger", restoreDefaultsSection, StringComparison.Ordinal);
+        Assert.Contains("class=\"button button-secondary\"", restoreDefaultsSection);
+        Assert.Contains("class=\"button button-danger\"", resetDataSection);
+        Assert.Contains("data-destructive-confirm", resetDataSection);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_OnlineConsentRevocationRequiresInlineConfirmation()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "online-lookup-title");
+
+        Assert.Contains("if (!_showOnlineConsentRevokeConfirmation)", section);
+        Assert.Contains("id=\"online-consent-revoke-confirmation\"", section);
+        Assert.Contains("class=\"destructive-confirmation\"", section);
+        Assert.Contains("Settings_RevokeOnlineConsentConfirmMessage", section);
+        Assert.Contains("id=\"online-consent-revoke-cancel-button\"", section);
+        Assert.Contains("class=\"button button-secondary\"", section);
+        Assert.Contains("@onclick=\"CancelOnlineConsentRevocation\"", section);
+        Assert.Contains("id=\"online-consent-revoke-confirm-button\"", section);
+        Assert.Contains("class=\"button button-danger\"", section);
+        Assert.Contains("data-destructive-confirm", section);
+        Assert.Contains("@onclick=\"ConfirmOnlineConsentRevocation\"", section);
+
+        var showHandler = ExtractMethodBody(markup, "private void ShowOnlineConsentRevokeConfirmation()");
+        var cancelHandler = ExtractMethodBody(markup, "private void CancelOnlineConsentRevocation()");
+        var confirmHandler = ExtractMethodBody(markup, "private void ConfirmOnlineConsentRevocation()");
+
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", showHandler, StringComparison.Ordinal);
+        Assert.DoesNotContain("RevokeOnlineLookupConsent", cancelHandler, StringComparison.Ordinal);
+        Assert.Contains("AppSettings.RevokeOnlineLookupConsent();", confirmHandler);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", cancelHandler);
+        Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", confirmHandler);
+    }
+
+    [TestMethod]
     public void Settings_OffersEnhancedTermRecognitionToggleBoundToExistingSettingWithoutOnlineConsent()
     {
         var markup = LoadUi("Settings.razor");
@@ -1832,7 +1957,7 @@ public sealed class UiWorkflowContractTests
     public void Settings_LearningTimezoneEffectiveStatusHasExplicitSpacingSeparation()
     {
         var markup = LoadUi("Settings.razor");
-        var styles = LoadUi("Settings.razor.css");
+        var styles = LoadUi("app.css");
         var section = ExtractSettingsSection(markup, "learning-timezone-title");
 
         Assert.Contains("id=\"learning-timezone-effective\"", section);
@@ -1846,11 +1971,11 @@ public sealed class UiWorkflowContractTests
             styles.Contains(".setting-status", StringComparison.Ordinal)
             || styles.Contains("#learning-timezone-effective", StringComparison.Ordinal)
             || styles.Contains(".setting-effective", StringComparison.Ordinal),
-            "Settings.razor.css must define explicit spacing rules for the effective timezone status line.");
+            "The shared stylesheet must define explicit spacing rules for the effective timezone status line.");
         Assert.IsTrue(
             styles.Contains("var(--space-3)", StringComparison.Ordinal)
             || styles.Contains("var(--space-4)", StringComparison.Ordinal),
-            "Settings.razor.css must use an existing spacing scale variable for the status separation.");
+            "The shared stylesheet must use an existing spacing scale variable for the status separation.");
     }
 
     [TestMethod]
@@ -2160,5 +2285,15 @@ public sealed class UiWorkflowContractTests
 
         Assert.Fail("The method '" + signature + "' is not correctly delimited.");
         return string.Empty;
+    }
+
+    private static string ExtractCssRule(string styles, string selector)
+    {
+        var start = styles.IndexOf(selector, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start, "The CSS selector '" + selector + "' is missing.");
+
+        var end = styles.IndexOf('}', start);
+        Assert.IsGreaterThan(start, end, "The CSS selector '" + selector + "' has no closing brace.");
+        return styles[start..(end + 1)];
     }
 }

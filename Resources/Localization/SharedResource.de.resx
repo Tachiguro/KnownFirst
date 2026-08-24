@@ -699,6 +699,9 @@
   <data name="Settings_RevokeOnlineConsent" xml:space="preserve">
     <value>Einwilligung zur Online-Abfrage widerrufen</value>
   </data>
+  <data name="Settings_RevokeOnlineConsentConfirmMessage" xml:space="preserve">
+    <value>Einwilligung für das Online-Wörterbuch widerrufen? Die Online-Abfrage bleibt deaktiviert, bis du sie erneut aktivierst.</value>
+  </data>
   <data name="Settings_OnlineConsentRevoked" xml:space="preserve">
     <value>Die Einwilligung zur Online-Abfrage wurde widerrufen.</value>
   </data>

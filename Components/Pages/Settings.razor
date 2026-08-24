@@ -118,7 +118,7 @@
             {
                 <button id="display-name-remove-button"
                         type="button"
-                        class="button button-secondary"
+                        class="button button-danger"
                         @onclick="RemoveDisplayName">
                     @Localizer["Settings_DisplayNameRemove"]
                 </button>
@@ -384,15 +384,54 @@
             : "Settings_OnlineConsentNotGranted"]</p>
         @if (AppSettings.HasOnlineLookupConsent)
         {
-            <button type="button" class="button button-secondary" @onclick="RevokeOnlineConsent">
-                @Localizer["Settings_RevokeOnlineConsent"]
-            </button>
+            @if (!_showOnlineConsentRevokeConfirmation)
+            {
+                <button id="online-consent-revoke-button"
+                        type="button"
+                        class="button button-danger"
+                        @ref="_onlineConsentRevokeButton"
+                        @onclick="ShowOnlineConsentRevokeConfirmation">
+                    @Localizer["Settings_RevokeOnlineConsent"]
+                </button>
+            }
+            else
+            {
+                <div id="online-consent-revoke-confirmation"
+                     class="destructive-confirmation"
+                     role="alertdialog"
+                     aria-labelledby="online-consent-revoke-confirmation-message"
+                     @ref="_onlineConsentRevokeConfirmation"
+                     @onkeydown="HandleOnlineConsentRevokeDialogKeyDown">
+                    <p id="online-consent-revoke-confirmation-message">
+                        @Localizer["Settings_RevokeOnlineConsentConfirmMessage"]
+                    </p>
+                    <div class="button-row">
+                        <button id="online-consent-revoke-cancel-button"
+                                type="button"
+                                class="button button-secondary"
+                                @ref="_cancelOnlineConsentRevokeButton"
+                                @onclick="CancelOnlineConsentRevocation">
+                            @Localizer["Common_Cancel"]
+                        </button>
+                        <button id="online-consent-revoke-confirm-button"
+                                type="button"
+                                class="button button-danger"
+                                data-destructive-confirm
+                                @onclick="ConfirmOnlineConsentRevocation">
+                            @Localizer["Settings_RevokeOnlineConsent"]
+                        </button>
+                    </div>
+                </div>
+            }
         }
         else
         {
             <h3>@Localizer["Prepare_OnlineDisclosureTitle"]</h3>
             <p class="setting-help">@Localizer["Prepare_OnlineDisclosure"]</p>
-            <button type="button" class="button button-primary" @onclick="ActivateOnlineConsent">
+            <button id="online-consent-activate-button"
+                    type="button"
+                    class="button button-primary"
+                    @onclick="ActivateOnlineConsent">
                 @Localizer["Settings_ActivateOnlineConsent"]
             </button>
         }
@@ -416,7 +455,7 @@
         <p class="setting-help">@Localizer["Settings_PortableDataPrivacyNotice"]</p>
         @if (_portableImportPreview is null)
         {
-            <div class="support-actions">
+            <div class="button-row">
                 <button type="button"
                         id="portable-data-export-button"
                         class="button button-secondary"
@@ -522,7 +561,7 @@
         <section class="settings-card debug-tools" aria-labelledby="lexical-diagnostics-title">
             <h2 id="lexical-diagnostics-title"><span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span> @Localizer["Diagnostics_LexicalLogTitle"]</h2>
             <p>@Localizer["Diagnostics_LexicalLogDescription"]</p>
-            <div class="support-actions">
+            <div class="button-row">
                 <button type="button" class="button button-debug" disabled="@_isChangingDiagnostics" @onclick="CopyLexicalDiagnosticReportAsync">
                     @Localizer["Diagnostics_CopyDiagnosticReport"]
                 </button>
@@ -546,7 +585,7 @@
 
     <section class="settings-card" aria-labelledby="help-and-support-title">
         <h2 id="help-and-support-title">@Localizer["Settings_HelpAndSupport"]</h2>
-        <div class="support-actions">
+        <div class="button-row">
             <a id="settings-release-notes-link" class="button button-secondary" href="release-notes">@Localizer["WhatsNew_Title"]</a>
             <button type="button"
                     id="settings-report-bug-button"
@@ -560,7 +599,7 @@
         {
             <div id="bug-report-fallback-panel" class="setting-feedback setting-feedback-error" role="alert">
                 <p id="bug-report-feedback-error">@Localizer["Settings_ReportBugError"]</p>
-                <p id="bug-report-address" class="setting-help" style="margin-top: 0.5rem; margin-bottom: 0.5rem; user-select: all;">
+                <p id="bug-report-address" class="setting-help bug-report-address">
                     @BugReportLauncher.RecipientEmail
                 </p>
                 <div class="button-row">
@@ -587,7 +626,7 @@
             </div>
         }
 
-        <p style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.7;">
+        <p class="build-identity">
             @BuildIdentityService.GetFormattedBuildIdentity()
         </p>
     </section>
@@ -725,6 +764,9 @@
     private bool _learningModeSaved;
     private bool _onlineConsentRevoked;
     private bool _onlineConsentActivated;
+    private bool _showOnlineConsentRevokeConfirmation;
+    private bool _revealOnlineConsentRevokeConfirmation;
+    private bool _returnFocusToOnlineConsentRevokeButton;
     private bool _enhancedTermRecognitionEnabled;
     private bool _enhancedTermRecognitionSaved;
     private string _selectedLearningTimezoneValue = SystemLearningTimezoneValue;
@@ -770,6 +812,9 @@
     private ElementReference _resetButton;
     private ElementReference _resetConfirmation;
     private ElementReference _cancelResetButton;
+    private ElementReference _onlineConsentRevokeButton;
+    private ElementReference _onlineConsentRevokeConfirmation;
+    private ElementReference _cancelOnlineConsentRevokeButton;
 
     protected override async Task OnInitializedAsync()
     {
@@ -850,7 +895,18 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_revealResetConfirmation)
+        if (_revealOnlineConsentRevokeConfirmation)
+        {
+            _revealOnlineConsentRevokeConfirmation = false;
+            await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _onlineConsentRevokeConfirmation);
+            await _cancelOnlineConsentRevokeButton.FocusAsync(preventScroll: true);
+        }
+        else if (_returnFocusToOnlineConsentRevokeButton)
+        {
+            _returnFocusToOnlineConsentRevokeButton = false;
+            await _onlineConsentRevokeButton.FocusAsync();
+        }
+        else if (_revealResetConfirmation)
         {
             _revealResetConfirmation = false;
             await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _resetConfirmation);
@@ -1229,9 +1285,31 @@
         _enhancedTermRecognitionSaved = true;
     }
 
-    private void RevokeOnlineConsent()
+    private void ShowOnlineConsentRevokeConfirmation()
+    {
+        _onlineConsentRevoked = false;
+        _showOnlineConsentRevokeConfirmation = true;
+        _revealOnlineConsentRevokeConfirmation = true;
+    }
+
+    private void CancelOnlineConsentRevocation()
+    {
+        _showOnlineConsentRevokeConfirmation = false;
+        _returnFocusToOnlineConsentRevokeButton = true;
+    }
+
+    private void HandleOnlineConsentRevokeDialogKeyDown(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Escape")
+        {
+            CancelOnlineConsentRevocation();
+        }
+    }
+
+    private void ConfirmOnlineConsentRevocation()
     {
         AppSettings.RevokeOnlineLookupConsent();
+        _showOnlineConsentRevokeConfirmation = false;
         _onlineConsentRevoked = true;
         _onlineConsentActivated = false;
     }

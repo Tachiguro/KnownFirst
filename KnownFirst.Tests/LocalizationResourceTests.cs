@@ -254,6 +254,7 @@ public sealed class LocalizationResourceTests
         "Settings_OnlineConsentGranted",
         "Settings_OnlineConsentNotGranted",
         "Settings_RevokeOnlineConsent",
+        "Settings_RevokeOnlineConsentConfirmMessage",
         "Settings_OnlineConsentRevoked",
         "Settings_ActivateOnlineConsent",
         "Settings_OnlineConsentActivated",
@@ -432,6 +433,19 @@ public sealed class LocalizationResourceTests
         "Diagnostics_DebugResetTime",
         "Diagnostics_DebugTimeUpdated"
     ];
+
+    [TestMethod]
+    public void VisualConsistencySliceOne_ConsentConfirmationKeysExistInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        const string confirmationKey = "Settings_RevokeOnlineConsentConfirmMessage";
+
+        Assert.IsTrue(english.ContainsKey(confirmationKey), "The English consent-revocation confirmation is missing.");
+        Assert.IsTrue(german.ContainsKey(confirmationKey), "The German consent-revocation confirmation is missing.");
+        Assert.IsTrue(russian.ContainsKey(confirmationKey), "The Russian consent-revocation confirmation is missing.");
+    }
 
     [TestMethod]
     public void Resources_EveryEnglishKeyHasGermanCounterpart()

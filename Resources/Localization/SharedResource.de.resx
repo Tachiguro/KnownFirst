@@ -1779,4 +1779,22 @@
   <data name="Timezone_City_Pacific_Kiritimati" xml:space="preserve">
     <value>Kiritimati</value>
   </data>
+  <data name="Settings_PreparationLimitRecommended" xml:space="preserve">
+    <value>Empfohlen</value>
+  </data>
+  <data name="Settings_PreparationLimitCustom" xml:space="preserve">
+    <value>Benutzerdefiniert</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomLabel" xml:space="preserve">
+    <value>Benutzerdefiniertes Tagesbudget</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomHelp" xml:space="preserve">
+    <value>Gib ein Tagesbudget zwischen 1 und 50 neuen Wörtern ein.</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomInvalid" xml:space="preserve">
+    <value>Bitte gib eine ganze Zahl zwischen 1 und 50 ein.</value>
+  </data>
+  <data name="Settings_PreparationLimitHighWarning" xml:space="preserve">
+    <value>Viele neue Wörter pro Tag können den späteren Wiederholungsaufwand spürbar erhöhen.</value>
+  </data>
 </root>

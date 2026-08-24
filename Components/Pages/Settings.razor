@@ -137,24 +137,81 @@
     </section>
 
     <section class="settings-card" aria-labelledby="preparation-limit-title">
-        <h2 id="preparation-limit-title">
-            <label for="preparation-limit">@Localizer["Settings_PreparationLimit"]</label>
-        </h2>
+        <h2 id="preparation-limit-title">@Localizer["Settings_PreparationLimit"]</h2>
         <p id="preparation-limit-help" class="setting-help">@Localizer["Settings_PreparationLimitHelp"]</p>
-        <div class="field-group">
-            <select id="preparation-limit"
-                    aria-describedby="preparation-limit-help"
-                    @bind="_selectedPreparationLimit"
-                    @bind:after="SavePreparationLimit">
-                @foreach (var limit in AppSettings.SupportedPreparationLimits)
-                {
-                    <option value="@limit">@limit</option>
-                }
-            </select>
+        <div class="choice-grid choice-grid-two" role="group" aria-labelledby="preparation-limit-title" aria-describedby="preparation-limit-help">
+            <button type="button"
+                    id="preparation-limit-preset-1"
+                    class="choice-button @(IsPresetActive(1) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(1)"
+                    @onclick="() => SelectPreset(1)">
+                1
+            </button>
+            <button type="button"
+                    id="preparation-limit-preset-5"
+                    class="choice-button choice-button-recommended @(IsPresetActive(5) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(5)"
+                    @onclick="() => SelectPreset(5)">
+                <span class="preset-value">5</span>
+                <span class="preset-recommended-badge">@Localizer["Settings_PreparationLimitRecommended"]</span>
+            </button>
+            <button type="button"
+                    id="preparation-limit-preset-10"
+                    class="choice-button @(IsPresetActive(10) ? "active" : null)"
+                    aria-pressed="@IsPresetActive(10)"
+                    @onclick="() => SelectPreset(10)">
+                10
+            </button>
+            <button type="button"
+                    id="preparation-limit-custom"
+                    class="choice-button @(_isCustomActive ? "active" : null)"
+                    aria-pressed="@_isCustomActive"
+                    @onclick="SelectCustom">
+                @Localizer["Settings_PreparationLimitCustom"]
+            </button>
         </div>
-        @if (_preparationLimitConfirmation is not null)
+
+        @if (_isCustomActive)
         {
-            <p class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
+            <div class="field-group custom-limit-field-group">
+                <label for="preparation-limit-custom-input">@Localizer["Settings_PreparationLimitCustomLabel"]</label>
+                <p id="preparation-limit-custom-help" class="setting-help">@Localizer["Settings_PreparationLimitCustomHelp"]</p>
+                <div class="custom-input-row">
+                    <input id="preparation-limit-custom-input"
+                           class="text-input"
+                           type="number"
+                           min="1"
+                           max="50"
+                           step="1"
+                           aria-describedby="preparation-limit-custom-help"
+                           @bind="_customLimitInput"
+                           @bind:event="oninput" />
+                    <button id="preparation-limit-custom-save-button"
+                            type="button"
+                            class="button button-primary"
+                            @onclick="SaveCustomPreparationLimit">
+                        @Localizer["Common_Save"]
+                    </button>
+                </div>
+            </div>
+        }
+
+        @if (ShowHighBudgetWarning)
+        {
+            <p id="preparation-limit-warning" class="setting-feedback setting-feedback-advisory" role="status" aria-live="polite">
+                @Localizer["Settings_PreparationLimitHighWarning"]
+            </p>
+        }
+
+        @if (_customLimitValidationError is not null)
+        {
+            <p id="preparation-limit-custom-error" class="setting-feedback setting-feedback-error" role="alert">
+                @Localizer[_customLimitValidationError]
+            </p>
+        }
+        else if (_preparationLimitConfirmation is not null)
+        {
+            <p id="preparation-limit-success" class="setting-feedback setting-feedback-success" role="status" aria-live="polite">
                 @Localizer["Settings_PreparationLimitSaved", _preparationLimitConfirmation.Value]
             </p>
         }
@@ -649,6 +706,9 @@
     private string _selectedLanguagePreference = LanguageSelectionService.EnglishLanguageCode;
     private ThemePreference _selectedTheme = ThemePreference.System;
     private int _selectedPreparationLimit = AppSettingsService.DefaultPreparationLimit;
+    private bool _isCustomActive;
+    private string _customLimitInput = string.Empty;
+    private string? _customLimitValidationError;
     private CardDirectionPreference _selectedCardDirection = CardDirectionPreference.Both;
     private LearningMode _selectedLearningMode = LearningModePolicy.DefaultMode;
     private string _displayNameInput = string.Empty;
@@ -726,11 +786,11 @@
     {
         _selectedLanguagePreference = CurrentLanguagePreferenceValue;
         _selectedTheme = ThemeService.Preference;
-        _selectedPreparationLimit = AppSettings.PreparationLimit;
         _selectedCardDirection = AppSettings.CardDirection;
         _selectedLearningMode = AppSettings.LearningMode;
         _enhancedTermRecognitionEnabled = AppSettings.EnhancedTermRecognitionEnabled;
         _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
+        SyncPreparationLimitFields();
         SyncDisplayNameFields();
         SyncLearningDayCutoffFields();
     }
@@ -902,20 +962,90 @@
         }
     }
 
-    private void SavePreparationLimit()
+    private bool IsPresetActive(int preset) => !_isCustomActive && _selectedPreparationLimit == preset;
+
+    private bool ShowHighBudgetWarning
     {
+        get
+        {
+            if (_isCustomActive)
+            {
+                return int.TryParse(_customLimitInput, NumberStyles.Integer, CultureInfo.InvariantCulture, out var prospective)
+                    && PreparationLimitPolicy.RequiresHighBudgetWarning(prospective);
+            }
+
+            return PreparationLimitPolicy.RequiresHighBudgetWarning(_selectedPreparationLimit);
+        }
+    }
+
+    private void SyncPreparationLimitFields()
+    {
+        _selectedPreparationLimit = AppSettings.PreparationLimit;
+        _isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);
+        _customLimitInput = _selectedPreparationLimit.ToString(CultureInfo.InvariantCulture);
+        _customLimitValidationError = null;
         _preparationLimitConfirmation = null;
         _preparationLimitChangeFailed = false;
+    }
+
+    private void SelectPreset(int preset)
+    {
+        _isCustomActive = false;
+        _customLimitValidationError = null;
+        _preparationLimitConfirmation = null;
+        _preparationLimitChangeFailed = false;
+        _customLimitInput = preset.ToString(CultureInfo.InvariantCulture);
 
         try
         {
-            AppSettings.SetPreparationLimit(_selectedPreparationLimit);
+            AppSettings.SetPreparationLimit(preset);
             _selectedPreparationLimit = AppSettings.PreparationLimit;
             _preparationLimitConfirmation = _selectedPreparationLimit;
         }
         catch (Exception exception)
         {
-            Logger.LogError(exception, "The preparation limit could not be saved.");
+            Logger.LogError(exception, "The preparation limit preset could not be saved.");
+            _preparationLimitChangeFailed = true;
+        }
+    }
+
+    private void SelectCustom()
+    {
+        _isCustomActive = true;
+        _customLimitValidationError = null;
+        _preparationLimitConfirmation = null;
+        _preparationLimitChangeFailed = false;
+
+        if (string.IsNullOrWhiteSpace(_customLimitInput))
+        {
+            _customLimitInput = _selectedPreparationLimit.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    private void SaveCustomPreparationLimit()
+    {
+        _customLimitValidationError = null;
+        _preparationLimitConfirmation = null;
+        _preparationLimitChangeFailed = false;
+
+        if (!int.TryParse(_customLimitInput, NumberStyles.Integer, CultureInfo.InvariantCulture, out var customValue)
+            || !PreparationLimitPolicy.IsValid(customValue))
+        {
+            _customLimitValidationError = "Settings_PreparationLimitCustomInvalid";
+            return;
+        }
+
+        try
+        {
+            AppSettings.SetPreparationLimit(customValue);
+            _selectedPreparationLimit = AppSettings.PreparationLimit;
+            _isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);
+            _customLimitInput = _selectedPreparationLimit.ToString(CultureInfo.InvariantCulture);
+            _preparationLimitConfirmation = _selectedPreparationLimit;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The custom preparation limit could not be saved.");
             _preparationLimitChangeFailed = true;
         }
     }

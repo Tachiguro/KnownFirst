@@ -2000,7 +2000,7 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("Settings.razor");
 
-        Assert.Contains("AppSettings.SupportedPreparationLimits", markup);
+        Assert.Contains("PreparationLimitPolicy", markup);
         Assert.Contains("AppSettings.PreparationLimit", markup);
         Assert.Contains("AppSettings.CardDirection", markup);
         Assert.Contains("AppSettings.LearningMode", markup);
@@ -2008,6 +2008,55 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("AppSettings.LearningDayCutoffMinutes", markup);
         Assert.Contains("AppSettings.LearningTimezoneMode", markup);
         Assert.Contains("AppSettings.ExplicitLearningTimezoneId", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DailyBudgetCardOffersPresetsOneFiveTenAndCustom()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        Assert.Contains("id=\"preparation-limit-preset-1\"", section);
+        Assert.Contains("id=\"preparation-limit-preset-5\"", section);
+        Assert.Contains("id=\"preparation-limit-preset-10\"", section);
+        Assert.Contains("id=\"preparation-limit-custom\"", section);
+
+        Assert.Contains("Settings_PreparationLimitRecommended", section);
+        Assert.Contains("Settings_PreparationLimitCustom", section);
+        Assert.Contains("SelectPreset", markup);
+        Assert.Contains("SelectCustom", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DailyBudgetCardCustomInputEnforcesOneToFiftyBoundsAndValidation()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        Assert.Contains("id=\"preparation-limit-custom-input\"", section);
+        Assert.Contains("id=\"preparation-limit-custom-save-button\"", section);
+        Assert.Contains("type=\"number\"", section);
+        Assert.Contains("min=\"1\"", section);
+        Assert.Contains("max=\"50\"", section);
+        Assert.Contains("step=\"1\"", section);
+        Assert.Contains("aria-describedby=\"preparation-limit-custom-help\"", section);
+        Assert.Contains("Settings_PreparationLimitCustomLabel", section);
+        Assert.Contains("Settings_PreparationLimitCustomHelp", section);
+        Assert.Contains("Settings_PreparationLimitCustomInvalid", markup);
+        Assert.Contains("SaveCustomPreparationLimit", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DailyBudgetCardExposesNonBlockingAdvisoryWarningForHighBudgets()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        Assert.Contains("id=\"preparation-limit-warning\"", section);
+        Assert.Contains("role=\"status\"", section);
+        Assert.Contains("setting-feedback-advisory", section);
+        Assert.Contains("Settings_PreparationLimitHighWarning", section);
+        Assert.Contains("RequiresHighBudgetWarning", markup);
     }
 
     [TestMethod]

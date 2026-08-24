@@ -172,6 +172,49 @@
     color: var(--color-danger);
 }
 
+.setting-feedback-advisory {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-muted);
+    color: var(--color-text);
+}
+
+.choice-button-recommended {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+}
+
+.preset-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.preset-recommended-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.9;
+    line-height: 1;
+}
+
+.custom-limit-field-group {
+    margin-top: var(--space-4);
+}
+
+.custom-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    max-width: 24rem;
+}
+
+.custom-input-row .text-input {
+    width: 8rem;
+    min-height: 3.25rem;
+}
+
 .support-actions {
     display: flex;
     flex-wrap: wrap;

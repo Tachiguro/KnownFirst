@@ -72,11 +72,14 @@ public static class MauiProgram
         builder.Services.AddSingleton<INavigationHistoryService, NavigationHistoryService>();
         builder.Services.AddSingleton<IAppSettingsService, AppSettingsService>();
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
+        builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingStateStore, KnownFirst.Services.Onboarding.MauiOnboardingStateStore>();
+        builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IInstallOriginClassifier, KnownFirst.Services.Onboarding.InstallOriginClassifier>();
         builder.Services.AddSingleton<KnownFirst.Services.Settings.ISettingsDefaultsService>(serviceProvider =>
             new KnownFirst.Services.Settings.SettingsDefaultsService(
                 serviceProvider.GetRequiredService<IAppSettingsService>(),
                 serviceProvider.GetRequiredService<IThemeService>(),
                 serviceProvider.GetRequiredService<ILanguageSelectionService>(),
+                serviceProvider.GetRequiredService<KnownFirst.Services.Onboarding.IOnboardingStateStore>(),
                 serviceProvider.GetRequiredService<ILogger<KnownFirst.Services.Settings.SettingsDefaultsService>>()));
         builder.Services.AddSingleton<IWhatsNewPreferenceStore, MauiWhatsNewPreferenceStore>();
         builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
@@ -178,6 +181,10 @@ public static class MauiProgram
                 .GetRequiredService<ILoggerFactory>()
                 .CreateLogger("KnownFirst.Startup");
             app.Services.GetRequiredService<RuntimeExceptionMonitor>().Start();
+            // Must run before ILanguageSelectionService.Initialize(): that call persists the
+            // "system" language marker on a first start, which would otherwise become legacy
+            // preference evidence and grandfather a genuinely fresh installation as pre-existing.
+            app.Services.GetRequiredService<KnownFirst.Services.Onboarding.IInstallOriginClassifier>().EnsureClassified();
             app.Services.GetRequiredService<ILanguageSelectionService>().Initialize();
 #if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED
             if (GuiTestScenarioSeed.IsActive)

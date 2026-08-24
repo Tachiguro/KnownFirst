@@ -67,6 +67,7 @@ The UI must be reviewed at each of these viewport sizes:
 Acceptance applies to all of these surfaces:
 
 - Home
+- First-run onboarding
 - Import Text
 - Review Words
 - Prepare Words
@@ -161,6 +162,8 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.5 Settings
 
 - The complete page is scrollable.
+- Display Name card in third position offers bounded input with Save and Remove actions, persisting local name or removing when cleared.
+- New words per day offers 4-preset selection (1, 5 Recommended, 10, Custom); selecting Custom reveals an accessible numeric input with immediate validation (1..50) and a non-blocking workload warning above 15.
 - Reset confirmation and all its actions remain reachable and fully visible.
 - Destructive settings are clear without consuming disproportionate space.
 - Unfinished support actions (such as Support KnownFirst) are absent from production Settings rendering; no placeholder or "coming soon" control appears.
@@ -177,6 +180,17 @@ Each applicable surface must handle these states without broken layout, missing 
 - The page remains readable and scrollable at every required viewport, with the standard page header and back navigation.
 - No Support KnownFirst or placeholder control appears on this page or in Help & Support.
 - Current automated coverage for this surface is source/markup contract evidence only. Visual acceptance and runtime navigation are verified manually per [GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md) and are not claimed by automated results.
+
+### 9.7 First-run onboarding
+
+- Onboarding is hosted in a dedicated fullscreen shell without normal navigation chrome (desktop sidebar, mobile headers) or the What's New modal.
+- The workflow progresses logically across nine ordered steps with Back and Continue actions; the final summary screen provides the Finish action. No global Skip action exists.
+- The Display Name step allows continuing with or without a name.
+- Online dictionary lookup consent is presented clearly with a privacy-sensitive default (Off), requiring affirmative user activation to enable.
+- Daily Pace presents 4 presets (1, 5 Recommended, 10, Custom); selecting Custom reveals an accessible numeric input with immediate validation (1..50) and a non-blocking workload warning above 15.
+- Learning Day Timing provides timezone and 24-hour cutoff selectors with accessible labelling.
+- Localized EN, DE, and RU strings render cleanly without truncation, horizontal overflow, or broken layout across all required viewports (320px up to 1440px).
+- Finishing onboarding persists completion, clears progress, and transitions cleanly to the standard application shell in the same running process.
 
 ## 10. Forms and feedback
 

@@ -132,6 +132,24 @@
   <data name="Settings_AppearanceChangedTo" xml:space="preserve">
     <value>Darstellung auf {0} geändert.</value>
   </data>
+  <data name="Settings_DisplayName" xml:space="preserve">
+    <value>Dein Name</value>
+  </data>
+  <data name="Settings_DisplayNameHelp" xml:space="preserve">
+    <value>Optional. KnownFirst kann diesen Namen in der App auf diesem Gerät verwenden. Er wird nur auf diesem Gerät gespeichert, nirgendwohin gesendet und lässt sich jederzeit ändern oder entfernen.</value>
+  </data>
+  <data name="Settings_DisplayNamePlaceholder" xml:space="preserve">
+    <value>Kein Name festgelegt</value>
+  </data>
+  <data name="Settings_DisplayNameRemove" xml:space="preserve">
+    <value>Namen entfernen</value>
+  </data>
+  <data name="Settings_DisplayNameRemoved" xml:space="preserve">
+    <value>Dein Name wurde entfernt.</value>
+  </data>
+  <data name="Settings_DisplayNameSaved" xml:space="preserve">
+    <value>Dein Name wurde gespeichert.</value>
+  </data>
   <data name="Settings_PreparationLimit" xml:space="preserve">
     <value>Neue Wörter pro Tag</value>
   </data>
@@ -1760,5 +1778,89 @@
   </data>
   <data name="Timezone_City_Pacific_Kiritimati" xml:space="preserve">
     <value>Kiritimati</value>
+  </data>
+  <data name="Settings_PreparationLimitRecommended" xml:space="preserve">
+    <value>Empfohlen</value>
+  </data>
+  <data name="Settings_PreparationLimitCustom" xml:space="preserve">
+    <value>Benutzerdefiniert</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomLabel" xml:space="preserve">
+    <value>Benutzerdefiniertes Tagesbudget</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomHelp" xml:space="preserve">
+    <value>Gib ein Tagesbudget zwischen 1 und 50 neuen Wörtern ein.</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomInvalid" xml:space="preserve">
+    <value>Bitte gib eine ganze Zahl zwischen 1 und 50 ein.</value>
+  </data>
+  <data name="Settings_PreparationLimitHighWarning" xml:space="preserve">
+    <value>Viele neue Wörter pro Tag können den späteren Wiederholungsaufwand spürbar erhöhen.</value>
+  </data>
+  <data name="Onboarding_WelcomeTitle" xml:space="preserve">
+    <value>Willkommen bei KnownFirst</value>
+  </data>
+  <data name="Onboarding_WelcomeConcept" xml:space="preserve">
+    <value>Eigene Texte mitbringen → Bekanntes markieren → KnownFirst konzentriert das Lernen auf das Wesentliche.</value>
+  </data>
+  <data name="Onboarding_DisplayNameTitle" xml:space="preserve">
+    <value>Anzeigename</value>
+  </data>
+  <data name="Onboarding_DisplayNameDescription" xml:space="preserve">
+    <value>Wähle einen optionalen Namen für dieses Gerät. Dein Name wird nur lokal gespeichert.</value>
+  </data>
+  <data name="Onboarding_WorkflowTitle" xml:space="preserve">
+    <value>Wie KnownFirst funktioniert</value>
+  </data>
+  <data name="Onboarding_WorkflowStep1" xml:space="preserve">
+    <value>Füge einen beliebigen Text in deiner Zielsprache ein oder importiere ihn.</value>
+  </data>
+  <data name="Onboarding_WorkflowStep2" xml:space="preserve">
+    <value>Überprüfe extrahierte Wörter und markiere bekannte Begriffe.</value>
+  </data>
+  <data name="Onboarding_WorkflowStep3" xml:space="preserve">
+    <value>Übe die verbleibenden neuen Wörter mit täglichen Wiederholungen.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupTitle" xml:space="preserve">
+    <value>Online-Wörterbuchabfrage</value>
+  </data>
+  <data name="Onboarding_OnlineLookupDescription" xml:space="preserve">
+    <value>Wenn aktiviert, kann KnownFirst Definitionen über Online-Wörterbücher abrufen. Es werden keine persönlichen Daten übertragen.</value>
+  </data>
+  <data name="Onboarding_EnhancedTermRecognitionTitle" xml:space="preserve">
+    <value>Erweiterte Begriffserkennung</value>
+  </data>
+  <data name="Onboarding_EnhancedTermRecognitionDescription" xml:space="preserve">
+    <value>Die erweiterte Begriffserkennung kann zusätzliche nützliche Begriffe wie Bestandteile deutscher Komposita erkennen und für die Durchsicht bereitstellen.</value>
+  </data>
+  <data name="Onboarding_PracticeTitle" xml:space="preserve">
+    <value>Übungseinstellungen</value>
+  </data>
+  <data name="Onboarding_PracticeDescription" xml:space="preserve">
+    <value>Passe an, wie Vokabelkarten während täglicher Lerneinheiten angezeigt und abgefragt werden.</value>
+  </data>
+  <data name="Onboarding_DailyPaceTitle" xml:space="preserve">
+    <value>Tägliches Neuwort-Budget</value>
+  </data>
+  <data name="Onboarding_DailyPaceDescription" xml:space="preserve">
+    <value>Wähle, wie viele neue Wörter an jedem Lerntag neu eingeführt werden sollen.</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingTitle" xml:space="preserve">
+    <value>Lerntag &amp; Zeitzone</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingDescription" xml:space="preserve">
+    <value>Konfiguriere deine Zeitzone und die Uhrzeit, zu der ein neuer Lerntag beginnt.</value>
+  </data>
+  <data name="Onboarding_SummaryTitle" xml:space="preserve">
+    <value>Übersicht der Einstellungen</value>
+  </data>
+  <data name="Onboarding_SummaryDisplayNameNotSet" xml:space="preserve">
+    <value>Nicht festgelegt</value>
+  </data>
+  <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
+    <value>Systemstandard</value>
+  </data>
+  <data name="Onboarding_FinishSetup" xml:space="preserve">
+    <value>Einrichtung abschließen</value>
   </data>
 </root>

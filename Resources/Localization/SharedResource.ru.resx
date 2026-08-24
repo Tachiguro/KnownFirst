@@ -132,6 +132,24 @@
   <data name="Settings_AppearanceChangedTo" xml:space="preserve">
     <value>Оформление изменено на «{0}».</value>
   </data>
+  <data name="Settings_DisplayName" xml:space="preserve">
+    <value>Ваше имя</value>
+  </data>
+  <data name="Settings_DisplayNameHelp" xml:space="preserve">
+    <value>Необязательно. KnownFirst может использовать это имя в приложении на этом устройстве. Оно хранится только на этом устройстве, никуда не отправляется, и его можно изменить или удалить в любой момент.</value>
+  </data>
+  <data name="Settings_DisplayNamePlaceholder" xml:space="preserve">
+    <value>Имя не задано</value>
+  </data>
+  <data name="Settings_DisplayNameRemove" xml:space="preserve">
+    <value>Удалить имя</value>
+  </data>
+  <data name="Settings_DisplayNameRemoved" xml:space="preserve">
+    <value>Ваше имя удалено.</value>
+  </data>
+  <data name="Settings_DisplayNameSaved" xml:space="preserve">
+    <value>Ваше имя сохранено.</value>
+  </data>
   <data name="Settings_PreparationLimit" xml:space="preserve">
     <value>Новых слов в день</value>
   </data>
@@ -1760,5 +1778,89 @@
   </data>
   <data name="Timezone_City_Pacific_Kiritimati" xml:space="preserve">
     <value>Киритимати</value>
+  </data>
+  <data name="Settings_PreparationLimitRecommended" xml:space="preserve">
+    <value>Рекомендуется</value>
+  </data>
+  <data name="Settings_PreparationLimitCustom" xml:space="preserve">
+    <value>Свой вариант</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomLabel" xml:space="preserve">
+    <value>Индивидуальный дневной лимит</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomHelp" xml:space="preserve">
+    <value>Введите дневной лимит от 1 до 50 новых слов.</value>
+  </data>
+  <data name="Settings_PreparationLimitCustomInvalid" xml:space="preserve">
+    <value>Пожалуйста, введите целое число от 1 до 50.</value>
+  </data>
+  <data name="Settings_PreparationLimitHighWarning" xml:space="preserve">
+    <value>Изучение большого количества новых слов в день может существенно увеличить нагрузку при повторении.</value>
+  </data>
+  <data name="Onboarding_WelcomeTitle" xml:space="preserve">
+    <value>Добро пожаловать в KnownFirst</value>
+  </data>
+  <data name="Onboarding_WelcomeConcept" xml:space="preserve">
+    <value>Добавляйте свои тексты → отмечайте знакомые слова → KnownFirst фокусирует изучение на остальном.</value>
+  </data>
+  <data name="Onboarding_DisplayNameTitle" xml:space="preserve">
+    <value>Отображаемое имя</value>
+  </data>
+  <data name="Onboarding_DisplayNameDescription" xml:space="preserve">
+    <value>Укажите необязательное имя для этого устройства. Имя хранится только локально.</value>
+  </data>
+  <data name="Onboarding_WorkflowTitle" xml:space="preserve">
+    <value>Как работает KnownFirst</value>
+  </data>
+  <data name="Onboarding_WorkflowStep1" xml:space="preserve">
+    <value>Вставьте или импортируйте любой текст на изучаемом языке.</value>
+  </data>
+  <data name="Onboarding_WorkflowStep2" xml:space="preserve">
+    <value>Просмотрите извлеченные слова и отметьте уже знакомые.</value>
+  </data>
+  <data name="Onboarding_WorkflowStep3" xml:space="preserve">
+    <value>Изучайте оставшиеся новые слова с помощью ежедневных повторений.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupTitle" xml:space="preserve">
+    <value>Онлайн-поиск в словаре</value>
+  </data>
+  <data name="Onboarding_OnlineLookupDescription" xml:space="preserve">
+    <value>Если включено, KnownFirst может запрашивать определения в онлайн-словарях. Личные данные не передаются.</value>
+  </data>
+  <data name="Onboarding_EnhancedTermRecognitionTitle" xml:space="preserve">
+    <value>Расширенное распознавание терминов</value>
+  </data>
+  <data name="Onboarding_EnhancedTermRecognitionDescription" xml:space="preserve">
+    <value>Расширенное распознавание терминов помогает находить дополнительные полезные слова, включая части немецких составных слов, для последующего изучения.</value>
+  </data>
+  <data name="Onboarding_PracticeTitle" xml:space="preserve">
+    <value>Настройка практики</value>
+  </data>
+  <data name="Onboarding_PracticeDescription" xml:space="preserve">
+    <value>Настройте, как карточки со словами отображаются и проверяются во время ежедневных занятий.</value>
+  </data>
+  <data name="Onboarding_DailyPaceTitle" xml:space="preserve">
+    <value>Ежедневный лимит новых слов</value>
+  </data>
+  <data name="Onboarding_DailyPaceDescription" xml:space="preserve">
+    <value>Выберите, сколько новых слов будет добавляться в каждый учебный день.</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingTitle" xml:space="preserve">
+    <value>Учебный день и часовой пояс</value>
+  </data>
+  <data name="Onboarding_LearningDayTimingDescription" xml:space="preserve">
+    <value>Настройте свой часовой пояс и время, когда начинается новый учебный день.</value>
+  </data>
+  <data name="Onboarding_SummaryTitle" xml:space="preserve">
+    <value>Итоги настройки</value>
+  </data>
+  <data name="Onboarding_SummaryDisplayNameNotSet" xml:space="preserve">
+    <value>Не указано</value>
+  </data>
+  <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
+    <value>Системный</value>
+  </data>
+  <data name="Onboarding_FinishSetup" xml:space="preserve">
+    <value>Завершить настройку</value>
   </data>
 </root>

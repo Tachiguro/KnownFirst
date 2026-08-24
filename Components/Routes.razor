@@ -3,6 +3,7 @@
 @inject IThemeService ThemeService
 @inject IJSRuntime JsRuntime
 @inject KnownFirst.Services.Study.IStartupMaintenanceService StartupMaintenance
+@inject KnownFirst.Services.Onboarding.IOnboardingStateStore OnboardingStateStore
 @inject ILogger<Routes> Logger
 
 <div class="app-theme-root" data-theme="@ThemeService.EffectiveThemeCssName">
@@ -19,6 +20,10 @@
             </button>
         </div>
     }
+    else if (_isOnboardingActive)
+    {
+        <KnownFirst.Components.Onboarding.OnboardingHost OnCompleted="HandleOnboardingCompleted" />
+    }
     else
     {
         <Router AppAssembly="typeof(MauiProgram).Assembly" NotFoundPage="typeof(Pages.NotFound)">
@@ -33,6 +38,15 @@
 @code {
     private bool _isInitializing = true;
     private bool _initializationFailed;
+
+    private bool _isOnboardingActive =>
+        OnboardingStateStore.GetState() is KnownFirst.Core.Settings.OnboardingState.Required
+            or KnownFirst.Core.Settings.OnboardingState.InProgress;
+
+    private void HandleOnboardingCompleted()
+    {
+        StateHasChanged();
+    }
 
     protected override void OnInitialized()
     {

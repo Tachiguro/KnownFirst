@@ -110,13 +110,15 @@ public sealed class SettingsDefaultsServiceTests
         InMemoryPreferences Preferences,
         RecordingThemePreferenceReset Theme,
         RecordingLanguageSelection Language,
-        MauiOnboardingStateStore Onboarding) CreateService()
+        MauiOnboardingStateStore Onboarding,
+        MauiDisplayNameStore DisplayName) CreateService()
     {
         var preferences = new InMemoryPreferences();
         var appSettings = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
         var theme = new RecordingThemePreferenceReset();
         var language = new RecordingLanguageSelection(preferences);
         var onboarding = new MauiOnboardingStateStore(preferences);
+        var displayName = new MauiDisplayNameStore(preferences);
         var service = new SettingsDefaultsService(
             appSettings,
             theme,
@@ -124,13 +126,13 @@ public sealed class SettingsDefaultsServiceTests
             onboarding,
             NullLogger<SettingsDefaultsService>.Instance);
 
-        return (service, appSettings, preferences, theme, language, onboarding);
+        return (service, appSettings, preferences, theme, language, onboarding, displayName);
     }
 
     [TestMethod]
     public void RestoreDefaults_RestoresApplicationSettingsToTheirDefaults()
     {
-        var (service, appSettings, _, _, _, _) = CreateService();
+        var (service, appSettings, _, _, _, _, _) = CreateService();
 
         appSettings.SetPreparationLimit(50);
         appSettings.SetCardDirection(CardDirectionPreference.MeaningToTerm);
@@ -154,7 +156,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_ResetsThemeAndLanguagePreferencesExactlyOnce()
     {
-        var (service, _, _, theme, language, _) = CreateService();
+        var (service, _, _, theme, language, _, _) = CreateService();
 
         service.RestoreDefaults();
 
@@ -166,7 +168,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_PreservesGrantedOnlineDictionaryConsent()
     {
-        var (service, appSettings, preferences, _, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         Assert.IsTrue(appSettings.HasOnlineLookupConsent);
@@ -183,7 +185,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_PreservesNotGrantedOnlineDictionaryConsent()
     {
-        var (service, appSettings, preferences, _, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _, _) = CreateService();
 
         Assert.IsFalse(appSettings.HasOnlineLookupConsent);
 
@@ -196,7 +198,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_PreservesConsentWhileStillRestoringEveryOtherDefault()
     {
-        var (service, appSettings, _, _, _, _) = CreateService();
+        var (service, appSettings, _, _, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         appSettings.SetPreparationLimit(50);
@@ -222,7 +224,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaultsForFullReset_LeavesOnlineDictionaryConsentRevoked()
     {
-        var (service, appSettings, preferences, _, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         Assert.IsTrue(appSettings.HasOnlineLookupConsent);
@@ -238,7 +240,7 @@ public sealed class SettingsDefaultsServiceTests
     {
         // Mirrors the real destructive flow: the preference store is cleared first, which leaves the
         // already-loaded in-memory consent value stale. The full-reset path must not read it back.
-        var (service, appSettings, preferences, _, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         Assert.IsTrue(appSettings.HasOnlineLookupConsent);
@@ -254,7 +256,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaultsForFullReset_StillRestoresTheSameSharedDefaults()
     {
-        var (service, appSettings, _, theme, language, _) = CreateService();
+        var (service, appSettings, _, theme, language, _, _) = CreateService();
 
         appSettings.SetPreparationLimit(50);
         appSettings.SetCardDirection(CardDirectionPreference.MeaningToTerm);
@@ -282,7 +284,7 @@ public sealed class SettingsDefaultsServiceTests
     {
         // The destructive clearing of the whole preference store belongs to the full reset flow in
         // the Settings page, not to this service.
-        var (service, _, preferences, _, _, _) = CreateService();
+        var (service, _, preferences, _, _, _, _) = CreateService();
 
         preferences.Set("whats_new_last_seen_version", "1.0.0-beta.13");
 
@@ -294,7 +296,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_DoesNotClearUnrelatedPreferenceEntries()
     {
-        var (service, appSettings, preferences, _, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _, _) = CreateService();
 
         preferences.Set("whats_new_last_seen_version", "1.0.0-beta.13");
         preferences.Set("some_other_durable_marker", 42);
@@ -315,7 +317,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaultsForFullReset_EstablishesOnboardingRequired()
     {
-        var (service, _, preferences, _, _, onboarding) = CreateService();
+        var (service, _, preferences, _, _, onboarding, _) = CreateService();
 
         onboarding.SetState(OnboardingState.Completed);
 
@@ -330,7 +332,7 @@ public sealed class SettingsDefaultsServiceTests
     {
         // Mirrors the real destructive flow: Database.ResetAsync() then Preferences.Clear() then
         // this call. Nothing readable survives the clear, so the state must be written positively.
-        var (service, appSettings, preferences, _, _, onboarding) = CreateService();
+        var (service, appSettings, preferences, _, _, onboarding, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         preferences.Clear();
@@ -348,7 +350,7 @@ public sealed class SettingsDefaultsServiceTests
         // which is legacy preference evidence. If the onboarding marker were written after it, a
         // freshly reset installation would be grandfathered as pre-existing on the next start and
         // would silently never see onboarding again.
-        var (service, _, preferences, _, language, _) = CreateService();
+        var (service, _, preferences, _, language, _, _) = CreateService();
 
         preferences.Clear();
 
@@ -372,7 +374,7 @@ public sealed class SettingsDefaultsServiceTests
     {
         foreach (var persisted in new[] { OnboardingState.Required, OnboardingState.InProgress, OnboardingState.Completed })
         {
-            var (service, _, _, _, _, onboarding) = CreateService();
+            var (service, _, _, _, _, onboarding, _) = CreateService();
             onboarding.SetState(persisted);
 
             service.RestoreDefaults();
@@ -387,7 +389,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_NeverIntroducesAnOnboardingMarkerWhereNoneExisted()
     {
-        var (service, _, preferences, _, _, onboarding) = CreateService();
+        var (service, _, preferences, _, _, onboarding, _) = CreateService();
 
         Assert.IsNull(onboarding.GetState());
 
@@ -401,7 +403,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_KeepsOnboardingStateWhilePreservingGrantedConsent()
     {
-        var (service, appSettings, _, _, _, onboarding) = CreateService();
+        var (service, appSettings, _, _, _, onboarding, _) = CreateService();
 
         onboarding.SetState(OnboardingState.Completed);
         appSettings.GrantOnlineLookupConsent();
@@ -415,7 +417,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_KeepsOnboardingStateWhilePreservingAbsentConsent()
     {
-        var (service, appSettings, _, _, _, onboarding) = CreateService();
+        var (service, appSettings, _, _, _, onboarding, _) = CreateService();
 
         onboarding.SetState(OnboardingState.Completed);
         Assert.IsFalse(appSettings.HasOnlineLookupConsent);
@@ -424,6 +426,92 @@ public sealed class SettingsDefaultsServiceTests
 
         Assert.AreEqual(OnboardingState.Completed, onboarding.GetState());
         Assert.IsFalse(appSettings.HasOnlineLookupConsent);
+    }
+
+    [TestMethod]
+    public void RestoreDefaults_WhenOnboardingIsInProgress_PreservesInProgressStateAndPersistedStepAndDisplayNameAndConsent()
+    {
+        var (service, appSettings, preferences, _, _, onboarding, displayName) = CreateService();
+        var progressStore = new MauiOnboardingProgressStore(preferences);
+
+        onboarding.SetState(OnboardingState.InProgress);
+        progressStore.SetCurrentStep(OnboardingStep.EnhancedTermRecognition);
+        displayName.SetDisplayName("Tachi");
+        appSettings.GrantOnlineLookupConsent();
+        appSettings.SetPreparationLimit(20);
+
+        service.RestoreDefaults();
+
+        Assert.AreEqual(OnboardingState.InProgress, onboarding.GetState());
+        Assert.AreEqual(OnboardingStep.EnhancedTermRecognition, progressStore.GetCurrentStep());
+        Assert.AreEqual("Tachi", displayName.GetDisplayName());
+        Assert.IsTrue(appSettings.HasOnlineLookupConsent);
+        Assert.AreEqual(PreparationLimitPolicy.DefaultLimit, appSettings.PreparationLimit);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // I. Restore Defaults preserves the optional local Display Name
+    // -----------------------------------------------------------------------------------------
+
+    [TestMethod]
+    public void RestoreDefaults_PreservesAnOptionalDisplayName()
+    {
+        // The Display Name lives in its own store precisely so the non-destructive restore cannot
+        // erase it: AppSettingsService.Reset() only removes the keys it owns.
+        var (service, _, preferences, _, _, _, displayName) = CreateService();
+
+        displayName.SetDisplayName("Anna");
+
+        service.RestoreDefaults();
+
+        Assert.AreEqual(
+            "Anna",
+            displayName.GetDisplayName(),
+            "Restore Defaults must not remove the user's optional local Display Name.");
+        Assert.IsTrue(preferences.ContainsKey("display_name"));
+    }
+
+    [TestMethod]
+    public void RestoreDefaults_LeavesAnAbsentDisplayNameAbsent()
+    {
+        var (service, _, preferences, _, _, _, displayName) = CreateService();
+
+        Assert.IsNull(displayName.GetDisplayName());
+
+        service.RestoreDefaults();
+
+        Assert.IsNull(displayName.GetDisplayName());
+        Assert.IsFalse(preferences.ContainsKey("display_name"));
+    }
+
+    [TestMethod]
+    public void RestoreDefaults_PreservesTheDisplayNameWhileStillRestoringEveryOtherDefault()
+    {
+        var (service, appSettings, _, _, _, _, displayName) = CreateService();
+
+        displayName.SetDisplayName("Anna");
+        appSettings.SetPreparationLimit(50);
+        appSettings.SetLearningMode(LearningMode.Typing);
+
+        service.RestoreDefaults();
+
+        Assert.AreEqual("Anna", displayName.GetDisplayName());
+        Assert.AreEqual(PreparationLimitPolicy.DefaultLimit, appSettings.PreparationLimit);
+        Assert.AreEqual(LearningModePolicy.DefaultMode, appSettings.LearningMode);
+    }
+
+    [TestMethod]
+    public void RestoreDefaultsForFullReset_DoesNotItselfRemoveTheDisplayName()
+    {
+        // Clearing the preference store belongs to the destructive flow in the Settings page, not
+        // to this service. The service must contain no Display Name-specific reset logic at all.
+        var (service, _, _, _, _, _, displayName) = CreateService();
+
+        displayName.SetDisplayName("Anna");
+
+        service.RestoreDefaultsForFullReset();
+
+        Assert.AreEqual("Anna", displayName.GetDisplayName());
     }
 
     [TestMethod]

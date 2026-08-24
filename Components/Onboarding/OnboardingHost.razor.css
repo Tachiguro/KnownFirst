@@ -1,0 +1,187 @@
+.onboarding-host {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 2rem 1.5rem;
+    box-sizing: border-box;
+    background-color: var(--kf-color-bg, #0f172a);
+    color: var(--kf-color-text, #f8fafc);
+}
+
+.onboarding-main {
+    width: 100%;
+    max-width: 36rem;
+    margin: 0 auto;
+    outline: none;
+}
+
+.onboarding-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.onboarding-step {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.onboarding-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+    text-align: center;
+    color: var(--kf-color-text-primary, #ffffff);
+}
+
+.onboarding-concept {
+    font-size: 1.125rem;
+    line-height: 1.5;
+    text-align: center;
+    color: var(--kf-color-text-secondary, #94a3b8);
+    margin: 0;
+}
+
+.onboarding-language-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.onboarding-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--kf-color-text-secondary, #94a3b8);
+    text-align: center;
+}
+
+.onboarding-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.onboarding-continue-button,
+.onboarding-back-button {
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.onboarding-card {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background-color: var(--kf-color-surface, #1e293b);
+    border: 1px solid var(--kf-color-border, #334155);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+}
+
+.onboarding-workflow-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.onboarding-workflow-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    background-color: var(--kf-color-surface, #1e293b);
+    border: 1px solid var(--kf-color-border, #334155);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+}
+
+.workflow-step-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background-color: var(--kf-color-primary, #3b82f6);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.workflow-step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.workflow-step-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--kf-color-text-primary, #ffffff);
+}
+
+.workflow-step-text {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    margin: 0;
+    color: var(--kf-color-text-secondary, #94a3b8);
+}
+
+.summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--kf-color-border, #334155);
+}
+
+.summary-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.summary-item dt {
+    font-weight: 500;
+    color: var(--kf-color-text-secondary, #94a3b8);
+    font-size: 0.9375rem;
+}
+
+.summary-item dd {
+    font-weight: 600;
+    color: var(--kf-color-text-primary, #ffffff);
+    margin: 0;
+    font-size: 0.9375rem;
+    text-align: right;
+}
+
+.choice-button-recommended {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+}
+
+.choice-tag {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--kf-color-primary-text, #93c5fd);
+}

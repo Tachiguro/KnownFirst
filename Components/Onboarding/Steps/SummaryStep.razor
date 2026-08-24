@@ -1,0 +1,127 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@using System.Globalization
+@using KnownFirst.Core.Language
+@using KnownFirst.Core.Settings
+@using KnownFirst.Services
+@using KnownFirst.Services.Settings
+@inject IAppSettingsService AppSettings
+@inject IDisplayNameStore DisplayNameStore
+@inject ILanguageSelectionService LanguageSelection
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-summary-step">
+    <h1 class="onboarding-title" id="onboarding-summary-title">@Localizer["Onboarding_SummaryTitle"]</h1>
+
+    <div class="onboarding-card summary-card" role="region" aria-labelledby="onboarding-summary-title">
+        <dl class="summary-list">
+            <div class="summary-item">
+                <dt>@Localizer["Settings_UILanguage"]</dt>
+                <dd>@GetLanguageDisplayName(LanguageSelection.CurrentUiLanguage)</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_DisplayName"]</dt>
+                <dd>@(DisplayNameStore.GetDisplayName() ?? Localizer["Onboarding_SummaryDisplayNameNotSet"])</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_OnlineDictionary"]</dt>
+                <dd>@Localizer[AppSettings.HasOnlineLookupConsent ? "Settings_EnhancedTermRecognitionOn" : "Settings_EnhancedTermRecognitionOff"]</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_EnhancedTermRecognition"]</dt>
+                <dd>@Localizer[AppSettings.EnhancedTermRecognitionEnabled ? "Settings_EnhancedTermRecognitionOn" : "Settings_EnhancedTermRecognitionOff"]</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_CardDirection"]</dt>
+                <dd>@GetCardDirectionLabel(AppSettings.CardDirection)</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_LearningMode"]</dt>
+                <dd>@GetLearningModeLabel(AppSettings.LearningMode)</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_PreparationLimit"]</dt>
+                <dd>@AppSettings.PreparationLimit</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_LearningTimezone"]</dt>
+                <dd>@GetTimezoneLabel()</dd>
+            </div>
+            <div class="summary-item">
+                <dt>@Localizer["Settings_LearningDayCutoff"]</dt>
+                <dd>@GetCutoffLabel(AppSettings.LearningDayCutoffMinutes)</dd>
+            </div>
+        </dl>
+    </div>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-finish-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="OnFinish">
+            @Localizer["Onboarding_FinishSetup"]
+        </button>
+        <button type="button"
+                id="onboarding-summary-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnFinish { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private string GetLanguageDisplayName(string code) => code switch
+    {
+        LanguageSelectionService.GermanLanguageCode => Localizer["Settings_German"],
+        LanguageSelectionService.RussianLanguageCode => Localizer["Settings_Russian"],
+        _ => Localizer["Settings_English"]
+    };
+
+    private string GetCardDirectionLabel(CardDirectionPreference preference) => preference switch
+    {
+        CardDirectionPreference.TermToMeaning => Localizer["Settings_CardDirectionTermToMeaning"],
+        CardDirectionPreference.MeaningToTerm => Localizer["Settings_CardDirectionMeaningToTerm"],
+        _ => Localizer["Settings_CardDirectionBoth"]
+    };
+
+    private string GetLearningModeLabel(LearningMode mode) => mode switch
+    {
+        LearningMode.Reading => Localizer["Settings_LearningModeReading"],
+        LearningMode.Typing => Localizer["Settings_LearningModeTyping"],
+        _ => Localizer["Settings_LearningModeAutomatic"]
+    };
+
+    private string GetTimezoneLabel()
+    {
+        if (AppSettings.LearningTimezoneMode == LearningTimezoneMode.Explicit
+            && LearningTimezoneCatalog.ContainsTimezoneId(AppSettings.ExplicitLearningTimezoneId))
+        {
+            var option = LearningTimezoneCatalog.Options.FirstOrDefault(o => o.TimezoneId == AppSettings.ExplicitLearningTimezoneId);
+            if (option is not null)
+            {
+                string cityName = Localizer[option.CityResourceKey];
+                try
+                {
+                    var tz = TimeZoneInfo.FindSystemTimeZoneById(option.TimezoneId);
+                    return LearningTimezoneLabelFormatter.FormatOptionLabel(tz, DateTime.UtcNow, cityName);
+                }
+                catch
+                {
+                    return cityName;
+                }
+            }
+        }
+
+        return Localizer["Onboarding_SummaryLearningTimezoneSystem"];
+    }
+
+    private static string GetCutoffLabel(int cutoffMinutes)
+    {
+        var h = cutoffMinutes / 60;
+        var m = cutoffMinutes % 60;
+        return $"{h:D2}:{m:D2}";
+    }
+}

@@ -1,0 +1,58 @@
+@namespace KnownFirst.Components.Onboarding.Steps
+@using KnownFirst.Core.Settings
+@using KnownFirst.Services.Settings
+@inject IDisplayNameStore DisplayNameStore
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-step onboarding-display-name-step">
+    <h1 class="onboarding-title" id="onboarding-display-name-title">@Localizer["Onboarding_DisplayNameTitle"]</h1>
+    <p class="onboarding-concept">@Localizer["Onboarding_DisplayNameDescription"]</p>
+
+    <section class="onboarding-card" aria-labelledby="onboarding-display-name-title">
+        <div class="field-group">
+            <input id="onboarding-display-name-input"
+                   type="text"
+                   class="text-input"
+                   maxlength="60"
+                   aria-describedby="onboarding-display-name-help"
+                   placeholder="@Localizer["Settings_DisplayNamePlaceholder"]"
+                   @bind="_nameInput"
+                   @bind:event="oninput" />
+        </div>
+        <p id="onboarding-display-name-help" class="setting-help">@Localizer["Settings_DisplayNameHelp"]</p>
+    </section>
+
+    <div class="onboarding-actions">
+        <button type="button"
+                id="onboarding-display-name-continue-button"
+                class="button button-primary onboarding-continue-button"
+                @onclick="SaveAndContinue">
+            @Localizer["Common_Continue"]
+        </button>
+        <button type="button"
+                id="onboarding-display-name-back-button"
+                class="button button-secondary onboarding-back-button"
+                @onclick="OnBack">
+            @Localizer["Common_Back"]
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnContinue { get; set; }
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private string _nameInput = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        _nameInput = DisplayNameStore.GetDisplayName() ?? string.Empty;
+    }
+
+    private async Task SaveAndContinue()
+    {
+        var normalized = DisplayNamePolicy.Normalize(_nameInput);
+        DisplayNameStore.SetDisplayName(normalized);
+        await OnContinue.InvokeAsync();
+    }
+}

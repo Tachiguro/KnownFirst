@@ -1672,6 +1672,7 @@ public sealed class UiWorkflowContractTests
     [
         "language-setting-title",
         "appearance-setting-title",
+        "display-name-title",
         "preparation-limit-title",
         "learning-timezone-title",
         "learning-day-cutoff-title",
@@ -1686,7 +1687,7 @@ public sealed class UiWorkflowContractTests
     ];
 
     [TestMethod]
-    public void Settings_RendersTheRequiredThirteenSectionProductOrder()
+    public void Settings_RendersTheRequiredFourteenSectionProductOrder()
     {
         var markup = LoadUi("Settings.razor");
 
@@ -1711,6 +1712,54 @@ public sealed class UiWorkflowContractTests
             previousIndex = index;
             previousId = sectionId;
         }
+    }
+
+    [TestMethod]
+    public void Settings_DisplayNameCardOffersLocalizedOptionalNameEditingAndRemoval()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.Contains("aria-labelledby=\"display-name-title\"", markup);
+        Assert.Contains("<label for=\"display-name\">", markup);
+        Assert.Contains("Settings_DisplayName", markup);
+        Assert.Contains("Settings_DisplayNameHelp", markup);
+        Assert.Contains("id=\"display-name-help\"", markup);
+        Assert.Contains("aria-describedby=\"display-name-help\"", markup);
+
+        // Bounded free-text input, mirroring the established ImportText document-title pattern.
+        Assert.Contains("id=\"display-name\"", markup);
+        Assert.Contains("class=\"text-input\"", markup);
+        Assert.Contains("maxlength=", markup);
+        Assert.Contains("@bind=\"_displayNameInput\"", markup);
+
+        // Explicit save and explicit removal, plus the shared success/error feedback pattern.
+        Assert.Contains("id=\"display-name-save-button\"", markup);
+        Assert.Contains("id=\"display-name-remove-button\"", markup);
+        Assert.Contains("SaveDisplayName", markup);
+        Assert.Contains("RemoveDisplayName", markup);
+        Assert.Contains("Settings_DisplayNameSaved", markup);
+        Assert.Contains("Settings_DisplayNameRemoved", markup);
+        Assert.Contains("IDisplayNameStore", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DisplayNameCardUsesNeutralLocalWordingWithoutAccountOrCloudIdentity()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        foreach (var forbidden in new[] { "Settings_DisplayNameAccount", "Settings_DisplayNameProfile", "Settings_DisplayNameCloud" })
+        {
+            Assert.DoesNotContain(forbidden, markup, StringComparison.Ordinal);
+        }
+    }
+
+    [TestMethod]
+    public void Home_DoesNotConsumeTheDisplayNameInThisSlice()
+    {
+        // Home greeting/personalization is deliberately a later package.
+        var markup = LoadUi("Home.razor");
+
+        Assert.DoesNotContain("DisplayName", markup, StringComparison.Ordinal);
     }
 
     [TestMethod]
@@ -1951,7 +2000,7 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("Settings.razor");
 
-        Assert.Contains("AppSettings.SupportedPreparationLimits", markup);
+        Assert.Contains("PreparationLimitPolicy", markup);
         Assert.Contains("AppSettings.PreparationLimit", markup);
         Assert.Contains("AppSettings.CardDirection", markup);
         Assert.Contains("AppSettings.LearningMode", markup);
@@ -1959,6 +2008,55 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("AppSettings.LearningDayCutoffMinutes", markup);
         Assert.Contains("AppSettings.LearningTimezoneMode", markup);
         Assert.Contains("AppSettings.ExplicitLearningTimezoneId", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DailyBudgetCardOffersPresetsOneFiveTenAndCustom()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        Assert.Contains("id=\"preparation-limit-preset-1\"", section);
+        Assert.Contains("id=\"preparation-limit-preset-5\"", section);
+        Assert.Contains("id=\"preparation-limit-preset-10\"", section);
+        Assert.Contains("id=\"preparation-limit-custom\"", section);
+
+        Assert.Contains("Settings_PreparationLimitRecommended", section);
+        Assert.Contains("Settings_PreparationLimitCustom", section);
+        Assert.Contains("SelectPreset", markup);
+        Assert.Contains("SelectCustom", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DailyBudgetCardCustomInputEnforcesOneToFiftyBoundsAndValidation()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        Assert.Contains("id=\"preparation-limit-custom-input\"", section);
+        Assert.Contains("id=\"preparation-limit-custom-save-button\"", section);
+        Assert.Contains("type=\"number\"", section);
+        Assert.Contains("min=\"1\"", section);
+        Assert.Contains("max=\"50\"", section);
+        Assert.Contains("step=\"1\"", section);
+        Assert.Contains("aria-describedby=\"preparation-limit-custom-help\"", section);
+        Assert.Contains("Settings_PreparationLimitCustomLabel", section);
+        Assert.Contains("Settings_PreparationLimitCustomHelp", section);
+        Assert.Contains("Settings_PreparationLimitCustomInvalid", markup);
+        Assert.Contains("SaveCustomPreparationLimit", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DailyBudgetCardExposesNonBlockingAdvisoryWarningForHighBudgets()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "preparation-limit-title");
+
+        Assert.Contains("id=\"preparation-limit-warning\"", section);
+        Assert.Contains("role=\"status\"", section);
+        Assert.Contains("setting-feedback-advisory", section);
+        Assert.Contains("Settings_PreparationLimitHighWarning", section);
+        Assert.Contains("RequiresHighBudgetWarning", markup);
     }
 
     [TestMethod]
@@ -1972,6 +2070,45 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("WhatsNew_Title", section);
         Assert.Contains("id=\"settings-report-bug-button\"", section);
         Assert.Contains("BuildIdentityService.GetFormattedBuildIdentity()", section);
+    }
+
+    [TestMethod]
+    public void Routes_BranchesOnboardingHostBeforeRouterWhenOnboardingActive()
+    {
+        var markup = LoadUi("Routes.razor");
+
+        Assert.Contains("OnboardingHost", markup);
+        Assert.Contains("OnboardingStateStore", markup);
+        Assert.Contains("<Router", markup);
+
+        var onboardingIndex = markup.IndexOf("OnboardingHost", StringComparison.Ordinal);
+        var routerIndex = markup.IndexOf("<Router", StringComparison.Ordinal);
+        Assert.IsTrue(routerIndex > onboardingIndex, "OnboardingHost must appear before <Router in Routes.razor");
+    }
+
+    [TestMethod]
+    public void OnboardingHost_DoesNotRenderNavigationChromeOrWhatsNewModal()
+    {
+        var markup = LoadUi("OnboardingHost.razor");
+
+        Assert.DoesNotContain("NavMenu", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("WhatsNewModal", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("mobile-header", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("navigation-backdrop", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("sidebar", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void OnboardingHost_WelcomeScreenPresentsTitleConceptLanguageAndContinue()
+    {
+        var markup = LoadUi("OnboardingHost.razor");
+
+        Assert.Contains("Onboarding_WelcomeTitle", markup);
+        Assert.Contains("Onboarding_WelcomeConcept", markup);
+        Assert.Contains("LanguageSelection", markup);
+        Assert.Contains("IOnboardingProgressStore", markup);
+        Assert.Contains("IOnboardingStateStore", markup);
+        Assert.Contains("AdvanceToNextStep", markup);
     }
 
     private static string ExtractSettingsSection(string markup, string sectionTitleId)

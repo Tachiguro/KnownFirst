@@ -14,7 +14,7 @@ This document records stable, verified architectural facts and current capabilit
 | **Active Database Schema** | SQLite `PRAGMA user_version` 12 |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
-| **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13; no accepted `1.0.0-beta.13` distribution has occurred. |
+| **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Signed replacement bundle `KnownFirst-1.0.0-beta.13-code14.aab` (`48,002,097` bytes, SHA-256 `7a84da599ae7435614d95ff316707669d69e21b311fe252f5419ac9cb8ecbbcd`, `StrictVerified`) was created and verified locally from certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13; no accepted `1.0.0-beta.13` Google Play distribution has yet occurred. |
 | **Installed Displayed Identity** | `1.0.0-beta.12` / Release / Build 12 / Commit `cfbaee6a` (DIRTY) |
 
 ## Supported Platforms

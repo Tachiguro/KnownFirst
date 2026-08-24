@@ -1,6 +1,6 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-23
+**Status date:** 2026-08-24
 **State source:** Synchronized `master` baseline. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
@@ -10,11 +10,11 @@ This document records stable, verified architectural facts and current capabilit
 | Field | Verified value |
 | :--- | :--- |
 | **Project** | KnownFirst |
-| **Source Version (`master`)** | `1.0.0-beta.13` (build 13) — merged via PR #92 |
+| **Source Version (`master`)** | `1.0.0-beta.13` (build 13 on merged `master`; build 14 on active branch `release/beta13-build14-version-code-v1` to resolve Google Play version-code collision) |
 | **Active Database Schema** | SQLite `PRAGMA user_version` 12 |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
-| **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). `1.0.0-beta.13` has not been distributed. |
+| **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13; no accepted `1.0.0-beta.13` distribution has occurred. |
 | **Installed Displayed Identity** | `1.0.0-beta.12` / Release / Build 12 / Commit `cfbaee6a` (DIRTY) |
 
 ## Supported Platforms

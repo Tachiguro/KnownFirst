@@ -2,6 +2,7 @@ using KnownFirst.Core.Language;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Settings;
 using KnownFirst.Services;
+using KnownFirst.Services.Onboarding;
 using KnownFirst.Services.Settings;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Maui.Storage;
@@ -58,9 +59,16 @@ public sealed class SettingsDefaultsServiceTests
         public void ResetPreference() => ResetCount++;
     }
 
-    private sealed class RecordingLanguageSelection : ILanguageSelectionService
+    /// <summary>
+    /// Mirrors the real <see cref="LanguageSelectionService"/> closely enough for the ordering
+    /// contract: ResetToDeviceLanguage persists the "system" language marker, which is exactly the
+    /// legacy preference evidence a later install-origin classification would see.
+    /// </summary>
+    private sealed class RecordingLanguageSelection(InMemoryPreferences? preferences = null) : ILanguageSelectionService
     {
         public int ResetCount { get; private set; }
+
+        public bool OnboardingMarkerExistedWhenLanguageMarkerWasRecreated { get; private set; }
 
         public event EventHandler? UiLanguageChanged;
 
@@ -82,6 +90,9 @@ public sealed class SettingsDefaultsServiceTests
         public void ResetToDeviceLanguage()
         {
             ResetCount++;
+            OnboardingMarkerExistedWhenLanguageMarkerWasRecreated =
+                preferences?.ContainsKey(OnboardingStateKey) ?? false;
+            preferences?.Set(LanguagePreferenceKey, "system");
             IsSystemPreferenceActive = true;
             UiLanguageChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -91,29 +102,35 @@ public sealed class SettingsDefaultsServiceTests
         }
     }
 
+    private const string OnboardingStateKey = "onboarding_state";
+    private const string LanguagePreferenceKey = "knownfirst.uiLanguage";
+
     private static (SettingsDefaultsService Service,
         AppSettingsService AppSettings,
         InMemoryPreferences Preferences,
         RecordingThemePreferenceReset Theme,
-        RecordingLanguageSelection Language) CreateService()
+        RecordingLanguageSelection Language,
+        MauiOnboardingStateStore Onboarding) CreateService()
     {
         var preferences = new InMemoryPreferences();
         var appSettings = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
         var theme = new RecordingThemePreferenceReset();
-        var language = new RecordingLanguageSelection();
+        var language = new RecordingLanguageSelection(preferences);
+        var onboarding = new MauiOnboardingStateStore(preferences);
         var service = new SettingsDefaultsService(
             appSettings,
             theme,
             language,
+            onboarding,
             NullLogger<SettingsDefaultsService>.Instance);
 
-        return (service, appSettings, preferences, theme, language);
+        return (service, appSettings, preferences, theme, language, onboarding);
     }
 
     [TestMethod]
     public void RestoreDefaults_RestoresApplicationSettingsToTheirDefaults()
     {
-        var (service, appSettings, _, _, _) = CreateService();
+        var (service, appSettings, _, _, _, _) = CreateService();
 
         appSettings.SetPreparationLimit(50);
         appSettings.SetCardDirection(CardDirectionPreference.MeaningToTerm);
@@ -137,7 +154,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_ResetsThemeAndLanguagePreferencesExactlyOnce()
     {
-        var (service, _, _, theme, language) = CreateService();
+        var (service, _, _, theme, language, _) = CreateService();
 
         service.RestoreDefaults();
 
@@ -149,7 +166,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_PreservesGrantedOnlineDictionaryConsent()
     {
-        var (service, appSettings, preferences, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         Assert.IsTrue(appSettings.HasOnlineLookupConsent);
@@ -166,7 +183,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_PreservesNotGrantedOnlineDictionaryConsent()
     {
-        var (service, appSettings, preferences, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _) = CreateService();
 
         Assert.IsFalse(appSettings.HasOnlineLookupConsent);
 
@@ -179,7 +196,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_PreservesConsentWhileStillRestoringEveryOtherDefault()
     {
-        var (service, appSettings, _, _, _) = CreateService();
+        var (service, appSettings, _, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         appSettings.SetPreparationLimit(50);
@@ -205,7 +222,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaultsForFullReset_LeavesOnlineDictionaryConsentRevoked()
     {
-        var (service, appSettings, preferences, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         Assert.IsTrue(appSettings.HasOnlineLookupConsent);
@@ -221,7 +238,7 @@ public sealed class SettingsDefaultsServiceTests
     {
         // Mirrors the real destructive flow: the preference store is cleared first, which leaves the
         // already-loaded in-memory consent value stale. The full-reset path must not read it back.
-        var (service, appSettings, preferences, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _) = CreateService();
 
         appSettings.GrantOnlineLookupConsent();
         Assert.IsTrue(appSettings.HasOnlineLookupConsent);
@@ -237,7 +254,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaultsForFullReset_StillRestoresTheSameSharedDefaults()
     {
-        var (service, appSettings, _, theme, language) = CreateService();
+        var (service, appSettings, _, theme, language, _) = CreateService();
 
         appSettings.SetPreparationLimit(50);
         appSettings.SetCardDirection(CardDirectionPreference.MeaningToTerm);
@@ -265,7 +282,7 @@ public sealed class SettingsDefaultsServiceTests
     {
         // The destructive clearing of the whole preference store belongs to the full reset flow in
         // the Settings page, not to this service.
-        var (service, _, preferences, _, _) = CreateService();
+        var (service, _, preferences, _, _, _) = CreateService();
 
         preferences.Set("whats_new_last_seen_version", "1.0.0-beta.13");
 
@@ -277,7 +294,7 @@ public sealed class SettingsDefaultsServiceTests
     [TestMethod]
     public void RestoreDefaults_DoesNotClearUnrelatedPreferenceEntries()
     {
-        var (service, appSettings, preferences, _, _) = CreateService();
+        var (service, appSettings, preferences, _, _, _) = CreateService();
 
         preferences.Set("whats_new_last_seen_version", "1.0.0-beta.13");
         preferences.Set("some_other_durable_marker", 42);
@@ -289,6 +306,124 @@ public sealed class SettingsDefaultsServiceTests
         Assert.AreEqual("1.0.0-beta.13", preferences.Get("whats_new_last_seen_version", string.Empty));
         Assert.IsTrue(preferences.ContainsKey("some_other_durable_marker"));
         Assert.AreEqual(42, preferences.Get("some_other_durable_marker", 0));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // G. Full reset must establish onboarding Required before legacy evidence can be recreated
+    // -----------------------------------------------------------------------------------------
+
+    [TestMethod]
+    public void RestoreDefaultsForFullReset_EstablishesOnboardingRequired()
+    {
+        var (service, _, preferences, _, _, onboarding) = CreateService();
+
+        onboarding.SetState(OnboardingState.Completed);
+
+        service.RestoreDefaultsForFullReset();
+
+        Assert.AreEqual(OnboardingState.Required, onboarding.GetState());
+        Assert.AreEqual((int)OnboardingState.Required, preferences.Get(OnboardingStateKey, -1));
+    }
+
+    [TestMethod]
+    public void RestoreDefaultsForFullReset_EstablishesOnboardingRequiredFromAClearedPreferenceStore()
+    {
+        // Mirrors the real destructive flow: Database.ResetAsync() then Preferences.Clear() then
+        // this call. Nothing readable survives the clear, so the state must be written positively.
+        var (service, appSettings, preferences, _, _, onboarding) = CreateService();
+
+        appSettings.GrantOnlineLookupConsent();
+        preferences.Clear();
+
+        service.RestoreDefaultsForFullReset();
+
+        Assert.AreEqual(OnboardingState.Required, onboarding.GetState());
+        Assert.IsFalse(appSettings.HasOnlineLookupConsent);
+    }
+
+    [TestMethod]
+    public void RestoreDefaultsForFullReset_WritesOnboardingRequiredBeforeTheLanguageMarkerIsRecreated()
+    {
+        // The binding ordering contract. ResetToDeviceLanguage persists knownfirst.uiLanguage,
+        // which is legacy preference evidence. If the onboarding marker were written after it, a
+        // freshly reset installation would be grandfathered as pre-existing on the next start and
+        // would silently never see onboarding again.
+        var (service, _, preferences, _, language, _) = CreateService();
+
+        preferences.Clear();
+
+        service.RestoreDefaultsForFullReset();
+
+        Assert.AreEqual(1, language.ResetCount);
+        Assert.IsTrue(
+            preferences.ContainsKey(LanguagePreferenceKey),
+            "The recording double must reproduce the real system-language marker write.");
+        Assert.IsTrue(
+            language.OnboardingMarkerExistedWhenLanguageMarkerWasRecreated,
+            "Onboarding state must already be persisted when the language marker is recreated.");
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // H. Restore Defaults never changes onboarding lifecycle state
+    // -----------------------------------------------------------------------------------------
+
+    [TestMethod]
+    public void RestoreDefaults_LeavesEveryOnboardingLifecycleStateUnchanged()
+    {
+        foreach (var persisted in new[] { OnboardingState.Required, OnboardingState.InProgress, OnboardingState.Completed })
+        {
+            var (service, _, _, _, _, onboarding) = CreateService();
+            onboarding.SetState(persisted);
+
+            service.RestoreDefaults();
+
+            Assert.AreEqual(
+                persisted,
+                onboarding.GetState(),
+                $"Restore Defaults must not change onboarding state {persisted}.");
+        }
+    }
+
+    [TestMethod]
+    public void RestoreDefaults_NeverIntroducesAnOnboardingMarkerWhereNoneExisted()
+    {
+        var (service, _, preferences, _, _, onboarding) = CreateService();
+
+        Assert.IsNull(onboarding.GetState());
+
+        service.RestoreDefaults();
+
+        Assert.IsFalse(
+            preferences.ContainsKey(OnboardingStateKey),
+            "Restore Defaults must neither classify nor create onboarding state.");
+    }
+
+    [TestMethod]
+    public void RestoreDefaults_KeepsOnboardingStateWhilePreservingGrantedConsent()
+    {
+        var (service, appSettings, _, _, _, onboarding) = CreateService();
+
+        onboarding.SetState(OnboardingState.Completed);
+        appSettings.GrantOnlineLookupConsent();
+
+        service.RestoreDefaults();
+
+        Assert.AreEqual(OnboardingState.Completed, onboarding.GetState());
+        Assert.IsTrue(appSettings.HasOnlineLookupConsent);
+    }
+
+    [TestMethod]
+    public void RestoreDefaults_KeepsOnboardingStateWhilePreservingAbsentConsent()
+    {
+        var (service, appSettings, _, _, _, onboarding) = CreateService();
+
+        onboarding.SetState(OnboardingState.Completed);
+        Assert.IsFalse(appSettings.HasOnlineLookupConsent);
+
+        service.RestoreDefaults();
+
+        Assert.AreEqual(OnboardingState.Completed, onboarding.GetState());
+        Assert.IsFalse(appSettings.HasOnlineLookupConsent);
     }
 
     [TestMethod]

@@ -10,7 +10,7 @@ This document records stable, verified architectural facts and current capabilit
 | Field | Verified value |
 | :--- | :--- |
 | **Project** | KnownFirst |
-| **Source Version (`master`)** | `1.0.0-beta.13` (build 13 on merged `master`; build 14 on active branch `release/beta13-build14-version-code-v1` to resolve Google Play version-code collision) |
+| **Source Version (`master`)** | `1.0.0-beta.13` (build 14) — merged via PR #149 |
 | **Active Database Schema** | SQLite `PRAGMA user_version` 12 |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |

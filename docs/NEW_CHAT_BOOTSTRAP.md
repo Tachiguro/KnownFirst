@@ -6,7 +6,7 @@ This protocol governs the initialization sequence for new ChatGPT and prompt-aut
 
 Live GitHub pull request and branch states are authoritative over static or pasted prompt text. Prompt authoring and session initialization must discover current repository state dynamically rather than relying on stale prompt fragments, old chat history, or hardcoded commit hashes.
 
-Standing orchestration delegation, defined precisely in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), authorizes ChatGPT to issue the next correctly isolated prompt (`PLAN_ONLY` through `PR_ONLY`) without requiring the user to separately request each routine phase, provided live repository/GitHub state has been verified per this protocol and no unresolved material decision remains. It never authorizes merge, auto-merge, or any operation on that document's non-delegable-operations list; those always require explicit user action.
+Standing orchestration delegation, defined precisely in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), authorizes ChatGPT to issue the next correctly isolated prompt (`PLAN_ONLY`, `IMPLEMENT_SLICE`, `CHECKPOINT_COMMIT_ONLY`, `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, `POST_MERGE_SYNC_ONLY`) without requiring the user to separately request each routine phase, provided live repository/GitHub state has been verified per this protocol and no unresolved material decision remains. It never authorizes merge, auto-merge, or any operation on that document's non-delegable-operations list; those always require explicit user action.
 
 ## 2. Repository-Access Capability Gate
 
@@ -31,11 +31,15 @@ When repository access is available, execute read-only discovery in this order a
 5. Inspect open, recently closed, and recently merged pull requests.
 6. Inspect relevant pull-request metadata (base branch, head branch, head SHA, commits, changed files, mergeability status, check results, reviews, and review threads).
 
-## 4. Selecting the Active Work Package
+## 4. Selecting the Active Work Package & Multi-Slice Resume
 
-1. Read `docs/CURRENT_WORK.md` from the active pull-request head branch when an open pull request or active topic branch exists.
-2. Read `docs/CURRENT_WORK.md` from the current default branch only when no active open pull request or branch version exists.
-3. Treat live GitHub pull-request and branch state as authoritative over stale operational prose in status files.
+1. **GitHub PR State vs Local Task Branches:**
+   - If an open pull request exists, inspect its head branch and read `docs/CURRENT_WORK.md` from that branch.
+   - The absence of an open pull request on GitHub does **not** imply that no active work package exists. A local task branch with unpushed checkpoint commits represents an active in-progress package.
+   - Check local branch history (`git log`) for checkpoint trailers (`KnownFirst-Checkpoint:`) and correlate them with the declared slice list in `docs/CURRENT_WORK.md` per the resume contract in [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
+2. **Default Branch Baseline:**
+   - Read `docs/CURRENT_WORK.md` from the current default branch only when no active open pull request or in-progress task branch exists.
+3. Treat live Git/GitHub state as authoritative over stale operational prose in status files.
 4. Never trust pasted SHAs, pull-request numbers, branch names, task names, or historical chat text without live verification.
 5. Never repeat work that is already merged into the default branch.
 6. Never create a duplicate pull request for a branch that already has an open or merged pull request.
@@ -45,7 +49,7 @@ When repository access is available, execute read-only discovery in this order a
 
 When the next operation depends on unpushed local commits, untracked files, local-only branches, worktrees, or local merge states:
 
-- Request one short local `REVIEW_ONLY` prompt to verify local Git state before formulating the next action.
+- Request one short local `REVIEW_ONLY` prompt to verify local Git state, branch HEAD, checkpoint trailers, and working tree cleanliness before formulating the next action.
 - Do not perform any GitHub or repository write operation merely because a new chat session was started.
 
 ## 6. Prompt-Generation Contract

@@ -1440,6 +1440,103 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceFive_SharedControlsProtectFocusGeometryAndLongLabels()
+    {
+        var sharedStyles = LoadUi("app.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var buttonRule = ExtractCssRule(sharedStyles, ".button {");
+        var choiceRule = ExtractCssRule(sharedStyles, ".choice-button {");
+
+        Assert.Contains("min-height: 3rem", buttonRule);
+        Assert.Contains("min-width: 0", buttonRule);
+        Assert.Contains("overflow-wrap: break-word", buttonRule);
+        Assert.Contains("white-space: normal", buttonRule);
+        Assert.IsFalse(
+            System.Text.RegularExpressions.Regex.IsMatch(buttonRule, @"(?m)^\s*height\s*:"),
+            "Shared action buttons must grow from min-height rather than use a fixed height.");
+
+        Assert.Contains("min-height: 3.5rem", choiceRule);
+        Assert.Contains("min-width: 0", choiceRule);
+        Assert.Contains("overflow-wrap: break-word", choiceRule);
+        Assert.IsFalse(
+            System.Text.RegularExpressions.Regex.IsMatch(choiceRule, @"(?m)^\s*height\s*:"),
+            "Shared choice buttons must grow from min-height rather than use a fixed height.");
+
+        Assert.Contains(".button:focus-visible,\n.choice-button:focus-visible,\n.text-input:focus-visible,\nselect:focus-visible", sharedStyles);
+        Assert.Contains("outline: 3px solid var(--color-focus-ring)", sharedStyles);
+        Assert.Contains(".button:disabled,\n.choice-button:disabled,\n.text-input:disabled,\nselect:disabled", sharedStyles);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SharedBreakpointsCollapseChoicesAndStackStandardActions()
+    {
+        var sharedStyles = LoadUi("app.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var settingsStyles = LoadUi("Settings.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("@media (max-width: 520px)", sharedStyles);
+        Assert.Contains(".choice-grid-three {\n        grid-template-columns: 1fr;", sharedStyles);
+        Assert.Contains("@media (max-width: 380px)", sharedStyles);
+        Assert.Contains(".choice-grid-two {\n        grid-template-columns: 1fr;", sharedStyles);
+        Assert.Contains(".button-row > .button {\n        width: 100%;", sharedStyles);
+        Assert.DoesNotContain(".choice-grid-three", settingsStyles, StringComparison.Ordinal);
+        Assert.DoesNotContain(".choice-grid-two", settingsStyles, StringComparison.Ordinal);
+
+        var buttonRowRule = ExtractCssRule(sharedStyles, ".button-row {");
+        Assert.Contains("min-width: 0", buttonRowRule);
+        Assert.Contains("flex-wrap: wrap", buttonRowRule);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SettingsRowsReleaseIntrinsicWidthsAtNarrowViewports()
+    {
+        var styles = LoadUi("Settings.razor.css");
+        var pageRule = ExtractCssRule(styles, ".settings-page");
+        var cardRule = ExtractCssRule(styles, ".settings-card");
+        var customRowRule = ExtractCssRule(styles, ".custom-input-row");
+        var customInputRule = ExtractCssRule(styles, ".custom-input-row .text-input");
+
+        Assert.Contains("min-width: 0", pageRule);
+        Assert.Contains("min-width: 0", cardRule);
+        Assert.Contains("min-width: 0", customRowRule);
+        Assert.Contains("flex-wrap: wrap", customRowRule);
+        Assert.Contains("flex:", customInputRule);
+        Assert.Contains("min-width: 0", customInputRule);
+        Assert.DoesNotContain("width: 8rem", customInputRule, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SettingsLabelsAdvisoryAndDestructiveDialogsRemainAccessible()
+    {
+        var markup = LoadUi("Settings.razor");
+        var dailyPace = ExtractSettingsSection(markup, "preparation-limit-title");
+        var onlineLookup = ExtractSettingsSection(markup, "online-lookup-title");
+        var resetData = ExtractSettingsSection(markup, "reset-data-title");
+
+        Assert.Contains("<label for=\"display-name\"", markup);
+        Assert.Contains("<label for=\"preparation-limit-custom-input\"", markup);
+        Assert.Contains("<label for=\"learning-timezone-select\"", markup);
+        Assert.Contains("aria-label=\"@Localizer[\"Settings_LearningDayCutoffHours\"]\"", markup);
+        Assert.Contains("aria-label=\"@Localizer[\"Settings_LearningDayCutoffMinutes\"]\"", markup);
+
+        Assert.Contains("id=\"preparation-limit-warning\"", dailyPace);
+        Assert.Contains("setting-feedback-advisory", dailyPace);
+        Assert.Contains("role=\"status\"", dailyPace);
+        Assert.DoesNotContain("aria-live=\"assertive\"", dailyPace, StringComparison.Ordinal);
+
+        Assert.Contains("role=\"alertdialog\"", onlineLookup);
+        Assert.Contains("aria-labelledby=\"online-consent-revoke-confirmation-message\"", onlineLookup);
+        Assert.Contains("id=\"online-consent-revoke-cancel-button\"", onlineLookup);
+        Assert.Contains("class=\"button button-secondary\"", onlineLookup);
+        Assert.Contains("id=\"online-consent-revoke-confirm-button\"", onlineLookup);
+        Assert.Contains("class=\"button button-danger\"", onlineLookup);
+
+        Assert.Contains("role=\"alertdialog\"", resetData);
+        Assert.Contains("aria-labelledby=\"reset-confirmation-message\"", resetData);
+        Assert.Contains("id=\"reset-confirm-cancel-button\"", resetData);
+        Assert.Contains("id=\"reset-confirm-confirm-button\"", resetData);
+        Assert.Contains("data-destructive-confirm", resetData);
+    }
+
+    [TestMethod]
     public void VisualConsistencySliceOne_SettingsUsesStructuralSpacingWithoutMagicMargins()
     {
         var markup = LoadUi("Settings.razor");

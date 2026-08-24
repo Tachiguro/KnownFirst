@@ -452,6 +452,85 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
+    public void VisualConsistencySliceFive_OnboardingFieldsHaveExplicitAccessibleNames()
+    {
+        var displayName = LoadStepUi("DisplayNameStep.razor");
+        var learningDay = LoadStepUi("LearningDayTimingStep.razor");
+
+        Assert.Contains("<label for=\"onboarding-display-name-input\"", displayName);
+        Assert.Contains("Settings_DisplayName", displayName);
+        Assert.Contains("id=\"onboarding-display-name-input\"", displayName);
+
+        Assert.Contains("id=\"onboarding-learning-timezone-select\"", learningDay);
+        Assert.Contains("aria-labelledby=\"onboarding-timezone-title\"", learningDay);
+        Assert.Contains("aria-describedby=\"onboarding-timezone-help\"", learningDay);
+        Assert.Contains("aria-label=\"@Localizer[\"Settings_LearningDayCutoffHours\"]\"", learningDay);
+        Assert.Contains("aria-label=\"@Localizer[\"Settings_LearningDayCutoffMinutes\"]\"", learningDay);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SystemLanguageUsesOnePoliteStatusAndAdvisorySeverity()
+    {
+        var markup = LoadUi("OnboardingHost.razor");
+        var systemStatusStart = markup.IndexOf("id=\"onboarding-system-language-status\"", StringComparison.Ordinal);
+        var appearanceStart = markup.IndexOf("class=\"onboarding-appearance-section\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, systemStatusStart);
+        Assert.IsGreaterThan(systemStatusStart, appearanceStart);
+        var systemStatus = markup[systemStatusStart..appearanceStart];
+
+        Assert.Contains("role=\"status\"", systemStatus);
+        Assert.Contains("aria-live=\"polite\"", systemStatus);
+        Assert.AreEqual(1, Regex.Matches(systemStatus, "role=\\\"status\\\"").Count);
+        Assert.Contains("id=\"onboarding-system-language-fallback\"", systemStatus);
+        Assert.Contains("setting-feedback-advisory", systemStatus);
+        Assert.DoesNotContain("role=\"alert\"", systemStatus, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-live=\"assertive\"", systemStatus, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_ConfirmationAndChoiceSemanticsRemainDeterministic()
+    {
+        var onboardingMarkup = string.Join(
+            Environment.NewLine,
+            StepFileNames.Select(LoadStepUi).Append(LoadUi("OnboardingHost.razor")));
+        var onlineLookup = LoadStepUi("OnlineLookupStep.razor");
+
+        foreach (Match choice in Regex.Matches(onboardingMarkup, @"<button\b[\s\S]*?</button>"))
+        {
+            if (choice.Value.Contains("choice-button", StringComparison.Ordinal))
+            {
+                Assert.Contains("aria-pressed=", choice.Value);
+                Assert.Contains("type=\"button\"", choice.Value);
+            }
+        }
+
+        Assert.Contains("role=\"alertdialog\"", onlineLookup);
+        Assert.Contains("aria-labelledby=\"onboarding-online-consent-revoke-confirmation-message\"", onlineLookup);
+        Assert.Contains("id=\"onboarding-online-consent-revoke-cancel-button\"", onlineLookup);
+        Assert.Contains("class=\"button button-secondary\"", onlineLookup);
+        Assert.Contains("id=\"onboarding-online-consent-revoke-confirm-button\"", onlineLookup);
+        Assert.Contains("class=\"button button-danger\"", onlineLookup);
+        Assert.Contains("data-destructive-confirm", onlineLookup);
+    }
+
+    [TestMethod]
+    public void VisualConsistencySliceFive_SummaryRetainsDefinitionListAndStacksAtNarrowWidths()
+    {
+        var markup = LoadStepUi("SummaryStep.razor");
+        var styles = LoadUi("OnboardingHost.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Contains("<dl class=\"summary-list\">", markup);
+        Assert.Contains("<dt>", markup);
+        Assert.Contains("<dd>", markup);
+        Assert.Contains("min-width: 0", ExtractCssRule(styles, ".onboarding-container ::deep .summary-item"));
+        Assert.Contains("min-width: 0", ExtractCssRule(styles, ".onboarding-container ::deep .summary-item dt"));
+        Assert.Contains("min-width: 0", ExtractCssRule(styles, ".onboarding-container ::deep .summary-item dd"));
+        Assert.Contains("@media (max-width: 380px)", styles);
+        Assert.Contains(".onboarding-container ::deep .summary-item {\n        align-items: stretch;\n        flex-direction: column;", styles);
+        Assert.Contains("text-align: left", styles);
+    }
+
+    [TestMethod]
     public void OnboardingHost_RendersAllNineStepsAndHandlesCompletion()
     {
         var markup = LoadUi("OnboardingHost.razor");
@@ -505,5 +584,15 @@ public sealed class OnboardingStepContractTests
 
         Assert.Fail("The method '" + signature + "' is not correctly delimited.");
         return string.Empty;
+    }
+
+    private static string ExtractCssRule(string styles, string selector)
+    {
+        var start = styles.IndexOf(selector, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start, "The CSS selector '" + selector + "' is missing.");
+
+        var end = styles.IndexOf('}', start);
+        Assert.IsGreaterThan(start, end, "The CSS selector '" + selector + "' has no closing brace.");
+        return styles[start..(end + 1)];
     }
 }

@@ -1,5 +1,6 @@
 .settings-page {
     display: grid;
+    min-width: 0;
     gap: var(--space-4);
     width: min(100%, 48rem);
     margin: 0 auto;
@@ -7,6 +8,7 @@
 
 .settings-card {
     display: grid;
+    min-width: 0;
     gap: var(--space-4);
     margin: 0;
     padding: clamp(var(--space-4), 4vw, var(--space-8));
@@ -39,6 +41,7 @@
    avoids the danger palette used by the destructive full application reset. */
 .restore-defaults-confirmation {
     display: grid;
+    min-width: 0;
     gap: var(--space-4);
     padding: clamp(var(--space-4), 4vw, var(--space-6));
     border: 1px solid var(--color-border);
@@ -53,14 +56,18 @@
 
 .custom-input-row {
     display: flex;
+    min-width: 0;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-3);
     max-width: 24rem;
 }
 
 .custom-input-row .text-input {
-    width: 8rem;
+    width: auto;
+    min-width: 0;
     min-height: 3.25rem;
+    flex: 1 1 8rem;
 }
 
 .bug-report-address {
@@ -79,6 +86,7 @@
 }
 
 .import-preview-panel {
+    min-width: 0;
     padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-border);
     border-radius: 1.1rem;
@@ -98,19 +106,8 @@
     line-height: 1.6;
 }
 
-@media (max-width: 520px) {
-    .choice-grid-three {
-        grid-template-columns: 1fr;
-    }
-}
-
 @media (max-width: 380px) {
-    .choice-grid-two {
-        grid-template-columns: 1fr;
-    }
-
-    .settings-card > .button,
-    .button-row .button {
+    .settings-card > .button {
         width: 100%;
     }
 }

@@ -59,15 +59,17 @@
 
                             @if (LanguageSelection.IsSystemPreferenceActive)
                             {
-                                <p id="onboarding-system-language-status" class="setting-status" role="status">
-                                    @Localizer["Onboarding_SystemLanguageDetected", GetDetectedDeviceCultureDisplayName(), DetectedDeviceCultureCode]
-                                </p>
-                                @if (!_deviceLanguageClassification.IsSupported)
-                                {
-                                    <p id="onboarding-system-language-fallback" class="setting-feedback setting-feedback-advisory" role="status">
-                                        @Localizer["Onboarding_SystemLanguageUnsupported"]
+                                <div id="onboarding-system-language-status" class="onboarding-system-language-status" role="status" aria-live="polite">
+                                    <p class="setting-status">
+                                        @Localizer["Onboarding_SystemLanguageDetected", GetDetectedDeviceCultureDisplayName(), DetectedDeviceCultureCode]
                                     </p>
-                                }
+                                    @if (!_deviceLanguageClassification.IsSupported)
+                                    {
+                                        <p id="onboarding-system-language-fallback" class="setting-feedback setting-feedback-advisory">
+                                            @Localizer["Onboarding_SystemLanguageUnsupported"]
+                                        </p>
+                                    }
+                                </div>
                             }
                         </section>
 

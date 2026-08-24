@@ -47,7 +47,8 @@ This document records stable, verified architectural facts and current capabilit
 - one-time localized What's New notice shown once per version;
 - transactional local persistence (Schema 11), startup maintenance, and bounded structured diagnostics;
 - production offline German Enhanced Term Recognition (missing-preference default ON on `master` via PR #144, `EnhancedTermRecognitionEnabled` in Settings): conservative German compound decomposition against the production `GeneratedGermanLexicon`, wired into `TextReviewService` analysis, with Schema-11 `DerivedTermEvidence` persistence;
-- full Settings GUI exposing learning timezone (System or 50 curated IANA zones spanning inhabited UTC-11 through UTC+14, with dynamic DST-aware labels), deterministic 24-hour learning-day cutoff (`00..23` hour, `00..59` minute selectors), default-first card direction and learning mode choices, non-destructive Restore Defaults preserving online dictionary consent, and destructive Full Reset revoking consent (merged via PR #144).
+- full Settings GUI exposing learning timezone (System or 50 curated IANA zones spanning inhabited UTC-11 through UTC+14, with dynamic DST-aware labels), deterministic 24-hour learning-day cutoff (`00..23` hour, `00..59` minute selectors), default-first card direction and learning mode choices, non-destructive Restore Defaults preserving online dictionary consent, and destructive Full Reset revoking consent (merged via PR #144);
+- preference-backed onboarding state foundation (`Required`, `InProgress`, `Completed`), startup install-origin classification distinguishing fresh from grandfathered existing installations, grandfathered 10-word daily budget pinning, and reset contracts (merged via PR #153).
 
 ## Development, Tooling & Packaging Foundations
 
@@ -145,6 +146,19 @@ This merged slice provides full user control over learning-day parameters and re
 - **Deterministic 24-Hour Cutoff Selector:** `New learning day begins at` presents a two-part 24-hour selector (`#learning-day-cutoff-hour` covering `00`..`23`, `#learning-day-cutoff-minute` covering `00`..`59`, separated by visual colon `.time-separator`) with localized accessible labels, replacing native `<input type="time">` without AM/PM or host regional format dependencies. Persists exact integer minutes $0..1439$; `24:00` is impossible.
 - **Restore Default Settings vs. Reset All Application Data:** "Restore default settings" is non-destructive: restores target defaults (Language=System, Appearance=System, New words per day=10, Timezone=System, Cutoff=00:00, Card directions=Both, Learning mode=Automatic, ETR=On) and strictly preserves the user's online-dictionary lookup consent without database reset. "Reset all application data" remains the destructive action: revokes online lookup consent, resets database, and restores target defaults.
 - **Enhanced Term Recognition Default:** The missing-preference default is ON (`EnhancedTermRecognitionPolicy.DefaultEnabled = true`). An explicit `false` remains OFF.
+
+## First-Run Onboarding & Daily-Budget UX — Slice 1 (Merged Production State)
+
+**Lifecycle status:** merged production `master` state via PR #153 (`feat: add onboarding install-origin foundation`; merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`; validated PR head `36534afa4664eea99fcb41b2554b72e64d7a35ec`). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+
+This merged foundation slice establishes preference-backed onboarding state, startup install-origin classification, grandfathered budget pinning, and reset contracts:
+
+- **Onboarding State Lifecycle:** `KnownFirst.Core.Settings.OnboardingState` defines application-local lifecycle states `Required = 1`, `InProgress = 2`, `Completed = 3`. `OnboardingStatePolicy` enforces serialization, valid transitions, and default values without SQLite dependencies.
+- **Startup Install-Origin Classification:** `IInstallOriginClassifier` / `InstallOriginClassifier` runs as a singleton during application startup in `MauiProgram.cs` before language initialization. It distinguishes fresh installations (no onboarding marker + no legacy preference evidence => `Required`) from existing installations (no onboarding marker + legacy preference evidence => `Completed`). Already valid onboarding state is preserved without reclassification. Database-file existence is deliberately not used as evidence to avoid false positives on fresh installs where database files may be initialized before classification.
+- **Grandfathered Daily-Budget Pinning:** Grandfathered existing installations without an explicit `preparation_limit` preference have the legacy effective value `10` pinned to `preparation_limit` so future default changes will not alter their established study rhythm. Existing explicit values are preserved; fresh installations are not pinned. `PreparationLimitPolicy.DefaultLimit` remains 10 with existing presets ($N \in \{5, 10, 20, 30, 50\}$).
+- **Reset Contracts:** Destructive full reset sets `OnboardingState.Required` first before default restoration recreates legacy markers; online dictionary consent remains unconditionally revoked. Non-destructive "Restore default settings" leaves onboarding state untouched and preserves current online dictionary consent.
+- **Persistence Boundary:** Onboarding state and install-origin markers are Preferences/application-local state, not SQLite. `DatabaseSchema.CurrentVersion` remains 12 and archive format remains V2.
+- **Explicit Non-Goals:** Visible first-run onboarding UI, route gating, display name, new presets (1 / 5 / 10 / Custom), default budget change to 5, and Home personalization are not implemented in this foundation slice and remain planned for later slices.
 
 ## Evidence Boundaries & Release Limitations
 

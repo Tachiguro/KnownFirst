@@ -71,24 +71,26 @@ Prompts must select the least expensive capable model:
 
 The repository enforces strict mutual isolation between task phases:
 
-- `PLAN_ONLY`: Read-only research and design plan creation.
-- `IMPLEMENT`: Scoped code implementation using TDD.
-- `TEST_ONLY`: Execution of specified test scopes without editing code.
+- `PLAN_ONLY`: Read-only research, architecture, and multi-slice design plan creation.
+- `IMPLEMENT_SLICE`: Explicitly authorized composite operation executing focused TDD for exactly one declared slice, followed immediately by checkpoint staging/commit with a checkpoint trailer and a hard stop.
+- `CHECKPOINT_COMMIT_ONLY`: Staging and committing a single completed slice that is already focused-green.
+- `IMPLEMENT`: Scoped code implementation using TDD (used when checkpoint committing is separately invoked).
+- `TEST_ONLY`: Execution of specified test scopes without editing code (including candidate-HEAD `FULL_VALIDATION`).
 - `DOCUMENT_ONLY`: Updating documentation for verified implementation.
 - `BUILD_ONLY`: Compiling specific target configurations.
 - `PACKAGE_ONLY`: Generating APK or AAB artifacts.
-- `COMMIT_ONLY`: Staging and committing already reviewed changes.
+- `COMMIT_ONLY`: Staging and committing already reviewed changes (e.g. package documentation or candidate finalization).
 - `PUSH_ONLY`: Pushing approved commits to remote repository.
 - `PR_ONLY`: Opening or updating a pull request.
 - `REVIEW_ONLY`: Read-only diff and contract review.
 - `POST_MERGE_SYNC_ONLY`: Fast-forward synchronizing local master with remote master after a manual user merge on GitHub.
 
 ### Isolation Rules
-- Select **exactly one** primary mode per prompt.
+- Select **exactly one** primary mode per prompt (or the explicitly authorized `IMPLEMENT_SLICE` composite).
 - Pull-request merges are performed exclusively by the user manually through GitHub. Automated agents never merge pull requests, enable auto-merge, or execute `MERGE_ONLY` operations.
-- Multiple modes may be combined **only** when the user explicitly requests the combination.
-- **Agent-level isolation (absolute, never delegated):** the programming agent executing a prompt must never continue from its assigned mode into another mode on its own, and must not infer additional execution authority from completion of its current prompt or from prior work packages. Commit does not imply push; push does not imply PR; PR does not imply merge; merge does not imply build, package, or release work.
-- **Orchestrator-level standing delegation** governs only whether ChatGPT may issue the *next* isolated prompt without additional per-phase user typing — see "Standing Orchestration Delegation" below. Standing delegation never authorizes an agent to self-advance within a single prompt.
+- Multiple modes may be combined **only** when the user explicitly requests the combination or when executing `IMPLEMENT_SLICE` whose exact sub-operations and hard stop are defined by governance.
+- **Agent-level isolation (absolute, never delegated):** the programming agent executing a prompt must never continue from its assigned mode into another mode on its own, and must not infer additional execution authority from completion of its current prompt or from prior work packages. A checkpoint commit does not imply package review or push; push does not imply PR; PR does not imply merge; merge does not imply build, package, or release work.
+- **Orchestrator-level standing delegation** governs only whether ChatGPT may issue the *next* isolated prompt without additional per-phase user typing — see "Standing Orchestration Delegation" below. Standing delegation never authorizes an agent to self-advance within a single prompt beyond an authorized composite's defined hard stop.
 - Every final report must explicitly state which operations were intentionally not performed.
 
 ### Standing Orchestration Delegation
@@ -97,15 +99,18 @@ Once (1) a concrete KnownFirst work package is established, (2) its scope is bou
 
 Standing delegation covers exactly these modes, applied one at a time in isolated prompts:
 - `PLAN_ONLY`
+- `IMPLEMENT_SLICE`
+- `CHECKPOINT_COMMIT_ONLY`
 - `IMPLEMENT`
 - `TEST_ONLY` (including the mandatory candidate-HEAD `FULL_VALIDATION` pre-PR gate)
-- `DOCUMENT_ONLY` (mandatory pre-commit gate; must precede `COMMIT_ONLY` for every normal code/behavior package)
+- `DOCUMENT_ONLY` (package-level documentation reconciliation gate)
 - `REVIEW_ONLY`
 - `COMMIT_ONLY`
 - `PUSH_ONLY`
 - `PR_ONLY`
+- `POST_MERGE_SYNC_ONLY` (after verified manual user merge on GitHub)
 
-Standing delegation covers mandatory pre-PR validation without requiring fresh per-PR user build authorization. For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT` without a ceremonial "approve plan" message; a reviewed change progresses through mandatory `DOCUMENT_ONLY`, `COMMIT_ONLY`, mandatory candidate-HEAD `FULL_VALIDATION` (`TEST_ONLY`), `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
+Standing delegation covers mandatory pre-PR validation without requiring fresh per-PR user build authorization. For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT_SLICE` without a ceremonial "approve plan" message; completed slices loop through checkpoint commits; when all slices finish, the package progresses through consolidated `REVIEW_ONLY`, package-level `DOCUMENT_ONLY`, candidate `COMMIT_ONLY` (if documentation edited), mandatory candidate-HEAD `FULL_VALIDATION` (`TEST_ONLY`), `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
 
 If `PLAN_ONLY`, or any later phase, exposes a genuine unresolved material decision (see Section E), ChatGPT must stop and ask the user regardless of standing delegation.
 
@@ -126,8 +131,8 @@ This matrix encompasses:
 
 **Gate Invariants & Semantics:**
 - **Exact-HEAD Evidence:** Validation evidence belongs to the exact final candidate commit SHA intended for the PR.
-- **Documentation Completeness:** `FULL_VALIDATION` must execute only after `COMMIT_ONLY` has captured the complete candidate — including any required documentation edits from the mandatory `DOCUMENT_ONLY` phase. Documentation edits after `FULL_VALIDATION` invalidate the evidence and require a new candidate commit and a new `FULL_VALIDATION` run.
-- **Placement:** Validation must execute after `COMMIT_ONLY` and before `PUSH_ONLY`.
+- **Documentation Completeness:** `FULL_VALIDATION` must execute only after the candidate HEAD reflects all required code, tests, and documentation. If `DOCUMENT_ONLY` produced documentation edits, those must be committed before `FULL_VALIDATION`. If `DOCUMENT_ONLY` reported `DOCUMENTATION_CURRENT_NO_CHANGES`, the latest checkpoint commit is the candidate HEAD.
+- **Placement:** Validation must execute on the exact candidate HEAD before `PUSH_ONLY`.
 - **Fail-Closed Blocking:** `PUSH_ONLY` and `PR_ONLY` are strictly blocked unless that exact HEAD has a recorded successful full-validation result.
 - **Stale-Evidence Invalidation:** Any subsequent commit or repository-file modification invalidates the validation evidence and renders it stale; `ValidateAll` must run again on the new candidate HEAD before progression.
 - **Fail-Closed Stop Policy:** Any test or build failure blocks progression immediately. The validation operation must never attempt automatic code fixes.
@@ -154,54 +159,63 @@ Manual PR merge remains exclusively the repository owner's action through GitHub
 
 Every request that would modify repository files must first execute in `PLAN_ONLY` mode.
 
-The transition from an approved `PLAN_ONLY` result to `IMPLEMENT` is satisfied either by explicit user approval of the presented plan, or by the standing orchestration delegation defined above when the plan is complete, bounded, and exposes no unresolved material product, architecture, data-integrity, or scope decision. If `PLAN_ONLY` exposes such a decision, ChatGPT must stop and ask the user before authorizing any repository-writing work, regardless of standing delegation.
+The transition from an approved `PLAN_ONLY` result to implementation is satisfied either by explicit user approval of the presented plan, or by the standing orchestration delegation defined above when the plan is complete, bounded, and exposes no unresolved material product, architecture, data-integrity, or scope decision. If `PLAN_ONLY` exposes such a decision, ChatGPT must stop and ask the user before authorizing any repository-writing work, regardless of standing delegation.
 
 `PLAN_ONLY` is strictly read-only and must report:
-- task objective;
-- acceptance criteria;
+- single coherent package objective;
 - explicit non-goals;
+- declared ordered slice list;
+- focused test scope for each slice;
+- risk and escalation classification for each slice (persistence/schema migrations, archive compatibility, destructive reset, AOT sensitivity, security/privacy boundaries);
 - exact documentation and code areas to read;
 - files expected to change;
-- focused tests to add or modify;
-- expected initial red test result;
-- proposed minimum implementation;
-- documentation affected after verification;
-- risks and unresolved product decisions;
+- proposed minimum implementation per slice;
+- affected durable documentation;
 - explicitly excluded operations.
 
-`PLAN_ONLY` must stop without creating a branch, editing files, running builds, committing, pushing, or opening a PR. The subsequent `IMPLEMENT` prompt must reference the approved plan and may not silently expand its scope.
+`PLAN_ONLY` must stop without creating a branch, editing files, running builds, committing, pushing, or opening a PR. The subsequent implementation prompts must reference the approved plan and may not silently expand its scope.
 
-## F. Implementation and TDD
+## F. Implementation, Slices, and TDD
 
-`IMPLEMENT` mode is authorized only after the planning gate in Section E is satisfied — either by explicit user plan approval or by standing orchestration delegation when the plan is complete, bounded, and decision-free.
+Implementation is authorized only after the planning gate in Section E is satisfied.
 
-### Default TDD Sequence
-1. Verify initial repository state.
-2. Create or switch to the approved task branch.
-3. Read only task-relevant contracts, code, and tests.
-4. Add the minimum focused tests first.
-5. Run only those focused tests.
-6. Confirm that failure is caused by missing intended behavior (expected red result) rather than syntax, environment, or fixture errors.
-7. Implement the minimum production change.
-8. Run only the same focused tests.
-9. Stop after the focused tests pass green.
+### Multi-Slice Feature Package Execution
 
-`IMPLEMENT` must **not** automatically:
-- run all automated tests;
-- run UI-contract tests outside the affected scope;
-- run smoke tests or manual GUI tests;
-- build any platform;
-- update documentation;
-- commit, push, or create a PR.
+A coherent feature package consists of one or more declared, ordered implementation slices executed on a dedicated task branch:
 
-### Required IMPLEMENT Report Content
-The final `IMPLEMENT` report must explicitly state:
-- which focused tests passed, identified by test name, class, or exact filter;
-- which broader test scopes were intentionally not executed and remain available only through a separate `TEST_ONLY` operation;
-- which documentation contracts or user-facing release-note entries may require a later `DOCUMENT_ONLY` operation, without updating them automatically;
-- whether any implementation risk or unresolved decision remains.
+1. **Focused TDD loop per slice:**
+   - Add or update the minimum focused test(s) first (`FOCUSED_AUTOMATED`).
+   - Run only that focused scope to confirm genuine behavioral RED (missing intended behavior; syntax, fixture, or compiler breakage is not RED).
+   - Implement the minimum production code change for that slice.
+   - Rerun the identical focused scope to a GREEN result.
+   - Run any targeted extra testing specifically required by the slice's risk classification (e.g. migration, archive, or data-safety contracts).
+   - Run `git diff --check`.
+   - Stage explicit file paths and create a checkpoint commit with the required trailer.
+   - Stop after the checkpoint commit.
 
-The report must not claim or imply that unexecuted test scopes passed.
+2. **Checkpoint commit contract:**
+   - Checkpoint commits record completed, focused-green slices on the task branch.
+   - Format: conventional subject plus trailer:
+     `KnownFirst-Checkpoint: <package-id> <slice-index>/<slice-count> <short-scope>`
+   - A checkpoint commit does **not** trigger broad test suites, `ValidateAll`, package-level review, package-level documentation reconciliation, push, PR, or merge.
+   - The latest checkpoint commit **may** become the final candidate HEAD if package-level `REVIEW_ONLY` passes and package-level `DOCUMENT_ONLY` reports `DOCUMENTATION_CURRENT_NO_CHANGES`. The presence of a checkpoint trailer does not disqualify a commit from being validated and published. No empty commit or `git commit --allow-empty` is required or permitted as lifecycle machinery.
+
+3. **Risk and Escalation Rules:**
+   - **Irreversible / persisted-state risk:** Schema migrations, archive format/DTO compatibility changes, and destructive reset behaviors must be classified in `PLAN_ONLY` and backed by targeted contract tests. When practical, schedule them late in the package sequence. If multiple independent irreversible transitions make reasoning difficult or unsafe, split into separate packages.
+   - **Focused testability:** Every behavior-changing slice requires genuine behavioral RED evidence. Characterization and test-hardening packages (adding tests without behavior changes) are the sole explicit exception and pass immediately.
+   - **Targeted extra testing:** Persistence/migration slices run relevant migration contracts; backup/archive slices run relevant round-trip contracts; destructive reset slices run relevant data-safety contracts. Broad `ValidateAll` is not run per slice.
+   - **AOT / trimming sensitivity:** Must be identified in `PLAN_ONLY`. Early Android Release compilation may be recommended when justified, but is not universally mandatory per slice since final `ValidateAll` remains fail-closed.
+   - **Package coherence:** All slices in a package must support a single, coherent product or engineering objective. Unrelated work must not be bundled merely to amortize lifecycle overhead. Coherence is semantic; it is not evaluated by arbitrary title heuristics.
+   - **Validation-gate self-modification:** Any change to `ValidateAll`, its required step list, or launcher scripts defining gate behavior must be an isolated package and never bundled with product features.
+   - **Security and privacy:** Security, privacy, permission, key, or consent boundary changes must be classified in `PLAN_ONLY` and separately enumerated in the consolidated `REVIEW_ONLY` report.
+
+### Required Slice Report Content
+The final slice report must explicitly state:
+- which focused tests passed (identified by test name, class, or filter);
+- genuine RED and GREEN evidence for the slice;
+- checkpoint commit SHA and trailer;
+- which broader test scopes were intentionally not executed;
+- any slice-level risk or observation for the consolidated package review.
 
 ## G. Test-Only Behavior
 
@@ -210,9 +224,9 @@ The report must not claim or imply that unexecuted test scopes passed.
 - never modifies production or test code;
 - never fixes a test failure automatically;
 - reports test failure details and stops;
-- does not build other targets unless the explicitly requested test is a documented composite test (e.g. Windows smoke test).
+- does not build other targets unless the explicitly requested test is a documented composite test (e.g. Windows smoke test or candidate-HEAD `FULL_VALIDATION`).
 
-Refer to [docs/TESTING.md](TESTING.md) for exact test scope definitions. When the user specifies "all tests", the prompt author must clarify whether this means all automated unit tests or full validation including manual GUI/platform work.
+Refer to [docs/TESTING.md](TESTING.md) for exact test scope definitions.
 
 ## H. Build and Package Isolation
 
@@ -240,46 +254,46 @@ Refer to [docs/TESTING.md](TESTING.md) for exact test scope definitions. When th
 - An APK request without specified configuration requires clarification.
 - An AAB request does not authorize Google Play Store upload.
 - `WINDOWS_PORTABLE_PACKAGE` creates only the self-contained Windows x64 Release ZIP archive and SHA-256 sidecar; it does not launch, install, or distribute the package.
-- `WINDOWS_MSIX_PACKAGE` creates only the x64 Release MSIX package and SHA-256 sidecar (unsigned by default, or signed via external certificate thumbprint); it does not install, sideload, contact Partner Center, or upload/submit to the Microsoft Store.
+- `WINDOWS_MSIX_PACKAGE` creates only the x64 Release MSIX package and SHA-256 sidecar; it does not install, sideload, contact Partner Center, or upload/submit to the Microsoft Store.
 - Artifact creation is strictly isolated from installation, deployment, and distribution; Store upload/submission and certificate operations remain separately authorized and are never covered by standing delegation.
 - `FULL_RELEASE_OUTPUT_PACKAGE` is used only when the user explicitly requests the complete release output package.
 - Normal feature completion never triggers a build automatically.
 - Refer to [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for exact commands and safety boundaries.
 
-## I. Documentation Phase
+## I. Documentation Phase & Lifecycle
 
-`DOCUMENT_ONLY` is a **mandatory** pre-commit gate for every repository-writing package. It is never optional or conditional on a fresh explicit user request.
+`DOCUMENT_ONLY` is a **mandatory** package-level reconciliation gate before candidate finalization and validation.
+
+### Documentation Timings
+1. **Package declaration:** `docs/CURRENT_WORK.md` may describe the active package objective and declared slice list for orchestration and session resume.
+2. **Mid-package contract exception only:** An authoritative contract document may be edited in a slice's checkpoint commit only when that slice establishes a durable contract that subsequent slices in the same package must obey.
+3. **Package-final reconciliation:** One consolidated `DOCUMENT_ONLY` phase executes over the entire package after all slices are completed and approved by consolidated `REVIEW_ONLY`.
 
 ### Mandatory Documentation Gate Invariant
 
-`COMMIT_ONLY` is strictly blocked until `DOCUMENT_ONLY` has completed for the package and has reported either:
-- `DOCUMENTATION_RECONCILED_WITH_CHANGES` — at least one documentation file required a semantic edit. Any required edits must be part of the candidate commit before `FULL_VALIDATION`.
-- `DOCUMENTATION_CURRENT_NO_CHANGES` — all directly relevant documentation was inspected and is already accurate; no semantic edit is required. The `DOCUMENT_ONLY` report listing the inspected documents and the rationale for no-edit serves as the gate evidence for subsequent `COMMIT_ONLY`/`FULL_VALIDATION`/`PUSH_ONLY` prompts.
+Candidate finalization and `FULL_VALIDATION` require `DOCUMENT_ONLY` to report either:
+- `DOCUMENTATION_RECONCILED_WITH_CHANGES` — documentation files required semantic edits. These edits are committed via `COMMIT_ONLY` before `FULL_VALIDATION`.
+- `DOCUMENTATION_CURRENT_NO_CHANGES` — all relevant documentation was inspected and is already accurate. The latest checkpoint commit is the candidate HEAD and proceeds directly to `FULL_VALIDATION`.
 
-**No-edit rule:** When all relevant documentation is already accurate, do NOT create artificial documentation churn. A genuine `DOCUMENTATION_CURRENT_NO_CHANGES` result satisfies the gate without a committed no-op change.
+**No-edit rule:** When documentation is already accurate, do NOT create artificial documentation churn. A genuine `DOCUMENTATION_CURRENT_NO_CHANGES` result satisfies the gate without a commit.
 
 **Any repository-file modification after `FULL_VALIDATION` — including documentation edits — invalidates the exact-HEAD evidence and requires a new candidate commit and a new `FULL_VALIDATION` run before `PUSH_ONLY` or `PR_ONLY`.**
 
-### Normal Code/Behavior Package Lifecycle
+### Normal Code/Behavior Multi-Slice Package Lifecycle
 
 ```
-PLAN_ONLY
-  → IMPLEMENT
-  → focused verification (as applicable)
-  → REVIEW_ONLY
-  → mandatory DOCUMENT_ONLY
-  → COMMIT_ONLY (of the complete code/test/documentation candidate)
-  → exact-candidate-HEAD FULL_VALIDATION (TEST_ONLY)
+PLAN_ONLY (declare coherent objective & bounded slices)
+  → Slice Loop (for each declared slice):
+      IMPLEMENT_SLICE (focused TDD RED → minimum implementation → focused GREEN → checkpoint commit)
+  → Consolidated REVIEW_ONLY (entire package)
+  → Mandatory Package-Level DOCUMENT_ONLY
+  → Candidate Finalization / COMMIT_ONLY (if documentation edited)
+  → Exact-Candidate-HEAD FULL_VALIDATION (TEST_ONLY)
   → PUSH_ONLY
   → PR_ONLY
-  → manual user merge
+  → Manual User Merge on GitHub
   → POST_MERGE_SYNC_ONLY
 ```
-
-Notes:
-- `REVIEW_ONLY` findings that require implementation corrections start a correction cycle; `DOCUMENT_ONLY` occurs after the final accepted implementation/review state.
-- Standing orchestration delegation covers issuance of the mandatory `DOCUMENT_ONLY` phase without requiring a fresh user request.
-- `FULL_VALIDATION` must run only after the complete code/test/documentation candidate has been committed.
 
 ### Documentation-Only Package Lifecycle
 
@@ -293,11 +307,11 @@ PLAN_ONLY
   → FULL_VALIDATION
   → PUSH_ONLY
   → PR_ONLY
-  → manual user merge
+  → Manual User Merge on GitHub
   → POST_MERGE_SYNC_ONLY
 ```
 
-### Scope of Documentation Updates
+### Scope of Documentation Updates & Anti-Treadmill Rules
 
 Update only:
 - directly affected product, architecture, database, UI, or workflow contracts;
@@ -305,17 +319,21 @@ Update only:
 - concise user-facing release notes for the intended future release (see [docs/VERSIONING.md](VERSIONING.md));
 - `docs/CURRENT_WORK.md` when operational task state changes.
 
-Do not modify build documentation merely because a product feature changed. Build or package agents consume already approved release notes; they do not author feature descriptions. Do not turn unrelated documents into churn.
+**Anti-Treadmill Discipline:**
+- Do **not** record exact `FULL_VALIDATION` test totals, PR numbers, or merge commit SHAs in durable project status documents (`docs/PROJECT_STATE.md`, `docs/ROADMAP.md`). Those facts belong to Git history, validation logs, and the PR body.
+- No mandatory post-merge documentation PR shall exist merely to record lifecycle metadata.
+- Avoid transient lifecycle-phase prose (e.g. "DOCUMENT_ONLY in progress", "waiting for PUSH_ONLY") in durable documents.
 
 ## J. Git and PR Phases
 
 Keep Git and PR operations strictly separated:
-- `COMMIT_ONLY`: Inspect and commit only already reviewed changes.
-- `PUSH_ONLY`: Push only the approved existing branch and commit.
-- `PR_ONLY`: Create or update only the pull request.
+- `CHECKPOINT_COMMIT_ONLY`: Staging and committing a completed focused-green slice with its checkpoint trailer.
+- `COMMIT_ONLY`: Inspecting and committing reviewed package-level documentation changes to finalize the candidate HEAD.
+- `PUSH_ONLY`: Pushing only the approved existing branch and validated candidate commit.
+- `PR_ONLY`: Creating or updating only the pull request.
 - `REVIEW_ONLY`: Read-only diff and contract review.
-- `POST_MERGE_SYNC_ONLY`: Fast-forward synchronize local master with remote master after a manual user merge on GitHub.
-- **Merge:** Pull requests are merged exclusively by the user manually through GitHub. ChatGPT and programming agents never merge PRs, enable auto-merge, or execute `MERGE_ONLY` operations. After an approved final review, ChatGPT informs the user that the PR is ready for manual merge. Upon user confirmation of the merge, the next mode is `POST_MERGE_SYNC_ONLY`.
+- `POST_MERGE_SYNC_ONLY`: Fast-forward synchronizing local master with remote master after a manual user merge on GitHub.
+- **Merge:** Pull requests are merged exclusively by the user manually through GitHub. ChatGPT and programming agents never merge PRs, enable auto-merge, or execute `MERGE_ONLY` operations. After an approved final review and validation, ChatGPT informs the user that the PR is ready for manual merge. Upon user confirmation of the merge, the next mode is `POST_MERGE_SYNC_ONLY`.
 
 No Git mode may rewrite published history or force-push.
 

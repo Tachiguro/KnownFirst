@@ -5,9 +5,9 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 ## Baseline Reading Rules
 
 - **Always read:** [AGENTS.md](../AGENTS.md) (universal repository and safety rules).
-- **New session discovery:** Consult [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) for dynamic new-chat discovery and PR inspection.
-- **Prompt formulation & task isolation:** Consult [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md).
-- **Read [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) when:** writing or modifying repository files.
+- **New session discovery:** Consult [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) for dynamic new-chat discovery, PR inspection, and local task branch discovery.
+- **Prompt formulation & task isolation:** Consult [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) for operation modes, standing delegation, and multi-slice risk rules.
+- **Read [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) when:** writing or modifying repository files, executing multi-slice packages, managing checkpoint commits, or resuming interrupted work packages.
 - **Read [docs/TESTING.md](TESTING.md) for:** test scopes, failure policies, and execution rules.
 - **Read [docs/CURRENT_WORK.md](CURRENT_WORK.md) only when:** continuing the active package, reviewing the active branch, changing operational task state, or explicitly requested by the task.
 - **Read [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) only after:** an explicit build, configuration, packaging, signing, APK, AAB, release, artifact-reconstruction, or store request.
@@ -19,7 +19,7 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 ## Task-Based Reading Matrix
 
 ### 0. Prompt Creation and Task Orchestration
-- **Required reading:** [AGENTS.md](../AGENTS.md), [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md), [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), [INDEX.md](INDEX.md), and only the task-specific contracts needed to formulate the next prompt.
+- **Required reading:** [AGENTS.md](../AGENTS.md), [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md), [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), [INDEX.md](INDEX.md), and only the task-specific contracts needed to formulate the next prompt. Refer to [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) for the multi-slice package lifecycle, checkpoint commits, and interruption/resume contracts.
 - **Normally NOT required:** Full project state, roadmap, changelog, historical handoffs, unrelated architecture, source code outside the requested task.
 
 ### 1. Text Analysis and Import

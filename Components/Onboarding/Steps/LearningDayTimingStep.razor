@@ -2,7 +2,9 @@
 @using System.Globalization
 @using KnownFirst.Core.Settings
 @using KnownFirst.Services
+@using KnownFirst.Services.Time
 @inject IAppSettingsService AppSettings
+@inject ILearningTimezoneResolver LearningTimezoneResolver
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-timing-step">

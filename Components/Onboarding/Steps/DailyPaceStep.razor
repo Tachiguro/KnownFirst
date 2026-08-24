@@ -118,10 +118,10 @@
             {
                 return int.TryParse(_customLimitInput, NumberStyles.None, CultureInfo.InvariantCulture, out var customVal)
                     && PreparationLimitPolicy.IsValid(customVal)
-                    && PreparationLimitPolicy.IsHighLimit(customVal);
+                    && PreparationLimitPolicy.RequiresHighBudgetWarning(customVal);
             }
 
-            return PreparationLimitPolicy.IsHighLimit(_selectedPreparationLimit);
+            return PreparationLimitPolicy.RequiresHighBudgetWarning(_selectedPreparationLimit);
         }
     }
 

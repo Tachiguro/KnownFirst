@@ -52,15 +52,7 @@
     private async Task SaveAndContinue()
     {
         var normalized = DisplayNamePolicy.Normalize(_nameInput);
-        if (normalized is not null)
-        {
-            DisplayNameStore.SetDisplayName(normalized);
-        }
-        else
-        {
-            DisplayNameStore.RemoveDisplayName();
-        }
-
+        DisplayNameStore.SetDisplayName(normalized);
         await OnContinue.InvokeAsync();
     }
 }

@@ -1,0 +1,130 @@
+@namespace KnownFirst.Components.Onboarding
+@implements IDisposable
+@using KnownFirst.Core.Language
+@using KnownFirst.Core.Settings
+@using KnownFirst.Services.Onboarding
+@inject IOnboardingStateStore OnboardingStateStore
+@inject IOnboardingProgressStore OnboardingProgressStore
+@inject ILanguageSelectionService LanguageSelection
+@inject IStringLocalizer<SharedResource> Localizer
+
+<div class="onboarding-host">
+    <main class="onboarding-main" tabindex="-1">
+        <div class="onboarding-container">
+            @if (_currentStep == OnboardingStep.WelcomeLanguage)
+            {
+                <div class="onboarding-step onboarding-welcome-step">
+                    <h1 class="onboarding-title" id="onboarding-welcome-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
+                    <p class="onboarding-concept">@Localizer["Onboarding_WelcomeConcept"]</p>
+
+                    <section class="onboarding-language-section" aria-labelledby="onboarding-language-title">
+                        <h2 id="onboarding-language-title" class="onboarding-section-title">@Localizer["Settings_UILanguage"]</h2>
+                        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-language-title">
+                            <button type="button"
+                                    id="onboarding-lang-en"
+                                    class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "choice-button-active" : "choice-button-idle")"
+                                    aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "true" : "false")"
+                                    @onclick="() => SetLanguage(LanguageSelectionService.EnglishLanguageCode)">
+                                @Localizer["Settings_English"]
+                            </button>
+                            <button type="button"
+                                    id="onboarding-lang-de"
+                                    class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "choice-button-active" : "choice-button-idle")"
+                                    aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "true" : "false")"
+                                    @onclick="() => SetLanguage(LanguageSelectionService.GermanLanguageCode)">
+                                @Localizer["Settings_German"]
+                            </button>
+                            <button type="button"
+                                    id="onboarding-lang-ru"
+                                    class="button choice-button @(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "choice-button-active" : "choice-button-idle")"
+                                    aria-pressed="@(LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "true" : "false")"
+                                    @onclick="() => SetLanguage(LanguageSelectionService.RussianLanguageCode)">
+                                @Localizer["Settings_Russian"]
+                            </button>
+                        </div>
+                    </section>
+
+                    <div class="onboarding-actions">
+                        <button type="button"
+                                id="onboarding-continue-button"
+                                class="button button-primary onboarding-continue-button"
+                                @onclick="AdvanceToNextStep">
+                            @Localizer["Common_Continue"]
+                        </button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="onboarding-step onboarding-step-shell">
+                    <h1 class="onboarding-title">@Localizer["Onboarding_WelcomeTitle"]</h1>
+                    <div class="onboarding-actions">
+                        <button type="button"
+                                id="onboarding-back-button"
+                                class="button button-secondary onboarding-back-button"
+                                @onclick="GoToPreviousStep">
+                            @Localizer["Common_Back"]
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </main>
+</div>
+
+@code {
+    private OnboardingStep _currentStep = OnboardingStepPolicy.FirstStep;
+
+    protected override void OnInitialized()
+    {
+        if (OnboardingStateStore.GetState() == OnboardingState.Required)
+        {
+            OnboardingStateStore.SetState(OnboardingState.InProgress);
+        }
+
+        var savedStep = OnboardingProgressStore.GetCurrentStep();
+        if (savedStep is not null && OnboardingStepPolicy.TryNormalize((int)savedStep.Value, out var normalized))
+        {
+            _currentStep = normalized;
+        }
+        else
+        {
+            _currentStep = OnboardingStepPolicy.FirstStep;
+        }
+
+        LanguageSelection.UiLanguageChanged += OnUiLanguageChanged;
+    }
+
+    public void Dispose()
+    {
+        LanguageSelection.UiLanguageChanged -= OnUiLanguageChanged;
+    }
+
+    private void SetLanguage(string languageCode)
+    {
+        LanguageSelection.SetUiLanguage(languageCode);
+    }
+
+    private void AdvanceToNextStep()
+    {
+        if (_currentStep == OnboardingStep.WelcomeLanguage && OnboardingStepPolicy.TryGetNext(_currentStep, out var nextStep))
+        {
+            _currentStep = nextStep;
+            OnboardingProgressStore.SetCurrentStep(_currentStep);
+        }
+    }
+
+    private void GoToPreviousStep()
+    {
+        if (OnboardingStepPolicy.TryGetPrevious(_currentStep, out var prevStep))
+        {
+            _currentStep = prevStep;
+            OnboardingProgressStore.SetCurrentStep(_currentStep);
+        }
+    }
+
+    private void OnUiLanguageChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

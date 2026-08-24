@@ -219,8 +219,36 @@ public class GuiTestProfileTests
         Assert.Contains("knownfirst.uiLanguage", profileSource);
         Assert.Contains("theme_preference", profileSource);
         Assert.Contains("whats_new_seen_version", profileSource);
+        Assert.Contains("onboarding_state", profileSource);
         Assert.Contains("gui-tests", profileSource);
         Assert.Contains("android", profileSource);
+    }
+
+    [TestMethod]
+    public void GuiTestProfile_InitializesDeterministicCompletedOnboardingState()
+    {
+        var preferences = new IsolatedFilePreferences(
+            Path.Combine(Path.GetTempPath(), "kf-gui-prefs-" + Guid.NewGuid().ToString("N")));
+
+        GuiTestProfile.SupportedOverrideForTests = true;
+        var validPath = Path.Combine(
+            Path.GetTempPath(),
+            "kf-gui-test-" + Guid.NewGuid().ToString("N"),
+            "artifacts",
+            "gui-tests",
+            "windows",
+            "profiles",
+            "run-seeded");
+        _createdDirectory = validPath;
+        Environment.SetEnvironmentVariable(GuiTestProfile.EnvironmentVariableName, validPath);
+
+        Assert.IsTrue(GuiTestProfile.IsActive);
+        GuiTestProfile.InitializeGuiTestPreferences(preferences, "1.0.0");
+
+        Assert.AreEqual("en", preferences.Get("knownfirst.uiLanguage", (string?)null));
+        Assert.AreEqual(1, preferences.Get("theme_preference", -1));
+        Assert.AreEqual("1.0.0", preferences.Get("whats_new_seen_version", (string?)null));
+        Assert.AreEqual((int)KnownFirst.Core.Settings.OnboardingState.Completed, preferences.Get("onboarding_state", -1));
     }
 
     [TestMethod]

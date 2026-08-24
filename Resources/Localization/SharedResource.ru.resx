@@ -1797,4 +1797,10 @@
   <data name="Settings_PreparationLimitHighWarning" xml:space="preserve">
     <value>Изучение большого количества новых слов в день может существенно увеличить нагрузку при повторении.</value>
   </data>
+  <data name="Onboarding_WelcomeTitle" xml:space="preserve">
+    <value>Добро пожаловать в KnownFirst</value>
+  </data>
+  <data name="Onboarding_WelcomeConcept" xml:space="preserve">
+    <value>Добавляйте свои тексты → отмечайте знакомые слова → KnownFirst фокусирует изучение на остальном.</value>
+  </data>
 </root>

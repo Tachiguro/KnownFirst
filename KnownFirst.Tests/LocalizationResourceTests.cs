@@ -764,4 +764,29 @@ public sealed class LocalizationResourceTests
                 fileName + " must keep exactly one placeholder for Settings_LearningTimezoneEffective.");
         }
     }
+
+    private static readonly string[] RequiredOnboardingSliceFourKeys =
+    [
+        "Onboarding_WelcomeTitle",
+        "Onboarding_WelcomeConcept",
+    ];
+
+    [TestMethod]
+    public void Resources_OnboardingSliceFourKeysExistInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        foreach (var key in RequiredOnboardingSliceFourKeys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), "The English resource key '" + key + "' is missing.");
+            Assert.IsTrue(german.ContainsKey(key), "The German resource key '" + key + "' is missing.");
+            Assert.IsTrue(russian.ContainsKey(key), "The Russian resource key '" + key + "' is missing.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), "The English value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), "The German value for '" + key + "' is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), "The Russian value for '" + key + "' is empty.");
+        }
+    }
 }

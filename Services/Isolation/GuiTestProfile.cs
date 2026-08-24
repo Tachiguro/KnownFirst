@@ -98,8 +98,13 @@ public static class GuiTestProfile
     /// </summary>
     internal static void InitializeAndroidGuiTestPreferences(Microsoft.Maui.Storage.IPreferences preferences, string buildVersion)
     {
+        InitializeGuiTestPreferences(preferences, buildVersion);
+    }
+
+    internal static void InitializeGuiTestPreferences(Microsoft.Maui.Storage.IPreferences preferences, string buildVersion)
+    {
         ArgumentNullException.ThrowIfNull(preferences);
-        if (!IsAndroidGuiTestProfile)
+        if (!IsActive)
         {
             return;
         }
@@ -107,6 +112,7 @@ public static class GuiTestProfile
         preferences.Set("knownfirst.uiLanguage", "en");
         preferences.Set("theme_preference", 1);
         preferences.Set("whats_new_seen_version", buildVersion);
+        preferences.Set("onboarding_state", (int)KnownFirst.Core.Settings.OnboardingState.Completed);
     }
 
     internal static void ResetAndroidGuiTestProfileForTests()

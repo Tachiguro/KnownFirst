@@ -1,0 +1,78 @@
+.onboarding-host {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 2rem 1.5rem;
+    box-sizing: border-box;
+    background-color: var(--kf-color-bg, #0f172a);
+    color: var(--kf-color-text, #f8fafc);
+}
+
+.onboarding-main {
+    width: 100%;
+    max-width: 36rem;
+    margin: 0 auto;
+    outline: none;
+}
+
+.onboarding-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.onboarding-step {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.onboarding-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+    text-align: center;
+    color: var(--kf-color-text-primary, #ffffff);
+}
+
+.onboarding-concept {
+    font-size: 1.125rem;
+    line-height: 1.5;
+    text-align: center;
+    color: var(--kf-color-text-secondary, #94a3b8);
+    margin: 0;
+}
+
+.onboarding-language-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.onboarding-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--kf-color-text-secondary, #94a3b8);
+    text-align: center;
+}
+
+.onboarding-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.onboarding-continue-button,
+.onboarding-back-button {
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+}

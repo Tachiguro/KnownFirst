@@ -57,7 +57,7 @@ public static class MauiProgram
             IPreferences preferences = GuiTestProfile.IsActive
                 ? new IsolatedFilePreferences(GuiTestProfile.RootPath)
                 : Preferences.Default;
-            GuiTestProfile.InitializeAndroidGuiTestPreferences(preferences, buildIdentity.Identity.Version);
+            GuiTestProfile.InitializeGuiTestPreferences(preferences, buildIdentity.Identity.Version);
             return preferences;
         });
         builder.Services.AddSingleton(fileLoggerProvider);
@@ -74,6 +74,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISettingsFeedbackService, SettingsFeedbackService>();
         builder.Services.AddSingleton<KnownFirst.Services.Settings.IDisplayNameStore, KnownFirst.Services.Settings.MauiDisplayNameStore>();
         builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingStateStore, KnownFirst.Services.Onboarding.MauiOnboardingStateStore>();
+        builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingProgressStore, KnownFirst.Services.Onboarding.MauiOnboardingProgressStore>();
         builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IInstallOriginClassifier, KnownFirst.Services.Onboarding.InstallOriginClassifier>();
         builder.Services.AddSingleton<KnownFirst.Services.Settings.ISettingsDefaultsService>(serviceProvider =>
             new KnownFirst.Services.Settings.SettingsDefaultsService(

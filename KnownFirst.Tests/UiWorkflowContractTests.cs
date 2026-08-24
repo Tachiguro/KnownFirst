@@ -2072,6 +2072,45 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("BuildIdentityService.GetFormattedBuildIdentity()", section);
     }
 
+    [TestMethod]
+    public void Routes_BranchesOnboardingHostBeforeRouterWhenOnboardingActive()
+    {
+        var markup = LoadUi("Routes.razor");
+
+        Assert.Contains("OnboardingHost", markup);
+        Assert.Contains("OnboardingStateStore", markup);
+        Assert.Contains("<Router", markup);
+
+        var onboardingIndex = markup.IndexOf("OnboardingHost", StringComparison.Ordinal);
+        var routerIndex = markup.IndexOf("<Router", StringComparison.Ordinal);
+        Assert.IsTrue(routerIndex > onboardingIndex, "OnboardingHost must appear before <Router in Routes.razor");
+    }
+
+    [TestMethod]
+    public void OnboardingHost_DoesNotRenderNavigationChromeOrWhatsNewModal()
+    {
+        var markup = LoadUi("OnboardingHost.razor");
+
+        Assert.DoesNotContain("NavMenu", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("WhatsNewModal", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("mobile-header", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("navigation-backdrop", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("sidebar", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void OnboardingHost_WelcomeScreenPresentsTitleConceptLanguageAndContinue()
+    {
+        var markup = LoadUi("OnboardingHost.razor");
+
+        Assert.Contains("Onboarding_WelcomeTitle", markup);
+        Assert.Contains("Onboarding_WelcomeConcept", markup);
+        Assert.Contains("LanguageSelection", markup);
+        Assert.Contains("IOnboardingProgressStore", markup);
+        Assert.Contains("IOnboardingStateStore", markup);
+        Assert.Contains("AdvanceToNextStep", markup);
+    }
+
     private static string ExtractSettingsSection(string markup, string sectionTitleId)
     {
         var titleIndex = markup.IndexOf(

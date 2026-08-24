@@ -1672,6 +1672,7 @@ public sealed class UiWorkflowContractTests
     [
         "language-setting-title",
         "appearance-setting-title",
+        "display-name-title",
         "preparation-limit-title",
         "learning-timezone-title",
         "learning-day-cutoff-title",
@@ -1686,7 +1687,7 @@ public sealed class UiWorkflowContractTests
     ];
 
     [TestMethod]
-    public void Settings_RendersTheRequiredThirteenSectionProductOrder()
+    public void Settings_RendersTheRequiredFourteenSectionProductOrder()
     {
         var markup = LoadUi("Settings.razor");
 
@@ -1711,6 +1712,54 @@ public sealed class UiWorkflowContractTests
             previousIndex = index;
             previousId = sectionId;
         }
+    }
+
+    [TestMethod]
+    public void Settings_DisplayNameCardOffersLocalizedOptionalNameEditingAndRemoval()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        Assert.Contains("aria-labelledby=\"display-name-title\"", markup);
+        Assert.Contains("<label for=\"display-name\">", markup);
+        Assert.Contains("Settings_DisplayName", markup);
+        Assert.Contains("Settings_DisplayNameHelp", markup);
+        Assert.Contains("id=\"display-name-help\"", markup);
+        Assert.Contains("aria-describedby=\"display-name-help\"", markup);
+
+        // Bounded free-text input, mirroring the established ImportText document-title pattern.
+        Assert.Contains("id=\"display-name\"", markup);
+        Assert.Contains("class=\"text-input\"", markup);
+        Assert.Contains("maxlength=", markup);
+        Assert.Contains("@bind=\"_displayNameInput\"", markup);
+
+        // Explicit save and explicit removal, plus the shared success/error feedback pattern.
+        Assert.Contains("id=\"display-name-save-button\"", markup);
+        Assert.Contains("id=\"display-name-remove-button\"", markup);
+        Assert.Contains("SaveDisplayName", markup);
+        Assert.Contains("RemoveDisplayName", markup);
+        Assert.Contains("Settings_DisplayNameSaved", markup);
+        Assert.Contains("Settings_DisplayNameRemoved", markup);
+        Assert.Contains("IDisplayNameStore", markup);
+    }
+
+    [TestMethod]
+    public void Settings_DisplayNameCardUsesNeutralLocalWordingWithoutAccountOrCloudIdentity()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        foreach (var forbidden in new[] { "Settings_DisplayNameAccount", "Settings_DisplayNameProfile", "Settings_DisplayNameCloud" })
+        {
+            Assert.DoesNotContain(forbidden, markup, StringComparison.Ordinal);
+        }
+    }
+
+    [TestMethod]
+    public void Home_DoesNotConsumeTheDisplayNameInThisSlice()
+    {
+        // Home greeting/personalization is deliberately a later package.
+        var markup = LoadUi("Home.razor");
+
+        Assert.DoesNotContain("DisplayName", markup, StringComparison.Ordinal);
     }
 
     [TestMethod]

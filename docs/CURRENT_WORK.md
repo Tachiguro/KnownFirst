@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-24 (Active package is Governance Simplification for Multi-Slice Feature Packages on branch `docs/multi-slice-governance-simplification-v1`. First-Run Onboarding Slice 1 is merged to `master` via PR #153; Schema is 12; Archive format is V2; later onboarding slices remain planned).
+2026-08-24 (Active package is First-Run Onboarding + Daily New-Word Budget UX Core on branch `feature/onboarding-daily-budget-ux-core-v1`. Multi-slice governance simplification is merged to `master` via PR #154; First-Run Onboarding install-origin foundation is merged via PR #153; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,14 +17,27 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** Governance Simplification for Multi-Slice Feature Packages on branch `docs/multi-slice-governance-simplification-v1`.
-- **Operational authorization & boundaries:** Reconciles repository governance to support multi-slice feature packages with checkpoint commits, consolidated review/documentation gates, candidate finalization without artificial empty commits, and anti-treadmill documentation discipline while preserving all repository, safety, and exact-HEAD validation invariants. Reconciles stale onboarding Slice-1 documentation following PR #153 merge.
+- **Active work package:** First-Run Onboarding + Daily New-Word Budget UX Core.
+- **Branch:** `feature/onboarding-daily-budget-ux-core-v1`.
+- **Package id (checkpoint trailers):** `onboarding-core-v1`.
+- **Package objective:** Implement the remaining first-run onboarding core and daily new-word budget UX as one coherent multi-slice package: an optional application-local Display Name, a range-based daily-budget policy (`1..50`, default and recommended `5`, presets `1 / 5 / 10`, non-blocking warning above `15`) that never silently changes an existing installation's effective behavior, and a dedicated nine-screen onboarding experience with deterministic persisted resume behind a routing gate.
+- **Declared ordered slices:**
+  1. Display Name persistence + Settings.
+  2. Daily Budget Domain Policy.
+  3. Daily Budget Settings UX.
+  4. Onboarding Host + Lifecycle Resume Shell.
+  5. Onboarding Core Choices.
+  6. Onboarding Pace, Learning Day, Summary & Completion.
+- **Explicit non-goals:** Home greeting/personalization remains a later package. Also excluded: dashboard redesign, account/cloud identity, additional UI languages, Russian source-text recognition, new learning algorithms, schema 13, archive format V3, APK/AAB creation, signing/release/upload/store work, and physical-device or manual GUI execution.
+- **Persistence boundary:** Onboarding and Display Name state are application-local Preferences, never SQLite. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+- **Slice completion source:** Completed slices are read from `KnownFirst-Checkpoint:` trailers in the branch's Git history, correlated against the declared slice list above, per the interruption/resume contract in [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
   - PR #144 (`feat: add settings GUI and learning-day defaults`): Merged Settings GUI & Learning-Day Defaults Slice 2A. `POST_MERGE_SYNC_ONLY` completed.
   - PR #149 (`release: bump beta13 build number to 14`): Bumped version code to 14 for Google Play replacement bundle. Merged to `35cd15bf3e0dda0816bb2dd2c9dc35fa91ddd430`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #152 (`docs: record build14 aab packaging evidence`): Reconciled durable release documentation with physical Google Play AAB bundle `KnownFirst-1.0.0-beta.13-code14.aab` produced and verified locally on certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Merged to `2a5b10735a1ea27e3db348e0cd855d7768376372`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #153 (`feat: add onboarding install-origin foundation`): Merged First-Run Onboarding & Daily-Budget UX Slice 1 — application-local preference-backed onboarding state (`Required`/`InProgress`/`Completed`), startup install-origin classification via legacy preference evidence without database-file dependency, grandfathered legacy budget pinning (10), and destructive/non-destructive reset contracts. Merged to `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #154 (`docs: simplify multi-slice governance`): Established the multi-slice feature-package lifecycle — checkpoint commits with `KnownFirst-Checkpoint:` trailers, consolidated package-level review and documentation gates, candidate finalization without artificial empty commits, the interruption/resume contract, and anti-treadmill documentation discipline — while preserving every repository, safety, and exact-HEAD validation invariant. Merged to `18c1e7998c1ffc34607e0a6feb54e930996353bd`. `POST_MERGE_SYNC_ONLY` completed.
 
 ## Verified Baseline & Release Boundaries
 
@@ -151,14 +164,11 @@ Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding i
 
 ## Governed Operational Sequence & Next Actions
 
-### Governance Simplification sequence (Active Package)
-
-1. **Governance Documentation Package:** `PLAN_ONLY` (approved) → `DOCUMENT_ONLY` (in progress on branch `docs/multi-slice-governance-simplification-v1`) → `REVIEW_ONLY` → `COMMIT_ONLY` → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-
 ### First-Run Onboarding & Daily-Budget UX sequence
 
-1. ~~**Slice 1 (Install-Origin Foundation & Reset Contracts):** `PLAN_ONLY` → `IMPLEMENT` → `REVIEW_ONLY` → `DOCUMENT_ONLY` → `COMMIT_ONLY` → `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.~~ Completed — merged via PR #153 (merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`).
-2. **Later Slices (Visible Onboarding UI & Routing, Display Name, New Daily-Budget Presets & Default Change, Home Personalization):** Planned.
+1. ~~**Install-Origin Foundation & Reset Contracts.**~~ Completed — merged via PR #153 (merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`).
+2. **First-Run Onboarding + Daily New-Word Budget UX Core (active package `onboarding-core-v1`).** Six declared slices on `feature/onboarding-daily-budget-ux-core-v1`, listed under "Active Work Package" above. Slice progress is read from the branch's `KnownFirst-Checkpoint:` trailers.
+3. **Home greeting/personalization.** Planned as a separate later package after the onboarding core package closes.
 
 ### German Enhanced Term Recognition sequence — complete through Package 5B
 

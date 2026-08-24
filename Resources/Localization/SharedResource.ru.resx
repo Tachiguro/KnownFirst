@@ -132,6 +132,24 @@
   <data name="Settings_AppearanceChangedTo" xml:space="preserve">
     <value>Оформление изменено на «{0}».</value>
   </data>
+  <data name="Settings_DisplayName" xml:space="preserve">
+    <value>Ваше имя</value>
+  </data>
+  <data name="Settings_DisplayNameHelp" xml:space="preserve">
+    <value>Необязательно. KnownFirst может использовать это имя в приложении на этом устройстве. Оно хранится только на этом устройстве, никуда не отправляется, и его можно изменить или удалить в любой момент.</value>
+  </data>
+  <data name="Settings_DisplayNamePlaceholder" xml:space="preserve">
+    <value>Имя не задано</value>
+  </data>
+  <data name="Settings_DisplayNameRemove" xml:space="preserve">
+    <value>Удалить имя</value>
+  </data>
+  <data name="Settings_DisplayNameRemoved" xml:space="preserve">
+    <value>Ваше имя удалено.</value>
+  </data>
+  <data name="Settings_DisplayNameSaved" xml:space="preserve">
+    <value>Ваше имя сохранено.</value>
+  </data>
   <data name="Settings_PreparationLimit" xml:space="preserve">
     <value>Новых слов в день</value>
   </data>

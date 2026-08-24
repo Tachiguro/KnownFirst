@@ -132,6 +132,24 @@
   <data name="Settings_AppearanceChangedTo" xml:space="preserve">
     <value>Darstellung auf {0} geändert.</value>
   </data>
+  <data name="Settings_DisplayName" xml:space="preserve">
+    <value>Dein Name</value>
+  </data>
+  <data name="Settings_DisplayNameHelp" xml:space="preserve">
+    <value>Optional. KnownFirst kann diesen Namen in der App auf diesem Gerät verwenden. Er wird nur auf diesem Gerät gespeichert, nirgendwohin gesendet und lässt sich jederzeit ändern oder entfernen.</value>
+  </data>
+  <data name="Settings_DisplayNamePlaceholder" xml:space="preserve">
+    <value>Kein Name festgelegt</value>
+  </data>
+  <data name="Settings_DisplayNameRemove" xml:space="preserve">
+    <value>Namen entfernen</value>
+  </data>
+  <data name="Settings_DisplayNameRemoved" xml:space="preserve">
+    <value>Dein Name wurde entfernt.</value>
+  </data>
+  <data name="Settings_DisplayNameSaved" xml:space="preserve">
+    <value>Dein Name wurde gespeichert.</value>
+  </data>
   <data name="Settings_PreparationLimit" xml:space="preserve">
     <value>Neue Wörter pro Tag</value>
   </data>

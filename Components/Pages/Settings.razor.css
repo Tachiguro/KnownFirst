@@ -87,6 +87,22 @@
     color: var(--color-text);
 }
 
+.field-group .text-input {
+    width: 100%;
+    min-height: 3.25rem;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-input-border);
+    border-radius: 0.7rem;
+    background: var(--color-input-background);
+    color: var(--color-text);
+    font: inherit;
+}
+
+.field-group .text-input:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
 .time-select-group {
     display: flex;
     align-items: center;

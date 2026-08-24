@@ -30,39 +30,90 @@ public sealed class SettingsPolicyTests
     }
 
     [TestMethod]
-    public void Normalize_WhenPreparationLimitIsFive_ReturnsFive()
+    [DataRow(1)]
+    [DataRow(5)]
+    [DataRow(10)]
+    [DataRow(15)]
+    [DataRow(16)]
+    [DataRow(20)]
+    [DataRow(25)]
+    [DataRow(30)]
+    [DataRow(50)]
+    public void Normalize_WhenPreparationLimitIsWithinOneToFifty_ReturnsValueUnchanged(int validLimit)
     {
-        Assert.AreEqual(5, PreparationLimitPolicy.Normalize(5));
+        Assert.AreEqual(validLimit, PreparationLimitPolicy.Normalize(validLimit));
     }
 
     [TestMethod]
-    public void Normalize_WhenPreparationLimitIsTen_ReturnsTen()
+    [DataRow(0)]
+    [DataRow(-1)]
+    [DataRow(-50)]
+    [DataRow(51)]
+    [DataRow(99)]
+    [DataRow(int.MinValue)]
+    [DataRow(int.MaxValue)]
+    public void Normalize_WhenPreparationLimitIsOutsideRange_ReturnsProductDefaultFive(int outOfRangeLimit)
     {
-        Assert.AreEqual(10, PreparationLimitPolicy.Normalize(10));
+        Assert.AreEqual(5, PreparationLimitPolicy.Normalize(outOfRangeLimit));
     }
 
     [TestMethod]
-    public void Normalize_WhenPreparationLimitIsTwenty_ReturnsTwenty()
+    public void PreparationLimitPolicy_ConstantsAndPresetsMatchContract()
     {
-        Assert.AreEqual(20, PreparationLimitPolicy.Normalize(20));
+        Assert.AreEqual(1, PreparationLimitPolicy.MinimumLimit);
+        Assert.AreEqual(50, PreparationLimitPolicy.MaximumLimit);
+        Assert.AreEqual(5, PreparationLimitPolicy.DefaultLimit);
+        Assert.AreEqual(5, PreparationLimitPolicy.RecommendedLimit);
+        Assert.AreEqual(15, PreparationLimitPolicy.HighBudgetWarningThreshold);
+        CollectionAssert.AreEqual(new[] { 1, 5, 10 }, PreparationLimitPolicy.Presets.ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 5, 10 }, PreparationLimitPolicy.SupportedLimits.ToArray());
     }
 
     [TestMethod]
-    public void Normalize_WhenPreparationLimitIsThirty_ReturnsThirty()
+    [DataRow(1, true)]
+    [DataRow(5, true)]
+    [DataRow(10, true)]
+    [DataRow(0, false)]
+    [DataRow(2, false)]
+    [DataRow(15, false)]
+    [DataRow(20, false)]
+    [DataRow(30, false)]
+    [DataRow(50, false)]
+    [DataRow(99, false)]
+    public void IsPreset_IdentifiesExactlyPresetsOneFiveTen(int value, bool expectedPreset)
     {
-        Assert.AreEqual(30, PreparationLimitPolicy.Normalize(30));
+        Assert.AreEqual(expectedPreset, PreparationLimitPolicy.IsPreset(value));
     }
 
     [TestMethod]
-    public void Normalize_WhenPreparationLimitIsFifty_ReturnsFifty()
+    [DataRow(1, false)]
+    [DataRow(5, false)]
+    [DataRow(10, false)]
+    [DataRow(15, false)]
+    [DataRow(16, true)]
+    [DataRow(20, true)]
+    [DataRow(30, true)]
+    [DataRow(50, true)]
+    [DataRow(0, false)]
+    [DataRow(-1, false)]
+    [DataRow(51, false)]
+    [DataRow(99, false)]
+    public void RequiresHighBudgetWarning_ReturnsTrueOnlyForValidValuesAboveFifteen(int value, bool expectedWarning)
     {
-        Assert.AreEqual(50, PreparationLimitPolicy.Normalize(50));
+        Assert.AreEqual(expectedWarning, PreparationLimitPolicy.RequiresHighBudgetWarning(value));
     }
 
     [TestMethod]
-    public void Normalize_WhenPreparationLimitIsUnsupported_ReturnsTen()
+    [DataRow(1, true)]
+    [DataRow(5, true)]
+    [DataRow(15, true)]
+    [DataRow(50, true)]
+    [DataRow(0, false)]
+    [DataRow(-1, false)]
+    [DataRow(51, false)]
+    public void IsValid_ReturnsTrueOnlyForValuesWithinOneToFifty(int value, bool expectedValid)
     {
-        Assert.AreEqual(10, PreparationLimitPolicy.Normalize(25));
+        Assert.AreEqual(expectedValid, PreparationLimitPolicy.IsValid(value));
     }
 
 }

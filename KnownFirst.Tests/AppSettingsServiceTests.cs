@@ -133,7 +133,7 @@ public sealed class AppSettingsServiceTests
         service.Reset();
 
         Assert.AreEqual(PreparationLimitPolicy.DefaultLimit, service.PreparationLimit);
-        Assert.AreEqual(10, service.PreparationLimit);
+        Assert.AreEqual(5, service.PreparationLimit);
         Assert.AreEqual(CardDirectionPreferencePolicy.DefaultPreference, service.CardDirection);
         Assert.AreEqual(CardDirectionPreference.Both, service.CardDirection);
         Assert.AreEqual(LearningModePolicy.DefaultMode, service.LearningMode);
@@ -144,6 +144,58 @@ public sealed class AppSettingsServiceTests
         Assert.IsNull(service.ExplicitLearningTimezoneId);
         Assert.AreEqual(LearningDayConfiguration.DefaultCutoffMinutes, service.LearningDayCutoffMinutes);
         Assert.AreEqual(0, service.LearningDayCutoffMinutes);
+    }
+
+    [TestMethod]
+    public void ReadPreparationLimit_WhenPreferenceIsAbsent_ReturnsProductDefaultFive()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+
+        Assert.AreEqual(5, service.PreparationLimit);
+        Assert.IsFalse(preferences.ContainsKey("preparation_limit"));
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(5)]
+    [DataRow(10)]
+    [DataRow(20)]
+    [DataRow(25)]
+    [DataRow(30)]
+    [DataRow(50)]
+    public void ReadPreparationLimit_WhenStoredValueIsWithinRange_ReturnsValueWithoutRewrite(int storedLimit)
+    {
+        var preferences = new InMemoryPreferences();
+        preferences.Set("preparation_limit", storedLimit);
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+
+        Assert.AreEqual(storedLimit, service.PreparationLimit);
+        Assert.AreEqual(storedLimit, preferences.Get("preparation_limit", -1));
+    }
+
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(-5)]
+    [DataRow(51)]
+    [DataRow(99)]
+    public void ReadPreparationLimit_WhenStoredValueIsOutsideRange_NormalizesToFiveAndRewrites(int invalidStoredLimit)
+    {
+        var preferences = new InMemoryPreferences();
+        preferences.Set("preparation_limit", invalidStoredLimit);
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+
+        Assert.AreEqual(5, service.PreparationLimit);
+        Assert.AreEqual(5, preferences.Get("preparation_limit", -1));
+    }
+
+    [TestMethod]
+    public void SupportedPreparationLimits_ExposesPresetsOneFiveTen()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+
+        CollectionAssert.AreEqual(new[] { 1, 5, 10 }, service.SupportedPreparationLimits.ToArray());
     }
 
     [TestMethod]

@@ -465,7 +465,7 @@ public sealed class MvpCorePolicyTests
     public void PreparationLimitPolicy_AcceptsThirtyAndKeepsFiftyAsMaximum()
     {
         Assert.AreEqual(30, PreparationLimitPolicy.Normalize(30));
-        CollectionAssert.AreEqual(new[] { 5, 10, 20, 30, 50 }, PreparationLimitPolicy.SupportedLimits.ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 5, 10 }, PreparationLimitPolicy.SupportedLimits.ToArray());
     }
 
     [TestMethod]

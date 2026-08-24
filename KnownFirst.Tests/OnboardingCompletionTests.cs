@@ -88,6 +88,41 @@ public sealed class OnboardingCompletionTests
         public void ReapplyCurrentCulture() { }
     }
 
+    private sealed class RecordingReleaseNotesService(List<string> eventLog, Action? onMarkSeen = null) : IReleaseNotesService
+    {
+        public ReleaseNoteEntry? GetUnseenReleaseNotes() => null;
+        public IReadOnlyList<ReleaseNoteEntry> GetReleaseNoteHistory() => [];
+        public void MarkSeen(string version)
+        {
+            eventLog.Add($"MarkSeen:{version}");
+            onMarkSeen?.Invoke();
+        }
+    }
+
+    private sealed class RecordingOnboardingStateStore(List<string> eventLog, Action? onSetState = null) : IOnboardingStateStore
+    {
+        private OnboardingState? _state = OnboardingState.InProgress;
+        public OnboardingState? GetState() => _state;
+        public void SetState(OnboardingState state)
+        {
+            eventLog.Add($"SetState:{state}");
+            _state = state;
+            onSetState?.Invoke();
+        }
+    }
+
+    private sealed class RecordingOnboardingProgressStore(List<string> eventLog) : IOnboardingProgressStore
+    {
+        private OnboardingStep? _step = OnboardingStep.Summary;
+        public OnboardingStep? GetCurrentStep() => _step;
+        public void SetCurrentStep(OnboardingStep step) => _step = step;
+        public void ClearProgress()
+        {
+            eventLog.Add("ClearProgress");
+            _step = null;
+        }
+    }
+
     [TestMethod]
     public void AllNineOnboardingSteps_ResumeCorrectlyFromPersistedState()
     {
@@ -123,7 +158,30 @@ public sealed class OnboardingCompletionTests
     }
 
     [TestMethod]
-    public void Completion_PersistsSeenVersion_SetsStateCompleted_AndClearsProgress()
+    public void CompletionService_ExecutesOperationsInExactRequiredOrder()
+    {
+        var eventLog = new List<string>();
+        var releaseNotes = new RecordingReleaseNotesService(eventLog);
+        var buildIdentity = new FakeBuildIdentityService("1.0.0-beta.14");
+        var stateStore = new RecordingOnboardingStateStore(eventLog);
+        var progressStore = new RecordingOnboardingProgressStore(eventLog);
+        var completionService = new OnboardingCompletionService(
+            releaseNotes,
+            buildIdentity,
+            stateStore,
+            progressStore,
+            NullLogger<OnboardingCompletionService>.Instance);
+
+        completionService.CompleteOnboarding();
+
+        Assert.AreEqual(3, eventLog.Count);
+        Assert.AreEqual("MarkSeen:1.0.0-beta.14", eventLog[0]);
+        Assert.AreEqual("SetState:Completed", eventLog[1]);
+        Assert.AreEqual("ClearProgress", eventLog[2]);
+    }
+
+    [TestMethod]
+    public void CompletionService_PersistsSeenVersion_SetsStateCompleted_AndClearsProgress()
     {
         var preferences = new InMemoryPreferences();
         var stateStore = new MauiOnboardingStateStore(preferences);
@@ -134,21 +192,71 @@ public sealed class OnboardingCompletionTests
             buildIdentity,
             whatsNewStore,
             NullLogger<ReleaseNotesService>.Instance);
+        var completionService = new OnboardingCompletionService(
+            releaseNotes,
+            buildIdentity,
+            stateStore,
+            progressStore,
+            NullLogger<OnboardingCompletionService>.Instance);
 
         // Pre-condition: InProgress at Summary step
         stateStore.SetState(OnboardingState.InProgress);
         progressStore.SetCurrentStep(OnboardingStep.Summary);
         Assert.AreEqual(string.Empty, whatsNewStore.GetSeenVersion());
 
-        // Perform terminal completion sequence
-        releaseNotes.MarkSeen(buildIdentity.Identity.Version);
-        stateStore.SetState(OnboardingState.Completed);
-        progressStore.ClearProgress();
+        // Invoke production completion service
+        completionService.CompleteOnboarding();
 
         // Verification
         Assert.AreEqual("1.0.0-beta.14", whatsNewStore.GetSeenVersion());
         Assert.AreEqual(OnboardingState.Completed, stateStore.GetState());
         Assert.IsNull(progressStore.GetCurrentStep());
+    }
+
+    [TestMethod]
+    public void CompletionService_WhenReleaseNotesThrows_FailsClosedWithoutCompletingStateOrClearingProgress()
+    {
+        var eventLog = new List<string>();
+        var releaseNotes = new RecordingReleaseNotesService(eventLog, onMarkSeen: () => throw new InvalidOperationException("ReleaseNotes disk error"));
+        var buildIdentity = new FakeBuildIdentityService("1.0.0-beta.14");
+        var stateStore = new RecordingOnboardingStateStore(eventLog);
+        var progressStore = new RecordingOnboardingProgressStore(eventLog);
+        var completionService = new OnboardingCompletionService(
+            releaseNotes,
+            buildIdentity,
+            stateStore,
+            progressStore,
+            NullLogger<OnboardingCompletionService>.Instance);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => completionService.CompleteOnboarding());
+
+        Assert.AreEqual(1, eventLog.Count);
+        Assert.AreEqual("MarkSeen:1.0.0-beta.14", eventLog[0]);
+        Assert.AreEqual(OnboardingState.InProgress, stateStore.GetState());
+        Assert.AreEqual(OnboardingStep.Summary, progressStore.GetCurrentStep());
+    }
+
+    [TestMethod]
+    public void CompletionService_WhenStateStoreThrows_FailsClosedWithoutClearingProgress()
+    {
+        var eventLog = new List<string>();
+        var releaseNotes = new RecordingReleaseNotesService(eventLog);
+        var buildIdentity = new FakeBuildIdentityService("1.0.0-beta.14");
+        var stateStore = new RecordingOnboardingStateStore(eventLog, onSetState: () => throw new InvalidOperationException("StateStore write error"));
+        var progressStore = new RecordingOnboardingProgressStore(eventLog);
+        var completionService = new OnboardingCompletionService(
+            releaseNotes,
+            buildIdentity,
+            stateStore,
+            progressStore,
+            NullLogger<OnboardingCompletionService>.Instance);
+
+        Assert.ThrowsExactly<InvalidOperationException>(() => completionService.CompleteOnboarding());
+
+        Assert.AreEqual(2, eventLog.Count);
+        Assert.AreEqual("MarkSeen:1.0.0-beta.14", eventLog[0]);
+        Assert.AreEqual("SetState:Completed", eventLog[1]);
+        Assert.AreEqual(OnboardingStep.Summary, progressStore.GetCurrentStep());
     }
 
     [TestMethod]

@@ -428,6 +428,27 @@ public sealed class SettingsDefaultsServiceTests
         Assert.IsFalse(appSettings.HasOnlineLookupConsent);
     }
 
+    [TestMethod]
+    public void RestoreDefaults_WhenOnboardingIsInProgress_PreservesInProgressStateAndPersistedStepAndDisplayNameAndConsent()
+    {
+        var (service, appSettings, preferences, _, _, onboarding, displayName) = CreateService();
+        var progressStore = new MauiOnboardingProgressStore(preferences);
+
+        onboarding.SetState(OnboardingState.InProgress);
+        progressStore.SetCurrentStep(OnboardingStep.EnhancedTermRecognition);
+        displayName.SetDisplayName("Tachi");
+        appSettings.GrantOnlineLookupConsent();
+        appSettings.SetPreparationLimit(20);
+
+        service.RestoreDefaults();
+
+        Assert.AreEqual(OnboardingState.InProgress, onboarding.GetState());
+        Assert.AreEqual(OnboardingStep.EnhancedTermRecognition, progressStore.GetCurrentStep());
+        Assert.AreEqual("Tachi", displayName.GetDisplayName());
+        Assert.IsTrue(appSettings.HasOnlineLookupConsent);
+        Assert.AreEqual(PreparationLimitPolicy.DefaultLimit, appSettings.PreparationLimit);
+    }
+
     // -----------------------------------------------------------------------------------------
     // I. Restore Defaults preserves the optional local Display Name
     // -----------------------------------------------------------------------------------------

@@ -158,7 +158,8 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("LearningDayTimingStep", markup);
         Assert.Contains("SummaryStep", markup);
         Assert.Contains("OnCompleted", markup);
-        Assert.Contains("OnboardingState.Completed", markup);
+        Assert.Contains("IOnboardingCompletionService", markup);
+        Assert.Contains("CompleteOnboarding", markup);
     }
 
     [TestMethod]

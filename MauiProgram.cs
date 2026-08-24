@@ -85,6 +85,7 @@ public static class MauiProgram
                 serviceProvider.GetRequiredService<ILogger<KnownFirst.Services.Settings.SettingsDefaultsService>>()));
         builder.Services.AddSingleton<IWhatsNewPreferenceStore, MauiWhatsNewPreferenceStore>();
         builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
+        builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingCompletionService, KnownFirst.Services.Onboarding.OnboardingCompletionService>();
         builder.Services.AddSingleton<IBugReportLauncherService, BugReportLauncherService>();
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
         builder.Services.AddSingleton<IBackupPlatformInfo, MauiBackupPlatformInfo>();

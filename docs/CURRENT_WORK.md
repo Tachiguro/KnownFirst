@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (Package `p16b-android-s36-matrix-mapping-v1` in `DOCUMENT_ONLY` on branch `test/p16b-android-s36-matrix-mapping-v1`; baseline `master` commit `e47bf08ca4bafe1d2488de18567616f8de75b200`; Schema is 12; Archive format is V2).
+2026-08-25 (no active P16-B package; PR #164 merged and POST_MERGE_SYNC_ONLY completed; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,27 +17,19 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `p16b-android-s36-matrix-mapping-v1`
-- **Active branch:** `test/p16b-android-s36-matrix-mapping-v1`
-- **Canonical baseline:** `master` at commit `e47bf08ca4bafe1d2488de18567616f8de75b200` (following manual merge and `POST_MERGE_SYNC_ONLY` of PR #163).
-- **Objective:** Android source-side mapping of the existing GUI automation harness to matrix state S36 ("Release-note history — reopenable from Settings") without overstating runtime or matrix evidence.
-- **Completed lifecycle:**
-  - `PLAN_ONLY`: Approved (`PLAN_APPROVED_READY_FOR_IMPLEMENT_SLICE`).
-  - `IMPLEMENT_SLICE` (1/1): Checkpoint `9b36d855c22b152ec5e8e958e45425fe4b06cc5c` (`test: map android gui automation to matrix state s36`, trailer `KnownFirst-Checkpoint: p16b-android-s36-matrix-mapping-v1 1/1 s36-matrix-mapping`).
-  - Focused evidence:
-    - Node RED: 2 passed / 5 failed → Focused GREEN: 7 passed / 0 failed / 0 skipped (`scripts/gui-tests/android/tests/evidence.test.mjs`).
-    - C# RED: 7 passed / 1 failed → Focused GREEN: 8 passed / 0 failed / 0 skipped (`KnownFirst.Tests/AndroidGuiAutomationContractTests.cs`).
-    - `git diff --check`: PASS (0 errors).
-  - Consolidated `REVIEW_ONLY`: 0 BLOCKER / 0 MAJOR / 1 MINOR / 1 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
-  - Non-blocking review observations recorded:
-    - MINOR: Runner `remainingUnproven` contains a static viewport list that could imply M2 by omission even though no runtime viewport classification has occurred. This does not constitute runtime evidence because P16-B executed no Android GUI run.
-    - NIT: The scenario locates `#settings-release-notes-link` via single-element selector rather than explicitly counting selector matches; current production markup contains exactly one such action.
-- **Current lifecycle phase:** `DOCUMENT_ONLY`
-- **Remaining lifecycle:** Candidate finalization / `COMMIT_ONLY` (if documentation edited) → exact-candidate `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`) → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-- **Evidence boundary:** Source mapping and contract tests only. No Android runtime execution, no device/emulator/ADB/Appium execution, and no rendered screenshots or pixel verification occurred. Matrix state S36 remains unpassed at runtime. Separately authorized runtime acceptance remains future work.
+- **Active work package:** None (Neutral post-merge state on `master`; previous package `p16b-android-s36-matrix-mapping-v1` completed and merged via PR #164).
+- **PR #164 historical provenance:**
+  - **PR:** #164 (`test: map android gui automation to matrix state s36`)
+  - **Validated head:** `26af0db7fc9a691bb95bdb744d92b641e526c81e`
+  - **Merge commit:** `20521976a1635d3099bd24ec3c00bfa67f5b30cc`
+  - **Completed lifecycle:** `PLAN_ONLY`, `IMPLEMENT_SLICE` (1/1), `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, `POST_MERGE_SYNC_ONLY`
+  - **Validation:** 2570 passed / 0 failed / 0 skipped; Windows Debug PASS; Windows Release PASS; Android Debug PASS; Android Release PASS; strict validation gate PASS (log `artifacts/launcher-logs/ValidateAll-20260825-201128.log`)
+  - **Review:** 0 BLOCKER / 0 MAJOR / 1 MINOR / 1 NIT (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; retained review observations were not corrected: runner `remainingUnproven` static viewport wording and unique stable selector usage on Release Notes action)
+- **Evidence boundary:** P16-B source mapping (`P16B-SettingsReleaseNotesHistory` mapped to matrix state `S36`) and contract tests only. No Android GUI runtime execution occurred; no ADB, device, emulator, or Appium execution occurred; no rendered screenshots or runtime evidence exist; no viewport, theme, language, or device matrix variant is proven. Matrix state S36 remains unpassed at runtime. P16-C Windows launcher integration remains pending.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #164 (`test: map android gui automation to matrix state s36`): Android source-side mapping of the existing GUI automation harness to matrix state S36 ("Release-note history — reopenable from Settings") with contract verification; no runtime GUI execution. Merged to `20521976a1635d3099bd24ec3c00bfa67f5b30cc`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #162 (`fix: align onboarding with settings feedback`): Reconciled First-Run Onboarding with Settings parity (native `<select id="onboarding-ui-language-select">` matching Settings, shared `LanguagePreferencePolicy.UiLanguageOptions` source, explicit Online Dictionary Enable/Keep Disabled choice buttons with disabled Continue before selection and destructive revocation confirmation, dynamic Display Name Skip labeling, benefit-oriented German/offline ETR copy, Practice helper text reuse, and Summary Settings notice). Merged to `e29a292832612a0f5041636126628437a553c2a3`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #160 (`fix: repair manual preparation entry`): Repaired Schema-12 manual preparation entry persistence defect without requiring lexical lookup result, established contextual Definition/Translation authority, deterministic exact manual semantic reuse, streamlined UI with shared `.text-area` styling, dedicated validation, save/progression recovery isolation, and neutral End Preparation action. Merged to `793bd9959b9e17c2c4579df4c22a928bf8a4222a`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #158 (`feat: personalize home greeting`): Consumed synchronous `IDisplayNameStore` in `Home.razor` to render localized greeting before existing subtitle when a Display Name is configured, while preserving subtitle-only fallback when absent, unchanged Home title, Preferences storage, schema 12, and archive format V2. Merged to `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`. `POST_MERGE_SYNC_ONLY` completed.

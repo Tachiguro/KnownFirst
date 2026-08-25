@@ -23,8 +23,8 @@ export function createSummary(input) {
     }
   }
 
-  if (input.matrixMapping !== null) {
-    throw new Error('P16-A is a pre-matrix scenario and must retain a null matrixMapping.');
+  if (input.matrixMapping !== null && input.matrixMapping !== 'S36') {
+    throw new Error(`Unsupported matrixMapping: ${input.matrixMapping}. Only 'S36' or null is permitted.`);
   }
 
   if (input.result === 'Passed') {

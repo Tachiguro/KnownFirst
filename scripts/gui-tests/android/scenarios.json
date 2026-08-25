@@ -1,8 +1,8 @@
 {
   "scenarios": [
     {
-      "id": "P16A-SettingsReleaseNotesNavigation",
-      "matrixMapping": null,
+      "id": "P16B-SettingsReleaseNotesHistory",
+      "matrixMapping": "S36",
       "relatedMatrixRow": "S36",
       "implementation": "scenarios/settings-release-notes-navigation.mjs"
     }

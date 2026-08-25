@@ -108,7 +108,7 @@ public sealed class AndroidGuiAutomationContractTests
     }
 
     [TestMethod]
-    public void AndroidHarness_RegistersExactlyOneFailClosedPreMatrixScenario()
+    public void AndroidHarness_RegistersExactlyOneFailClosedS36MappedScenario()
     {
         var root = FindRepositoryRoot();
         var harnessRoot = Path.Combine(root, "scripts", "gui-tests", "android");
@@ -116,16 +116,16 @@ public sealed class AndroidGuiAutomationContractTests
         var runnerPath = Path.Combine(harnessRoot, "Invoke-AndroidGuiTest.ps1");
         var clientPath = Path.Combine(harnessRoot, "runner.mjs");
 
-        Assert.IsTrue(File.Exists(scenariosPath), "The P16-A Android scenario registry must exist.");
-        Assert.IsTrue(File.Exists(runnerPath), "The P16-A Android PowerShell entry point must exist.");
-        Assert.IsTrue(File.Exists(clientPath), "The P16-A Node scenario client must exist.");
+        Assert.IsTrue(File.Exists(scenariosPath), "The Android GUI scenario registry must exist.");
+        Assert.IsTrue(File.Exists(runnerPath), "The Android GUI PowerShell entry point must exist.");
+        Assert.IsTrue(File.Exists(clientPath), "The Android GUI Node scenario client must exist.");
 
         using var document = JsonDocument.Parse(File.ReadAllText(scenariosPath));
         var scenarios = document.RootElement.GetProperty("scenarios");
         Assert.AreEqual(1, scenarios.GetArrayLength());
         var scenario = scenarios[0];
-        Assert.AreEqual("P16A-SettingsReleaseNotesNavigation", scenario.GetProperty("id").GetString());
-        Assert.AreEqual(JsonValueKind.Null, scenario.GetProperty("matrixMapping").ValueKind);
+        Assert.AreEqual("P16B-SettingsReleaseNotesHistory", scenario.GetProperty("id").GetString());
+        Assert.AreEqual("S36", scenario.GetProperty("matrixMapping").GetString());
         Assert.AreEqual("S36", scenario.GetProperty("relatedMatrixRow").GetString());
 
         var runner = File.ReadAllText(runnerPath);

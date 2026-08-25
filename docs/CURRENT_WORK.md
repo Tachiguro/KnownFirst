@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (Neutral post-merge state on master following manual merge and POST_MERGE_SYNC_ONLY of PR #162; Schema is 12; Archive format is V2).
+2026-08-25 (Package `p16b-android-s36-matrix-mapping-v1` in `DOCUMENT_ONLY` on branch `test/p16b-android-s36-matrix-mapping-v1`; baseline `master` commit `e47bf08ca4bafe1d2488de18567616f8de75b200`; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,10 +17,24 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** None (Neutral post-merge state on `master`).
-- **Current canonical baseline:** PR #162 is merged on `master` at commit `e29a292832612a0f5041636126628437a553c2a3`.
-- **Lifecycle status:** PR #162 (`fix: align onboarding with settings feedback`) successfully completed its full multi-slice lifecycle: implementation checkpoints, consolidated review, documentation candidate finalization (`d2171872cdfdf366642afa685924a23507d7dacd`), exact-candidate `FULL_VALIDATION` (2570 tests passed, 0 warnings/errors), push, PR #162, manual user merge, and `POST_MERGE_SYNC_ONLY`. No repository-writing package is currently in flight.
-- **Next planned work:** None currently authorized; pending next roadmap priority.
+- **Active work package:** `p16b-android-s36-matrix-mapping-v1`
+- **Active branch:** `test/p16b-android-s36-matrix-mapping-v1`
+- **Canonical baseline:** `master` at commit `e47bf08ca4bafe1d2488de18567616f8de75b200` (following manual merge and `POST_MERGE_SYNC_ONLY` of PR #163).
+- **Objective:** Android source-side mapping of the existing GUI automation harness to matrix state S36 ("Release-note history — reopenable from Settings") without overstating runtime or matrix evidence.
+- **Completed lifecycle:**
+  - `PLAN_ONLY`: Approved (`PLAN_APPROVED_READY_FOR_IMPLEMENT_SLICE`).
+  - `IMPLEMENT_SLICE` (1/1): Checkpoint `9b36d855c22b152ec5e8e958e45425fe4b06cc5c` (`test: map android gui automation to matrix state s36`, trailer `KnownFirst-Checkpoint: p16b-android-s36-matrix-mapping-v1 1/1 s36-matrix-mapping`).
+  - Focused evidence:
+    - Node RED: 2 passed / 5 failed → Focused GREEN: 7 passed / 0 failed / 0 skipped (`scripts/gui-tests/android/tests/evidence.test.mjs`).
+    - C# RED: 7 passed / 1 failed → Focused GREEN: 8 passed / 0 failed / 0 skipped (`KnownFirst.Tests/AndroidGuiAutomationContractTests.cs`).
+    - `git diff --check`: PASS (0 errors).
+  - Consolidated `REVIEW_ONLY`: 0 BLOCKER / 0 MAJOR / 1 MINOR / 1 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
+  - Non-blocking review observations recorded:
+    - MINOR: Runner `remainingUnproven` contains a static viewport list that could imply M2 by omission even though no runtime viewport classification has occurred. This does not constitute runtime evidence because P16-B executed no Android GUI run.
+    - NIT: The scenario locates `#settings-release-notes-link` via single-element selector rather than explicitly counting selector matches; current production markup contains exactly one such action.
+- **Current lifecycle phase:** `DOCUMENT_ONLY`
+- **Remaining lifecycle:** Candidate finalization / `COMMIT_ONLY` (if documentation edited) → exact-candidate `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`) → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- **Evidence boundary:** Source mapping and contract tests only. No Android runtime execution, no device/emulator/ADB/Appium execution, and no rendered screenshots or pixel verification occurred. Matrix state S36 remains unpassed at runtime. Separately authorized runtime acceptance remains future work.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**

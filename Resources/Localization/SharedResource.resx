@@ -1845,6 +1845,9 @@
   <data name="Onboarding_DisplayNameDescription" xml:space="preserve">
     <value>Choose an optional name for this device. Your name is stored only locally.</value>
   </data>
+  <data name="Onboarding_DisplayNameSkip" xml:space="preserve">
+    <value>Skip</value>
+  </data>
   <data name="Onboarding_WorkflowTitle" xml:space="preserve">
     <value>How KnownFirst Works</value>
   </data>
@@ -1863,11 +1866,26 @@
   <data name="Onboarding_OnlineLookupDescription" xml:space="preserve">
     <value>When enabled, KnownFirst can look up definitions using online dictionary services. No personal data is sent.</value>
   </data>
+  <data name="Onboarding_OnlineLookupEnable" xml:space="preserve">
+    <value>Enable Online Dictionary</value>
+  </data>
+  <data name="Onboarding_OnlineLookupKeepDisabled" xml:space="preserve">
+    <value>Keep Online Dictionary Disabled</value>
+  </data>
+  <data name="Onboarding_OnlineLookupServiceWiktionary" xml:space="preserve">
+    <value>Wiktionary is queried first for dictionary definitions and translations.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupServiceWikipedia" xml:space="preserve">
+    <value>Wikipedia is queried as an encyclopedic definition fallback if no Wiktionary entry is found.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupPrivacyNotice" xml:space="preserve">
+    <value>Only the searched word and language are transmitted. Your documents, sentences, and learning history remain strictly local on your device.</value>
+  </data>
   <data name="Onboarding_EnhancedTermRecognitionTitle" xml:space="preserve">
     <value>Enhanced Term Recognition</value>
   </data>
   <data name="Onboarding_EnhancedTermRecognitionDescription" xml:space="preserve">
-    <value>Enhanced Term Recognition can identify additional useful terms, especially parts of German compound words, which may add more words for Review.</value>
+    <value>Enhanced Term Recognition automatically recognizes and decomposes German compound words into core vocabulary components so you can learn foundational words. Runs completely offline on this device.</value>
   </data>
   <data name="Onboarding_PracticeTitle" xml:space="preserve">
     <value>Practice Setup</value>
@@ -1895,6 +1913,9 @@
   </data>
   <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
     <value>System default</value>
+  </data>
+  <data name="Onboarding_SummarySettingsNotice" xml:space="preserve">
+    <value>You can change any of these settings at any time in Settings.</value>
   </data>
   <data name="Onboarding_FinishSetup" xml:space="preserve">
     <value>Finish Setup</value>

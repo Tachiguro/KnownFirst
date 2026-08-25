@@ -10,7 +10,8 @@
 
     <section class="onboarding-card" aria-labelledby="onboarding-card-direction-title">
         <h2 id="onboarding-card-direction-title" class="onboarding-section-title">@Localizer["Settings_CardDirection"]</h2>
-        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-card-direction-title">
+        <p id="onboarding-card-direction-help" class="setting-help">@Localizer["Settings_CardDirectionHelp"]</p>
+        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-card-direction-title" aria-describedby="onboarding-card-direction-help">
             <button type="button"
                     id="onboarding-card-direction-both"
                     class="choice-button @(AppSettings.CardDirection == CardDirectionPreference.Both ? "active" : null)"
@@ -37,7 +38,8 @@
 
     <section class="onboarding-card" aria-labelledby="onboarding-learning-mode-title">
         <h2 id="onboarding-learning-mode-title" class="onboarding-section-title">@Localizer["Settings_LearningMode"]</h2>
-        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-learning-mode-title">
+        <p id="onboarding-learning-mode-help" class="setting-help">@Localizer["Settings_LearningModeHelp"]</p>
+        <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-learning-mode-title" aria-describedby="onboarding-learning-mode-help">
             <button type="button"
                     id="onboarding-learning-mode-automatic"
                     class="choice-button @(AppSettings.LearningMode == LearningMode.Automatic ? "active" : null)"

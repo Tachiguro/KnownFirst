@@ -41,6 +41,9 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("DisplayNamePolicy", markup);
         Assert.Contains("Onboarding_DisplayNameTitle", markup);
         Assert.Contains("id=\"onboarding-display-name-input\"", markup);
+        Assert.Contains("Onboarding_DisplayNameSkip", markup);
+        Assert.Contains("Common_Continue", markup);
+        Assert.Contains("string.IsNullOrWhiteSpace(_nameInput)", markup);
         Assert.Contains("<h1", markup);
         Assert.DoesNotContain("NavMenu", markup);
         Assert.DoesNotContain("WhatsNewModal", markup);
@@ -63,7 +66,7 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
-    public void OnlineLookupStep_ReusesExistingConsentApi_AndDoesNotGrantConsentOnRenderOrSkip()
+    public void OnlineLookupStep_ReusesExistingConsentApi_AndRequiresExplicitDecisionBeforeProgression()
     {
         var markup = LoadStepUi("OnlineLookupStep.razor");
 
@@ -73,6 +76,12 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("RevokeOnlineLookupConsent", markup);
         Assert.Contains("Onboarding_OnlineLookupTitle", markup);
         Assert.Contains("Onboarding_OnlineLookupDescription", markup);
+        Assert.Contains("Onboarding_OnlineLookupServiceWiktionary", markup);
+        Assert.Contains("Onboarding_OnlineLookupServiceWikipedia", markup);
+        Assert.Contains("Onboarding_OnlineLookupPrivacyNotice", markup);
+        Assert.Contains("id=\"onboarding-online-consent-enable-button\"", markup);
+        Assert.Contains("id=\"onboarding-online-consent-disable-button\"", markup);
+        Assert.Contains("disabled=\"@(_explicitConsentChoice is null)\"", markup);
         Assert.Contains("<h1", markup);
         Assert.DoesNotContain("NavMenu", markup);
         Assert.DoesNotContain("WhatsNewModal", markup);
@@ -103,6 +112,8 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("LearningMode", markup);
         Assert.Contains("SetCardDirection", markup);
         Assert.Contains("SetLearningMode", markup);
+        Assert.Contains("Settings_CardDirectionHelp", markup);
+        Assert.Contains("Settings_LearningModeHelp", markup);
         Assert.Contains("Onboarding_PracticeTitle", markup);
         Assert.Contains("Onboarding_PracticeDescription", markup);
         Assert.Contains("<h1", markup);
@@ -228,6 +239,7 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("IDisplayNameStore", markup);
         Assert.Contains("ILanguageSelectionService", markup);
         Assert.Contains("Onboarding_SummaryTitle", markup);
+        Assert.Contains("Onboarding_SummarySettingsNotice", markup);
         Assert.Contains("Onboarding_FinishSetup", markup);
         Assert.Contains("id=\"onboarding-finish-button\"", markup);
         Assert.Contains("<h1", markup);
@@ -240,18 +252,11 @@ public sealed class OnboardingStepContractTests
     {
         var markup = LoadUi("OnboardingHost.razor");
 
-        var systemLanguage = markup.IndexOf("id=\"onboarding-lang-system\"", StringComparison.Ordinal);
-        var english = markup.IndexOf("id=\"onboarding-lang-en\"", StringComparison.Ordinal);
-        var german = markup.IndexOf("id=\"onboarding-lang-de\"", StringComparison.Ordinal);
-        var russian = markup.IndexOf("id=\"onboarding-lang-ru\"", StringComparison.Ordinal);
-        Assert.IsGreaterThanOrEqualTo(0, systemLanguage);
-        Assert.IsGreaterThan(systemLanguage, english);
-        Assert.IsGreaterThan(english, german);
-        Assert.IsGreaterThan(german, russian);
+        Assert.Contains("<select id=\"onboarding-ui-language-select\"", markup);
+        Assert.Contains("LanguagePreferencePolicy.UiLanguageOptions", markup);
+        Assert.Contains("<label for=\"onboarding-ui-language-select\"", markup);
+        Assert.DoesNotContain("id=\"onboarding-lang-system\"", markup);
 
-        Assert.Contains("LanguageSelection.IsSystemPreferenceActive ? \"active\" : null", markup);
-        Assert.Contains("!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode", markup);
-        Assert.Contains("SetLanguage(LanguagePreferencePolicy.SystemPreferenceCode)", markup);
         Assert.Contains("@inject IDeviceCultureProvider DeviceCultureProvider", markup);
         Assert.Contains("DeviceCultureProvider.GetDeviceCultureName()", markup);
         Assert.Contains("LanguagePreferencePolicy.ClassifyDeviceCulture", markup);
@@ -406,18 +411,16 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
-    public void VisualConsistencySliceThree_OnlineConsentUsesPrimaryGrantAndConfirmedDangerRevocation()
+    public void VisualConsistencySliceThree_OnlineConsentUsesExplicitChoicesAndConfirmedDangerRevocation()
     {
         var markup = LoadStepUi("OnlineLookupStep.razor");
 
-        Assert.Contains("if (AppSettings.HasOnlineLookupConsent)", markup);
-        Assert.Contains("id=\"onboarding-online-consent-activate-button\"", markup);
-        Assert.Contains("class=\"button button-primary\"", markup);
-        Assert.Contains("@onclick=\"ActivateOnlineConsent\"", markup);
-        Assert.Contains("id=\"onboarding-online-consent-revoke-button\"", markup);
-        Assert.Contains("class=\"button button-danger\"", markup);
-        Assert.Contains("@onclick=\"ShowOnlineConsentRevokeConfirmation\"", markup);
-        Assert.Contains("if (!_showOnlineConsentRevokeConfirmation)", markup);
+        Assert.Contains("id=\"onboarding-online-consent-enable-button\"", markup);
+        Assert.Contains("id=\"onboarding-online-consent-disable-button\"", markup);
+        Assert.Contains("class=\"choice-button", markup);
+        Assert.Contains("aria-pressed=", markup);
+        Assert.Contains("disabled=\"@(_explicitConsentChoice is null)\"", markup);
+
         Assert.Contains("id=\"onboarding-online-consent-revoke-confirmation\"", markup);
         Assert.Contains("class=\"destructive-confirmation\"", markup);
         Assert.Contains("Settings_RevokeOnlineConsentConfirmMessage", markup);
@@ -427,20 +430,17 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("id=\"onboarding-online-consent-revoke-confirm-button\"", markup);
         Assert.Contains("@onclick=\"ConfirmOnlineConsentRevocation\"", markup);
 
-        var showHandler = ExtractMethodBody(markup, "private void ShowOnlineConsentRevokeConfirmation()");
         var cancelHandler = ExtractMethodBody(markup, "private void CancelOnlineConsentRevocation()");
         var confirmHandler = ExtractMethodBody(markup, "private void ConfirmOnlineConsentRevocation()");
-        var activateHandler = ExtractMethodBody(markup, "private void ActivateOnlineConsent()");
+        var enableHandler = ExtractMethodBody(markup, "private void EnableOnlineConsent()");
 
-        Assert.DoesNotContain("RevokeOnlineLookupConsent", showHandler, StringComparison.Ordinal);
         Assert.DoesNotContain("RevokeOnlineLookupConsent", cancelHandler, StringComparison.Ordinal);
-        Assert.Contains("_showOnlineConsentRevokeConfirmation = true;", showHandler);
         Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", cancelHandler);
         Assert.Contains("AppSettings.RevokeOnlineLookupConsent();", confirmHandler);
         Assert.Contains("_showOnlineConsentRevokeConfirmation = false;", confirmHandler);
-        Assert.Contains("AppSettings.GrantOnlineLookupConsent();", activateHandler);
-        Assert.AreEqual(1, Regex.Matches(markup, "GrantOnlineLookupConsent").Count);
-        Assert.AreEqual(1, Regex.Matches(markup, "RevokeOnlineLookupConsent").Count);
+        Assert.Contains("_explicitConsentChoice = false;", confirmHandler);
+        Assert.Contains("AppSettings.GrantOnlineLookupConsent();", enableHandler);
+        Assert.Contains("_explicitConsentChoice = true;", enableHandler);
 
         var continueButtonStart = markup.IndexOf("id=\"onboarding-online-lookup-continue-button\"", StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, continueButtonStart);
@@ -448,7 +448,7 @@ public sealed class OnboardingStepContractTests
         Assert.IsGreaterThan(continueButtonStart, continueButtonEnd);
         var continueButton = markup[continueButtonStart..continueButtonEnd];
         Assert.Contains("@onclick=\"OnContinue\"", continueButton);
-        Assert.DoesNotContain("GrantOnlineLookupConsent", continueButton, StringComparison.Ordinal);
+        Assert.Contains("disabled=\"@(_explicitConsentChoice is null)\"", continueButton);
     }
 
     [TestMethod]

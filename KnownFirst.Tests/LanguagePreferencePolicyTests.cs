@@ -112,4 +112,24 @@ public sealed class LanguagePreferencePolicyTests
         Assert.AreEqual(expectedSupported, resultType.GetProperty("IsSupported")?.GetValue(result));
         Assert.AreEqual(expectedEffectiveLanguage, resultType.GetProperty("EffectiveLanguage")?.GetValue(result));
     }
+
+    [TestMethod]
+    public void UiLanguageOptions_ExposesOrderedSystemAndSupportedLanguagesWithLocalizationKeys()
+    {
+        var options = LanguagePreferencePolicy.UiLanguageOptions;
+        Assert.IsNotNull(options);
+        Assert.AreEqual(4, options.Count);
+
+        Assert.AreEqual(LanguagePreferencePolicy.SystemPreferenceCode, options[0].PreferenceCode);
+        Assert.AreEqual("Settings_UILanguageSystem", options[0].LocalizationKey);
+
+        Assert.AreEqual(LanguagePreferencePolicy.EnglishLanguageCode, options[1].PreferenceCode);
+        Assert.AreEqual("Settings_English", options[1].LocalizationKey);
+
+        Assert.AreEqual(LanguagePreferencePolicy.GermanLanguageCode, options[2].PreferenceCode);
+        Assert.AreEqual("Settings_German", options[2].LocalizationKey);
+
+        Assert.AreEqual(LanguagePreferencePolicy.RussianLanguageCode, options[3].PreferenceCode);
+        Assert.AreEqual("Settings_Russian", options[3].LocalizationKey);
+    }
 }

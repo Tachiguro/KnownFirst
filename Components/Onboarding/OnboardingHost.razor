@@ -25,36 +25,18 @@
                         <p class="onboarding-concept">@Localizer["Onboarding_WelcomeConcept"]</p>
 
                         <section class="onboarding-language-section" aria-labelledby="onboarding-language-title">
-                            <h2 id="onboarding-language-title" class="onboarding-section-title">@Localizer["Settings_UILanguage"]</h2>
-                            <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-language-title">
-                                <button type="button"
-                                        id="onboarding-lang-system"
-                                        class="choice-button @(LanguageSelection.IsSystemPreferenceActive ? "active" : null)"
-                                        aria-pressed="@LanguageSelection.IsSystemPreferenceActive"
-                                        @onclick="() => SetLanguage(LanguagePreferencePolicy.SystemPreferenceCode)">
-                                    @Localizer["Settings_UILanguageSystem"]
-                                </button>
-                                <button type="button"
-                                        id="onboarding-lang-en"
-                                        class="choice-button @(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode ? "active" : null)"
-                                        aria-pressed="@(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.EnglishLanguageCode)"
-                                        @onclick="() => SetLanguage(LanguageSelectionService.EnglishLanguageCode)">
-                                    @Localizer["Settings_English"]
-                                </button>
-                                <button type="button"
-                                        id="onboarding-lang-de"
-                                        class="choice-button @(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode ? "active" : null)"
-                                        aria-pressed="@(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.GermanLanguageCode)"
-                                        @onclick="() => SetLanguage(LanguageSelectionService.GermanLanguageCode)">
-                                    @Localizer["Settings_German"]
-                                </button>
-                                <button type="button"
-                                        id="onboarding-lang-ru"
-                                        class="choice-button @(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode ? "active" : null)"
-                                        aria-pressed="@(!LanguageSelection.IsSystemPreferenceActive && LanguageSelection.CurrentUiLanguage == LanguageSelectionService.RussianLanguageCode)"
-                                        @onclick="() => SetLanguage(LanguageSelectionService.RussianLanguageCode)">
-                                    @Localizer["Settings_Russian"]
-                                </button>
+                            <h2 id="onboarding-language-title" class="onboarding-section-title">
+                                <label for="onboarding-ui-language-select">@Localizer["Settings_UILanguage"]</label>
+                            </h2>
+                            <div class="field-group">
+                                <select id="onboarding-ui-language-select"
+                                        @bind="_selectedLanguagePreference"
+                                        @bind:after="HandleLanguagePreferenceChanged">
+                                    @foreach (var option in LanguagePreferencePolicy.UiLanguageOptions)
+                                    {
+                                        <option value="@option.PreferenceCode">@Localizer[option.LocalizationKey]</option>
+                                    }
+                                </select>
                             </div>
 
                             @if (LanguageSelection.IsSystemPreferenceActive)
@@ -165,6 +147,7 @@
     [Parameter] public EventCallback OnCompleted { get; set; }
 
     private OnboardingStep _currentStep = OnboardingStepPolicy.FirstStep;
+    private string _selectedLanguagePreference = LanguagePreferencePolicy.SystemPreferenceCode;
     private string _detectedDeviceCultureName = string.Empty;
     private DeviceLanguageClassification _deviceLanguageClassification =
         new(false, LanguagePreferencePolicy.EnglishLanguageCode);
@@ -186,6 +169,8 @@
             _currentStep = OnboardingStepPolicy.FirstStep;
         }
 
+        SyncSelectedLanguagePreference();
+
         if (LanguageSelection.IsSystemPreferenceActive)
         {
             RefreshDeviceCultureStatus();
@@ -199,9 +184,22 @@
         LanguageSelection.UiLanguageChanged -= OnUiLanguageChanged;
     }
 
+    private void HandleLanguagePreferenceChanged()
+    {
+        SetLanguage(_selectedLanguagePreference);
+    }
+
+    private void SyncSelectedLanguagePreference()
+    {
+        _selectedLanguagePreference = LanguageSelection.IsSystemPreferenceActive
+            ? LanguagePreferencePolicy.SystemPreferenceCode
+            : LanguageSelection.CurrentUiLanguage;
+    }
+
     private void SetLanguage(string languageCode)
     {
         LanguageSelection.SetUiLanguage(languageCode);
+        SyncSelectedLanguagePreference();
 
         if (LanguageSelection.IsSystemPreferenceActive)
         {
@@ -267,6 +265,7 @@
 
     private void OnUiLanguageChanged(object? sender, EventArgs e)
     {
+        SyncSelectedLanguagePreference();
         _ = InvokeAsync(StateHasChanged);
     }
 }

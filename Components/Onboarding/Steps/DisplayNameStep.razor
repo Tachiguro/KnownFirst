@@ -28,7 +28,7 @@
                 id="onboarding-display-name-continue-button"
                 class="button button-primary onboarding-continue-button"
                 @onclick="SaveAndContinue">
-            @Localizer["Common_Continue"]
+            @(string.IsNullOrWhiteSpace(_nameInput) ? Localizer["Onboarding_DisplayNameSkip"] : Localizer["Common_Continue"])
         </button>
         <button type="button"
                 id="onboarding-display-name-back-button"

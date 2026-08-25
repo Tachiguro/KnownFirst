@@ -1845,6 +1845,9 @@
   <data name="Onboarding_DisplayNameDescription" xml:space="preserve">
     <value>Wähle einen optionalen Namen für dieses Gerät. Dein Name wird nur lokal gespeichert.</value>
   </data>
+  <data name="Onboarding_DisplayNameSkip" xml:space="preserve">
+    <value>Überspringen</value>
+  </data>
   <data name="Onboarding_WorkflowTitle" xml:space="preserve">
     <value>Wie KnownFirst funktioniert</value>
   </data>
@@ -1863,11 +1866,26 @@
   <data name="Onboarding_OnlineLookupDescription" xml:space="preserve">
     <value>Wenn aktiviert, kann KnownFirst Definitionen über Online-Wörterbücher abrufen. Es werden keine persönlichen Daten übertragen.</value>
   </data>
+  <data name="Onboarding_OnlineLookupEnable" xml:space="preserve">
+    <value>Online-Wörterbuch aktivieren</value>
+  </data>
+  <data name="Onboarding_OnlineLookupKeepDisabled" xml:space="preserve">
+    <value>Online-Wörterbuch deaktiviert lassen</value>
+  </data>
+  <data name="Onboarding_OnlineLookupServiceWiktionary" xml:space="preserve">
+    <value>Wiktionary wird zuerst nach Wörterbuchdefinitionen und Übersetzungen abgefragt.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupServiceWikipedia" xml:space="preserve">
+    <value>Wikipedia wird als enzyklopädischer Definitions-Fallback angefragt, falls kein Wiktionary-Eintrag gefunden wird.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupPrivacyNotice" xml:space="preserve">
+    <value>Nur das gesuchte Wort und die Sprache werden übertragen. Deine Dokumente, Sätze und Lernhistorie bleiben streng lokal auf deinem Gerät.</value>
+  </data>
   <data name="Onboarding_EnhancedTermRecognitionTitle" xml:space="preserve">
     <value>Erweiterte Begriffserkennung</value>
   </data>
   <data name="Onboarding_EnhancedTermRecognitionDescription" xml:space="preserve">
-    <value>Die erweiterte Begriffserkennung kann zusätzliche nützliche Begriffe wie Bestandteile deutscher Komposita erkennen und für die Durchsicht bereitstellen.</value>
+    <value>Die Erweiterte Begriffserkennung zerlegt deutsche zusammengesetzte Wörter automatisch in ihre Grundbestandteile, damit Sie grundlegende Vokabeln lernen können. Läuft vollständig offline auf diesem Gerät.</value>
   </data>
   <data name="Onboarding_PracticeTitle" xml:space="preserve">
     <value>Übungseinstellungen</value>
@@ -1895,6 +1913,9 @@
   </data>
   <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
     <value>Systemstandard</value>
+  </data>
+  <data name="Onboarding_SummarySettingsNotice" xml:space="preserve">
+    <value>Sie können alle diese Einstellungen jederzeit in den Einstellungen ändern.</value>
   </data>
   <data name="Onboarding_FinishSetup" xml:space="preserve">
     <value>Einrichtung abschließen</value>

@@ -515,11 +515,8 @@ public sealed partial class PreparationService(
     {
         var validationStarted = Stopwatch.GetTimestamp();
         ArgumentNullException.ThrowIfNull(input);
-        if (input.ManualInputMode is { } manualInputMode)
-        {
-            ValidateManualInput(input, manualInputMode);
-        }
-        else if (string.IsNullOrWhiteSpace(input.AcronymExpansion)
+        if (input.ManualInputMode is null
+            && string.IsNullOrWhiteSpace(input.AcronymExpansion)
             && string.IsNullOrWhiteSpace(input.Translation)
             && string.IsNullOrWhiteSpace(input.Definition))
         {
@@ -602,6 +599,10 @@ public sealed partial class PreparationService(
         // Schema 8, before any mutation, but never persists them and never changes legacy rows/shape.
         PreparationMetadataPolicy.NormalizeTopicOrDomain(input.TopicOrDomain);
         PreparationMetadataPolicy.NormalizePartOfSpeech(input.PartOfSpeech);
+        if (input.ManualInputMode is { } manualInputMode)
+        {
+            ValidateManualInput(input, manualInputMode);
+        }
 
         var candidate = connection.Find<PreparationCandidateEntity>(candidateId)
             ?? throw new InvalidOperationException("The preparation candidate does not exist.");

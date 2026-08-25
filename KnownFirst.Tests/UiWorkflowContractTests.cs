@@ -404,17 +404,100 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("PrepareWords.razor");
         var accept = ExtractMethodBody(markup, "private async Task AcceptAsync()");
-        var progression = ExtractMethodBody(markup, "private async Task ContinueAfterCommittedActionAsync(PreparationMethod method)");
+        var recovery = ExtractMethodBody(markup, "private async Task ShowProgressionRecoveryAsync()");
         var retry = ExtractMethodBody(markup, "private async Task RetryProgressionAfterSaveAsync()");
 
         Assert.Contains("await PreparationService.AcceptAsync", accept);
         Assert.Contains("_saveFailed = true", accept);
-        Assert.Contains("await ContinueAfterCommittedActionAsync", accept);
-        Assert.Contains("_progressionAfterSaveFailed = true", progression);
+        Assert.Contains("_progressionCoordinator.CommitAndProgressAsync", accept);
+        Assert.Contains("_progressionAfterSaveFailed = true", recovery);
         Assert.Contains("Prepare_SavedNextLoadFailed", markup);
         Assert.Contains("Prepare_RetryNextItem", markup);
-        Assert.Contains("await ContinueAfterCommittedActionAsync", retry);
+        Assert.Contains("_progressionCoordinator.RetryProgressionAsync", retry);
         Assert.DoesNotContain("PreparationService.AcceptAsync", retry);
+    }
+
+    [TestMethod]
+    public async Task PreparationProgressionCoordinator_AcceptThenLoadFailureRetryDoesNotAcceptAgain()
+    {
+        var coordinator = new KnownFirst.Models.PreparationProgressionCoordinator();
+        var acceptCalls = 0;
+        var progressionCalls = 0;
+        var failNextLoad = true;
+
+        Task AcceptAsync()
+        {
+            acceptCalls++;
+            return Task.CompletedTask;
+        }
+
+        Task LoadNextAsync(KnownFirst.Core.Preparation.PreparationMethod method)
+        {
+            Assert.AreEqual(KnownFirst.Core.Preparation.PreparationMethod.Manual, method);
+            progressionCalls++;
+            if (failNextLoad)
+            {
+                throw new InvalidOperationException("synthetic next-item load failure");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        var firstProgressionSucceeded = await coordinator.CommitAndProgressAsync(
+            KnownFirst.Core.Preparation.PreparationMethod.Manual,
+            AcceptAsync,
+            LoadNextAsync);
+
+        Assert.IsFalse(firstProgressionSucceeded);
+        Assert.IsTrue(coordinator.SavedSuccessfully);
+        Assert.IsTrue(coordinator.ProgressionFailed);
+        Assert.IsNotNull(coordinator.LastProgressionException);
+        Assert.AreEqual(1, acceptCalls);
+        Assert.AreEqual(1, progressionCalls);
+
+        failNextLoad = false;
+        var retrySucceeded = await coordinator.RetryProgressionAsync(LoadNextAsync);
+
+        Assert.IsTrue(retrySucceeded);
+        Assert.IsTrue(coordinator.SavedSuccessfully);
+        Assert.IsFalse(coordinator.ProgressionFailed);
+        Assert.IsNull(coordinator.LastProgressionException);
+        Assert.AreEqual(1, acceptCalls, "retry must never invoke acceptance again");
+        Assert.AreEqual(2, progressionCalls);
+    }
+
+    [TestMethod]
+    public void Preparation_EndConfirmationHidesCompetingDispositionActions()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("@if (_confirmationAction is null && !_cancelConfirmationVisible)", markup);
+        Assert.Contains("Prepare_MarkKnown", markup);
+        Assert.Contains("Prepare_DoNotLearn", markup);
+        Assert.Contains("@onclick=\"SkipAsync\"", markup);
+    }
+
+    [TestMethod]
+    public void Preparation_ProgressionRecoveryIsRevealedAndRetryReceivesPostRenderFocus()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("@ref=\"_progressionRecoveryRef\"", markup);
+        Assert.Contains("@ref=\"_progressionRetryButtonRef\"", markup);
+        Assert.Contains("_focusProgressionRetryAfterRender", markup);
+        Assert.Contains("RevealProgressionRecoveryAsync", markup);
+        Assert.Contains("knownFirst.revealElement\", _progressionRecoveryRef", markup);
+        Assert.Contains("knownFirst.focusElement\", _progressionRetryButtonRef", markup);
+        Assert.Contains("if (_isDisposed", markup);
+    }
+
+    [TestMethod]
+    public void Preparation_MobileActionRulesHaveNoEquivalentDuplicateBlock()
+    {
+        var styles = LoadUi("PrepareWords.razor.css");
+
+        Assert.AreEqual(2, CountOccurrences(styles, ".preparation-action-bar {"), "one base and one mobile rule are expected");
+        Assert.AreEqual(1, CountOccurrences(styles, ".end-preparation {"), "the mobile End Preparation rule must appear once");
     }
 
     [TestMethod]
@@ -461,7 +544,7 @@ public sealed class UiWorkflowContractTests
         var learning = LoadUi("Learn.razor");
         var settings = LoadUi("Settings.razor");
 
-        Assert.Contains("if (_confirmationAction is null)", preparation);
+        Assert.Contains("if (_confirmationAction is null && !_cancelConfirmationVisible)", preparation);
         Assert.Contains("class=\"destructive-confirmation preparation-confirmation\"", preparation);
         Assert.DoesNotContain("button button-danger end-preparation", preparation);
         Assert.Contains("button button-secondary", home);

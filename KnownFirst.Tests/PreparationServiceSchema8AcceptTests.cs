@@ -148,6 +148,155 @@ public sealed class PreparationServiceSchema8AcceptTests
     }
 
     [TestMethod]
+    public async Task Accept_ManualDefinitionContextOverridesConflictingCallerModeAndDropsTranslation()
+    {
+        var wordId = await ImportWithOnlyThisWordUnknownAsync("bank protects money.", "bank");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+        Assert.AreEqual(LexicalLookupMode.Definition, item!.LookupMode);
+
+        await _preparation.AcceptAsync(
+            item.CandidateId,
+            ManualDefinitionInput("A financial institution.") with
+            {
+                Translation = "must not persist",
+                ManualInputMode = LexicalLookupMode.Translation
+            },
+            CardDirectionPreference.Both);
+
+        var meaning = await _database.ReadAsync(connection => connection.Table<KnownFirst.Data.Entities.MeaningEntity>()
+            .Where(candidateMeaning => candidateMeaning.WordId == wordId)
+            .FirstAsync());
+        Assert.AreEqual("A financial institution.", meaning.Definition);
+        Assert.AreEqual(string.Empty, meaning.Translation);
+        Assert.AreEqual("A financial institution.", meaning.TranslationOrDefinition);
+    }
+
+    [TestMethod]
+    public async Task Accept_ManualTranslationContextOverridesConflictingCallerModeAndDropsDefinition()
+    {
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            "Die Maschine arbeitet.",
+            "Maschine",
+            "de",
+            LexicalLookupMode.Translation,
+            "en");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+        Assert.AreEqual(LexicalLookupMode.Translation, item!.LookupMode);
+
+        await _preparation.AcceptAsync(
+            item.CandidateId,
+            ManualTranslationInput("machine") with
+            {
+                Definition = "must not persist",
+                ManualInputMode = LexicalLookupMode.Definition
+            },
+            CardDirectionPreference.Both);
+
+        var meaning = await _database.ReadAsync(connection => connection.Table<KnownFirst.Data.Entities.MeaningEntity>()
+            .Where(candidateMeaning => candidateMeaning.WordId == wordId)
+            .FirstAsync());
+        Assert.AreEqual("machine", meaning.Translation);
+        Assert.AreEqual(string.Empty, meaning.Definition);
+        Assert.AreEqual("machine", meaning.TranslationOrDefinition);
+    }
+
+    [TestMethod]
+    public async Task Accept_ManualLegacyCombinedContextRetainsDefinitionAndTranslation()
+    {
+        var wordId = await ImportWithOnlyThisWordUnknownAsync("Die Maschine arbeitet.", "Maschine", "de");
+        await SetDocumentLookupSettingsAsync(wordId, LexicalLookupMode.DefinitionAndTranslation, "en");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.GetCurrentAsync();
+        Assert.AreEqual(LexicalLookupMode.DefinitionAndTranslation, item!.LookupMode);
+
+        await _preparation.AcceptAsync(
+            item.CandidateId,
+            ManualCombinedInput("Ein technisches Geraet.", "machine") with
+            {
+                ManualInputMode = LexicalLookupMode.Definition
+            },
+            CardDirectionPreference.Both);
+
+        var meaning = await _database.ReadAsync(connection => connection.Table<KnownFirst.Data.Entities.MeaningEntity>()
+            .Where(candidateMeaning => candidateMeaning.WordId == wordId)
+            .FirstAsync());
+        Assert.AreEqual("Ein technisches Geraet.", meaning.Definition);
+        Assert.AreEqual("machine", meaning.Translation);
+    }
+
+    [TestMethod]
+    public async Task Accept_RepeatedManualExactMeaning_ReusesSenseMeaningAndCards()
+    {
+        var wordId = await ImportWithOnlyThisWordUnknownAsync("bank fees apply here.", "bank");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var first = await _preparation.GetCurrentAsync();
+        await _preparation.AcceptAsync(
+            first!.CandidateId,
+            ManualDefinitionInput("A financial institution."),
+            CardDirectionPreference.Both);
+
+        var original = await ReadManualGraphCountsAsync(wordId);
+        Assert.AreEqual(1, original.Senses);
+        Assert.AreEqual(1, original.Meanings);
+        Assert.AreEqual(2, original.Cards);
+        Assert.AreEqual(1, original.Contexts);
+
+        await ImportAdditionalEvidenceAsync(
+            "A bank closed early. Nonce zzzmanualrepeat appeared.",
+            "bank",
+            wordId);
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var repeated = await _preparation.GetCurrentAsync();
+        Assert.AreEqual(wordId, repeated!.WordId);
+
+        await _preparation.AcceptAsync(
+            repeated.CandidateId,
+            ManualDefinitionInput("A financial institution."),
+            CardDirectionPreference.Both);
+
+        var after = await ReadManualGraphCountsAsync(wordId);
+        Assert.AreEqual(original.Senses, after.Senses);
+        Assert.AreEqual(original.Meanings, after.Meanings);
+        Assert.AreEqual(original.Cards, after.Cards);
+        Assert.AreEqual(2, after.Contexts, "genuinely new frozen evidence must link to the reused Meaning/Sense");
+        Assert.AreEqual(PreparationCandidateStatus.Prepared, await ReadCandidateStatusAsync(repeated.CandidateId));
+        var session = await _database.ReadAsync(connection => connection.FindAsync<KnownFirst.Data.Entities.PreparationSessionEntity>(repeated.SessionId));
+        Assert.AreEqual(1, session!.CompletedItems);
+        Assert.AreEqual(PreparationSessionStatus.Completed, session.Status);
+    }
+
+    [TestMethod]
+    public async Task Accept_RepeatedManualDifferentMeaning_CreatesDistinctSenseAndMeaning()
+    {
+        var wordId = await ImportWithOnlyThisWordUnknownAsync("bank fees apply here.", "bank");
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var first = await _preparation.GetCurrentAsync();
+        await _preparation.AcceptAsync(
+            first!.CandidateId,
+            ManualDefinitionInput("A financial institution."),
+            CardDirectionPreference.Both);
+
+        await ImportAdditionalEvidenceAsync(
+            "A bank rose above the river. Nonce zzzmanualdifferent appeared.",
+            "bank",
+            wordId);
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var different = await _preparation.GetCurrentAsync();
+        await _preparation.AcceptAsync(
+            different!.CandidateId,
+            ManualDefinitionInput("The land beside a river."),
+            CardDirectionPreference.Both);
+
+        var after = await ReadManualGraphCountsAsync(wordId);
+        Assert.AreEqual(2, after.Senses);
+        Assert.AreEqual(2, after.Meanings);
+        Assert.AreEqual(4, after.Cards);
+        Assert.AreEqual(2, after.Contexts);
+    }
+
+    [TestMethod]
     public async Task Accept_ManualFallbackAfterNoProviderMeaning_PersistsAndAdvances()
     {
         var wordId = await ImportWithOnlyThisWordUnknownAsync("bank protects money.", "bank");
@@ -314,6 +463,64 @@ public sealed class PreparationServiceSchema8AcceptTests
         Assert.AreEqual(2, completed!.CompletedItems);
         Assert.AreEqual(PreparationSessionStatus.Completed, completed.Status);
         Assert.IsNull(await _preparation.GetCurrentAsync());
+    }
+
+    [TestMethod]
+    public async Task AcceptProgressionCoordinator_SaveSucceedsLoadFailsRetryPreservesSingleAcceptedProgress()
+    {
+        await ImportWithOnlyThisWordUnknownAsync("bank protects money.", "bank");
+        await ImportWithOnlyThisWordUnknownAsync("truck carries goods.", "truck");
+        await _preparation.StartAsync(PreparationMethod.Manual, 2);
+        var first = await _preparation.GetCurrentAsync();
+        Assert.IsNotNull(first);
+
+        var coordinator = new PreparationProgressionCoordinator();
+        var acceptCalls = 0;
+        var progressionCalls = 0;
+        var failNextLoad = true;
+        async Task CommitAsync()
+        {
+            acceptCalls++;
+            await _preparation.AcceptAsync(
+                first!.CandidateId,
+                ManualDefinitionInput("First committed manual definition."),
+                CardDirectionPreference.Both);
+        }
+
+        async Task LoadNextAsync(PreparationMethod method)
+        {
+            Assert.AreEqual(PreparationMethod.Manual, method);
+            progressionCalls++;
+            if (failNextLoad)
+            {
+                throw new InvalidOperationException("synthetic next-item load failure");
+            }
+
+            var next = await _preparation.GetCurrentAsync();
+            Assert.IsNotNull(next);
+            Assert.AreNotEqual(first!.CandidateId, next!.CandidateId);
+        }
+
+        var firstProgressionSucceeded = await coordinator.CommitAndProgressAsync(
+            PreparationMethod.Manual,
+            CommitAsync,
+            LoadNextAsync);
+
+        Assert.IsFalse(firstProgressionSucceeded);
+        var afterFailure = await _database.ReadAsync(connection => connection.FindAsync<KnownFirst.Data.Entities.PreparationSessionEntity>(first!.SessionId));
+        Assert.AreEqual(1, afterFailure!.CompletedItems);
+        Assert.AreEqual(PreparationSessionStatus.Active, afterFailure.Status);
+        Assert.AreEqual(1, acceptCalls);
+        Assert.AreEqual(1, progressionCalls);
+
+        failNextLoad = false;
+        Assert.IsTrue(await coordinator.RetryProgressionAsync(LoadNextAsync));
+
+        var afterRetry = await _database.ReadAsync(connection => connection.FindAsync<KnownFirst.Data.Entities.PreparationSessionEntity>(first!.SessionId));
+        Assert.AreEqual(1, afterRetry!.CompletedItems);
+        Assert.AreEqual(PreparationSessionStatus.Active, afterRetry.Status);
+        Assert.AreEqual(1, acceptCalls, "retry must not accept the committed candidate again");
+        Assert.AreEqual(2, progressionCalls);
     }
 
     [TestMethod]
@@ -1100,6 +1307,41 @@ public sealed class PreparationServiceSchema8AcceptTests
             return true;
         });
     }
+
+    private async Task ImportAdditionalEvidenceAsync(string content, string targetTerm, int expectedWordId)
+    {
+        var request = new ImportTextRequest(
+            $"Document {Guid.NewGuid():N}",
+            content,
+            "en",
+            LexicalLookupMode.Definition,
+            null);
+        var result = await _review.ImportAsync(request);
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, result.Outcome);
+
+        while (await _review.GetCurrentCandidateAsync() is { } candidate)
+        {
+            await _review.DecideAsync(
+                candidate.WordId,
+                string.Equals(candidate.Candidate, targetTerm, StringComparison.OrdinalIgnoreCase)
+                    ? WordStatus.UnknownBacklog
+                    : WordStatus.Known);
+        }
+
+        var word = await _database.ReadAsync(connection => connection.FindAsync<KnownFirst.Data.Entities.WordEntity>(expectedWordId));
+        Assert.IsNotNull(word);
+        Assert.AreEqual(targetTerm, word!.CanonicalTerm, ignoreCase: true);
+    }
+
+    private Task<(int Senses, int Meanings, int Cards, int Contexts)> ReadManualGraphCountsAsync(int wordId) =>
+        _database.ReadAsync(async connection =>
+        {
+            var senses = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Senses WHERE WordId = ?", wordId);
+            var meanings = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Meanings WHERE WordId = ?", wordId);
+            var cards = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningCards WHERE WordId = ?", wordId);
+            var contexts = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM ContextSnapshots WHERE WordId = ?", wordId);
+            return (senses, meanings, cards, contexts);
+        });
 
     private Task<PreparationCandidateStatus> ReadCandidateStatusAsync(int candidateId) =>
         _database.ReadAsync(async connection =>

@@ -446,13 +446,3 @@
     margin: 0;
     overflow-wrap: anywhere;
 }
-
-@media (max-width: 620px) {
-    .preparation-action-bar {
-        grid-template-columns: 1fr;
-    }
-
-    .end-preparation {
-        width: 100%;
-    }
-}

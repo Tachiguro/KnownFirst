@@ -42,9 +42,9 @@
     }
     else if (_progressionAfterSaveFailed)
     {
-        <section class="preparation-card progression-recovery" role="status">
+        <section class="preparation-card progression-recovery" role="status" @ref="_progressionRecoveryRef">
             <p>@Localizer["Prepare_SavedNextLoadFailed"]</p>
-            <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="RetryProgressionAfterSaveAsync">@Localizer["Prepare_RetryNextItem"]</button>
+            <button type="button" class="button button-primary" disabled="@_isBusy" @ref="_progressionRetryButtonRef" @onclick="RetryProgressionAfterSaveAsync">@Localizer["Prepare_RetryNextItem"]</button>
         </section>
     }
     else if (_item is null && !_batchCompleted)
@@ -290,7 +290,7 @@
 
             }
 
-            @if (_confirmationAction is null)
+            @if (_confirmationAction is null && !_cancelConfirmationVisible)
             {
                 <div class="preparation-disposition-actions" aria-label="@Localizer["Prepare_OtherActions"]">
                     <button type="button" class="button button-danger" disabled="@_isBusy" @ref="_markKnownButtonRef" @onclick="ShowMarkKnownConfirmation">@Localizer["Prepare_MarkKnown"]</button>
@@ -453,6 +453,7 @@
     private bool _cancelConfirmationVisible;
     private bool _startingAutomatic;
     private bool _revealLookupFailure;
+    private bool _focusProgressionRetryAfterRender;
     private bool _editorOpenedFromLookupFailure;
     private bool _isDisposed;
     private int _contextIndex;
@@ -484,9 +485,11 @@
     private ElementReference _definitionError;
     private ElementReference _translationError;
     private ElementReference _combinedAnswerError;
+    private ElementReference _progressionRecoveryRef;
+    private ElementReference _progressionRetryButtonRef;
     private PreparationCompletionAction? _confirmationAction;
     private PreparationInputValidationReason? _inputValidationReason;
-    private PreparationMethod _progressionMethod = PreparationMethod.Manual;
+    private readonly PreparationProgressionCoordinator _progressionCoordinator = new();
 
     private LexicalLookupMode PrimaryAnswerMode => _item?.LookupMode ?? LexicalLookupMode.Definition;
 
@@ -532,13 +535,23 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_isDisposed || !_revealLookupFailure || _isBusy || _isLookingUp || _isLoading)
+        if (_isDisposed)
         {
             return;
         }
 
-        _revealLookupFailure = false;
-        await RevealLookupFailureAsync();
+        if (_focusProgressionRetryAfterRender && !_isBusy && !_isLoading)
+        {
+            _focusProgressionRetryAfterRender = false;
+            await RevealProgressionRecoveryAsync();
+            return;
+        }
+
+        if (_revealLookupFailure && !_isBusy && !_isLookingUp && !_isLoading)
+        {
+            _revealLookupFailure = false;
+            await RevealLookupFailureAsync();
+        }
     }
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
@@ -786,42 +799,55 @@
 
         _inputValidationReason = null;
 
-        var acceptedCandidateId = _item.CandidateId;
-        var method = _item.Method;
+        var currentItem = _item;
+        var acceptedCandidateId = currentItem.CandidateId;
+        var method = currentItem.Method;
         var isManualInput = IsExplicitManualInput;
         var transitionStarted = System.Diagnostics.Stopwatch.StartNew();
         _isBusy = true;
         _saveFailed = false;
+        _progressionAfterSaveFailed = false;
         StartDelayedTransitionSpinner();
         try
         {
-            var result = _item.Result;
+            var result = currentItem.Result;
             var selectedMeaning = result is not null && result.Meanings.Count > _selectedMeaningIndex
                 ? result.Meanings[_selectedMeaningIndex]
                 : null;
-            await PreparationService.AcceptAsync(
-                _item.CandidateId,
-                new PreparedMeaningInput(
-                    isManualInput ? null : selectedMeaning?.MeaningId,
-                    EmptyToNull(_acronymExpansion),
-                    EmptyToNull(_translation),
-                    _definition,
-                    isManualInput ? null : selectedMeaning?.Example,
-                    null,
-                    _aliases.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                    isManualInput ? string.Empty : result?.ProviderName ?? string.Empty,
-                    isManualInput ? string.Empty : result?.SourceProject ?? string.Empty,
-                    isManualInput ? string.Empty : result?.PageTitle ?? string.Empty,
-                    isManualInput ? null : result?.RevisionId,
-                    isManualInput ? string.Empty : result?.Attribution ?? string.Empty,
-                    _item.EncounteredSurfaceForm,
-                    isManualInput ? null : result?.GrammaticalRelationship,
-                    isManualInput ? _item.Term : result?.DisplayTerm ?? _item.Term,
-                    ManualInputMode: isManualInput ? PrimaryAnswerMode : null),
-                AppSettings.CardDirection);
+            var input = new PreparedMeaningInput(
+                isManualInput ? null : selectedMeaning?.MeaningId,
+                EmptyToNull(_acronymExpansion),
+                EmptyToNull(_translation),
+                _definition,
+                isManualInput ? null : selectedMeaning?.Example,
+                null,
+                _aliases.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                isManualInput ? string.Empty : result?.ProviderName ?? string.Empty,
+                isManualInput ? string.Empty : result?.SourceProject ?? string.Empty,
+                isManualInput ? string.Empty : result?.PageTitle ?? string.Empty,
+                isManualInput ? null : result?.RevisionId,
+                isManualInput ? string.Empty : result?.Attribution ?? string.Empty,
+                currentItem.EncounteredSurfaceForm,
+                isManualInput ? null : result?.GrammaticalRelationship,
+                isManualInput ? currentItem.Term : result?.DisplayTerm ?? currentItem.Term,
+                ManualInputMode: isManualInput ? PrimaryAnswerMode : null);
+            var progressed = await _progressionCoordinator.CommitAndProgressAsync(
+                method,
+                async () =>
+                {
+                    await PreparationService.AcceptAsync(
+                        currentItem.CandidateId,
+                        input,
+                        AppSettings.CardDirection);
 #if DEBUG
-            PreparationService.RecordUiTransition(acceptedCandidateId, transitionStarted.Elapsed);
+                    PreparationService.RecordUiTransition(acceptedCandidateId, transitionStarted.Elapsed);
 #endif
+                },
+                LoadAfterCommittedActionAsync);
+            if (!progressed)
+            {
+                await ShowProgressionRecoveryAsync();
+            }
         }
         catch (PreparationInputValidationException exception)
         {
@@ -839,9 +865,6 @@
             StopTransitionSpinner();
             _isBusy = false;
         }
-
-        _item = null;
-        await ContinueAfterCommittedActionAsync(method);
     }
 
     private async Task SkipAsync()
@@ -853,10 +876,18 @@
 
         _isBusy = true;
         _saveFailed = false;
-        var method = _item.Method;
+        _progressionAfterSaveFailed = false;
+        var currentItem = _item;
         try
         {
-            await PreparationService.SkipAsync(_item.CandidateId);
+            var progressed = await _progressionCoordinator.CommitAndProgressAsync(
+                currentItem.Method,
+                () => PreparationService.SkipAsync(currentItem.CandidateId),
+                LoadAfterCommittedActionAsync);
+            if (!progressed)
+            {
+                await ShowProgressionRecoveryAsync();
+            }
         }
         catch (Exception exception)
         {
@@ -868,9 +899,6 @@
         {
             _isBusy = false;
         }
-
-        _item = null;
-        await ContinueAfterCommittedActionAsync(method);
     }
 
     private async Task ConfirmDispositionAsync()
@@ -881,21 +909,32 @@
         }
 
         var action = _confirmationAction.Value;
-        var method = _item.Method;
+        var currentItem = _item;
         _isBusy = true;
         _saveFailed = false;
+        _progressionAfterSaveFailed = false;
         try
         {
-            if (action == PreparationCompletionAction.MarkKnown)
-            {
-                await PreparationService.MarkKnownAsync(_item.CandidateId);
-            }
-            else
-            {
-                await PreparationService.ExcludeAsync(_item.CandidateId);
-            }
+            var progressed = await _progressionCoordinator.CommitAndProgressAsync(
+                currentItem.Method,
+                async () =>
+                {
+                    if (action == PreparationCompletionAction.MarkKnown)
+                    {
+                        await PreparationService.MarkKnownAsync(currentItem.CandidateId);
+                    }
+                    else
+                    {
+                        await PreparationService.ExcludeAsync(currentItem.CandidateId);
+                    }
 
-            _confirmationAction = null;
+                    _confirmationAction = null;
+                },
+                LoadAfterCommittedActionAsync);
+            if (!progressed)
+            {
+                await ShowProgressionRecoveryAsync();
+            }
         }
         catch (Exception exception)
         {
@@ -907,25 +946,23 @@
         {
             _isBusy = false;
         }
-
-        _item = null;
-        await ContinueAfterCommittedActionAsync(method);
     }
 
-    private async Task ContinueAfterCommittedActionAsync(PreparationMethod method)
+    private async Task LoadAfterCommittedActionAsync(PreparationMethod method)
     {
-        _progressionMethod = method;
-        _progressionAfterSaveFailed = false;
-        try
-        {
-            await MoveNextAsync(method);
-        }
-        catch (Exception exception)
-        {
-            Logger.LogError(exception, "The preparation action was saved, but the next item could not be loaded.");
-            _item = null;
-            _progressionAfterSaveFailed = true;
-        }
+        _item = null;
+        await MoveNextAsync(method);
+    }
+
+    private async Task ShowProgressionRecoveryAsync()
+    {
+        Logger.LogError(
+            _progressionCoordinator.LastProgressionException,
+            "The preparation action was saved, but the next item could not be loaded.");
+        _item = null;
+        _progressionAfterSaveFailed = true;
+        _focusProgressionRetryAfterRender = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task RetryProgressionAfterSaveAsync()
@@ -938,7 +975,15 @@
         _isBusy = true;
         try
         {
-            await ContinueAfterCommittedActionAsync(_progressionMethod);
+            var progressed = await _progressionCoordinator.RetryProgressionAsync(LoadAfterCommittedActionAsync);
+            if (progressed)
+            {
+                _progressionAfterSaveFailed = false;
+            }
+            else
+            {
+                await ShowProgressionRecoveryAsync();
+            }
         }
         finally
         {
@@ -1188,6 +1233,26 @@
         await JavaScript.InvokeVoidAsync(
             "knownFirst.focusElement",
             CanRetryLookup ? _retryButtonRef : _manualEntryButtonRef);
+    }
+
+    private async Task RevealProgressionRecoveryAsync()
+    {
+        if (_isDisposed || !_progressionAfterSaveFailed)
+        {
+            return;
+        }
+
+        try
+        {
+            await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _progressionRecoveryRef);
+            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _progressionRetryButtonRef);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (TaskCanceledException) when (_isDisposed)
+        {
+        }
     }
 
     private void PreviousContext() => _contextIndex = Math.Max(0, _contextIndex - 1);

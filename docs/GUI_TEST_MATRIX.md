@@ -14,19 +14,20 @@ Store screenshots and recordings outside the repository. Record the build identi
 
 ## Automation status
 
-**No row is currently mapped to or may be reported as an automated matrix result.** Every state below is verified manually and stays manual unless a future package explicitly defines an automation mapping, executes it, and records its evidence.
+**No row is currently reported as an automated matrix PASS result.** Every state below is verified manually and stays manual unless a future package explicitly defines an automation mapping, executes it, and records its evidence across all required matrix variants.
 
-Three automation assets exist in the repository and must not be confused with matrix coverage:
+Three automation assets exist in the repository and must not be confused with completed matrix coverage:
 
 - The standard Windows **StartupSmoke** launcher (`.\scripts\knownfirst.ps1 -Action GuiTest -GuiScenario StartupSmoke -Configuration Debug`) produces process, window, and startup-event evidence. It executes no matrix interaction: it does not click controls, send input, run workflows, or capture rendered layouts.
 - A separate, source-present Windows UIA interaction harness (`scripts/gui-tests/windows/Invoke-GuiTestRun.ps1`) exists with its own scenario registry. It is **not** part of the standard `knownfirst.ps1 -Action GuiTest` routing, and it depends on the external `winapp` CLI.
-- The source-present P16-A Android Appium/UiAutomator2 harness registers `P16A-SettingsReleaseNotesNavigation`, conceptually Home → Settings → Release Notes → Home. It is intentionally pre-matrix: its registry has `matrixMapping: null`; `relatedMatrixRow: "S36"` is context only. Neither IMPLEMENT nor TEST_ONLY executed it, so no device/emulator/Appium rendered evidence exists.
+- The Android Appium/UiAutomator2 harness (`scripts/gui-tests/android/`) provides the merged P16-A foundation and the P16-B source mapping candidate `P16B-SettingsReleaseNotesHistory` (`matrixMapping: "S36"`). This is **source-level scenario mapping and contract-test capability only**. The scenario has not been executed on Android, no device/emulator/Appium rendered evidence exists, and state S36 remains unpassed in the matrix table.
 
-Neither harness scenario execution nor any `winapp` capability was executed or validated when this section was last reconciled. **Source presence is not proof of a passing scenario, and it is not matrix coverage.** See [TESTING.md](TESTING.md) scope D for the full contract.
+Neither harness scenario execution nor any `winapp` capability was executed or validated when this section was last reconciled. **Source presence or mapping is not proof of a passing scenario, and it is not matrix coverage.** See [TESTING.md](TESTING.md) scope G for the full contract.
 
-Automated GUI validation is [ROADMAP.md](ROADMAP.md) **priority 16** ("Automated GUI validation"), currently active through its P16-A foundation. S36 remains fully manual, and no matrix result may be inferred from source presence or contract tests.
+Automated GUI validation is [ROADMAP.md](ROADMAP.md) **priority 16** ("Automated GUI validation"), currently active through its P16-A foundation and P16-B S36 source mapping. S36 remains fully manual in this matrix, and no matrix result may be inferred from source presence or contract tests.
 
-A passing unit, contract, StartupSmoke, or isolated UIA run is never sufficient to report a row here as passed. A row may only be reported as passed after an explicitly mapped run against that row, with its evidence recorded per "Result recording" below.
+A passing unit, contract, StartupSmoke, or isolated UIA run is never sufficient to report a row here as passed. Even a successfully executed future Android run would prove only its exact observed execution dimensions (device/viewport/theme/language), not the complete cross-platform, multi-viewport S36 row. A row may only be reported as passed after all mandatory matrix variants have been executed and recorded per "Result recording" below.
+
 
 ## Execution protocol
 

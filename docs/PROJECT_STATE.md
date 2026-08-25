@@ -1,6 +1,6 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-24
+**Status date:** 2026-08-25
 **State source:** Synchronized `master` baseline. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
@@ -54,7 +54,8 @@ This document records stable, verified architectural facts and current capabilit
 - daily new-word budget parity across Settings and Onboarding: consistent visual order (`5 Recommended`, `1`, `10`, `Custom`), contiguous range `1..50`, default `5`, non-blocking advisory warning `>15`, and semantic commit boundary canonicalization (merged via PR #156);
 - onboarding System Language and Appearance selection: System, English, German, Russian language options (with localized informational notice for unsupported device cultures), and Welcome-step System, Light, and Dark appearance selection backed by existing singleton services (merged via PR #156);
 - accessible inline destructive confirmation parity: explicit inline confirmation for Online Dictionary consent revocation in Onboarding and Settings, post-render focus transfer to Cancel, non-destructive Cancel and Escape dismissing confirmation and restoring focus to trigger, and destructive Confirm acting as the sole revocation execution path (merged via PR #156);
-- personalized Home greeting: `Home.razor` consumes the synchronous `IDisplayNameStore` singleton to render a localized greeting (`Welcome, {0}.` / `Willkommen, {0}.` / `Добро пожаловать, {0}.`) before the existing subtitle when a normalized Display Name is configured, while preserving the unchanged `KnownFirst` heading and subtitle-only fallback when absent (merged via PR #158).
+- personalized Home greeting: `Home.razor` consumes the synchronous `IDisplayNameStore` singleton to render a localized greeting (`Welcome, {0}.` / `Willkommen, {0}.` / `Добро пожаловать, {0}.`) before the existing subtitle when a normalized Display Name is configured, while preserving the unchanged `KnownFirst` heading and subtitle-only fallback when absent (merged via PR #158);
+- manual Preparation reliability and UX: user-entered Definition or Translation without online lookup result, authoritative candidate lookup context mapping, exact manual semantic reuse without duplicate identities/cards, neutral End Preparation workflow action, save/progression recovery separation, and shared multiline visual primitives (merged via PR #160).
 
 ## Development, Tooling & Packaging Foundations
 
@@ -214,11 +215,11 @@ This multi-slice package completes first-run onboarding and daily new-word budge
 - **Persistence & Reset Boundaries:** Display Name remains application/device-local Preferences state. `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2. Excluded from SQLite and portable archives; preserved on Restore Defaults; cleared on destructive full reset.
 - **Non-Goals:** No account, profile, cloud identity, new persistence abstraction, time-of-day greeting, avatar, Home redesign, or unrelated personalization.
 
-## Manual Preparation Reliability & UX (Candidate Package State)
+## Manual Preparation Reliability & UX (Merged Production State)
 
-**Lifecycle status:** Active candidate package `prepare-manual-entry-reliability-and-ux-v1` on branch `fix/prepare-manual-entry-reliability-and-ux-v1` at candidate commit `16fd61af079afbb0c4c67e0003bacfb102389ef8` (two checkpoint commits above `origin/master@3ac3a797e47ba8cc672f039b69d65da7563cfd1f`). Consolidated review completed and approved (`REVIEW_APPROVED_FOR_DOCUMENT_ONLY`). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** Merged production `master` state via PR #160 (`fix: repair manual preparation entry`; merge commit `793bd9959b9e17c2c4579df4c22a928bf8a4222a`; validated PR head `351abcd643f046e11993b4af93a1fb92ba437ea9`). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 
-This candidate package resolves the manual preparation persistence defect, aligns Definition/Translation authority, establishes deterministic manual semantic identity reuse, streamlines the manual Preparation UI, and hardens save-versus-progression recovery:
+This merged package resolves the manual preparation persistence defect, aligns Definition/Translation authority, establishes deterministic manual semantic identity reuse, streamlines the manual Preparation UI, and hardens save-versus-progression recovery:
 
 - **Manual Schema-12 Acceptance:** Manual Definition-mode and Translation-mode preparation can now succeed without requiring an online lookup or lexical provider result. Manual fallback after an automatic lookup returns no selectable provider meaning is fully supported. Acceptance executes through the standard transactional pipeline (`Senses`, `Meanings`, `ContextSnapshots`, `LearningCards`, `Word.PreparationState`). No database schema migration was introduced.
 - **Definition vs. Translation Authority:** Persisted preparation/import context derived from the owning `Document` authoritatively determines whether manual input represents a Definition or a Translation: Definition context persists Definition only (with null Translation); Translation context persists Translation only (with empty Definition). Legacy `DefinitionAndTranslation` is retained only as a bounded compatibility exception. Irrelevant hidden values cannot redirect semantic identity or persistence. No AI or network inference is involved.
@@ -227,7 +228,7 @@ This candidate package resolves the manual preparation persistence defect, align
 - **Simplified Manual Preparation UX:** Normal Definition mode presents one primary multiline Definition field; normal Translation mode presents one primary multiline Translation field. Redundant form controls (canonical term, encountered form, Additional Note) are removed from the normal editor; candidate term and context metadata remain visible. Advanced options (Acronym expansion when applicable, Accepted spelling aliases) are collapsed by default. Mode-specific empty field validation displays dedicated localized error messages and focuses/reveals the invalid field. Raw exception details are never exposed to the user.
 - **Shared Multiline Visual Language:** Preparation and Text Import use centralized `.text-area` styling (border, radius, background, padding, typography, focus ring, disabled state, vertical resize).
 - **Save-versus-Progression Recovery:** Successful acceptance is transactionally committed before attempting to load the next candidate. Failure to retrieve or render the next candidate is not reported as a save failure; the UI informs the user that the item was saved but the next item could not be loaded, and Retry executes progression/loading only without repeating acceptance.
-- **Neutral Preparation Action Semantics:** "End preparation" is styled as a neutral/secondary action in the bottom action bar with inline confirmation. Confirmation ends the active batch and its resumability while retaining already accepted learning cards and lasting Known/Ignored decisions; unresolved and skipped items return to the backlog. Competing disposition actions are disabled while confirmation is open.
+- **Neutral Preparation Action Semantics:** "End preparation" is styled as a neutral/secondary action in the bottom action bar with inline confirmation. Confirmation ends the active batch and its resumability while retaining already accepted learning cards and lasting Known/Ignored decisions; unresolved and skipped items return to the backlog. Competing disposition actions are suppressed while confirmation is open.
 
 ## Evidence Boundaries & Release Limitations
 

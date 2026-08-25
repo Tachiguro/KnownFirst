@@ -538,6 +538,32 @@ public sealed class LocalizationResourceTests
     }
 
     [TestMethod]
+    public void Resources_HomeGreetingUsesExactLocalizedWordingAndOneNamePlaceholder()
+    {
+        var resourcesByLanguage = new[]
+        {
+            (FileName: "SharedResource.resx", Expected: "Welcome, {0}."),
+            (FileName: "SharedResource.de.resx", Expected: "Willkommen, {0}."),
+            (FileName: "SharedResource.ru.resx", Expected: "Добро пожаловать, {0}.")
+        };
+        var placeholderPattern = new System.Text.RegularExpressions.Regex(@"\{\d+\}");
+
+        foreach (var resourceLanguage in resourcesByLanguage)
+        {
+            var resources = LoadResources(resourceLanguage.FileName);
+
+            Assert.IsTrue(
+                resources.ContainsKey("Home_Greeting"),
+                resourceLanguage.FileName + " is missing Home_Greeting.");
+            Assert.AreEqual(resourceLanguage.Expected, resources["Home_Greeting"]);
+            Assert.HasCount(
+                1,
+                placeholderPattern.Matches(resources["Home_Greeting"]),
+                resourceLanguage.FileName + " must keep exactly one Display Name placeholder.");
+        }
+    }
+
+    [TestMethod]
     public void Resources_RussianLanguageOptionKeysExistAndAreDistinctFromGerman()
     {
         var russian = LoadResources("SharedResource.ru.resx");

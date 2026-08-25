@@ -5,6 +5,7 @@
 @inject ILogger<Home> Logger
 @inject KnownFirst.Services.Study.IWorkflowStateService WorkflowState
 @inject KnownFirst.Services.Study.IWorkflowChangeNotifier WorkflowChangeNotifier
+@inject KnownFirst.Services.Settings.IDisplayNameStore DisplayNameStore
 @inject IJSRuntime JavaScript
 @inject NavigationManager Navigation
 
@@ -15,7 +16,13 @@
 
 <section class="home-hero">
     <h1>@Localizer["Home_Title"]</h1>
-    <p class="subtitle">@Localizer["Home_Subtitle"]</p>
+    <p class="subtitle">
+        @if (_displayName is not null)
+        {
+            @Localizer["Home_Greeting", _displayName]<text> </text>
+        }
+        @Localizer["Home_Subtitle"]
+    </p>
 </section>
 
 @if (_activeReview is not null)
@@ -147,6 +154,7 @@ else
 @code {
     private DashboardStatistics _statistics = DashboardStatistics.Empty;
     private ActiveReviewSummary? _activeReview;
+    private string? _displayName;
     private WorkflowSnapshot _workflow = new(
         false,
         false,
@@ -168,6 +176,7 @@ else
 
     protected override Task OnInitializedAsync()
     {
+        _displayName = DisplayNameStore.GetDisplayName();
         WorkflowChangeNotifier.Changed += OnWorkflowChanged;
         return LoadStatisticsAsync();
     }

@@ -164,14 +164,14 @@ This merged foundation slice establishes preference-backed onboarding state, sta
 - **Reset Contracts:** Destructive full reset sets `OnboardingState.Required` first before default restoration recreates legacy markers; online dictionary consent remains unconditionally revoked. Non-destructive "Restore default settings" leaves onboarding state untouched and preserves current online dictionary consent.
 - **Persistence Boundary:** Onboarding state and install-origin markers are Preferences/application-local state, not SQLite. `DatabaseSchema.CurrentVersion` remains 12 and archive format remains V2.
 
-## First-Run Onboarding & Daily-Budget UX Core (Candidate Feature Package on `feature/onboarding-daily-budget-ux-core-v1`)
+## First-Run Onboarding & Daily-Budget UX Core (Merged Production State)
 
-**Lifecycle status:** Implemented, corrected, and independently reviewed on branch `feature/onboarding-daily-budget-ux-core-v1` (candidate HEAD `c9d15007398afd309a6c28710ae5c08dbbe55a4b`). This is candidate branch state, not yet merged to `master`.
+**Lifecycle status:** Merged production `master` state via PR #155 (`feat: add first-run onboarding and daily budget ux`) and PR #156 (`fix: unify settings and onboarding visual consistency`). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 
 This multi-slice package completes first-run onboarding and daily new-word budget UX:
 
 - **Dedicated First-Run Onboarding Host:** Rendered outside the standard `Router`/`MainLayout` tree whenever `OnboardingState` is `Required` or `InProgress`. Normal navigation chrome (desktop sidebar, mobile headers) and the `WhatsNewModal` are suppressed during onboarding.
-  1. *Welcome & UI Language:* Introduces the core concept and allows selecting English, German, or Russian.
+  1. *Welcome & UI Language:* Introduces the core concept and allows selecting English, German, or Russian, plus System, Light, or Dark appearance.
   2. *Display Name:* Optional local name configuration.
   3. *Workflow:* Concise 3-step explanation of importing text, reviewing words, and practicing vocabulary.
   4. *Online Lookup:* Privacy-sensitive dictionary lookup consent (default OFF, requires affirmative user action).
@@ -198,6 +198,20 @@ This multi-slice package completes first-run onboarding and daily new-word budge
   - *Destructive Full Reset:* Sets `OnboardingState.Required`, clears progress, clears Display Name, revokes online lookup consent, and resets daily budget to `5`.
   - *Non-Destructive Restore Default Settings:* Preserves `OnboardingState` and `onboarding_step` progress, preserves Display Name, preserves online lookup consent, and resets daily budget to `5`.
 - **Persistence Boundary:** Database schema remains 12; portable archive format remains V2. All onboarding, progress, and Display Name states reside in application Preferences.
+
+## Home Personalization & Greeting (Candidate Feature Package on `feature/home-personalization-greeting-v1`)
+
+**Lifecycle status:** Implementation slice complete (checkpoint `1/1`: `831787d46104f18f8e99dcad215c93743e0e4ee9`), consolidated review approved (`REVIEW_APPROVED_FOR_DOCUMENT_ONLY`), documentation reconciliation in progress. Candidate branch state on `feature/home-personalization-greeting-v1`.
+
+- **Scope & Consumption:** `Home.razor` consumes the synchronous `IDisplayNameStore` singleton.
+- **Localized Personalized Greeting:** When a normalized Display Name is present, renders a localized greeting (`Home_Greeting`) before the existing subtitle (`Home_Subtitle`) separated by a single whitespace:
+  - EN: `Welcome, {0}.`
+  - DE: `Willkommen, {0}.`
+  - RU: `Добро пожаловать, {0}.`
+- **Subtitle-Only Fallback:** When no Display Name is configured (null / absent), Home preserves the existing subtitle-only rendering without an empty greeting, placeholder, or spurious separator whitespace.
+- **Home Heading:** The visible `KnownFirst` heading remains unchanged.
+- **Persistence & Reset Boundaries:** Display Name remains application/device-local Preferences state. `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2. Excluded from SQLite and portable archives; preserved on Restore Defaults; cleared on destructive full reset.
+- **Non-Goals:** No account, profile, cloud identity, new persistence abstraction, time-of-day greeting, avatar, Home redesign, or unrelated personalization.
 
 ## Evidence Boundaries & Release Limitations
 

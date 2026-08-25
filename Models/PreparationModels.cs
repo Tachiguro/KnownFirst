@@ -83,4 +83,5 @@ public sealed record PreparedMeaningInput(
     string? GrammaticalRelationship = null,
     string? CanonicalLearningTerm = null,
     string? TopicOrDomain = null,
-    string? PartOfSpeech = null);
+    string? PartOfSpeech = null,
+    LexicalLookupMode? ManualInputMode = null);

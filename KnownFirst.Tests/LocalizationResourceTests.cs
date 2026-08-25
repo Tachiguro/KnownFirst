@@ -287,7 +287,11 @@ public sealed class LocalizationResourceTests
         "Prepare_Definition",
         "Prepare_AdditionalNote",
         "Prepare_AcceptedAliases",
+        "Prepare_AcceptedAliasesHelp",
+        "Prepare_AdvancedOptions",
         "Prepare_DefinitionRequired",
+        "Prepare_TranslationRequired",
+        "Prepare_AnswerRequired",
         "Prepare_SaveAndContinue",
         "Prepare_SeveralMeanings",
         "Prepare_Source",
@@ -296,7 +300,11 @@ public sealed class LocalizationResourceTests
         "Prepare_ChooseOneMeaningExplanation",
         "Prepare_Edit",
         "Prepare_CancelPreparation",
+        "Prepare_EndPreparation",
+        "Prepare_EndPreparationConfirmation",
         "Prepare_SaveError",
+        "Prepare_SavedNextLoadFailed",
+        "Prepare_RetryNextItem",
         "Prepare_BatchCompleteTitle",
         "Prepare_BatchComplete",
         "Prepare_ChangeLimit",
@@ -635,6 +643,32 @@ public sealed class LocalizationResourceTests
         Assert.AreEqual("Dauerhaft als bekannt markieren", german["Learn_MarkPermanentlyKnown"]);
         Assert.AreEqual("Online-Abfrage starten", german["Prepare_StartOnlineLookup"]);
         Assert.AreEqual("Manuell vorbereiten", german["Prepare_Manual"]);
+    }
+
+    [TestMethod]
+    public void Resources_ManualPreparationActionsAndValidationUseContextSpecificWording()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        Assert.AreEqual("Mark permanently known", english["Prepare_MarkKnown"]);
+        Assert.AreEqual("Do not learn this term", english["Prepare_DoNotLearn"]);
+        Assert.AreEqual("End preparation", english["Prepare_EndPreparation"]);
+        Assert.AreEqual("Dauerhaft als bekannt markieren", german["Prepare_MarkKnown"]);
+        Assert.AreEqual("Diesen Begriff nicht lernen", german["Prepare_DoNotLearn"]);
+        Assert.AreEqual("Vorbereitung beenden", german["Prepare_EndPreparation"]);
+        Assert.AreEqual("Отметить как навсегда известное", russian["Prepare_MarkKnown"]);
+        Assert.AreEqual("Не учить этот термин", russian["Prepare_DoNotLearn"]);
+        Assert.AreEqual("Завершить подготовку", russian["Prepare_EndPreparation"]);
+
+        foreach (var resources in new[] { english, german, russian })
+        {
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Prepare_DefinitionRequired"]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Prepare_TranslationRequired"]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Prepare_AnswerRequired"]));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resources["Prepare_SavedNextLoadFailed"]));
+        }
     }
 
     [TestMethod]

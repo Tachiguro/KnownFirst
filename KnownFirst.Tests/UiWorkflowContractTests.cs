@@ -327,59 +327,129 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void Preparation_ManualEntryActionOpensUsableEditorAndSavesThroughService()
+    public void Preparation_ManualEditorUsesContextualPrimaryAnswersAndBoundedLegacyException()
     {
         var markup = LoadUi("PrepareWords.razor");
 
         Assert.Contains("@onclick=\"EnableManualEntryAsync\"", markup);
         Assert.Contains("PreparationCandidateStatus.Failed && !_showEditor", markup);
-        Assert.Contains("Prepare_CanonicalTerm", markup);
-        Assert.Contains("Prepare_EncounteredForm", markup);
-        Assert.Contains("readonly", markup);
-        Assert.Contains("_usefulAnswerMissing", markup);
-        Assert.Contains("Prepare_UsefulAnswerRequired", markup);
+        var definitionStart = markup.IndexOf("@if (PrimaryAnswerMode == LexicalLookupMode.Definition)", StringComparison.Ordinal);
+        var translationStart = markup.IndexOf("else if (PrimaryAnswerMode == LexicalLookupMode.Translation)", definitionStart, StringComparison.Ordinal);
+        var combinedStart = markup.IndexOf("data-legacy-combined-answer=\"definition\"", translationStart, StringComparison.Ordinal);
+        var advancedStart = markup.IndexOf("<details class=\"preparation-advanced-options\">", combinedStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, definitionStart);
+        Assert.IsGreaterThan(definitionStart, translationStart);
+        Assert.IsGreaterThan(translationStart, combinedStart);
+        Assert.IsGreaterThan(combinedStart, advancedStart);
+
+        var definitionBlock = markup[definitionStart..translationStart];
+        var translationBlock = markup[translationStart..combinedStart];
+        var combinedBlock = markup[combinedStart..advancedStart];
+        Assert.AreEqual(1, CountOccurrences(definitionBlock, "<textarea"));
+        Assert.Contains("data-primary-answer=\"definition\"", definitionBlock);
+        Assert.DoesNotContain("Prepare_Translation", definitionBlock);
+        Assert.AreEqual(1, CountOccurrences(translationBlock, "<textarea"));
+        Assert.Contains("data-primary-answer=\"translation\"", translationBlock);
+        Assert.DoesNotContain("Prepare_Definition", translationBlock);
+        Assert.AreEqual(2, CountOccurrences(combinedBlock, "<textarea"));
+        Assert.Contains("data-legacy-combined-answer=\"definition\"", combinedBlock);
+        Assert.Contains("data-legacy-combined-answer=\"translation\"", combinedBlock);
+
         Assert.Contains("PreparationService.AcceptAsync", markup);
-        Assert.Contains("await MoveNextAsync()", markup);
+        Assert.Contains("ManualInputMode:", markup);
         Assert.Contains("knownFirst.revealElement", markup);
         Assert.Contains("knownFirst.focusElement", markup);
     }
 
     [TestMethod]
-    public void Preparation_UsefulAnswerValidationIsAdjacentRevealedFocusedAndClearsOnCorrection()
+    public void Preparation_ManualEditorHidesRedundantMetadataAndKeepsOnlyApplicableAdvancedOptions()
     {
         var markup = LoadUi("PrepareWords.razor");
-        var definition = markup.IndexOf("Prepare_Definition", StringComparison.Ordinal);
-        var validation = markup.IndexOf("id=\"prepare-useful-answer-error\"", StringComparison.Ordinal);
-        var additionalNote = markup.IndexOf("Prepare_AdditionalNote", StringComparison.Ordinal);
+        var editorStart = markup.IndexOf("<div class=\"editor-grid\"", StringComparison.Ordinal);
+        var editorEnd = markup.IndexOf("else if (_item.Result?.HasUsableData == true)", editorStart, StringComparison.Ordinal);
+        var editor = markup[editorStart..editorEnd];
 
-        Assert.IsGreaterThanOrEqualTo(0, definition);
-        Assert.IsGreaterThan(definition, validation);
-        Assert.IsGreaterThan(validation, additionalNote);
-        Assert.Contains("@ref=\"_usefulAnswerError\"", markup);
-        Assert.Contains("aria-invalid=\"@_usefulAnswerMissing\"", markup);
-        Assert.Contains("ShowUsefulAnswerValidationAsync", markup);
-        Assert.Contains("knownFirst.revealElement\", _usefulAnswerError", markup);
-        Assert.Contains("GetUsefulAnswerFocusTarget", markup);
-        Assert.Contains("knownFirst.focusElement\", GetUsefulAnswerFocusTarget()", markup);
-        Assert.Contains("ClearUsefulAnswerValidationIfCorrected", markup);
-        Assert.Contains("@bind=\"AcronymExpansionInput\"", markup);
-        Assert.Contains("@bind=\"TranslationInput\"", markup);
-        Assert.Contains("@bind=\"DefinitionInput\"", markup);
+        Assert.DoesNotContain("Prepare_CanonicalTerm", editor);
+        Assert.DoesNotContain("Prepare_EncounteredForm", editor);
+        Assert.DoesNotContain("readonly", editor);
+        Assert.DoesNotContain("Prepare_AdditionalNote", editor);
+        Assert.Contains("<details class=\"preparation-advanced-options\">", editor);
+        Assert.Contains("IsAcronymOrAbbreviation", editor);
+        Assert.Contains("Prepare_AcronymExpansion", editor);
+        Assert.Contains("Prepare_AcceptedAliases", editor);
+        Assert.Contains("Prepare_AcceptedAliasesHelp", editor);
+        Assert.Contains("Prepare_AdvancedOptions", editor);
     }
 
     [TestMethod]
-    public void Preparation_BackPausesWhileCancelEndsTheActiveBatch()
+    public void Preparation_ModeSpecificValidationIsAdjacentReferencedRevealedAndFocused()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("id=\"prepare-definition-error\"", markup);
+        Assert.Contains("Prepare_DefinitionRequired", markup);
+        Assert.Contains("aria-describedby=\"@(DefinitionInvalid ? \"prepare-definition-error\" : null)\"", markup);
+        Assert.Contains("id=\"prepare-translation-error\"", markup);
+        Assert.Contains("Prepare_TranslationRequired", markup);
+        Assert.Contains("aria-describedby=\"@(TranslationInvalid ? \"prepare-translation-error\" : null)\"", markup);
+        Assert.Contains("Prepare_AnswerRequired", markup);
+        Assert.Contains("PreparationInputValidationException", markup);
+        Assert.Contains("ShowInputValidationAsync", markup);
+        Assert.Contains("GetPrimaryAnswerFocusTarget", markup);
+        Assert.Contains("ClearInputValidationIfCorrected", markup);
+    }
+
+    [TestMethod]
+    public void Preparation_SaveFailureAndPostCommitProgressionFailureAreDistinctAndRetrySafe()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var accept = ExtractMethodBody(markup, "private async Task AcceptAsync()");
+        var progression = ExtractMethodBody(markup, "private async Task ContinueAfterCommittedActionAsync(PreparationMethod method)");
+        var retry = ExtractMethodBody(markup, "private async Task RetryProgressionAfterSaveAsync()");
+
+        Assert.Contains("await PreparationService.AcceptAsync", accept);
+        Assert.Contains("_saveFailed = true", accept);
+        Assert.Contains("await ContinueAfterCommittedActionAsync", accept);
+        Assert.Contains("_progressionAfterSaveFailed = true", progression);
+        Assert.Contains("Prepare_SavedNextLoadFailed", markup);
+        Assert.Contains("Prepare_RetryNextItem", markup);
+        Assert.Contains("await ContinueAfterCommittedActionAsync", retry);
+        Assert.DoesNotContain("PreparationService.AcceptAsync", retry);
+    }
+
+    [TestMethod]
+    public void Preparation_SuccessfulManualProgressionTargetsNextPrimaryAnswerField()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var moveNext = ExtractMethodBody(markup, "private async Task MoveNextAsync(PreparationMethod method)");
+
+        Assert.Contains("PreparationMethod.Manual", moveNext);
+        Assert.Contains("knownFirst.revealElement", moveNext);
+        Assert.Contains("GetPrimaryAnswerFocusTarget()", moveNext);
+        Assert.Contains("knownFirst.focusElement", moveNext);
+    }
+
+    [TestMethod]
+    public void Preparation_BackPausesWhileEndPreparationEndsTheActiveBatch()
     {
         var markup = LoadUi("PrepareWords.razor");
         var service = LoadUi("PreparationService.cs");
 
         Assert.Contains("<PageHeader", markup);
         Assert.Contains("RequestCancelPreparationAsync", markup);
-        Assert.Contains("Prepare_CancelPreparationConfirmation", markup);
+        Assert.Contains("Prepare_EndPreparationConfirmation", markup);
         Assert.Contains("PreparationService.CancelActiveSessionAsync", markup);
         Assert.Contains("PreparationSessionStatus.Cancelled", service);
         Assert.Contains("PreparationCandidateStatus.Cancelled", service);
         Assert.Contains("PreparationState.Unprepared", service);
+
+        var actionBar = markup.IndexOf("<div class=\"workflow-action-bar\">", StringComparison.Ordinal);
+        var endAction = markup.IndexOf("Prepare_EndPreparation", actionBar, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, actionBar);
+        Assert.IsGreaterThan(actionBar, endAction);
+        Assert.Contains("button button-secondary end-preparation", markup);
+        Assert.DoesNotContain("button button-danger end-preparation", markup);
+        Assert.Contains("class=\"preparation-end-confirmation\"", markup);
     }
 
     [TestMethod]
@@ -393,18 +463,17 @@ public sealed class UiWorkflowContractTests
 
         Assert.Contains("if (_confirmationAction is null)", preparation);
         Assert.Contains("class=\"destructive-confirmation preparation-confirmation\"", preparation);
-        Assert.Contains("button button-danger cancel-preparation", preparation);
+        Assert.DoesNotContain("button button-danger end-preparation", preparation);
         Assert.Contains("button button-secondary", home);
         Assert.Contains("button button-secondary", review);
         Assert.Contains("button button-secondary", learning);
         Assert.Contains("button button-secondary", settings);
         Assert.Contains("_candidate is not null && !_showDiscardConfirmation", review);
         Assert.Contains("_card is not null && !_showPermanentKnownConfirmation", learning);
-        Assert.Contains("_item is not null && _confirmationAction is null && !_cancelConfirmationVisible", preparation);
-        Assert.Contains("_confirmationAction is null && !_cancelConfirmationVisible", preparation);
+        Assert.Contains("_item is not null && _confirmationAction is null", preparation);
         Assert.Contains("data-destructive-confirm", home);
         Assert.Contains("data-destructive-confirm", review);
-        Assert.AreEqual(2, CountOccurrences(preparation, "data-destructive-confirm"));
+        Assert.AreEqual(1, CountOccurrences(preparation, "data-destructive-confirm"));
         Assert.Contains("data-destructive-confirm", learning);
         Assert.Contains("data-destructive-confirm", settings);
     }
@@ -430,7 +499,7 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void Preparation_RevealsRetryAndManualEditorWithUsefulFocusTargets()
+    public void Preparation_RevealsRetryAndManualEditorWithPrimaryFocusTargets()
     {
         var markup = LoadUi("PrepareWords.razor");
 
@@ -442,7 +511,43 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("RevealEditorAsync", markup);
         Assert.Contains("knownFirst.revealElement", markup);
         Assert.Contains("knownFirst.focusElement", markup);
-        Assert.Contains("GetUsefulAnswerFocusTarget", markup);
+        Assert.Contains("GetPrimaryAnswerFocusTarget", markup);
+    }
+
+    [TestMethod]
+    public void Preparation_ActionsKeepPermanentKnownAndDoNotLearnSeparateAndConfirmed()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+
+        Assert.Contains("Prepare_MarkKnown", markup);
+        Assert.Contains("Prepare_DoNotLearn", markup);
+        Assert.Contains("ShowMarkKnownConfirmation", markup);
+        Assert.Contains("ShowExcludeConfirmation", markup);
+        Assert.Contains("PreparationService.MarkKnownAsync", markup);
+        Assert.Contains("PreparationService.ExcludeAsync", markup);
+        Assert.Contains("class=\"destructive-confirmation preparation-confirmation\"", markup);
+    }
+
+    [TestMethod]
+    public void ImportAndPreparationUseTheSameSharedMultilineVisualPrimitive()
+    {
+        var importMarkup = LoadUi("ImportText.razor");
+        var preparationMarkup = LoadUi("PrepareWords.razor");
+        var importStyles = LoadUi("ImportText.razor.css");
+        var appStyles = LoadUi("app.css");
+
+        Assert.Contains("class=\"text-area\"", importMarkup);
+        Assert.Contains("class=\"text-area\"", preparationMarkup);
+        Assert.Contains(".text-area {", appStyles);
+        Assert.Contains("border: 1px solid var(--color-input-border);", appStyles);
+        Assert.Contains("background: var(--color-input-background);", appStyles);
+        Assert.Contains("resize: vertical;", appStyles);
+        Assert.Contains("overflow-y: auto;", appStyles);
+        Assert.Contains(".text-area:focus-visible", appStyles);
+        Assert.Contains(".text-area:disabled", appStyles);
+        Assert.Contains("min-height: 16rem;", importStyles);
+        Assert.DoesNotContain("background: var(--color-input-background);", importStyles);
+        Assert.DoesNotContain("border: 1px solid var(--color-input-border);", importStyles);
     }
 
     [TestMethod]

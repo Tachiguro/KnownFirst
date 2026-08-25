@@ -784,10 +784,22 @@
     <value>Дополнительная заметка</value>
   </data>
   <data name="Prepare_AcceptedAliases" xml:space="preserve">
-    <value>Допустимые варианты написания (через точку с запятой)</value>
+    <value>Допустимые написания / варианты</value>
+  </data>
+  <data name="Prepare_AcceptedAliasesHelp" xml:space="preserve">
+    <value>Добавьте альтернативные ответы, которые тоже должны считаться правильными. Разделяйте несколько вариантов точкой с запятой.</value>
+  </data>
+  <data name="Prepare_AdvancedOptions" xml:space="preserve">
+    <value>Расширенные параметры</value>
   </data>
   <data name="Prepare_DefinitionRequired" xml:space="preserve">
     <value>Введи определение перед продолжением.</value>
+  </data>
+  <data name="Prepare_TranslationRequired" xml:space="preserve">
+    <value>Введите перевод перед продолжением.</value>
+  </data>
+  <data name="Prepare_AnswerRequired" xml:space="preserve">
+    <value>Введите определение или перевод перед продолжением.</value>
   </data>
   <data name="Prepare_SaveAndContinue" xml:space="preserve">
     <value>Применить</value>
@@ -815,6 +827,18 @@
   </data>
   <data name="Prepare_SaveError" xml:space="preserve">
     <value>Не удалось сохранить изменение подготовки.</value>
+  </data>
+  <data name="Prepare_SavedNextLoadFailed" xml:space="preserve">
+    <value>Изменение сохранено, но не удалось загрузить следующий элемент.</value>
+  </data>
+  <data name="Prepare_RetryNextItem" xml:space="preserve">
+    <value>Загрузить следующий элемент</value>
+  </data>
+  <data name="Prepare_EndPreparation" xml:space="preserve">
+    <value>Завершить подготовку</value>
+  </data>
+  <data name="Prepare_EndPreparationConfirmation" xml:space="preserve">
+    <value>Завершить эту подготовку? Сохранённые элементы и постоянные решения об известных или игнорируемых терминах сохранятся. Нерешённые и пропущенные термины вернутся в очередь подготовки.</value>
   </data>
   <data name="Prepare_BatchCompleteTitle" xml:space="preserve">
     <value>Подготовка завершена</value>
@@ -1174,13 +1198,13 @@
     <value>Другие действия подготовки</value>
   </data>
   <data name="Prepare_MarkKnown" xml:space="preserve">
-    <value>Отметить как известное</value>
+    <value>Отметить как навсегда известное</value>
   </data>
   <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
     <value>Это слово будет сохранено как навсегда известное. Карточки для изучения не будут созданы, а устаревшие данные подготовки, контекста и частоты будут удалены.</value>
   </data>
   <data name="Prepare_DoNotLearn" xml:space="preserve">
-    <value>Не учить</value>
+    <value>Не учить этот термин</value>
   </data>
   <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
     <value>Эта точная лексическая единица будет исключена из будущих проверок и подготовки. Связанные слова и формы исключены не будут, карточки для изучения не будут созданы.</value>

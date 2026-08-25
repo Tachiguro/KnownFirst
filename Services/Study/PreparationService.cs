@@ -515,7 +515,11 @@ public sealed partial class PreparationService(
     {
         var validationStarted = Stopwatch.GetTimestamp();
         ArgumentNullException.ThrowIfNull(input);
-        if (string.IsNullOrWhiteSpace(input.AcronymExpansion)
+        if (input.ManualInputMode is { } manualInputMode)
+        {
+            ValidateManualInput(input, manualInputMode);
+        }
+        else if (string.IsNullOrWhiteSpace(input.AcronymExpansion)
             && string.IsNullOrWhiteSpace(input.Translation)
             && string.IsNullOrWhiteSpace(input.Definition))
         {
@@ -551,6 +555,33 @@ public sealed partial class PreparationService(
         finally
         {
             _operationGate.Release();
+        }
+    }
+
+    private static void ValidateManualInput(PreparedMeaningInput input, LexicalLookupMode inputMode)
+    {
+        switch (inputMode)
+        {
+            case LexicalLookupMode.Definition when string.IsNullOrWhiteSpace(input.Definition):
+                throw new PreparationInputValidationException(
+                    PreparationInputValidationReason.DefinitionRequired,
+                    inputMode);
+            case LexicalLookupMode.Translation when string.IsNullOrWhiteSpace(input.Translation):
+                throw new PreparationInputValidationException(
+                    PreparationInputValidationReason.TranslationRequired,
+                    inputMode);
+            case LexicalLookupMode.DefinitionAndTranslation
+                when string.IsNullOrWhiteSpace(input.Definition)
+                     && string.IsNullOrWhiteSpace(input.Translation):
+                throw new PreparationInputValidationException(
+                    PreparationInputValidationReason.AnswerRequired,
+                    inputMode);
+            case LexicalLookupMode.Definition:
+            case LexicalLookupMode.Translation:
+            case LexicalLookupMode.DefinitionAndTranslation:
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(inputMode));
         }
     }
 

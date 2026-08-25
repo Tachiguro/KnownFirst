@@ -113,9 +113,11 @@ main {
     overflow-y: auto;
 }
 
-.page.menu-open main,
-.page.menu-open .content {
-    overflow: hidden;
+@media (max-width: 799px) {
+    .page.menu-open main,
+    .page.menu-open .content {
+        overflow: hidden;
+    }
 }
 
 @media (min-width: 800px) {

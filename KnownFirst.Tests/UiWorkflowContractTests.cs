@@ -746,6 +746,62 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void MobileMenu_BackgroundLockingRemainsActiveBelowDesktopBreakpointOnly()
+    {
+        var styles = LoadUi("MainLayout.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        const string lockSelector = ".page.menu-open main,\n    .page.menu-open .content";
+
+        var compactBreakpoint = styles.IndexOf("@media (max-width: 799px)", StringComparison.Ordinal);
+        var lockRule = styles.IndexOf(lockSelector, StringComparison.Ordinal);
+        var desktopBreakpoint = styles.IndexOf("@media (min-width: 800px)", StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, compactBreakpoint, "The compact shell breakpoint must be explicit.");
+        Assert.IsGreaterThan(compactBreakpoint, lockRule, "Menu locking must be inside the compact breakpoint.");
+        Assert.IsGreaterThan(lockRule, desktopBreakpoint, "Menu locking must end before desktop shell rules begin.");
+        Assert.Contains("overflow: hidden;", ExtractCssRule(styles, lockSelector));
+        Assert.AreEqual(1, CountOccurrences(styles, "@media (max-width: 799px)"));
+        Assert.AreEqual(1, CountOccurrences(styles, lockSelector));
+    }
+
+    [TestMethod]
+    public void JavaScriptInterop_RegistersAndDisposesDesktopEntryMatchMediaBridge()
+    {
+        var script = LoadUi("knownfirst.js");
+
+        Assert.Contains("registerDesktopEntry", script);
+        Assert.Contains("unregisterDesktopEntry", script);
+        Assert.Contains("window.matchMedia(\"(min-width: 800px)\")", script);
+        Assert.Contains("mediaQuery.addEventListener(\"change\", handler)", script);
+        Assert.Contains("mediaQuery.removeEventListener(\"change\", handler)", script);
+        Assert.Contains("if (!event.matches)", script);
+        Assert.Contains("invokeMethodAsync(\"OnDesktopBreakpointEntered\")", script);
+        Assert.DoesNotContain("window.addEventListener(\"resize\"", script);
+    }
+
+    [TestMethod]
+    public void MainLayout_DesktopEntryReconcilesDrawerThroughCloseMenuAndDisposesInterop()
+    {
+        var layout = LoadUi("MainLayout.razor");
+        var desktopEntry = ExtractMethodBody(
+            layout,
+            "public Task OnDesktopBreakpointEnteredAsync()");
+        var disposal = ExtractMethodBody(
+            layout,
+            "public async ValueTask DisposeAsync()");
+
+        Assert.Contains("@implements IAsyncDisposable", layout);
+        Assert.Contains("@inject IJSRuntime JavaScript", layout);
+        Assert.Contains("DotNetObjectReference.Create(this)", layout);
+        Assert.Contains("knownFirst.breakpoints.registerDesktopEntry", layout);
+        Assert.Contains("[JSInvokable(\"OnDesktopBreakpointEntered\")]", layout);
+        Assert.Contains("CloseMenu();", desktopEntry);
+        Assert.Contains("StateHasChanged();", desktopEntry);
+        Assert.Contains("knownFirst.breakpoints.unregisterDesktopEntry", disposal);
+        Assert.Contains("CloseMenu();", disposal);
+        Assert.Contains("_desktopBreakpointReference?.Dispose();", disposal);
+    }
+
+    [TestMethod]
     public void AppScrollAreas_HideChromeWithoutChangingTextareaBehavior()
     {
         var styles = LoadUi("app.css");

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (Active work package `onboarding-settings-parity-feedback-v1` on branch `fix/onboarding-settings-parity-feedback-v1`; reviewed checkpoint `6e64c6fa85e742c38c94b4a59a06f9adf2a273c8`; Schema is 12; Archive format is V2).
+2026-08-25 (Neutral post-merge state on master following manual merge and POST_MERGE_SYNC_ONLY of PR #162; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,33 +17,45 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `onboarding-settings-parity-feedback-v1` (First-Run Onboarding and Settings Parity & Tester-Feedback Corrections).
-- **Branch:** `fix/onboarding-settings-parity-feedback-v1`
-- **Current canonical baseline:** `origin/master` at `4c840ce016af22ea38904b6685d3bac1f743f36d`.
-- **Implementation Checkpoint:** `6e64c6fa85e742c38c94b4a59a06f9adf2a273c8` (Subject: `fix: align onboarding with settings feedback`, Trailer: `KnownFirst-Checkpoint: onboarding-settings-parity-feedback-v1 1/1 onboarding-settings-parity`).
-- **Lifecycle status:** Slice 1/1 complete; consolidated `REVIEW_ONLY` approved with 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; `DOCUMENT_ONLY` reconciliation in progress.
-- **Scope & Behavior Delivered:**
-  - **Language Selection Native Parity:** Replaced the Onboarding Step 1 four-button group with a native `<select id="onboarding-ui-language-select">` enclosed in `.field-group` with explicit `<label for=...>`, matching Settings.
-  - **Shared Ordered Option Catalog:** Consolidated UI-language options in `LanguagePreferencePolicy.UiLanguageOptions` (System, English, German, Russian), consumed identically by both `Settings.razor` and `OnboardingHost.razor`.
-  - **Online Dictionary Explicit Decision:** Onboarding copy simplified into readable highlights (Wiktionary primary, Wikipedia definition fallback, local privacy); added explicit `[ Enable Online Dictionary ]` and `[ Keep Online Dictionary Disabled ]` choice buttons with `aria-pressed`; Continue is strictly disabled before an explicit choice is made (persisted Off default is not assumed to be an explicit choice); selecting Keep Disabled when consent is granted opens the destructive revocation confirmation dialog.
-  - **Display Name Dynamic Skip Labeling:** When input is empty/whitespace, the action button dynamically renders `Onboarding_DisplayNameSkip` ("Skip"); when filled with non-whitespace text, renders `Common_Continue`. Normalization to `null` is preserved.
-  - **Enhanced Term Recognition Copy:** Benefit-oriented onboarding description explaining German compound word decomposition into foundational vocabulary running offline on device, without general multi-language or AI claims.
-  - **Practice Step Helper Text:** Reused `Settings_CardDirectionHelp` and `Settings_LearningModeHelp` under Card Direction and Learning Mode section titles with `aria-describedby`.
-  - **Summary Settings Notice:** Added `Onboarding_SummarySettingsNotice` informing users that choices can be adjusted at any time in Settings.
-- **Preserved Boundaries & Invariants:**
-  - `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
-  - Daily Pace presets (`1`, `5 Recommended`, `10`, `Custom`), range (`1..50`), default (`5`), and advisory warning (`>15`) are unchanged.
-  - Learning Day Timing minute-level granularity (`00..59`) is unchanged.
-  - Native `<select>` semantics retained; no custom dropdown or dropdown JavaScript introduced.
-  - Offline privacy boundaries intact; zero network requests in tests or onboarding.
+- **Active work package:** None (Neutral post-merge state on `master`).
+- **Current canonical baseline:** PR #162 is merged on `master` at commit `e29a292832612a0f5041636126628437a553c2a3`.
+- **Lifecycle status:** PR #162 (`fix: align onboarding with settings feedback`) successfully completed its full multi-slice lifecycle: implementation checkpoints, consolidated review, documentation candidate finalization (`d2171872cdfdf366642afa685924a23507d7dacd`), exact-candidate `FULL_VALIDATION` (2570 tests passed, 0 warnings/errors), push, PR #162, manual user merge, and `POST_MERGE_SYNC_ONLY`. No repository-writing package is currently in flight.
+- **Next planned work:** None currently authorized; pending next roadmap priority.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+- **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
+- **Previous merged packages:**
+  - PR #162 (`fix: align onboarding with settings feedback`): Reconciled First-Run Onboarding with Settings parity (native `<select id="onboarding-ui-language-select">` matching Settings, shared `LanguagePreferencePolicy.UiLanguageOptions` source, explicit Online Dictionary Enable/Keep Disabled choice buttons with disabled Continue before selection and destructive revocation confirmation, dynamic Display Name Skip labeling, benefit-oriented German/offline ETR copy, Practice helper text reuse, and Summary Settings notice). Merged to `e29a292832612a0f5041636126628437a553c2a3`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #160 (`fix: repair manual preparation entry`): Repaired Schema-12 manual preparation entry persistence defect without requiring lexical lookup result, established contextual Definition/Translation authority, deterministic exact manual semantic reuse, streamlined UI with shared `.text-area` styling, dedicated validation, save/progression recovery isolation, and neutral End Preparation action. Merged to `793bd9959b9e17c2c4579df4c22a928bf8a4222a`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #158 (`feat: personalize home greeting`): Consumed synchronous `IDisplayNameStore` in `Home.razor` to render localized greeting before existing subtitle when a Display Name is configured, while preserving subtitle-only fallback when absent, unchanged Home title, Preferences storage, schema 12, and archive format V2. Merged to `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #156 (`fix: unify settings and onboarding visual consistency`): Unified Settings and onboarding around shared KnownFirst visual primitives (`.choice-grid`, `.choice-button.active`, `.field-group`, `.text-input`, `.button-row`, `.setting-feedback`, `.destructive-confirmation`), aligned Daily Budget UX visual order (`5 Recommended`, `1`, `10`, `Custom`) and range/validation contracts, added onboarding System Language and Appearance selection in Step 1, and normalized inline destructive confirmation for Online Dictionary consent revocation. Merged to `d8e14a699ef52030d542309015064d8ac0668508`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #155 (`feat: add first-run onboarding and daily budget ux`): Merged First-Run Onboarding & Daily-Budget UX Core package (`onboarding-core-v1`). Merged to `537e68eedf78dadb7b1ebff539954cd4d83228bf`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #144 (`feat: add settings GUI and learning-day defaults`): Merged Settings GUI & Learning-Day Defaults Slice 2A. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #149 (`release: bump beta13 build number to 14`): Bumped version code to 14 for Google Play replacement bundle. Merged to `35cd15bf3e0dda0816bb2dd2c9dc35fa91ddd430`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #152 (`docs: record build14 aab packaging evidence`): Reconciled durable release documentation with physical Google Play AAB bundle `KnownFirst-1.0.0-beta.13-code14.aab` produced and verified locally on certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Merged to `2a5b10735a1ea27e3db348e0cd855d7768376372`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #153 (`feat: add onboarding install-origin foundation`): Merged First-Run Onboarding & Daily-Budget UX Slice 1 — application-local preference-backed onboarding state (`Required`/`InProgress`/`Completed`), startup install-origin classification via legacy preference evidence without database-file dependency, grandfathered legacy budget pinning (10), and destructive/non-destructive reset contracts. Merged to `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #154 (`docs: simplify multi-slice governance`): Established the multi-slice feature-package lifecycle — checkpoint commits with `KnownFirst-Checkpoint:` trailers, consolidated package-level review and documentation gates, candidate finalization without artificial empty commits, the interruption/resume contract, and anti-treadmill documentation discipline — while preserving every repository, safety, and exact-HEAD validation invariant. Merged to `18c1e7998c1ffc34607e0a6feb54e930996353bd`. `POST_MERGE_SYNC_ONLY` completed.
+
+## Onboarding & Settings Parity Feedback (Merged Production State)
+
+Merged to `master` via PR #162 (`fix: align onboarding with settings feedback`; merge commit `e29a292832612a0f5041636126628437a553c2a3`; validated PR head `d2171872cdfdf366642afa685924a23507d7dacd`). Full architectural framing: [docs/PROJECT_STATE.md](PROJECT_STATE.md) "Onboarding & Settings Tester-Feedback Parity (Merged Production State)."
+
+- **Scope & Parity Refinements:**
+  - **Language Selection Native Parity:** Onboarding Step 1 (Welcome) uses a native `<select id="onboarding-ui-language-select">` with explicit `<label for=...>` in `.field-group`, replacing the previous four-button choice grid and preserving immediate language switching and system language detection.
+  - **Shared Ordered Language Catalog:** Consolidated UI-language options in `LanguagePreferencePolicy.UiLanguageOptions` (System, English, German, Russian), consumed identically by both `Settings.razor` and `OnboardingHost.razor`.
+  - **Online Dictionary Explicit Decision:** Onboarding copy simplified into readable highlights with visible provider names (Wiktionary primary, Wikipedia definition fallback, local storage privacy); requires an explicit user choice (`[ Enable Online Dictionary ]` vs `[ Keep Online Dictionary Disabled ]`) before Continue becomes enabled (persisted default Off is not an explicit choice); selecting Keep Disabled when consent was granted invokes the destructive confirmation dialog with focus/Escape lifecycle.
+  - **Display Name Dynamic Skip Semantics:** Action button dynamically displays `Onboarding_DisplayNameSkip` ("Skip") when empty/whitespace and `Common_Continue` when filled, preserving optionality and normalization to `null`.
+  - **Enhanced Term Recognition Copy:** Benefit-oriented description explaining German compound word decomposition into foundational vocabulary running offline on device, without general multi-language or AI claims.
+  - **Practice Step Helper Text:** Reuses existing `Settings_CardDirectionHelp` and `Settings_LearningModeHelp` under Card Direction and Learning Mode titles with `aria-describedby`.
+  - **Summary Settings Notice:** Added `Onboarding_SummarySettingsNotice` informing users that all choices can be changed later in Settings.
 - **Verification Evidence:**
-  - Genuine focused RED: 46 passed / 7 failed (failed on missing language select, shared options, dynamic skip, explicit consent choices, practice helpers, summary notice).
-  - Focused GREEN: 204 passed / 0 failed.
-  - Targeted regression: 38 passed / 0 failed (`DisplayNameTests`, `LanguageSelectionServiceTests`).
+  - Initial genuine RED: 46 passed / 7 failed (failed on missing language select, shared options, dynamic skip, explicit consent choices, practice helpers, summary notice).
+  - Initial package-focused suite (GREEN): 204 passed / 0 failed.
+  - Targeted continuity/regression: 38 passed / 0 failed (`DisplayNameTests`, `LanguageSelectionServiceTests`).
   - `git diff --check`: passed cleanly (0 errors).
   - Consolidated code review: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
-- **Remaining lifecycle:** `COMMIT_ONLY` (reconciled candidate HEAD) $\rightarrow$ exact-candidate-HEAD `FULL_VALIDATION` $\rightarrow$ `PUSH_ONLY` $\rightarrow$ `PR_ONLY` $\rightarrow$ manual user merge $\rightarrow$ `POST_MERGE_SYNC_ONLY`. No push, PR, or FULL_VALIDATION has yet occurred.
-- **Previous merged packages:**
+  - Exact-candidate `FULL_VALIDATION` (validated PR head `d2171872cdfdf366642afa685924a23507d7dacd`): 2570 passed / 0 failed / 0 skipped; Windows Debug PASS; Windows Release PASS; Android Debug PASS; Android Release PASS; strict warning/linking gate PASS; exit code 0; log `artifacts/launcher-logs/ValidateAll-20260825-124542.log`.
+- **Evidence Boundary:** Automated source/markup, state transition, and localization contract tests verify component binding, error handling, and DOM structure. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and native select dialogs were not manually proven by this package and are not claimed.
+- **Remaining lifecycle:** None. Checkpoints `1/1`, `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY` are all complete for PR #162. The feature branch `fix/onboarding-settings-parity-feedback-v1` was deliberately preserved after merge; its preservation is not a production-state fact and does not affect merged `master` behavior.
   - PR #160 (`fix: repair manual preparation entry`): Repaired Schema-12 manual preparation entry persistence defect without requiring lexical lookup result, established contextual Definition/Translation authority, deterministic exact manual semantic reuse, streamlined UI with shared `.text-area` styling, dedicated validation, save/progression recovery isolation, and neutral End Preparation action. Merged to `793bd9959b9e17c2c4579df4c22a928bf8a4222a`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #158 (`feat: personalize home greeting`): Consumed synchronous `IDisplayNameStore` in `Home.razor` to render localized greeting before existing subtitle when a Display Name is configured, while preserving subtitle-only fallback when absent, unchanged Home title, Preferences storage, schema 12, and archive format V2. Merged to `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #156 (`fix: unify settings and onboarding visual consistency`): Unified Settings and onboarding around shared KnownFirst visual primitives (`.choice-grid`, `.choice-button.active`, `.field-group`, `.text-input`, `.button-row`, `.setting-feedback`, `.destructive-confirmation`), aligned Daily Budget UX visual order (`5 Recommended`, `1`, `10`, `Custom`) and range/validation contracts, added onboarding System Language and Appearance selection in Step 1, and normalized inline destructive confirmation for Online Dictionary consent revocation. Merged to `d8e14a699ef52030d542309015064d8ac0668508`. `POST_MERGE_SYNC_ONLY` completed.

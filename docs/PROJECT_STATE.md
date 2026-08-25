@@ -55,11 +55,12 @@ This document records stable, verified architectural facts and current capabilit
 - onboarding System Language and Appearance selection: System, English, German, Russian language options (with localized informational notice for unsupported device cultures), and Welcome-step System, Light, and Dark appearance selection backed by existing singleton services (merged via PR #156);
 - accessible inline destructive confirmation parity: explicit inline confirmation for Online Dictionary consent revocation in Onboarding and Settings, post-render focus transfer to Cancel, non-destructive Cancel and Escape dismissing confirmation and restoring focus to trigger, and destructive Confirm acting as the sole revocation execution path (merged via PR #156);
 - personalized Home greeting: `Home.razor` consumes the synchronous `IDisplayNameStore` singleton to render a localized greeting (`Welcome, {0}.` / `Willkommen, {0}.` / `Добро пожаловать, {0}.`) before the existing subtitle when a normalized Display Name is configured, while preserving the unchanged `KnownFirst` heading and subtitle-only fallback when absent (merged via PR #158);
-- manual Preparation reliability and UX: user-entered Definition or Translation without online lookup result, authoritative candidate lookup context mapping, exact manual semantic reuse without duplicate identities/cards, neutral End Preparation workflow action, save/progression recovery separation, and shared multiline visual primitives (merged via PR #160).
+- manual Preparation reliability and UX: user-entered Definition or Translation without online lookup result, authoritative candidate lookup context mapping, exact manual semantic reuse without duplicate identities/cards, neutral End Preparation workflow action, save/progression recovery separation, and shared multiline visual primitives (merged via PR #160);
+- first-run onboarding and Settings parity: native UI language selector matching Settings with shared `LanguagePreferencePolicy.UiLanguageOptions` source, explicit Online Dictionary Enable vs Keep Disabled decision buttons before first-run progression with confirmed destructive revocation, dynamic Display Name Skip labeling, benefit-oriented German compound decomposition ETR copy, Practice helper text reuse, and Summary Settings notice (merged via PR #162).
 
-## Onboarding & Settings Tester-Feedback Parity (Candidate Package in Progress)
+## Onboarding & Settings Tester-Feedback Parity (Merged Production State)
 
-Under review on branch `fix/onboarding-settings-parity-feedback-v1` (implementation checkpoint `6e64c6fa85e742c38c94b4a59a06f9adf2a273c8`; 0 review findings; full validation and PR pending).
+Merged to `master` via PR #162 (`fix: align onboarding with settings feedback`; merge commit `e29a292832612a0f5041636126628437a553c2a3`; validated PR head `d2171872cdfdf366642afa685924a23507d7dacd`). Full operational/lifecycle status: [docs/CURRENT_WORK.md](CURRENT_WORK.md).
 
 - **Scope & Parity Refinements:**
   - **Language Selection Native Parity:** Onboarding Step 1 (Welcome) replaces the four-button language choice grid with a native `<select id="onboarding-ui-language-select">` matching Settings, enclosed in `.field-group` with explicit `<label for=...>`, preserving immediate switching and system language detection.
@@ -69,7 +70,14 @@ Under review on branch `fix/onboarding-settings-parity-feedback-v1` (implementat
   - **Enhanced Term Recognition Copy:** Benefit-oriented description explaining German compound word decomposition into foundational vocabulary running offline on device, without general multi-language or AI claims.
   - **Practice Step Helper Text:** Reuses existing `Settings_CardDirectionHelp` and `Settings_LearningModeHelp` under Card Direction and Learning Mode titles with `aria-describedby`.
   - **Summary Settings Notice:** Added `Onboarding_SummarySettingsNotice` informing users that all choices can be changed later in Settings.
-- **Evidence Boundary:** Automated source/markup, state transition, and localization contract tests verify component binding, error handling, and DOM structure. Exact-candidate `FULL_VALIDATION` has not yet run. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and native select dialogs have not been manually proven by this package and are not claimed.
+- **Verification Evidence:**
+  - Initial genuine RED: 46 passed / 7 failed (failed on missing language select, shared options, dynamic skip, explicit consent choices, practice helpers, summary notice).
+  - Initial package-focused suite (GREEN): 204 passed / 0 failed.
+  - Targeted continuity/regression: 38 passed / 0 failed (`DisplayNameTests`, `LanguageSelectionServiceTests`).
+  - `git diff --check`: passed cleanly (0 errors).
+  - Consolidated code review: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
+  - Exact-candidate `FULL_VALIDATION` (validated PR head `d2171872cdfdf366642afa685924a23507d7dacd`): 2570 passed / 0 failed / 0 skipped; Windows Debug PASS; Windows Release PASS; Android Debug PASS; Android Release PASS; strict warning/linking gate PASS; exit code 0; log `artifacts/launcher-logs/ValidateAll-20260825-124542.log`.
+- **Evidence Boundary:** Automated source/markup, state transition, and localization contract tests verify component binding, error handling, and DOM structure. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and native select dialogs were not manually proven by this package and are not claimed.
 - **Persistence & Architecture Invariants:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2; Daily Pace presets, range (1..50), default (5), and warning (>15) unchanged; Learning Day minute precision (00..59) unchanged; zero network requests in onboarding or tests.
 
 ## Development, Tooling & Packaging Foundations

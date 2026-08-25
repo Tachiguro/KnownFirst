@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (Active candidate package `prepare-manual-entry-reliability-and-ux-v1` at commit `16fd61af079afbb0c4c67e0003bacfb102389ef8` on branch `fix/prepare-manual-entry-reliability-and-ux-v1` above baseline `origin/master` at `3ac3a797e47ba8cc672f039b69d65da7563cfd1f`; Schema is 12; Archive format is V2).
+2026-08-25 (Neutral post-merge state on master following manual merge and POST_MERGE_SYNC_ONLY of PR #160; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,18 +17,14 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `prepare-manual-entry-reliability-and-ux-v1` (Manual Preparation Reliability and UX).
-- **Branch:** `fix/prepare-manual-entry-reliability-and-ux-v1`
-- **Current candidate HEAD:** `16fd61af079afbb0c4c67e0003bacfb102389ef8`
-- **Current canonical baseline:** `origin/master` at `3ac3a797e47ba8cc672f039b69d65da7563cfd1f`.
-- **Package history (two checkpoint commits above baseline):**
-  - Commit 1: `193eb57d90e865dd688c88b9f1348876814c2f85` (`fix: repair manual preparation entry`, trailer `KnownFirst-Checkpoint: prepare-manual-entry-reliability-and-ux-v1 1/1 manual-entry-reliability-ux`)
-  - Commit 2: `16fd61af079afbb0c4c67e0003bacfb102389ef8` (`fix: address manual preparation review findings`, trailer `KnownFirst-Checkpoint: prepare-manual-entry-reliability-and-ux-v1 1/1 review-correction`)
-- **Review result:** Consolidated review completed with all findings resolved: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
-- **Lifecycle status:** `DOCUMENT_ONLY` reconciliation in progress.
-- **Next planned lifecycle steps:** `COMMIT_ONLY` (candidate finalization) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No schema migration, column changes, or archive format changes.
+- **Active work package:** None (Neutral post-merge state on `master`).
+- **Current canonical baseline:** PR #160 is merged on `master` at commit `793bd9959b9e17c2c4579df4c22a928bf8a4222a`.
+- **Lifecycle status:** PR #160 (`fix: repair manual preparation entry`) successfully completed its full multi-slice lifecycle: implementation checkpoints, consolidated review, documentation candidate finalization (`351abcd643f046e11993b4af93a1fb92ba437ea9`), exact-candidate `FULL_VALIDATION` (2568 tests passed, 0 warnings/errors), push, PR #160, manual user merge, and `POST_MERGE_SYNC_ONLY`. No repository-writing package is currently in flight.
+- **Next planned work:** None currently authorized; pending next roadmap priority.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+- **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #160 (`fix: repair manual preparation entry`): Repaired Schema-12 manual preparation entry persistence defect without requiring lexical lookup result, established contextual Definition/Translation authority, deterministic exact manual semantic reuse, streamlined UI with shared `.text-area` styling, dedicated validation, save/progression recovery isolation, and neutral End Preparation action. Merged to `793bd9959b9e17c2c4579df4c22a928bf8a4222a`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #158 (`feat: personalize home greeting`): Consumed synchronous `IDisplayNameStore` in `Home.razor` to render localized greeting before existing subtitle when a Display Name is configured, while preserving subtitle-only fallback when absent, unchanged Home title, Preferences storage, schema 12, and archive format V2. Merged to `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #156 (`fix: unify settings and onboarding visual consistency`): Unified Settings and onboarding around shared KnownFirst visual primitives (`.choice-grid`, `.choice-button.active`, `.field-group`, `.text-input`, `.button-row`, `.setting-feedback`, `.destructive-confirmation`), aligned Daily Budget UX visual order (`5 Recommended`, `1`, `10`, `Custom`) and range/validation contracts, added onboarding System Language and Appearance selection in Step 1, and normalized inline destructive confirmation for Online Dictionary consent revocation. Merged to `d8e14a699ef52030d542309015064d8ac0668508`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #155 (`feat: add first-run onboarding and daily budget ux`): Merged First-Run Onboarding & Daily-Budget UX Core package (`onboarding-core-v1`). Merged to `537e68eedf78dadb7b1ebff539954cd4d83228bf`. `POST_MERGE_SYNC_ONLY` completed.
@@ -38,9 +34,9 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - PR #153 (`feat: add onboarding install-origin foundation`): Merged First-Run Onboarding & Daily-Budget UX Slice 1 — application-local preference-backed onboarding state (`Required`/`InProgress`/`Completed`), startup install-origin classification via legacy preference evidence without database-file dependency, grandfathered legacy budget pinning (10), and destructive/non-destructive reset contracts. Merged to `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #154 (`docs: simplify multi-slice governance`): Established the multi-slice feature-package lifecycle — checkpoint commits with `KnownFirst-Checkpoint:` trailers, consolidated package-level review and documentation gates, candidate finalization without artificial empty commits, the interruption/resume contract, and anti-treadmill documentation discipline — while preserving every repository, safety, and exact-HEAD validation invariant. Merged to `18c1e7998c1ffc34607e0a6feb54e930996353bd`. `POST_MERGE_SYNC_ONLY` completed.
 
-## Manual Preparation Reliability & UX (Active Candidate Package)
+## Manual Preparation Reliability & UX (Merged Production State)
 
-Active candidate package `prepare-manual-entry-reliability-and-ux-v1` on branch `fix/prepare-manual-entry-reliability-and-ux-v1` at candidate HEAD `16fd61af079afbb0c4c67e0003bacfb102389ef8` above baseline `origin/master` at `3ac3a797e47ba8cc672f039b69d65da7563cfd1f`.
+Merged to `master` via PR #160 (`fix: repair manual preparation entry`; merge commit `793bd9959b9e17c2c4579df4c22a928bf8a4222a`; validated PR head `351abcd643f046e11993b4af93a1fb92ba437ea9`). Full architectural framing: [docs/PROJECT_STATE.md](PROJECT_STATE.md) "Manual Preparation Reliability & UX (Merged Production State)."
 
 - **Scope & Defect Repair:**
   - Repairs Schema-12 manual Preparation persistence defect: user-entered manual definitions or translations can now be accepted and saved without requiring an online lookup or lexical provider result. Manual fallback after an automatic lookup returns no selectable provider meaning is fully supported.
@@ -61,8 +57,9 @@ Active candidate package `prepare-manual-entry-reliability-and-ux-v1` on branch 
   - Targeted continuity after correction: 8 passed / 0 failed / 0 skipped.
   - `git diff --check`: passed.
   - Consolidated review: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
-- **Evidence Boundary:** Automated unit, integration, and structural UI contract tests verify state transitions, DOM bindings, and persistence contracts against isolated temporary SQLite databases. Exact-candidate-HEAD `FULL_VALIDATION` has NOT yet run on candidate HEAD. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and platform-specific layout were not manually proven by this package and are not claimed.
-- **Lifecycle Sequence:** Checkpoint commits `1/1` complete → consolidated review approved → `DOCUMENT_ONLY` reconciliation in progress → next: `COMMIT_ONLY` → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+  - Exact-candidate `FULL_VALIDATION` (validated PR head `351abcd643f046e11993b4af93a1fb92ba437ea9`): 2568 passed / 0 failed / 0 skipped; Windows Debug PASS; Windows Release PASS; Android Debug PASS; Android Release PASS; strict warning/linking gate PASS; exit code 0; log `artifacts/launcher-logs/ValidateAll-20260825-060457.log`.
+- **Evidence Boundary:** Automated source/markup, behavior, persistence, and localization contract tests verify component binding, error handling, state transitions, and DOM structure. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and platform-specific layout were not manually proven by this package and are not claimed.
+- **Remaining lifecycle:** None. Checkpoints `1/1`, `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY` are all complete for PR #160. The feature branch `fix/prepare-manual-entry-reliability-and-ux-v1` was deliberately preserved after merge; its preservation is not a production-state fact and does not affect merged `master` behavior.
 
 ## Verified Baseline & Release Boundaries
 

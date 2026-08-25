@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (Active package home-personalization-greeting-v1 on feature/home-personalization-greeting-v1; Schema is 12; Archive format is V2).
+2026-08-25 (Neutral post-merge state on master@955b27695eb0e1761b8c9f9604cbfbf1335e57b6 following manual merge and POST_MERGE_SYNC_ONLY of PR #158; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,13 +17,14 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `home-personalization-greeting-v1` (Milestone 19h).
-- **Current canonical baseline:** Discoverable dynamically from Git/GitHub (previous merged package PR #156 on `master` at commit `d8e14a699ef52030d542309015064d8ac0668508`).
-- **Lifecycle status:** Single implementation slice completed (checkpoint `1/1`: `831787d46104f18f8e99dcad215c93743e0e4ee9`), consolidated review approved (`REVIEW_APPROVED_FOR_DOCUMENT_ONLY`), documentation reconciliation in progress.
-- **Next planned work:** Candidate finalization (`COMMIT_ONLY`), exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY`.
+- **Active work package:** None (Neutral post-merge state on `master`).
+- **Current canonical baseline:** PR #158 is merged on `master` at commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`.
+- **Lifecycle status:** PR #158 (`feat: personalize home greeting`) successfully completed its full multi-slice lifecycle: implementation checkpoint `1/1`, consolidated review, documentation candidate finalization (`ddc5663b5cc6b7b6b9494646d3977441ea9f1e66`), exact-candidate `FULL_VALIDATION` (2543 tests passed, 0 warnings/errors), push, PR #158, manual user merge, and `POST_MERGE_SYNC_ONLY`. No repository-writing package is currently in flight.
+- **Next planned work:** None currently authorized; pending next roadmap priority.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
-- **Package provenance & live state:** Authoritative live checkout/branch (`feature/home-personalization-greeting-v1`), worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
+- **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #158 (`feat: personalize home greeting`): Consumed synchronous `IDisplayNameStore` in `Home.razor` to render localized greeting before existing subtitle when a Display Name is configured, while preserving subtitle-only fallback when absent, unchanged Home title, Preferences storage, schema 12, and archive format V2. Merged to `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #156 (`fix: unify settings and onboarding visual consistency`): Unified Settings and onboarding around shared KnownFirst visual primitives (`.choice-grid`, `.choice-button.active`, `.field-group`, `.text-input`, `.button-row`, `.setting-feedback`, `.destructive-confirmation`), aligned Daily Budget UX visual order (`5 Recommended`, `1`, `10`, `Custom`) and range/validation contracts, added onboarding System Language and Appearance selection in Step 1, and normalized inline destructive confirmation for Online Dictionary consent revocation. Merged to `d8e14a699ef52030d542309015064d8ac0668508`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #155 (`feat: add first-run onboarding and daily budget ux`): Merged First-Run Onboarding & Daily-Budget UX Core package (`onboarding-core-v1`). Merged to `537e68eedf78dadb7b1ebff539954cd4d83228bf`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #144 (`feat: add settings GUI and learning-day defaults`): Merged Settings GUI & Learning-Day Defaults Slice 2A. `POST_MERGE_SYNC_ONLY` completed.
@@ -56,9 +57,9 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 - **Final Release AAB:** **COMPLETED / VERIFIED LOCALLY** (`KnownFirst-1.0.0-beta.13-code14.aab`, `48,002,097` bytes, SHA-256 `7a84da599ae7435614d95ff316707669d69e21b311fe252f5419ac9cb8ecbbcd`, `StrictVerified`, built from certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`).
 - **Google Play Internal Testing Upload/Distribution:** **NOT YET PERFORMED / NOT AUTHORIZED BY CURRENT REQUEST** (Google Play Console upload for code14 requires separate explicit user authorization). Closed Testing, Open Testing, Production, and public rollout remain unauthorized.
 
-## Home Personalization & Greeting (Candidate Feature Package on `feature/home-personalization-greeting-v1`)
+## Home Personalization & Greeting (Merged Production State)
 
-**Lifecycle status:** Implementation slice complete (checkpoint `1/1`: `831787d46104f18f8e99dcad215c93743e0e4ee9`), consolidated review approved (`REVIEW_APPROVED_FOR_DOCUMENT_ONLY`), documentation reconciliation in progress. Candidate branch state on `feature/home-personalization-greeting-v1`.
+Merged to `master` via PR #158 (`feat: personalize home greeting`; merge commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`; validated PR head `ddc5663b5cc6b7b6b9494646d3977441ea9f1e66`). Full architectural framing: [docs/PROJECT_STATE.md](PROJECT_STATE.md) "Home Personalization & Greeting (Merged Production State)."
 
 - **Scope:** `Home.razor` consumes the existing synchronous `IDisplayNameStore` singleton.
 - **Personalized Greeting:** When a normalized Display Name is present, renders a localized greeting (`Home_Greeting`) before the existing subtitle (`Home_Subtitle`) with a single whitespace separator:
@@ -71,8 +72,9 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 - **Non-Goals:** No account, profile, cloud identity, new persistence abstraction, time-of-day greeting, avatar, Home redesign, or unrelated personalization.
 - **Focused Evidence:** Genuine RED (155 passed / 3 failed / 0 skipped) → identical GREEN (158 passed / 0 failed / 0 skipped across `LocalizationResourceTests`, `UiWorkflowContractTests`), with clean `git diff --check`.
 - **Consolidated Review:** 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; decision `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
+- **Exact-Head `FULL_VALIDATION` (validated PR head `ddc5663b5cc6b7b6b9494646d3977441ea9f1e66`):** 2543 passed / 0 failed / 0 skipped; Windows Debug PASS; Windows Release PASS; Android Debug PASS; Android Release PASS; strict warning/linking gate PASS; exit code 0; log `artifacts/launcher-logs/ValidateAll-20260825-022629.log`.
 - **Evidence Boundary:** Automated source/markup and localization contract tests verify component binding, localized formatting, and DOM structure. Rendered WebView/layout behavior was not proven and is not claimed.
-- **Remaining Lifecycle:** `DOCUMENT_ONLY` reconciliation, candidate finalization / `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY`.
+- **Remaining lifecycle:** none. Checkpoint `1/1`, `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY` are all complete for Milestone 19h. The feature branch `feature/home-personalization-greeting-v1` was deliberately preserved after merge; its preservation is not a production-state fact and does not affect merged `master` behavior.
 
 ## Daily New-Word Budget & Learning-Day Infrastructure — Slice 1 (Merged Production State)
 
@@ -179,7 +181,7 @@ Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding i
 
 1. ~~**Install-Origin Foundation & Reset Contracts.**~~ Completed — merged via PR #153 (merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`).
 2. ~~**First-Run Onboarding + Daily New-Word Budget UX Core (`onboarding-core-v1` & `visual-consistency-v1`).**~~ Completed — merged via PR #155 and PR #156.
-3. **Home greeting/personalization (active package `home-personalization-greeting-v1`, Milestone 19h).** Implementation slice complete (checkpoint `1/1`: `831787d46104f18f8e99dcad215c93743e0e4ee9`), consolidated review approved (`REVIEW_APPROVED_FOR_DOCUMENT_ONLY`), documentation reconciliation in progress.
+3. ~~**Home greeting/personalization (Milestone 19h).**~~ Completed — merged via PR #158 (merge commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`).
 
 ### German Enhanced Term Recognition sequence — complete through Package 5B
 

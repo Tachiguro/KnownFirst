@@ -53,7 +53,8 @@ This document records stable, verified architectural facts and current capabilit
 - unified Settings and first-run onboarding visual primitives and controls: shared design tokens (eliminating `--kf-color-*`), semantic button variants (`button-primary`, `button-secondary`, `button-danger`), shared choice grids and active states (`.choice-button.active`, `aria-pressed`), input formatting (`.text-input`, `.field-group`, native select styling), and shared feedback banners (`.setting-feedback`) (merged via PR #156);
 - daily new-word budget parity across Settings and Onboarding: consistent visual order (`5 Recommended`, `1`, `10`, `Custom`), contiguous range `1..50`, default `5`, non-blocking advisory warning `>15`, and semantic commit boundary canonicalization (merged via PR #156);
 - onboarding System Language and Appearance selection: System, English, German, Russian language options (with localized informational notice for unsupported device cultures), and Welcome-step System, Light, and Dark appearance selection backed by existing singleton services (merged via PR #156);
-- accessible inline destructive confirmation parity: explicit inline confirmation for Online Dictionary consent revocation in Onboarding and Settings, post-render focus transfer to Cancel, non-destructive Cancel and Escape dismissing confirmation and restoring focus to trigger, and destructive Confirm acting as the sole revocation execution path (merged via PR #156).
+- accessible inline destructive confirmation parity: explicit inline confirmation for Online Dictionary consent revocation in Onboarding and Settings, post-render focus transfer to Cancel, non-destructive Cancel and Escape dismissing confirmation and restoring focus to trigger, and destructive Confirm acting as the sole revocation execution path (merged via PR #156);
+- personalized Home greeting: `Home.razor` consumes the synchronous `IDisplayNameStore` singleton to render a localized greeting (`Welcome, {0}.` / `Willkommen, {0}.` / `Добро пожаловать, {0}.`) before the existing subtitle when a normalized Display Name is configured, while preserving the unchanged `KnownFirst` heading and subtitle-only fallback when absent (merged via PR #158).
 
 ## Development, Tooling & Packaging Foundations
 
@@ -199,9 +200,9 @@ This multi-slice package completes first-run onboarding and daily new-word budge
   - *Non-Destructive Restore Default Settings:* Preserves `OnboardingState` and `onboarding_step` progress, preserves Display Name, preserves online lookup consent, and resets daily budget to `5`.
 - **Persistence Boundary:** Database schema remains 12; portable archive format remains V2. All onboarding, progress, and Display Name states reside in application Preferences.
 
-## Home Personalization & Greeting (Candidate Feature Package on `feature/home-personalization-greeting-v1`)
+## Home Personalization & Greeting (Merged Production State)
 
-**Lifecycle status:** Implementation slice complete (checkpoint `1/1`: `831787d46104f18f8e99dcad215c93743e0e4ee9`), consolidated review approved (`REVIEW_APPROVED_FOR_DOCUMENT_ONLY`), documentation reconciliation in progress. Candidate branch state on `feature/home-personalization-greeting-v1`.
+**Lifecycle status:** Merged production `master` state via PR #158 (`feat: personalize home greeting`; merge commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`; validated PR head `ddc5663b5cc6b7b6b9494646d3977441ea9f1e66`). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 
 - **Scope & Consumption:** `Home.razor` consumes the synchronous `IDisplayNameStore` singleton.
 - **Localized Personalized Greeting:** When a normalized Display Name is present, renders a localized greeting (`Home_Greeting`) before the existing subtitle (`Home_Subtitle`) separated by a single whitespace:

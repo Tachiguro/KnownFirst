@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (Neutral post-merge state on master@955b27695eb0e1761b8c9f9604cbfbf1335e57b6 following manual merge and POST_MERGE_SYNC_ONLY of PR #158; Schema is 12; Archive format is V2).
+2026-08-25 (Active candidate package `prepare-manual-entry-reliability-and-ux-v1` at commit `16fd61af079afbb0c4c67e0003bacfb102389ef8` on branch `fix/prepare-manual-entry-reliability-and-ux-v1` above baseline `origin/master` at `3ac3a797e47ba8cc672f039b69d65da7563cfd1f`; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,12 +17,17 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** None (Neutral post-merge state on `master`).
-- **Current canonical baseline:** PR #158 is merged on `master` at commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`.
-- **Lifecycle status:** PR #158 (`feat: personalize home greeting`) successfully completed its full multi-slice lifecycle: implementation checkpoint `1/1`, consolidated review, documentation candidate finalization (`ddc5663b5cc6b7b6b9494646d3977441ea9f1e66`), exact-candidate `FULL_VALIDATION` (2543 tests passed, 0 warnings/errors), push, PR #158, manual user merge, and `POST_MERGE_SYNC_ONLY`. No repository-writing package is currently in flight.
-- **Next planned work:** None currently authorized; pending next roadmap priority.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
-- **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
+- **Active work package:** `prepare-manual-entry-reliability-and-ux-v1` (Manual Preparation Reliability and UX).
+- **Branch:** `fix/prepare-manual-entry-reliability-and-ux-v1`
+- **Current candidate HEAD:** `16fd61af079afbb0c4c67e0003bacfb102389ef8`
+- **Current canonical baseline:** `origin/master` at `3ac3a797e47ba8cc672f039b69d65da7563cfd1f`.
+- **Package history (two checkpoint commits above baseline):**
+  - Commit 1: `193eb57d90e865dd688c88b9f1348876814c2f85` (`fix: repair manual preparation entry`, trailer `KnownFirst-Checkpoint: prepare-manual-entry-reliability-and-ux-v1 1/1 manual-entry-reliability-ux`)
+  - Commit 2: `16fd61af079afbb0c4c67e0003bacfb102389ef8` (`fix: address manual preparation review findings`, trailer `KnownFirst-Checkpoint: prepare-manual-entry-reliability-and-ux-v1 1/1 review-correction`)
+- **Review result:** Consolidated review completed with all findings resolved: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
+- **Lifecycle status:** `DOCUMENT_ONLY` reconciliation in progress.
+- **Next planned lifecycle steps:** `COMMIT_ONLY` (candidate finalization) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No schema migration, column changes, or archive format changes.
 - **Previous merged packages:**
   - PR #158 (`feat: personalize home greeting`): Consumed synchronous `IDisplayNameStore` in `Home.razor` to render localized greeting before existing subtitle when a Display Name is configured, while preserving subtitle-only fallback when absent, unchanged Home title, Preferences storage, schema 12, and archive format V2. Merged to `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #156 (`fix: unify settings and onboarding visual consistency`): Unified Settings and onboarding around shared KnownFirst visual primitives (`.choice-grid`, `.choice-button.active`, `.field-group`, `.text-input`, `.button-row`, `.setting-feedback`, `.destructive-confirmation`), aligned Daily Budget UX visual order (`5 Recommended`, `1`, `10`, `Custom`) and range/validation contracts, added onboarding System Language and Appearance selection in Step 1, and normalized inline destructive confirmation for Online Dictionary consent revocation. Merged to `d8e14a699ef52030d542309015064d8ac0668508`. `POST_MERGE_SYNC_ONLY` completed.
@@ -32,6 +37,32 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - PR #152 (`docs: record build14 aab packaging evidence`): Reconciled durable release documentation with physical Google Play AAB bundle `KnownFirst-1.0.0-beta.13-code14.aab` produced and verified locally on certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Merged to `2a5b10735a1ea27e3db348e0cd855d7768376372`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #153 (`feat: add onboarding install-origin foundation`): Merged First-Run Onboarding & Daily-Budget UX Slice 1 — application-local preference-backed onboarding state (`Required`/`InProgress`/`Completed`), startup install-origin classification via legacy preference evidence without database-file dependency, grandfathered legacy budget pinning (10), and destructive/non-destructive reset contracts. Merged to `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #154 (`docs: simplify multi-slice governance`): Established the multi-slice feature-package lifecycle — checkpoint commits with `KnownFirst-Checkpoint:` trailers, consolidated package-level review and documentation gates, candidate finalization without artificial empty commits, the interruption/resume contract, and anti-treadmill documentation discipline — while preserving every repository, safety, and exact-HEAD validation invariant. Merged to `18c1e7998c1ffc34607e0a6feb54e930996353bd`. `POST_MERGE_SYNC_ONLY` completed.
+
+## Manual Preparation Reliability & UX (Active Candidate Package)
+
+Active candidate package `prepare-manual-entry-reliability-and-ux-v1` on branch `fix/prepare-manual-entry-reliability-and-ux-v1` at candidate HEAD `16fd61af079afbb0c4c67e0003bacfb102389ef8` above baseline `origin/master` at `3ac3a797e47ba8cc672f039b69d65da7563cfd1f`.
+
+- **Scope & Defect Repair:**
+  - Repairs Schema-12 manual Preparation persistence defect: user-entered manual definitions or translations can now be accepted and saved without requiring an online lookup or lexical provider result. Manual fallback after an automatic lookup returns no selectable provider meaning is fully supported.
+  - Definition/Translation authority: candidate lookup context (derived from owning Document) authoritatively maps manual input: Definition context persists Definition only (with null Translation); Translation context persists Translation only (with empty Definition). Legacy `DefinitionAndTranslation` remains a bounded compatibility exception. Irrelevant hidden values cannot redirect semantic identity or persistence.
+  - Manual semantic identity & reuse: exact repeated manual semantic meaning for the same vocabulary identity reuses the existing appropriate Sense/Meaning via exact meaning variant identity matching, creating no duplicate Senses, Meanings, or LearningCards. Genuinely different manual meanings remain separate under split-not-guess behavior.
+  - Provenance & frozen evidence: manual acceptance does not fabricate provider result data (no fake provider Meaning ID, source project/page/revision, attribution, or resolved index). Retained German derived whole-compound evidence and candidate frozen evidence remain authoritative and preserved.
+  - Simplified manual UX: normal editor presents one primary multiline answer field (Definition or Translation) using shared `.text-area` styling; redundant form controls (canonical term, encountered form, Additional Note) are removed from the normal editor; candidate term and metadata remain visible; Advanced options are collapsed by default (Acronym expansion when applicable, Accepted spelling aliases).
+  - Validation & error handling: mode-specific localized validation errors for empty Definition (Definition mode) or empty Translation (Translation mode) with automatic reveal and focus. Unexpected errors remain safely logged without exposing raw exception details.
+  - Save-versus-progression recovery: successful acceptance is committed to SQLite before attempting next-item loading; if next-item retrieval fails, the UI reports that the item was saved but the next item could not be loaded, and Retry executes progression/loading only without repeating acceptance.
+  - Preparation action semantics: neutral/secondary bottom-area "End preparation" action with inline confirmation; competing disposition actions are suppressed during confirmation; accepted learning content and lasting Known/Ignored decisions are preserved; unresolved and skipped items return to backlog.
+  - Persistence invariants: `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No schema migration, column additions, or archive format changes.
+- **Verification Evidence:**
+  - Initial genuine RED: manual Definition without lexical result failed with `InvalidOperationException: The preparation candidate has no lexical result to accept.`
+  - Initial package-focused suite: 200 passed / 0 failed / 0 skipped.
+  - Initial targeted continuity: 8 passed / 0 failed / 0 skipped.
+  - Correction-focused suite: 10 passed / 0 failed / 0 skipped.
+  - Complete package-focused suite after correction: 210 passed / 0 failed / 0 skipped.
+  - Targeted continuity after correction: 8 passed / 0 failed / 0 skipped.
+  - `git diff --check`: passed.
+  - Consolidated review: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
+- **Evidence Boundary:** Automated unit, integration, and structural UI contract tests verify state transitions, DOM bindings, and persistence contracts against isolated temporary SQLite databases. Exact-candidate-HEAD `FULL_VALIDATION` has NOT yet run on candidate HEAD. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and platform-specific layout were not manually proven by this package and are not claimed.
+- **Lifecycle Sequence:** Checkpoint commits `1/1` complete → consolidated review approved → `DOCUMENT_ONLY` reconciliation in progress → next: `COMMIT_ONLY` → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
 
 ## Verified Baseline & Release Boundaries
 

@@ -687,13 +687,26 @@ For every automatic result, the user can:
 
 Automatic preparation must never require typing when a usable result was found.
 
+### 17.1 Manual preparation and acceptance architecture
+
+Manual preparation accepts user-entered definitions or translations without requiring an online lookup result:
+
+- **Candidate Lookup Context:** Context is authoritatively derived from the owning document of the candidate's first context occurrence (`CandidateLookupContext`), defining `LookupMode`, `TargetLanguage`, and `ExplanationLanguage`. If no document context exists, it falls back deterministically to Definition mode.
+- **Manual Input Normalization:** Manual input is normalized strictly by lookup mode: Definition mode sets `Translation = null`; Translation mode sets `Definition = string.Empty`. Legacy `DefinitionAndTranslation` remains supported as a bounded compatibility mode.
+- **Provenance Stripping:** Manual entries carry no fabricated provider data: `SelectedMeaningId`, provider name, source project, source page title, source revision, and attribution are cleared or empty. Candidate payload `ResolvedProviderMeaningIndexes` remains unchanged without claiming synthetic provider index resolution.
+- **Exact Manual Semantic Reuse:** When accepting a manual input for a vocabulary identity with existing senses, `TryFindExactManualMeaning` compares candidate `ExactMeaningVariantIdentityPolicy` against existing manual meanings under matching `SemanticMeaningIdentity`. An exact match reuses the existing `Sense` and `Meaning` rather than allocating duplicate entities or duplicate `LearningCards`. Genuinely distinct manual meanings remain split under the split-not-guess principle.
+- **Evidence Linkage:** Candidate frozen evidence and retained German derived whole-compound evidence link to the reused or newly created `Sense`/`Meaning` without fabricating occurrences.
+- **Transactional Save and Progression Separation:** `AcceptSchema8` transactionally commits the Sense, Meaning, ContextSnapshot, LearningCard, and `Word.PreparationState = Prepared` state before next-item loading occurs. Next-candidate retrieval failures are isolated from acceptance, preventing false save failure reports and ensuring progression-only retry safety.
+
+### 17.2 Preparation dispositions and batch lifecycle
+
 Preparation disposition semantics are transactional:
 
-- **Mark as known** stores the minimal PermanentlyKnown marker, creates no learning cards, removes obsolete occurrence/context/frequency data, updates cleanup eligibility, and advances one candidate.
-- **Do not learn** stores the minimal exact `Ignored` marker, creates no learning cards, excludes no related identity, removes obsolete preparation data, and advances one candidate.
+- **Mark as known** (status `WordStatus.Known`) stores the minimal PermanentlyKnown marker, creates no learning cards, removes obsolete occurrence/context/frequency data, updates cleanup eligibility, and advances one candidate.
+- **Do not learn** (status `WordStatus.Ignored`) stores the minimal exact `Ignored` marker, creates no learning cards, excludes no related identity, removes obsolete preparation data, and advances one candidate.
 - **Skip for now** completes only the current batch candidate, leaves the word Unknown and Unprepared for later batches, and cannot cycle within the same session.
 
-Back navigation, Home navigation, application suspension, and application restart pause an active preparation session so Home continues to offer **Continue preparation**. **Cancel preparation** is different: it marks the batch cancelled, keeps accepted prepared items and their learning cards, returns unresolved and skipped words to Unknown/Unprepared, clears transient result/error state, and leaves no active preparation method. A partially completed batch requires confirmation. The next Prepare Words entry starts with the Automatic/Manual method choice, and later selection must not duplicate already prepared vocabulary.
+Back navigation, Home navigation, application suspension, and application restart pause an active preparation session so Home continues to offer **Continue preparation**. **End preparation** is a neutral/secondary workflow action in the bottom action bar: it marks the batch ended, keeps accepted prepared items and their learning cards, returns unresolved and skipped words to Unknown/Unprepared, clears transient result/error state, and leaves no active preparation method. While confirmation is open, competing disposition actions are suppressed. The next Prepare Words entry starts with the Automatic/Manual method choice, and later selection must not duplicate already prepared vocabulary.
 
 The next active candidate is selected with a bounded ordered query. Accepting an already loaded result performs no lexical request. At most one following lexical result is prefetched; the prefetch is deduplicated, cancellable, and consumed only for its matching candidate.
 

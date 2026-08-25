@@ -133,7 +133,7 @@ Each applicable surface must handle these states without broken layout, missing 
 
 ### 9.1 Import Text
 
-- The text area is responsive, bounded on desktop, compact on mobile, and internally scrollable.
+- The text area uses centralized `.text-area` styling, is responsive, bounded on desktop, compact on mobile, and internally scrollable.
 - Imported text is never truncated or modified.
 - Source language, lookup mode, and primary action remain reasonably discoverable without excessive empty space.
 
@@ -146,10 +146,16 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.3 Prepare Words
 
 - Method selection appears once at the start of a new batch.
-- Loading, result, no-result, failure, retry, manual-edit, and validation states are visually distinct.
-- A validation error is close to the relevant fields and primary action, is scrolled fully into view, and focuses the first relevant invalid field.
+- Loading, result, no-result, failure, retry, manual-edit, progression-recovery, and validation states are visually distinct.
+- Manual preparation presents one primary multiline answer field (Definition or Translation based on import context) using centralized `.text-area` styling (shared typography, border, radius, background, padding, focus ring, disabled state, and vertical resize); legacy combined mode is retained as a bounded compatibility exception.
+- Advanced options (Acronym expansion when applicable, Accepted spelling aliases) are collapsed by default.
+- Redundant form inputs (canonical term, encountered form, Additional Note) are removed from the normal manual editor; candidate term and metadata remain visible.
+- Mode-specific validation displays dedicated localized errors for empty Definition / empty Translation, is scrolled fully into view, and focuses the invalid field.
 - Choosing another meaning uses a bounded, accessible presentation that wraps long values.
+- "End preparation" is styled as a neutral/secondary action in the bottom workflow action bar with inline confirmation; competing disposition actions are suppressed while confirmation is open.
+- When next-candidate retrieval fails after a successful save, the UI renders a dedicated save-success / progression-recovery banner with a progression-only Retry button and schedules reveal/focus to the Retry button.
 - Fixed actions remain reachable without covering the current candidate or form.
+- Automated test coverage verifies structural DOM contracts, accessibility relationships, and state transitions; rendered WebView appearance, actual Windows focus behavior, Android touch behavior, and platform-specific layout are not manually proven by this package and are not claimed.
 
 ### 9.4 Learn
 

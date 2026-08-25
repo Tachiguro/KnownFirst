@@ -506,7 +506,7 @@ Actions:
 - Mark as known / Als bekannt markieren
 - Do not learn / Nicht lernen
 - Skip for now / Später
-- Cancel preparation / Vorbereitung beenden
+- End preparation / Vorbereitung beenden
 
 Normal automatic preparation requires no typing when a usable result exists.
 
@@ -553,39 +553,50 @@ The explicit outcomes are `Success`, `NotFound`, `TransientFailure`, `PermanentF
 
 ### 11.4 Preparation dispositions and transition performance
 
-- **Mark as known** requires confirmation, stores the minimal PermanentlyKnown marker, creates no cards, removes obsolete preparation/context/frequency data transactionally, updates document-cleanup eligibility, and advances exactly once.
-- **Do not learn** requires a scope explanation, stores a minimal exact exclusion marker that is not Known, creates no cards, excludes no related identity, and advances exactly once.
+- **Mark as known** (status `WordStatus.Known`) requires confirmation, stores the minimal PermanentlyKnown marker, means the vocabulary item is known and should not be learned/reviewed normally (distinct from exclusion), creates no cards, removes obsolete preparation/context/frequency data transactionally, updates document-cleanup eligibility, and advances exactly once.
+- **Do not learn** (status `WordStatus.Ignored`) requires a scope explanation, stores a minimal exact exclusion marker that is not Known, creates no cards, excludes no related identity, removes obsolete preparation data, and advances exactly once.
 - **Skip for now** removes the candidate only from the current batch, leaves it Unknown and Unprepared for future batches, and cannot repeat within the same session even when every item is skipped.
 
-Back or Home pauses the active batch and preserves its method and current candidate. **Cancel preparation** ends the batch: accepted items remain prepared, while unresolved and skipped items return to the Unknown/Unprepared backlog. Partially completed cancellation requires confirmation. The next entry shows the Automatic/Manual choice and creates no duplicate candidate for accepted vocabulary.
+Back or Home pauses the active batch and preserves its method and current candidate. **End preparation** ends the batch: it is a neutral/secondary workflow action located in the bottom action bar. While its confirmation panel is open, competing disposition actions are suppressed. Confirmation ends the batch and its resumability: accepted items remain prepared and lasting Known/Ignored decisions are preserved, while unresolved and skipped items return to the Unknown/Unprepared backlog. It does not delete accepted learning content. The next entry shows the Automatic/Manual choice and creates no duplicate candidate for accepted vocabulary.
 
-Accepting a loaded result performs no network request. Query only the current/next required state, prefetch at most one matching next lexical result with cancellation and deduplication, reject double submission, and delay the spinner until the transition is perceptible. DEBUG diagnostics measure validation, database transaction, prepared-meaning save, card creation, session update, next-candidate query, context loading, UI transition, and network work with a monotonic timer.
+Accepting a loaded result performs no network request. Query only the current/next required state, prefetch at most one matching next lexical result with cancellation and deduplication, reject double submission, and delay the spinner until the transition is perceptible.
+
+**Save-versus-progression recovery:** Successful acceptance is transactionally committed before retrieving the next candidate. If retrieving or loading the next candidate fails, the UI reports that the item was saved but the next item could not be loaded, and Retry executes progression/loading only without repeating acceptance.
+
+DEBUG diagnostics measure validation, database transaction, prepared-meaning save, card creation, session update, next-candidate query, context loading, UI transition, and network work with a monotonic timer.
 
 ---
 
 ## 12. Manual preparation
 
-Manual entry is optional fallback behavior.
+Manual entry is the fallback preparation mode when no dictionary result is available or when the user chooses manual editing.
 
-Fields:
+Display:
+- candidate term and encountered surface form / token kind metadata, read-only
+- original contexts while editing
 
-- canonical term, read-only
-- encountered form, read-only
-- acronym expansion, optional
-- translation, optional
-- definition, optional
-- additional note, optional
-- accepted answer aliases, optional
+Primary fields:
+- **Normal Definition mode:** one primary multiline Definition field using shared `.text-area` styling.
+- **Normal Translation mode:** one primary multiline Translation field using shared `.text-area` styling.
+- **Legacy combined mode:** bounded two-field compatibility exception only.
 
-Show original contexts while editing.
+The normal editor removes redundant form controls for canonical term, encountered form, and Additional Note.
+
+Advanced options (collapsed by default):
+- Acronym expansion (optional, shown when applicable)
+- Accepted spelling aliases (optional, affects accepted typed answers; aliases are not extra cards)
 
 Actions:
+- Save and continue / Übernehmen und weiter
+- Skip for now / Später
+- Cancel manual entry / Abbrechen (returns to lookup result or lookup state for the current candidate)
 
-- Save and continue
-- Skip for now
-- Cancel
-
-Require at least one of acronym expansion, translation, or definition. The validation is localized. Save transactionally, reject double submission, advance exactly once, and focus/scroll the next item. Cancel editing returns to the same candidate and contexts.
+Validation & error behavior:
+- Empty Definition in Definition mode receives a dedicated localized error (`Please enter a definition.`).
+- Empty Translation in Translation mode receives a dedicated localized error (`Please enter a translation.`).
+- Input validation failures focus and reveal the relevant invalid field.
+- Unexpected errors remain safely logged without exposing raw exception details.
+- Save commits transactionally. If next-item loading fails after save, the UI provides progression-only Retry.
 
 ---
 

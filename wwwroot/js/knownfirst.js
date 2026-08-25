@@ -23,6 +23,36 @@ window.knownFirst = {
             element.focus({ preventScroll: true });
         }
     },
+    breakpoints: {
+        _desktopEntryRegistrations: new Map(),
+        registerDesktopEntry: (registrationId, dotNetHelper) => {
+            window.knownFirst.breakpoints.unregisterDesktopEntry(registrationId);
+
+            const mediaQuery = window.matchMedia("(min-width: 800px)");
+            const handler = event => {
+                if (!event.matches) {
+                    return;
+                }
+
+                dotNetHelper.invokeMethodAsync("OnDesktopBreakpointEntered");
+            };
+
+            mediaQuery.addEventListener("change", handler);
+            window.knownFirst.breakpoints._desktopEntryRegistrations.set(
+                registrationId,
+                { mediaQuery, handler });
+        },
+        unregisterDesktopEntry: registrationId => {
+            const registration = window.knownFirst.breakpoints._desktopEntryRegistrations.get(registrationId);
+            if (!registration) {
+                return;
+            }
+
+            const { mediaQuery, handler } = registration;
+            mediaQuery.removeEventListener("change", handler);
+            window.knownFirst.breakpoints._desktopEntryRegistrations.delete(registrationId);
+        }
+    },
     shortcuts: {
         register: (pageId, dotNetHelper) => {
             if (!window.knownFirst.shortcuts._handlers) {

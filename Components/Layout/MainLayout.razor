@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
-@implements IDisposable
+@implements IAsyncDisposable
+@inject IJSRuntime JavaScript
 @inject NavigationManager Navigation
 @inject INavigationHistoryService NavigationHistory
 @inject ILogger<MainLayout> Logger
@@ -48,6 +49,8 @@
 @code {
     private bool _isMenuOpen;
     private IDisposable? _menuBackRegistration;
+    private readonly string _desktopBreakpointRegistrationId = Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<MainLayout>? _desktopBreakpointReference;
     private string _currentRoute = string.Empty;
 
     private string MenuButtonLabel => Localizer[_isMenuOpen
@@ -74,10 +77,48 @@
         Navigation.LocationChanged += OnLocationChanged;
     }
 
-    public void Dispose()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _desktopBreakpointReference = DotNetObjectReference.Create(this);
+            await JavaScript.InvokeVoidAsync(
+                "knownFirst.breakpoints.registerDesktopEntry",
+                _desktopBreakpointRegistrationId,
+                _desktopBreakpointReference);
+        }
+    }
+
+    [JSInvokable("OnDesktopBreakpointEntered")]
+    public Task OnDesktopBreakpointEnteredAsync() => InvokeAsync(() =>
+    {
+        if (_isMenuOpen)
+        {
+            CloseMenu();
+            StateHasChanged();
+        }
+    });
+
+    public async ValueTask DisposeAsync()
     {
         Navigation.LocationChanged -= OnLocationChanged;
-        _menuBackRegistration?.Dispose();
+        CloseMenu();
+
+        try
+        {
+            await JavaScript.InvokeVoidAsync(
+                "knownFirst.breakpoints.unregisterDesktopEntry",
+                _desktopBreakpointRegistrationId);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (TaskCanceledException)
+        {
+        }
+
+        _desktopBreakpointReference?.Dispose();
+        _desktopBreakpointReference = null;
     }
 
     private void ToggleMenu()

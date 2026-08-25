@@ -1976,12 +1976,36 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void Home_DoesNotConsumeTheDisplayNameInThisSlice()
+    public void Home_PersonalizedGreetingConsumesTheNormalizedDisplayNameContract()
     {
-        // Home greeting/personalization is deliberately a later package.
         var markup = LoadUi("Home.razor");
 
-        Assert.DoesNotContain("DisplayName", markup, StringComparison.Ordinal);
+        Assert.Contains("@inject KnownFirst.Services.Settings.IDisplayNameStore DisplayNameStore", markup);
+        Assert.Contains("_displayName = DisplayNameStore.GetDisplayName();", markup);
+        Assert.Contains("@if (_displayName is not null)", markup);
+        Assert.Contains("@Localizer[\"Home_Greeting\", _displayName]", markup);
+    }
+
+    [TestMethod]
+    public void Home_PersonalizedGreetingPreservesTheSubtitleAndHasNoBlankFallbackPath()
+    {
+        var markup = LoadUi("Home.razor");
+        var subtitleStart = markup.IndexOf("<p class=\"subtitle\">", StringComparison.Ordinal);
+        var subtitleEnd = markup.IndexOf("</p>", subtitleStart, StringComparison.Ordinal);
+
+        Assert.IsGreaterThanOrEqualTo(0, subtitleStart);
+        Assert.IsGreaterThan(subtitleStart, subtitleEnd);
+
+        var subtitle = markup[subtitleStart..subtitleEnd];
+        var guardIndex = subtitle.IndexOf("@if (_displayName is not null)", StringComparison.Ordinal);
+        var greetingIndex = subtitle.IndexOf("@Localizer[\"Home_Greeting\", _displayName]", StringComparison.Ordinal);
+        var separatorIndex = subtitle.IndexOf("<text> </text>", StringComparison.Ordinal);
+        var existingSubtitleIndex = subtitle.IndexOf("@Localizer[\"Home_Subtitle\"]", StringComparison.Ordinal);
+
+        Assert.IsTrue(guardIndex >= 0 && guardIndex < greetingIndex);
+        Assert.IsTrue(greetingIndex < separatorIndex && separatorIndex < existingSubtitleIndex);
+        Assert.AreEqual(1, CountOccurrences(subtitle, "Home_Greeting"));
+        Assert.AreEqual(1, CountOccurrences(subtitle, "Home_Subtitle"));
     }
 
     [TestMethod]

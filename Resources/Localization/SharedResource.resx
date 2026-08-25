@@ -784,10 +784,22 @@
     <value>Additional note</value>
   </data>
   <data name="Prepare_AcceptedAliases" xml:space="preserve">
-    <value>Accepted spelling aliases (separated by semicolons)</value>
+    <value>Accepted spellings / aliases</value>
+  </data>
+  <data name="Prepare_AcceptedAliasesHelp" xml:space="preserve">
+    <value>Add alternative answers that should also count as correct. Separate multiple entries with semicolons.</value>
+  </data>
+  <data name="Prepare_AdvancedOptions" xml:space="preserve">
+    <value>Advanced options</value>
   </data>
   <data name="Prepare_DefinitionRequired" xml:space="preserve">
     <value>Enter a definition before continuing.</value>
+  </data>
+  <data name="Prepare_TranslationRequired" xml:space="preserve">
+    <value>Enter a translation before continuing.</value>
+  </data>
+  <data name="Prepare_AnswerRequired" xml:space="preserve">
+    <value>Enter a definition or translation before continuing.</value>
   </data>
   <data name="Prepare_SaveAndContinue" xml:space="preserve">
     <value>Apply</value>
@@ -815,6 +827,18 @@
   </data>
   <data name="Prepare_SaveError" xml:space="preserve">
     <value>The preparation change could not be saved.</value>
+  </data>
+  <data name="Prepare_SavedNextLoadFailed" xml:space="preserve">
+    <value>Your change was saved, but the next item could not be loaded.</value>
+  </data>
+  <data name="Prepare_RetryNextItem" xml:space="preserve">
+    <value>Load next item</value>
+  </data>
+  <data name="Prepare_EndPreparation" xml:space="preserve">
+    <value>End preparation</value>
+  </data>
+  <data name="Prepare_EndPreparationConfirmation" xml:space="preserve">
+    <value>End this preparation batch? Saved items and permanent known or ignored decisions remain. Unresolved and skipped terms return to the preparation backlog.</value>
   </data>
   <data name="Prepare_BatchCompleteTitle" xml:space="preserve">
     <value>Preparation complete</value>
@@ -1174,13 +1198,13 @@
     <value>Other preparation actions</value>
   </data>
   <data name="Prepare_MarkKnown" xml:space="preserve">
-    <value>Mark as known</value>
+    <value>Mark permanently known</value>
   </data>
   <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
     <value>This word will be stored as permanently known. No learning cards will be created, and obsolete preparation, context, and frequency data will be removed.</value>
   </data>
   <data name="Prepare_DoNotLearn" xml:space="preserve">
-    <value>Do not learn</value>
+    <value>Do not learn this term</value>
   </data>
   <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
     <value>This exact vocabulary identity will be excluded from future review and preparation. Related words and forms will not be excluded, and no learning cards will be created.</value>

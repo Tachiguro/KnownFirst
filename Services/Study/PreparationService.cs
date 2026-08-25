@@ -515,7 +515,8 @@ public sealed partial class PreparationService(
     {
         var validationStarted = Stopwatch.GetTimestamp();
         ArgumentNullException.ThrowIfNull(input);
-        if (string.IsNullOrWhiteSpace(input.AcronymExpansion)
+        if (input.ManualInputMode is null
+            && string.IsNullOrWhiteSpace(input.AcronymExpansion)
             && string.IsNullOrWhiteSpace(input.Translation)
             && string.IsNullOrWhiteSpace(input.Definition))
         {
@@ -554,6 +555,33 @@ public sealed partial class PreparationService(
         }
     }
 
+    private static void ValidateManualInput(PreparedMeaningInput input, LexicalLookupMode inputMode)
+    {
+        switch (inputMode)
+        {
+            case LexicalLookupMode.Definition when string.IsNullOrWhiteSpace(input.Definition):
+                throw new PreparationInputValidationException(
+                    PreparationInputValidationReason.DefinitionRequired,
+                    inputMode);
+            case LexicalLookupMode.Translation when string.IsNullOrWhiteSpace(input.Translation):
+                throw new PreparationInputValidationException(
+                    PreparationInputValidationReason.TranslationRequired,
+                    inputMode);
+            case LexicalLookupMode.DefinitionAndTranslation
+                when string.IsNullOrWhiteSpace(input.Definition)
+                     && string.IsNullOrWhiteSpace(input.Translation):
+                throw new PreparationInputValidationException(
+                    PreparationInputValidationReason.AnswerRequired,
+                    inputMode);
+            case LexicalLookupMode.Definition:
+            case LexicalLookupMode.Translation:
+            case LexicalLookupMode.DefinitionAndTranslation:
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(inputMode));
+        }
+    }
+
     /// <summary>
     /// Strict Schema-7 behavior preservation (KF-MEANING-001 Slice 3): extracted verbatim from the
     /// pre-Slice-3 <c>AcceptAsync</c> transaction body, unchanged. Existing candidate-selection policy,
@@ -571,6 +599,10 @@ public sealed partial class PreparationService(
         // Schema 8, before any mutation, but never persists them and never changes legacy rows/shape.
         PreparationMetadataPolicy.NormalizeTopicOrDomain(input.TopicOrDomain);
         PreparationMetadataPolicy.NormalizePartOfSpeech(input.PartOfSpeech);
+        if (input.ManualInputMode is { } manualInputMode)
+        {
+            ValidateManualInput(input, manualInputMode);
+        }
 
         var candidate = connection.Find<PreparationCandidateEntity>(candidateId)
             ?? throw new InvalidOperationException("The preparation candidate does not exist.");

@@ -110,76 +110,122 @@ public sealed partial class PreparationService
         Trip(PreparationSchema8Checkpoints.AfterEnvelopePersist);
 
         var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope!;
-        if (envelope.Result is null)
+        var isManualInput = input.ManualInputMode.HasValue || envelope.Result is null;
+        // Only the candidate's already-frozen evidence determines the manual answer mode. This is the
+        // same persisted document contract used by CreateItemAsync to expose PreparationItem.LookupMode
+        // and TargetLanguage; a payload value can request manual handling but can never redirect it.
+        var contextData = ResolveContextDataFromFrozenEvidence(connection, word.Id, envelope.FrozenEvidence);
+        var candidateContext = ResolveCandidateLookupContext(connection, word, contextData);
+        var acceptedInput = isManualInput
+            ? NormalizeManualInput(input, candidateContext.LookupMode)
+            : input;
+        if (isManualInput)
         {
-            throw new InvalidOperationException("The preparation candidate has no lexical result to accept.");
+            ValidateManualInput(acceptedInput, candidateContext.LookupMode);
         }
 
-        // §7: SelectedMeaningIndex is read fresh, inside this transaction, from the just-reloaded candidate.
-        var targetIndex = candidate.SelectedMeaningIndex;
-        if (targetIndex < 0 || targetIndex >= envelope.Result.Meanings.Count)
+        int? targetIndex = null;
+        LexicalMeaning? targetMeaning = null;
+        SortedSet<int>? resolved = null;
+        if (!isManualInput)
         {
-            throw new InvalidOperationException(
-                $"The selected provider meaning index {targetIndex} is out of range for {envelope.Result.Meanings.Count} meaning(s).");
-        }
+            if (envelope.Result is null)
+            {
+                throw new InvalidOperationException("The preparation candidate has no lexical result to accept.");
+            }
 
-        var resolved = new SortedSet<int>(envelope.ResolvedProviderMeaningIndexes);
-        if (resolved.Contains(targetIndex))
-        {
-            throw new InvalidOperationException(
-                $"Provider meaning index {targetIndex} has already been resolved for this candidate (stale selection or duplicate acceptance).");
-        }
+            // §7: SelectedMeaningIndex is read fresh, inside this transaction, from the just-reloaded candidate.
+            targetIndex = candidate.SelectedMeaningIndex;
+            if (targetIndex < 0 || targetIndex >= envelope.Result.Meanings.Count)
+            {
+                throw new InvalidOperationException(
+                    $"The selected provider meaning index {targetIndex} is out of range for {envelope.Result.Meanings.Count} meaning(s).");
+            }
 
-        var targetMeaningForIndexCheck = envelope.Result.Meanings[targetIndex];
-        if (!string.IsNullOrWhiteSpace(input.SelectedMeaningId)
-            && !string.Equals(input.SelectedMeaningId!.Trim(), targetMeaningForIndexCheck.MeaningId, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                $"The submitted SelectedMeaningId does not match the currently persisted provider meaning at index {targetIndex} (stale selection).");
+            resolved = new SortedSet<int>(envelope.ResolvedProviderMeaningIndexes);
+            if (resolved.Contains(targetIndex.Value))
+            {
+                throw new InvalidOperationException(
+                    $"Provider meaning index {targetIndex} has already been resolved for this candidate (stale selection or duplicate acceptance).");
+            }
+
+            targetMeaning = envelope.Result.Meanings[targetIndex.Value];
+            if (!string.IsNullOrWhiteSpace(acceptedInput.SelectedMeaningId)
+                && !string.Equals(acceptedInput.SelectedMeaningId!.Trim(), targetMeaning.MeaningId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"The submitted SelectedMeaningId does not match the currently persisted provider meaning at index {targetIndex} (stale selection).");
+            }
         }
 
         var now = clock.UtcNow;
-        // §4: only the candidate's own frozen evidence is ever linked — never recomputed from a fresh scan.
-        var contextData = ResolveContextDataFromFrozenEvidence(connection, word.Id, envelope.FrozenEvidence);
-        var explanationLanguage = contextData.FirstOrDefault()?.ExplanationLanguage ?? word.Language;
+        var explanationLanguage = candidateContext.ExplanationLanguage;
         var vocabularyIdentityKey = KnownFirst.Core.Text.VocabularyIdentityPolicy
             .Resolve(word.CanonicalTerm, word.TokenKind, word.Language).Identity;
+        var vocabularyIdentity = VocabularyMergeIdentityPolicy.Compute(word.Language, vocabularyIdentityKey);
 
-        // KF-MEANING-002: only the explicitly accepted index is ever reviewed or persisted. Every other
-        // provider meaning is a suggestion the user did not choose — it is never inspected, matched, or
-        // auto-linked here, and never gates candidate completion.
-        var targetMeaning = envelope.Result.Meanings[targetIndex];
         var existingSenses = LoadSenses(connection, word.Id);
-        var targetFacts = ResolveDiscriminatorFacts(word, envelope.Result, targetMeaning, normalizedTopicOrDomain, input, explanationLanguage);
-        var (matchedSense, _) = PreparationSenseClassifier.ClassifyAgainstExisting(
-            word.Language, vocabularyIdentityKey, targetFacts, existingSenses);
-
-        // §8 PartOfSpeech precedence: explicit input (already normalized/validated above), else the
-        // selected provider Meaning, else empty.
-        var partOfSpeech = normalizedExplicitPartOfSpeech.Length > 0
-            ? normalizedExplicitPartOfSpeech
-            : PreparationMetadataPolicy.NormalizePartOfSpeech(targetMeaning.PartOfSpeech);
-        var senseId = matchedSense?.Id ?? InsertSense(connection, word.Id, targetFacts, partOfSpeech, now);
-
-        Trip(PreparationSchema8Checkpoints.AfterSenseInsert);
-
-        var preparedTokenKind = !string.IsNullOrWhiteSpace(input.AcronymExpansion)
+        var targetFacts = isManualInput
+            ? ResolveManualDiscriminatorFacts(word, normalizedTopicOrDomain, acceptedInput, explanationLanguage)
+            : ResolveDiscriminatorFacts(
+                word,
+                envelope.Result!,
+                targetMeaning!,
+                normalizedTopicOrDomain,
+                acceptedInput,
+                explanationLanguage);
+        var preparedTokenKind = !string.IsNullOrWhiteSpace(acceptedInput.AcronymExpansion)
             && AcronymExpansionDetector.IsAcronymCandidate(word.CanonicalTerm)
                 ? KnownFirst.Core.Text.TokenKind.Acronym
                 : word.TokenKind;
-        var aliases = input.AcceptedAliases
+        var aliases = acceptedInput.AcceptedAliases
             .Select(alias => alias.Trim())
             .Where(alias => alias.Length > 0)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var candidateItem = BuildCandidateMeaningItem(word, input, explanationLanguage, preparedTokenKind, aliases, now);
+        var persistedInput = isManualInput
+            ? WithoutProviderProvenance(acceptedInput, word.CanonicalTerm)
+            : acceptedInput;
+        var candidateItem = BuildCandidateMeaningItem(word, persistedInput, explanationLanguage, preparedTokenKind, aliases, now);
         var semanticIdentity = SemanticMeaningIdentityPolicy.Compute(
             candidateItem,
-            VocabularyMergeIdentityPolicy.Compute(word.Language, vocabularyIdentityKey),
+            vocabularyIdentity,
             targetFacts.TopicOrDomain);
 
-        var meaningId = TryFindExactDuplicateMeaning(connection, senseId, candidateItem, semanticIdentity)
-            ?? InsertMeaning(connection, word.Id, senseId, candidateItem, preparedTokenKind, now);
+        var exactManualMatch = isManualInput
+            ? TryFindExactManualMeaning(
+                connection,
+                existingSenses,
+                candidateItem,
+                semanticIdentity,
+                vocabularyIdentity)
+            : null;
+
+        int senseId;
+        int meaningId;
+        if (exactManualMatch is not null)
+        {
+            senseId = exactManualMatch.SenseId;
+            meaningId = exactManualMatch.MeaningId;
+        }
+        else
+        {
+            var (matchedSense, _) = PreparationSenseClassifier.ClassifyAgainstExisting(
+                word.Language, vocabularyIdentityKey, targetFacts, existingSenses);
+
+            // §8 PartOfSpeech precedence: explicit input (already normalized/validated above), else the
+            // selected provider Meaning, else empty.
+            var partOfSpeech = normalizedExplicitPartOfSpeech.Length > 0
+                ? normalizedExplicitPartOfSpeech
+                : isManualInput
+                    ? string.Empty
+                    : PreparationMetadataPolicy.NormalizePartOfSpeech(targetMeaning!.PartOfSpeech);
+            senseId = matchedSense?.Id ?? InsertSense(connection, word.Id, targetFacts, partOfSpeech, now);
+            meaningId = TryFindExactDuplicateMeaning(connection, senseId, candidateItem, semanticIdentity)
+                ?? InsertMeaning(connection, word.Id, senseId, candidateItem, preparedTokenKind, now);
+        }
+
+        Trip(PreparationSchema8Checkpoints.AfterSenseInsert);
 
         BackfillDefaultMeaningIfMissing(connection, senseId, meaningId);
 
@@ -200,26 +246,32 @@ public sealed partial class PreparationService
         // every existing preparation checkpoint keeps its documented meaning and ordering.
         EnsureAnswerAssignmentsForNewDirections(connection, senseId, newDirections, now);
 
-        resolved.Add(targetIndex);
-
-        Trip(PreparationSchema8Checkpoints.AfterResolvedIndexPersist);
-
-        // KF-MEANING-002: candidate completion no longer requires every provider meaning to be resolved.
-        // Unselected provider meanings are suggestions only — they are never inspected, matched, auto-
-        // linked, or required to reach any resolution state.
-
-        // §4/§5: FrozenEvidence is carried forward byte-identical — only ResolvedProviderMeaningIndexes changes.
-        var updatedEnvelope = envelope with
+        if (!isManualInput)
         {
-            ResolvedProviderMeaningIndexes = resolved.ToArray()
-        };
-        candidate.ResultJson = PreparationCandidatePayloadCodec.Write(updatedEnvelope);
-        candidate.UpdatedAtUtc = now;
+            resolved!.Add(targetIndex!.Value);
+
+            // KF-MEANING-002: candidate completion no longer requires every provider meaning to be resolved.
+            // Unselected provider meanings are suggestions only — they are never inspected, matched, auto-
+            // linked, or required to reach any resolution state.
+
+            // §4/§5: FrozenEvidence is carried forward byte-identical — only ResolvedProviderMeaningIndexes changes.
+            candidate.ResultJson = PreparationCandidatePayloadCodec.Write(envelope with
+            {
+                ResolvedProviderMeaningIndexes = resolved.ToArray()
+            });
+        }
+
+        // The manual path intentionally leaves Result and ResolvedProviderMeaningIndexes byte-for-byte as
+        // frozen. It neither creates provider data nor claims to resolve an index that did not exist.
+        Trip(PreparationSchema8Checkpoints.AfterResolvedIndexPersist);
 
         // KF-MEANING-002: accepting the one explicitly selected meaning completes the candidate. There is
         // no partial-acceptance state — every successful AcceptSchema8 call ends here.
         Trip(PreparationSchema8Checkpoints.BeforeCandidateCompletion);
-        Trip(PreparationSchema8Checkpoints.BeforeAutomaticCandidateCompletion);
+        if (!isManualInput)
+        {
+            Trip(PreparationSchema8Checkpoints.BeforeAutomaticCandidateCompletion);
+        }
         word.PreparationState = PreparationState.Prepared;
         word.UpdatedAt = now;
         connection.Update(word);
@@ -312,6 +364,127 @@ public sealed partial class PreparationService
         !string.IsNullOrWhiteSpace(input.AcronymExpansion)
             ? input.AcronymExpansion!.Trim()
             : result.AcronymExpansion ?? string.Empty);
+
+    private static SenseDiscriminatorFacts ResolveManualDiscriminatorFacts(
+        WordEntity word,
+        string normalizedTopicOrDomain,
+        PreparedMeaningInput input,
+        string explanationLanguage) => new(
+        word.Language,
+        explanationLanguage,
+        string.Empty,
+        normalizedTopicOrDomain,
+        input.GrammaticalRelationship?.Trim() ?? string.Empty,
+        input.AcronymExpansion?.Trim() ?? string.Empty);
+
+    private static CandidateLookupContext ResolveCandidateLookupContext(
+        SQLiteConnection connection,
+        WordEntity word,
+        IReadOnlyList<ContextData> contextData)
+    {
+        var firstContext = contextData.FirstOrDefault();
+        var document = firstContext is null
+            ? null
+            : connection.Find<DocumentEntity>(firstContext.DocumentId);
+        if (document is null)
+        {
+            return new CandidateLookupContext(LexicalLookupMode.Definition, null, word.Language);
+        }
+
+        var (lookupMode, targetLanguage) = ResolveLookupSettings(document);
+        return new CandidateLookupContext(
+            lookupMode,
+            targetLanguage,
+            targetLanguage ?? document.TextLanguage);
+    }
+
+    private static PreparedMeaningInput NormalizeManualInput(
+        PreparedMeaningInput input,
+        LexicalLookupMode lookupMode) => lookupMode switch
+        {
+            LexicalLookupMode.Definition => input with
+            {
+                Translation = null,
+                ManualInputMode = lookupMode
+            },
+            LexicalLookupMode.Translation => input with
+            {
+                Definition = string.Empty,
+                ManualInputMode = lookupMode
+            },
+            LexicalLookupMode.DefinitionAndTranslation => input with
+            {
+                ManualInputMode = lookupMode
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(lookupMode))
+        };
+
+    private static PreparedMeaningInput WithoutProviderProvenance(
+        PreparedMeaningInput input,
+        string canonicalTerm) => input with
+    {
+        SelectedMeaningId = null,
+        DictionaryExample = null,
+        ProviderName = string.Empty,
+        SourceProject = string.Empty,
+        SourcePageTitle = string.Empty,
+        SourceRevisionId = null,
+        Attribution = string.Empty,
+        CanonicalLearningTerm = canonicalTerm
+    };
+
+    private static ManualMeaningMatch? TryFindExactManualMeaning(
+        SQLiteConnection connection,
+        IReadOnlyList<SenseRow> existingSenses,
+        BackupPreparedItem candidateItem,
+        SemanticMeaningIdentity candidateSemanticIdentity,
+        VocabularyIdentity vocabularyIdentity)
+    {
+        var candidateVariant = ExactMeaningVariantIdentityPolicy.Compute(
+            candidateItem,
+            candidateSemanticIdentity);
+        foreach (var sense in existingSenses)
+        {
+            var existingRows = connection.Query<LegacyMeaningRow>(
+                "SELECT * FROM Meanings WHERE SenseId = ? ORDER BY Id",
+                sense.Id);
+            foreach (var row in existingRows)
+            {
+                if (!IsManualMeaning(row))
+                {
+                    continue;
+                }
+
+                var existingItem = Schema8SemanticUpgradePolicy.BuildPreparedItem(row);
+                var existingSemanticIdentity = SemanticMeaningIdentityPolicy.Compute(
+                    existingItem,
+                    vocabularyIdentity,
+                    sense.TopicOrDomain);
+                if (existingSemanticIdentity != candidateSemanticIdentity)
+                {
+                    continue;
+                }
+
+                var existingVariant = ExactMeaningVariantIdentityPolicy.Compute(
+                    existingItem,
+                    existingSemanticIdentity);
+                if (existingVariant == candidateVariant)
+                {
+                    return new ManualMeaningMatch(sense.Id, row.Id);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsManualMeaning(LegacyMeaningRow meaning) =>
+        string.IsNullOrWhiteSpace(meaning.SelectedMeaningId)
+        && string.IsNullOrWhiteSpace(meaning.Source)
+        && string.IsNullOrWhiteSpace(meaning.SourceProject)
+        && string.IsNullOrWhiteSpace(meaning.SourcePageTitle)
+        && meaning.SourceRevisionId is null
+        && string.IsNullOrWhiteSpace(meaning.Attribution);
 
     private static SenseDiscriminatorFacts ProviderOnlyDiscriminatorFacts(
         WordEntity word, LexicalResult result, LexicalMeaning meaning, string explanationLanguage) => new(
@@ -743,6 +916,13 @@ public sealed partial class PreparationService
             Guid.NewGuid().ToString("N"), senseId, (int)direction, answerVariantId, (int)requirement, isPreferred,
             requiredSinceUtc, now, now);
     }
+
+    private readonly record struct CandidateLookupContext(
+        LexicalLookupMode LookupMode,
+        string? TargetLanguage,
+        string ExplanationLanguage);
+
+    private sealed record ManualMeaningMatch(int SenseId, int MeaningId);
 
     private sealed class FingerprintRow
     {

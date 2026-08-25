@@ -40,6 +40,13 @@
             </div>
         </section>
     }
+    else if (_progressionAfterSaveFailed)
+    {
+        <section class="preparation-card progression-recovery" role="status" @ref="_progressionRecoveryRef">
+            <p>@Localizer["Prepare_SavedNextLoadFailed"]</p>
+            <button type="button" class="button button-primary" disabled="@_isBusy" @ref="_progressionRetryButtonRef" @onclick="RetryProgressionAfterSaveAsync">@Localizer["Prepare_RetryNextItem"]</button>
+        </section>
+    }
     else if (_item is null && !_batchCompleted)
     {
         <section class="preparation-card">
@@ -155,47 +162,92 @@
             else if (_showEditor || _item.Method == PreparationMethod.Manual)
             {
                 <div class="editor-grid" @ref="_editorRef">
-                    <label>@Localizer["Prepare_CanonicalTerm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@_item.LearningTerm" /></label>
-                    <label>@Localizer["Prepare_EncounteredForm"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" readonly value="@(_item.EncounteredSurfaceForm ?? _item.Term)" /></label>
-                    <label>
-                        @Localizer["Prepare_AcronymExpansion"]
-                        <input class="text-input"
-                               @ref="_acronymExpansionInput"
-                               @bind="AcronymExpansionInput"
-                               @bind:event="oninput"
-                               @onkeydown="HandleInputKeyDown"
-                               aria-invalid="@_usefulAnswerMissing"
-                               aria-describedby="@(_usefulAnswerMissing ? "prepare-useful-answer-error" : null)" />
-                    </label>
-                    <label>
-                        @Localizer["Prepare_Translation"]
-                        <input class="text-input"
-                               @ref="_translationInput"
-                               @bind="TranslationInput"
-                               @bind:event="oninput"
-                               @onkeydown="HandleInputKeyDown"
-                               aria-invalid="@_usefulAnswerMissing"
-                               aria-describedby="@(_usefulAnswerMissing ? "prepare-useful-answer-error" : null)" />
-                    </label>
-                    <label>
-                        @Localizer["Prepare_Definition"]
-                        <textarea class="text-area"
-                                  rows="4"
-                                  @ref="_definitionInput"
-                                  @bind="DefinitionInput"
-                                  @bind:event="oninput"
-                                  aria-invalid="@_usefulAnswerMissing"
-                                  aria-describedby="@(_usefulAnswerMissing ? "prepare-useful-answer-error" : null)"></textarea>
-                    </label>
-                    @if (_usefulAnswerMissing)
+                    @if (PrimaryAnswerMode == LexicalLookupMode.Definition)
                     {
-                        <p id="prepare-useful-answer-error"
-                           class="field-error"
-                           role="alert"
-                           @ref="_usefulAnswerError">@Localizer["Prepare_UsefulAnswerRequired"]</p>
+                        <label>
+                            @Localizer["Prepare_Definition"]
+                            <textarea class="text-area"
+                                      rows="4"
+                                      data-primary-answer="definition"
+                                      @ref="_definitionInput"
+                                      @bind="DefinitionInput"
+                                      @bind:event="oninput"
+                                      aria-invalid="@DefinitionInvalid"
+                                      aria-describedby="@(DefinitionInvalid ? "prepare-definition-error" : null)"></textarea>
+                        </label>
+                        @if (DefinitionInvalid)
+                        {
+                            <p id="prepare-definition-error" class="field-error" role="alert" @ref="_definitionError">@Localizer["Prepare_DefinitionRequired"]</p>
+                        }
                     }
-                    <label>@Localizer["Prepare_AdditionalNote"]<textarea class="text-area" rows="2" @bind="_additionalNote"></textarea></label>
-                    <label>@Localizer["Prepare_AcceptedAliases"]<input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_aliases" /></label>
+                    else if (PrimaryAnswerMode == LexicalLookupMode.Translation)
+                    {
+                        <label>
+                            @Localizer["Prepare_Translation"]
+                            <textarea class="text-area"
+                                      rows="4"
+                                      data-primary-answer="translation"
+                                      @ref="_translationInput"
+                                      @bind="TranslationInput"
+                                      @bind:event="oninput"
+                                      aria-invalid="@TranslationInvalid"
+                                      aria-describedby="@(TranslationInvalid ? "prepare-translation-error" : null)"></textarea>
+                        </label>
+                        @if (TranslationInvalid)
+                        {
+                            <p id="prepare-translation-error" class="field-error" role="alert" @ref="_translationError">@Localizer["Prepare_TranslationRequired"]</p>
+                        }
+                    }
+                    else
+                    {
+                        <div class="legacy-combined-answers" data-legacy-combined-answer="definition">
+                            <label>
+                                @Localizer["Prepare_Definition"]
+                                <textarea class="text-area"
+                                          rows="4"
+                                          @ref="_definitionInput"
+                                          @bind="DefinitionInput"
+                                          @bind:event="oninput"
+                                          aria-invalid="@CombinedAnswerInvalid"
+                                          aria-describedby="@(CombinedAnswerInvalid ? "prepare-answer-error" : null)"></textarea>
+                            </label>
+                            <label data-legacy-combined-answer="translation">
+                                @Localizer["Prepare_Translation"]
+                                <textarea class="text-area"
+                                          rows="4"
+                                          @ref="_translationInput"
+                                          @bind="TranslationInput"
+                                          @bind:event="oninput"
+                                          aria-invalid="@CombinedAnswerInvalid"
+                                          aria-describedby="@(CombinedAnswerInvalid ? "prepare-answer-error" : null)"></textarea>
+                            </label>
+                            @if (CombinedAnswerInvalid)
+                            {
+                                <p id="prepare-answer-error" class="field-error" role="alert" @ref="_combinedAnswerError">@Localizer["Prepare_AnswerRequired"]</p>
+                            }
+                        </div>
+                    }
+
+                    <details class="preparation-advanced-options">
+                        <summary>@Localizer["Prepare_AdvancedOptions"]</summary>
+                        <div class="preparation-advanced-fields">
+                            @if (IsAcronymOrAbbreviation)
+                            {
+                                <label>
+                                    @Localizer["Prepare_AcronymExpansion"]
+                                    <input class="text-input"
+                                           @bind="AcronymExpansionInput"
+                                           @bind:event="oninput"
+                                           @onkeydown="HandleInputKeyDown" />
+                                </label>
+                            }
+                            <label>
+                                @Localizer["Prepare_AcceptedAliases"]
+                                <input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_aliases" aria-describedby="prepare-accepted-aliases-help" />
+                                <small id="prepare-accepted-aliases-help">@Localizer["Prepare_AcceptedAliasesHelp"]</small>
+                            </label>
+                        </div>
+                    </details>
                 </div>
 
             }
@@ -262,30 +314,6 @@
                 </section>
             }
 
-            @if (_confirmationAction is null)
-            {
-                <section class="preparation-cancel-section">
-                    @if (!_cancelConfirmationVisible)
-                    {
-                        <button type="button" class="button button-danger cancel-preparation" disabled="@_isBusy" @ref="_cancelPreparationTriggerRef" @onclick="RequestCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
-                    }
-                    else
-                    {
-                        <div class="destructive-confirmation"
-                             role="alertdialog"
-                             aria-labelledby="cancel-preparation-confirmation-title"
-                             @ref="_cancelConfirmationRef"
-                             @onkeydown="HandleCancelPreparationDialogKeyDown">
-                            <h3 id="cancel-preparation-confirmation-title">@Localizer["Prepare_CancelPreparation"]</h3>
-                            <p>@Localizer["Prepare_CancelPreparationConfirmation"]</p>
-                            <div class="button-row">
-                                <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_cancelPreparationButtonRef" @onclick="CancelCancelPreparationAsync">@Localizer["Common_Cancel"]</button>
-                                <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isBusy" @onclick="ConfirmCancelPreparationAsync">@Localizer["Prepare_CancelPreparation"]</button>
-                            </div>
-                        </div>
-                    }
-                </section>
-            }
             @if (_saveFailed)
             {
                 <p id="preparation-save-error" class="inline-message inline-message-error" role="alert">@Localizer["Prepare_SaveError"]</p>
@@ -309,32 +337,52 @@
     }
     </div>
 
-    @if (_item is not null && _confirmationAction is null && !_cancelConfirmationVisible)
+    @if (_item is not null && _confirmationAction is null)
     {
         <div class="workflow-action-bar">
             <section class="preparation-action-bar">
-                @if (_showEditor || _item.Method == PreparationMethod.Manual)
+                @if (!_cancelConfirmationVisible)
                 {
-                    <div class="button-row">
-                        <button type="button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_SaveAndContinue"]</button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditingAsync">@Localizer["Common_Cancel"]</button>
+                    <div class="preparation-primary-actions">
+                        @if (_showEditor || _item.Method == PreparationMethod.Manual)
+                        {
+                            <div class="button-row">
+                                <button type="button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">@Localizer["Prepare_SaveAndContinue"]</button>
+                                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelEditingAsync">@Localizer["Common_Cancel"]</button>
+                            </div>
+                        }
+                        else if (_item.Result?.HasUsableData == true)
+                        {
+                            <div class="button-row">
+                                <button type="button" id="preparation-accept-button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">
+                                    @if (_showTransitionSpinner)
+                                    {
+                                        <span class="transition-spinner" aria-hidden="true"></span>
+                                        <span>@Localizer["Prepare_Saving"]</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@Localizer["Prepare_AcceptAndContinue"]</span>
+                                    }
+                                </button>
+                                <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_editButtonRef" @onclick="EnableEditingAsync">@Localizer["Prepare_Edit"]</button>
+                            </div>
+                        }
                     </div>
+                    <button type="button" class="button button-secondary end-preparation" disabled="@_isBusy" @ref="_cancelPreparationTriggerRef" @onclick="RequestCancelPreparationAsync">@Localizer["Prepare_EndPreparation"]</button>
                 }
-                else if (_item.Result?.HasUsableData == true)
+                else
                 {
-                    <div class="button-row">
-                        <button type="button" id="preparation-accept-button" class="button button-primary" aria-keyshortcuts="Enter" disabled="@_isBusy" @onclick="AcceptAsync">
-                            @if (_showTransitionSpinner)
-                            {
-                                <span class="transition-spinner" aria-hidden="true"></span>
-                                <span>@Localizer["Prepare_Saving"]</span>
-                            }
-                            else
-                            {
-                                <span>@Localizer["Prepare_AcceptAndContinue"]</span>
-                            }
-                        </button>
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_editButtonRef" @onclick="EnableEditingAsync">@Localizer["Prepare_Edit"]</button>
+                    <div class="preparation-end-confirmation"
+                         role="alertdialog"
+                         aria-labelledby="cancel-preparation-confirmation-title"
+                         @ref="_cancelConfirmationRef"
+                         @onkeydown="HandleCancelPreparationDialogKeyDown">
+                        <p id="cancel-preparation-confirmation-title">@Localizer["Prepare_EndPreparationConfirmation"]</p>
+                        <div class="button-row">
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_cancelPreparationButtonRef" @onclick="CancelCancelPreparationAsync">@Localizer["Common_Cancel"]</button>
+                            <button type="button" class="button button-secondary end-preparation" disabled="@_isBusy" @onclick="ConfirmCancelPreparationAsync">@Localizer["Prepare_EndPreparation"]</button>
+                        </div>
                     </div>
                 }
             </section>
@@ -396,15 +444,16 @@
     private bool _isLookingUp;
     private bool _loadFailed;
     private bool _saveFailed;
+    private bool _progressionAfterSaveFailed;
     private bool _showPrivacyDisclosure;
     private bool _showEditor;
-    private bool _usefulAnswerMissing;
     private bool _batchCompleted;
     private bool _isMeaningPickerOpen;
     private bool _showTransitionSpinner;
     private bool _cancelConfirmationVisible;
     private bool _startingAutomatic;
     private bool _revealLookupFailure;
+    private bool _focusProgressionRetryAfterRender;
     private bool _editorOpenedFromLookupFailure;
     private bool _isDisposed;
     private int _contextIndex;
@@ -412,7 +461,6 @@
     private string _acronymExpansion = string.Empty;
     private string _translation = string.Empty;
     private string _definition = string.Empty;
-    private string _additionalNote = string.Empty;
     private string _aliases = string.Empty;
     private CancellationTokenSource? _lookupCancellation;
     private CancellationTokenSource? _transitionSpinnerCancellation;
@@ -432,11 +480,28 @@
     private ElementReference _cancelPreparationTriggerRef;
     private ElementReference _cancelConfirmationRef;
     private ElementReference _cancelPreparationButtonRef;
-    private ElementReference _acronymExpansionInput;
     private ElementReference _translationInput;
     private ElementReference _definitionInput;
-    private ElementReference _usefulAnswerError;
+    private ElementReference _definitionError;
+    private ElementReference _translationError;
+    private ElementReference _combinedAnswerError;
+    private ElementReference _progressionRecoveryRef;
+    private ElementReference _progressionRetryButtonRef;
     private PreparationCompletionAction? _confirmationAction;
+    private PreparationInputValidationReason? _inputValidationReason;
+    private readonly PreparationProgressionCoordinator _progressionCoordinator = new();
+
+    private LexicalLookupMode PrimaryAnswerMode => _item?.LookupMode ?? LexicalLookupMode.Definition;
+
+    private bool IsAcronymOrAbbreviation => _item?.TokenKind is TokenKind.Acronym or TokenKind.Abbreviation;
+
+    private bool IsExplicitManualInput => _item?.Method == PreparationMethod.Manual || _editorOpenedFromLookupFailure;
+
+    private bool DefinitionInvalid => _inputValidationReason == PreparationInputValidationReason.DefinitionRequired;
+
+    private bool TranslationInvalid => _inputValidationReason == PreparationInputValidationReason.TranslationRequired;
+
+    private bool CombinedAnswerInvalid => _inputValidationReason == PreparationInputValidationReason.AnswerRequired;
 
     private string AcronymExpansionInput
     {
@@ -444,7 +509,7 @@
         set
         {
             _acronymExpansion = value;
-            ClearUsefulAnswerValidationIfCorrected();
+            ClearInputValidationIfCorrected();
         }
     }
 
@@ -454,7 +519,7 @@
         set
         {
             _translation = value;
-            ClearUsefulAnswerValidationIfCorrected();
+            ClearInputValidationIfCorrected();
         }
     }
 
@@ -464,19 +529,29 @@
         set
         {
             _definition = value;
-            ClearUsefulAnswerValidationIfCorrected();
+            ClearInputValidationIfCorrected();
         }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_isDisposed || !_revealLookupFailure || _isBusy || _isLookingUp || _isLoading)
+        if (_isDisposed)
         {
             return;
         }
 
-        _revealLookupFailure = false;
-        await RevealLookupFailureAsync();
+        if (_focusProgressionRetryAfterRender && !_isBusy && !_isLoading)
+        {
+            _focusProgressionRetryAfterRender = false;
+            await RevealProgressionRecoveryAsync();
+            return;
+        }
+
+        if (_revealLookupFailure && !_isBusy && !_isLookingUp && !_isLoading)
+        {
+            _revealLookupFailure = false;
+            await RevealLookupFailureAsync();
+        }
     }
 
     private PreparationContext? CurrentContext => _item is null || _item.Contexts.Count == 0
@@ -497,6 +572,7 @@
     {
         _isLoading = true;
         _loadFailed = false;
+        _progressionAfterSaveFailed = false;
         try
         {
             _overview = await PreparationService.GetOverviewAsync();
@@ -560,6 +636,7 @@
 
         _isBusy = true;
         _saveFailed = false;
+        _progressionAfterSaveFailed = false;
         try
         {
             await PreparationService.StartAsync(method, AppSettings.PreparationLimit);
@@ -714,53 +791,74 @@
             return;
         }
 
-        if (!HasUsefulAnswer())
+        if (TryGetInputValidationReason(out var validationReason))
         {
-            await ShowUsefulAnswerValidationAsync();
+            await ShowInputValidationAsync(validationReason);
             return;
         }
 
-        _usefulAnswerMissing = false;
+        _inputValidationReason = null;
 
-        var acceptedCandidateId = _item.CandidateId;
+        var currentItem = _item;
+        var acceptedCandidateId = currentItem.CandidateId;
+        var method = currentItem.Method;
+        var isManualInput = IsExplicitManualInput;
         var transitionStarted = System.Diagnostics.Stopwatch.StartNew();
         _isBusy = true;
         _saveFailed = false;
+        _progressionAfterSaveFailed = false;
         StartDelayedTransitionSpinner();
         try
         {
-            var result = _item.Result;
+            var result = currentItem.Result;
             var selectedMeaning = result is not null && result.Meanings.Count > _selectedMeaningIndex
                 ? result.Meanings[_selectedMeaningIndex]
                 : null;
-            await PreparationService.AcceptAsync(
-                _item.CandidateId,
-                new PreparedMeaningInput(
-                    selectedMeaning?.MeaningId,
-                    EmptyToNull(_acronymExpansion),
-                    EmptyToNull(_translation),
-                    _definition,
-                    selectedMeaning?.Example,
-                    EmptyToNull(_additionalNote),
-                    _aliases.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                    result?.ProviderName ?? "Manual",
-                    result?.SourceProject ?? string.Empty,
-                    result?.PageTitle ?? string.Empty,
-                    result?.RevisionId,
-                    result?.Attribution ?? string.Empty,
-                    _item.EncounteredSurfaceForm,
-                    result?.GrammaticalRelationship,
-                    result?.DisplayTerm ?? _item.Term),
-                AppSettings.CardDirection);
-            await MoveNextAsync();
+            var input = new PreparedMeaningInput(
+                isManualInput ? null : selectedMeaning?.MeaningId,
+                EmptyToNull(_acronymExpansion),
+                EmptyToNull(_translation),
+                _definition,
+                isManualInput ? null : selectedMeaning?.Example,
+                null,
+                _aliases.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                isManualInput ? string.Empty : result?.ProviderName ?? string.Empty,
+                isManualInput ? string.Empty : result?.SourceProject ?? string.Empty,
+                isManualInput ? string.Empty : result?.PageTitle ?? string.Empty,
+                isManualInput ? null : result?.RevisionId,
+                isManualInput ? string.Empty : result?.Attribution ?? string.Empty,
+                currentItem.EncounteredSurfaceForm,
+                isManualInput ? null : result?.GrammaticalRelationship,
+                isManualInput ? currentItem.Term : result?.DisplayTerm ?? currentItem.Term,
+                ManualInputMode: isManualInput ? PrimaryAnswerMode : null);
+            var progressed = await _progressionCoordinator.CommitAndProgressAsync(
+                method,
+                async () =>
+                {
+                    await PreparationService.AcceptAsync(
+                        currentItem.CandidateId,
+                        input,
+                        AppSettings.CardDirection);
 #if DEBUG
-            PreparationService.RecordUiTransition(acceptedCandidateId, transitionStarted.Elapsed);
+                    PreparationService.RecordUiTransition(acceptedCandidateId, transitionStarted.Elapsed);
 #endif
+                },
+                LoadAfterCommittedActionAsync);
+            if (!progressed)
+            {
+                await ShowProgressionRecoveryAsync();
+            }
+        }
+        catch (PreparationInputValidationException exception)
+        {
+            await ShowInputValidationAsync(exception.Reason);
+            return;
         }
         catch (Exception exception)
         {
             Logger.LogError(exception, "The prepared learning item could not be saved.");
             _saveFailed = true;
+            return;
         }
         finally
         {
@@ -778,15 +876,24 @@
 
         _isBusy = true;
         _saveFailed = false;
+        _progressionAfterSaveFailed = false;
+        var currentItem = _item;
         try
         {
-            await PreparationService.SkipAsync(_item.CandidateId);
-            await MoveNextAsync();
+            var progressed = await _progressionCoordinator.CommitAndProgressAsync(
+                currentItem.Method,
+                () => PreparationService.SkipAsync(currentItem.CandidateId),
+                LoadAfterCommittedActionAsync);
+            if (!progressed)
+            {
+                await ShowProgressionRecoveryAsync();
+            }
         }
         catch (Exception exception)
         {
             Logger.LogError(exception, "The preparation item could not be skipped.");
             _saveFailed = true;
+            return;
         }
         finally
         {
@@ -802,26 +909,38 @@
         }
 
         var action = _confirmationAction.Value;
+        var currentItem = _item;
         _isBusy = true;
         _saveFailed = false;
+        _progressionAfterSaveFailed = false;
         try
         {
-            if (action == PreparationCompletionAction.MarkKnown)
-            {
-                await PreparationService.MarkKnownAsync(_item.CandidateId);
-            }
-            else
-            {
-                await PreparationService.ExcludeAsync(_item.CandidateId);
-            }
+            var progressed = await _progressionCoordinator.CommitAndProgressAsync(
+                currentItem.Method,
+                async () =>
+                {
+                    if (action == PreparationCompletionAction.MarkKnown)
+                    {
+                        await PreparationService.MarkKnownAsync(currentItem.CandidateId);
+                    }
+                    else
+                    {
+                        await PreparationService.ExcludeAsync(currentItem.CandidateId);
+                    }
 
-            _confirmationAction = null;
-            await MoveNextAsync();
+                    _confirmationAction = null;
+                },
+                LoadAfterCommittedActionAsync);
+            if (!progressed)
+            {
+                await ShowProgressionRecoveryAsync();
+            }
         }
         catch (Exception exception)
         {
             Logger.LogError(exception, "The preparation disposition could not be saved.");
             _saveFailed = true;
+            return;
         }
         finally
         {
@@ -829,18 +948,57 @@
         }
     }
 
-    private async Task MoveNextAsync()
+    private async Task LoadAfterCommittedActionAsync(PreparationMethod method)
     {
-        var method = _item?.Method;
+        _item = null;
+        await MoveNextAsync(method);
+    }
+
+    private async Task ShowProgressionRecoveryAsync()
+    {
+        Logger.LogError(
+            _progressionCoordinator.LastProgressionException,
+            "The preparation action was saved, but the next item could not be loaded.");
+        _item = null;
+        _progressionAfterSaveFailed = true;
+        _focusProgressionRetryAfterRender = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RetryProgressionAfterSaveAsync()
+    {
+        if (_isBusy)
+        {
+            return;
+        }
+
+        _isBusy = true;
+        try
+        {
+            var progressed = await _progressionCoordinator.RetryProgressionAsync(LoadAfterCommittedActionAsync);
+            if (progressed)
+            {
+                _progressionAfterSaveFailed = false;
+            }
+            else
+            {
+                await ShowProgressionRecoveryAsync();
+            }
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private async Task MoveNextAsync(PreparationMethod method)
+    {
         _contextIndex = 0;
-        if (method == PreparationMethod.AutomaticOnline)
+        _item = await PreparationService.GetCurrentAsync();
+        InitializeFields();
+        if (method == PreparationMethod.AutomaticOnline && _item is not null)
         {
             await LookupAsync();
-        }
-        else
-        {
-            _item = await PreparationService.GetCurrentAsync();
-            InitializeFields();
         }
 
         if (_item is null)
@@ -851,8 +1009,16 @@
         else
         {
             await InvokeAsync(StateHasChanged);
-            await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _candidateHeading);
-            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _candidateHeading);
+            if (method == PreparationMethod.Manual)
+            {
+                await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _editorRef);
+                await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetPrimaryAnswerFocusTarget());
+            }
+            else
+            {
+                await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _candidateHeading);
+                await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _candidateHeading);
+            }
         }
     }
 
@@ -861,14 +1027,13 @@
         _showEditor = _item?.Method == PreparationMethod.Manual;
         _editorOpenedFromLookupFailure = false;
         _revealLookupFailure = false;
-        _usefulAnswerMissing = false;
+        _inputValidationReason = null;
         _confirmationAction = null;
         _cancelConfirmationVisible = false;
         _selectedMeaningIndex = _item?.SelectedMeaningIndex ?? 0;
         _acronymExpansion = _item?.Result?.AcronymExpansion ?? string.Empty;
         _translation = string.Empty;
         _definition = string.Empty;
-        _additionalNote = string.Empty;
         _aliases = string.Empty;
         if (_item?.Result is { Meanings.Count: > 0 } result)
         {
@@ -883,29 +1048,48 @@
         _definition = meaning.Definition;
     }
 
-    private bool HasUsefulAnswer() => !string.IsNullOrWhiteSpace(_acronymExpansion)
-        || !string.IsNullOrWhiteSpace(_translation)
-        || !string.IsNullOrWhiteSpace(_definition);
-
-    private async Task ShowUsefulAnswerValidationAsync()
+    private bool TryGetInputValidationReason(out PreparationInputValidationReason reason)
     {
-        _usefulAnswerMissing = true;
-        await InvokeAsync(StateHasChanged);
-        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _usefulAnswerError);
-        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetUsefulAnswerFocusTarget());
+        reason = PrimaryAnswerMode switch
+        {
+            LexicalLookupMode.Definition when string.IsNullOrWhiteSpace(_definition) => PreparationInputValidationReason.DefinitionRequired,
+            LexicalLookupMode.Translation when string.IsNullOrWhiteSpace(_translation) => PreparationInputValidationReason.TranslationRequired,
+            LexicalLookupMode.DefinitionAndTranslation when string.IsNullOrWhiteSpace(_definition) && string.IsNullOrWhiteSpace(_translation) => PreparationInputValidationReason.AnswerRequired,
+            _ => default
+        };
+
+        return PrimaryAnswerMode switch
+        {
+            LexicalLookupMode.Definition => string.IsNullOrWhiteSpace(_definition),
+            LexicalLookupMode.Translation => string.IsNullOrWhiteSpace(_translation),
+            LexicalLookupMode.DefinitionAndTranslation => string.IsNullOrWhiteSpace(_definition) && string.IsNullOrWhiteSpace(_translation),
+            _ => string.IsNullOrWhiteSpace(_definition) && string.IsNullOrWhiteSpace(_translation)
+        };
     }
 
-    private ElementReference GetUsefulAnswerFocusTarget() => _item?.TokenKind is TokenKind.Acronym or TokenKind.Abbreviation
-        ? _acronymExpansionInput
-        : _item?.LookupMode == LexicalLookupMode.Translation
+    private async Task ShowInputValidationAsync(PreparationInputValidationReason reason)
+    {
+        _inputValidationReason = reason;
+        await InvokeAsync(StateHasChanged);
+        var errorTarget = reason switch
+        {
+            PreparationInputValidationReason.TranslationRequired => _translationError,
+            PreparationInputValidationReason.AnswerRequired => _combinedAnswerError,
+            _ => _definitionError
+        };
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", errorTarget);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetPrimaryAnswerFocusTarget());
+    }
+
+    private ElementReference GetPrimaryAnswerFocusTarget() => PrimaryAnswerMode == LexicalLookupMode.Translation
             ? _translationInput
             : _definitionInput;
 
-    private void ClearUsefulAnswerValidationIfCorrected()
+    private void ClearInputValidationIfCorrected()
     {
-        if (_usefulAnswerMissing && HasUsefulAnswer())
+        if (_inputValidationReason is not null && !TryGetInputValidationReason(out _))
         {
-            _usefulAnswerMissing = false;
+            _inputValidationReason = null;
         }
     }
 
@@ -995,7 +1179,7 @@
 
         if (_item?.Method == PreparationMethod.Manual)
         {
-            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetUsefulAnswerFocusTarget());
+            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetPrimaryAnswerFocusTarget());
             return;
         }
 
@@ -1040,7 +1224,7 @@
     {
         await InvokeAsync(StateHasChanged);
         await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _editorRef);
-        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetUsefulAnswerFocusTarget());
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", GetPrimaryAnswerFocusTarget());
     }
 
     private async Task RevealLookupFailureAsync()
@@ -1049,6 +1233,26 @@
         await JavaScript.InvokeVoidAsync(
             "knownFirst.focusElement",
             CanRetryLookup ? _retryButtonRef : _manualEntryButtonRef);
+    }
+
+    private async Task RevealProgressionRecoveryAsync()
+    {
+        if (_isDisposed || !_progressionAfterSaveFailed)
+        {
+            return;
+        }
+
+        try
+        {
+            await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _progressionRecoveryRef);
+            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _progressionRetryButtonRef);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (TaskCanceledException) when (_isDisposed)
+        {
+        }
     }
 
     private void PreviousContext() => _contextIndex = Math.Max(0, _contextIndex - 1);
@@ -1102,16 +1306,10 @@
             return;
         }
 
-        if (_overview.ActiveCompletedItems > 0 || (_item?.Position ?? 1) > 1)
-        {
-            _cancelConfirmationVisible = true;
-            await InvokeAsync(StateHasChanged);
-            await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _cancelConfirmationRef);
-            await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _cancelPreparationButtonRef);
-            return;
-        }
-
-        await ConfirmCancelPreparationAsync();
+        _cancelConfirmationVisible = true;
+        await InvokeAsync(StateHasChanged);
+        await JavaScript.InvokeVoidAsync("knownFirst.revealElement", _cancelConfirmationRef);
+        await JavaScript.InvokeVoidAsync("knownFirst.focusElement", _cancelPreparationButtonRef);
     }
 
     private async Task ConfirmCancelPreparationAsync()
@@ -1130,12 +1328,13 @@
             _confirmationAction = null;
             _isMeaningPickerOpen = false;
             _saveFailed = false;
+            _progressionAfterSaveFailed = false;
             _item = null;
             Navigation.NavigateTo(string.Empty);
         }
         catch (Exception exception)
         {
-            Logger.LogError(exception, "The preparation batch could not be cancelled.");
+            Logger.LogError(exception, "The preparation batch could not be ended.");
             _saveFailed = true;
         }
         finally

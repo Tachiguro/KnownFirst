@@ -784,10 +784,22 @@
     <value>Zusätzliche Notiz</value>
   </data>
   <data name="Prepare_AcceptedAliases" xml:space="preserve">
-    <value>Akzeptierte Schreibvarianten (durch Semikolons getrennt)</value>
+    <value>Akzeptierte Schreibweisen / Aliasse</value>
+  </data>
+  <data name="Prepare_AcceptedAliasesHelp" xml:space="preserve">
+    <value>Füge alternative Antworten hinzu, die ebenfalls als richtig gelten sollen. Trenne mehrere Einträge durch Semikolons.</value>
+  </data>
+  <data name="Prepare_AdvancedOptions" xml:space="preserve">
+    <value>Erweiterte Optionen</value>
   </data>
   <data name="Prepare_DefinitionRequired" xml:space="preserve">
     <value>Gib eine Definition ein, bevor du fortfährst.</value>
+  </data>
+  <data name="Prepare_TranslationRequired" xml:space="preserve">
+    <value>Gib eine Übersetzung ein, bevor du fortfährst.</value>
+  </data>
+  <data name="Prepare_AnswerRequired" xml:space="preserve">
+    <value>Gib eine Definition oder Übersetzung ein, bevor du fortfährst.</value>
   </data>
   <data name="Prepare_SaveAndContinue" xml:space="preserve">
     <value>Übernehmen</value>
@@ -815,6 +827,18 @@
   </data>
   <data name="Prepare_SaveError" xml:space="preserve">
     <value>Die Änderung an der Vorbereitung konnte nicht gespeichert werden.</value>
+  </data>
+  <data name="Prepare_SavedNextLoadFailed" xml:space="preserve">
+    <value>Deine Änderung wurde gespeichert, aber das nächste Element konnte nicht geladen werden.</value>
+  </data>
+  <data name="Prepare_RetryNextItem" xml:space="preserve">
+    <value>Nächstes Element laden</value>
+  </data>
+  <data name="Prepare_EndPreparation" xml:space="preserve">
+    <value>Vorbereitung beenden</value>
+  </data>
+  <data name="Prepare_EndPreparationConfirmation" xml:space="preserve">
+    <value>Diese Vorbereitung beenden? Gespeicherte Einträge und dauerhafte Entscheidungen für bekannte oder ignorierte Begriffe bleiben erhalten. Ungelöste und übersprungene Begriffe kehren in den Vorbereitungsrückstand zurück.</value>
   </data>
   <data name="Prepare_BatchCompleteTitle" xml:space="preserve">
     <value>Vorbereitung abgeschlossen</value>
@@ -1174,13 +1198,13 @@
     <value>Weitere Vorbereitungsaktionen</value>
   </data>
   <data name="Prepare_MarkKnown" xml:space="preserve">
-    <value>Als bekannt markieren</value>
+    <value>Dauerhaft als bekannt markieren</value>
   </data>
   <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
     <value>Dieses Wort wird dauerhaft als bekannt gespeichert. Es werden keine Lernkarten erstellt; veraltete Vorbereitungs-, Kontext- und Häufigkeitsdaten werden entfernt.</value>
   </data>
   <data name="Prepare_DoNotLearn" xml:space="preserve">
-    <value>Nicht lernen</value>
+    <value>Diesen Begriff nicht lernen</value>
   </data>
   <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
     <value>Nur diese genaue Wortschatzidentität wird von künftiger Prüfung und Vorbereitung ausgeschlossen. Verwandte Wörter und Formen werden nicht ausgeschlossen, und es werden keine Lernkarten erstellt.</value>

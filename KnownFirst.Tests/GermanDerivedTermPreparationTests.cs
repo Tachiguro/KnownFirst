@@ -100,6 +100,86 @@ public sealed class GermanDerivedTermPreparationTests
         Assert.AreEqual(0, occurrenceCountAfterAccept, "Accepting must still never fabricate a WordOccurrence.");
     }
 
+    [TestMethod]
+    public async Task DerivedUnknownManualNoLookupAccept_RetainsWholeCompoundEvidenceAndEntersLearning()
+    {
+        var maschineWordId = await ImportGermanReviewWithMaschineUnknownAsync();
+        var evidenceBefore = await _database.ReadAsync(connection => connection.Table<DerivedTermEvidenceEntity>()
+            .Where(evidence => evidence.ReviewCandidateId > 0)
+            .ToListAsync());
+        Assert.IsNotEmpty(evidenceBefore);
+
+        await _preparation.StartAsync(PreparationMethod.Manual, 20);
+        var item = await _preparation.GetCurrentAsync();
+        Assert.IsNotNull(item);
+        Assert.AreEqual(maschineWordId, item!.WordId);
+        Assert.IsNull(item.Result);
+        Assert.AreEqual(0, _provider.RequestCount);
+        Assert.IsNotEmpty(item.Contexts);
+        Assert.AreEqual(
+            "Schreibmaschine",
+            item.Contexts[0].Text.Substring(item.Contexts[0].TargetStart, item.Contexts[0].TargetLength));
+
+        await _preparation.AcceptAsync(
+            item.CandidateId,
+            new PreparedMeaningInput(
+                null,
+                null,
+                null,
+                "Eine Maschine zum Schreiben.",
+                null,
+                null,
+                [],
+                string.Empty,
+                string.Empty,
+                string.Empty,
+                null,
+                string.Empty,
+                ManualInputMode: LexicalLookupMode.Definition),
+            CardDirectionPreference.MeaningToTerm);
+
+        Assert.AreEqual(0, _provider.RequestCount);
+        Assert.AreEqual(
+            1,
+            await _database.ReadAsync(connection => connection.Table<WordEntity>()
+                .Where(word => word.Language == "de" && word.NormalizedTerm == "W:maschine")
+                .CountAsync()),
+            "Manual acceptance must reuse the one retained vocabulary identity.");
+        Assert.AreEqual(
+            0,
+            await _database.ReadAsync(connection => connection.Table<WordOccurrenceEntity>()
+                .Where(occurrence => occurrence.WordId == maschineWordId)
+                .CountAsync()),
+            "Manual acceptance must not invent a component occurrence.");
+
+        var evidenceAfter = await _database.ReadAsync(connection => connection.Table<DerivedTermEvidenceEntity>()
+            .ToListAsync());
+        Assert.HasCount(evidenceBefore.Count, evidenceAfter);
+        CollectionAssert.AreEqual(
+            evidenceBefore.Select(evidence => evidence.SourceSurfaceForm).ToArray(),
+            evidenceAfter.Select(evidence => evidence.SourceSurfaceForm).ToArray(),
+            "Manual acceptance must not invent or replace retained derivation evidence.");
+
+        var snapshot = await _database.ReadAsync(connection => connection.Table<ContextSnapshotEntity>()
+            .Where(context => context.WordId == maschineWordId)
+            .FirstAsync());
+        Assert.AreEqual(
+            "Schreibmaschine",
+            snapshot.Text.Substring(snapshot.TargetStart, snapshot.TargetLength),
+            "The persisted context target remains the real whole compound.");
+
+        var learning = await _learning.GetOrStartAsync();
+        Assert.IsNotNull(learning.Card);
+        Assert.AreEqual(maschineWordId, learning.Card!.WordId);
+        await _learning.RevealAnswerAsync(learning.Card.QueueItemId);
+        await _learning.RateAsync(learning.Card.QueueItemId, ReviewRating.Good);
+        Assert.AreEqual(
+            1,
+            await _database.ReadAsync(connection => connection.Table<LearningReviewEntity>()
+                .Where(review => review.CardId == learning.Card.CardId)
+                .CountAsync()));
+    }
+
     /// <summary>
     /// Review-correction (MINOR): the display path (<c>ResolveFrozenContextsAsync</c>) gated its
     /// derived-evidence fallback on the raw <c>WordOccurrenceEntity</c> row count, while the Accept path
@@ -746,12 +826,17 @@ public sealed class GermanDerivedTermPreparationTests
 
     private sealed class FixedMeaningProvider(FakeClock clock) : IDictionaryLookupProvider
     {
+        private int _requestCount;
+
         public string ProviderName => "Wiktionary";
 
         public int ProviderSchemaVersion => 1;
 
+        public int RequestCount => _requestCount;
+
         public Task<LexicalResult> LookupAsync(LexicalLookupRequest request, CancellationToken cancellationToken = default)
         {
+            _requestCount++;
             var result = new LexicalResult(
                 LexicalLookupStatus.Success,
                 request.NormalizedLemma,

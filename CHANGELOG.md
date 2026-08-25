@@ -18,6 +18,13 @@ and uses the application's prerelease version identifiers.
 
 - Default daily new-word budget for fresh installations and default restorations updated from `10` to `5` words per day (existing grandfathered installations preserve their established limit).
 - Settings now provides a dedicated Display Name card in third position (Language, Appearance, Display Name, New words per day).
+- Simplified manual vocabulary preparation to a single context-appropriate definition or translation field, removing redundant form inputs and collapsing advanced options (acronym expansions, accepted spelling aliases) by default.
+- Clarified "End preparation" action styling and placement as a neutral workflow action with explicit confirmation that retains all already-accepted vocabulary.
+
+### Fixed
+
+- Fixed manual vocabulary preparation failure where saving user-entered definitions or translations without an automatic dictionary lookup result was incorrectly rejected.
+- Fixed recovery after successful item saving: if loading the next preparation candidate encounters an error, the saved item is not misreported as a save failure, and retrying advances directly without repeating the save.
 
 ## [1.0.0-beta.13] - 2026-08-23 (merged source — next Internal Testing candidate, not yet gated or distributed)
 

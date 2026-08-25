@@ -83,4 +83,61 @@ public sealed record PreparedMeaningInput(
     string? GrammaticalRelationship = null,
     string? CanonicalLearningTerm = null,
     string? TopicOrDomain = null,
-    string? PartOfSpeech = null);
+    string? PartOfSpeech = null,
+    LexicalLookupMode? ManualInputMode = null);
+
+internal sealed class PreparationProgressionCoordinator
+{
+    public bool SavedSuccessfully { get; private set; }
+
+    public bool ProgressionFailed { get; private set; }
+
+    public PreparationMethod ProgressionMethod { get; private set; } = PreparationMethod.Manual;
+
+    public Exception? LastProgressionException { get; private set; }
+
+    public async Task<bool> CommitAndProgressAsync(
+        PreparationMethod method,
+        Func<Task> commitAsync,
+        Func<PreparationMethod, Task> progressAsync)
+    {
+        if (ProgressionFailed)
+        {
+            throw new InvalidOperationException("Retry progression before committing another preparation action.");
+        }
+
+        SavedSuccessfully = false;
+        LastProgressionException = null;
+        await commitAsync();
+        SavedSuccessfully = true;
+        ProgressionMethod = method;
+        return await TryProgressAsync(progressAsync);
+    }
+
+    public Task<bool> RetryProgressionAsync(Func<PreparationMethod, Task> progressAsync)
+    {
+        if (!SavedSuccessfully || !ProgressionFailed)
+        {
+            return Task.FromResult(false);
+        }
+
+        return TryProgressAsync(progressAsync);
+    }
+
+    private async Task<bool> TryProgressAsync(Func<PreparationMethod, Task> progressAsync)
+    {
+        try
+        {
+            await progressAsync(ProgressionMethod);
+            ProgressionFailed = false;
+            LastProgressionException = null;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            ProgressionFailed = true;
+            LastProgressionException = exception;
+            return false;
+        }
+    }
+}

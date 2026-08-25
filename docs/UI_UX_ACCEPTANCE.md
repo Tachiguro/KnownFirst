@@ -192,6 +192,18 @@ Each applicable surface must handle these states without broken layout, missing 
 - Localized EN, DE, and RU strings render cleanly without truncation, horizontal overflow, or broken layout across all required viewports (320px up to 1440px).
 - Finishing onboarding persists completion, clears progress, and transitions cleanly to the standard application shell in the same running process.
 
+### 9.8 Home
+
+- The main application heading `KnownFirst` remains unchanged.
+- When a normalized local Display Name is configured, Home renders the localized greeting prepended before the subtitle separated by a single whitespace:
+  - EN: `Welcome, {0}.`
+  - DE: `Willkommen, {0}.`
+  - RU: `Добро пожаловать, {0}.`
+- When no Display Name is configured (null / absent), Home preserves the existing subtitle-only rendering without an empty greeting, placeholder, or spurious separator whitespace.
+- The active review summary card, workflow action tiles, quick actions, statistics, and navigation chrome remain visually and functionally unchanged.
+- Localized EN, DE, and RU strings wrap cleanly without horizontal overflow across all required viewports (320px up to 1440px).
+- Automated test coverage verifies source/markup and localization contracts only; rendered GUI behavior is verified manually.
+
 ## 10. Forms and feedback
 
 Translation, definition, note, accepted forms, acronym expansion, validation, secondary actions, and the primary action must be grouped according to their domain relationship.

@@ -11,6 +11,7 @@ and uses the application's prerelease version identifiers.
 - Dedicated first-run onboarding experience guiding new installations through initial application language selection, optional local display name, core learning concepts, online dictionary lookup consent, term recognition, study practice directions, daily learning pace, and learning day timing.
 - Resumable onboarding: setup progress is persisted locally across application restarts, automatically resuming at the current step and completing into the main application.
 - Optional local Display Name configurable during onboarding or in Settings, stored strictly locally on the device.
+- Personalized Home greeting displaying a localized welcome message ("Welcome, {0}.", "Willkommen, {0}.", "Добро пожаловать, {0}.") before the subtitle when an optional local Display Name is configured, while preserving the unchanged KnownFirst heading and the subtitle-only presentation when no name is set.
 - Daily new-word budget presets (`1`, `5 Recommended`, `10`, and `Custom`) with an expanded technical range (`1..50`), updated recommended default of `5` new words per day, and a non-blocking study workload advisory for custom values above `15`.
 
 ### Changed

@@ -190,11 +190,13 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.7 First-run onboarding
 
 - Onboarding is hosted in a dedicated fullscreen shell without normal navigation chrome (desktop sidebar, mobile headers) or the What's New modal.
-- The workflow progresses logically across nine ordered steps with Back and Continue actions; the Welcome step provides System language and Appearance (System, Light, Dark) selection; the final summary screen provides the Finish action. No global Skip action exists.
-- The Display Name step allows continuing with or without a name.
-- Online dictionary lookup consent is presented clearly with a privacy-sensitive default (Off), requiring affirmative user activation to enable, and an inline destructive confirmation dialog for revocation.
+- The workflow progresses logically across nine ordered steps with Back and Continue actions; the Welcome step provides native labelled UI language selection (`<select id="onboarding-ui-language-select">` with options `System`, `English`, `German`, `Russian` in `.field-group`) matching Settings, and Appearance (System, Light, Dark) selection; the final summary screen provides the Finish action and an explicit reminder that all settings can be adjusted later in Settings. No global Skip action exists.
+- The Display Name step allows continuing with an entered name or explicitly skipping via the dynamic Skip action (`Onboarding_DisplayNameSkip`) when the input is empty/whitespace; empty inputs continue normalizing to `null`.
+- Online dictionary lookup consent is presented with readable service highlights (Wiktionary primary, Wikipedia fallback, local privacy); persisted default is Off; progression requires an explicit user choice (`[ Enable Online Dictionary ]` or `[ Keep Online Dictionary Disabled ]`) before Continue is enabled; selecting Keep Disabled when consent was granted invokes the destructive confirmation dialog with Cancel/Escape focus restoration.
+- Enhanced Term Recognition explains the user benefit of decomposing German compound words into core vocabulary components offline on device without universal-language claims.
+- Practice setup includes concise explanatory helper texts for Card Direction and Learning Mode matching Settings.
 - Daily Pace presents 4 presets in consistent order (5 Recommended, 1, 10, Custom); selecting Custom reveals an accessible numeric input with immediate validation (1..50), non-blocking workload warning above 15, and canonicalization at the semantic Continue boundary.
-- Learning Day Timing provides timezone and 24-hour cutoff selectors with accessible labelling.
+- Learning Day Timing provides timezone and 24-hour cutoff selectors with minute precision (`00..59`) and accessible labelling.
 - Localized EN, DE, and RU strings render cleanly without truncation, horizontal overflow, or broken layout across all required viewports (320px up to 1440px).
 - Finishing onboarding persists completion, clears progress, and transitions cleanly to the standard application shell in the same running process.
 

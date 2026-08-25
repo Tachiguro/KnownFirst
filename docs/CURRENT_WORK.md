@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (Neutral post-merge state on master following manual merge and POST_MERGE_SYNC_ONLY of PR #160; Schema is 12; Archive format is V2).
+2026-08-25 (Active work package `onboarding-settings-parity-feedback-v1` on branch `fix/onboarding-settings-parity-feedback-v1`; reviewed checkpoint `6e64c6fa85e742c38c94b4a59a06f9adf2a273c8`; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,12 +17,32 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** None (Neutral post-merge state on `master`).
-- **Current canonical baseline:** PR #160 is merged on `master` at commit `793bd9959b9e17c2c4579df4c22a928bf8a4222a`.
-- **Lifecycle status:** PR #160 (`fix: repair manual preparation entry`) successfully completed its full multi-slice lifecycle: implementation checkpoints, consolidated review, documentation candidate finalization (`351abcd643f046e11993b4af93a1fb92ba437ea9`), exact-candidate `FULL_VALIDATION` (2568 tests passed, 0 warnings/errors), push, PR #160, manual user merge, and `POST_MERGE_SYNC_ONLY`. No repository-writing package is currently in flight.
-- **Next planned work:** None currently authorized; pending next roadmap priority.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
-- **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
+- **Active work package:** `onboarding-settings-parity-feedback-v1` (First-Run Onboarding and Settings Parity & Tester-Feedback Corrections).
+- **Branch:** `fix/onboarding-settings-parity-feedback-v1`
+- **Current canonical baseline:** `origin/master` at `4c840ce016af22ea38904b6685d3bac1f743f36d`.
+- **Implementation Checkpoint:** `6e64c6fa85e742c38c94b4a59a06f9adf2a273c8` (Subject: `fix: align onboarding with settings feedback`, Trailer: `KnownFirst-Checkpoint: onboarding-settings-parity-feedback-v1 1/1 onboarding-settings-parity`).
+- **Lifecycle status:** Slice 1/1 complete; consolidated `REVIEW_ONLY` approved with 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; `DOCUMENT_ONLY` reconciliation in progress.
+- **Scope & Behavior Delivered:**
+  - **Language Selection Native Parity:** Replaced the Onboarding Step 1 four-button group with a native `<select id="onboarding-ui-language-select">` enclosed in `.field-group` with explicit `<label for=...>`, matching Settings.
+  - **Shared Ordered Option Catalog:** Consolidated UI-language options in `LanguagePreferencePolicy.UiLanguageOptions` (System, English, German, Russian), consumed identically by both `Settings.razor` and `OnboardingHost.razor`.
+  - **Online Dictionary Explicit Decision:** Onboarding copy simplified into readable highlights (Wiktionary primary, Wikipedia definition fallback, local privacy); added explicit `[ Enable Online Dictionary ]` and `[ Keep Online Dictionary Disabled ]` choice buttons with `aria-pressed`; Continue is strictly disabled before an explicit choice is made (persisted Off default is not assumed to be an explicit choice); selecting Keep Disabled when consent is granted opens the destructive revocation confirmation dialog.
+  - **Display Name Dynamic Skip Labeling:** When input is empty/whitespace, the action button dynamically renders `Onboarding_DisplayNameSkip` ("Skip"); when filled with non-whitespace text, renders `Common_Continue`. Normalization to `null` is preserved.
+  - **Enhanced Term Recognition Copy:** Benefit-oriented onboarding description explaining German compound word decomposition into foundational vocabulary running offline on device, without general multi-language or AI claims.
+  - **Practice Step Helper Text:** Reused `Settings_CardDirectionHelp` and `Settings_LearningModeHelp` under Card Direction and Learning Mode section titles with `aria-describedby`.
+  - **Summary Settings Notice:** Added `Onboarding_SummarySettingsNotice` informing users that choices can be adjusted at any time in Settings.
+- **Preserved Boundaries & Invariants:**
+  - `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
+  - Daily Pace presets (`1`, `5 Recommended`, `10`, `Custom`), range (`1..50`), default (`5`), and advisory warning (`>15`) are unchanged.
+  - Learning Day Timing minute-level granularity (`00..59`) is unchanged.
+  - Native `<select>` semantics retained; no custom dropdown or dropdown JavaScript introduced.
+  - Offline privacy boundaries intact; zero network requests in tests or onboarding.
+- **Verification Evidence:**
+  - Genuine focused RED: 46 passed / 7 failed (failed on missing language select, shared options, dynamic skip, explicit consent choices, practice helpers, summary notice).
+  - Focused GREEN: 204 passed / 0 failed.
+  - Targeted regression: 38 passed / 0 failed (`DisplayNameTests`, `LanguageSelectionServiceTests`).
+  - `git diff --check`: passed cleanly (0 errors).
+  - Consolidated code review: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
+- **Remaining lifecycle:** `COMMIT_ONLY` (reconciled candidate HEAD) $\rightarrow$ exact-candidate-HEAD `FULL_VALIDATION` $\rightarrow$ `PUSH_ONLY` $\rightarrow$ `PR_ONLY` $\rightarrow$ manual user merge $\rightarrow$ `POST_MERGE_SYNC_ONLY`. No push, PR, or FULL_VALIDATION has yet occurred.
 - **Previous merged packages:**
   - PR #160 (`fix: repair manual preparation entry`): Repaired Schema-12 manual preparation entry persistence defect without requiring lexical lookup result, established contextual Definition/Translation authority, deterministic exact manual semantic reuse, streamlined UI with shared `.text-area` styling, dedicated validation, save/progression recovery isolation, and neutral End Preparation action. Merged to `793bd9959b9e17c2c4579df4c22a928bf8a4222a`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #158 (`feat: personalize home greeting`): Consumed synchronous `IDisplayNameStore` in `Home.razor` to render localized greeting before existing subtitle when a Display Name is configured, while preserving subtitle-only fallback when absent, unchanged Home title, Preferences storage, schema 12, and archive format V2. Merged to `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`. `POST_MERGE_SYNC_ONLY` completed.

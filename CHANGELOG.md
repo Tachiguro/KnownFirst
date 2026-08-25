@@ -16,6 +16,7 @@ and uses the application's prerelease version identifiers.
 
 ### Changed
 
+- Reconciled First-Run Onboarding with Settings: UI-language selection now uses a native select matching Settings, Online Dictionary lookup requires an explicit Enable or Keep Disabled choice before continuing, Display Name presents an explicit Skip action when left empty, and onboarding now includes explanatory guidance for Enhanced Term Recognition, practice modes, and a summary notice that settings can be changed later in Settings.
 - Default daily new-word budget for fresh installations and default restorations updated from `10` to `5` words per day (existing grandfathered installations preserve their established limit).
 - Settings now provides a dedicated Display Name card in third position (Language, Appearance, Display Name, New words per day).
 - Simplified manual vocabulary preparation to a single context-appropriate definition or translation field, removing redundant form inputs and collapsing advanced options (acronym expansions, accepted spelling aliases) by default.

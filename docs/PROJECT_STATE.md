@@ -57,6 +57,21 @@ This document records stable, verified architectural facts and current capabilit
 - personalized Home greeting: `Home.razor` consumes the synchronous `IDisplayNameStore` singleton to render a localized greeting (`Welcome, {0}.` / `Willkommen, {0}.` / `Добро пожаловать, {0}.`) before the existing subtitle when a normalized Display Name is configured, while preserving the unchanged `KnownFirst` heading and subtitle-only fallback when absent (merged via PR #158);
 - manual Preparation reliability and UX: user-entered Definition or Translation without online lookup result, authoritative candidate lookup context mapping, exact manual semantic reuse without duplicate identities/cards, neutral End Preparation workflow action, save/progression recovery separation, and shared multiline visual primitives (merged via PR #160).
 
+## Onboarding & Settings Tester-Feedback Parity (Candidate Package in Progress)
+
+Under review on branch `fix/onboarding-settings-parity-feedback-v1` (implementation checkpoint `6e64c6fa85e742c38c94b4a59a06f9adf2a273c8`; 0 review findings; full validation and PR pending).
+
+- **Scope & Parity Refinements:**
+  - **Language Selection Native Parity:** Onboarding Step 1 (Welcome) replaces the four-button language choice grid with a native `<select id="onboarding-ui-language-select">` matching Settings, enclosed in `.field-group` with explicit `<label for=...>`, preserving immediate switching and system language detection.
+  - **Shared Ordered Language Catalog:** Single shared source in `LanguagePreferencePolicy.UiLanguageOptions` (System, English, German, Russian) consumed by both `Settings.razor` and `OnboardingHost.razor`.
+  - **Online Dictionary Explicit Decision:** Onboarding copy simplified into readable highlights with visible provider names (Wiktionary primary, Wikipedia definition fallback, local storage privacy); requires an explicit user choice (`[ Enable Online Dictionary ]` vs `[ Keep Online Dictionary Disabled ]`) before Continue becomes enabled (persisted default Off is not an explicit choice); selecting Keep Disabled when consent was granted invokes the destructive confirmation dialog with focus/Escape lifecycle.
+  - **Display Name Dynamic Skip Semantics:** Action button dynamically displays `Onboarding_DisplayNameSkip` ("Skip") when empty/whitespace and `Common_Continue` when filled, preserving optionality and normalization to `null`.
+  - **Enhanced Term Recognition Copy:** Benefit-oriented description explaining German compound word decomposition into foundational vocabulary running offline on device, without general multi-language or AI claims.
+  - **Practice Step Helper Text:** Reuses existing `Settings_CardDirectionHelp` and `Settings_LearningModeHelp` under Card Direction and Learning Mode titles with `aria-describedby`.
+  - **Summary Settings Notice:** Added `Onboarding_SummarySettingsNotice` informing users that all choices can be changed later in Settings.
+- **Evidence Boundary:** Automated source/markup, state transition, and localization contract tests verify component binding, error handling, and DOM structure. Exact-candidate `FULL_VALIDATION` has not yet run. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and native select dialogs have not been manually proven by this package and are not claimed.
+- **Persistence & Architecture Invariants:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2; Daily Pace presets, range (1..50), default (5), and warning (>15) unchanged; Learning Day minute precision (00..59) unchanged; zero network requests in onboarding or tests.
+
 ## Development, Tooling & Packaging Foundations
 
 - **Repository Tooling & Path Portability (PR #111):** Organized script hierarchy (`scripts/packaging/`, `scripts/validation/`, `scripts/tools/`) with dynamic root resolution (`$PSScriptRoot` / `__file__`), eliminating fixed clone path dependencies.

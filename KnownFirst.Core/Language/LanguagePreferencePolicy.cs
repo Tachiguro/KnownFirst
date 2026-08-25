@@ -6,12 +6,25 @@ public readonly record struct DeviceLanguageClassification(
     bool IsSupported,
     string EffectiveLanguage);
 
+public readonly record struct UiLanguageOption(
+    string PreferenceCode,
+    string LocalizationKey);
+
 public static class LanguagePreferencePolicy
 {
     public const string EnglishLanguageCode = "en";
     public const string GermanLanguageCode = "de";
     public const string RussianLanguageCode = "ru";
     public const string SystemPreferenceCode = "system";
+
+    public static IReadOnlyList<UiLanguageOption> UiLanguageOptions { get; } =
+        Array.AsReadOnly(new UiLanguageOption[]
+        {
+            new(SystemPreferenceCode, "Settings_UILanguageSystem"),
+            new(EnglishLanguageCode, "Settings_English"),
+            new(GermanLanguageCode, "Settings_German"),
+            new(RussianLanguageCode, "Settings_Russian")
+        });
 
     private static readonly IReadOnlyList<string> LanguageCodes =
         Array.AsReadOnly([EnglishLanguageCode, GermanLanguageCode, RussianLanguageCode]);

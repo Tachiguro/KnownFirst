@@ -41,10 +41,10 @@
                     disabled="@_isChangingLanguage"
                     @bind="_selectedLanguagePreference"
                     @bind:after="HandleUiLanguagePreferenceChanged">
-                <option value="@LanguageSelectionService.SystemPreferenceCode">@Localizer["Settings_UILanguageSystem"]</option>
-                <option value="@LanguageSelectionService.EnglishLanguageCode">@Localizer["Settings_English"]</option>
-                <option value="@LanguageSelectionService.GermanLanguageCode">@Localizer["Settings_German"]</option>
-                <option value="@LanguageSelectionService.RussianLanguageCode">@Localizer["Settings_Russian"]</option>
+                @foreach (var option in LanguagePreferencePolicy.UiLanguageOptions)
+                {
+                    <option value="@option.PreferenceCode">@Localizer[option.LocalizationKey]</option>
+                }
             </select>
         </div>
         @if (_languageConfirmation is not null)

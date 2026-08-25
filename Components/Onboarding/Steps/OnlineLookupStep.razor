@@ -8,60 +8,63 @@
     <p class="onboarding-concept">@Localizer["Onboarding_OnlineLookupDescription"]</p>
 
     <section class="onboarding-card" aria-labelledby="onboarding-online-lookup-title">
-        <p class="setting-help">
-            @Localizer[AppSettings.HasOnlineLookupConsent ? "Settings_OnlineConsentGranted" : "Settings_OnlineConsentNotGranted"]
-        </p>
-        @if (AppSettings.HasOnlineLookupConsent)
-        {
-            @if (!_showOnlineConsentRevokeConfirmation)
-            {
-                <button type="button"
-                        id="onboarding-online-consent-revoke-button"
-                        class="button button-danger"
-                        @ref="_onlineConsentRevokeButton"
-                        @onclick="ShowOnlineConsentRevokeConfirmation">
-                    @Localizer["Settings_RevokeOnlineConsent"]
-                </button>
-            }
-            else
-            {
-                <div id="onboarding-online-consent-revoke-confirmation"
-                     class="destructive-confirmation"
-                     role="alertdialog"
-                     aria-labelledby="onboarding-online-consent-revoke-confirmation-message"
-                     @onkeydown="HandleOnlineConsentRevokeDialogKeyDown">
-                    <p id="onboarding-online-consent-revoke-confirmation-message">
-                        @Localizer["Settings_RevokeOnlineConsentConfirmMessage"]
-                    </p>
-                    <div class="button-row">
-                        <button type="button"
-                                id="onboarding-online-consent-revoke-cancel-button"
-                                class="button button-secondary"
-                                @ref="_cancelOnlineConsentRevokeButton"
-                                @onclick="CancelOnlineConsentRevocation">
-                            @Localizer["Common_Cancel"]
-                        </button>
-                        <button type="button"
-                                id="onboarding-online-consent-revoke-confirm-button"
-                                class="button button-danger"
-                                data-destructive-confirm
-                                @onclick="ConfirmOnlineConsentRevocation">
-                            @Localizer["Settings_RevokeOnlineConsent"]
-                        </button>
-                    </div>
-                </div>
-            }
-        }
-        else
-        {
-            <h2 class="onboarding-section-title">@Localizer["Prepare_OnlineDisclosureTitle"]</h2>
-            <p class="setting-help">@Localizer["Prepare_OnlineDisclosure"]</p>
+        <div class="onboarding-service-highlights" role="list">
+            <p class="setting-help" role="listitem">
+                <strong>Wiktionary:</strong> @Localizer["Onboarding_OnlineLookupServiceWiktionary"]
+            </p>
+            <p class="setting-help" role="listitem">
+                <strong>Wikipedia:</strong> @Localizer["Onboarding_OnlineLookupServiceWikipedia"]
+            </p>
+            <p class="setting-help" role="listitem">
+                @Localizer["Onboarding_OnlineLookupPrivacyNotice"]
+            </p>
+        </div>
+
+        <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-online-lookup-title">
             <button type="button"
-                    id="onboarding-online-consent-activate-button"
-                    class="button button-primary"
-                    @onclick="ActivateOnlineConsent">
-                @Localizer["Settings_ActivateOnlineConsent"]
+                    id="onboarding-online-consent-enable-button"
+                    class="choice-button @(_explicitConsentChoice == true ? "active" : null)"
+                    aria-pressed="@(_explicitConsentChoice == true)"
+                    @onclick="EnableOnlineConsent">
+                @Localizer["Onboarding_OnlineLookupEnable"]
             </button>
+            <button type="button"
+                    id="onboarding-online-consent-disable-button"
+                    class="choice-button @(_explicitConsentChoice == false ? "active" : null)"
+                    aria-pressed="@(_explicitConsentChoice == false)"
+                    @ref="_onlineConsentRevokeButton"
+                    @onclick="DisableOnlineConsent">
+                @Localizer["Onboarding_OnlineLookupKeepDisabled"]
+            </button>
+        </div>
+
+        @if (_showOnlineConsentRevokeConfirmation)
+        {
+            <div id="onboarding-online-consent-revoke-confirmation"
+                 class="destructive-confirmation"
+                 role="alertdialog"
+                 aria-labelledby="onboarding-online-consent-revoke-confirmation-message"
+                 @onkeydown="HandleOnlineConsentRevokeDialogKeyDown">
+                <p id="onboarding-online-consent-revoke-confirmation-message">
+                    @Localizer["Settings_RevokeOnlineConsentConfirmMessage"]
+                </p>
+                <div class="button-row">
+                    <button type="button"
+                            id="onboarding-online-consent-revoke-cancel-button"
+                            class="button button-secondary"
+                            @ref="_cancelOnlineConsentRevokeButton"
+                            @onclick="CancelOnlineConsentRevocation">
+                        @Localizer["Common_Cancel"]
+                    </button>
+                    <button type="button"
+                            id="onboarding-online-consent-revoke-confirm-button"
+                            class="button button-danger"
+                            data-destructive-confirm
+                            @onclick="ConfirmOnlineConsentRevocation">
+                        @Localizer["Settings_RevokeOnlineConsent"]
+                    </button>
+                </div>
+            </div>
         }
     </section>
 
@@ -69,6 +72,7 @@
         <button type="button"
                 id="onboarding-online-lookup-continue-button"
                 class="button button-primary onboarding-continue-button"
+                disabled="@(_explicitConsentChoice is null)"
                 @onclick="OnContinue">
             @Localizer["Common_Continue"]
         </button>
@@ -85,11 +89,20 @@
     [Parameter] public EventCallback OnContinue { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
+    private bool? _explicitConsentChoice;
     private bool _showOnlineConsentRevokeConfirmation;
     private bool _revealOnlineConsentRevokeConfirmation;
     private bool _returnFocusToOnlineConsentRevokeButton;
     private ElementReference _onlineConsentRevokeButton;
     private ElementReference _cancelOnlineConsentRevokeButton;
+
+    protected override void OnInitialized()
+    {
+        if (AppSettings.HasOnlineLookupConsent)
+        {
+            _explicitConsentChoice = true;
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -105,10 +118,23 @@
         }
     }
 
-    private void ActivateOnlineConsent()
+    private void EnableOnlineConsent()
     {
         AppSettings.GrantOnlineLookupConsent();
+        _explicitConsentChoice = true;
         _showOnlineConsentRevokeConfirmation = false;
+    }
+
+    private void DisableOnlineConsent()
+    {
+        if (AppSettings.HasOnlineLookupConsent)
+        {
+            ShowOnlineConsentRevokeConfirmation();
+        }
+        else
+        {
+            _explicitConsentChoice = false;
+        }
     }
 
     private void ShowOnlineConsentRevokeConfirmation()
@@ -135,5 +161,6 @@
     {
         AppSettings.RevokeOnlineLookupConsent();
         _showOnlineConsentRevokeConfirmation = false;
+        _explicitConsentChoice = false;
     }
 }

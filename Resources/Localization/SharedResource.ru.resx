@@ -1845,6 +1845,9 @@
   <data name="Onboarding_DisplayNameDescription" xml:space="preserve">
     <value>Укажите необязательное имя для этого устройства. Имя хранится только локально.</value>
   </data>
+  <data name="Onboarding_DisplayNameSkip" xml:space="preserve">
+    <value>Пропустить</value>
+  </data>
   <data name="Onboarding_WorkflowTitle" xml:space="preserve">
     <value>Как работает KnownFirst</value>
   </data>
@@ -1863,11 +1866,26 @@
   <data name="Onboarding_OnlineLookupDescription" xml:space="preserve">
     <value>Если включено, KnownFirst может запрашивать определения в онлайн-словарях. Личные данные не передаются.</value>
   </data>
+  <data name="Onboarding_OnlineLookupEnable" xml:space="preserve">
+    <value>Включить онлайн-словарь</value>
+  </data>
+  <data name="Onboarding_OnlineLookupKeepDisabled" xml:space="preserve">
+    <value>Оставить онлайн-словарь выключенным</value>
+  </data>
+  <data name="Onboarding_OnlineLookupServiceWiktionary" xml:space="preserve">
+    <value>Викисловарь опрашивается первым для получения словарных определений и переводов.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupServiceWikipedia" xml:space="preserve">
+    <value>Википедия опрашивается как энциклопедический резервный источник, если статья в Викисловаре не найдена.</value>
+  </data>
+  <data name="Onboarding_OnlineLookupPrivacyNotice" xml:space="preserve">
+    <value>Передаются только искомое слово и язык. Ваши документы, предложения и история обучения остаются строго локальными на этом устройстве.</value>
+  </data>
   <data name="Onboarding_EnhancedTermRecognitionTitle" xml:space="preserve">
     <value>Расширенное распознавание терминов</value>
   </data>
   <data name="Onboarding_EnhancedTermRecognitionDescription" xml:space="preserve">
-    <value>Расширенное распознавание терминов помогает находить дополнительные полезные слова, включая части немецких составных слов, для последующего изучения.</value>
+    <value>Расширенное распознавание терминов автоматически распознает и разбивает немецкие составные слова на базовые компоненты для изучения словарного запаса. Работает полностью офлайн на этом устройстве.</value>
   </data>
   <data name="Onboarding_PracticeTitle" xml:space="preserve">
     <value>Настройка практики</value>
@@ -1895,6 +1913,9 @@
   </data>
   <data name="Onboarding_SummaryLearningTimezoneSystem" xml:space="preserve">
     <value>Системный</value>
+  </data>
+  <data name="Onboarding_SummarySettingsNotice" xml:space="preserve">
+    <value>Вы можете изменить любые из этих настроек в любое время в разделе «Настройки».</value>
   </data>
   <data name="Onboarding_FinishSetup" xml:space="preserve">
     <value>Завершить настройку</value>

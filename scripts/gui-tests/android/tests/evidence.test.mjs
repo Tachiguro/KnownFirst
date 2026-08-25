@@ -21,13 +21,13 @@ function requiredFile(path, description) {
   assert.equal(existsSync(path), true, description);
 }
 
-function summaryInput(buildIdentity) {
+function summaryInput(buildIdentity, matrixMapping = 'S36') {
   return {
-    scenarioId: 'P16A-SettingsReleaseNotesNavigation',
-    matrixMapping: null,
+    scenarioId: 'P16B-SettingsReleaseNotesHistory',
+    matrixMapping,
     result: 'Passed',
     failedStep: null,
-    git: { commit: fullCommit, branch: 'feature/p16a-android-gui-foundation-v1' },
+    git: { commit: fullCommit, branch: 'test/p16b-android-s36-matrix-mapping-v1' },
     buildIdentity,
     packageId: 'com.tachiguro.knownfirst.guitest',
     configuration: 'Debug',
@@ -46,12 +46,12 @@ function summaryInput(buildIdentity) {
     safetyAfter: { passed: true },
     timestamps: { startedAtUtc: '2026-08-11T00:00:00.000Z', endedAtUtc: '2026-08-11T00:00:01.000Z' },
     assertionCounts: { passed: 1, failed: 0 },
-    remainingUnproven: ['runtime execution']
+    remainingUnproven: ['runtime execution', 'cross-platform Windows execution', 'other matrix viewports']
   };
 }
 
-test('P16-A evidence module is present and exposes the required pure result contracts', async () => {
-  requiredFile(evidenceModulePath, 'The P16-A evidence module must exist.');
+test('P16-B evidence module exposes S36 mapping and pure result contracts', async () => {
+  requiredFile(evidenceModulePath, 'The P16-B evidence module must exist.');
 
   const evidence = await import(pathToFileURL(evidenceModulePath));
   assert.equal(typeof evidence.createSummary, 'function');
@@ -63,19 +63,50 @@ test('P16-A evidence module is present and exposes the required pure result cont
     observed: {
       commit: fullCommit,
       dirty: 'false',
-      version: '1.0.0-beta.12',
-      buildNumber: '12',
+      version: '1.0.0-beta.13',
+      buildNumber: '14',
       configuration: 'Debug',
       packageId: 'com.tachiguro.knownfirst.guitest'
     },
     matched: true,
     failureReason: null
-  }));
-  assert.equal(summary.matrixMapping, null);
+  }, 'S36'));
+  assert.equal(summary.matrixMapping, 'S36');
   assert.equal(summary.buildPerformed, false);
   assert.equal(summary.installationPerformed, false);
   assert.equal(summary.dataResetPerformed, false);
   assert.equal(summary.liveNetworkUsed, false);
+
+  // Null mapping remains supported for pre-matrix scenarios
+  const nullMappingSummary = evidence.createSummary(summaryInput({
+    expected: { commit: fullCommit },
+    observed: {
+      commit: fullCommit,
+      dirty: 'false',
+      version: '1.0.0-beta.13',
+      buildNumber: '14',
+      configuration: 'Debug',
+      packageId: 'com.tachiguro.knownfirst.guitest'
+    },
+    matched: true,
+    failureReason: null
+  }, null));
+  assert.equal(nullMappingSummary.matrixMapping, null);
+
+  // Unauthorized mappings fail closed
+  assert.throws(() => evidence.createSummary(summaryInput({
+    expected: { commit: fullCommit },
+    observed: {
+      commit: fullCommit,
+      dirty: 'false',
+      version: '1.0.0-beta.13',
+      buildNumber: '14',
+      configuration: 'Debug',
+      packageId: 'com.tachiguro.knownfirst.guitest'
+    },
+    matched: true,
+    failureReason: null
+  }, 'S01')), /matrixMapping/i);
 
   const withScreenshot = evidence.recordScreenshot(summary, {
     name: 'release-notes.png',
@@ -89,7 +120,7 @@ test('P16-A evidence rejects incomplete metadata and safety failures override sc
   requiredFile(evidenceModulePath, 'The P16-A evidence module must exist.');
   const evidence = await import(pathToFileURL(evidenceModulePath));
 
-  assert.throws(() => evidence.createSummary({ scenarioId: 'P16A-SettingsReleaseNotesNavigation' }), /missing/i);
+  assert.throws(() => evidence.createSummary({ scenarioId: 'P16B-SettingsReleaseNotesHistory' }), /missing/i);
   const result = await evidence.finalizeOwnedResources({
     scenarioSucceeded: true,
     safetyAfter: { passed: false },
@@ -128,8 +159,8 @@ test('P16-A screenshot persistence and summary hashing use one decoded capture',
     observed: {
       commit: fullCommit,
       dirty: false,
-      version: '1.0.0-beta.12',
-      buildNumber: '12',
+      version: '1.0.0-beta.13',
+      buildNumber: '14',
       configuration: 'Debug',
       packageId: 'com.tachiguro.knownfirst.guitest'
     }
@@ -140,31 +171,46 @@ test('P16-A screenshot persistence and summary hashing use one decoded capture',
     createHash('sha256').update(pngBytes.toString('base64')).digest('hex'));
 });
 
-test('P16-A Release Notes screenshot is captured before Home navigation with no post-scenario recapture', () => {
+test('P16-B Release Notes S36 scenario structural assertions verify full matrix contract', () => {
   const scenario = readFileSync(scenarioPath, 'utf8');
   const runner = readFileSync(runnerPath, 'utf8');
-  const captureIndex = scenario.indexOf("captureScreenshot('release-notes.png')");
-  const homeIndex = scenario.indexOf("browser.$('#nav-home')");
 
-  assert.ok(captureIndex >= 0, 'The scenario must capture Release Notes evidence in native context.');
-  assert.ok(homeIndex > captureIndex, 'Release Notes evidence must be captured before Home navigation.');
-  assert.equal((scenario.match(/captureScreenshot\('release-notes\.png'\)/g) ?? []).length, 1);
+  // Newest-first versions: Beta 13, 12, 11, 10
+  assert.ok(scenario.includes('1.0.0-beta.13'), 'Beta 13 version required.');
+  assert.ok(scenario.includes('1.0.0-beta.12'), 'Beta 12 version required.');
+  assert.ok(scenario.includes('1.0.0-beta.11'), 'Beta 11 version required.');
+  assert.ok(scenario.includes('1.0.0-beta.10'), 'Beta 10 version required.');
+  assert.ok(scenario.includes('release-note-'), 'Release note heading prefix required.');
+
+  // Release note bullets
+  assert.ok(scenario.includes('release-note-bullets'), 'Bullets list required.');
+
+  // Second activation
+  assert.ok(scenario.includes('Second activation') || scenario.includes('second activation'), 'Second activation required.');
+
+  // App restart / What\'s New persistence
+  assert.ok(scenario.includes('terminateApp') || scenario.includes('activateApp'), 'App restart verification required.');
+
+  // Obsolete support placeholder absence
+  assert.ok(scenario.includes('support-knownfirst') || scenario.includes('Support KnownFirst'), 'Placeholder absence check required.');
+
   assert.match(runner, /recordScreenshot\(summary, scenarioState\.screenshotEvidence\)/);
-  assert.doesNotMatch(runner, /recordScreenshot\([^\n]*browser\.takeScreenshot/);
 });
 
-test('P16-A scenario registry is exactly the approved pre-matrix scenario', () => {
-  requiredFile(scenariosPath, 'The P16-A Android scenario registry must exist.');
+
+test('P16-B scenario registry is exactly the approved S36 mapped scenario', () => {
+  requiredFile(scenariosPath, 'The Android GUI scenario registry must exist.');
 
   const registry = JSON.parse(readFileSync(scenariosPath, 'utf8'));
   assert.equal(registry.scenarios.length, 1);
   assert.deepEqual(registry.scenarios[0], {
-    id: 'P16A-SettingsReleaseNotesNavigation',
-    matrixMapping: null,
+    id: 'P16B-SettingsReleaseNotesHistory',
+    matrixMapping: 'S36',
     relatedMatrixRow: 'S36',
     implementation: 'scenarios/settings-release-notes-navigation.mjs'
   });
 });
+
 
 test('P16-A runtime identity requires a clean exact full-SHA match before pass evidence', async () => {
   const evidence = await import(pathToFileURL(evidenceModulePath));

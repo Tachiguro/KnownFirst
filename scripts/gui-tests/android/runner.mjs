@@ -96,7 +96,7 @@ async function main() {
     scenarioState = await runSettingsReleaseNotesNavigation({ browser, recordAssertion, captureScreenshot });
     summary = createSummary({
       scenarioId,
-      matrixMapping: null,
+      matrixMapping: 'S36',
       result: 'Passed',
       failedStep: null,
       git: { commit: expectedCommit, branch: 'runtime-observed' },
@@ -118,13 +118,20 @@ async function main() {
       safetyAfter: { passed: true, providerInvocations: scenarioState.providerInvocations },
       timestamps: { startedAtUtc: new Date().toISOString(), endedAtUtc: new Date().toISOString() },
       assertionCounts: { passed: assertions.length, failed: 0 },
-      remainingUnproven: ['Clean matching assembly Git metadata does not establish APK-byte reproducibility.']
+      remainingUnproven: [
+        'Physical Android device execution',
+        'Cross-platform Windows execution',
+        'Other matrix viewports (D1-D3, T1, M1, M3, M4)',
+        'Dark theme variant',
+        'German/Russian localization variants',
+        'Clean matching assembly Git metadata does not establish APK-byte reproducibility.'
+      ]
     });
     summary = recordScreenshot(summary, scenarioState.screenshotEvidence);
   } catch (error) {
     summary = createSummary({
       scenarioId,
-      matrixMapping: null,
+      matrixMapping: 'S36',
       result: 'Failed',
       failedStep: error.message,
       git: { commit: expectedCommit, branch: 'runtime-observed' },
@@ -138,6 +145,7 @@ async function main() {
       assertionCounts: { passed: assertions.filter((assertion) => assertion.passed).length, failed: 1 },
       remainingUnproven: [error.message]
     });
+
   } finally {
     const cleanup = await finalizeOwnedResources({
       scenarioSucceeded: summary?.result === 'Passed', safetyAfter: summary?.safetyAfter, session: browser,

@@ -19,7 +19,7 @@
     <p class="subtitle">
         @if (_displayName is not null)
         {
-            @Localizer["Home_Greeting", _displayName]<text> </text>
+            @($"{Localizer["Home_Greeting", _displayName]} ")
         }
         @Localizer["Home_Subtitle"]
     </p>

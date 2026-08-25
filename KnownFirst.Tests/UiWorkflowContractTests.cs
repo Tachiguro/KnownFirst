@@ -2171,7 +2171,7 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("@inject KnownFirst.Services.Settings.IDisplayNameStore DisplayNameStore", markup);
         Assert.Contains("_displayName = DisplayNameStore.GetDisplayName();", markup);
         Assert.Contains("@if (_displayName is not null)", markup);
-        Assert.Contains("@Localizer[\"Home_Greeting\", _displayName]", markup);
+        Assert.Contains("Localizer[\"Home_Greeting\", _displayName]", markup);
     }
 
     [TestMethod]
@@ -2181,19 +2181,31 @@ public sealed class UiWorkflowContractTests
         var subtitleStart = markup.IndexOf("<p class=\"subtitle\">", StringComparison.Ordinal);
         var subtitleEnd = markup.IndexOf("</p>", subtitleStart, StringComparison.Ordinal);
 
-        Assert.IsGreaterThanOrEqualTo(0, subtitleStart);
-        Assert.IsGreaterThan(subtitleStart, subtitleEnd);
+        Assert.IsTrue(subtitleStart >= 0 && subtitleEnd > subtitleStart);
 
         var subtitle = markup[subtitleStart..subtitleEnd];
         var guardIndex = subtitle.IndexOf("@if (_displayName is not null)", StringComparison.Ordinal);
-        var greetingIndex = subtitle.IndexOf("@Localizer[\"Home_Greeting\", _displayName]", StringComparison.Ordinal);
-        var separatorIndex = subtitle.IndexOf("<text> </text>", StringComparison.Ordinal);
+        var greetingIndex = subtitle.IndexOf("@($\"{Localizer[\"Home_Greeting\", _displayName]} \")", StringComparison.Ordinal);
         var existingSubtitleIndex = subtitle.IndexOf("@Localizer[\"Home_Subtitle\"]", StringComparison.Ordinal);
 
         Assert.IsTrue(guardIndex >= 0 && guardIndex < greetingIndex);
-        Assert.IsTrue(greetingIndex < separatorIndex && separatorIndex < existingSubtitleIndex);
+        Assert.IsTrue(greetingIndex < existingSubtitleIndex);
         Assert.AreEqual(1, CountOccurrences(subtitle, "Home_Greeting"));
         Assert.AreEqual(1, CountOccurrences(subtitle, "Home_Subtitle"));
+    }
+
+    [TestMethod]
+    public void Home_ResponsiveLayoutDefinesPageContainerAndReducedHeightCompacting()
+    {
+        var markup = LoadUi("Home.razor");
+        var styles = LoadUi("Home.razor.css");
+
+        Assert.Contains("<section class=\"home-page\">", markup);
+        Assert.Contains(".home-page", styles);
+        Assert.Contains("width: min(100%, 76rem);", styles);
+        Assert.Contains("min-width: 0;", styles);
+        Assert.Contains("@media (max-height: 600px)", styles);
+        Assert.Contains("(orientation: landscape)", styles);
     }
 
     [TestMethod]

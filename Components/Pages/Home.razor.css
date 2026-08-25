@@ -1,3 +1,9 @@
+.home-page {
+    width: min(100%, 76rem);
+    min-width: 0;
+    margin: 0 auto;
+}
+
 .home-hero {
     padding: clamp(var(--space-4), 4vw, var(--space-12)) 0 var(--space-6);
 }
@@ -155,5 +161,29 @@ h1 {
 
     .continue-review-actions .button {
         width: 100%;
+    }
+}
+
+@media (max-height: 600px), (orientation: landscape) and (max-height: 700px) {
+    .home-hero {
+        padding: var(--space-2) 0 var(--space-3);
+    }
+
+    .subtitle {
+        margin-top: var(--space-2);
+    }
+
+    .action-grid {
+        margin: var(--space-3) 0 var(--space-4);
+    }
+
+    .action-card {
+        min-height: 3.8rem;
+        padding: var(--space-2) var(--space-4);
+    }
+
+    .statistic-card {
+        min-height: 6rem;
+        padding: var(--space-3);
     }
 }

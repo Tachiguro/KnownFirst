@@ -606,6 +606,32 @@ public sealed class OnboardingStepContractTests
         Assert.Contains("OnCompleted=", markup);
     }
 
+    [TestMethod]
+    public void OnboardingHost_LayoutOwnsBoundedScrollSurfaceAndMirrorsApplicationScrollPattern()
+    {
+        var styles = LoadUi("OnboardingHost.razor.css").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var hostRule = ExtractCssRule(styles, ".onboarding-host");
+        var mainRule = ExtractCssRule(styles, ".onboarding-main");
+
+        Assert.Contains("display: flex;", hostRule);
+        Assert.Contains("flex-direction: column;", hostRule);
+        Assert.Contains("width: 100%;", hostRule);
+        Assert.Contains("height: 100%;", hostRule);
+        Assert.Contains("height: 100dvh;", hostRule);
+        Assert.Contains("min-width: 0;", hostRule);
+        Assert.Contains("min-height: 0;", hostRule);
+        Assert.Contains("overflow-y: auto;", hostRule);
+        Assert.Contains("overflow-x: hidden;", hostRule);
+
+        Assert.DoesNotContain("align-items: center;", hostRule, StringComparison.Ordinal);
+        Assert.DoesNotContain("justify-content: center;", hostRule, StringComparison.Ordinal);
+        Assert.DoesNotContain("min-height: 100vh;", hostRule, StringComparison.Ordinal);
+        Assert.DoesNotContain("min-height: 100dvh;", hostRule, StringComparison.Ordinal);
+
+        Assert.Contains("margin: auto;", mainRule);
+        Assert.DoesNotContain("margin: 0 auto;", mainRule, StringComparison.Ordinal);
+    }
+
     private static string ExtractMethodBody(string markup, string signature)
     {
         var start = markup.IndexOf(signature, StringComparison.Ordinal);

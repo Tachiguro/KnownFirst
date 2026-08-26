@@ -24,8 +24,15 @@ and uses the application's prerelease version identifiers.
 
 ### Fixed
 
-- Fixed manual vocabulary preparation failure where saving user-entered definitions or translations without an automatic dictionary lookup result was incorrectly rejected.
-- Fixed recovery after successful item saving: if loading the next preparation candidate encounters an error, the saved item is not misreported as a save failure, and retrying advances directly without repeating the save.
+- Fixed first-run onboarding vertical scroll reachability: `.onboarding-host` now establishes a bounded vertical scroll surface so all onboarding content and actions remain fully reachable on constrained viewport heights without horizontal expansion (PR #169).
+- Reconciled shell navigation drawer scroll lock with window breakpoint transitions: resizing across the 800px desktop boundary cleanly dismisses transient drawer state, unlocks background page scrolling, and removes stale back-navigation handlers (PR #168).
+- Normalized Home greeting responsive layout and spacing when an optional local Display Name is configured (PR #167).
+- Fixed manual vocabulary preparation failure where saving user-entered definitions or translations without an automatic dictionary lookup result was incorrectly rejected (PR #160).
+- Fixed recovery after successful item saving: if loading the next preparation candidate encounters an error, the saved item is not misreported as a save failure, and retrying advances directly without repeating the save (PR #160).
+
+### Internal
+
+- Advanced release-preparation candidate build number from `14` to `15` for the upcoming Beta 13 Google Play package and reconciled durable release records (KF-RELEASE-002).
 
 ## [1.0.0-beta.13] - 2026-08-23 (merged source — next Internal Testing candidate, not yet gated or distributed)
 

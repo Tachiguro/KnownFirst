@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-26 (active package KF-ONBOARDING-SCROLL-001 on fix/onboarding-scroll-v1; Schema is 12; Archive format is V2).
+2026-08-26 (active package KF-RELEASE-002 on release/beta13-build15-release-prep-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,22 +17,24 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `KF-ONBOARDING-SCROLL-001` (`fix: make onboarding vertically scrollable`)
-- **Branch:** `fix/onboarding-scroll-v1`
-- **Base master SHA:** `b4250c64479ceac210c60b66f6d23693e770371b`
-- **Current checkpoint HEAD:** `c58b9743ce311832c64ddfff1820ef12cec15ec1`
-- **Objective:** Make first-run onboarding vertically scrollable when content exceeds available viewport height, establishing a bounded scroll surface on `.onboarding-host` (`height: 100%`, `height: 100dvh`, `min-height: 0`, `overflow-y: auto`, `overflow-x: hidden`) and safe auto-centering (`margin: auto;`) on `.onboarding-main`.
-- **Completed lifecycle:** `PLAN_ONLY`, `IMPLEMENT_SLICE` (1/1), `CHECKPOINT_COMMIT_ONLY` (`c58b9743ce311832c64ddfff1820ef12cec15ec1`), `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`, 0 findings), `DOCUMENT_ONLY`.
+- **Active work package:** `KF-RELEASE-002` (`release: Beta 13 Build 15 release preparation and identity update`)
+- **Branch:** `release/beta13-build15-release-prep-v1`
+- **Base master SHA:** `a83dbecdb0dd1d0328e85ba4dc43e684fa9857fc`
+- **Current checkpoint HEAD:** `1584c3e9a2d0bc9f8e0fb4ade99b850ec35cdba8`
+- **Objective:** Advance the Beta-13 release candidate build identity from Build 14 to Build 15 in source and version-contract tests, reconcile durable repository release documentation, and establish an unambiguous package identity prior to Pre-AAB gate execution.
+- **Completed lifecycle:** `PLAN_ONLY`, `IMPLEMENT_SLICE` (1/1 `release-identity-build15`), `CHECKPOINT_COMMIT_ONLY` (`1584c3e9a2d0bc9f8e0fb4ade99b850ec35cdba8`), `REVIEW_ONLY` (disposition `APPROVED_FOR_DOCUMENT_ONLY`, 0 findings), `DOCUMENT_ONLY` (in progress).
 - **Verification evidence:**
-  - Genuine RED: `OnboardingHost_LayoutOwnsBoundedScrollSurfaceAndMirrorsApplicationScrollPattern` failed against pre-fix CSS.
-  - Focused GREEN: 1 passed / 0 failed.
-  - Onboarding contract regression: 42 passed / 0 failed (`OnboardingStepContractTests`, `OnboardingHostTests`).
-  - UI workflow regression: 127 passed / 0 failed (`UiWorkflowContractTests`).
+  - Genuine RED: 54 passed / 7 failed against pre-edit project file (`PlatformTargetConfigurationTests`, `ReleaseNotesTests`, `WindowsPackageVersionMappingTests`).
+  - Focused GREEN: 61 passed / 0 failed.
+  - Regression: 229 passed / 0 failed (`BuildIdentityServiceTests`, `AndroidPublishingScriptContractTests`, `WindowsDistributionPackagingContractTests`, `UiWorkflowContractTests`).
   - `git diff --check`: passed cleanly (0 errors).
-- **Evidence boundaries:** Automated source/CSS and workflow contract tests verify layout declarations, component binding, and DOM structure. Rendered WebView/GUI appearance, actual Windows focus/scroll behavior, and Android touch/scroll behavior were not manually proven by this package and are not claimed. `FULL_VALIDATION` has not yet run on the exact candidate HEAD. Branch has not been pushed; no PR exists.
+- **Evidence boundaries:** Proves source build identity and deterministic version-mapping contracts compile and pass unit/integration/contract test suites. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI, physical Android device testing, Build-15 AAB creation, signing, upload, or distribution.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #169 (`fix: make onboarding vertically scrollable`): Made first-run onboarding vertically scrollable when content exceeds available viewport height, establishing a bounded scroll surface on `.onboarding-host` (`height: 100%`, `height: 100dvh`, `min-height: 0`, `overflow-y: auto`, `overflow-x: hidden`) and safe auto-centering (`margin: auto;`) on `.onboarding-main`. Merged to `a83dbecdb0dd1d0328e85ba4dc43e684fa9857fc`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #168 (`fix: reconcile shell scroll lock with breakpoint transitions`): Reconciled drawer state and content scroll lock when resizing across the 800px desktop boundary, ensuring `<main>` is no longer inert, backdrop is removed, and background scroll lock is cleanly cleared. Merged to `b4250c64479ceac210c60b66f6d23693e770371b`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #167 (`fix: normalize home greeting responsive layout and spacing`): Normalized home greeting spacing and responsive layout in `Home.razor` when an optional local Display Name is configured. Merged to `1e1e40632b716503c530467b7e53f1c1f510ba45`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #164 (`test: map android gui automation to matrix state s36`): Android source-side mapping of the existing GUI automation harness to matrix state S36 ("Release-note history — reopenable from Settings") with contract verification; no runtime GUI execution. Merged to `20521976a1635d3099bd24ec3c00bfa67f5b30cc`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #162 (`fix: align onboarding with settings feedback`): Reconciled First-Run Onboarding with Settings parity (native `<select id="onboarding-ui-language-select">` matching Settings, shared `LanguagePreferencePolicy.UiLanguageOptions` source, explicit Online Dictionary Enable/Keep Disabled choice buttons with disabled Continue before selection and destructive revocation confirmation, dynamic Display Name Skip labeling, benefit-oriented German/offline ETR copy, Practice helper text reuse, and Summary Settings notice). Merged to `e29a292832612a0f5041636126628437a553c2a3`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #160 (`fix: repair manual preparation entry`): Repaired Schema-12 manual preparation entry persistence defect without requiring lexical lookup result, established contextual Definition/Translation authority, deterministic exact manual semantic reuse, streamlined UI with shared `.text-area` styling, dedicated validation, save/progression recovery isolation, and neutral End Preparation action. Merged to `793bd9959b9e17c2c4579df4c22a928bf8a4222a`. `POST_MERGE_SYNC_ONLY` completed.

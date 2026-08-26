@@ -1,6 +1,6 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-25
+**Status date:** 2026-08-26
 **State source:** Synchronized `master` baseline. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
@@ -10,11 +10,11 @@ This document records stable, verified architectural facts and current capabilit
 | Field | Verified value |
 | :--- | :--- |
 | **Project** | KnownFirst |
-| **Source Version (`master`)** | `1.0.0-beta.13` (build 14) — merged via PR #149 |
+| **Source Version (`master`)** | `1.0.0-beta.13` (build 15) — prepared via release-identity package KF-RELEASE-002 |
 | **Active Database Schema** | SQLite `PRAGMA user_version` 12 |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
-| **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Signed replacement bundle `KnownFirst-1.0.0-beta.13-code14.aab` (`48,002,097` bytes, SHA-256 `7a84da599ae7435614d95ff316707669d69e21b311fe252f5419ac9cb8ecbbcd`, `StrictVerified`) was created and verified locally from certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13; no accepted `1.0.0-beta.13` Google Play distribution has yet occurred. |
+| **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Signed replacement bundle `KnownFirst-1.0.0-beta.13-code14.aab` (`48,002,097` bytes, SHA-256 `7a84da599ae7435614d95ff316707669d69e21b311fe252f5419ac9cb8ecbbcd`, `StrictVerified`) was created and verified locally from certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13. Active candidate build identity is Build 15, for which no AAB package has yet been created or distributed. |
 | **Installed Displayed Identity** | `1.0.0-beta.12` / Release / Build 12 / Commit `cfbaee6a` (DIRTY) |
 
 ## Supported Platforms
@@ -56,7 +56,9 @@ This document records stable, verified architectural facts and current capabilit
 - accessible inline destructive confirmation parity: explicit inline confirmation for Online Dictionary consent revocation in Onboarding and Settings, post-render focus transfer to Cancel, non-destructive Cancel and Escape dismissing confirmation and restoring focus to trigger, and destructive Confirm acting as the sole revocation execution path (merged via PR #156);
 - personalized Home greeting: `Home.razor` consumes the synchronous `IDisplayNameStore` singleton to render a localized greeting (`Welcome, {0}.` / `Willkommen, {0}.` / `Добро пожаловать, {0}.`) before the existing subtitle when a normalized Display Name is configured, while preserving the unchanged `KnownFirst` heading and subtitle-only fallback when absent (merged via PR #158);
 - manual Preparation reliability and UX: user-entered Definition or Translation without online lookup result, authoritative candidate lookup context mapping, exact manual semantic reuse without duplicate identities/cards, neutral End Preparation workflow action, save/progression recovery separation, and shared multiline visual primitives (merged via PR #160);
-- first-run onboarding and Settings parity: native UI language selector matching Settings with shared `LanguagePreferencePolicy.UiLanguageOptions` source, explicit Online Dictionary Enable vs Keep Disabled decision buttons before first-run progression with confirmed destructive revocation, dynamic Display Name Skip labeling, benefit-oriented German compound decomposition ETR copy, Practice helper text reuse, and Summary Settings notice (merged via PR #162).
+- first-run onboarding and Settings parity: native UI language selector matching Settings with shared `LanguagePreferencePolicy.UiLanguageOptions` source, explicit Online Dictionary Enable vs Keep Disabled decision buttons before first-run progression with confirmed destructive revocation, dynamic Display Name Skip labeling, benefit-oriented German compound decomposition ETR copy, Practice helper text reuse, and Summary Settings notice (merged via PR #162);
+- shell navigation drawer breakpoint reconciliation: transient navigation drawer state closed, backdrop dismissed, and content scroll lock cleared when resizing across the 800px desktop boundary (merged via PR #168);
+- first-run onboarding vertical scroll reachability: bounded scroll surface on `.onboarding-host` with auto-centering on `.onboarding-main`, ensuring all onboarding steps and actions remain fully reachable at constrained viewport heights (merged via PR #169).
 
 ## Onboarding & Settings Tester-Feedback Parity (Merged Production State)
 

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-25 (no active P16-B package; PR #164 merged and POST_MERGE_SYNC_ONLY completed; Schema is 12; Archive format is V2).
+2026-08-26 (active package KF-ONBOARDING-SCROLL-001 on fix/onboarding-scroll-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,15 +17,19 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** None (Neutral post-merge state on `master`; previous package `p16b-android-s36-matrix-mapping-v1` completed and merged via PR #164).
-- **PR #164 historical provenance:**
-  - **PR:** #164 (`test: map android gui automation to matrix state s36`)
-  - **Validated head:** `26af0db7fc9a691bb95bdb744d92b641e526c81e`
-  - **Merge commit:** `20521976a1635d3099bd24ec3c00bfa67f5b30cc`
-  - **Completed lifecycle:** `PLAN_ONLY`, `IMPLEMENT_SLICE` (1/1), `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, `POST_MERGE_SYNC_ONLY`
-  - **Validation:** 2570 passed / 0 failed / 0 skipped; Windows Debug PASS; Windows Release PASS; Android Debug PASS; Android Release PASS; strict validation gate PASS (log `artifacts/launcher-logs/ValidateAll-20260825-201128.log`)
-  - **Review:** 0 BLOCKER / 0 MAJOR / 1 MINOR / 1 NIT (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; retained review observations were not corrected: runner `remainingUnproven` static viewport wording and unique stable selector usage on Release Notes action)
-- **Evidence boundary:** P16-B source mapping (`P16B-SettingsReleaseNotesHistory` mapped to matrix state `S36`) and contract tests only. No Android GUI runtime execution occurred; no ADB, device, emulator, or Appium execution occurred; no rendered screenshots or runtime evidence exist; no viewport, theme, language, or device matrix variant is proven. Matrix state S36 remains unpassed at runtime. P16-C Windows launcher integration remains pending.
+- **Active work package:** `KF-ONBOARDING-SCROLL-001` (`fix: make onboarding vertically scrollable`)
+- **Branch:** `fix/onboarding-scroll-v1`
+- **Base master SHA:** `b4250c64479ceac210c60b66f6d23693e770371b`
+- **Current checkpoint HEAD:** `c58b9743ce311832c64ddfff1820ef12cec15ec1`
+- **Objective:** Make first-run onboarding vertically scrollable when content exceeds available viewport height, establishing a bounded scroll surface on `.onboarding-host` (`height: 100%`, `height: 100dvh`, `min-height: 0`, `overflow-y: auto`, `overflow-x: hidden`) and safe auto-centering (`margin: auto;`) on `.onboarding-main`.
+- **Completed lifecycle:** `PLAN_ONLY`, `IMPLEMENT_SLICE` (1/1), `CHECKPOINT_COMMIT_ONLY` (`c58b9743ce311832c64ddfff1820ef12cec15ec1`), `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`, 0 findings), `DOCUMENT_ONLY`.
+- **Verification evidence:**
+  - Genuine RED: `OnboardingHost_LayoutOwnsBoundedScrollSurfaceAndMirrorsApplicationScrollPattern` failed against pre-fix CSS.
+  - Focused GREEN: 1 passed / 0 failed.
+  - Onboarding contract regression: 42 passed / 0 failed (`OnboardingStepContractTests`, `OnboardingHostTests`).
+  - UI workflow regression: 127 passed / 0 failed (`UiWorkflowContractTests`).
+  - `git diff --check`: passed cleanly (0 errors).
+- **Evidence boundaries:** Automated source/CSS and workflow contract tests verify layout declarations, component binding, and DOM structure. Rendered WebView/GUI appearance, actual Windows focus/scroll behavior, and Android touch/scroll behavior were not manually proven by this package and are not claimed. `FULL_VALIDATION` has not yet run on the exact candidate HEAD. Branch has not been pushed; no PR exists.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**

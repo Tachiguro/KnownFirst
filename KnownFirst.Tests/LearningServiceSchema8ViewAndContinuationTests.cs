@@ -116,7 +116,7 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
     }
 
     [TestMethod]
-    public async Task RateAsync_Schema8_AgainRepeatCopiesExactCurrentTarget()
+    public async Task RateAsync_Schema8_AgainRepeatCopiesExactCurrentTargetAndChains()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var seeded = await SeedSchema7CardAsync(fixture, 40, "again", "original-target");
@@ -150,8 +150,14 @@ public sealed class LearningServiceSchema8ViewAndContinuationTests
         Assert.AreEqual(1, repeat.QueueOrder);
 
         await service.RevealAnswerAsync(repeat.Id);
-        await service.RateAsync(repeat.Id, ReviewRating.Again);
-        Assert.HasCount(2, await ReadQueueAsync(fixture));
+        var nextRepeatResult = await service.RateAsync(repeat.Id, ReviewRating.Again);
+        var chainedQueues = await ReadQueueAsync(fixture);
+        var nextRepeat = chainedQueues.Single(row => row.QueueOrder == 2);
+        Assert.HasCount(3, chainedQueues);
+        Assert.IsTrue(nextRepeat.IsAgainRepeat);
+        Assert.AreEqual(frozenTarget, nextRepeat.TargetAnswerVariantId);
+        Assert.IsNotNull(nextRepeatResult.Card);
+        Assert.AreEqual(nextRepeat.Id, nextRepeatResult.Card.QueueItemId);
     }
 
     [TestMethod]

@@ -99,13 +99,13 @@ public sealed class ReleaseNotesTests
     // --- Active release identity (Beta 13) ---------------------------------------------
 
     [TestMethod]
-    public void ActiveProductIdentity_IsBeta13Build14()
+    public void ActiveProductIdentity_IsBeta13Build15()
     {
         var root = FindRepositoryRoot();
         var project = File.ReadAllText(Path.Combine(root, "KnownFirst.csproj"));
 
         Assert.Contains("<KnownFirstProductVersion>1.0.0-beta.13</KnownFirstProductVersion>", project);
-        Assert.Contains("<KnownFirstBuildNumber>14</KnownFirstBuildNumber>", project);
+        Assert.Contains("<KnownFirstBuildNumber>15</KnownFirstBuildNumber>", project);
     }
 
     [TestMethod]

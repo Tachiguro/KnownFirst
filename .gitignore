@@ -381,3 +381,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Claude Code local assistant configuration and runtime state
+.claude/

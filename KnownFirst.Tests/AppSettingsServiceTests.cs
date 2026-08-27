@@ -222,4 +222,93 @@ public sealed class AppSettingsServiceTests
         Assert.AreEqual("Europe/Berlin", service.ExplicitLearningTimezoneId);
         Assert.AreEqual("Europe/Berlin", preferences.Get("explicit_learning_timezone_id", (string?)null));
     }
+
+    [TestMethod]
+    public void OnlineLookupConsentChanged_FiresWhenConsentIsGranted()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+        var notifications = new List<bool>();
+        service.OnlineLookupConsentChanged += value => notifications.Add(value);
+
+        service.GrantOnlineLookupConsent();
+
+        Assert.AreEqual(1, notifications.Count);
+        Assert.IsTrue(notifications[0]);
+    }
+
+    [TestMethod]
+    public void OnlineLookupConsentChanged_DoesNotFireWhenAlreadyGranted()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+        service.GrantOnlineLookupConsent();
+
+        var notifications = new List<bool>();
+        service.OnlineLookupConsentChanged += value => notifications.Add(value);
+
+        service.GrantOnlineLookupConsent();
+
+        Assert.AreEqual(0, notifications.Count);
+    }
+
+    [TestMethod]
+    public void OnlineLookupConsentChanged_FiresWhenConsentIsRevoked()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+        service.GrantOnlineLookupConsent();
+
+        var notifications = new List<bool>();
+        service.OnlineLookupConsentChanged += value => notifications.Add(value);
+
+        service.RevokeOnlineLookupConsent();
+
+        Assert.AreEqual(1, notifications.Count);
+        Assert.IsFalse(notifications[0]);
+    }
+
+    [TestMethod]
+    public void OnlineLookupConsentChanged_DoesNotFireWhenAlreadyRevoked()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+
+        var notifications = new List<bool>();
+        service.OnlineLookupConsentChanged += value => notifications.Add(value);
+
+        service.RevokeOnlineLookupConsent();
+
+        Assert.AreEqual(0, notifications.Count);
+    }
+
+    [TestMethod]
+    public void OnlineLookupConsentChanged_FiresOnResetWhenConsentWasGranted()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+        service.GrantOnlineLookupConsent();
+
+        var notifications = new List<bool>();
+        service.OnlineLookupConsentChanged += value => notifications.Add(value);
+
+        service.Reset();
+
+        Assert.AreEqual(1, notifications.Count);
+        Assert.IsFalse(notifications[0]);
+    }
+
+    [TestMethod]
+    public void OnlineLookupConsentChanged_DoesNotFireOnResetWhenConsentWasAlreadyFalse()
+    {
+        var preferences = new InMemoryPreferences();
+        var service = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);
+
+        var notifications = new List<bool>();
+        service.OnlineLookupConsentChanged += value => notifications.Add(value);
+
+        service.Reset();
+
+        Assert.AreEqual(0, notifications.Count);
+    }
 }

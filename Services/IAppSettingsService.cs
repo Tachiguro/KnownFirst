@@ -14,6 +14,12 @@ public interface IAppSettingsService
 
     bool HasOnlineLookupConsent { get; }
 
+    event Action<bool>? OnlineLookupConsentChanged
+    {
+        add { }
+        remove { }
+    }
+
     bool EnhancedTermRecognitionEnabled { get; }
 
     LearningTimezoneMode LearningTimezoneMode { get; }

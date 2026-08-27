@@ -7,7 +7,8 @@ public sealed class LexicalEnrichmentService(
     MeaningRanker meaningRanker,
     ILexicalCacheRepository cache,
     ILexicalLookupProviderResolver providerResolver,
-    ILexicalDiagnosticLog? diagnosticLog = null) : ILexicalEnrichmentService
+    ILexicalDiagnosticLog? diagnosticLog = null,
+    IOnlineLookupAuthorizationGate? authorizationGate = null) : ILexicalEnrichmentService
 {
     public const int MaximumLemmaRedirectDepth = 3;
     private readonly ILexicalDiagnosticLog _diagnosticLog =
@@ -28,6 +29,7 @@ public sealed class LexicalEnrichmentService(
             && KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.IsEligibleForFallback(request, primaryResult))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            authorizationGate?.EnsureAuthorized();
 
             _diagnosticLog.Write(Event(primaryExecution.FinalRequest, "Wikipedia", "enrichment.fallback.start"));
             var fallbackRequest = KnownFirst.Services.Lexical.Wikipedia.WikipediaFallbackPolicy.CreateFallbackRequest(primaryExecution.FinalRequest);
@@ -85,6 +87,12 @@ public sealed class LexicalEnrichmentService(
 
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (redirectDepth > 0)
+            {
+                authorizationGate?.EnsureAuthorized();
+            }
+
             _diagnosticLog.Write(Event(currentRequest, currentRequest.Provider, "enrichment.lookup.start"));
             var result = await LookupOneAsync(currentRequest, cancellationToken);
             _diagnosticLog.Write(Event(currentRequest, currentRequest.Provider, "enrichment.lookup.complete"));
@@ -219,9 +227,14 @@ public sealed class LexicalEnrichmentService(
             return AddDiagnostics(cached, request, provider, "cache-hit");
         }
 
+        authorizationGate?.EnsureAuthorized();
+
+        using var linkedCts = authorizationGate?.CreateLinkedCancellationTokenSource(cancellationToken);
+        var effectiveToken = linkedCts?.Token ?? cancellationToken;
+
         try
         {
-            var online = await provider.LookupAsync(request, cancellationToken);
+            var online = await provider.LookupAsync(request, effectiveToken);
             if (!string.Equals(online.ProviderName, provider.ProviderName, StringComparison.OrdinalIgnoreCase))
             {
                 _diagnosticLog.Write(Event(request, provider.ProviderName, "enrichment.provider-identity-mismatch"));
@@ -268,7 +281,7 @@ public sealed class LexicalEnrichmentService(
                 : $"{online.Status}: {online.ErrorCode}";
             return AddDiagnostics(online, request, provider, outcome);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || (authorizationGate is not null && !authorizationGate.IsAuthorized))
         {
             throw;
         }

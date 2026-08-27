@@ -132,7 +132,14 @@ public static class MauiProgram
         builder.Services.AddSingleton<ILexicalCacheRepository, LexicalCacheRepository>();
         builder.Services.AddSingleton<WiktionaryHtmlParser>();
         builder.Services.AddSingleton<IAsyncDelay, SystemAsyncDelay>();
-        builder.Services.AddSingleton(new HttpClient());
+        builder.Services.AddSingleton<IOnlineLookupAuthorizationGate, OnlineLookupAuthorizationGate>();
+        builder.Services.AddSingleton<OnlineLookupAuthorizationHandler>();
+        builder.Services.AddSingleton<HttpClient>(sp =>
+        {
+            var gate = sp.GetRequiredService<IOnlineLookupAuthorizationGate>();
+            var handler = new OnlineLookupAuthorizationHandler(gate);
+            return new HttpClient(handler);
+        });
 #if KNOWNFIRST_GUI_TEST_PROFILE_SUPPORTED || KNOWNFIRST_ANDROID_GUI_TEST
         if (GuiTestScenarioSeed.IsActive || GuiTestProfile.IsAndroidGuiTestProfile)
         {

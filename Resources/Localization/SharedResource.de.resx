@@ -1198,13 +1198,13 @@
     <value>Weitere Vorbereitungsaktionen</value>
   </data>
   <data name="Prepare_MarkKnown" xml:space="preserve">
-    <value>Dauerhaft als bekannt markieren</value>
+    <value>Als bekannt markieren</value>
   </data>
   <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
     <value>Dieses Wort wird dauerhaft als bekannt gespeichert. Es werden keine Lernkarten erstellt; veraltete Vorbereitungs-, Kontext- und Häufigkeitsdaten werden entfernt.</value>
   </data>
   <data name="Prepare_DoNotLearn" xml:space="preserve">
-    <value>Diesen Begriff nicht lernen</value>
+    <value>Vom Lernen ausschließen</value>
   </data>
   <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
     <value>Nur diese genaue Wortschatzidentität wird von künftiger Prüfung und Vorbereitung ausgeschlossen. Verwandte Wörter und Formen werden nicht ausgeschlossen, und es werden keine Lernkarten erstellt.</value>

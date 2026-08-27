@@ -693,12 +693,7 @@ public sealed class LearningService : ILearningService
         session.CompletedCards++;
         session.UpdatedAtUtc = reviewedAtUtc;
         IncrementRating(session, rating);
-        if (rating == ReviewRating.Again
-            && !queueItem.IsAgainRepeat
-            && !connection.Table<LearningSessionCardEntity>()
-                .Any(item => item.SessionId == session.Id
-                    && item.CardId == card.Id
-                    && item.IsAgainRepeat))
+        if (rating == ReviewRating.Again)
         {
             var nextOrder = connection.Table<LearningSessionCardEntity>()
                 .Where(item => item.SessionId == session.Id)
@@ -1363,7 +1358,7 @@ public sealed class LearningService : ILearningService
             connection, reviewId, graph.TargetAnswerVariantId, matchedVariantId);
         TripSchema8(Schema8LearningMutationCheckpoint.AfterReviewTargetMatchedUpdate);
 
-        // 24-25: queue completion, session counters and the unchanged Again-repeat semantics.
+        // 24-25: queue completion, session counters and one tail repeat for every committed Again.
         Schema8LearningRepository.CompleteQueueRow(connection, queueItemId, rating, reviewedAtUtc);
 
         var session = Schema8LearningRepository.LoadSession(connection, graph.Session.Id)
@@ -1380,10 +1375,7 @@ public sealed class LearningService : ILearningService
             default: throw new ArgumentOutOfRangeException(nameof(rating));
         }
 
-        if (rating == ReviewRating.Again
-            && !graph.Queue.IsAgainRepeat
-            && !Schema8LearningRepository.HasIncompleteAgainRepeat(
-                connection, session.Id, graph.Card.Id, graph.TargetAnswerVariantId))
+        if (rating == ReviewRating.Again)
         {
             var nextOrder = Schema8LearningRepository.MaxQueueOrder(connection, session.Id) + 1;
             Schema8LearningRepository.InsertAgainRepeatQueueRow(connection, graph.Queue.Id, nextOrder);
@@ -2099,6 +2091,7 @@ public sealed class LearningService : ILearningService
     private static bool IsCardPresentable(
         SQLiteConnection connection,
         Schema8CardRow card,
+        bool isActiveSessionAgainRepeat,
         Schema12LearningDayStateRow dayState,
         int limitN,
         DateTime nowUtc)
@@ -2110,7 +2103,7 @@ public sealed class LearningService : ILearningService
 
         if (card.State is CardState.Learning or CardState.Review or CardState.Relearning)
         {
-            return Schema8Utc.Normalize(card.DueAtUtc) <= nowUtc;
+            return isActiveSessionAgainRepeat || Schema8Utc.Normalize(card.DueAtUtc) <= nowUtc;
         }
 
         if (card.State == CardState.New)
@@ -2263,7 +2256,7 @@ public sealed class LearningService : ILearningService
                 continue;
             }
 
-            if (IsCardPresentable(connection, card, dayState, effectiveLimit, now))
+            if (IsCardPresentable(connection, card, row.IsAgainRepeat, dayState, effectiveLimit, now))
             {
                 return new LearningLoadResult(BuildSchema8CardView(connection, row.Id), null);
             }

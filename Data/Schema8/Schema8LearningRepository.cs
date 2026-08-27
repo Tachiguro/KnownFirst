@@ -108,16 +108,6 @@ public static class Schema8LearningRepository
         connection.ExecuteScalar<int>(
             "SELECT COUNT(*) FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0", sessionId);
 
-    public static bool HasIncompleteAgainRepeat(
-        SQLiteConnection connection, int sessionId, int cardId, int targetAnswerVariantId) =>
-        connection.ExecuteScalar<int>(
-            """
-            SELECT COUNT(*) FROM LearningSessionCards
-            WHERE SessionId = ? AND CardId = ? AND TargetAnswerVariantId = ?
-              AND IsAgainRepeat = 1 AND IsCompleted = 0
-            """,
-            sessionId, cardId, targetAnswerVariantId) > 0;
-
     public static int MaxQueueOrder(SQLiteConnection connection, int sessionId) =>
         connection.ExecuteScalar<int?>(
             "SELECT MAX(QueueOrder) FROM LearningSessionCards WHERE SessionId = ?", sessionId) ?? -1;

@@ -1177,7 +1177,7 @@ public sealed class StudyWorkflowServiceTests
     }
 
     [TestMethod]
-    public async Task Learning_AgainReappearsOnlyOnceAndSessionEnds()
+    public async Task Learning_AgainOnRepeatAppendsNextRepeatAndSessionRemainsActive()
     {
         await PrepareSingleAsync("network.", CardDirectionPreference.TermToMeaning);
         var first = (await _learning.GetOrStartAsync()).Card!;
@@ -1187,12 +1187,15 @@ public sealed class StudyWorkflowServiceTests
         Assert.IsTrue(repeat.IsAgainRepeat);
         await _learning.RevealAnswerAsync(repeat.QueueItemId);
 
-        var completed = await _learning.RateAsync(repeat.QueueItemId, ReviewRating.Again);
+        var continued = await _learning.RateAsync(repeat.QueueItemId, ReviewRating.Again);
         var rows = await _database.ReadAsync(connection => connection.Table<LearningSessionCardEntity>().CountAsync());
 
-        Assert.IsNull(completed.Card);
-        Assert.AreEqual(2, completed.CompletedSummary!.AgainCount);
-        Assert.AreEqual(2, rows);
+        Assert.IsNotNull(continued.Card);
+        Assert.IsTrue(continued.Card.IsAgainRepeat);
+        Assert.IsNull(continued.CompletedSummary);
+        Assert.AreEqual(2, continued.Card.CompletedCards);
+        Assert.AreEqual(3, continued.Card.TotalCards);
+        Assert.AreEqual(3, rows);
     }
 
     [TestMethod]

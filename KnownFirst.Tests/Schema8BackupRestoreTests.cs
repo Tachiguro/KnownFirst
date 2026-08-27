@@ -1074,7 +1074,7 @@ public sealed class Schema8BackupRestoreTests
     }
 
     [TestMethod]
-    public async Task Schema10_ActiveWorkflow_ExportRestore_PreservesState()
+    public async Task Schema10_ActiveWorkflow_ExportRestore_PreservesMultipleAgainRepeats()
     {
         await using var sourceFixture = await Schema7Fixture.CreateAsync();
         var startedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -1108,8 +1108,8 @@ public sealed class Schema8BackupRestoreTests
             CardDirection.TermToMeaning);
         var sessionId = await sourceFixture.InsertLearningSessionAsync(
             status: KnownFirst.Models.LearningSessionStatus.Active,
-            totalCards: 2,
-            completedCards: 1,
+            totalCards: 4,
+            completedCards: 2,
             startedAtUtc: startedAt,
             updatedAtUtc: completedAt,
             completedAtUtc: null);
@@ -1129,6 +1129,24 @@ public sealed class Schema8BackupRestoreTests
             remainingCardId,
             queueOrder: 1,
             isDueCard: false);
+        var completedRepeatQueueId = await sourceFixture.InsertQueueItemAsync(
+            sessionId,
+            completedCardId,
+            queueOrder: 2,
+            isDueCard: false,
+            isAgainRepeat: true,
+            answerRevealed: true,
+            isCompleted: true,
+            rating: ReviewRating.Again,
+            completedAtUtc: completedAt.AddMinutes(1));
+        var pendingRepeatQueueId = await sourceFixture.InsertQueueItemAsync(
+            sessionId,
+            completedCardId,
+            queueOrder: 3,
+            isDueCard: false,
+            isAgainRepeat: true);
+        await sourceFixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessions SET AgainCount = 1 WHERE Id = ?", sessionId);
         await sourceFixture.InsertReviewAsync(
             completedCardId,
             sessionId,
@@ -1139,6 +1157,16 @@ public sealed class Schema8BackupRestoreTests
             dueAtUtc: dueAt,
             intervalDays: 3,
             easeFactor: 2.35);
+        await sourceFixture.InsertReviewAsync(
+            completedCardId,
+            sessionId,
+            ReviewRating.Again,
+            wasTypedAnswer: false,
+            wasCorrect: false,
+            reviewedAtUtc: completedAt.AddMinutes(1),
+            dueAtUtc: completedAt.AddMinutes(11),
+            intervalDays: 0,
+            easeFactor: 2.15);
 
         await Schema8DormantMigration.ApplyAsync(sourceFixture.Connection);
         await Schema9DormantMigration.ApplyAsync(sourceFixture.Connection);
@@ -1148,11 +1176,17 @@ public sealed class Schema8BackupRestoreTests
             "SELECT * FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder", sessionId);
         var sourceReviews = await sourceFixture.Connection.QueryAsync<Schema8ReviewRow>(
             "SELECT * FROM LearningReviews WHERE SessionId = ?", sessionId);
-        Assert.AreEqual(2, sourceQueues.Count);
-        Assert.AreEqual(1, sourceReviews.Count);
-        var sourceReview = sourceReviews[0];
+        Assert.AreEqual(4, sourceQueues.Count);
+        Assert.AreEqual(2, sourceReviews.Count);
+        var sourceReview = sourceReviews.Single(review => review.Rating == ReviewRating.Hard);
         Assert.IsNotNull(sourceReview.TargetAnswerVariantId);
         Assert.IsNotNull(sourceReview.MatchedAnswerVariantId);
+        var sourceRepeatQueues = sourceQueues.Where(queue => queue.IsAgainRepeat).ToArray();
+        Assert.HasCount(2, sourceRepeatQueues);
+        Assert.IsTrue(sourceRepeatQueues[0].IsCompleted);
+        Assert.IsFalse(sourceRepeatQueues[1].IsCompleted);
+        Assert.AreEqual(sourceQueues[0].TargetAnswerVariantId, sourceRepeatQueues[0].TargetAnswerVariantId);
+        Assert.AreEqual(sourceQueues[0].TargetAnswerVariantId, sourceRepeatQueues[1].TargetAnswerVariantId);
 
         var expectedWorkflowStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
             "SELECT StableId FROM LearningSessions WHERE Id = ?", sessionId);
@@ -1160,6 +1194,10 @@ public sealed class Schema8BackupRestoreTests
             "SELECT StableId FROM LearningSessionCards WHERE Id = ?", completedQueueId);
         var expectedRemainingQueueStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
             "SELECT StableId FROM LearningSessionCards WHERE Id = ?", remainingQueueId);
+        var expectedCompletedRepeatStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessionCards WHERE Id = ?", completedRepeatQueueId);
+        var expectedPendingRepeatStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT StableId FROM LearningSessionCards WHERE Id = ?", pendingRepeatQueueId);
         var sourceTargetVariantStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
             "SELECT StableId FROM AnswerVariants WHERE Id = ?", sourceReview.TargetAnswerVariantId!.Value);
         var sourceMatchedVariantStableId = await sourceFixture.Connection.ExecuteScalarAsync<string>(
@@ -1178,6 +1216,9 @@ public sealed class Schema8BackupRestoreTests
         Assert.AreEqual(expectedWorkflowStableId, firstArchiveWorkflow.StableId);
         Assert.AreEqual(expectedCompletedQueueStableId, firstArchiveWorkflow.QueueItems.Single(item => item.QueueOrder == 0).StableId);
         Assert.AreEqual(expectedRemainingQueueStableId, firstArchiveWorkflow.QueueItems.Single(item => item.QueueOrder == 1).StableId);
+        Assert.AreEqual(expectedCompletedRepeatStableId, firstArchiveWorkflow.QueueItems.Single(item => item.QueueOrder == 2).StableId);
+        Assert.AreEqual(expectedPendingRepeatStableId, firstArchiveWorkflow.QueueItems.Single(item => item.QueueOrder == 3).StableId);
+        Assert.HasCount(2, firstArchiveWorkflow.QueueItems.Where(item => item.IsAgainRepeat).ToArray());
 
         await using var targetFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
         await Schema9DormantMigration.ApplyAsync(targetFixture.Connection);
@@ -1195,8 +1236,9 @@ public sealed class Schema8BackupRestoreTests
         Assert.AreEqual(1, sessions.Count);
         Assert.AreEqual((int)KnownFirst.Models.LearningSessionStatus.Active, (int)sessions[0].Status);
         Assert.IsNull(sessions[0].CompletedAtUtc);
-        Assert.AreEqual(2, sessions[0].TotalCards);
-        Assert.AreEqual(1, sessions[0].CompletedCards);
+        Assert.AreEqual(4, sessions[0].TotalCards);
+        Assert.AreEqual(2, sessions[0].CompletedCards);
+        Assert.AreEqual(1, sessions[0].AgainCount);
         Assert.AreNotEqual(sessionId, sessions[0].Id);
 
         var restoredWorkflowStableId = await targetFixture.Connection.ExecuteScalarAsync<string>(
@@ -1205,9 +1247,11 @@ public sealed class Schema8BackupRestoreTests
 
         var restoredQueues = await targetFixture.Connection.QueryAsync<Schema8QueueRow>(
             "SELECT * FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder", sessions[0].Id);
-        Assert.AreEqual(2, restoredQueues.Count);
+        Assert.AreEqual(4, restoredQueues.Count);
         var restoredCompletedQueue = restoredQueues[0];
         var restoredRemainingQueue = restoredQueues[1];
+        var restoredCompletedRepeat = restoredQueues[2];
+        var restoredPendingRepeat = restoredQueues[3];
         Assert.AreEqual(0, restoredCompletedQueue.QueueOrder);
         Assert.AreEqual(sessions[0].Id, restoredCompletedQueue.SessionId);
         Assert.IsTrue(restoredCompletedQueue.IsCompleted);
@@ -1221,11 +1265,26 @@ public sealed class Schema8BackupRestoreTests
         Assert.IsFalse(restoredRemainingQueue.IsCompleted);
         Assert.IsNull(restoredRemainingQueue.Rating);
         Assert.IsNull(restoredRemainingQueue.CompletedAtUtc);
+        Assert.IsTrue(restoredCompletedRepeat.IsAgainRepeat);
+        Assert.IsTrue(restoredCompletedRepeat.IsCompleted);
+        Assert.AreEqual(ReviewRating.Again, restoredCompletedRepeat.Rating);
+        Assert.IsTrue(restoredPendingRepeat.IsAgainRepeat);
+        Assert.IsFalse(restoredPendingRepeat.IsCompleted);
+        Assert.AreEqual(restoredCompletedQueue.TargetAnswerVariantId, restoredCompletedRepeat.TargetAnswerVariantId);
+        Assert.AreEqual(restoredCompletedQueue.TargetAnswerVariantId, restoredPendingRepeat.TargetAnswerVariantId);
+        Assert.AreEqual(
+            expectedCompletedRepeatStableId,
+            await targetFixture.Connection.ExecuteScalarAsync<string>(
+                "SELECT StableId FROM LearningSessionCards WHERE Id = ?", restoredCompletedRepeat.Id));
+        Assert.AreEqual(
+            expectedPendingRepeatStableId,
+            await targetFixture.Connection.ExecuteScalarAsync<string>(
+                "SELECT StableId FROM LearningSessionCards WHERE Id = ?", restoredPendingRepeat.Id));
 
         var restoredReviews = await targetFixture.Connection.QueryAsync<Schema8ReviewRow>(
             "SELECT * FROM LearningReviews WHERE SessionId = ?", sessions[0].Id);
-        Assert.AreEqual(1, restoredReviews.Count);
-        var restoredReview = restoredReviews[0];
+        Assert.AreEqual(2, restoredReviews.Count);
+        var restoredReview = restoredReviews.Single(review => review.Rating == ReviewRating.Hard);
         Assert.AreEqual(sessions[0].Id, restoredReview.SessionId);
         Assert.AreEqual(restoredCompletedQueue.CardId, restoredReview.CardId);
         Assert.AreEqual(sourceReview.Rating, restoredReview.Rating);
@@ -1272,6 +1331,13 @@ public sealed class Schema8BackupRestoreTests
         Assert.AreEqual(
             expectedRemainingQueueStableId,
             reexportedWorkflow.QueueItems.Single(item => item.QueueOrder == 1).StableId);
+        Assert.AreEqual(
+            expectedCompletedRepeatStableId,
+            reexportedWorkflow.QueueItems.Single(item => item.QueueOrder == 2).StableId);
+        Assert.AreEqual(
+            expectedPendingRepeatStableId,
+            reexportedWorkflow.QueueItems.Single(item => item.QueueOrder == 3).StableId);
+        Assert.HasCount(2, reexportedWorkflow.QueueItems.Where(item => item.IsAgainRepeat).ToArray());
     }
 
     [TestMethod]

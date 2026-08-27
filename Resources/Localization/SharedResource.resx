@@ -376,7 +376,7 @@
     <value>Ignore</value>
   </data>
   <data name="Review_Undo" xml:space="preserve">
-    <value>Undo previous decision</value>
+    <value>Undo</value>
   </data>
   <data name="Review_DecisionError" xml:space="preserve">
     <value>The decision could not be saved. Try again.</value>

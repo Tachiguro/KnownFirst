@@ -744,8 +744,80 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("Review_Undo", markup);
 
         Assert.Contains(".review-action-bar", styles);
-        Assert.Contains("grid-template-columns: minmax(0, 1fr) auto", styles);
-        Assert.Contains("@media (max-width: 620px)", styles);
+        Assert.Contains(".review-actions-grid", styles);
+        Assert.Contains("@media (max-width: 680px)", styles);
+    }
+
+    [TestMethod]
+    public void ReviewWordsActionBar_CommonStandardButtonStructureAndHierarchy()
+    {
+        var markup = LoadUi("ReviewWords.razor");
+
+        Assert.Contains("class=\"review-actions-grid\"", markup);
+        Assert.DoesNotContain("decision-grid", markup);
+        Assert.DoesNotContain("undo-container", markup);
+        Assert.DoesNotContain("undo-button", markup);
+
+        var gridIndex = markup.IndexOf("class=\"review-actions-grid\"", StringComparison.Ordinal);
+        var knownIndex = markup.IndexOf("WordStatus.Known", gridIndex, StringComparison.Ordinal);
+        var unknownIndex = markup.IndexOf("WordStatus.UnknownBacklog", gridIndex, StringComparison.Ordinal);
+        var undoIndex = markup.IndexOf("UndoAsync", gridIndex, StringComparison.Ordinal);
+        var discardIndex = markup.IndexOf("Review_DiscardAction", gridIndex, StringComparison.Ordinal);
+
+        Assert.IsTrue(gridIndex >= 0, "review-actions-grid must exist");
+        Assert.IsTrue(knownIndex > gridIndex && unknownIndex > knownIndex && undoIndex > unknownIndex && discardIndex > undoIndex,
+            "Semantic ordering must be Known -> Unknown -> Undo -> Discard import");
+
+        Assert.Contains("button button-primary", markup);
+        Assert.Contains("button button-secondary", markup);
+        Assert.Contains("button button-danger end-review-discard", markup);
+
+        var undoSliceStart = markup.IndexOf("@onclick=\"UndoAsync\"", StringComparison.Ordinal);
+        var undoButtonTagStart = markup.LastIndexOf("<button", undoSliceStart, StringComparison.Ordinal);
+        var undoButtonTag = markup[undoButtonTagStart..undoSliceStart];
+        Assert.Contains("class=\"button button-secondary\"", undoButtonTag);
+        Assert.Contains("disabled=\"@(!_candidate.CanUndo || _isSaving)\"", undoButtonTag);
+
+        Assert.Contains("@ref=\"_discardButtonRef\"", markup);
+    }
+
+    [TestMethod]
+    public void ReviewWordsActionBar_EqualWidthAndEqualHeightCssContract()
+    {
+        var styles = LoadUi("ReviewWords.razor.css");
+
+        Assert.Contains(".review-actions-grid {", styles);
+        Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr));", styles);
+        Assert.Contains("grid-auto-rows: 1fr;", styles);
+        Assert.Contains(".review-actions-grid .button {", styles);
+        Assert.Contains("width: 100%;", styles);
+        Assert.Contains("height: 100%;", styles);
+
+        Assert.Contains("@media (max-width: 680px)", styles);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr));", styles);
+
+        Assert.Contains("@media (max-width: 380px)", styles);
+        Assert.Contains("grid-template-columns: 1fr;", styles);
+
+        Assert.DoesNotContain(".decision-grid", styles);
+        Assert.DoesNotContain(".undo-container", styles);
+        Assert.DoesNotContain(".undo-button", styles);
+    }
+
+    [TestMethod]
+    public void ReviewWordsActionBar_BehaviorContractsPreserved()
+    {
+        var markup = LoadUi("ReviewWords.razor");
+
+        Assert.Contains("aria-keyshortcuts=\"Enter\"", markup);
+        Assert.Contains("title=\"@Localizer[\"Review_Known\"] (Enter)\"", markup);
+        Assert.Contains("@onclick=\"() => DecideAsync(WordStatus.Known)\"", markup);
+        Assert.Contains("@onclick=\"() => DecideAsync(WordStatus.UnknownBacklog)\"", markup);
+        Assert.Contains("@onclick=\"UndoAsync\"", markup);
+        Assert.Contains("@onclick=\"ShowDiscardConfirmationAsync\"", markup);
+        Assert.Contains("role=\"alertdialog\"", markup);
+        Assert.Contains("data-destructive-confirm", markup);
+        Assert.Contains("TextReviewService.DiscardActiveImportAsync()", markup);
     }
 
     [TestMethod]

@@ -1030,6 +1030,28 @@ public sealed class LocalizationResourceTests
     }
 
     [TestMethod]
+    public void ReviewWordsActionBar_UndoAndDiscardLocalizationMatchesApprovedContract()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        const string undoKey = "Review_Undo";
+        const string discardKey = "Review_DiscardAction";
+
+        Assert.IsTrue(english.ContainsKey(undoKey), "English resource is missing Review_Undo.");
+        Assert.IsTrue(german.ContainsKey(undoKey), "German resource is missing Review_Undo.");
+        Assert.IsTrue(russian.ContainsKey(undoKey), "Russian resource is missing Review_Undo.");
+
+        Assert.AreEqual("Undo", english[undoKey]);
+        Assert.AreEqual("Rückgängig", german[undoKey]);
+        Assert.AreEqual("Отменить", russian[undoKey]);
+
+        Assert.AreEqual("Discard import", english[discardKey]);
+        Assert.AreEqual("Import verwerfen", german[discardKey]);
+        Assert.AreEqual("Отменить импорт", russian[discardKey]);
+    }
+
+    [TestMethod]
     public void ReviewWords_LiteralLocalizerKeysExistInResourcesWithoutLeaks()
     {
         var uiRoot = Path.Combine(AppContext.BaseDirectory, "Ui");

@@ -54,6 +54,12 @@ public sealed record LearningLoadResult(
     LearningCardView? Card,
     LearningSessionSummary? CompletedSummary);
 
+public sealed record LearningPreparationReadiness(
+    bool ShouldTransitionToLearning,
+    LearningDayPhase? Phase,
+    int RemainingFreshWordDemand,
+    int EligibleFreshWordCount);
+
 /// <summary>
 /// The outcome of a typed-answer check. <paramref name="MatchedAnswerVariantId"/> (KF-MEANING-001 Slice 4) is
 /// the Schema-8 answer-variant identity handoff a subsequent rating consumes; it is always

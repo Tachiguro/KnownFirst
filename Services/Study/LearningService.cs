@@ -91,6 +91,27 @@ public sealed class LearningService : ILearningService
         }
     }
 
+    public async Task<LearningPreparationReadiness> GetPreparationReadinessAsync()
+    {
+        await _operationGate.WaitAsync();
+        try
+        {
+            return await database.RunInTransactionAsync(connection =>
+            {
+                if (LearningSchemaCapability.Resolve(connection) is not LearningSchema12CapabilityResult)
+                {
+                    return new LearningPreparationReadiness(false, null, 0, 0);
+                }
+
+                return GetPreparationReadinessSchema12(connection);
+            });
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
     public async Task RevealAnswerAsync(int queueItemId)
     {
         await _operationGate.WaitAsync();
@@ -983,6 +1004,10 @@ public sealed class LearningService : ILearningService
 
     private sealed record Schema8QueueSelection(Schema8CardRow Card, int TargetAnswerVariantId, bool IsDueCard);
 
+    private sealed record Schema8FreshAdmissionPlan(
+        Schema8QueueWordRow Word,
+        IReadOnlyList<Schema8QueueSelection> Cards);
+
     /// <summary>Everything the Schema-8 paths need about one queue row, validated before any mutation.</summary>
     private sealed record Schema8Graph(
         Schema8QueueTargetRow Queue,
@@ -1790,6 +1815,79 @@ public sealed class LearningService : ILearningService
         return dayState;
     }
 
+    private LearningPreparationReadiness GetPreparationReadinessSchema12(SQLiteConnection connection)
+    {
+        var selectionNow = Schema8Utc.Normalize(clock.UtcNow);
+        var dayState = EnsureDayStateSchema12(connection, selectionNow);
+        if (dayState is null)
+        {
+            return new LearningPreparationReadiness(false, null, 0, 0);
+        }
+
+        if (dayState.Phase != LearningDayPhase.ActiveBudgetDay)
+        {
+            return new LearningPreparationReadiness(false, dayState.Phase, 0, 0);
+        }
+
+        var limitN = appSettings is not null
+            ? PreparationLimitPolicy.Normalize(appSettings.PreparationLimit)
+            : PreparationLimitPolicy.DefaultLimit;
+        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        foreach (var card in cards)
+        {
+            ValidateSchema8CardState(card);
+        }
+
+        var wordsById = Schema8LearningRepository.LoadQueueWords(connection)
+            .ToDictionary(word => word.Id);
+        var learnedWordIds = Schema8LearningRepository.LoadEverLearnedWordIds(connection);
+        var existingGrants = Schema8LearningRepository.LoadGrantsForDay(connection, dayState.DayOrdinal);
+        var grantedWordIds = existingGrants.Select(grant => grant.WordId).ToHashSet();
+
+        var activeSessions = Schema8LearningRepository.LoadActiveSessions(connection);
+        if (activeSessions.Count > 1)
+        {
+            throw Reject(Schema8LearningDataErrorCode.SessionNotActive,
+                $"{activeSessions.Count} active learning sessions exist; exactly one is permitted.");
+        }
+
+        var ungrantedCarryOverWordIds = new HashSet<int>();
+        if (activeSessions.Count == 1)
+        {
+            var cardsById = cards.ToDictionary(card => card.Id);
+            foreach (var queueRow in Schema8LearningRepository.LoadIncompleteQueueRowsForSession(
+                         connection, activeSessions[0].Id))
+            {
+                if (!cardsById.TryGetValue(queueRow.CardId, out var card))
+                {
+                    throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
+                        $"Queue row {queueRow.Id} references missing card {queueRow.CardId}.");
+                }
+
+                if (!grantedWordIds.Contains(card.WordId) && !learnedWordIds.Contains(card.WordId))
+                {
+                    ungrantedCarryOverWordIds.Add(card.WordId);
+                }
+            }
+        }
+
+        var remainingFreshDemand = Math.Max(
+            0,
+            limitN - existingGrants.Count - ungrantedCarryOverWordIds.Count);
+        var excludedWordIds = grantedWordIds
+            .Concat(ungrantedCarryOverWordIds)
+            .ToHashSet();
+        var eligibleFreshWordCount = PlanEligibleFreshAdmissions(
+                connection, cards, wordsById, excludedWordIds, learnedWordIds)
+            .Count;
+
+        return new LearningPreparationReadiness(
+            remainingFreshDemand > 0 && eligibleFreshWordCount >= remainingFreshDemand,
+            dayState.Phase,
+            remainingFreshDemand,
+            eligibleFreshWordCount);
+    }
+
     /// <summary>
     /// The Schema-8/12 <c>GetOrStartAsync</c> loader.
     /// </summary>
@@ -1865,6 +1963,7 @@ public sealed class LearningService : ILearningService
         var cardsById = cards.ToDictionary(c => c.Id);
         var wordsById = Schema8LearningRepository.LoadQueueWords(connection)
             .ToDictionary(w => w.Id);
+        var learnedWordIds = Schema8LearningRepository.LoadEverLearnedWordIds(connection);
 
         var incompleteRows = Schema8LearningRepository.LoadIncompleteQueueRowsForSession(connection, active.Id);
         var incompleteCardIds = incompleteRows.Select(r => r.CardId).ToHashSet();
@@ -1883,7 +1982,7 @@ public sealed class LearningService : ILearningService
 
         foreach (var wordId in distinctIncompleteWordIds)
         {
-            if (!existingGrantedWordIds.Contains(wordId) && !Schema8LearningRepository.HasEverBeenLearned(connection, wordId))
+            if (!existingGrantedWordIds.Contains(wordId) && !learnedWordIds.Contains(wordId))
             {
                 Schema8LearningRepository.InsertDayGrant(connection, dayState.DayOrdinal, wordId, nextSlotOrdinal++, selectionNow);
                 existingGrantedWordIds.Add(wordId);
@@ -1897,37 +1996,27 @@ public sealed class LearningService : ILearningService
             if (currentGrantCount < limitN)
             {
                 var remainingCapacity = limitN - currentGrantCount;
-                var candidateWords = wordsById.Values
-                    .Where(w => !existingGrantedWordIds.Contains(w.Id) && !Schema8LearningRepository.HasEverBeenLearned(connection, w.Id))
-                    .OrderByDescending(w => w.TotalOccurrenceCount)
-                    .ThenBy(w => w.CreatedAt)
-                    .ThenBy(w => w.CanonicalTerm, StringComparer.Ordinal)
+                var candidatePlans = PlanEligibleFreshAdmissions(
+                        connection, cards, wordsById, existingGrantedWordIds, learnedWordIds)
                     .Take(remainingCapacity)
                     .ToList();
 
                 var sessionQueueRows = Schema8LearningRepository.LoadQueueRowsForSession(connection, active.Id);
                 var maxQueueOrder = sessionQueueRows.Count > 0 ? sessionQueueRows.Max(r => r.QueueOrder) : -1;
 
-                foreach (var word in candidateWords)
+                foreach (var plan in candidatePlans)
                 {
-                    Schema8LearningRepository.InsertDayGrant(connection, dayState.DayOrdinal, word.Id, nextSlotOrdinal++, selectionNow);
-                    existingGrantedWordIds.Add(word.Id);
+                    Schema8LearningRepository.InsertDayGrant(
+                        connection, dayState.DayOrdinal, plan.Word.Id, nextSlotOrdinal++, selectionNow);
+                    existingGrantedWordIds.Add(plan.Word.Id);
 
-                    var newCardsForWord = cards
-                        .Where(c => c.WordId == word.Id && c.State == CardState.New && !incompleteCardIds.Contains(c.Id))
-                        .OrderBy(c => c.Direction)
-                        .ThenBy(c => c.Id);
-
-                    foreach (var card in newCardsForWord)
+                    foreach (var selection in plan.Cards.Where(selection => !incompleteCardIds.Contains(selection.Card.Id)))
                     {
-                        var target = SelectSchema8QueueTarget(connection, card, wordsById);
-                        if (target.HasValue)
-                        {
-                            ValidateSchema8PreferredMeaning(connection, card, card.SenseId!.Value);
-                            maxQueueOrder++;
-                            Schema8LearningRepository.InsertQueueRow(connection, active.Id, card.Id, maxQueueOrder, isDueCard: false, target.Value);
-                            active.TotalCards++;
-                        }
+                        maxQueueOrder++;
+                        Schema8LearningRepository.InsertQueueRow(
+                            connection, active.Id, selection.Card.Id, maxQueueOrder,
+                            isDueCard: false, selection.TargetAnswerVariantId);
+                        active.TotalCards++;
                     }
                 }
             }
@@ -1944,7 +2033,7 @@ public sealed class LearningService : ILearningService
 
         var siblingNewCards = cards
             .Where(c => c.State == CardState.New
-                && Schema8LearningRepository.HasEverBeenLearned(connection, c.WordId)
+                && learnedWordIds.Contains(c.WordId)
                 && !incompleteCardIds.Contains(c.Id))
             .OrderByDescending(c => wordsById.GetValueOrDefault(c.WordId)?.TotalOccurrenceCount ?? 0)
             .ThenBy(c => wordsById.GetValueOrDefault(c.WordId)?.CreatedAt ?? DateTime.MaxValue)
@@ -1994,6 +2083,7 @@ public sealed class LearningService : ILearningService
 
         var wordsById = Schema8LearningRepository.LoadQueueWords(connection)
             .ToDictionary(word => word.Id);
+        var learnedWordIds = Schema8LearningRepository.LoadEverLearnedWordIds(connection);
 
         var dueCards = cards
             .Where(card => card.State is not (CardState.New or CardState.Suspended or CardState.Retired)
@@ -2003,7 +2093,7 @@ public sealed class LearningService : ILearningService
             .ToArray();
 
         var siblingNewCards = cards
-            .Where(card => card.State == CardState.New && Schema8LearningRepository.HasEverBeenLearned(connection, card.WordId))
+            .Where(card => card.State == CardState.New && learnedWordIds.Contains(card.WordId))
             .OrderByDescending(card => wordsById.GetValueOrDefault(card.WordId)?.TotalOccurrenceCount ?? 0)
             .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CreatedAt ?? DateTime.MaxValue)
             .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CanonicalTerm, StringComparer.Ordinal)
@@ -2011,23 +2101,12 @@ public sealed class LearningService : ILearningService
             .ThenBy(card => card.Id)
             .ToArray();
 
-        var genuinelyNewWords = wordsById.Values
-            .Where(word => !Schema8LearningRepository.HasEverBeenLearned(connection, word.Id))
-            .OrderByDescending(word => word.TotalOccurrenceCount)
-            .ThenBy(word => word.CreatedAt)
-            .ThenBy(word => word.CanonicalTerm, StringComparer.Ordinal)
-            .ToList();
-
-        var admittedGenuinelyNewCards = new List<Schema8CardRow>();
+        var admittedGenuinelyNewSelections = new List<Schema8QueueSelection>();
         if (dayState is null)
         {
-            admittedGenuinelyNewCards.AddRange(
-                cards.Where(card => card.State == CardState.New && !Schema8LearningRepository.HasEverBeenLearned(connection, card.WordId))
-                    .OrderByDescending(card => wordsById.GetValueOrDefault(card.WordId)?.TotalOccurrenceCount ?? 0)
-                    .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CreatedAt ?? DateTime.MaxValue)
-                    .ThenBy(card => wordsById.GetValueOrDefault(card.WordId)?.CanonicalTerm, StringComparer.Ordinal)
-                    .ThenBy(card => card.Direction)
-                    .ThenBy(card => card.Id));
+            admittedGenuinelyNewSelections.AddRange(
+                PlanEligibleFreshAdmissions(connection, cards, wordsById, new HashSet<int>(), learnedWordIds)
+                    .SelectMany(plan => plan.Cards));
         }
         else if (dayState.Phase == LearningDayPhase.ActiveBudgetDay)
         {
@@ -2038,19 +2117,16 @@ public sealed class LearningService : ILearningService
             if (remainingCapacity > 0)
             {
                 var grantedWordIds = existingGrants.Select(g => g.WordId).ToHashSet();
-                var wordsToAdmit = genuinelyNewWords
-                    .Where(w => !grantedWordIds.Contains(w.Id))
+                var plansToAdmit = PlanEligibleFreshAdmissions(
+                        connection, cards, wordsById, grantedWordIds, learnedWordIds)
                     .Take(remainingCapacity)
                     .ToList();
 
-                foreach (var word in wordsToAdmit)
+                foreach (var plan in plansToAdmit)
                 {
-                    Schema8LearningRepository.InsertDayGrant(connection, dayState.DayOrdinal, word.Id, nextSlotOrdinal++, selectionNow);
-                    var cardsForWord = cards
-                        .Where(c => c.WordId == word.Id && c.State == CardState.New)
-                        .OrderBy(c => c.Direction)
-                        .ThenBy(c => c.Id);
-                    admittedGenuinelyNewCards.AddRange(cardsForWord);
+                    Schema8LearningRepository.InsertDayGrant(
+                        connection, dayState.DayOrdinal, plan.Word.Id, nextSlotOrdinal++, selectionNow);
+                    admittedGenuinelyNewSelections.AddRange(plan.Cards);
                 }
             }
         }
@@ -2058,7 +2134,7 @@ public sealed class LearningService : ILearningService
         var dueIds = dueCards.Select(card => card.Id).ToHashSet();
         var selections = new List<Schema8QueueSelection>();
 
-        foreach (var card in dueCards.Concat(siblingNewCards).Concat(admittedGenuinelyNewCards))
+        foreach (var card in dueCards.Concat(siblingNewCards))
         {
             var target = SelectSchema8QueueTarget(connection, card, wordsById);
             if (target.HasValue)
@@ -2067,6 +2143,7 @@ public sealed class LearningService : ILearningService
                 selections.Add(new Schema8QueueSelection(card, target.Value, dueIds.Contains(card.Id)));
             }
         }
+        selections.AddRange(admittedGenuinelyNewSelections);
 
         if (selections.Count > 0)
         {
@@ -2086,6 +2163,55 @@ public sealed class LearningService : ILearningService
         return latestCompleted is null
             ? new LearningLoadResult(null, null)
             : new LearningLoadResult(null, BuildSchema8Summary(connection, latestCompleted));
+    }
+
+    private static List<Schema8FreshAdmissionPlan> PlanEligibleFreshAdmissions(
+        SQLiteConnection connection,
+        IReadOnlyList<Schema8CardRow> cards,
+        IReadOnlyDictionary<int, Schema8QueueWordRow> wordsById,
+        IReadOnlySet<int> excludedWordIds,
+        IReadOnlySet<int> learnedWordIds)
+    {
+        var newCardsByWordId = cards
+            .Where(card => card.State == CardState.New)
+            .GroupBy(card => card.WordId)
+            .ToDictionary(group => group.Key, group => group
+                .OrderBy(card => card.Direction)
+                .ThenBy(card => card.Id)
+                .ToList());
+
+        var plans = new List<Schema8FreshAdmissionPlan>();
+        foreach (var word in wordsById.Values
+                     .Where(word => !excludedWordIds.Contains(word.Id) && !learnedWordIds.Contains(word.Id))
+                     .OrderByDescending(word => word.TotalOccurrenceCount)
+                     .ThenBy(word => word.CreatedAt)
+                     .ThenBy(word => word.CanonicalTerm, StringComparer.Ordinal))
+        {
+            if (!newCardsByWordId.TryGetValue(word.Id, out var newCards))
+            {
+                continue;
+            }
+
+            var queueableCards = new List<Schema8QueueSelection>();
+            foreach (var card in newCards)
+            {
+                var target = SelectSchema8QueueTarget(connection, card, wordsById);
+                if (!target.HasValue)
+                {
+                    continue;
+                }
+
+                ValidateSchema8PreferredMeaning(connection, card, card.SenseId!.Value);
+                queueableCards.Add(new Schema8QueueSelection(card, target.Value, IsDueCard: false));
+            }
+
+            if (queueableCards.Count > 0)
+            {
+                plans.Add(new Schema8FreshAdmissionPlan(word, queueableCards));
+            }
+        }
+
+        return plans;
     }
 
     private static bool IsCardPresentable(

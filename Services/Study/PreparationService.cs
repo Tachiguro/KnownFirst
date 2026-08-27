@@ -19,13 +19,15 @@ public sealed partial class PreparationService(
     ILexicalEnrichmentService lexicalEnrichment,
     IClock clock,
     ILexicalDiagnosticLog? diagnosticLog = null,
-    IPreparationFaultInjector? faultInjector = null) : IPreparationService
+    IPreparationFaultInjector? faultInjector = null,
+    IOnlineLookupAuthorizationGate? authorizationGate = null) : IPreparationService
 {
     private const int MaximumContextSnapshots = 3;
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private readonly object _prefetchSync = new();
     private readonly ILexicalDiagnosticLog _diagnosticLog =
         diagnosticLog ?? NullLexicalDiagnosticLog.Instance;
+    private readonly IOnlineLookupAuthorizationGate? _authorizationGate = authorizationGate;
     private CancellationTokenSource? _prefetchCancellation;
     private Task<PrefetchedLookup?>? _prefetchTask;
     private int? _prefetchOriginCandidateId;
@@ -115,6 +117,11 @@ public sealed partial class PreparationService(
                 if (active is not null)
                 {
                     return active.Id;
+                }
+
+                if (method == PreparationMethod.AutomaticOnline)
+                {
+                    _authorizationGate?.EnsureAuthorized();
                 }
 
                 // KF-MEANING-001 Slice 3: Schema 7 keeps the unchanged legacy selection path below
@@ -345,6 +352,12 @@ public sealed partial class PreparationService(
                 return item;
             }
 
+            _authorizationGate?.EnsureAuthorized();
+
+            using var linkedCts = _authorizationGate?.CreateLinkedCancellationTokenSource(cancellationToken);
+            var effectiveToken = linkedCts?.Token ?? cancellationToken;
+            effectiveToken.ThrowIfCancellationRequested();
+
             await database.RunInTransactionAsync(connection =>
             {
                 var candidate = connection.Find<PreparationCandidateEntity>(item.CandidateId)
@@ -361,9 +374,12 @@ public sealed partial class PreparationService(
                 return true;
             });
 
-            var result = await TryConsumePrefetchAsync(item.CandidateId, cancellationToken);
+            var result = await TryConsumePrefetchAsync(item.CandidateId, effectiveToken);
             if (result is null)
             {
+                effectiveToken.ThrowIfCancellationRequested();
+                _authorizationGate?.EnsureAuthorized();
+
                 var documentContent = await GetDocumentContentAsync(item.WordId);
                 var networkStarted = Stopwatch.GetTimestamp();
                 _diagnosticLog.Write(DiagnosticEvent(item, "preparation.request.start"));
@@ -373,7 +389,7 @@ public sealed partial class PreparationService(
                     request,
                     documentContent,
                     item.Contexts.FirstOrDefault()?.Text,
-                    cancellationToken);
+                    effectiveToken);
                 RecordTiming(
                     item.CandidateId,
                     "Lookup",
@@ -451,7 +467,7 @@ public sealed partial class PreparationService(
                 SelectedMeaningIndex = persisted.SelectedMeaningIndex,
                 LastErrorCode = result.ErrorCode
             };
-            if (result.HasUsableData)
+            if (result.HasUsableData && (_authorizationGate?.IsAuthorized ?? true))
             {
                 BeginPrefetch(item);
             }
@@ -843,7 +859,17 @@ public sealed partial class PreparationService(
             _prefetchOriginCandidateId = null;
         }
 
-        cancellation?.Cancel();
+        if (cancellation is not null)
+        {
+            try
+            {
+                cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
         if (task is not null)
         {
             try
@@ -851,6 +877,9 @@ public sealed partial class PreparationService(
                 await task;
             }
             catch (OperationCanceledException)
+            {
+            }
+            catch
             {
             }
         }
@@ -1013,6 +1042,12 @@ public sealed partial class PreparationService(
 
     private void BeginPrefetch(PreparationItem currentItem)
     {
+        if (_authorizationGate is not null && !_authorizationGate.IsAuthorized)
+        {
+            ClearPrefetchState();
+            return;
+        }
+
         lock (_prefetchSync)
         {
             if (_prefetchOriginCandidateId == currentItem.CandidateId && _prefetchTask is not null)
@@ -1020,24 +1055,42 @@ public sealed partial class PreparationService(
                 return;
             }
 
-            _prefetchCancellation?.Cancel();
-            _prefetchCancellation?.Dispose();
-            _prefetchCancellation = new CancellationTokenSource();
+            ClearPrefetchLocked();
+
+            if (_authorizationGate is not null && !_authorizationGate.IsAuthorized)
+            {
+                return;
+            }
+
+            var cts = _authorizationGate is not null
+                ? _authorizationGate.CreateLinkedCancellationTokenSource()
+                : new CancellationTokenSource();
+
+            var epochToken = _authorizationGate?.CurrentEpochToken ?? CancellationToken.None;
+
+            _prefetchCancellation = cts;
             _prefetchOriginCandidateId = currentItem.CandidateId;
             _prefetchTask = PrefetchNextAsync(
                 currentItem.SessionId,
                 currentItem.Position - 1,
-                _prefetchCancellation.Token);
+                epochToken,
+                cts.Token);
         }
     }
 
     private async Task<PrefetchedLookup?> PrefetchNextAsync(
         int sessionId,
         int currentOrder,
+        CancellationToken epochToken,
         CancellationToken cancellationToken)
     {
         try
         {
+            if (_authorizationGate is not null && (!_authorizationGate.IsAuthorized || epochToken.IsCancellationRequested))
+            {
+                return null;
+            }
+
             var source = await database.ReadAsync(async connection =>
             {
                 var session = await connection.FindAsync<PreparationSessionEntity>(sessionId);
@@ -1061,6 +1114,12 @@ public sealed partial class PreparationService(
                 return null;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_authorizationGate is not null && (!_authorizationGate.IsAuthorized || epochToken.IsCancellationRequested))
+            {
+                return null;
+            }
+
             var networkStarted = Stopwatch.GetTimestamp();
             _diagnosticLog.Write(DiagnosticEvent(source.Item, "prefetch.request.start"));
             var request = CreateLookupRequest(source.Item);
@@ -1075,9 +1134,15 @@ public sealed partial class PreparationService(
                 "Prefetch",
                 PreparationTimingPhase.NetworkWork,
                 networkStarted);
-            return new PrefetchedLookup(source.Item.CandidateId, result);
+
+            if (_authorizationGate is not null && (!_authorizationGate.IsAuthorized || epochToken.IsCancellationRequested))
+            {
+                return null;
+            }
+
+            return new PrefetchedLookup(source.Item.CandidateId, result, epochToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || epochToken.IsCancellationRequested || (_authorizationGate is not null && !_authorizationGate.IsAuthorized))
         {
             return null;
         }
@@ -1091,6 +1156,12 @@ public sealed partial class PreparationService(
         int candidateId,
         CancellationToken cancellationToken)
     {
+        if (_authorizationGate is not null && !_authorizationGate.IsAuthorized)
+        {
+            ClearPrefetchState();
+            return null;
+        }
+
         Task<PrefetchedLookup?>? task;
         lock (_prefetchSync)
         {
@@ -1102,24 +1173,80 @@ public sealed partial class PreparationService(
             return null;
         }
 
-        var prefetched = await task.WaitAsync(cancellationToken);
-        if (prefetched?.CandidateId != candidateId)
+        PrefetchedLookup? prefetched;
+        try
+        {
+            prefetched = await task.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            ClearPrefetchState(task);
+            return null;
+        }
+        catch
+        {
+            ClearPrefetchState(task);
+            return null;
+        }
+
+        if (prefetched is null)
+        {
+            ClearPrefetchState(task);
+            return null;
+        }
+
+        if (prefetched.CandidateId != candidateId)
         {
             return null;
         }
 
-        lock (_prefetchSync)
+        if (_authorizationGate is not null && (!_authorizationGate.IsAuthorized || prefetched.EpochToken.IsCancellationRequested))
         {
-            if (ReferenceEquals(task, _prefetchTask))
-            {
-                _prefetchCancellation?.Dispose();
-                _prefetchCancellation = null;
-                _prefetchTask = null;
-                _prefetchOriginCandidateId = null;
-            }
+            ClearPrefetchState(task);
+            return null;
         }
 
+        ClearPrefetchState(task);
         return prefetched.Result;
+    }
+
+    private void ClearPrefetchLocked()
+    {
+        _prefetchCancellation?.Cancel();
+        _prefetchCancellation?.Dispose();
+        _prefetchCancellation = null;
+        _prefetchTask = null;
+        _prefetchOriginCandidateId = null;
+    }
+
+    private void ClearPrefetchState(Task<PrefetchedLookup?>? expectedTask = null)
+    {
+        CancellationTokenSource? cancellation;
+        lock (_prefetchSync)
+        {
+            if (expectedTask is not null && !ReferenceEquals(expectedTask, _prefetchTask))
+            {
+                return;
+            }
+
+            cancellation = _prefetchCancellation;
+            _prefetchCancellation = null;
+            _prefetchTask = null;
+            _prefetchOriginCandidateId = null;
+        }
+
+        if (cancellation is not null)
+        {
+            try
+            {
+                cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
+            cancellation.Dispose();
+        }
     }
 
     private static async Task<PreparationItem> CreateItemAsync(
@@ -1674,7 +1801,7 @@ public sealed partial class PreparationService(
 
     private sealed record PreparationLookupSource(PreparationItem Item, string DocumentContent);
 
-    private sealed record PrefetchedLookup(int CandidateId, LexicalResult Result);
+    private sealed record PrefetchedLookup(int CandidateId, LexicalResult Result, CancellationToken EpochToken);
 
     internal sealed record ContextData(
         int DocumentId,

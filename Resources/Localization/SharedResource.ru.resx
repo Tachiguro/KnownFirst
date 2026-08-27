@@ -645,6 +645,9 @@
   <data name="Settings_CardDirection" xml:space="preserve">
     <value>Направления карточек</value>
   </data>
+  <data name="Settings_CardDirectionHelp" xml:space="preserve">
+    <value>Выбери: от слова к значению, от значения к слову или оба направления.</value>
+  </data>
   <data name="Settings_CardDirectionTermToMeaning" xml:space="preserve">
     <value>От слова к значению</value>
   </data>

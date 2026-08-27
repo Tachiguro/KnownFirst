@@ -140,8 +140,13 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.2 Review Words
 
 - Progress, candidate, context, context navigation, and Known/Unknown decisions remain prominent.
-- The fixed decision actions are fully visible and do not cover content.
+- The fixed decision actions are fully visible, keep Undo reachable, and do not cover content.
 - Saving and undo states provide visible feedback and reject duplicate submissions.
+- `Discard import` is positioned as a clearly destructive trailing/end action in the bottom workflow action bar on normal-width layouts with destructive/danger styling, distinct from neutral workflow-exit actions.
+- Activating `Discard import` presents an explicit inline destructive alert dialog confirming whole-active-import discard while suppressing competing primary review actions.
+- Confirmation provides a neutral Cancel action (restoring trigger focus) and a destructive Confirm action with `data-destructive-confirm`.
+- Narrow/mobile layouts stack the action bar responsively, keeping all decision and discard actions reachable without horizontal overflow.
+- Automated test coverage establishes markup, CSS, and accessibility contracts only; rendered Windows and Android WebView appearance, focus handling, and touch interactions are not manually proven by this package and are not claimed.
 
 ### 9.3 Prepare Words
 

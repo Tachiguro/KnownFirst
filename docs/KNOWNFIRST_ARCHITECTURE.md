@@ -398,7 +398,7 @@ An unfinished review:
 
 After leaving Settings, workflow routing returns to the active review.
 
-On narrow/mobile layouts, the app bar is the single page title and the duplicate page heading/back-to-home control is hidden. Review keeps progress, candidate, one highlighted context, context navigation, and the two decisions prominent. Token kind, encountered forms, and occurrence count are collapsed under Details; DEBUG analysis remains separate. Known and Unknown stay in a stable two-column fixed action bar above the bottom safe area, with guarded submission, a reserved saving state, reachable Undo, and matching bottom content padding. Discard remains in normal page flow.
+On narrow/mobile layouts, the app bar is the single page title and the duplicate page heading/back-to-home control is hidden. Review keeps progress, candidate, one highlighted context, context navigation, and the two decisions prominent. Token kind, encountered forms, and occurrence count are collapsed under Details; DEBUG analysis remains separate. The bottom workflow action area owns the primary Known/Unknown controls alongside the trailing destructive whole-import discard action, with guarded submission, a reserved saving state, reachable Undo, and matching bottom content padding. Discard invokes an explicit destructive confirmation that temporarily suppresses competing review actions within the workflow action region. The operation discards the entire unfinished active import without changing persisted review semantics, and narrow/mobile layouts stack the action structure responsively while preserving these semantic roles.
 
 ---
 

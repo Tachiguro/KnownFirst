@@ -1,5 +1,6 @@
 @page "/prepare-words"
 @inject IPreparationService PreparationService
+@inject ILearningService LearningService
 @inject IAppSettingsService AppSettings
 @inject INavigationHistoryService NavigationHistory
 @inject NavigationManager Navigation
@@ -831,7 +832,7 @@
                 isManualInput ? null : result?.GrammaticalRelationship,
                 isManualInput ? currentItem.Term : result?.DisplayTerm ?? currentItem.Term,
                 ManualInputMode: isManualInput ? PrimaryAnswerMode : null);
-            var progressed = await _progressionCoordinator.CommitAndProgressAsync(
+            var progressed = await _progressionCoordinator.CommitAcceptAndProgressAsync(
                 method,
                 async () =>
                 {
@@ -843,6 +844,8 @@
                     PreparationService.RecordUiTransition(acceptedCandidateId, transitionStarted.Elapsed);
 #endif
                 },
+                () => LearningService.GetPreparationReadinessAsync(),
+                () => Navigation.NavigateTo("/learn"),
                 LoadAfterCommittedActionAsync);
             if (!progressed)
             {
@@ -975,7 +978,7 @@
         _isBusy = true;
         try
         {
-            var progressed = await _progressionCoordinator.RetryProgressionAsync(LoadAfterCommittedActionAsync);
+            var progressed = await _progressionCoordinator.RetryProgressionAsync();
             if (progressed)
             {
                 _progressionAfterSaveFailed = false;

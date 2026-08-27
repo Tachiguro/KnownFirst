@@ -671,7 +671,7 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void MobileReview_HasCollapsedMetadataAndStableTwoColumnActionBar()
+    public void MobileReview_HasCollapsedMetadataAndResponsiveActionBar()
     {
         var markup = LoadUi("ReviewWords.razor");
         var styles = LoadUi("ReviewWords.razor.css");
@@ -681,7 +681,8 @@ public sealed class UiWorkflowContractTests
         Assert.DoesNotContain("<details class=\"candidate-details-panel\" open", markup);
         Assert.Contains("review-action-bar", markup);
         Assert.Contains("Review_Saving", markup);
-        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", styles);
+        Assert.Contains(".review-actions-layout", styles);
+        Assert.Contains("@media (max-width: 620px)", styles);
         Assert.Contains("env(safe-area-inset-bottom)", appStyles);
         Assert.DoesNotContain("env(safe-area-inset-bottom)", styles);
     }
@@ -744,28 +745,32 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("Review_Undo", markup);
 
         Assert.Contains(".review-action-bar", styles);
-        Assert.Contains(".review-actions-grid", styles);
-        Assert.Contains("@media (max-width: 680px)", styles);
+        Assert.Contains(".review-actions-layout", styles);
+        Assert.Contains("@media (max-width: 620px)", styles);
     }
 
     [TestMethod]
-    public void ReviewWordsActionBar_CommonStandardButtonStructureAndHierarchy()
+    public void ReviewWordsCompactActionBar_CommonStandardButtonStructureAndHierarchy()
     {
         var markup = LoadUi("ReviewWords.razor");
 
-        Assert.Contains("class=\"review-actions-grid\"", markup);
+        Assert.Contains("class=\"review-actions-layout\"", markup);
+        Assert.Contains("class=\"review-primary-actions button-row\"", markup);
+        Assert.DoesNotContain("review-actions-grid", markup);
         Assert.DoesNotContain("decision-grid", markup);
         Assert.DoesNotContain("undo-container", markup);
         Assert.DoesNotContain("undo-button", markup);
 
-        var gridIndex = markup.IndexOf("class=\"review-actions-grid\"", StringComparison.Ordinal);
-        var knownIndex = markup.IndexOf("WordStatus.Known", gridIndex, StringComparison.Ordinal);
-        var unknownIndex = markup.IndexOf("WordStatus.UnknownBacklog", gridIndex, StringComparison.Ordinal);
-        var undoIndex = markup.IndexOf("UndoAsync", gridIndex, StringComparison.Ordinal);
-        var discardIndex = markup.IndexOf("Review_DiscardAction", gridIndex, StringComparison.Ordinal);
+        var layoutIndex = markup.IndexOf("class=\"review-actions-layout\"", StringComparison.Ordinal);
+        var primaryActionsIndex = markup.IndexOf("class=\"review-primary-actions button-row\"", layoutIndex, StringComparison.Ordinal);
+        var knownIndex = markup.IndexOf("WordStatus.Known", primaryActionsIndex, StringComparison.Ordinal);
+        var unknownIndex = markup.IndexOf("WordStatus.UnknownBacklog", primaryActionsIndex, StringComparison.Ordinal);
+        var undoIndex = markup.IndexOf("UndoAsync", primaryActionsIndex, StringComparison.Ordinal);
+        var discardIndex = markup.IndexOf("Review_DiscardAction", layoutIndex, StringComparison.Ordinal);
 
-        Assert.IsTrue(gridIndex >= 0, "review-actions-grid must exist");
-        Assert.IsTrue(knownIndex > gridIndex && unknownIndex > knownIndex && undoIndex > unknownIndex && discardIndex > undoIndex,
+        Assert.IsTrue(layoutIndex >= 0, "review-actions-layout must exist");
+        Assert.IsTrue(primaryActionsIndex > layoutIndex, "review-primary-actions button-row must exist within layout");
+        Assert.IsTrue(knownIndex > primaryActionsIndex && unknownIndex > knownIndex && undoIndex > unknownIndex && discardIndex > undoIndex,
             "Semantic ordering must be Known -> Unknown -> Undo -> Discard import");
 
         Assert.Contains("button button-primary", markup);
@@ -782,30 +787,41 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void ReviewWordsActionBar_EqualWidthAndEqualHeightCssContract()
+    public void ReviewWordsCompactActionBar_DesktopCssContract()
     {
         var styles = LoadUi("ReviewWords.razor.css");
 
-        Assert.Contains(".review-actions-grid {", styles);
-        Assert.Contains("grid-template-columns: repeat(4, minmax(0, 1fr));", styles);
-        Assert.Contains("grid-auto-rows: 1fr;", styles);
-        Assert.Contains(".review-actions-grid .button {", styles);
-        Assert.Contains("width: 100%;", styles);
-        Assert.Contains("height: 100%;", styles);
+        Assert.Contains(".review-actions-layout {", styles);
+        Assert.Contains("grid-template-columns: minmax(0, 1fr) auto;", styles);
+        Assert.Contains("align-items: center;", styles);
+        Assert.Contains(".review-primary-actions {", styles);
+        Assert.Contains("display: flex;", styles);
+        Assert.Contains("flex-wrap: wrap;", styles);
 
-        Assert.Contains("@media (max-width: 680px)", styles);
-        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr));", styles);
-
-        Assert.Contains("@media (max-width: 380px)", styles);
-        Assert.Contains("grid-template-columns: 1fr;", styles);
-
+        Assert.DoesNotContain("repeat(4, minmax(0, 1fr))", styles);
+        Assert.DoesNotContain("grid-auto-rows: 1fr;", styles);
+        Assert.DoesNotContain(".review-actions-grid", styles);
         Assert.DoesNotContain(".decision-grid", styles);
         Assert.DoesNotContain(".undo-container", styles);
         Assert.DoesNotContain(".undo-button", styles);
     }
 
     [TestMethod]
-    public void ReviewWordsActionBar_BehaviorContractsPreserved()
+    public void ReviewWordsCompactActionBar_ResponsiveContract()
+    {
+        var styles = LoadUi("ReviewWords.razor.css");
+
+        Assert.Contains("@media (max-width: 620px)", styles);
+        Assert.Contains(".review-actions-layout {", styles);
+        Assert.Contains("grid-template-columns: 1fr;", styles);
+        Assert.Contains(".end-review-discard {", styles);
+        Assert.Contains("width: 100%;", styles);
+
+        Assert.DoesNotContain(".review-actions-grid", styles);
+    }
+
+    [TestMethod]
+    public void ReviewWordsCompactActionBar_BehaviorContractsPreserved()
     {
         var markup = LoadUi("ReviewWords.razor");
 

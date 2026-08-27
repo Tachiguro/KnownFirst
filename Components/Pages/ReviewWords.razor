@@ -134,27 +134,29 @@
                 @if (!_showDiscardConfirmation)
                 {
                     <p class="review-saving-state" role="status" aria-live="polite">@(_isSaving ? Localizer["Review_Saving"] : "\u00a0")</p>
-                    <div class="review-actions-grid">
-                        <button type="button"
-                                class="button button-primary"
-                                disabled="@_isSaving"
-                                aria-keyshortcuts="Enter"
-                                title="@Localizer["Review_Known"] (Enter)"
-                                @onclick="() => DecideAsync(WordStatus.Known)">
-                            @Localizer["Review_Known"]
-                        </button>
-                        <button type="button"
-                                class="button button-secondary"
-                                disabled="@_isSaving"
-                                @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
-                            @Localizer["Review_Unknown"]
-                        </button>
-                        <button type="button"
-                                class="button button-secondary"
-                                disabled="@(!_candidate.CanUndo || _isSaving)"
-                                @onclick="UndoAsync">
-                            @Localizer["Review_Undo"]
-                        </button>
+                    <div class="review-actions-layout">
+                        <div class="review-primary-actions button-row">
+                            <button type="button"
+                                    class="button button-primary"
+                                    disabled="@_isSaving"
+                                    aria-keyshortcuts="Enter"
+                                    title="@Localizer["Review_Known"] (Enter)"
+                                    @onclick="() => DecideAsync(WordStatus.Known)">
+                                @Localizer["Review_Known"]
+                            </button>
+                            <button type="button"
+                                    class="button button-secondary"
+                                    disabled="@_isSaving"
+                                    @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
+                                @Localizer["Review_Unknown"]
+                            </button>
+                            <button type="button"
+                                    class="button button-secondary"
+                                    disabled="@(!_candidate.CanUndo || _isSaving)"
+                                    @onclick="UndoAsync">
+                                @Localizer["Review_Undo"]
+                            </button>
+                        </div>
                         <button type="button"
                                 class="button button-danger end-review-discard"
                                 disabled="@_isSaving"

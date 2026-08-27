@@ -376,7 +376,7 @@
     <value>Ignorieren</value>
   </data>
   <data name="Review_Undo" xml:space="preserve">
-    <value>Letzte Entscheidung rückgängig machen</value>
+    <value>Rückgängig</value>
   </data>
   <data name="Review_DecisionError" xml:space="preserve">
     <value>Die Entscheidung konnte nicht gespeichert werden. Versuche es erneut.</value>

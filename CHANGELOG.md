@@ -23,6 +23,7 @@ and uses the application's prerelease version identifiers.
 - Clarified "End preparation" action styling and placement as a neutral workflow action with explicit confirmation that retains all already-accepted vocabulary.
 - Clarified Preparation disposition action labels: "Mark as known" and "Exclude from learning" (German: "Als bekannt markieren" and "Vom Lernen ausschließen"; Russian: "Отметить как известное" and "Исключить из обучения") provide shorter, clearer action labels across supported UI languages while preserving existing permanent disposition semantics and confirmation safety.
 - Improved Learn rating accessibility and visual hierarchy: eliminated destructive danger-red styling from the "Again" rating, replacing it with a neutral muted surface and strong border, and established a non-color visual hierarchy across all four ratings ("Again": neutral muted; "Hard": dashed warm border; "Good": solid primary fill; "Easy": 2px solid success border) so ratings are distinct without relying solely on color perception.
+- Improved consistency of the Words Review action bar: Known, Unknown, Undo, and Discard import are now unified into a cohesive, equal-size button layout across desktop and mobile layouts; Undo is now presented as a standard secondary button with clear disabled feedback; and localized Undo labels are shortened across English, German, and Russian while preserving destructive Discard import styling and confirmation.
 
 ### Fixed
 

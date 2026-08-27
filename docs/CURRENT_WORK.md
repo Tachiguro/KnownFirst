@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-27 (active package KF-LEARNING-NEXT-DUE-AVAILABILITY-001 on fix/learning-next-due-availability-v1; Schema is 12; Archive format is V2).
+2026-08-27 (active package KF-REVIEW-WORDS-ACTION-BAR-UX-001 on fix/review-words-action-bar-ux-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,23 +17,21 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `KF-LEARNING-NEXT-DUE-AVAILABILITY-001` (`fix: align next due summary with scheduled reviews and due monitor`)
-- **Branch:** `fix/learning-next-due-availability-v1`
-- **Base master SHA:** `41e6211932b848909f0e311252805d5fe7b85df5`
-- **Current checkpoint HEAD:** `5be2255dc05254504fe4f0c860e9ac62fbc0f79c`
-- **Objective:** Fix the user-observed contradiction where Learn displayed a next-due timestamp in the past while claiming nothing was due; align next-due summary authority with queueable scheduled reviews (excluding New cards and zero-Required scheduled cards); and provide clock-driven due availability in the mounted completed Learn summary without automatic session start.
-- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/2 (`scheduled-review-summary-authority`, checkpoint commit `955b910675d2205adcfe1a1beaaeac3fe5a621a4`) → `IMPLEMENT_SLICE` 2/2 (`summary-due-availability-lifecycle`, checkpoint commit `5e882fa9aa99972399ecc02aa3917498eedee04b`) → consolidated `REVIEW_ONLY` (identified queueability parity defect and test harness duplicate) → `IMPLEMENT_SLICE` correction (`queueability-and-monitor-test-authority`, checkpoint commit `5be2255dc05254504fe4f0c860e9ac62fbc0f79c`) → consolidated `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; open decisions: none).
+- **Active work package:** `KF-REVIEW-WORDS-ACTION-BAR-UX-001` (`fix: align review words action bar`)
+- **Branch:** `fix/review-words-action-bar-ux-v1`
+- **Base master SHA:** `6cfc02888fff55ebd2c1ecc6f3cd09aeeacc8ab8`
+- **Current checkpoint HEAD:** `a6c9d1b76215ab3b3c299764973b6f5699108b94`
+- **Objective:** Align the `/review-words` bottom workflow action bar with the established `/prepare-words` action-bar theme: combine Known, Unknown, Undo, and Discard import into a single unified action grid with equal button dimensions across responsive layouts; convert Undo from a custom underlined text link into a standard secondary button; shorten localized Undo labels (EN `Undo`, DE `Rückgängig`, RU `Отменить`); preserve destructive Discard import meaning and confirmation; and preserve all review decision, undo, shortcut, and service semantics.
+- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/1 (`equal-action-controls`, checkpoint commit `a6c9d1b76215ab3b3c299764973b6f5699108b94`) → consolidated `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; process finding `PROCESS_NONCOMPLIANCE_CONFIRMED` for implementing agent `manage_task` usage with confirmed zero repository contamination; open decisions: none).
 - **Current lifecycle:** `DOCUMENT_ONLY` (in progress).
 - **Next lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY`.
 - **Verification evidence:**
-  - Slice 1 genuine RED: New-card DueAtUtc excluded from NextDueAtUtc (2 passed / 2 failed). Focused GREEN: 4 passed / 0 failed.
-  - Slice 2 genuine RED: Learn.razor markup contracts and due lifecycle (4 passed / 6 failed). Focused GREEN: 10 passed / 0 failed.
-  - Correction genuine RED: zero-Required scheduled-card next-due exclusion (4 passed / 2 failed) and production monitor test type binding (0 passed / 1 failed). Focused GREEN: 6 passed / 0 failed across `LearningNextDueAvailabilityTests` and 11 passed / 0 failed across `LearningSummaryDueMonitorTests`.
-  - Reviewed targeted regression: 247 passed / 0 failed / 0 skipped across 8 focused test suites (`LearningNextDueAvailabilityTests` 6, `LearningSummaryDueMonitorTests` 11, `UiWorkflowContractTests` 132, `LocalizationResourceTests` 33, `Schema8AnswerAssignmentServiceTests` 17, `LearningServiceSchema8AttributionTests` 33, `LearningServiceSchema8QueueTests` 7, `LearningServiceSchema8ViewAndContinuationTests` 8).
+  - Implementation genuine RED: long Undo localization, missing `.review-actions-grid`, legacy split action structure (1 passed / 3 failed). Focused GREEN: 4 passed / 0 failed.
+  - Reviewed targeted regression: 173 passed / 0 failed / 0 skipped across focused suites (`ReviewWordsActionBar_*` 4, `UiWorkflowContractTests` 135, `LocalizationResourceTests` 34).
   - `git diff --check`: passed cleanly (0 errors).
-- **Evidence boundaries:** Proves unit, service, query, and contract execution on compiled production types. Does not prove exact-candidate pre-PR validation on final documentation commit, rendered GUI in Windows or Android WebView, physical touch/timing interaction, sleep/resume behavior, APK/AAB packaging, signing, or distribution.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No timestamp rewrites or card mutations.
-- **Non-goals & boundaries:** No changes to scheduler intervals, Again repeat logic, daily budget capacity, database migrations, or unrelated UI (such as Review Words action bar).
+- **Evidence boundaries:** Proves unit, Razor markup, CSS grid layout contracts, and localization binding on compiled production types. Does not prove exact-candidate pre-PR validation on final documentation commit, rendered pixel equality in Windows WebView, physical touch/timing interaction, Android device rendering, APK/AAB packaging, signing, or distribution.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No database migrations, persistence changes, or schema mutations.
+- **Non-goals & boundaries:** No changes to Review service logic, import analysis semantics, preparation or learning workflows, scheduler, or release tooling.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
   - PR #177 (`fix: restore onboarding card direction help localization`): Restored missing `Settings_CardDirectionHelp` localization across English, German, and Russian resources and added repository-wide literal Razor localization key guard tests. Merged to `41e6211932b848909f0e311252805d5fe7b85df5`. `POST_MERGE_SYNC_ONLY` completed.

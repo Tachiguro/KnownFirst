@@ -376,7 +376,7 @@
     <value>Игнорировать</value>
   </data>
   <data name="Review_Undo" xml:space="preserve">
-    <value>Отменить предыдущее решение</value>
+    <value>Отменить</value>
   </data>
   <data name="Review_DecisionError" xml:space="preserve">
     <value>Не удалось сохранить решение. Попробуй ещё раз.</value>

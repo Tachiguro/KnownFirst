@@ -640,9 +640,7 @@ An active session is persisted and resumable.
 
 An active learning session does not block import.
 
-A card rated Again may reappear once at the end of the current session.
-
-Repeated Again ratings must not create an endless session.
+Every successfully committed explicit user Again action appends exactly one repeat attempt at the deterministic tail of the current active learning-session queue, regardless of whether the source attempt was an ordinary card or an existing Again repeat. There is no arbitrary one-repeat-per-card or one-repeat-per-session cap, but repeats are never generated automatically: each additional repeat requires another explicit committed user Again rating. Existing queued cards remain ahead in deterministic queue order without reordering. While the scheduler persists the normal future due time and Learning/Relearning state for subsequent sessions, the incomplete repeat row remains active and presentable within the current session until its turn is reached. Session completion occurs only when no incomplete queue row remains.
 
 ### 14.1 Card direction and interaction mode
 
@@ -759,7 +757,7 @@ Behavior:
 - persist immediately
 - show the correct spelling
 - schedule according to Again
-- allow one same-session repetition
+- append one repeat attempt at the deterministic tail of the active session queue
 
 ### 16.2 Correct answer
 
@@ -787,7 +785,7 @@ Meaning:
 Behavior:
 
 - schedule in 10 minutes
-- allow one reappearance at the end of the current session
+- append one repeat attempt at the deterministic tail of the current active learning-session queue (including for repeated Again actions on existing repeats, without an arbitrary repeat cap)
 - enter Learning or Relearning
 - record a lapse where applicable
 

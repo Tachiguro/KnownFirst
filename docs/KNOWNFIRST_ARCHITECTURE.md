@@ -951,11 +951,38 @@ For an existing Review card:
 
 Review intervals continue to grow. They do not end automatically after 7 or 14 days.
 
-A card rated Again may appear once again at the end of the current session. Repeated Again ratings must not create an endless session.
+### 21.2 In-session Again repeat and queue semantics
+
+1. **Scheduler contract:**
+   - Rating a card `Again` computes and persists the normal scheduler result: `DueAtUtc` is scheduled 10 minutes in the future, the card transitions to `Learning` (for New cards) or `Relearning` (for Review cards), and lapse counters/ease factors update normally.
+   - The scheduler-owned `DueAtUtc` is stored durably on the card and governs future session eligibility.
+
+2. **Deterministic tail-repeat queue behavior:**
+   - Every successfully committed explicit user `Again` rating appends exactly one new repeat queue row at the deterministic tail of the active learning-session queue (`IsAgainRepeat = true`).
+   - Selecting `Again` on an existing `Again` repeat appends another repeat row to the queue tail.
+   - There is no arbitrary one-repeat-per-card or one-repeat-per-session cap.
+   - Repeats are strictly demand-driven: no repeat queue row is generated without an explicit committed user `Again` action.
+
+3. **Active-session presentation exception:**
+   - An incomplete queue row marked as an `Again` repeat (`IsAgainRepeat = true`) is eligible for presentation within its owning active session even when the card's persisted `DueAtUtc` is still in the future.
+   - This presentation exception is strictly scoped to incomplete `Again` repeat queue rows within that active session.
+   - Ordinary future-due non-repeat `Learning`, `Review`, or `Relearning` cards remain suppressed outside their due windows.
+
+4. **Session progress counters:**
+   - `CompletedCards` tracks the number of completed queue rows.
+   - `TotalCards` reflects the total queue-row count of the session and increases dynamically whenever an `Again` action appends a new repeat row.
+   - `AgainCount` tracks total committed `Again` ratings in the session.
+
+5. **Daily-new budget independence:**
+   - `Again` repeat rows belong to already-admitted vocabulary and never consume, recycle, replace, or reopen daily new-word admission grants ($N$).
+
+6. **Durable session persistence and resume:**
+   - Pending repeat queue rows are persisted transactionally as active-session state in the database.
+   - Unfinished repeat rows survive leaving and re-entering the learning workflow, application restarts, and service recreation.
 
 A future milestone may implement FSRS with a configurable desired retention. The current data model must not prevent that migration.
 
-### 21.2 Daily new-word budget, learning-day boundaries, and Bridge state
+### 21.3 Daily new-word budget, learning-day boundaries, and Bridge state
 
 1. **Daily New-Word Budget ($N$):**
    - The preparation limit setting governs the daily new-word admission budget ($N \in \{5, 10, 20, 30, 50\}$, default 10).

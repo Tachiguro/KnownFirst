@@ -2142,7 +2142,7 @@ public sealed class UiWorkflowContractTests
         "PreparationInvalidContextRecovery",
     ];
 
-    private static string LoadUi(string fileName)
+    internal static string LoadUi(string fileName)
     {
         var outputPath = Path.Combine(AppContext.BaseDirectory, "Ui", fileName);
         if (File.Exists(outputPath))

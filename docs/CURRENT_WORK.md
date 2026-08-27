@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-27 (active package KF-LOCALIZATION-PLACEHOLDER-AUDIT-001 on fix/localization-card-direction-help-v1; Schema is 12; Archive format is V2).
+2026-08-27 (active package KF-LEARNING-NEXT-DUE-AVAILABILITY-001 on fix/learning-next-due-availability-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,24 +17,26 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `KF-LOCALIZATION-PLACEHOLDER-AUDIT-001` (`fix: restore onboarding card direction help localization`)
-- **Branch:** `fix/localization-card-direction-help-v1`
-- **Base master SHA:** `4727af654f5b973c3188faaf0f331b00a0fd59cd`
-- **Current checkpoint HEAD:** `830aa5b659a8769e05869d1cce494e9eaab49b40`
-- **Objective:** Eliminate the onboarding `Settings_CardDirectionHelp` raw-localization-key fallback and establish repository-wide Razor literal-localization-key integrity protection.
-- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/1 (`card-direction-help-localization-and-guard-tests`, checkpoint commit `830aa5b659a8769e05869d1cce494e9eaab49b40`) → `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; open decisions: none).
+- **Active work package:** `KF-LEARNING-NEXT-DUE-AVAILABILITY-001` (`fix: align next due summary with scheduled reviews and due monitor`)
+- **Branch:** `fix/learning-next-due-availability-v1`
+- **Base master SHA:** `41e6211932b848909f0e311252805d5fe7b85df5`
+- **Current checkpoint HEAD:** `5be2255dc05254504fe4f0c860e9ac62fbc0f79c`
+- **Objective:** Fix the user-observed contradiction where Learn displayed a next-due timestamp in the past while claiming nothing was due; align next-due summary authority with queueable scheduled reviews (excluding New cards and zero-Required scheduled cards); and provide clock-driven due availability in the mounted completed Learn summary without automatic session start.
+- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/2 (`scheduled-review-summary-authority`, checkpoint commit `955b910675d2205adcfe1a1beaaeac3fe5a621a4`) → `IMPLEMENT_SLICE` 2/2 (`summary-due-availability-lifecycle`, checkpoint commit `5e882fa9aa99972399ecc02aa3917498eedee04b`) → consolidated `REVIEW_ONLY` (identified queueability parity defect and test harness duplicate) → `IMPLEMENT_SLICE` correction (`queueability-and-monitor-test-authority`, checkpoint commit `5be2255dc05254504fe4f0c860e9ac62fbc0f79c`) → consolidated `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; open decisions: none).
 - **Current lifecycle:** `DOCUMENT_ONLY` (in progress).
-- **Next lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → `FULL_VALIDATION` (exact-candidate-HEAD).
+- **Next lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY`.
 - **Verification evidence:**
-  - Slice-1 genuine RED: 0 passed / 2 failed / 0 skipped (missing English `Settings_CardDirectionHelp` and repository-wide Razor guard discovering missing key in EN/DE/RU for `PracticeStep.razor`).
-  - Slice-1 focused GREEN: 2 passed / 0 failed / 0 skipped.
-  - Targeted regression: 33 passed / 0 failed across `LocalizationResourceTests`; 30 passed / 0 failed across `OnboardingStepContractTests` (combined 63 passed / 0 failed during independent review).
+  - Slice 1 genuine RED: New-card DueAtUtc excluded from NextDueAtUtc (2 passed / 2 failed). Focused GREEN: 4 passed / 0 failed.
+  - Slice 2 genuine RED: Learn.razor markup contracts and due lifecycle (4 passed / 6 failed). Focused GREEN: 10 passed / 0 failed.
+  - Correction genuine RED: zero-Required scheduled-card next-due exclusion (4 passed / 2 failed) and production monitor test type binding (0 passed / 1 failed). Focused GREEN: 6 passed / 0 failed across `LearningNextDueAvailabilityTests` and 11 passed / 0 failed across `LearningSummaryDueMonitorTests`.
+  - Reviewed targeted regression: 247 passed / 0 failed / 0 skipped across 8 focused test suites (`LearningNextDueAvailabilityTests` 6, `LearningSummaryDueMonitorTests` 11, `UiWorkflowContractTests` 132, `LocalizationResourceTests` 33, `Schema8AnswerAssignmentServiceTests` 17, `LearningServiceSchema8AttributionTests` 33, `LearningServiceSchema8QueueTests` 7, `LearningServiceSchema8ViewAndContinuationTests` 8).
   - `git diff --check`: passed cleanly (0 errors).
-- **Evidence boundaries:** Proves resource existence, EN/DE/RU locale parity, non-empty values, Razor literal localization key discovery, and MSTest localization/onboarding contract suites. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI in Windows or Android WebView, physical Android device testing, APK/AAB creation, signing, or distribution.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
-- **Non-goals & boundaries:** `/dictionary` placeholder route remains explicitly outside this package. No changes to `Settings.razor`, `PracticeStep.razor`, `Dictionary.razor`, `MainLayout.razor`, or `Placeholder_Message`. No database schema, persistence, archive, scheduler, queue, or release behavior changes.
+- **Evidence boundaries:** Proves unit, service, query, and contract execution on compiled production types. Does not prove exact-candidate pre-PR validation on final documentation commit, rendered GUI in Windows or Android WebView, physical touch/timing interaction, sleep/resume behavior, APK/AAB packaging, signing, or distribution.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No timestamp rewrites or card mutations.
+- **Non-goals & boundaries:** No changes to scheduler intervals, Again repeat logic, daily budget capacity, database migrations, or unrelated UI (such as Review Words action bar).
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #177 (`fix: restore onboarding card direction help localization`): Restored missing `Settings_CardDirectionHelp` localization across English, German, and Russian resources and added repository-wide literal Razor localization key guard tests. Merged to `41e6211932b848909f0e311252805d5fe7b85df5`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #176 (`fix: improve learning rating button accessibility and non-destructive styling`): Eliminated destructive danger-red styling from the "Again" learning rating button in `RatingButtons.razor.css`, replacing it with accessible neutral muted styling, and established a clear non-color visual hierarchy across all four ratings (`Again`, `Hard`, `Good`, `Easy`) using distinct fill, border width, and border pattern styling while preserving all ReviewRating mappings, localized labels, scheduler behavior, and theme contrast. Merged to `4727af654f5b973c3188faaf0f331b00a0fd59cd`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #175 (`fix: clarify preparation disposition labels`): Shortened and clarified the two permanent Preparation disposition action labels (`Prepare_MarkKnown` and `Prepare_DoNotLearn`) across English, German, and Russian resources while preserving distinct permanent Mark Known versus Exclude semantics, existing confirmation dialogs, danger styling, and service mappings. Merged to `28ee22eef8fb7afa688e3e45f747b71f90470507`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #174 (`fix: align preparation with daily learning target`): Aligned daily new-word admission eligibility so only genuinely-new vocabulary with valid, queueable study cards consumes the daily admission budget, preventing bare or cardless words from consuming daily grants, and enabled automatic transition from vocabulary preparation to learning as soon as the day's new-word demand is satisfied while preserving unblocked preparation when capacity is exhausted. Merged to `27364ad0411748ae24383d4f5ec28d2381d4c60e`. `POST_MERGE_SYNC_ONLY` completed.

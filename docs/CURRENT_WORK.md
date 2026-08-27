@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-26 (active package KF-RELEASE-002 on release/beta13-build15-release-prep-v1; Schema is 12; Archive format is V2).
+2026-08-27 (active package KF-PREPARATION-DAILY-TARGET-001 on fix/preparation-daily-target-transition-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -13,22 +13,26 @@
 
 ## Mandatory Documentation Governance
 
-Every repository-writing package follows the governed multi-slice lifecycle: `PLAN_ONLY` → slice loop (`IMPLEMENT_SLICE` or focused TDD RED/GREEN → `CHECKPOINT_COMMIT_ONLY`) → consolidated `REVIEW_ONLY` → mandatory package-level `DOCUMENT_ONLY` → candidate finalization / `COMMIT_ONLY` (if documentation edited) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`. Documentation-only packages omit `IMPLEMENT`. See [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md) and [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) for binding rules.
+Every repository-writing package follows the governed multi-slice lifecycle: `PLAN_ONLY` → `IMPLEMENT_SLICE` loop (with each `IMPLEMENT_SLICE` executing focused RED → minimum implementation → focused GREEN → checkpoint commit) → consolidated `REVIEW_ONLY` → mandatory package-level `DOCUMENT_ONLY` → candidate finalization / `COMMIT_ONLY` (if documentation edited) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`. Documentation-only packages omit `IMPLEMENT`. See [docs/PROMPT_AND_TASK_ROUTING.md](docs/PROMPT_AND_TASK_ROUTING.md) and [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md) for binding rules.
 
 ## Active Work Package
 
-- **Active work package:** `KF-RELEASE-002` (`release: Beta 13 Build 15 release preparation and identity update`)
-- **Branch:** `release/beta13-build15-release-prep-v1`
-- **Base master SHA:** `a83dbecdb0dd1d0328e85ba4dc43e684fa9857fc`
-- **Current checkpoint HEAD:** `1584c3e9a2d0bc9f8e0fb4ade99b850ec35cdba8`
-- **Objective:** Advance the Beta-13 release candidate build identity from Build 14 to Build 15 in source and version-contract tests, reconcile durable repository release documentation, and establish an unambiguous package identity prior to Pre-AAB gate execution.
-- **Completed lifecycle:** `PLAN_ONLY`, `IMPLEMENT_SLICE` (1/1 `release-identity-build15`), `CHECKPOINT_COMMIT_ONLY` (`1584c3e9a2d0bc9f8e0fb4ade99b850ec35cdba8`), `REVIEW_ONLY` (disposition `APPROVED_FOR_DOCUMENT_ONLY`, 0 findings), `DOCUMENT_ONLY` (in progress).
+- **Active work package:** `KF-PREPARATION-DAILY-TARGET-001` (`fix: align learning admission eligibility and transition preparation at daily target`)
+- **Branch:** `fix/preparation-daily-target-transition-v1`
+- **Base master SHA:** `0e58ee50c999265a5d02557d8b5c1fed4eee263b`
+- **Current checkpoint HEAD:** `7a123989e58883570201824266b1cee88fddaa3a`
+- **Objective:** Align genuinely-new Learning admission eligibility with queueable study cards so bare or cardless Words never consume daily grants, and automatically transition successful Preparation acceptance into Learning once still-open daily demand is satisfied, while preserving continued Preparation access after capacity is exhausted.
+- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/2 (`learning-readiness-authority`, checkpoint commit `e26d2f346de6f89de1cff91917902043b228bc3d`) → `IMPLEMENT_SLICE` 2/2 (`preparation-auto-transition`, checkpoint commit `7a123989e58883570201824266b1cee88fddaa3a`) → `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 2 NIT; outcome: `DOCUMENTATION_UPDATE_REQUIRED`).
+- **Current lifecycle:** `DOCUMENT_ONLY` (in progress).
+- **Next lifecycle:** `COMMIT_ONLY` (if documentation edited) → `FULL_VALIDATION` (exact-candidate-HEAD).
 - **Verification evidence:**
-  - Genuine RED: 54 passed / 7 failed against pre-edit project file (`PlatformTargetConfigurationTests`, `ReleaseNotesTests`, `WindowsPackageVersionMappingTests`).
-  - Focused GREEN: 61 passed / 0 failed.
-  - Regression: 229 passed / 0 failed (`BuildIdentityServiceTests`, `AndroidPublishingScriptContractTests`, `WindowsDistributionPackagingContractTests`, `UiWorkflowContractTests`).
+  - Slice-1 genuine RED: 15 passed / 1 failed (cardless Word received grant).
+  - Slice-1 focused GREEN: 28 passed / 0 failed.
+  - Slice-2 genuine RED: 128 passed / 2 failed (missing `ILearningService` injection and readiness transition).
+  - Slice-2 focused GREEN: 143 passed / 0 failed.
+  - Targeted regressions: `PreparationServiceSchema8AcceptTests` (45 passed / 0 failed), `StudyWorkflowServiceTests` (67 passed / 0 failed), `LearningServicePreparationReadinessTests` & `LearningServiceDailyLimitTests` (28 passed / 0 failed), adjacent Preparation tests (33 passed / 0 failed).
   - `git diff --check`: passed cleanly (0 errors).
-- **Evidence boundaries:** Proves source build identity and deterministic version-mapping contracts compile and pass unit/integration/contract test suites. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI, physical Android device testing, Build-15 AAB creation, signing, upload, or distribution.
+- **Evidence boundaries:** Proves unit, integration, coordinator runtime behavioral, and UI contract test suites compile and pass. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI, physical Android device testing, APK/AAB creation, signing, or distribution.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**

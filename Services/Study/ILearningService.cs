@@ -7,6 +7,9 @@ public interface ILearningService
 {
     Task<LearningLoadResult> GetOrStartAsync();
 
+    Task<LearningPreparationReadiness> GetPreparationReadinessAsync() =>
+        Task.FromResult(new LearningPreparationReadiness(false, null, 0, 0));
+
     Task RevealAnswerAsync(int queueItemId);
 
     Task<SpellingSubmissionResult> CheckSpellingAsync(int queueItemId, string enteredAnswer);

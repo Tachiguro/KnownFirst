@@ -609,6 +609,17 @@ public static class Schema8LearningRepository
             """,
             wordId) > 0;
 
+    public static HashSet<int> LoadEverLearnedWordIds(SQLiteConnection connection) =>
+        connection.Query<Schema8IdRow>(
+                """
+                SELECT DISTINCT c.WordId AS Id
+                FROM LearningReviews r
+                JOIN LearningCards c ON r.CardId = c.Id
+                ORDER BY c.WordId
+                """)
+            .Select(row => row.Id)
+            .ToHashSet();
+
     public static List<Schema8QueueTargetRow> LoadIncompleteQueueRowsForSession(SQLiteConnection connection, int sessionId) =>
         connection.Query<Schema8QueueTargetRow>(
             $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0 ORDER BY QueueOrder, Id",

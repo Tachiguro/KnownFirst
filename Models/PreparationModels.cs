@@ -88,6 +88,8 @@ public sealed record PreparedMeaningInput(
 
 internal sealed class PreparationProgressionCoordinator
 {
+    private Func<PreparationMethod, Task>? _lastProgressAsync;
+
     public bool SavedSuccessfully { get; private set; }
 
     public bool ProgressionFailed { get; private set; }
@@ -111,17 +113,53 @@ internal sealed class PreparationProgressionCoordinator
         await commitAsync();
         SavedSuccessfully = true;
         ProgressionMethod = method;
+        _lastProgressAsync = progressAsync;
         return await TryProgressAsync(progressAsync);
     }
 
-    public Task<bool> RetryProgressionAsync(Func<PreparationMethod, Task> progressAsync)
+    public Task<bool> CommitAcceptAndProgressAsync(
+        PreparationMethod method,
+        Func<Task> commitAsync,
+        Func<Task<LearningPreparationReadiness>> getReadinessAsync,
+        Action navigateToLearning,
+        Func<PreparationMethod, Task> loadNextAsync)
+    {
+        return CommitAndProgressAsync(
+            method,
+            commitAsync,
+            m => ProgressAfterAcceptAsync(m, getReadinessAsync, navigateToLearning, loadNextAsync));
+    }
+
+    public static async Task ProgressAfterAcceptAsync(
+        PreparationMethod method,
+        Func<Task<LearningPreparationReadiness>> getReadinessAsync,
+        Action navigateToLearning,
+        Func<PreparationMethod, Task> loadNextAsync)
+    {
+        var readiness = await getReadinessAsync();
+        if (readiness.ShouldTransitionToLearning)
+        {
+            navigateToLearning();
+            return;
+        }
+
+        await loadNextAsync(method);
+    }
+
+    public Task<bool> RetryProgressionAsync(Func<PreparationMethod, Task>? progressAsync = null)
     {
         if (!SavedSuccessfully || !ProgressionFailed)
         {
             return Task.FromResult(false);
         }
 
-        return TryProgressAsync(progressAsync);
+        var action = progressAsync ?? _lastProgressAsync;
+        if (action is null)
+        {
+            return Task.FromResult(false);
+        }
+
+        return TryProgressAsync(action);
     }
 
     private async Task<bool> TryProgressAsync(Func<PreparationMethod, Task> progressAsync)

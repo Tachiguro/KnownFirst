@@ -409,12 +409,34 @@ public sealed class UiWorkflowContractTests
 
         Assert.Contains("await PreparationService.AcceptAsync", accept);
         Assert.Contains("_saveFailed = true", accept);
-        Assert.Contains("_progressionCoordinator.CommitAndProgressAsync", accept);
+        Assert.Contains("_progressionCoordinator.CommitAcceptAndProgressAsync", accept);
         Assert.Contains("_progressionAfterSaveFailed = true", recovery);
         Assert.Contains("Prepare_SavedNextLoadFailed", markup);
         Assert.Contains("Prepare_RetryNextItem", markup);
         Assert.Contains("_progressionCoordinator.RetryProgressionAsync", retry);
         Assert.DoesNotContain("PreparationService.AcceptAsync", retry);
+    }
+
+    [TestMethod]
+    public void Preparation_InjectsLearningService_AndConsumesReadinessOnAccept_ForLearningTransition()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        Assert.Contains("@inject ILearningService LearningService", markup);
+
+        var accept = ExtractMethodBody(markup, "private async Task AcceptAsync()");
+        Assert.Contains("LearningService.GetPreparationReadinessAsync()", accept);
+        Assert.Contains("Navigation.NavigateTo(\"/learn\")", accept);
+        Assert.Contains("LoadAfterCommittedActionAsync", accept);
+
+        var skip = ExtractMethodBody(markup, "private async Task SkipAsync()");
+        Assert.DoesNotContain("LearningService", skip);
+        Assert.DoesNotContain("/learn", skip);
+
+        var disposition = ExtractMethodBody(markup, "private async Task ConfirmDispositionAsync()");
+        Assert.DoesNotContain("LearningService", disposition);
+        Assert.DoesNotContain("/learn", disposition);
+
+        Assert.DoesNotContain("LearningService.GetOrStartAsync", markup);
     }
 
     [TestMethod]

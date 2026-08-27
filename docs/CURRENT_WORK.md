@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-27 (active package KF-LEARNING-RATING-ACCESSIBILITY-001 on fix/learning-rating-accessibility-v1; Schema is 12; Archive format is V2).
+2026-08-27 (active package KF-LOCALIZATION-PLACEHOLDER-AUDIT-001 on fix/localization-card-direction-help-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,23 +17,25 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `KF-LEARNING-RATING-ACCESSIBILITY-001` (`fix: improve learning rating button accessibility and non-destructive styling`)
-- **Branch:** `fix/learning-rating-accessibility-v1`
-- **Base master SHA:** `28ee22eef8fb7afa688e3e45f747b71f90470507`
-- **Current checkpoint HEAD:** `20a0f6ed3b3105cb5e1e5924530c7a386688c04d`
-- **Objective:** Eliminate destructive danger-red styling from the "Again" learning rating button in `RatingButtons.razor.css`, replacing it with accessible neutral muted styling, and establish a clear non-color visual hierarchy across all four ratings (`Again`, `Hard`, `Good`, `Easy`) using distinct fill, border width, and border pattern styling while preserving all ReviewRating mappings, localized labels, scheduler behavior, and theme contrast.
-- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/1 (`rating-accessibility-and-non-destructive-palette`, checkpoint commit `20a0f6ed3b3105cb5e1e5924530c7a386688c04d`) → `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; outcome: `DOCUMENTATION_UPDATE_REQUIRED`).
+- **Active work package:** `KF-LOCALIZATION-PLACEHOLDER-AUDIT-001` (`fix: restore onboarding card direction help localization`)
+- **Branch:** `fix/localization-card-direction-help-v1`
+- **Base master SHA:** `4727af654f5b973c3188faaf0f331b00a0fd59cd`
+- **Current checkpoint HEAD:** `830aa5b659a8769e05869d1cce494e9eaab49b40`
+- **Objective:** Eliminate the onboarding `Settings_CardDirectionHelp` raw-localization-key fallback and establish repository-wide Razor literal-localization-key integrity protection.
+- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/1 (`card-direction-help-localization-and-guard-tests`, checkpoint commit `830aa5b659a8769e05869d1cce494e9eaab49b40`) → `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; open decisions: none).
 - **Current lifecycle:** `DOCUMENT_ONLY` (in progress).
 - **Next lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → `FULL_VALIDATION` (exact-candidate-HEAD).
 - **Verification evidence:**
-  - Slice-1 genuine RED: 0 passed / 3 failed / 0 skipped (failed on missing danger removal, missing semantic classes, and missing CSS rules).
-  - Slice-1 focused GREEN: 3 passed / 0 failed / 0 skipped.
-  - Final targeted regression: 132 passed / 0 failed / 0 skipped across `UiWorkflowContractTests`.
+  - Slice-1 genuine RED: 0 passed / 2 failed / 0 skipped (missing English `Settings_CardDirectionHelp` and repository-wide Razor guard discovering missing key in EN/DE/RU for `PracticeStep.razor`).
+  - Slice-1 focused GREEN: 2 passed / 0 failed / 0 skipped.
+  - Targeted regression: 33 passed / 0 failed across `LocalizationResourceTests`; 30 passed / 0 failed across `OnboardingStepContractTests` (combined 63 passed / 0 failed during independent review).
   - `git diff --check`: passed cleanly (0 errors).
-- **Evidence boundaries:** Proves Razor markup contracts, CSS isolation rules, design-token bindings, event callback mappings, static WCAG luminance/contrast math, and MSTest UI contract test suite. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI in Windows or Android WebView, physical Android device testing, APK/AAB creation, signing, or distribution.
+- **Evidence boundaries:** Proves resource existence, EN/DE/RU locale parity, non-empty values, Razor literal localization key discovery, and MSTest localization/onboarding contract suites. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI in Windows or Android WebView, physical Android device testing, APK/AAB creation, signing, or distribution.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+- **Non-goals & boundaries:** `/dictionary` placeholder route remains explicitly outside this package. No changes to `Settings.razor`, `PracticeStep.razor`, `Dictionary.razor`, `MainLayout.razor`, or `Placeholder_Message`. No database schema, persistence, archive, scheduler, queue, or release behavior changes.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #176 (`fix: improve learning rating button accessibility and non-destructive styling`): Eliminated destructive danger-red styling from the "Again" learning rating button in `RatingButtons.razor.css`, replacing it with accessible neutral muted styling, and established a clear non-color visual hierarchy across all four ratings (`Again`, `Hard`, `Good`, `Easy`) using distinct fill, border width, and border pattern styling while preserving all ReviewRating mappings, localized labels, scheduler behavior, and theme contrast. Merged to `4727af654f5b973c3188faaf0f331b00a0fd59cd`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #175 (`fix: clarify preparation disposition labels`): Shortened and clarified the two permanent Preparation disposition action labels (`Prepare_MarkKnown` and `Prepare_DoNotLearn`) across English, German, and Russian resources while preserving distinct permanent Mark Known versus Exclude semantics, existing confirmation dialogs, danger styling, and service mappings. Merged to `28ee22eef8fb7afa688e3e45f747b71f90470507`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #174 (`fix: align preparation with daily learning target`): Aligned daily new-word admission eligibility so only genuinely-new vocabulary with valid, queueable study cards consumes the daily admission budget, preventing bare or cardless words from consuming daily grants, and enabled automatic transition from vocabulary preparation to learning as soon as the day's new-word demand is satisfied while preserving unblocked preparation when capacity is exhausted. Merged to `27364ad0411748ae24383d4f5ec28d2381d4c60e`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #169 (`fix: make onboarding vertically scrollable`): Made first-run onboarding vertically scrollable when content exceeds available viewport height, establishing a bounded scroll surface on `.onboarding-host` (`height: 100%`, `height: 100dvh`, `min-height: 0`, `overflow-y: auto`, `overflow-x: hidden`) and safe auto-centering (`margin: auto;`) on `.onboarding-main`. Merged to `a83dbecdb0dd1d0328e85ba4dc43e684fa9857fc`. `POST_MERGE_SYNC_ONLY` completed.

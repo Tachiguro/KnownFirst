@@ -645,6 +645,9 @@
   <data name="Settings_CardDirection" xml:space="preserve">
     <value>Card directions</value>
   </data>
+  <data name="Settings_CardDirectionHelp" xml:space="preserve">
+    <value>Choose whether to practice term to meaning, meaning to term, or both directions.</value>
+  </data>
   <data name="Settings_CardDirectionTermToMeaning" xml:space="preserve">
     <value>Term to meaning</value>
   </data>

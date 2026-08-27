@@ -645,6 +645,9 @@
   <data name="Settings_CardDirection" xml:space="preserve">
     <value>Kartenrichtungen</value>
   </data>
+  <data name="Settings_CardDirectionHelp" xml:space="preserve">
+    <value>Wähle, ob du Begriff zur Bedeutung, Bedeutung zum Begriff oder beide Richtungen üben möchtest.</value>
+  </data>
   <data name="Settings_CardDirectionTermToMeaning" xml:space="preserve">
     <value>Begriff zur Bedeutung</value>
   </data>

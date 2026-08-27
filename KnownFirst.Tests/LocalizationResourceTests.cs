@@ -1107,4 +1107,84 @@ public sealed class LocalizationResourceTests
         Assert.AreEqual("Отметить как известное", russian[markKnownKey]);
         Assert.AreEqual("Исключить из обучения", russian[doNotLearnKey]);
     }
+
+    [TestMethod]
+    public void Resources_CardDirectionHelpExistsInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        const string key = "Settings_CardDirectionHelp";
+
+        Assert.IsTrue(english.ContainsKey(key), $"English resource is missing '{key}'.");
+        Assert.IsTrue(german.ContainsKey(key), $"German resource is missing '{key}'.");
+        Assert.IsTrue(russian.ContainsKey(key), $"Russian resource is missing '{key}'.");
+
+        Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), $"English value for '{key}' is empty or whitespace.");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), $"German value for '{key}' is empty or whitespace.");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), $"Russian value for '{key}' is empty or whitespace.");
+    }
+
+    [TestMethod]
+    public void AllRazorComponents_LiteralLocalizerKeysExistInAllResources()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var componentsDir = Path.Combine(repoRoot, "Components");
+        var razorFiles = Directory.GetFiles(componentsDir, "*.razor", SearchOption.AllDirectories);
+
+        Assert.IsTrue(razorFiles.Length > 0, "No Razor components found in repository.");
+
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        var failures = new List<string>();
+
+        foreach (var razorFile in razorFiles.OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+        {
+            var relativePath = Path.GetRelativePath(repoRoot, razorFile);
+            var content = File.ReadAllText(razorFile);
+
+            var matches = System.Text.RegularExpressions.Regex.Matches(
+                content,
+                @"Localizer\[\s*""([A-Za-z0-9_]+)""(?:\s*,|\s*\])");
+
+            foreach (System.Text.RegularExpressions.Match match in matches)
+            {
+                var key = match.Groups[1].Value;
+
+                if (!english.ContainsKey(key))
+                {
+                    failures.Add($"{relativePath}: missing English resource key '{key}'");
+                }
+                if (!german.ContainsKey(key))
+                {
+                    failures.Add($"{relativePath}: missing German resource key '{key}'");
+                }
+                if (!russian.ContainsKey(key))
+                {
+                    failures.Add($"{relativePath}: missing Russian resource key '{key}'");
+                }
+            }
+        }
+
+        Assert.AreEqual(
+            0,
+            failures.Count,
+            $"Discovered {failures.Count} missing resource key reference(s) in Razor components:\n" +
+            string.Join("\n", failures.Distinct(StringComparer.Ordinal)));
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "KnownFirst.csproj")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("Could not locate the KnownFirst repository root.");
+    }
 }

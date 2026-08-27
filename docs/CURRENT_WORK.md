@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-27 (active package KF-PREPARATION-DISPOSITION-LABELS-001 on fix/preparation-disposition-labels-v1; Schema is 12; Archive format is V2).
+2026-08-27 (active package KF-LEARNING-RATING-ACCESSIBILITY-001 on fix/learning-rating-accessibility-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,24 +17,24 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `KF-PREPARATION-DISPOSITION-LABELS-001` (`fix: clarify preparation disposition labels`)
-- **Branch:** `fix/preparation-disposition-labels-v1`
-- **Base master SHA:** `27364ad0411748ae24383d4f5ec28d2381d4c60e`
-- **Current checkpoint HEAD:** `b3c35e56b58a6ae1ff4b138fae86dfb7b0cfe3d3`
-- **Objective:** Shorten and clarify the two permanent Preparation disposition action labels (`Prepare_MarkKnown` and `Prepare_DoNotLearn`) across English, German, and Russian resources while preserving distinct permanent Mark Known versus Exclude semantics, existing confirmation dialogs, danger styling, and service mappings.
-- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/1 (`preparation-disposition-label-clarity`, checkpoint commit `b3c35e56b58a6ae1ff4b138fae86dfb7b0cfe3d3`) → `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; outcome: `DOCUMENTATION_UPDATE_REQUIRED`).
+- **Active work package:** `KF-LEARNING-RATING-ACCESSIBILITY-001` (`fix: improve learning rating button accessibility and non-destructive styling`)
+- **Branch:** `fix/learning-rating-accessibility-v1`
+- **Base master SHA:** `28ee22eef8fb7afa688e3e45f747b71f90470507`
+- **Current checkpoint HEAD:** `20a0f6ed3b3105cb5e1e5924530c7a386688c04d`
+- **Objective:** Eliminate destructive danger-red styling from the "Again" learning rating button in `RatingButtons.razor.css`, replacing it with accessible neutral muted styling, and establish a clear non-color visual hierarchy across all four ratings (`Again`, `Hard`, `Good`, `Easy`) using distinct fill, border width, and border pattern styling while preserving all ReviewRating mappings, localized labels, scheduler behavior, and theme contrast.
+- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/1 (`rating-accessibility-and-non-destructive-palette`, checkpoint commit `20a0f6ed3b3105cb5e1e5924530c7a386688c04d`) → `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; outcome: `DOCUMENTATION_UPDATE_REQUIRED`).
 - **Current lifecycle:** `DOCUMENT_ONLY` (in progress).
-- **Next lifecycle:** `COMMIT_ONLY` (if documentation edited) → `FULL_VALIDATION` (exact-candidate-HEAD).
+- **Next lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → `FULL_VALIDATION` (exact-candidate-HEAD).
 - **Verification evidence:**
-  - Slice-1 genuine RED: 0 passed / 1 failed / 0 skipped (`Preparation_DispositionActionLocalizationMatchesBindingContract` failed expecting `Mark as known`, actual was `Mark permanently known`).
-  - Slice-1 focused GREEN: 1 passed / 0 failed / 0 skipped.
-  - Intermediate targeted regression reconciliation: initial regression on `LocalizationResourceTests` + `UiWorkflowContractTests` identified 1 failure in `Resources_ManualPreparationActionsAndValidationUseContextSpecificWording` expecting obsolete old labels; updated in-scope test expectations.
-  - Final targeted regression: 160 passed / 0 failed / 0 skipped across `LocalizationResourceTests` and `UiWorkflowContractTests`.
+  - Slice-1 genuine RED: 0 passed / 3 failed / 0 skipped (failed on missing danger removal, missing semantic classes, and missing CSS rules).
+  - Slice-1 focused GREEN: 3 passed / 0 failed / 0 skipped.
+  - Final targeted regression: 132 passed / 0 failed / 0 skipped across `UiWorkflowContractTests`.
   - `git diff --check`: passed cleanly (0 errors).
-- **Evidence boundaries:** Proves unit and localization/UI contract test suites compile and pass. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI, physical Android device testing, APK/AAB creation, signing, or distribution.
+- **Evidence boundaries:** Proves Razor markup contracts, CSS isolation rules, design-token bindings, event callback mappings, static WCAG luminance/contrast math, and MSTest UI contract test suite. Does not prove exact-candidate pre-PR validation on final documentation commit, exact-master tests, rendered GUI in Windows or Android WebView, physical Android device testing, APK/AAB creation, signing, or distribution.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #175 (`fix: clarify preparation disposition labels`): Shortened and clarified the two permanent Preparation disposition action labels (`Prepare_MarkKnown` and `Prepare_DoNotLearn`) across English, German, and Russian resources while preserving distinct permanent Mark Known versus Exclude semantics, existing confirmation dialogs, danger styling, and service mappings. Merged to `28ee22eef8fb7afa688e3e45f747b71f90470507`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #174 (`fix: align preparation with daily learning target`): Aligned daily new-word admission eligibility so only genuinely-new vocabulary with valid, queueable study cards consumes the daily admission budget, preventing bare or cardless words from consuming daily grants, and enabled automatic transition from vocabulary preparation to learning as soon as the day's new-word demand is satisfied while preserving unblocked preparation when capacity is exhausted. Merged to `27364ad0411748ae24383d4f5ec28d2381d4c60e`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #169 (`fix: make onboarding vertically scrollable`): Made first-run onboarding vertically scrollable when content exceeds available viewport height, establishing a bounded scroll surface on `.onboarding-host` (`height: 100%`, `height: 100dvh`, `min-height: 0`, `overflow-y: auto`, `overflow-x: hidden`) and safe auto-centering (`margin: auto;`) on `.onboarding-main`. Merged to `a83dbecdb0dd1d0328e85ba4dc43e684fa9857fc`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #168 (`fix: reconcile shell scroll lock with breakpoint transitions`): Reconciled drawer state and content scroll lock when resizing across the 800px desktop boundary, ensuring `<main>` is no longer inert, backdrop is removed, and background scroll lock is cleanly cleared. Merged to `b4250c64479ceac210c60b66f6d23693e770371b`. `POST_MERGE_SYNC_ONLY` completed.

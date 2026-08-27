@@ -764,6 +764,8 @@ Do not use AI to grade long free-text definitions.
 
 ## 17. Ratings
 
+Learning ratings (`Again`, `Hard`, `Good`, `Easy`) represent active recall outcomes with distinct scheduling behaviors. Rating buttons retain permanent visible localized text labels and provide non-color differentiation (fill, border width, and border pattern) so that semantic recognition does not rely solely on color perception. Red styling is reserved for destructive operations and is not used for normal learning ratings.
+
 ### Again / Nochmal
 
 Meaning:
@@ -778,6 +780,10 @@ Behavior:
 - enter Learning or Relearning
 - record a lapse where applicable
 
+Presentation:
+
+- styled as a neutral, non-destructive control with muted surface and strong border (`rating-again`); does not use danger/destructive tokens.
+
 ### Hard / Schwer
 
 Meaning:
@@ -791,6 +797,10 @@ Behavior:
 
 Hard must not be used for a failed recall.
 
+Presentation:
+
+- styled with a warm/muted component-local border and a dashed border pattern (`rating-hard`) providing an explicit non-color distinction.
+
 ### Good / Gut
 
 Meaning:
@@ -801,6 +811,10 @@ Behavior:
 
 - schedule the normal interval
 
+Presentation:
+
+- styled as the primary solid-filled rating action (`rating-good`), providing prominent visual hierarchy.
+
 ### Easy / Einfach
 
 Meaning:
@@ -810,6 +824,10 @@ Meaning:
 Behavior:
 
 - schedule a longer interval
+
+Presentation:
+
+- styled with a success-green treatment, soft surface, and a 2px solid border (`rating-easy`), clearly differentiated from Good and Hard.
 
 Intervals continue to grow. They do not end automatically after 7 or 14 days.
 

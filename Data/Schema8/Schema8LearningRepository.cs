@@ -588,14 +588,23 @@ public static class Schema8LearningRepository
             """,
             (int)WordStatus.UnknownBacklog, (int)PreparationState.Prepared);
 
-    /// <summary>Earliest due date across scheduled cards (Learning, Review, Relearning); <see langword="null"/> when none exist.</summary>
+    /// <summary>Earliest due date across scheduled cards (Learning, Review, Relearning) with at least one active Required assignment; <see langword="null"/> when none exist.</summary>
     public static DateTime? SelectNextDueAtUtc(SQLiteConnection connection) =>
         Schema8Utc.Normalize(connection.Query<Schema8NullableTimestampRow>(
             """
-            SELECT MIN(DueAtUtc) AS Value FROM LearningCards
-            WHERE State IN (?, ?, ?)
+            SELECT MIN(c.DueAtUtc) AS Value
+            FROM LearningCards c
+            WHERE c.State IN (?, ?, ?)
+              AND EXISTS (
+                  SELECT 1
+                  FROM SenseAnswerVariantAssignments a
+                  WHERE a.SenseId = c.SenseId
+                    AND a.CardDirection = c.Direction
+                    AND a.Requirement = ?
+              )
             """,
-            (int)CardState.Learning, (int)CardState.Review, (int)CardState.Relearning).FirstOrDefault()?.Value);
+            (int)CardState.Learning, (int)CardState.Review, (int)CardState.Relearning,
+            (int)AnswerVariantRequirement.Required).FirstOrDefault()?.Value);
 
     // ---- Schema 12 Learning Day & Daily Limit ----
 

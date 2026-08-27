@@ -146,6 +146,129 @@ public sealed class LearningNextDueAvailabilityTests
     }
 
     [TestMethod]
+    public async Task ScheduledReview_ZeroRequiredAssignments_DoesNotSupplyNextDueAtUtc()
+    {
+        // Scenario A:
+        // Scheduled card in Review with a valid scheduled DueAtUtc;
+        // Its Sense + Direction has zero active Required assignments (demoted to AcceptedOnly);
+        // Valid non-corrupt Schema-12 state;
+        // No other queueable scheduled review exists.
+        // Expected future behavior: NextDueAtUtc is null.
+        // Required current RED cause: current state-only query returns the nonqueueable card's DueAtUtc.
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var cardDueUtc = Day1Utc.AddHours(2);
+        await SeedCardAsync(fixture, cardId: 101, term: "zero-required-word", ordinal: 1, CardState.Review, atUtc: Day1Utc, dueAtUtc: cardDueUtc);
+
+        var pastSessionId = await fixture.InsertLearningSessionAsync(
+            LearningSessionStatus.Completed, totalCards: 1, completedCards: 1,
+            startedAtUtc: Day1Utc.AddHours(-2), updatedAtUtc: Day1Utc.AddHours(-2), completedAtUtc: Day1Utc.AddHours(-2));
+
+        await DatabaseSchema.InitializeAsync(fixture.Connection);
+
+        // Demote the only assignment to AcceptedOnly, leaving zero Required assignments for this Sense + Direction
+        var senseId = await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT SenseId FROM LearningCards WHERE Id = ?", 101);
+        await fixture.Connection.ExecuteAsync(
+            """
+            UPDATE SenseAnswerVariantAssignments
+            SET Requirement = ?, RequiredSinceUtc = NULL
+            WHERE SenseId = ? AND CardDirection = ?
+            """,
+            (int)AnswerVariantRequirement.AcceptedOnly, senseId, (int)CardDirection.MeaningToTerm);
+
+        var appSettings = new TestAppSettingsService { PreparationLimit = 1 };
+        var clock = new FakeClock(Day1Utc);
+        var service = CreateService(fixture, clock, appSettings);
+
+        // Exhaust daily admission capacity
+        await service.GetPreparationReadinessAsync();
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO LearningDayGrants (DayOrdinal, WordId, SlotOrdinal, GrantedAtUtc) VALUES (1, 999, 0, ?)",
+            Day1Utc.AddHours(-1));
+
+        var result = await service.GetOrStartAsync();
+
+        Assert.IsNull(result.Card, "No active card should be served.");
+        Assert.IsNotNull(result.CompletedSummary, "Completed summary should be returned.");
+        Assert.AreEqual(pastSessionId, result.CompletedSummary.SessionId);
+        Assert.IsNull(result.CompletedSummary.NextDueAtUtc,
+            "Scheduled card with zero Required assignments must not supply NextDueAtUtc.");
+
+        // Characterization: verify that once due instant arrives, the card is skipped rather than failing as malformed data
+        clock.UtcNow = cardDueUtc.AddMinutes(5);
+        var sessionAfterDue = await service.GetOrStartAsync();
+        Assert.IsNull(sessionAfterDue.Card, "Zero-Required card must be cleanly skipped by queue target selection.");
+        Assert.IsNotNull(sessionAfterDue.CompletedSummary);
+        Assert.IsNull(sessionAfterDue.CompletedSummary.NextDueAtUtc);
+    }
+
+    [TestMethod]
+    public async Task NonqueueableScheduledReview_DoesNotOutrankLaterQueueableScheduledReview()
+    {
+        // Scenario B:
+        // Card A: scheduled review with earlier DueAtUtc but zero Required assignments;
+        // Card B: scheduled review with later DueAtUtc and at least one valid Required assignment.
+        // Expected future behavior: NextDueAtUtc equals card B's timestamp exactly.
+        // Required current RED cause: current query selects card A.
+        await using var fixture = await Schema7Fixture.CreateAsync();
+
+        var cardADueUtc = Day1Utc.AddHours(1);
+        var cardBDueUtc = Day1Utc.AddHours(4);
+
+        await SeedCardAsync(fixture, cardId: 101, term: "card-a-zero-req", ordinal: 1, CardState.Review, atUtc: Day1Utc, dueAtUtc: cardADueUtc);
+        await SeedCardAsync(fixture, cardId: 201, term: "card-b-valid-req", ordinal: 2, CardState.Review, atUtc: Day1Utc, dueAtUtc: cardBDueUtc);
+
+        var pastSessionId = await fixture.InsertLearningSessionAsync(
+            LearningSessionStatus.Completed, totalCards: 1, completedCards: 1,
+            startedAtUtc: Day1Utc.AddHours(-2), updatedAtUtc: Day1Utc.AddHours(-2), completedAtUtc: Day1Utc.AddHours(-2));
+
+        await DatabaseSchema.InitializeAsync(fixture.Connection);
+
+        // Demote Card A's assignment to AcceptedOnly, leaving Card A with zero Required assignments
+        var senseAId = await fixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT SenseId FROM LearningCards WHERE Id = ?", 101);
+        await fixture.Connection.ExecuteAsync(
+            """
+            UPDATE SenseAnswerVariantAssignments
+            SET Requirement = ?, RequiredSinceUtc = NULL
+            WHERE SenseId = ? AND CardDirection = ?
+            """,
+            (int)AnswerVariantRequirement.AcceptedOnly, senseAId, (int)CardDirection.MeaningToTerm);
+
+        var appSettings = new TestAppSettingsService { PreparationLimit = 1 };
+        var clock = new FakeClock(Day1Utc);
+        var service = CreateService(fixture, clock, appSettings);
+
+        // Exhaust daily admission capacity
+        await service.GetPreparationReadinessAsync();
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO LearningDayGrants (DayOrdinal, WordId, SlotOrdinal, GrantedAtUtc) VALUES (1, 999, 0, ?)",
+            Day1Utc.AddHours(-1));
+
+        var result = await service.GetOrStartAsync();
+
+        Assert.IsNull(result.Card, "No active session card should be returned.");
+        Assert.IsNotNull(result.CompletedSummary, "Completed summary should be returned.");
+        Assert.AreEqual(cardBDueUtc, result.CompletedSummary.NextDueAtUtc,
+            "NextDueAtUtc must match Card B's timestamp, not Card A's nonqueueable timestamp.");
+        Assert.AreNotEqual(cardADueUtc, result.CompletedSummary.NextDueAtUtc,
+            "NextDueAtUtc must not equal nonqueueable Card A's timestamp.");
+
+        // Characterization: verify Card A is skipped when its due instant passes, and Card B is served when Card B is due
+        clock.UtcNow = cardADueUtc.AddMinutes(5);
+        var sessionAtCardA = await service.GetOrStartAsync();
+        Assert.IsNull(sessionAtCardA.Card, "Card A has zero Required assignments and must be skipped.");
+        Assert.AreEqual(cardBDueUtc, sessionAtCardA.CompletedSummary?.NextDueAtUtc,
+            "Card B remains the next valid scheduled review.");
+
+        clock.UtcNow = cardBDueUtc.AddMinutes(5);
+        var sessionAtCardB = await service.GetOrStartAsync();
+        Assert.IsNotNull(sessionAtCardB.Card, "Card B has active Required assignment and must be served.");
+        Assert.AreEqual(201, sessionAtCardB.Card.CardId, "Card B must be the card returned.");
+    }
+
+    [TestMethod]
     public async Task SummaryNextDue_Schema7_ExcludesNewCards()
     {
         // Legacy consistency:

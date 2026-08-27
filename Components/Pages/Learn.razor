@@ -1,5 +1,7 @@
-﻿@page "/learn"
+@page "/learn"
+@implements IAsyncDisposable
 @inject ILearningService LearningService
+@inject IClock Clock
 @inject ILogger<Learn> Logger
 @inject IJSRuntime JsRuntime
 
@@ -171,6 +173,21 @@
             @if (_summary.RemainingUnpreparedCount > 0)
             {
                 <p>@Localizer["Learn_MoreUnknownWaiting", _summary.RemainingUnpreparedCount]</p>
+            }
+            @if (_isScheduledReviewAvailable)
+            {
+                <div class="button-row">
+                    <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="StartDueReviewAsync">@Localizer["Navigation_Learn"]</button>
+                    @if (_summary.RemainingUnpreparedCount > 0)
+                    {
+                        <a class="button button-secondary" href="prepare-words">@Localizer["Learn_PrepareNextWords"]</a>
+                    }
+                    <a class="button button-secondary" href="">@Localizer["Common_Later"]</a>
+                    <a class="button button-secondary" href="settings">@Localizer["Prepare_ChangeLimit"]</a>
+                </div>
+            }
+            else if (_summary.RemainingUnpreparedCount > 0)
+            {
                 <div class="button-row">
                     <a class="button button-primary" href="prepare-words">@Localizer["Learn_PrepareNextWords"]</a>
                     <a class="button button-secondary" href="">@Localizer["Common_Later"]</a>
@@ -242,6 +259,8 @@
 @code {
     private LearningCardView? _card;
     private LearningSessionSummary? _summary;
+    private LearningSummaryDueMonitor? _dueMonitor;
+    private bool _isScheduledReviewAvailable;
     private SpellingSubmissionResult? _spellingResult;
     private string _spellingAnswer = string.Empty;
     private int _contextIndex;
@@ -425,12 +444,63 @@
 
     private void ApplyLoadResult(LearningLoadResult result)
     {
+        CancelDueMonitor();
         _card = result.Card;
         _summary = result.CompletedSummary;
         _spellingResult = null;
         _spellingAnswer = string.Empty;
         _contextIndex = 0;
         _showPermanentKnownConfirmation = false;
+
+        if (_card is null && _summary?.NextDueAtUtc is not null)
+        {
+            if (LearningSummaryDueMonitor.IsDue(Clock, _summary.NextDueAtUtc.Value))
+            {
+                _isScheduledReviewAvailable = true;
+            }
+            else
+            {
+                _isScheduledReviewAvailable = false;
+                _dueMonitor = new LearningSummaryDueMonitor(
+                    Clock,
+                    _summary.NextDueAtUtc.Value,
+                    async () =>
+                    {
+                        _isScheduledReviewAvailable = true;
+                        await InvokeAsync(StateHasChanged);
+                    });
+            }
+        }
+        else
+        {
+            _isScheduledReviewAvailable = false;
+        }
+    }
+
+    private async Task StartDueReviewAsync()
+    {
+        if (_isBusy || _isLoading)
+        {
+            return;
+        }
+
+        CancelDueMonitor();
+        await LoadAsync();
+    }
+
+    private void CancelDueMonitor()
+    {
+        _dueMonitor?.Dispose();
+        _dueMonitor = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dueMonitor is not null)
+        {
+            await _dueMonitor.DisposeAsync();
+            _dueMonitor = null;
+        }
     }
 
     private void PreviousContext() => _contextIndex = Math.Max(0, _contextIndex - 1);

@@ -600,10 +600,10 @@ public sealed class LearningService : ILearningService
         LearningSessionEntity session)
     {
         var nextDue = (await connection.Table<LearningCardEntity>()
-                .Where(card => card.State != CardState.Retired && card.State != CardState.Suspended)
+                .Where(card => card.State == CardState.Learning || card.State == CardState.Review || card.State == CardState.Relearning)
                 .OrderBy(card => card.DueAtUtc)
                 .ToListAsync())
-            .Select(card => (DateTime?)card.DueAtUtc)
+            .Select(card => (DateTime?)Schema8Utc.Normalize(card.DueAtUtc))
             .FirstOrDefault();
         var remaining = await connection.Table<WordEntity>()
             .Where(word => word.Status == WordStatus.UnknownBacklog

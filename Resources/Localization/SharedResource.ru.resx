@@ -1198,13 +1198,13 @@
     <value>Другие действия подготовки</value>
   </data>
   <data name="Prepare_MarkKnown" xml:space="preserve">
-    <value>Отметить как навсегда известное</value>
+    <value>Отметить как известное</value>
   </data>
   <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
     <value>Это слово будет сохранено как навсегда известное. Карточки для изучения не будут созданы, а устаревшие данные подготовки, контекста и частоты будут удалены.</value>
   </data>
   <data name="Prepare_DoNotLearn" xml:space="preserve">
-    <value>Не учить этот термин</value>
+    <value>Исключить из обучения</value>
   </data>
   <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
     <value>Эта точная лексическая единица будет исключена из будущих проверок и подготовки. Связанные слова и формы исключены не будут, карточки для изучения не будут созданы.</value>

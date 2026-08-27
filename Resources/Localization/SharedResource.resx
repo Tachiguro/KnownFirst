@@ -1198,13 +1198,13 @@
     <value>Other preparation actions</value>
   </data>
   <data name="Prepare_MarkKnown" xml:space="preserve">
-    <value>Mark permanently known</value>
+    <value>Mark as known</value>
   </data>
   <data name="Prepare_MarkKnownConfirmation" xml:space="preserve">
     <value>This word will be stored as permanently known. No learning cards will be created, and obsolete preparation, context, and frequency data will be removed.</value>
   </data>
   <data name="Prepare_DoNotLearn" xml:space="preserve">
-    <value>Do not learn this term</value>
+    <value>Exclude from learning</value>
   </data>
   <data name="Prepare_DoNotLearnConfirmation" xml:space="preserve">
     <value>This exact vocabulary identity will be excluded from future review and preparation. Related words and forms will not be excluded, and no learning cards will be created.</value>

@@ -162,7 +162,7 @@ Each applicable surface must handle these states without broken layout, missing 
 - When Learning readiness indicates that still-open genuinely-new demand is fully satisfiable by eligible prepared vocabulary, Preparation automatically transitions to `/learn` without first displaying another Preparation candidate.
 - When eligible prepared backlog is below open demand, Preparation continues normal candidate progression.
 - When daily genuinely-new admission capacity is already exhausted, readiness evaluates to false; Preparation continues normally and same-day re-entry to `/prepare-words` remains unblocked without an automatic redirect loop.
-- Dispositions (**Skip for now**, **Mark as known**, **Do not learn**) and **End preparation** do not query Learning readiness or trigger automatic Learning navigation.
+- Dispositions (**Skip for now**, **Mark as known**, **Exclude from learning**) and **End preparation** do not query Learning readiness or trigger automatic Learning navigation.
 - The active Preparation session remains paused and resumable after automatic transition to Learning.
 - If readiness query, navigation callback, or candidate loading fails after a successful commit, the UI renders the dedicated progression-recovery banner with a progression-only Retry button; progression retry re-evaluates the progression flow and never repeats acceptance.
 - Fixed actions remain reachable without covering the current candidate or form.

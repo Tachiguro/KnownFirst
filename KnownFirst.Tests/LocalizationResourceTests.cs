@@ -652,14 +652,14 @@ public sealed class LocalizationResourceTests
         var german = LoadResources("SharedResource.de.resx");
         var russian = LoadResources("SharedResource.ru.resx");
 
-        Assert.AreEqual("Mark permanently known", english["Prepare_MarkKnown"]);
-        Assert.AreEqual("Do not learn this term", english["Prepare_DoNotLearn"]);
+        Assert.AreEqual("Mark as known", english["Prepare_MarkKnown"]);
+        Assert.AreEqual("Exclude from learning", english["Prepare_DoNotLearn"]);
         Assert.AreEqual("End preparation", english["Prepare_EndPreparation"]);
-        Assert.AreEqual("Dauerhaft als bekannt markieren", german["Prepare_MarkKnown"]);
-        Assert.AreEqual("Diesen Begriff nicht lernen", german["Prepare_DoNotLearn"]);
+        Assert.AreEqual("Als bekannt markieren", german["Prepare_MarkKnown"]);
+        Assert.AreEqual("Vom Lernen ausschließen", german["Prepare_DoNotLearn"]);
         Assert.AreEqual("Vorbereitung beenden", german["Prepare_EndPreparation"]);
-        Assert.AreEqual("Отметить как навсегда известное", russian["Prepare_MarkKnown"]);
-        Assert.AreEqual("Не учить этот термин", russian["Prepare_DoNotLearn"]);
+        Assert.AreEqual("Отметить как известное", russian["Prepare_MarkKnown"]);
+        Assert.AreEqual("Исключить из обучения", russian["Prepare_DoNotLearn"]);
         Assert.AreEqual("Завершить подготовку", russian["Prepare_EndPreparation"]);
 
         foreach (var resources in new[] { english, german, russian })
@@ -1059,5 +1059,52 @@ public sealed class LocalizationResourceTests
 
         Assert.Contains("Review_DiscardAction", referencedKeys);
         Assert.IsFalse(referencedKeys.Contains("Review_Discard", StringComparer.Ordinal), "Raw Review_Discard must not be referenced.");
+    }
+
+    [TestMethod]
+    public void Preparation_DispositionActionLocalizationMatchesBindingContract()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        const string markKnownKey = "Prepare_MarkKnown";
+        const string doNotLearnKey = "Prepare_DoNotLearn";
+        const string markKnownConfirmKey = "Prepare_MarkKnownConfirmation";
+        const string doNotLearnConfirmKey = "Prepare_DoNotLearnConfirmation";
+
+        var resources = new (string Name, Dictionary<string, string> Data)[]
+        {
+            ("English", english),
+            ("German", german),
+            ("Russian", russian)
+        };
+
+        foreach (var (name, resource) in resources)
+        {
+            Assert.IsTrue(resource.ContainsKey(markKnownKey), $"{name} resource is missing {markKnownKey}.");
+            Assert.IsTrue(resource.ContainsKey(doNotLearnKey), $"{name} resource is missing {doNotLearnKey}.");
+            Assert.IsTrue(resource.ContainsKey(markKnownConfirmKey), $"{name} resource is missing {markKnownConfirmKey}.");
+            Assert.IsTrue(resource.ContainsKey(doNotLearnConfirmKey), $"{name} resource is missing {doNotLearnConfirmKey}.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resource[markKnownKey]), $"{name} value for {markKnownKey} is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resource[doNotLearnKey]), $"{name} value for {doNotLearnKey} is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resource[markKnownConfirmKey]), $"{name} value for {markKnownConfirmKey} is empty.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(resource[doNotLearnConfirmKey]), $"{name} value for {doNotLearnConfirmKey} is empty.");
+
+            Assert.AreNotEqual(
+                resource[markKnownKey],
+                resource[doNotLearnKey],
+                $"{name} disposition actions {markKnownKey} and {doNotLearnKey} must not be identical.");
+        }
+
+        Assert.AreEqual("Mark as known", english[markKnownKey]);
+        Assert.AreEqual("Exclude from learning", english[doNotLearnKey]);
+
+        Assert.AreEqual("Als bekannt markieren", german[markKnownKey]);
+        Assert.AreEqual("Vom Lernen ausschließen", german[doNotLearnKey]);
+
+        Assert.AreEqual("Отметить как известное", russian[markKnownKey]);
+        Assert.AreEqual("Исключить из обучения", russian[doNotLearnKey]);
     }
 }

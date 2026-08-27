@@ -501,7 +501,7 @@ Actions:
 - Try again / Erneut versuchen only for a recoverable lookup outcome
 - Manual entry / Manuell eingeben
 - Mark as known / Als bekannt markieren
-- Do not learn / Nicht lernen
+- Exclude from learning / Vom Lernen ausschließen
 - Skip for now / Später
 - End preparation / Vorbereitung beenden
 
@@ -535,7 +535,7 @@ Actions:
 
 - Manual entry
 - Mark as known
-- Do not learn
+- Exclude from learning
 - Skip for now
 
 Do not fabricate an answer.
@@ -551,7 +551,7 @@ The explicit outcomes are `Success`, `NotFound`, `TransientFailure`, `PermanentF
 ### 11.4 Preparation dispositions and transition performance
 
 - **Mark as known** (status `WordStatus.Known`) requires confirmation, stores the minimal PermanentlyKnown marker, means the vocabulary item is known and should not be learned/reviewed normally (distinct from exclusion), creates no cards, removes obsolete preparation/context/frequency data transactionally, updates document-cleanup eligibility, and advances exactly once.
-- **Do not learn** (status `WordStatus.Ignored`) requires a scope explanation, stores a minimal exact exclusion marker that is not Known, creates no cards, excludes no related identity, removes obsolete preparation data, and advances exactly once.
+- **Exclude from learning** (status `WordStatus.Ignored`) requires a scope explanation, stores a minimal exact exclusion marker that is not Known, creates no cards, excludes no related identity, removes obsolete preparation data, and advances exactly once.
 - **Skip for now** removes the candidate only from the current batch, leaves it Unknown and Unprepared for future batches, and cannot repeat within the same session even when every item is skipped.
 
 Back or Home pauses the active batch and preserves its method and current candidate. **End preparation** ends the batch: it is a neutral/secondary workflow action located in the bottom action bar. While its confirmation panel is open, competing disposition actions are suppressed. Confirmation ends the batch and its resumability: accepted items remain prepared and lasting Known/Ignored decisions are preserved, while unresolved and skipped items return to the Unknown/Unprepared backlog. It does not delete accepted learning content. The next entry shows the Automatic/Manual choice and creates no duplicate candidate for accepted vocabulary.
@@ -609,7 +609,7 @@ Workflow rules:
 - When still-open genuinely-new demand is positive and eligible prepared backlog can fully satisfy it, Preparation automatically transitions to `/learn` without loading another candidate.
 - When eligible prepared backlog is below open demand, normal Preparation candidate progression continues.
 - When daily genuinely-new admission capacity is already exhausted, readiness evaluates to false; Preparation progression continues normally, allowing the user to prepare more words or return later without an automatic redirect loop.
-- Dispositions (**Skip for now**, **Mark as known**, **Do not learn**) and **End preparation** do not query readiness or trigger automatic Learning transition.
+- Dispositions (**Skip for now**, **Mark as known**, **Exclude from learning**) and **End preparation** do not query readiness or trigger automatic Learning transition.
 - Extra prepared vocabulary exceeding daily admission capacity remains safely preserved in the backlog for future learning days.
 - Due reviews, learned sibling cards, and Again repetitions never count against the daily new-word admission target.
 

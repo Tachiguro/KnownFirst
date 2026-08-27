@@ -24,6 +24,7 @@ and uses the application's prerelease version identifiers.
 
 ### Fixed
 
+- Fixed Review Words discard action localization and placement: the action now presents the localized "Discard import" label in all supported languages rather than an unmapped key, is positioned as a destructive end action in the workflow action bar, and preserves explicit irreversible confirmation for discarding an unfinished text import.
 - Fixed learning session Again repeat queueing: explicit Again ratings (including repeated Again actions on existing repeats) now reliably append deterministic tail repeats without an arbitrary one-repeat cap, and pending repeats remain available to complete within the active session while the scheduler preserves their future due schedule.
 - Fixed first-run onboarding vertical scroll reachability: `.onboarding-host` now establishes a bounded vertical scroll surface so all onboarding content and actions remain fully reachable on constrained viewport heights without horizontal expansion (PR #169).
 - Reconciled shell navigation drawer scroll lock with window breakpoint transitions: resizing across the 800px desktop boundary cleanly dismisses transient drawer state, unlocks background page scrolling, and removes stale back-navigation handlers (PR #168).

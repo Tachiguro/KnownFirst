@@ -1011,4 +1011,53 @@ public sealed class LocalizationResourceTests
             Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), "The Russian value for '" + key + "' is empty.");
         }
     }
+
+    [TestMethod]
+    public void ReviewWords_DiscardActionLocalizationMatchesBindingContract()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        const string actionKey = "Review_DiscardAction";
+
+        Assert.IsTrue(english.ContainsKey(actionKey), "English resource is missing Review_DiscardAction.");
+        Assert.IsTrue(german.ContainsKey(actionKey), "German resource is missing Review_DiscardAction.");
+        Assert.IsTrue(russian.ContainsKey(actionKey), "Russian resource is missing Review_DiscardAction.");
+
+        Assert.AreEqual("Discard import", english[actionKey]);
+        Assert.AreEqual("Import verwerfen", german[actionKey]);
+        Assert.AreEqual("Отменить импорт", russian[actionKey]);
+    }
+
+    [TestMethod]
+    public void ReviewWords_LiteralLocalizerKeysExistInResourcesWithoutLeaks()
+    {
+        var uiRoot = Path.Combine(AppContext.BaseDirectory, "Ui");
+        var reviewMarkup = File.ReadAllText(Path.Combine(uiRoot, "ReviewWords.razor"));
+
+        var keyMatches = System.Text.RegularExpressions.Regex.Matches(
+            reviewMarkup,
+            @"Localizer\[""([^""]+)""\]");
+
+        Assert.IsTrue(keyMatches.Count > 0, "No literal Localizer keys found in ReviewWords.razor.");
+
+        var referencedKeys = keyMatches
+            .Select(match => match.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        foreach (var key in referencedKeys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), $"ReviewWords references missing English key: '{key}'");
+            Assert.IsTrue(german.ContainsKey(key), $"ReviewWords references missing German key: '{key}'");
+            Assert.IsTrue(russian.ContainsKey(key), $"ReviewWords references missing Russian key: '{key}'");
+        }
+
+        Assert.Contains("Review_DiscardAction", referencedKeys);
+        Assert.IsFalse(referencedKeys.Contains("Review_Discard", StringComparer.Ordinal), "Raw Review_Discard must not be referenced.");
+    }
 }

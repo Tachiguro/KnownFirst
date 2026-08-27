@@ -105,34 +105,6 @@
                     <p class="inline-message inline-message-error" role="alert">@Localizer["Review_DecisionError"]</p>
                 }
             </article>
-
-            <section class="discard-import-section">
-                @if (!_showDiscardConfirmation)
-                {
-                    <button type="button" class="button button-danger" disabled="@_isSaving" @ref="_discardButtonRef" @onclick="ShowDiscardConfirmationAsync">
-                        @Localizer["Review_Discard"]
-                    </button>
-                }
-                else
-                {
-                    <div class="destructive-confirmation"
-                         role="alertdialog"
-                         aria-labelledby="review-discard-confirmation-title"
-                         @ref="_discardConfirmationRef"
-                         @onkeydown="HandleDiscardDialogKeyDown">
-                        <h3 id="review-discard-confirmation-title">@Localizer["Review_DiscardTitle"]</h3>
-                        <p>@Localizer["Review_DiscardMessage"]</p>
-                        <div class="button-row">
-                            <button type="button" class="button button-secondary" disabled="@_isSaving" @ref="_discardCancelButtonRef" @onclick="CancelDiscardAsync">
-                                @Localizer["Common_Cancel"]
-                            </button>
-                            <button type="button" class="button button-danger" data-destructive-confirm disabled="@_isSaving" @onclick="DiscardAsync">
-                                @Localizer["Review_DiscardConfirm"]
-                            </button>
-                        </div>
-                    </div>
-                }
-            </section>
         }
         else if (_completedSummary is not null)
         {
@@ -155,35 +127,74 @@
         }
     </div>
 
-    @if (_candidate is not null && !_showDiscardConfirmation)
+    @if (_candidate is not null)
     {
         <div class="workflow-action-bar">
             <section class="review-action-bar" aria-label="@Localizer["Review_Question"]">
-                <p class="review-saving-state" role="status" aria-live="polite">@(_isSaving ? Localizer["Review_Saving"] : "\u00a0")</p>
-                <div class="decision-grid">
+                @if (!_showDiscardConfirmation)
+                {
+                    <div class="review-primary-actions">
+                        <p class="review-saving-state" role="status" aria-live="polite">@(_isSaving ? Localizer["Review_Saving"] : "\u00a0")</p>
+                        <div class="decision-grid">
+                            <button type="button"
+                                    class="button button-primary"
+                                    disabled="@_isSaving"
+                                    aria-keyshortcuts="Enter"
+                                    title="@Localizer["Review_Known"] (Enter)"
+                                    @onclick="() => DecideAsync(WordStatus.Known)">
+                                @Localizer["Review_Known"]
+                            </button>
+                            <button type="button"
+                                    class="button button-secondary"
+                                    disabled="@_isSaving"
+                                    @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
+                                @Localizer["Review_Unknown"]
+                            </button>
+                        </div>
+                        <div class="undo-container">
+                            <button type="button"
+                                    class="undo-button"
+                                    disabled="@(!_candidate.CanUndo || _isSaving)"
+                                    @onclick="UndoAsync">
+                                @Localizer["Review_Undo"]
+                            </button>
+                        </div>
+                    </div>
                     <button type="button"
-                            class="button button-primary"
+                            class="button button-danger end-review-discard"
                             disabled="@_isSaving"
-                            aria-keyshortcuts="Enter"
-                            title="@Localizer["Review_Known"] (Enter)"
-                            @onclick="() => DecideAsync(WordStatus.Known)">
-                        @Localizer["Review_Known"]
+                            @ref="_discardButtonRef"
+                            @onclick="ShowDiscardConfirmationAsync">
+                        @Localizer["Review_DiscardAction"]
                     </button>
-                    <button type="button"
-                            class="button button-secondary"
-                            disabled="@_isSaving"
-                            @onclick="() => DecideAsync(WordStatus.UnknownBacklog)">
-                        @Localizer["Review_Unknown"]
-                    </button>
-                </div>
-                <div class="undo-container">
-                    <button type="button"
-                            class="undo-button"
-                            disabled="@(!_candidate.CanUndo || _isSaving)"
-                            @onclick="UndoAsync">
-                        @Localizer["Review_Undo"]
-                    </button>
-                </div>
+                }
+                else
+                {
+                    <div class="destructive-confirmation review-discard-confirmation"
+                         role="alertdialog"
+                         aria-labelledby="review-discard-confirmation-title"
+                         @ref="_discardConfirmationRef"
+                         @onkeydown="HandleDiscardDialogKeyDown">
+                        <h3 id="review-discard-confirmation-title">@Localizer["Review_DiscardTitle"]</h3>
+                        <p>@Localizer["Review_DiscardMessage"]</p>
+                        <div class="button-row">
+                            <button type="button"
+                                    class="button button-secondary"
+                                    disabled="@_isSaving"
+                                    @ref="_discardCancelButtonRef"
+                                    @onclick="CancelDiscardAsync">
+                                @Localizer["Common_Cancel"]
+                            </button>
+                            <button type="button"
+                                    class="button button-danger"
+                                    data-destructive-confirm
+                                    disabled="@_isSaving"
+                                    @onclick="DiscardAsync">
+                                @Localizer["Review_DiscardConfirm"]
+                            </button>
+                        </div>
+                    </div>
+                }
             </section>
         </div>
     }

@@ -324,7 +324,7 @@ Use the mobile app bar as the single page title and hide duplicate page headings
 
 Keep progress, candidate, one highlighted context, context navigation, Known, and Unknown prominent. Put token kind, encountered forms, and occurrence count in a collapsed Details section; DEBUG Analysis details remains separate.
 
-Known and Unknown remain side by side in a stable two-column fixed action bar above the bottom safe area. Reserve a concise saving-status line, disable both actions while saving, keep Undo reachable, and add enough page padding that content is never hidden. Discard unfinished import remains at the bottom of normal page flow.
+Known and Unknown remain prominent primary review actions side by side in the bottom workflow action bar above the bottom safe area, with a reserved concise saving-status line, disabled actions while saving, reachable Undo, and sufficient page padding so content is never hidden. `Discard import` is positioned as the destructive trailing/end action within that workflow action bar rather than in ordinary page flow. Opening discard confirmation suppresses competing review actions and displays an explicit destructive confirmation in the action area to discard the entire unfinished active import (not merely the current vocabulary item). On narrow layouts, the action area stacks responsively while keeping all controls reachable without horizontal overflow.
 
 ---
 

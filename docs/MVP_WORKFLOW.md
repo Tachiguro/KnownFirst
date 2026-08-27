@@ -401,10 +401,7 @@ Exclude:
 - unresolved review candidates
 - legacy ignored/excluded data
 
-Batch size uses the configured new-vocabulary limit.
-
-Default: 10  
-Hard maximum: 50
+Preparation is uncapped by the daily target; users may prepare more vocabulary than can be admitted in a single day. The configured daily new-word limit governs Learning admission (recommended default 5 for fresh installations, configurable range 1..50; grandfathered installations preserve their established limit).
 
 Two generated card directions still count as one newly prepared vocabulary item.
 
@@ -600,29 +597,21 @@ Validation & error behavior:
 
 ---
 
-## 13. Preparation limit reached
+## 13. Daily new-word target and Preparation-to-Learning transition
 
-When the configured batch limit is reached:
+Preparation is not capped by the daily new-word admission target. Users may continue preparing vocabulary beyond that day's remaining admission capacity, and prepared items remain available in the backlog for future admission.
 
-English:
+The configured daily target governs only distinct genuinely-new Words admitted into Learning for the current learning day (default 5 for fresh installations, configurable range 1..50; grandfathered installations preserve their established limit).
 
-> You prepared 10 new words. Learn these words before adding more, or change the limit in Settings.
+Workflow rules:
 
-German:
-
-> Du hast 10 neue Wörter vorbereitet. Lerne diese Wörter zuerst oder ändere das Limit in den Einstellungen.
-
-Actions:
-
-- Start learning / Lernen starten
-- Change daily limit / Tageslimit ändern
-- Return Home / Zur Startseite
-
-The displayed number uses the configured limit.
-
-The user may increase the limit up to 50.
-
-Due reviews never count against this limit.
+- After each successful Preparation acceptance is durably committed, Preparation queries Learning readiness.
+- When still-open genuinely-new demand is positive and eligible prepared backlog can fully satisfy it, Preparation automatically transitions to `/learn` without loading another candidate.
+- When eligible prepared backlog is below open demand, normal Preparation candidate progression continues.
+- When daily genuinely-new admission capacity is already exhausted, readiness evaluates to false; Preparation progression continues normally, allowing the user to prepare more words or return later without an automatic redirect loop.
+- Dispositions (**Skip for now**, **Mark as known**, **Do not learn**) and **End preparation** do not query readiness or trigger automatic Learning transition.
+- Extra prepared vocabulary exceeding daily admission capacity remains safely preserved in the backlog for future learning days.
+- Due reviews, learned sibling cards, and Again repetitions never count against the daily new-word admission target.
 
 ---
 
@@ -631,9 +620,9 @@ Due reviews never count against this limit.
 When a learning session starts:
 
 1. include all due cards, oldest due first
-2. include prepared new vocabulary for the current batch
-3. order new vocabulary by accepted frequency descending
-4. generate enabled card directions
+2. include admitted prepared new vocabulary up to the remaining daily new-word budget (prioritized by frequency)
+3. order admitted new vocabulary by accepted frequency descending
+4. generate enabled card directions for admitted vocabulary
 5. avoid duplicate cards in the initial queue
 
 An active session is persisted and resumable.
@@ -979,16 +968,15 @@ System follows the supported device language and falls back to English for an un
 
 ### New words per day / Neue Wörter pro Tag
 
-- 5
+- 5 Recommended
+- 1
 - 10
-- 20
-- 30
-- 50
+- Custom (1..50)
 
-Default: 10  
-Maximum: 50
+Recommended default for fresh installations: 5 (legacy grandfathered installations retain their established value, such as 10)
+Configurable range: 1..50
 
-Help text explains that the setting limits new learning words so preparation and study remain manageable and that due reviews do not count.
+Help text explains that the setting limits new words admitted into daily learning so study remains manageable, while due reviews and preparation volume are not restricted by this limit.
 
 ### Card direction
 

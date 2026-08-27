@@ -158,9 +158,15 @@ Each applicable surface must handle these states without broken layout, missing 
 - Mode-specific validation displays dedicated localized errors for empty Definition / empty Translation, is scrolled fully into view, and focuses the invalid field.
 - Choosing another meaning uses a bounded, accessible presentation that wraps long values.
 - "End preparation" is styled as a neutral/secondary action in the bottom workflow action bar with inline confirmation; competing disposition actions are suppressed while confirmation is open.
-- When next-candidate retrieval fails after a successful save, the UI renders a dedicated save-success / progression-recovery banner with a progression-only Retry button and schedules reveal/focus to the Retry button.
+- Successful normal Accept persists durably before Learning readiness is queried or navigation occurs.
+- When Learning readiness indicates that still-open genuinely-new demand is fully satisfiable by eligible prepared vocabulary, Preparation automatically transitions to `/learn` without first displaying another Preparation candidate.
+- When eligible prepared backlog is below open demand, Preparation continues normal candidate progression.
+- When daily genuinely-new admission capacity is already exhausted, readiness evaluates to false; Preparation continues normally and same-day re-entry to `/prepare-words` remains unblocked without an automatic redirect loop.
+- Dispositions (**Skip for now**, **Mark as known**, **Do not learn**) and **End preparation** do not query Learning readiness or trigger automatic Learning navigation.
+- The active Preparation session remains paused and resumable after automatic transition to Learning.
+- If readiness query, navigation callback, or candidate loading fails after a successful commit, the UI renders the dedicated progression-recovery banner with a progression-only Retry button; progression retry re-evaluates the progression flow and never repeats acceptance.
 - Fixed actions remain reachable without covering the current candidate or form.
-- Automated test coverage verifies structural DOM contracts, accessibility relationships, and state transitions; rendered WebView appearance, actual Windows focus behavior, Android touch behavior, and platform-specific layout are not manually proven by this package and are not claimed.
+- Automated test coverage verifies structural DOM contracts, accessibility relationships, workflow wiring, and coordinator state transitions; rendered WebView appearance, actual Windows focus behavior, Android touch behavior, and platform-specific layout are not manually proven by this package and are not claimed.
 
 ### 9.4 Learn
 

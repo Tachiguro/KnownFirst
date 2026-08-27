@@ -660,12 +660,12 @@ Exclude:
 - already prepared
 - unresolved active review candidates
 
-The configured limit applies to unique newly prepared vocabulary items, not generated card directions.
+The daily new-word target limits distinct genuinely-new Words admitted into Learning for the current learning day; Preparation itself is uncapped by this target. Users may prepare more vocabulary than can be admitted in a single day, and prepared items remain durably available in the backlog for future admission.
 
-Default: 10  
-Maximum: 50
+Recommended default for fresh installations: 5
+Supported configured range: 1..50 (legacy grandfathered installations retain their established value, such as 10)
 
-Due reviews never count against this limit.
+Due reviews, learned sibling cards, and Again repetitions never count against this limit. After a successful Preparation acceptance is durably committed, Preparation queries Learning readiness: if still-open genuinely-new daily demand is positive and fully satisfiable by eligible prepared backlog, Preparation automatically transitions to `/learn` without loading another candidate. When daily admission capacity is exhausted, readiness evaluates to false, allowing continued preparation and unblocked re-entry without redirect loops.
 
 Preparation supports:
 
@@ -985,10 +985,12 @@ A future milestone may implement FSRS with a configurable desired retention. The
 ### 21.3 Daily new-word budget, learning-day boundaries, and Bridge state
 
 1. **Daily New-Word Budget ($N$):**
-   - The preparation limit setting governs the daily new-word admission budget ($N \in \{5, 10, 20, 30, 50\}$, default 10).
-   - $N$ is enforced as a hard daily maximum of distinct genuinely-new `WordId`s per logical learning day.
-   - One `WordId` consumes exactly one slot regardless of directions (`TermToMeaning`, `MeaningToTerm`), senses, or card count.
+   - The daily new-word limit setting governs the daily new-word admission budget ($N \in \{1, 5, 10, 20, 30, 50\}$, recommended default 5, configurable range $1..50$, with legacy grandfathered installations retaining their established setting such as 10).
+   - $N$ is enforced as a hard daily maximum of distinct genuinely-new `WordId`s per logical learning day. Preparation itself is uncapped by $N$.
+   - Prospective fresh admission requires a distinct never-learned Word backed by at least one valid, queueable New LearningCard. Bare, unresolved, Ignored, or cardless Words never consume fresh daily grants.
+   - One `WordId` consumes exactly one slot regardless of directions (`TermToMeaning`, `MeaningToTerm`), senses, meaning count, answer variants, or card count.
    - "Genuinely new" means no persisted genuine `LearningReview` / rating exists for any card of that `WordId`. Queueing, rendering, reveal, typing checks, and `LearningDayGrant` evidence do not count as learning.
+   - Learning owns admission and readiness calculations. Readiness is non-admitting (performing no grant or session mutations) and evaluates whether still-open daily demand is satisfiable by eligible prepared backlog. Preparation consumes the readiness boolean post-commit to auto-transition to `/learn`, while zero remaining demand yields false, preserving intentional Preparation re-entry.
    - Admitted words receive immutable `SlotOrdinal` assignments ($0, 1, \dots, N-1$). Reducing $N$ preserves existing queue rows, grants, and order, but restricts presentation to items with `SlotOrdinal < N`. Deferred items remain durably persisted. Raising $N$ admits additional candidates into higher slot ordinals.
    - Same-day ratings or marking an admitted word Permanently Known never reopens or recycles a slot on the same day.
 

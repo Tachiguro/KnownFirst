@@ -26,6 +26,7 @@ and uses the application's prerelease version identifiers.
 
 ### Fixed
 
+- Fixed first-run onboarding card-direction help localization: restored missing `Settings_CardDirectionHelp` resource entries across English, German, and Russian to eliminate a raw localization-key fallback in the onboarding practice step, and added repository-wide automated literal Razor localization-key coverage preventing unmapped resource keys from reaching the UI.
 - Aligned daily new-word admission eligibility so only genuinely-new vocabulary with valid, queueable study cards consumes the daily admission budget, preventing bare or cardless words from consuming daily grants, and enabled automatic transition from vocabulary preparation to learning as soon as the day's new-word demand is satisfied while preserving unblocked preparation when capacity is exhausted.
 - Fixed Review Words discard action localization and placement: the action now presents the localized "Discard import" label in all supported languages rather than an unmapped key, is positioned as a destructive end action in the workflow action bar, and preserves explicit irreversible confirmation for discarding an unfinished text import.
 - Fixed learning session Again repeat queueing: explicit Again ratings (including repeated Again actions on existing repeats) now reliably append deterministic tail repeats without an arbitrary one-repeat cap, and pending repeats remain available to complete within the active session while the scheduler preserves their future due schedule.

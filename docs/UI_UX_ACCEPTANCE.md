@@ -171,10 +171,19 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.4 Learn
 
 - No dead area separates the card from the action bar.
-- Again, Hard, Good, and Easy remain fully visible after the answer is revealed.
+- Again, Hard, Good, and Easy remain fully visible after the answer is revealed, with permanently visible localized textual labels across English, German, and Russian.
+- Red is reserved for destructive/permanent actions and is not used for normal learning ratings; `Again` is styled with neutral muted styling and strong border without destructive danger tokens or affordances.
+- Rating controls provide a coherent non-color visual hierarchy:
+  - `Again`: neutral muted surface (`var(--color-surface-muted)`), 1px solid border (`var(--color-border-strong)`), neutral text;
+  - `Hard`: elevated surface (`var(--color-surface-elevated)`), 1px dashed warm border (`--rating-hard-border: #9a6a32`), neutral text;
+  - `Good`: sole primary solid-filled rating (`var(--color-primary)`);
+  - `Easy`: soft success surface (`var(--color-success-surface)`), 2px solid border (`var(--color-success)`), success-green text.
+- Standard `.button` sizing, focus-visible outline (`outline: 3px solid var(--color-focus-ring)`), and disabled styling (`opacity: 0.56; cursor: not-allowed`) remain active on all rating controls.
+- Text-to-background contrast and UI component border contrast satisfy WCAG AA/AAA expectations across both Light and Dark themes.
 - Long definitions and source details remain readable and scrollable.
 - Context navigation remains associated with the context.
 - Content never overflows horizontally.
+- Automated test coverage verifies static Razor markup, CSS contracts, absence of danger tokens, and event wiring; rendered Windows and Android WebView appearance, touch responsiveness, and ambient lighting contrast are not manually proven by this package and are not claimed.
 
 ### 9.5 Settings
 

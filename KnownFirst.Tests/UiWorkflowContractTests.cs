@@ -2142,10 +2142,31 @@ public sealed class UiWorkflowContractTests
         "PreparationInvalidContextRecovery",
     ];
 
-    private static string LoadUi(string fileName) => File.ReadAllText(Path.Combine(
-        AppContext.BaseDirectory,
-        "Ui",
-        fileName));
+    private static string LoadUi(string fileName)
+    {
+        var outputPath = Path.Combine(AppContext.BaseDirectory, "Ui", fileName);
+        if (File.Exists(outputPath))
+        {
+            return File.ReadAllText(outputPath);
+        }
+
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidateShared = Path.Combine(directory.FullName, "Components", "Shared", fileName);
+            if (File.Exists(candidateShared))
+            {
+                return File.ReadAllText(candidateShared);
+            }
+
+            var candidatePages = Path.Combine(directory.FullName, "Components", "Pages", fileName);
+            if (File.Exists(candidatePages))
+            {
+                return File.ReadAllText(candidatePages);
+            }
+        }
+
+        return File.ReadAllText(outputPath);
+    }
 
     private static string LoadDocument(string fileName) => File.ReadAllText(Path.Combine(
         AppContext.BaseDirectory,
@@ -2751,6 +2772,82 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("IOnboardingProgressStore", markup);
         Assert.Contains("IOnboardingStateStore", markup);
         Assert.Contains("AdvanceToNextStep", markup);
+    }
+
+    [TestMethod]
+    public void Learning_RatingButtons_AgainDoesNotUseDestructiveDangerTokens()
+    {
+        var styles = LoadUi("RatingButtons.razor.css");
+
+        Assert.IsFalse(
+            styles.Contains("--color-danger", StringComparison.Ordinal),
+            "RatingButtons.razor.css must not reference destructive --color-danger tokens.");
+        Assert.IsFalse(
+            styles.Contains(".button-danger", StringComparison.Ordinal),
+            "RatingButtons.razor.css must not reference .button-danger.");
+        Assert.IsFalse(
+            styles.Contains("#c53030", StringComparison.Ordinal),
+            "RatingButtons.razor.css must not hardcode destructive red hex codes.");
+
+        var againRule = ExtractCssRule(styles, ".rating-again");
+        Assert.Contains("var(--color-surface-muted)", againRule);
+        Assert.Contains("var(--color-border-strong)", againRule);
+        Assert.Contains("var(--color-text)", againRule);
+    }
+
+    [TestMethod]
+    public void Learning_RatingButtons_ExposeDistinctSemanticClassesAndPreserveBindings()
+    {
+        var markup = LoadUi("RatingButtons.razor");
+
+        Assert.Contains("rating-again", markup);
+        Assert.Contains("rating-hard", markup);
+        Assert.Contains("rating-good", markup);
+        Assert.Contains("rating-easy", markup);
+
+        Assert.Contains("@Localizer[\"Learn_Again\"]", markup);
+        Assert.Contains("@Localizer[\"Learn_Hard\"]", markup);
+        Assert.Contains("@Localizer[\"Learn_Good\"]", markup);
+        Assert.Contains("@Localizer[\"Learn_Easy\"]", markup);
+
+        Assert.Contains("OnRate.InvokeAsync(ReviewRating.Again)", markup);
+        Assert.Contains("OnRate.InvokeAsync(ReviewRating.Hard)", markup);
+        Assert.Contains("OnRate.InvokeAsync(ReviewRating.Good)", markup);
+        Assert.Contains("OnRate.InvokeAsync(ReviewRating.Easy)", markup);
+
+        Assert.IsTrue(
+            markup.Contains("button-primary rating-good", StringComparison.Ordinal)
+            || (markup.Contains("button-primary", StringComparison.Ordinal) && markup.Contains("rating-good", StringComparison.Ordinal)),
+            "Good must retain primary solid button styling.");
+
+        Assert.IsFalse(
+            markup.Contains("button-secondary\" disabled=\"@Disabled\" @onclick=\"() => OnRate.InvokeAsync(ReviewRating.Hard)\"", StringComparison.Ordinal)
+            && markup.Contains("button-secondary\" disabled=\"@Disabled\" @onclick=\"() => OnRate.InvokeAsync(ReviewRating.Easy)\"", StringComparison.Ordinal),
+            "Hard and Easy must not share identical undifferentiated button-secondary markup.");
+    }
+
+    [TestMethod]
+    public void Learning_RatingButtons_StylesEstablishNonColorHierarchy()
+    {
+        var styles = LoadUi("RatingButtons.razor.css");
+
+        var hardRule = ExtractCssRule(styles, ".rating-hard");
+        Assert.IsTrue(
+            hardRule.Contains("dashed", StringComparison.Ordinal),
+            "Hard must declare a dashed border as a non-color cue.");
+        Assert.Contains("#9a6a32", hardRule, "Hard must use the approved warm border color #9a6a32.");
+        Assert.Contains("var(--color-surface-elevated)", hardRule);
+        Assert.Contains("var(--color-text)", hardRule);
+
+        var easyRule = ExtractCssRule(styles, ".rating-easy");
+        Assert.IsTrue(
+            easyRule.Contains("2px solid", StringComparison.Ordinal) || (easyRule.Contains("2px") && easyRule.Contains("solid")),
+            "Easy must declare a 2px solid border as a non-color cue.");
+        Assert.Contains("var(--color-success)", easyRule);
+        Assert.Contains("var(--color-success-surface)", easyRule);
+
+        var goodRule = ExtractCssRule(styles, ".rating-good");
+        Assert.Contains("var(--color-primary)", goodRule);
     }
 
     private static string ExtractSettingsSection(string markup, string sectionTitleId)

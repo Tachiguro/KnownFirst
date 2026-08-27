@@ -22,6 +22,7 @@ and uses the application's prerelease version identifiers.
 - Simplified manual vocabulary preparation to a single context-appropriate definition or translation field, removing redundant form inputs and collapsing advanced options (acronym expansions, accepted spelling aliases) by default.
 - Clarified "End preparation" action styling and placement as a neutral workflow action with explicit confirmation that retains all already-accepted vocabulary.
 - Clarified Preparation disposition action labels: "Mark as known" and "Exclude from learning" (German: "Als bekannt markieren" and "Vom Lernen ausschließen"; Russian: "Отметить как известное" and "Исключить из обучения") provide shorter, clearer action labels across supported UI languages while preserving existing permanent disposition semantics and confirmation safety.
+- Improved Learn rating accessibility and visual hierarchy: eliminated destructive danger-red styling from the "Again" rating, replacing it with a neutral muted surface and strong border, and established a non-color visual hierarchy across all four ratings ("Again": neutral muted; "Hard": dashed warm border; "Good": solid primary fill; "Easy": 2px solid success border) so ratings are distinct without relying solely on color perception.
 
 ### Fixed
 

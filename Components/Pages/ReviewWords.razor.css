@@ -1,4 +1,4 @@
-﻿.review-card,
+.review-card,
 .completion-card {
     padding: clamp(var(--space-4), 4vw, var(--space-8));
     border: 1px solid var(--color-border);
@@ -147,11 +147,27 @@ dd {
 }
 
 .review-action-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
     padding: clamp(var(--space-3), 3vw, var(--space-4));
     border: 1px solid var(--color-border-strong);
     border-radius: 0.9rem;
     background: var(--color-surface);
     box-shadow: var(--shadow-card);
+}
+
+.review-primary-actions {
+    min-width: 0;
+}
+
+.end-review-discard {
+    white-space: nowrap;
+}
+
+.review-discard-confirmation {
+    grid-column: 1 / -1;
 }
 
 .review-saving-state {
@@ -185,10 +201,6 @@ dd {
     cursor: default;
 }
 
-.discard-import-section {
-    margin-top: var(--space-6);
-}
-
 .button-row {
     display: flex;
     flex-wrap: wrap;
@@ -218,8 +230,16 @@ dd {
         width: 100%;
     }
 
+    .review-action-bar {
+        grid-template-columns: 1fr;
+    }
+
     .review-action-bar .button {
         width: 100%;
+    }
+
+    .end-review-discard {
+        white-space: normal;
     }
 }
 

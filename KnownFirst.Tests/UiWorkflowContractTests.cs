@@ -551,7 +551,8 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("button button-secondary", review);
         Assert.Contains("button button-secondary", learning);
         Assert.Contains("button button-secondary", settings);
-        Assert.Contains("_candidate is not null && !_showDiscardConfirmation", review);
+        Assert.Contains("if (!_showDiscardConfirmation)", review);
+        Assert.Contains("_candidate is not null", review);
         Assert.Contains("_card is not null && !_showPermanentKnownConfirmation", learning);
         Assert.Contains("_item is not null && _confirmationAction is null", preparation);
         Assert.Contains("data-destructive-confirm", home);
@@ -682,6 +683,47 @@ public sealed class UiWorkflowContractTests
         Assert.IsTrue(
             derivationNoticeIndex < detailsPanelIndex,
             "The derivation notice must appear before the collapsed details panel so it is visible without expanding it.");
+    }
+
+    [TestMethod]
+    public void ReviewWords_DiscardActionIsLocalizedAndPositionedInWorkflowEndActionArea()
+    {
+        var markup = LoadUi("ReviewWords.razor");
+        var styles = LoadUi("ReviewWords.razor.css");
+
+        Assert.Contains("Localizer[\"Review_DiscardAction\"]", markup);
+        Assert.DoesNotContain("Localizer[\"Review_Discard\"]", markup);
+        Assert.DoesNotContain("\"Review_Discard\"", markup);
+        Assert.DoesNotContain("class=\"discard-import-section\"", markup);
+
+        var actionBarIndex = markup.IndexOf("<div class=\"workflow-action-bar\">", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, actionBarIndex);
+
+        var discardActionIndex = markup.IndexOf("Review_DiscardAction", actionBarIndex, StringComparison.Ordinal);
+        Assert.IsGreaterThan(actionBarIndex, discardActionIndex);
+
+        Assert.Contains("button button-danger end-review-discard", markup);
+
+        var confirmationIndex = markup.IndexOf("class=\"destructive-confirmation", actionBarIndex, StringComparison.Ordinal);
+        Assert.IsGreaterThan(actionBarIndex, confirmationIndex);
+
+        Assert.Contains("role=\"alertdialog\"", markup);
+        Assert.Contains("aria-labelledby=\"review-discard-confirmation-title\"", markup);
+        Assert.Contains("Localizer[\"Review_DiscardTitle\"]", markup);
+        Assert.Contains("Localizer[\"Review_DiscardMessage\"]", markup);
+        Assert.Contains("Localizer[\"Common_Cancel\"]", markup);
+        Assert.Contains("Localizer[\"Review_DiscardConfirm\"]", markup);
+        Assert.Contains("data-destructive-confirm", markup);
+
+        Assert.Contains("TextReviewService.DiscardActiveImportAsync()", markup);
+        Assert.Contains("WordStatus.Known", markup);
+        Assert.Contains("WordStatus.UnknownBacklog", markup);
+        Assert.Contains("UndoAsync", markup);
+        Assert.Contains("Review_Undo", markup);
+
+        Assert.Contains(".review-action-bar", styles);
+        Assert.Contains("grid-template-columns: minmax(0, 1fr) auto", styles);
+        Assert.Contains("@media (max-width: 620px)", styles);
     }
 
     [TestMethod]

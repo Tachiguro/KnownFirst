@@ -750,6 +750,15 @@
   <data name="Prepare_AutomaticRecommended" xml:space="preserve">
     <value>Рекомендуется: получить и проверить варианты из словаря.</value>
   </data>
+  <data name="Prepare_OnlineLookupDisabledMethodNotice" xml:space="preserve">
+    <value>Автоматическая онлайн-подготовка недоступна, так как онлайн-словарь отключён. Ты можешь включить его в Настройках.</value>
+  </data>
+  <data name="Prepare_OnlineLookupDisabledCandidateNotice" xml:space="preserve">
+    <value>Онлайн-поиск в словаре отключён. Включи его в Настройках для автоматического поиска, или введи данные вручную.</value>
+  </data>
+  <data name="Prepare_OpenSettings" xml:space="preserve">
+    <value>Открыть Настройки</value>
+  </data>
   <data name="Prepare_Manual" xml:space="preserve">
     <value>Подготовить вручную</value>
   </data>

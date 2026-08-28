@@ -20,7 +20,8 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 - **Active work package:** `KF-TRANSACTIONAL-ONBOARDING-001` (`feat: transactional first-run onboarding settings and startup recovery`)
 - **Branch:** `feature/transactional-onboarding-settings-v1`
 - **Base master SHA:** `be70ffcede1fb03f9083c21e148c963658459c8b`
-- **Current candidate HEAD:** `cf0d53728e66fc5532f91bb083c74fc655542828`
+- **Latest source/corrective checkpoint:** `fbb9c408a7eafa7115ed909af267b1a4a896bb5a` (`fix(onboarding): consume IOnboardingDraftStore.Read in OnboardingHost`); `KnownFirst-Checkpoint: KF-TRANSACTIONAL-ONBOARDING-001 4/4 onboarding-host-draft-store-api-fix`
+- **Exact FULL_VALIDATION candidate:** the subsequent documentation commit HEAD; MUST VERIFY from live Git after `COMMIT_ONLY`.
 - **Current lifecycle:** `DOCUMENT_ONLY` (in progress; reconciling durable repository documentation without code, test, or commit modifications).
 - **Consolidated review disposition:** `PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`
 - **Branch status:** local only / unpushed; no PR exists.
@@ -34,8 +35,11 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - B3 completion/recovery engine checkpoint (`b310f46866141e72977547c3e63f74b41c54e0ae`)
   - B3 null-consent progress correction checkpoint (`46f63b067a644251d4811fcad92cb5d1bbd36448`)
   - B4 atomic transactional cutover checkpoint (`cf0d53728e66fc5532f91bb083c74fc655542828`)
+  - Corrective source checkpoint (`fbb9c408a7eafa7115ed909af267b1a4a896bb5a`): `OnboardingDraftStore.GetDraft()` → `OnboardingDraftStore.Read()` in `OnboardingHost`
   - Consolidated package `REVIEW_ONLY` (disposition `PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`; 0 BLOCKER / 0 MAJOR / 0 MINOR; 2 non-blocking NITs: no explicit concurrent-Finish UI flag; unused `System.Reflection` using in the new cutover test file).
 - **Next lifecycle:** `COMMIT_ONLY` (for these documentation changes) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- **Previous exact-candidate validation:** candidate `4e8cef72ce20094ee3ccfa24da8d49e0720729a9`; `FULL_VALIDATION_FAILED` after 2752 / 2752 automated tests passed; Windows Debug failed on stale `GetDraft()` compilation, so Windows Release, Android, and AOT gates were not reached.
+- **Corrective evidence:** focused review and tests report 0 BLOCKER / 0 MAJOR / 0 technical MINOR; fresh focused scope 1 / 1 passed; fresh narrow onboarding scope 52 / 52 passed. Source-contract tests are not compiler/platform evidence; no successful current `FULL_VALIDATION` exists.
 - **Verification evidence:**
   - 181 passed / 0 failed across the seven package-focused review groups (B1 storage infrastructure, B1 consent correction, B2 preview/commit separation, B2 AOT-safe contract correction, B3 completion/recovery engine, B3 null-consent progress correction, B4 atomic transactional cutover).
   - Cumulative `git diff --check`: clean.

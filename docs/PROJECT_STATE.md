@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
 **Status date:** 2026-08-28
-**State source:** `master` baseline plus reviewed local candidate `KF-TRANSACTIONAL-ONBOARDING-001` on `feature/transactional-onboarding-settings-v1` (candidate HEAD `cf0d53728e66fc5532f91bb083c74fc655542828`, not yet pushed or merged). Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**State source:** `master` baseline plus the reviewed local `KF-TRANSACTIONAL-ONBOARDING-001` source/corrective checkpoint `fbb9c408a7eafa7115ed909af267b1a4a896bb5a` on `feature/transactional-onboarding-settings-v1`, not yet pushed or merged. The exact `FULL_VALIDATION` candidate will be the documentation-adjusted HEAD created by the subsequent documentation commit and must be taken from live Git. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -66,7 +66,7 @@ This document records stable, verified architectural facts and current capabilit
 
 ## Transactional Onboarding Settings & Recovery — Reviewed Local Candidate (KF-TRANSACTIONAL-ONBOARDING-001)
 
-**Candidate status:** Reviewed local candidate on `feature/transactional-onboarding-settings-v1` (HEAD `cf0d53728e66fc5532f91bb083c74fc655542828`). Not yet pushed, not yet merged. No PR exists. `master` remains at `be70ffcede1fb03f9083c21e148c963658459c8b`. No `FULL_VALIDATION` has been run on this candidate yet. This section documents the reviewed architecture, not a shipped production capability.
+**Candidate status:** Reviewed local source/corrective checkpoint `fbb9c408a7eafa7115ed909af267b1a4a896bb5a` on `feature/transactional-onboarding-settings-v1`; the correction makes `OnboardingHost` consume canonical `IOnboardingDraftStore.Read()`. Not yet pushed, not yet merged. No PR exists. `master` remains at `be70ffcede1fb03f9083c21e148c963658459c8b`. The previous exact-candidate `ValidateAll` on `4e8cef72ce20094ee3ccfa24da8d49e0720729a9` failed at Windows Debug after 2752 / 2752 tests passed because of the stale `GetDraft()` compile call; Windows Release, Android, and AOT gates were not reached. Corrective source-contract review/tests are green but are not compiler/platform evidence, and no successful `FULL_VALIDATION` exists yet for the corrected source. The exact candidate for the next `FULL_VALIDATION` is the subsequent documentation commit HEAD and must be taken from live Git. This section documents the reviewed architecture, not a shipped production capability.
 
 This package replaces the step-by-step direct-persistence onboarding model with a fully transactional draft-and-commit model. All onboarding choices are staged in a single versioned persisted draft and applied atomically only when Finish Setup is confirmed.
 

@@ -31,7 +31,7 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 - **Normally NOT required:** Backup plans, database audit, build/release guides.
 
 ### 3. Learning and Scheduling
-- **Required reading:** Relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), [REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md) (when its historical checkpoint is relevant), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if persistence changes), affected code and tests.
+- **Required reading:** Relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md) (when FSRS-6 algorithm behavior, scheduling transitions, replay, or future FSRS persistence integration is affected), [REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md) (when its historical checkpoint is relevant), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if persistence changes), affected code and tests.
 - **Normally NOT required:** Text analysis internals, backup plans, build/release guides.
 
 ### 4. UI and Localization

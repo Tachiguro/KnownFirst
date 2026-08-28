@@ -12,8 +12,8 @@ Test classes do not currently use formal MSTest category attributes; filtering r
 ### A. FOCUSED_AUTOMATED
 - **Definition:** Unit, integration, and contract tests directly affected by the current approved implementation.
 - **Usage:** Used during TDD red/green development loop.
-- **Filter pattern:** Filter by exact class, namespace, or test name (e.g. `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~TextAnalyzerTests"`).
-- **Boundaries:** Does not include unrelated persistence, provider, or UI markup tests. Does not perform builds or launch application processes.
+- **Filter pattern:** Filter by exact class, namespace, or test name (e.g. `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~TextAnalyzerTests"` or targeted FSRS-6 package regression `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~Fsrs6"`).
+- **Boundaries:** Does not include unrelated persistence, provider, or UI markup tests. Does not perform builds or launch application processes. Oracle vector tests (`Fsrs6OracleVectorTests`) execute against static committed in-tree data (`Fsrs6OracleVectors.cs`) pinned to `py-fsrs v6.3.2` commit `9446cb06605c597a063aeee49f7d188d42e34dc2` and require no Python runtime or network connectivity. Focused execution does not replace `ALL_AUTOMATED` or the mandatory pre-PR `FULL_VALIDATION` gate.
 
 ### B. ALL_AUTOMATED
 - **Definition:** The complete `KnownFirst.Tests` project execution (unit, integration, persistence, provider, policy, and UI-contract tests).

@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
 **Status date:** 2026-08-28
-**State source:** `master` baseline, including Package B (`KF-TRANSACTIONAL-ONBOARDING-001`) merged via PR #182 (merge commit `172587f4dc52bf3f5573bcfda53297de3216d3b6`; validated PR head `5d8cada0406c4243a9a4d2cea51c6c1491ab2c6d`). Live Git remains authoritative for the current master HEAD and pull-request states, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**State source:** `master` baseline (including `KF-FSRS6-CORE-001` merged via PR #184) plus active candidate package `KF-CLEAN-DOMAIN-013-001` on branch `feature/clean-domain-013-learning-control-v1`. Live Git remains authoritative for the current master HEAD and pull-request states, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -315,6 +315,39 @@ This merged package resolves the manual preparation persistence defect, aligns D
 - **Shared Multiline Visual Language:** Preparation and Text Import use centralized `.text-area` styling (border, radius, background, padding, typography, focus ring, disabled state, vertical resize).
 - **Save-versus-Progression Recovery:** Successful acceptance is transactionally committed before attempting to load the next candidate. Failure to retrieve or render the next candidate is not reported as a save failure; the UI informs the user that the item was saved but the next item could not be loaded, and Retry executes progression/loading only without repeating acceptance.
 - **Neutral Preparation Action Semantics:** "End preparation" is styled as a neutral/secondary action in the bottom action bar with inline confirmation. Confirmation ends the active batch and its resumability while retaining already accepted learning cards and lasting Known/Ignored decisions; unresolved and skipped items return to the backlog. Competing disposition actions are suppressed while confirmation is open.
+
+## Clean Domain & Application Layer Architecture — Candidate State (KF-CLEAN-DOMAIN-013-001)
+
+**Lifecycle status:** Active candidate package `KF-CLEAN-DOMAIN-013-001` on feature branch `feature/clean-domain-013-learning-control-v1` (Checkpoint 1/2 `d758f1b`, Checkpoint 2/2 `70f6601`). Consolidated `PACKAGE_REVIEW_APPROVED`; currently in `DOCUMENT_ONLY` lifecycle phase. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+
+This package establishes the clean domain model in `KnownFirst.Core` and introduces the separate `KnownFirst.Application` project to define deterministic, production-neutral learning control and FSRS-6 scheduling boundaries ahead of downstream Schema 13 persistence.
+
+**1. Clean Core Domain Foundation (`KnownFirst.Core.Learning`, `KnownFirst.Core.Preparation`)**
+
+- **AlreadyKnown (Word-Level):** Explicit, reversible user decision (`WordLearningControl`, `AlreadyKnownDecision`) indicating that the user knew the vocabulary before KnownFirst taught it. Non-destructive, does not manage Sense-level stop state, preserves initial decision UTC timestamp across idempotent repeated markings, and cleanly restores normal learning eligibility on `ClearAlreadyKnown()`.
+- **StopLearning (Sense-Level):** Explicit, reversible Sense-scoped user decision (`SenseLearningControl`, `StopLearningDecision`) that halts learning for that specific Sense without deleting history or mutating scheduler state. Reversible via `Resume()`.
+- **Active Learning Eligibility Policy:** `ActiveLearningEligibilityPolicy.IsEligible(wordControl, senseControl)` enforces that Word-level `IsAlreadyKnown` gates all Senses of that Word, while Sense-level `IsStopped` gates only the selected Sense.
+- **Workflow-Local Preparation Disposition:** `PreparationCandidateDisposition.Excluded` is strictly a workflow-local candidate disposition and does not create a durable Word-level "Ignore" domain state or imply semantic deletion.
+- **Answer Variant Roles:** `AnswerVariantRole` distinguishes `Required` from `AcceptedOnly` as response roles. Answer variants of one Sense do not create independent learning cards.
+- **Mastery-Independent Interaction Presentation:** `LearningInteractionProgress` and `LearningInteractionPolicy` govern the presentation-level `Reading` versus `Typing` progression independently from memory stability, interval, difficulty, or mastery. `Automatic` mode advances to `Typing` after 2 consecutive recall successes and reverts to `Reading` after 2 consecutive typing failures (counters bounded $0..2$).
+- **No Mastered/Retired Clean Domain States:** Clean domain contracts introduce no terminal `Mastered` or `Retired` states and no mastery thresholds.
+
+**2. Separate Application Boundary (`KnownFirst.Application.Learning`)**
+
+- **Layering & Project Isolation:** Real separate `KnownFirst.Application` class library (`net10.0`) depending strictly on `KnownFirst.Core`. `KnownFirst.Core` does not reference `KnownFirst.Application`. The production application project (`KnownFirst.csproj`) does not reference `KnownFirst.Application`.
+- **FSRS-6 Application Boundary:** `IFsrs6SchedulingService` / `Fsrs6SchedulingService` provides deterministic scheduling and factual review replay over the in-tree Core FSRS-6 engine.
+- **Fail-Closed Immutability:** `Fsrs6ScheduleProjection` is a sealed record with get-only auto-properties validated at construction against Core invariants across all 4 FSRS states (`New`, `Learning`, `Review`, `Relearning`).
+- **Fail-Closed Review Facts:** `Fsrs6ReviewFact` is a `readonly record struct` with a private initialization guard; uninitialized/default facts fail closed with `LearningScheduleCorruptionException`.
+- **Single Authoritative Scheduler:** A single `Fsrs6Scheduler` governs both `Schedule` and `Replay`, preventing divergent FSRS policies.
+- **Deterministic Replay & Exception Safety:** Review fact materialization occurs outside Core try/catch boundaries so caller enumerable exceptions propagate natively, while Core invariant rejections are safely wrapped in `LearningScheduleCorruptionException`.
+- **Legacy Isolation:** Application projection contains no `IntervalDays`, `EaseFactor`, `Mastered`, `Retired`, `Suspended`, SQLite entity, or persistence ID.
+
+**3. Preserved Production Invariants**
+
+- **Active Schema & Archive:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
+- **Production Scheduler Wiring:** `SimpleSpacedRepetitionScheduler` remains the sole production-registered `ISpacedRepetitionScheduler`.
+- **Dormancy:** `KnownFirst.Application` and clean learning-control contracts are completely dormant from runtime execution.
+- **Future Milestone Boundaries:** Schema 13 physical tables, migrations, Archive V3, and runtime FSRS cutover are deferred to subsequent dedicated packages.
 
 ## Evidence Boundaries & Release Limitations
 

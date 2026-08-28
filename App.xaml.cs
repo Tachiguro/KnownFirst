@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace KnownFirst;
 
-public partial class App : Application
+public partial class App : Microsoft.Maui.Controls.Application
 {
     private readonly INavigationHistoryService _navigationHistory;
     private readonly ILogger<App> _logger;

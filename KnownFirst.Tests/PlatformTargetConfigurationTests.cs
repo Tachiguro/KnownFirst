@@ -72,4 +72,33 @@ public sealed class PlatformTargetConfigurationTests
         Assert.IsFalse(project.Contains("net10.0-ios", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(project.Contains("net10.0-maccatalyst", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void MainProject_ExcludesNestedSiblingProjectDirectoriesFromDefaultItems()
+    {
+        var project = XDocument.Load(Path.Combine(ProjectRoot, "KnownFirst.csproj"));
+        var defaultItemExcludesElement = project.Descendants("DefaultItemExcludes")
+            .FirstOrDefault(element => element.Attribute("Condition") is null);
+
+        Assert.IsNotNull(defaultItemExcludesElement, "KnownFirst.csproj must declare an unconditional DefaultItemExcludes element.");
+
+        var excludes = defaultItemExcludesElement.Value
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(pattern => pattern.Replace('\\', '/'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var expectedExcludedDirectories = new[]
+        {
+            "KnownFirst.Core/**",
+            "KnownFirst.Application/**",
+            "KnownFirst.Tests/**"
+        };
+
+        foreach (var expected in expectedExcludedDirectories)
+        {
+            Assert.IsTrue(
+                excludes.Contains(expected),
+                $"DefaultItemExcludes in KnownFirst.csproj must contain '{expected}' to prevent nested sibling project source and generated items from being absorbed into the root project.");
+        }
+    }
 }

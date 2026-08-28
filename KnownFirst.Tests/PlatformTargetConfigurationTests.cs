@@ -29,13 +29,31 @@ public sealed class PlatformTargetConfigurationTests
     }
 
     [TestMethod]
-    public void ApplePlatformDirectoriesAreRemovedAndSolutionStillContainsThreeProjects()
+    public void ApplePlatformDirectoriesAreRemovedAndSolutionContainsExpectedProjects()
     {
         Assert.IsFalse(Directory.Exists(Path.Combine(ProjectRoot, "Platforms", "iOS")));
         Assert.IsFalse(Directory.Exists(Path.Combine(ProjectRoot, "Platforms", "MacCatalyst")));
 
         var solution = XDocument.Load(Path.Combine(ProjectRoot, "KnownFirst.slnx"));
-        Assert.AreEqual(3, solution.Descendants("Project").Count());
+        var projectPaths = solution.Descendants("Project")
+            .Select(element =>
+            {
+                var path = (string?)element.Attribute("Path");
+                Assert.IsNotNull(path, "Project element in KnownFirst.slnx must have a Path attribute.");
+                return path.Replace('\\', '/');
+            })
+            .ToArray();
+
+        CollectionAssert.AreEquivalent(
+            new[]
+            {
+                "KnownFirst.csproj",
+                "KnownFirst.Core/KnownFirst.Core.csproj",
+                "KnownFirst.Application/KnownFirst.Application.csproj",
+                "KnownFirst.Tests/KnownFirst.Tests.csproj"
+            },
+            projectPaths);
+
         Assert.IsTrue(File.Exists(Path.Combine(ProjectRoot, "Platforms", "Android", "AndroidManifest.xml")));
         Assert.IsTrue(File.Exists(Path.Combine(ProjectRoot, "Platforms", "Windows", "Package.appxmanifest")));
     }

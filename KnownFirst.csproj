@@ -13,7 +13,7 @@
         <Nullable>enable</Nullable>
         <NeutralLanguage>en</NeutralLanguage>
         <Configurations>Debug;Release;BetaDiagnostic</Configurations>
-        <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;KnownFirst.Core\**;KnownFirst.Tests\**;artifacts\**;temp\**;TestResults\**;.vs\**;**\*.log;**\*.binlog;scripts\tools\GermanLexiconGenerator\**</DefaultItemExcludes>
+        <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;KnownFirst.Core\**;KnownFirst.Application\**;KnownFirst.Tests\**;artifacts\**;temp\**;TestResults\**;.vs\**;**\*.log;**\*.binlog;scripts\tools\GermanLexiconGenerator\**</DefaultItemExcludes>
 
         <!-- Enable XAML source generation for faster build times and improved performance.
              This generates C# code from XAML at compile time instead of runtime inflation.

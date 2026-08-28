@@ -90,6 +90,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\KnownFirst.Application\KnownFirst.Application.csproj" />
     <ProjectReference Include="..\KnownFirst.Core\KnownFirst.Core.csproj" />
     <ProjectReference Include="..\scripts\tools\GermanLexiconGenerator\GermanLexiconGenerator.csproj" />
   </ItemGroup>

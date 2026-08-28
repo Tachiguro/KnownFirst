@@ -29,18 +29,6 @@
             <button type="button" class="button button-secondary" @onclick="LoadAsync">@Localizer["Common_Retry"]</button>
         </div>
     }
-    else if (_showPrivacyDisclosure)
-    {
-        <section class="preparation-card privacy-disclosure" role="dialog" aria-labelledby="privacy-title">
-            <h2 id="privacy-title">@Localizer["Prepare_OnlineDisclosureTitle"]</h2>
-            <p>@Localizer["Prepare_OnlineDisclosure"]</p>
-            <div class="button-row">
-                <button type="button" class="button button-primary" disabled="@_isBusy" @onclick="ConfirmOnlineLookupAsync">@Localizer["Prepare_StartOnlineLookup"]</button>
-                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="StartManualAsync">@Localizer["Prepare_Manual"]</button>
-                <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelDisclosure">@Localizer["Common_Cancel"]</button>
-            </div>
-        </section>
-    }
     else if (_progressionAfterSaveFailed)
     {
         <section class="preparation-card progression-recovery" role="status" @ref="_progressionRecoveryRef">
@@ -62,7 +50,11 @@
                 <h2>@Localizer["Prepare_MethodQuestion"]</h2>
                 <p>@Localizer["Prepare_BatchDescription", Math.Min(_overview.UnpreparedCount, AppSettings.PreparationLimit)]</p>
                 <div class="method-grid">
-                    <button type="button" class="method-card recommended" disabled="@_isBusy" @onclick="StartAutomaticAsync">
+                    <button type="button"
+                            class="method-card recommended @(!AppSettings.HasOnlineLookupConsent ? "disabled" : null)"
+                            disabled="@(!AppSettings.HasOnlineLookupConsent || _isBusy)"
+                            aria-describedby="@(!AppSettings.HasOnlineLookupConsent ? "automatic-online-consent-explanation" : null)"
+                            @onclick="StartAutomaticAsync">
                         @if (_startingAutomatic)
                         {
                             <span class="preparation-transition-status">
@@ -81,6 +73,13 @@
                         <span>@Localizer["Prepare_ManualDescription"]</span>
                     </button>
                 </div>
+                @if (!AppSettings.HasOnlineLookupConsent)
+                {
+                    <div id="automatic-online-consent-explanation" class="inline-message inline-message-blocked" role="note">
+                        <span>@Localizer["Prepare_OnlineLookupDisabledMethodNotice"]</span>
+                        <a class="button button-secondary" href="settings">@Localizer["Prepare_OpenSettings"]</a>
+                    </div>
+                }
                 <button type="button" class="button button-secondary" disabled="@_isBusy" @onclick="CancelPreparation">
                     @Localizer["Common_Cancel"]
                 </button>
@@ -127,38 +126,6 @@
                     <span class="transition-spinner" aria-hidden="true"></span>
                     <span>@Localizer["Prepare_LookingUp"]</span>
                 </p>
-            }
-            else if (_item.Status == PreparationCandidateStatus.Failed && !_showEditor)
-            {
-                <div class="inline-message inline-message-error" role="alert" @ref="_lookupFailureRef">
-                    <p>@GetLookupFailureMessage()</p>
-                    <div class="button-row">
-                        @if (CanRetryLookup)
-                        {
-                            <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_retryButtonRef" @onclick="RetryAsync">@Localizer["Common_TryAgain"]</button>
-                        }
-                        <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_manualEntryButtonRef" @onclick="EnableManualEntryAsync">@Localizer["Prepare_ManualEntry"]</button>
-                    </div>
-                    @if (IsDebugBuild
-                        && _item.Result?.Status == LexicalLookupStatus.NotFound
-                        && _item.Result.Diagnostics is { } diagnostics)
-                    {
-                        <details class="lookup-diagnostics debug-tools">
-                            <summary><span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span> @Localizer["Prepare_DebugLookupDetails"]</summary>
-                            <dl>
-                                <div><dt>@Localizer["Prepare_DebugDisplayedSurface"]</dt><dd>@diagnostics.DisplayedSurfaceForm</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugCanonicalTerm"]</dt><dd>@diagnostics.VocabularyCanonicalTerm</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugLookupTerm"]</dt><dd>@diagnostics.LookupTerm</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugSourceLanguage"]</dt><dd>@diagnostics.SourceLanguage</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugLookupMode"]</dt><dd>@diagnostics.LookupMode</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugTargetLanguage"]</dt><dd>@(diagnostics.TargetLanguage ?? "-")</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugCacheKey"]</dt><dd>@diagnostics.CacheKey</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugProviderRequest"]</dt><dd>@diagnostics.ProviderRequest</dd></div>
-                                <div><dt>@Localizer["Prepare_DebugProviderOutcome"]</dt><dd>@diagnostics.ProviderOutcome</dd></div>
-                            </dl>
-                        </details>
-                    }
-                </div>
             }
             else if (_showEditor || _item.Method == PreparationMethod.Manual)
             {
@@ -288,7 +255,48 @@
                                    RevisionId="@_item.Result.RevisionId"
                                    Attribution="@_item.Result.Attribution" />
                 </section>
-
+            }
+            else if (_item.Method == PreparationMethod.AutomaticOnline && !AppSettings.HasOnlineLookupConsent)
+            {
+                <div class="inline-message inline-message-blocked" role="status" @ref="_lookupBlockedRef">
+                    <p>@Localizer["Prepare_OnlineLookupDisabledCandidateNotice"]</p>
+                    <div class="button-row">
+                        <a class="button button-secondary" href="settings">@Localizer["Prepare_OpenSettings"]</a>
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_manualEntryButtonRef" @onclick="EnableManualEntryAsync">@Localizer["Prepare_ManualEntry"]</button>
+                    </div>
+                </div>
+            }
+            else if (_item.Status == PreparationCandidateStatus.Failed && !_showEditor)
+            {
+                <div class="inline-message inline-message-error" role="alert" @ref="_lookupFailureRef">
+                    <p>@GetLookupFailureMessage()</p>
+                    <div class="button-row">
+                        @if (CanRetryLookup)
+                        {
+                            <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_retryButtonRef" @onclick="RetryAsync">@Localizer["Common_TryAgain"]</button>
+                        }
+                        <button type="button" class="button button-secondary" disabled="@_isBusy" @ref="_manualEntryButtonRef" @onclick="EnableManualEntryAsync">@Localizer["Prepare_ManualEntry"]</button>
+                    </div>
+                    @if (IsDebugBuild
+                        && _item.Result?.Status == LexicalLookupStatus.NotFound
+                        && _item.Result.Diagnostics is { } diagnostics)
+                    {
+                        <details class="lookup-diagnostics debug-tools">
+                            <summary><span class="debug-label">@Localizer["Diagnostics_DebugLabel"]</span> @Localizer["Prepare_DebugLookupDetails"]</summary>
+                            <dl>
+                                <div><dt>@Localizer["Prepare_DebugDisplayedSurface"]</dt><dd>@diagnostics.DisplayedSurfaceForm</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugCanonicalTerm"]</dt><dd>@diagnostics.VocabularyCanonicalTerm</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugLookupTerm"]</dt><dd>@diagnostics.LookupTerm</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugSourceLanguage"]</dt><dd>@diagnostics.SourceLanguage</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugLookupMode"]</dt><dd>@diagnostics.LookupMode</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugTargetLanguage"]</dt><dd>@(diagnostics.TargetLanguage ?? "-")</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugCacheKey"]</dt><dd>@diagnostics.CacheKey</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugProviderRequest"]</dt><dd>@diagnostics.ProviderRequest</dd></div>
+                                <div><dt>@Localizer["Prepare_DebugProviderOutcome"]</dt><dd>@diagnostics.ProviderOutcome</dd></div>
+                            </dl>
+                        </details>
+                    }
+                </div>
             }
 
             @if (_confirmationAction is null && !_cancelConfirmationVisible)
@@ -446,7 +454,6 @@
     private bool _loadFailed;
     private bool _saveFailed;
     private bool _progressionAfterSaveFailed;
-    private bool _showPrivacyDisclosure;
     private bool _showEditor;
     private bool _batchCompleted;
     private bool _isMeaningPickerOpen;
@@ -469,6 +476,7 @@
     private ElementReference _meaningPickerButton;
     private ElementReference _meaningPickerDialog;
     private ElementReference _candidateHeading;
+    private ElementReference _lookupBlockedRef;
     private ElementReference _lookupFailureRef;
     private ElementReference _retryButtonRef;
     private ElementReference _manualEntryButtonRef;
@@ -564,10 +572,33 @@
         && context.TargetLength >= 0
         && context.TargetStart + context.TargetLength <= context.Text.Length;
 
-    private bool CanRetryLookup => _item?.Result is { } result
+    private bool CanRetryLookup => AppSettings.HasOnlineLookupConsent
+        && _item?.Result is { } result
         && LexicalLookupOutcomePolicy.CanRetry(result.Status, result.ErrorCode);
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        AppSettings.OnlineLookupConsentChanged += HandleOnlineLookupConsentChanged;
+        await LoadAsync();
+    }
+
+    private void HandleOnlineLookupConsentChanged(bool consentGranted)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            if (!consentGranted)
+            {
+                _lookupCancellation?.Cancel();
+            }
+
+            StateHasChanged();
+        });
+    }
 
     private async Task LoadAsync()
     {
@@ -582,7 +613,10 @@
             InitializeFields();
             if (_item is { Method: PreparationMethod.AutomaticOnline, Status: PreparationCandidateStatus.Pending })
             {
-                await LookupAsync();
+                if (AppSettings.HasOnlineLookupConsent)
+                {
+                    await LookupAsync();
+                }
             }
         }
         catch (Exception exception)
@@ -600,7 +634,6 @@
     {
         if (!AppSettings.HasOnlineLookupConsent)
         {
-            _showPrivacyDisclosure = true;
             return;
         }
 
@@ -615,22 +648,16 @@
         }
     }
 
-    private async Task ConfirmOnlineLookupAsync()
-    {
-        AppSettings.GrantOnlineLookupConsent();
-        _showPrivacyDisclosure = false;
-        await StartAsync(PreparationMethod.AutomaticOnline);
-    }
-
-    private Task StartManualAsync()
-    {
-        _showPrivacyDisclosure = false;
-        return StartAsync(PreparationMethod.Manual);
-    }
+    private Task StartManualAsync() => StartAsync(PreparationMethod.Manual);
 
     private async Task StartAsync(PreparationMethod method)
     {
         if (_isBusy)
+        {
+            return;
+        }
+
+        if (method == PreparationMethod.AutomaticOnline && !AppSettings.HasOnlineLookupConsent)
         {
             return;
         }
@@ -647,7 +674,10 @@
             InitializeFields();
             if (method == PreparationMethod.AutomaticOnline && _item is not null)
             {
-                await LookupAsync();
+                if (AppSettings.HasOnlineLookupConsent)
+                {
+                    await LookupAsync();
+                }
             }
         }
         catch (Exception exception)
@@ -663,7 +693,7 @@
 
     private async Task LookupAsync()
     {
-        if (_isDisposed)
+        if (_isDisposed || !AppSettings.HasOnlineLookupConsent)
         {
             return;
         }
@@ -687,8 +717,12 @@
                 InitializeFields();
             }
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested || !AppSettings.HasOnlineLookupConsent)
         {
+        }
+        catch (InvalidOperationException invalidOp) when (!AppSettings.HasOnlineLookupConsent)
+        {
+            Logger.LogWarning(invalidOp, "Online lookup was blocked because online lookup consent is disabled.");
         }
         catch (Exception exception)
         {
@@ -707,7 +741,7 @@
                 if (!_isDisposed)
                 {
                     _isLookingUp = false;
-                    _revealLookupFailure = _item?.Status == PreparationCandidateStatus.Failed;
+                    _revealLookupFailure = _item?.Status == PreparationCandidateStatus.Failed && AppSettings.HasOnlineLookupConsent;
                 }
             }
 
@@ -717,7 +751,7 @@
 
     private async Task RetryAsync()
     {
-        if (_isBusy || !CanRetryLookup)
+        if (_isBusy || !CanRetryLookup || !AppSettings.HasOnlineLookupConsent)
         {
             return;
         }
@@ -1001,7 +1035,10 @@
         InitializeFields();
         if (method == PreparationMethod.AutomaticOnline && _item is not null)
         {
-            await LookupAsync();
+            if (AppSettings.HasOnlineLookupConsent)
+            {
+                await LookupAsync();
+            }
         }
 
         if (_item is null)
@@ -1300,8 +1337,6 @@
         _showTransitionSpinner = false;
     }
 
-    private void CancelDisclosure() => _showPrivacyDisclosure = false;
-
     private async Task RequestCancelPreparationAsync()
     {
         if (_isBusy)
@@ -1360,7 +1395,13 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (_isDisposed)
+        {
+            return;
+        }
+
         _isDisposed = true;
+        AppSettings.OnlineLookupConsentChanged -= HandleOnlineLookupConsentChanged;
         _meaningPickerBackRegistration?.Dispose();
         _lookupCancellation?.Cancel();
         _lookupCancellation?.Dispose();

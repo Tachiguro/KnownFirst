@@ -126,13 +126,14 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
-    public void Preparation_UsesConsentDisclosureAndHasNoApiKeyConfiguration()
+    public void Preparation_HasNoContextualConsentGrantOrApiKeyConfiguration()
     {
         var preparation = LoadUi("PrepareWords.razor");
         var settings = LoadUi("Settings.razor");
 
-        Assert.Contains("Prepare_OnlineDisclosure", preparation);
-        Assert.Contains("ConfirmOnlineLookupAsync", preparation);
+        Assert.DoesNotContain("ConfirmOnlineLookupAsync", preparation, StringComparison.Ordinal);
+        Assert.DoesNotContain("GrantOnlineLookupConsent", preparation, StringComparison.Ordinal);
+        Assert.Contains("Prepare_OnlineDisclosure", settings);
         Assert.DoesNotContain("API key", preparation, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("API key", settings, StringComparison.OrdinalIgnoreCase);
     }

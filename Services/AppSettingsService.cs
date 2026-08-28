@@ -56,6 +56,8 @@ public sealed class AppSettingsService : IAppSettingsService
 
     public bool HasOnlineLookupConsent { get; private set; }
 
+    public event Action<bool>? OnlineLookupConsentChanged;
+
     public bool EnhancedTermRecognitionEnabled { get; private set; }
 
     public LearningTimezoneMode LearningTimezoneMode { get; private set; }
@@ -99,16 +101,28 @@ public sealed class AppSettingsService : IAppSettingsService
 
     public void GrantOnlineLookupConsent()
     {
+        if (HasOnlineLookupConsent)
+        {
+            return;
+        }
+
         _preferences.Set(OnlineLookupConsentPreferenceKey, true);
         HasOnlineLookupConsent = true;
         _logger.LogInformation("Online dictionary lookup consent was granted.");
+        OnlineLookupConsentChanged?.Invoke(true);
     }
 
     public void RevokeOnlineLookupConsent()
     {
+        if (!HasOnlineLookupConsent)
+        {
+            return;
+        }
+
         _preferences.Remove(OnlineLookupConsentPreferenceKey);
         HasOnlineLookupConsent = false;
         _logger.LogInformation("Online dictionary lookup consent was revoked.");
+        OnlineLookupConsentChanged?.Invoke(false);
     }
 
     public void SetEnhancedTermRecognitionEnabled(bool enabled)
@@ -156,6 +170,7 @@ public sealed class AppSettingsService : IAppSettingsService
 
     public void Reset()
     {
+        var hadOnlineLookupConsent = HasOnlineLookupConsent;
         _preferences.Remove(PreparationLimitPreferenceKey);
         _preferences.Remove(CardDirectionPreferenceKey);
         _preferences.Remove(LearningModePreferenceKey);
@@ -173,6 +188,10 @@ public sealed class AppSettingsService : IAppSettingsService
         ExplicitLearningTimezoneId = null;
         LearningDayCutoffMinutes = LearningDayConfiguration.DefaultCutoffMinutes;
         _logger.LogInformation("Application settings were reset to defaults.");
+        if (hadOnlineLookupConsent)
+        {
+            OnlineLookupConsentChanged?.Invoke(false);
+        }
     }
 
     private int ReadPreparationLimit()

@@ -151,7 +151,11 @@ Each applicable surface must handle these states without broken layout, missing 
 ### 9.3 Prepare Words
 
 - Method selection appears once at the start of a new batch.
-- Loading, result, no-result, failure, retry, manual-edit, progression-recovery, and validation states are visually distinct.
+- When online lookup consent is disabled (OFF), the Automatic Online method card remains visible and discoverable but is disabled, accompanied by an explanatory notice and an accessible action linking to Settings (`/settings`); Manual preparation remains active and selectable.
+- Loading, result, no-result, failure, retry, blocked-online, manual-edit, progression-recovery, and validation states are visually distinct.
+- When an existing `AutomaticOnline` batch is active while consent is OFF, unresolved candidates display a dedicated blocked-online state (distinct from network failure/error UI) providing a direct link to Settings and a **Manual entry** action, while preserving all local disposition actions (Mark as known, Exclude from learning, Skip for now) and End preparation.
+- Existing usable persisted lexical results remain renderable and locally actionable without requiring active online consent.
+- Lookup retry (`Try again`) is unavailable and disabled whenever online lookup consent is absent.
 - Manual preparation presents one primary multiline answer field (Definition or Translation based on import context) using centralized `.text-area` styling (shared typography, border, radius, background, padding, focus ring, disabled state, and vertical resize); legacy combined mode is retained as a bounded compatibility exception.
 - Advanced options (Acronym expansion when applicable, Accepted spelling aliases) are collapsed by default.
 - Redundant form inputs (canonical term, encountered form, Additional Note) are removed from the normal manual editor; candidate term and metadata remain visible.

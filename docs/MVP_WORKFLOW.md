@@ -425,13 +425,34 @@ Actions:
 - Manual / Manuell
 - Cancel / Abbrechen
 
-Automatic online is the recommended default.
+Automatic online is the recommended default when online lookup consent is enabled.
+
+When online lookup consent is disabled (OFF):
+- The Automatic online method card remains visible and discoverable in the method selection grid but is disabled.
+- An explanatory notice informs the user that online lookup is disabled and directs the user to Settings (`/settings`).
+- Manual preparation remains active and selectable.
+- Starting Automatic online while consent is disabled is blocked.
 
 ---
 
-## 10. First online lookup disclosure
+## 10. Online lookup consent and privacy
 
-Before the first online lookup, show:
+KnownFirst enforces a strict, fail-closed privacy architecture for online lexical lookups:
+
+- Initial onboarding collects the user's initial online-lookup choice (Step 4: explicit Enable vs. Keep Disabled decision).
+- After onboarding, **Settings** is the sole place where the user can grant or revoke online lookup consent.
+- Prepare Words does not grant consent contextually; the former contextual activation disclosure/grant flow in Prepare Words has been removed.
+- No outbound lexical network request may begin while online lookup consent is disabled (OFF).
+- Existing local SQLite lexical cache hits remain usable without online consent.
+- Revoking consent does not delete cached lexical data, does not delete persisted preparation results, and does not alter or corrupt an existing active preparation session.
+- When an existing `AutomaticOnline` preparation session contains unresolved candidates while consent is disabled:
+  - The UI presents a dedicated blocked-online candidate notice rather than silently starting a network lookup or failing with a network error.
+  - The blocked state provides a direct link to Settings (`/settings`) and a **Manual entry** action.
+  - Local candidate dispositions (**Mark as known**, **Exclude from learning**, **Skip for now**) and **End preparation** remain fully usable.
+  - Lookup retry is unavailable while consent is OFF.
+  - If the user re-grants consent in Settings and returns, the active session and candidate continue safely.
+
+Disclosure copy (presented during onboarding and in Settings):
 
 English:
 
@@ -441,15 +462,7 @@ German:
 
 > KnownFirst sendet keine Dokumente, Beispielsätze, Lernhistorie oder persönlichen Daten an den Entwickler von KnownFirst. Für die Wörterbuchabfrage werden ausschließlich der ausgewählte Begriff und die gewählten Sprachinformationen direkt an Wikimedia übertragen. Wikimedia erhält dabei übliche Netzwerkdaten wie deine IP-Adresse und den KnownFirst-User-Agent. Abgerufene Wörterbuchinhalte und deine persönlichen Lerndaten werden lokal auf diesem Gerät gespeichert.
 
-Actions:
-
-- Start online lookup / Online-Abfrage starten
-- Prepare manually / Manuell vorbereiten
-- Cancel / Abbrechen
-
 Do not request an API key.
-
-The user may revoke saved online-lookup consent in Settings.
 
 ---
 
@@ -458,13 +471,14 @@ The user may revoke saved online-lookup consent in Settings.
 For every selected vocabulary item:
 
 1. detect an explicit acronym expansion in the original text
-2. check the local lexical cache
-3. query the relevant Wiktionary provider when needed
-4. parse direct lexical senses separately from grammatical form relations
-5. keep the queried term when at least one suitable direct sense exists
-6. only for a form-only entry, follow an explicit provider relation to a base lemma through the same cache/provider chain when supported
-7. rank possible meanings
-8. show the best result for confirmation
+2. check the local lexical cache (usable offline and without online consent)
+3. check active online lookup authorization; if unauthorized, fail fast without issuing network requests
+4. query the relevant Wiktionary provider when needed
+5. parse direct lexical senses separately from grammatical form relations
+6. keep the queried term when at least one suitable direct sense exists
+7. only for a form-only entry, follow an explicit provider relation to a base lemma through the same cache/provider chain when supported
+8. rank possible meanings
+9. show the best result for confirmation
 
 Supported relations are explicit singular, plural, third-person singular, past tense, past participle, present participle, comparative, and superlative forms. Direct senses outrank grammatical descriptions, so `data` remains `data` when a direct sense exists; form-only `systems`, `risks`, and `protects` may resolve to their provider-supplied base lemmas. Store the canonical learning term, encountered surface form, and grammatical relationship while keeping the original context unchanged. Use a visited set and fixed redirect-depth limit. Never infer a lemma with broad stemming: `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without provider evidence.
 
@@ -546,7 +560,7 @@ In DEBUG only, a NotFound details section may show the displayed surface, vocabu
 
 ### 11.3 Lookup outcomes and retry
 
-The explicit outcomes are `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Try again is shown only for `TransientFailure`, including offline/timeout, HTTP 429, and transient HTTP 5xx. It is not shown for Success, NotFound, ParseFailure, or PermanentFailure. Do not show another-source actions until another provider actually exists.
+The explicit outcomes are `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Try again is shown only for `TransientFailure`, including offline/timeout, HTTP 429, and transient HTTP 5xx, provided online lookup consent is enabled. It is not shown for Success, NotFound, ParseFailure, PermanentFailure, or when online lookup consent is disabled. Do not show another-source actions until another provider actually exists.
 
 ### 11.4 Preparation dispositions and transition performance
 
@@ -1018,13 +1032,14 @@ Reading resolves every card to the reveal-and-self-rate interaction. Typing reso
 
 ### Online dictionary lookup
 
-- saved consent status
-- when consent exists: revoke consent
+Settings is the established post-onboarding authority for granting and revoking online dictionary lookup consent:
+- displays current saved consent status
+- when consent is granted: revoke consent (with accessible inline destructive confirmation)
 - when consent is absent: the binding online-lookup disclosure and an explicit action to activate online dictionary lookup
 
 Do not request or store a Wikimedia API key.
 
-Portable archives never carry online-lookup consent. Importing an archive or resetting local data neither grants nor restores consent; the user must grant it again explicitly.
+Portable archives never carry online-lookup consent. Importing an archive or resetting local data neither grants nor restores consent; the user must grant it again explicitly in Settings (or during first-run onboarding).
 
 ### Portable data
 

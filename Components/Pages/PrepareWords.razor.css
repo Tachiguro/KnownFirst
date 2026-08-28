@@ -48,6 +48,18 @@
     border: 2px solid var(--color-primary);
 }
 
+.method-card:disabled,
+.method-card.disabled {
+    opacity: 0.56;
+    cursor: not-allowed;
+    border-color: var(--color-border);
+}
+
+.inline-message-blocked {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-muted);
+}
+
 .review-progress,
 .button-row,
 .preparation-disposition-actions {
@@ -109,8 +121,7 @@
 }
 
 .context-card,
-.lexical-result,
-.privacy-disclosure {
+.lexical-result {
     min-width: 0;
     padding: var(--space-4);
     border-radius: 0.8rem;

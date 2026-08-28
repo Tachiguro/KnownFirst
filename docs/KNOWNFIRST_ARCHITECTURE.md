@@ -480,22 +480,23 @@ Expected:
 
 ## 13. Lexical-enrichment architecture
 
-Automatic preparation uses a provider chain.
+Automatic preparation uses a provider chain with authoritative fail-closed consent enforcement.
 
-Suggested interfaces:
+Interfaces:
 
 ```csharp
 ILexicalEnrichmentService
 IDictionaryLookupProvider
 IAcronymExpansionProvider
 ILexicalCacheRepository
+IOnlineLookupAuthorizationGate
 ```
 
 Provider priority:
 
 1. explicit acronym expansion from the imported text
-2. local lexical cache
-3. online Wiktionary provider
+2. local lexical cache (checked before any network access or authorization check)
+3. online Wiktionary provider (requires active online lookup authorization)
 
 A lexical result is structured data, not one unstructured HTML or text blob.
 
@@ -535,6 +536,39 @@ The redirect chain has a visited-lemma set and a fixed maximum depth. A loop or 
 Prepared content stores the canonical learning term, encountered surface form, and grammatical relationship. Its context remains the unchanged original sentence with exact target coordinates.
 
 Dictionary reference data and personal learning state remain separate.
+
+### 13.2 Fail-closed online lookup consent architecture
+
+KnownFirst implements a multi-layer fail-closed architecture to guarantee that external lexical network requests are strictly forbidden unless the user has explicitly granted online lookup consent:
+
+1. **Persistent Authority:** `IAppSettingsService` (`AppSettingsService`) is the authoritative source for persisted consent state (`HasOnlineLookupConsent`), backed by device preferences. It emits `OnlineLookupConsentChanged` notifications with duplicate suppression upon grant, revocation, or full reset.
+2. **Authorization Epoch Gate:** `IOnlineLookupAuthorizationGate` (`OnlineLookupAuthorizationGate`) manages authorization state and monotonic epochs. Granting consent opens a new authorization epoch with a fresh `CancellationTokenSource`. Revoking consent immediately cancels the active epoch's `CancellationTokenSource` and closes the gate. A subsequent re-grant begins a new epoch; cancelled tokens are never revived.
+3. **Transport Authorization Gate:** `OnlineLookupAuthorizationHandler` is registered as a delegating handler in the `HttpClient` pipeline for lexical API clients (`IWikipediaApiClient`). Every outbound HTTP request invokes `EnsureAuthorized()` immediately before transmission, throwing `InvalidOperationException` if consent is absent or revoked.
+4. **Service-Level Fail-Fast:** `LexicalEnrichmentService` checks the local lexical cache first. On a cache miss, it validates `EnsureAuthorized()` before initiating provider network queries, Wikipedia definition fallbacks, or lemma redirect lookups.
+5. **Orchestration & Prefetch Protection:** `PreparationService` verifies authorization before starting an `AutomaticOnline` session, before executing candidate lookups, and before starting background prefetch. Active prefetch tasks are linked to the current authorization epoch token. When consent is revoked, in-flight prefetch is cancelled and any transient prefetched result from a prior epoch is discarded.
+6. **UI Defense-in-Depth:** `PrepareWords.razor` disables the Automatic Online method card when consent is OFF, displays dedicated blocked-candidate notices for existing batches, and disables retry actions. The UI is a defense-in-depth presentation layer; security and privacy invariants are enforced at the transport and service boundaries.
+
+### 13.3 Revocation and cancellation semantics
+
+- **In-flight network requests:** Once bytes have been transmitted over the physical network, the server receives the request. However, revocation immediately signals cancellation to all in-flight authorized HTTP requests and background prefetch tasks via the epoch `CancellationTokenSource`.
+- **Subsequent requests:** No new external lexical network request may begin after revocation occurs.
+- **Epoch isolation:** Re-granting consent creates a brand-new authorization epoch. Previously cancelled cancellation tokens remain cancelled and cannot leak into or authorize new requests.
+- **Failure classification:** Revocation-driven cancellation throws `OperationCanceledException` / `InvalidOperationException` and is handled cleanly as an intentional cancellation; it is never persisted to SQLite as a permanent candidate failure or reported as an ordinary provider network error.
+
+### 13.4 Cache and local data integrity
+
+- **Local cache availability:** Local SQLite lexical cache hits remain fully accessible and usable offline regardless of whether online lookup consent is enabled or disabled.
+- **Non-destructive revocation:** Revoking online lookup consent does not delete or invalidate cached lexical entries, does not delete persisted preparation items or learning cards, and does not corrupt or delete existing preparation sessions.
+- **Batch preservation:** An active `AutomaticOnline` session paused by consent revocation retains all completed, pending, and skipped candidate states. When consent is re-granted in Settings, the existing batch resumes safely.
+
+### 13.5 Prefetch safety
+
+- Prefetching does not start while online lookup is unauthorized.
+- Active prefetch tasks link to the `CurrentEpochToken` of `IOnlineLookupAuthorizationGate`.
+- Revoking consent cancels active prefetch tasks immediately.
+- Transient prefetch results produced under a revoked epoch cannot be consumed under a new epoch.
+- When consent is re-granted, fresh prefetch operations may proceed.
+- Transient prefetch invalidation never deletes or mutates persisted candidate or session entities.
 
 ---
 
@@ -589,9 +623,9 @@ Requirements:
 
 Every request carries its lexical languages explicitly. `SourceLanguage` is the imported-text language. `Definition` requires a null target and requests a definition in the source language. `Translation` and `DefinitionAndTranslation` require a supported target language different from the source. UI culture is never consulted when building a lexical request or cache key. Ordinary English `Word` tokens use a lowercase canonical lookup term while their exact display/context forms remain unchanged; acronym and case-sensitive technical token kinds retain case (`IT` never becomes `it`).
 
-Lookup results use the explicit outcomes `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Retry is offered only for `TransientFailure`. A successful result, a missing entry, a parse failure, and a permanent failure do not present a meaningless Retry action.
+Lookup results use the explicit outcomes `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Retry is offered only for `TransientFailure` when online lookup consent is active. A successful result, a missing entry, a parse failure, a permanent failure, and lookup without active consent do not present a retry action.
 
-Before the first online lookup, the user sees an explicit privacy disclosure and chooses whether to continue.
+Online lookup consent is governed by first-run onboarding (Step 4) and Settings. Prepare Words does not collect or activate consent contextually.
 
 The disclosure states:
 
@@ -600,7 +634,7 @@ The disclosure states:
 - Wikimedia receives ordinary network metadata such as IP address and User-Agent
 - retrieved lexical data and personal learning data are stored locally
 
-A saved local consent may be revoked in Settings.
+After onboarding, Settings is the sole authority for granting or revoking online lookup consent.
 
 The application must start and remain usable without network access.
 
@@ -669,17 +703,19 @@ Due reviews, learned sibling cards, and Again repetitions never count against th
 
 Preparation supports:
 
-- Automatic online
-- Manual
+- Automatic online (recommended default; enabled when online lookup consent is granted; disabled with explanatory notice and Settings link when consent is OFF)
+- Manual (always available)
 
-Automatic is the primary workflow. Manual is a fallback.
+Automatic is the primary workflow when consent is granted. Manual is the offline and custom-entry fallback.
+
+When consent is OFF, starting a new Automatic online session is blocked. For existing Automatic online sessions paused while consent is OFF, unresolved candidates display a dedicated blocked-online candidate state offering Settings navigation and Manual entry while keeping local candidate dispositions (Mark known, Exclude from learning, Skip for now) and End preparation active.
 
 For every automatic result, the user can:
 
 - accept
 - choose an alternative meaning
 - edit
-- retry only when the explicit lookup outcome is recoverable
+- retry only when the explicit lookup outcome is recoverable and consent is enabled
 - switch to manual
 - skip for now
 - mark as known after confirmation

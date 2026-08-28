@@ -750,6 +750,15 @@
   <data name="Prepare_AutomaticRecommended" xml:space="preserve">
     <value>Recommended: retrieve and review dictionary suggestions.</value>
   </data>
+  <data name="Prepare_OnlineLookupDisabledMethodNotice" xml:space="preserve">
+    <value>Automatic online preparation is unavailable because online dictionary lookup is disabled. You can enable it in Settings.</value>
+  </data>
+  <data name="Prepare_OnlineLookupDisabledCandidateNotice" xml:space="preserve">
+    <value>Online dictionary lookup is disabled. Enable it in Settings to look up words automatically, or enter the definition manually.</value>
+  </data>
+  <data name="Prepare_OpenSettings" xml:space="preserve">
+    <value>Open Settings</value>
+  </data>
   <data name="Prepare_Manual" xml:space="preserve">
     <value>Prepare manually</value>
   </data>

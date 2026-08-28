@@ -32,7 +32,7 @@ This document records stable, verified architectural facts and current capabilit
 - resumable Known/Unknown vocabulary review with persisted decisions and Undo;
 - language-scoped vocabulary identity and global minimal known-word markers;
 - frequency-prioritized automatic or manual preparation;
-- explicit online-lookup consent, read-only Wiktionary lookup with automatic Wikipedia definition fallback, and local SQLite lexical cache;
+- explicit online-lookup consent (governed post-onboarding by Settings with fail-closed transport authorization gating, authorization epochs, and revocation cancellation), read-only Wiktionary lookup with automatic Wikipedia definition fallback, local SQLite lexical cache, and disabled/blocked Prepare Words state when consent is absent;
 - source attribution, alternative-meaning selection, manual correction, and context snapshots;
 - recognition and spelling card directions with independent deterministic schedules;
 - Learn screen card direction indicators and visual "Repeat" badges for `IsAgainRepeat` cards;

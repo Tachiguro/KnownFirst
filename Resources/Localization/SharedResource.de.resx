@@ -750,6 +750,15 @@
   <data name="Prepare_AutomaticRecommended" xml:space="preserve">
     <value>Empfohlen: Wörterbuchvorschläge abrufen und prüfen.</value>
   </data>
+  <data name="Prepare_OnlineLookupDisabledMethodNotice" xml:space="preserve">
+    <value>Die automatische Online-Vorbereitung ist nicht verfügbar, da das Online-Wörterbuch deaktiviert ist. Du kannst es in den Einstellungen aktivieren.</value>
+  </data>
+  <data name="Prepare_OnlineLookupDisabledCandidateNotice" xml:space="preserve">
+    <value>Die Online-Wörterbuchabfrage ist deaktiviert. Aktiviere sie in den Einstellungen für das automatische Nachschlagen, oder gib die Angaben manuell ein.</value>
+  </data>
+  <data name="Prepare_OpenSettings" xml:space="preserve">
+    <value>Einstellungen öffnen</value>
+  </data>
   <data name="Prepare_Manual" xml:space="preserve">
     <value>Manuell vorbereiten</value>
   </data>

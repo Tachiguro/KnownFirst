@@ -616,6 +616,16 @@ public sealed class OnboardingStepContractTests
         Assert.DoesNotContain("margin: 0 auto;", mainRule, StringComparison.Ordinal);
     }
 
+    [TestMethod]
+    public void OnboardingHost_ConsumesAuthoritativeDraftStoreReadApi_AndHasNoStaleStoreMethods()
+    {
+        var markup = LoadUi("OnboardingHost.razor");
+
+        Assert.Contains("OnboardingDraftStore.Read()", markup);
+        Assert.DoesNotContain("OnboardingDraftStore.GetDraft()", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetDraft", markup, StringComparison.Ordinal);
+    }
+
     private static string ExtractMethodBody(string markup, string signature)
     {
         var start = markup.IndexOf(signature, StringComparison.Ordinal);

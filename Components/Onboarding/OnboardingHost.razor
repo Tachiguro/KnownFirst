@@ -198,7 +198,7 @@
             _currentStep = OnboardingStepPolicy.FirstStep;
         }
 
-        var draftResult = OnboardingDraftStore.GetDraft();
+        var draftResult = OnboardingDraftStore.Read();
         if (draftResult.Status == OnboardingDraftStatus.Valid && draftResult.Draft is not null)
         {
             _draft = draftResult.Draft;

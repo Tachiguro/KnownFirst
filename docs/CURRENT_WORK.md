@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-28 (Package KF-CLEAN-DOMAIN-013-001 candidate prepared on feature branch feature/clean-domain-013-learning-control-v1; checkpoint commits 1/2 and 2/2 complete; package review approved; lifecycle in DOCUMENT_ONLY; Schema is 12; Archive format is V2; production scheduler remains SimpleSpacedRepetitionScheduler).
+2026-08-28 (Package KF-CLEAN-DOMAIN-013-001 renewed documentation reconciliation on feature branch feature/clean-domain-013-learning-control-v1; checkpoint commits 1/2 and 2/2 complete; test-contract correction b9a49ed committed following failed candidate validation on 8d8c0d7; renewed package review approved; lifecycle in DOCUMENT_ONLY; Schema is 12; Archive format is V2; production scheduler remains SimpleSpacedRepetitionScheduler).
 
 ## Repository and Worktree Governance
 
@@ -18,22 +18,25 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 ## Active Work Package
 
 - **Active work package:** `KF-CLEAN-DOMAIN-013-001` (`feat: clean domain and application-layer learning control foundation`).
-- **Branch:** `feature/clean-domain-013-learning-control-v1` (HEAD `70f660132f1466ac44ae4f7f63fceef9994217c5` ahead of `master` at `49afcff518b52f86b698d8aec3b326bab1c297d9`).
-- **Current lifecycle:** `DOCUMENT_ONLY` (reconciling operational task documentation and project capability descriptions following successful consolidated `PACKAGE_REVIEW_APPROVED`). Next governed steps: candidate finalization / `COMMIT_ONLY` (if documentation edited), exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, and `PR_ONLY`.
+- **Branch:** `feature/clean-domain-013-learning-control-v1` (HEAD `b9a49ed64f04fcb6af4307d67858b12fb2cbff1a` ahead of `master` at `49afcff518b52f86b698d8aec3b326bab1c297d9`).
+- **Current lifecycle:** `DOCUMENT_ONLY` (reconciling operational task documentation following post-validation test-contract correction and renewed `PACKAGE_REVIEW_APPROVED`). Next governed steps: candidate finalization / `COMMIT_ONLY` for documentation reconciliation, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, and `PR_ONLY`.
 - **Package objective and scope:** Establishes the clean domain and application-layer contracts required prior to downstream Schema 13 persistence and FSRS cutover packages:
   - *Slice 1 (`d758f1b`, Checkpoint 1/2):* Pure domain contracts in `KnownFirst.Core.Learning` and `KnownFirst.Core.Preparation` — reversible, non-destructive Word-level `AlreadyKnownDecision` / `WordLearningControl` (preserving original decision timestamp across repeated marks); Sense-scoped `StopLearningDecision` / `SenseLearningControl`; `ActiveLearningEligibilityPolicy` (Word `IsAlreadyKnown` gates all Senses, Sense `IsStopped` gates that Sense only); workflow-local `PreparationCandidateDisposition.Excluded` (distinct from Word domain state); `AnswerVariantRole` (`Required` / `AcceptedOnly`); and mastery-independent `LearningInteractionProgress` / `LearningInteractionPolicy` (`Automatic` advances Reading $\to$ Typing after 2 consecutive recall successes and lapses $\to$ Reading after 2 consecutive typing failures with bounded counters $0..2$). Introduces no Mastered/Retired terminal clean states.
   - *Slice 2 (`70f6601`, Checkpoint 2/2):* Real separate `KnownFirst.Application` class library (`net10.0`) referencing `KnownFirst.Core`, with production-neutral FSRS-6 application scheduling and deterministic replay boundary (`IFsrs6SchedulingService`, `Fsrs6SchedulingService`, `Fsrs6ScheduleProjection`, `Fsrs6ReviewFact`, `LearningScheduleCorruptionException`). Projections are structurally immutable (`{ get; }` only, no set/init bypass) and fail-closed across all 4 FSRS states (`New`, `Learning`, `Review`, `Relearning`); `default(Fsrs6ReviewFact)` fails closed via private initialization guard; single authoritative `Fsrs6Scheduler` governs both `Schedule` and `Replay`; replay exception boundary materializes facts outside Core try/catch so caller/iterator exceptions propagate natively without reclassification; and no legacy concepts (`IntervalDays`, `EaseFactor`, `Mastered`, `Retired`, `Suspended`, persistence IDs) exist in the boundary.
+  - *Post-Validation Test Correction (`b9a49ed`):* Replaced stale 3-project count assertion in `PlatformTargetConfigurationTests.cs` with exact solution project membership assertion (`KnownFirst.csproj`, `KnownFirst.Core`, `KnownFirst.Application`, `KnownFirst.Tests`) and fail-closed XML Path validation, following initial candidate validation failure on `8d8c0d7`.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No database schema change, table migration, or archive format change is implemented in this package.
 - **Production scheduler boundary:** `SimpleSpacedRepetitionScheduler` remains the active production scheduler for the Schema-12 learning path. `KnownFirst.Application` and the clean domain learning-control contracts are completely decoupled and dormant from production runtime composition (neither `KnownFirst.csproj` nor `MauiProgram.cs` references or registers `KnownFirst.Application`). Full production cutover belongs to separate future Schema 13 persistence and cutover packages.
-- **Verification evidence:**
-  - Consolidated package review: `PACKAGE_REVIEW_APPROVED` (0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT).
+- **Validation and review evidence:**
+  - Initial candidate validation on `8d8c0d7`: FAILED (2894 passed / 1 failed; failure: `ApplePlatformDirectoriesAreRemovedAndSolutionStillContainsThreeProjects` expected 3 projects, actual 4; exit code 1; canonical log `artifacts/launcher-logs/ValidateAll-20260828-234955.log`).
+  - Test-contract correction evidence: genuine RED (1 failed / 2 passed) $\to$ GREEN (3 passed / 0 failed) in `PlatformTargetConfigurationTests`.
+  - Renewed consolidated package review: `PACKAGE_REVIEW_APPROVED` (0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT).
   - Slice 1 focused domain tests: 27 passed / 0 failed (`CleanLearningControlTests`, `LearningInteractionPolicyTests`).
   - Slice 2 focused boundary tests: 21 passed / 0 failed (`Fsrs6ApplicationBoundaryTests`).
   - Targeted FSRS-6 suite: 115 passed / 0 failed (`FullyQualifiedName~Fsrs6`).
   - Targeted replay and settings regression: 34 passed (`Schema8LearningReviewReplayPolicyTests`), 50 passed (`SettingsPolicyTests`).
   - `KnownFirst.Application` project build: 0 warnings, 0 errors.
   - `git diff --check master..HEAD`: clean (0 errors).
-  - *Note:* These focused/package-review suites do not substitute for the mandatory candidate-HEAD `FULL_VALIDATION` gate (`ValidateAll`), which will execute on the final candidate commit before `PUSH_ONLY` / `PR_ONLY`.
+  - *Validation status:* No successful `FULL_VALIDATION` exists yet for the package. After candidate finalization via `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION` (`ValidateAll`) must pass on the resulting candidate commit before `PUSH_ONLY` / `PR_ONLY`.
 - **Non-goals and boundaries:** No database schema change, no Schema 13 tables or migrations, no Archive V3 format, no production scheduler wiring changes, no remote push or PR operations yet, and no APK/AAB builds.
 - **Package provenance and live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**

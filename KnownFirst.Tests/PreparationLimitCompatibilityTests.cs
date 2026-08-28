@@ -57,6 +57,8 @@ public sealed class PreparationLimitCompatibilityTests
         public event EventHandler? UiLanguageChanged;
         public string CurrentUiLanguage => "en";
         public bool IsSystemPreferenceActive => true;
+        public string? PreviewUiLanguage => null;
+        public bool IsSystemPreviewActive => false;
         public IReadOnlyList<string> SupportedUiLanguages => ["en", "de", "ru"];
         public void Initialize() { }
         public void SetUiLanguage(string languageCode) { }
@@ -66,6 +68,8 @@ public sealed class PreparationLimitCompatibilityTests
             UiLanguageChanged?.Invoke(this, EventArgs.Empty);
         }
         public void ReapplyCurrentCulture() { }
+        public void ApplyPreviewLanguage(string languageCode) => throw new NotSupportedException();
+        public void ClearPreview() => throw new NotSupportedException();
     }
 
     private const string PreparationLimitKey = "preparation_limit";

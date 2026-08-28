@@ -76,6 +76,10 @@ public sealed class SettingsDefaultsServiceTests
 
         public bool IsSystemPreferenceActive { get; private set; }
 
+        public string? PreviewUiLanguage => null;
+
+        public bool IsSystemPreviewActive => false;
+
         public IReadOnlyList<string> SupportedUiLanguages { get; } = ["en", "de", "ru"];
 
         public void Initialize() => throw new NotSupportedException();
@@ -100,6 +104,10 @@ public sealed class SettingsDefaultsServiceTests
         public void ReapplyCurrentCulture()
         {
         }
+
+        public void ApplyPreviewLanguage(string languageCode) => throw new NotSupportedException();
+
+        public void ClearPreview() => throw new NotSupportedException();
     }
 
     private const string OnboardingStateKey = "onboarding_state";

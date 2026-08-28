@@ -81,11 +81,15 @@ public sealed class OnboardingCompletionTests
         public event EventHandler? UiLanguageChanged;
         public string CurrentUiLanguage => "en";
         public bool IsSystemPreferenceActive => true;
+        public string? PreviewUiLanguage => null;
+        public bool IsSystemPreviewActive => false;
         public IReadOnlyList<string> SupportedUiLanguages => ["en", "de", "ru"];
         public void Initialize() { }
         public void SetUiLanguage(string languageCode) { }
         public void ResetToDeviceLanguage() { }
         public void ReapplyCurrentCulture() { }
+        public void ApplyPreviewLanguage(string languageCode) => throw new NotSupportedException();
+        public void ClearPreview() => throw new NotSupportedException();
     }
 
     private sealed class RecordingReleaseNotesService(List<string> eventLog, Action? onMarkSeen = null) : IReleaseNotesService

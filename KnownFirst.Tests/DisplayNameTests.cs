@@ -343,6 +343,10 @@ public sealed class DisplayNameTests
 
         public bool IsSystemPreferenceActive => true;
 
+        public string? PreviewUiLanguage => null;
+
+        public bool IsSystemPreviewActive => false;
+
         public IReadOnlyList<string> SupportedUiLanguages { get; } = ["en", "de", "ru"];
 
         public void Initialize() => throw new NotSupportedException();
@@ -354,5 +358,9 @@ public sealed class DisplayNameTests
         public void ReapplyCurrentCulture()
         {
         }
+
+        public void ApplyPreviewLanguage(string languageCode) => throw new NotSupportedException();
+
+        public void ClearPreview() => throw new NotSupportedException();
     }
 }

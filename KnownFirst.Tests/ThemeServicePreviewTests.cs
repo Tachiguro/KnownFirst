@@ -1,5 +1,5 @@
-using System.Reflection;
 using KnownFirst.Core.Settings;
+using KnownFirst.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Maui.ApplicationModel;
 using Microsoft.Maui.Storage;
@@ -48,7 +48,7 @@ public sealed class ThemeServicePreviewTests
         public void ResetSetCount() => SetCount = 0;
     }
 
-    public sealed class TestThemeApplication
+    public sealed class TestThemeApplication : IThemeApplication
     {
         public AppTheme UserAppTheme { get; set; } = AppTheme.Unspecified;
         public AppTheme RequestedTheme { get; set; } = AppTheme.Light;
@@ -61,133 +61,37 @@ public sealed class ThemeServicePreviewTests
         }
     }
 
-    private static Type GetThemeServiceType()
-    {
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            var t = asm.GetType("KnownFirst.Services.ThemeService");
-            if (t != null) return t;
-        }
-
-        var baseDir = AppContext.BaseDirectory;
-        var candidates = new[]
-        {
-            Path.Combine(baseDir, "KnownFirst.dll"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "bin", "Debug", "net10.0-windows10.0.19041.0", "win-x64", "KnownFirst.dll"),
-            Path.Combine(baseDir, "..", "..", "..", "..", "bin", "Debug", "net10.0-android", "KnownFirst.dll")
-        };
-
-        foreach (var path in candidates)
-        {
-            var fullPath = Path.GetFullPath(path);
-            if (File.Exists(fullPath))
-            {
-                try
-                {
-                    var asm = Assembly.LoadFrom(fullPath);
-                    var t = asm.GetType("KnownFirst.Services.ThemeService");
-                    if (t != null) return t;
-                }
-                catch
-                {
-                    // Continue searching
-                }
-            }
-        }
-
-        throw new AssertFailedException("Missing B2 behavior: ThemeService type must exist.");
-    }
-
-    private static Type GetIThemeServiceType()
-    {
-        var themeServiceType = GetThemeServiceType();
-        return themeServiceType.Assembly.GetType("KnownFirst.Services.IThemeService")
-            ?? throw new AssertFailedException("Missing B2 behavior: IThemeService type must exist.");
-    }
-
-    private static Type? GetIThemeApplicationType()
-    {
-        var themeServiceType = GetThemeServiceType();
-        return themeServiceType.Assembly.GetType("KnownFirst.Services.IThemeApplication");
-    }
-
-    private static object CreateService(InMemoryPreferences preferences)
-    {
-        var serviceType = GetThemeServiceType();
-        var loggerType = typeof(NullLogger<>).MakeGenericType(serviceType);
-        var logger = loggerType.GetField("Instance")?.GetValue(null)
-            ?? loggerType.GetProperty("Instance")?.GetValue(null)
-            ?? NullLogger.Instance;
-        return Activator.CreateInstance(serviceType, preferences, logger)!;
-    }
-
-    private static object CreateAndInitializeService(
+    private static ThemeService CreateAndInitializeService(
         InMemoryPreferences preferences,
         TestThemeApplication app)
     {
-        var service = CreateService(preferences);
-        var serviceType = service.GetType();
-
-        var initMethod = serviceType.GetMethods()
-            .FirstOrDefault(m => m.Name == "Initialize" && m.GetParameters().Length == 1 && (m.GetParameters()[0].ParameterType == typeof(object) || m.GetParameters()[0].ParameterType.Name == "IThemeApplication"))
-            ?? throw new AssertFailedException("Missing B2 behavior: Initialize method must exist on ThemeService.");
-
-        initMethod.Invoke(service, [app]);
+        var service = new ThemeService(preferences, NullLogger<ThemeService>.Instance);
+        service.Initialize(app);
         return service;
     }
-
-    private static void ApplyPreview(object service, ThemePreference preference)
-    {
-        var method = service.GetType().GetMethod("ApplyPreviewPreference", [typeof(ThemePreference)])
-            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewPreference must exist.");
-        method.Invoke(service, [preference]);
-    }
-
-    private static void ClearPreview(object service)
-    {
-        var method = service.GetType().GetMethod("ClearPreview", Type.EmptyTypes)
-            ?? throw new AssertFailedException("Missing B2 behavior: ClearPreview must exist.");
-        method.Invoke(service, null);
-    }
-
-    private static bool SetPreference(object service, ThemePreference preference)
-    {
-        var method = service.GetType().GetMethod("SetPreference", [typeof(ThemePreference)])
-            ?? throw new AssertFailedException("SetPreference must exist.");
-        return (bool)method.Invoke(service, [preference])!;
-    }
-
-    private static void ResetPreference(object service)
-    {
-        var method = service.GetType().GetMethod("ResetPreference", Type.EmptyTypes)
-            ?? throw new AssertFailedException("ResetPreference must exist.");
-        method.Invoke(service, null);
-    }
-
-    private static ThemePreference GetPreference(object service) =>
-        (ThemePreference)service.GetType().GetProperty("Preference")!.GetValue(service)!;
-
-    private static ThemePreference? GetPreviewPreference(object service) =>
-        (ThemePreference?)service.GetType().GetProperty("PreviewPreference")!.GetValue(service);
-
-    private static ThemePreference GetEffectiveTheme(object service) =>
-        (ThemePreference)service.GetType().GetProperty("EffectiveTheme")!.GetValue(service)!;
 
     [TestMethod]
     public void InterfaceAndService_ExposePreviewApi()
     {
-        var interfaceType = GetIThemeServiceType();
-        var serviceType = GetThemeServiceType();
+        var interfaceType = typeof(IThemeService);
+        var serviceType = typeof(ThemeService);
 
         var ifacePreviewProp = interfaceType.GetProperty("PreviewPreference");
         Assert.IsNotNull(ifacePreviewProp, "IThemeService must expose PreviewPreference property.");
         Assert.AreEqual(typeof(ThemePreference?), ifacePreviewProp.PropertyType);
+        Assert.IsTrue(ifacePreviewProp.GetMethod!.IsAbstract, "PreviewPreference getter must be required.");
 
         var ifaceApplyMethod = interfaceType.GetMethod("ApplyPreviewPreference", [typeof(ThemePreference)]);
         Assert.IsNotNull(ifaceApplyMethod, "IThemeService must expose ApplyPreviewPreference(ThemePreference) method.");
+        Assert.IsTrue(ifaceApplyMethod.IsAbstract, "ApplyPreviewPreference must be required.");
 
         var ifaceClearMethod = interfaceType.GetMethod("ClearPreview", Type.EmptyTypes);
         Assert.IsNotNull(ifaceClearMethod, "IThemeService must expose ClearPreview() method.");
+        Assert.IsTrue(ifaceClearMethod.IsAbstract, "ClearPreview must be required.");
+
+        Assert.IsNull(interfaceType.GetMethod("Initialize", [typeof(object)]), "IThemeService must not expose Initialize(object).");
+        Assert.IsNull(serviceType.GetMethod("Initialize", [typeof(object)]), "ThemeService must not expose Initialize(object).");
+        Assert.IsNull(serviceType.GetNestedType("DuckTypedApplicationAdapter", System.Reflection.BindingFlags.NonPublic), "ThemeService must not contain DuckTypedApplicationAdapter.");
 
         var svcPreviewProp = serviceType.GetProperty("PreviewPreference");
         Assert.IsNotNull(svcPreviewProp, "ThemeService must implement PreviewPreference property.");
@@ -200,6 +104,28 @@ public sealed class ThemeServicePreviewTests
     }
 
     [TestMethod]
+    public void TypedThemeApplicationSeam_InitializesAndForwardsSystemThemeEvents()
+    {
+        var preferences = new InMemoryPreferences();
+        IThemeApplication application = new TestThemeApplication { RequestedTheme = AppTheme.Light };
+        var service = new ThemeService(preferences, NullLogger<ThemeService>.Instance);
+        var changeCount = 0;
+        service.ThemeChanged += (_, _) => changeCount++;
+
+        service.Initialize(application);
+        ((TestThemeApplication)application).SimulateRequestedThemeChanged(AppTheme.Dark);
+
+        Assert.AreEqual(ThemePreference.Dark, service.EffectiveTheme);
+        Assert.AreEqual(1, changeCount, "Typed requested-theme events must reach ThemeService.");
+
+        service.Dispose();
+        ((TestThemeApplication)application).SimulateRequestedThemeChanged(AppTheme.Light);
+
+        Assert.AreEqual(ThemePreference.Dark, service.EffectiveTheme, "Dispose must unsubscribe the typed event seam.");
+        Assert.AreEqual(1, changeCount);
+    }
+
+    [TestMethod]
     public void LightPreview_ChangesNativeAndEffectiveTheme_WithoutWritingPreferences()
     {
         var prefs = new InMemoryPreferences();
@@ -207,11 +133,11 @@ public sealed class ThemeServicePreviewTests
         var service = CreateAndInitializeService(prefs, app);
         prefs.ResetSetCount();
 
-        ApplyPreview(service, ThemePreference.Light);
+        service.ApplyPreviewPreference(ThemePreference.Light);
 
-        Assert.AreEqual(ThemePreference.Light, GetPreviewPreference(service));
-        Assert.AreEqual(ThemePreference.System, GetPreference(service), "Committed Preference must remain System.");
-        Assert.AreEqual(ThemePreference.Light, GetEffectiveTheme(service));
+        Assert.AreEqual(ThemePreference.Light, service.PreviewPreference);
+        Assert.AreEqual(ThemePreference.System, service.Preference, "Committed Preference must remain System.");
+        Assert.AreEqual(ThemePreference.Light, service.EffectiveTheme);
         Assert.AreEqual(AppTheme.Light, app.UserAppTheme);
         Assert.AreEqual(0, prefs.SetCount, "Preview must perform zero preference writes.");
     }
@@ -224,11 +150,11 @@ public sealed class ThemeServicePreviewTests
         var service = CreateAndInitializeService(prefs, app);
         prefs.ResetSetCount();
 
-        ApplyPreview(service, ThemePreference.Dark);
+        service.ApplyPreviewPreference(ThemePreference.Dark);
 
-        Assert.AreEqual(ThemePreference.Dark, GetPreviewPreference(service));
-        Assert.AreEqual(ThemePreference.System, GetPreference(service), "Committed Preference must remain System.");
-        Assert.AreEqual(ThemePreference.Dark, GetEffectiveTheme(service));
+        Assert.AreEqual(ThemePreference.Dark, service.PreviewPreference);
+        Assert.AreEqual(ThemePreference.System, service.Preference, "Committed Preference must remain System.");
+        Assert.AreEqual(ThemePreference.Dark, service.EffectiveTheme);
         Assert.AreEqual(AppTheme.Dark, app.UserAppTheme);
         Assert.AreEqual(0, prefs.SetCount, "Preview must perform zero preference writes.");
     }
@@ -242,11 +168,11 @@ public sealed class ThemeServicePreviewTests
         var service = CreateAndInitializeService(prefs, app);
         prefs.ResetSetCount();
 
-        ApplyPreview(service, ThemePreference.System);
+        service.ApplyPreviewPreference(ThemePreference.System);
 
-        Assert.AreEqual(ThemePreference.System, GetPreviewPreference(service));
-        Assert.AreEqual(ThemePreference.Dark, GetPreference(service), "Committed Preference must remain Dark.");
-        Assert.AreEqual(ThemePreference.Light, GetEffectiveTheme(service), "Effective theme must follow RequestedTheme under System preview.");
+        Assert.AreEqual(ThemePreference.System, service.PreviewPreference);
+        Assert.AreEqual(ThemePreference.Dark, service.Preference, "Committed Preference must remain Dark.");
+        Assert.AreEqual(ThemePreference.Light, service.EffectiveTheme, "Effective theme must follow RequestedTheme under System preview.");
         Assert.AreEqual(AppTheme.Unspecified, app.UserAppTheme);
         Assert.AreEqual(0, prefs.SetCount, "Preview must perform zero preference writes.");
     }
@@ -258,11 +184,11 @@ public sealed class ThemeServicePreviewTests
         var app = new TestThemeApplication { RequestedTheme = AppTheme.Light };
         var service = CreateAndInitializeService(prefs, app);
 
-        ApplyPreview(service, ThemePreference.System);
-        Assert.AreEqual(ThemePreference.Light, GetEffectiveTheme(service));
+        service.ApplyPreviewPreference(ThemePreference.System);
+        Assert.AreEqual(ThemePreference.Light, service.EffectiveTheme);
 
         app.SimulateRequestedThemeChanged(AppTheme.Dark);
-        Assert.AreEqual(ThemePreference.Dark, GetEffectiveTheme(service), "EffectiveTheme must update when system requested theme changes during System preview.");
+        Assert.AreEqual(ThemePreference.Dark, service.EffectiveTheme, "EffectiveTheme must update when system requested theme changes during System preview.");
     }
 
     [TestMethod]
@@ -272,11 +198,11 @@ public sealed class ThemeServicePreviewTests
         var app = new TestThemeApplication { RequestedTheme = AppTheme.Dark };
         var service = CreateAndInitializeService(prefs, app);
 
-        ApplyPreview(service, ThemePreference.Light);
-        Assert.AreEqual(ThemePreference.Light, GetEffectiveTheme(service));
+        service.ApplyPreviewPreference(ThemePreference.Light);
+        Assert.AreEqual(ThemePreference.Light, service.EffectiveTheme);
 
         app.SimulateRequestedThemeChanged(AppTheme.Dark);
-        Assert.AreEqual(ThemePreference.Light, GetEffectiveTheme(service), "Explicit Light preview must not be overridden by system requested theme.");
+        Assert.AreEqual(ThemePreference.Light, service.EffectiveTheme, "Explicit Light preview must not be overridden by system requested theme.");
     }
 
     [TestMethod]
@@ -287,14 +213,14 @@ public sealed class ThemeServicePreviewTests
         var service = CreateAndInitializeService(prefs, app);
         prefs.ResetSetCount();
 
-        ApplyPreview(service, ThemePreference.Dark);
-        Assert.AreEqual(ThemePreference.Dark, GetEffectiveTheme(service));
+        service.ApplyPreviewPreference(ThemePreference.Dark);
+        Assert.AreEqual(ThemePreference.Dark, service.EffectiveTheme);
 
-        ClearPreview(service);
+        service.ClearPreview();
 
-        Assert.IsNull(GetPreviewPreference(service), "ClearPreview must clear PreviewPreference.");
-        Assert.AreEqual(ThemePreference.System, GetPreference(service));
-        Assert.AreEqual(ThemePreference.Light, GetEffectiveTheme(service), "Effective theme must restore to committed system resolution.");
+        Assert.IsNull(service.PreviewPreference, "ClearPreview must clear PreviewPreference.");
+        Assert.AreEqual(ThemePreference.System, service.Preference);
+        Assert.AreEqual(ThemePreference.Light, service.EffectiveTheme, "Effective theme must restore to committed system resolution.");
         Assert.AreEqual(AppTheme.Unspecified, app.UserAppTheme);
         Assert.AreEqual(0, prefs.SetCount, "ClearPreview must perform zero preference writes.");
     }
@@ -308,17 +234,17 @@ public sealed class ThemeServicePreviewTests
         prefs.ResetSetCount();
 
         // Preview Dark
-        ApplyPreview(service, ThemePreference.Dark);
+        service.ApplyPreviewPreference(ThemePreference.Dark);
         Assert.AreEqual(0, prefs.SetCount);
-        Assert.AreEqual(ThemePreference.Dark, GetEffectiveTheme(service));
+        Assert.AreEqual(ThemePreference.Dark, service.EffectiveTheme);
 
         // Commit Dark
-        var changed = SetPreference(service, ThemePreference.Dark);
+        var changed = service.SetPreference(ThemePreference.Dark);
 
         Assert.IsTrue(changed, "SetPreference must return true when committing an active preview target.");
         Assert.AreEqual((int)ThemePreference.Dark, prefs.Get("theme_preference", -1), "SetPreference must write target to preferences.");
-        Assert.AreEqual(ThemePreference.Dark, GetPreference(service));
-        Assert.IsNull(GetPreviewPreference(service), "SetPreference must clear active preview.");
+        Assert.AreEqual(ThemePreference.Dark, service.Preference);
+        Assert.IsNull(service.PreviewPreference, "SetPreference must clear active preview.");
     }
 
     [TestMethod]
@@ -330,16 +256,16 @@ public sealed class ThemeServicePreviewTests
         prefs.ResetSetCount();
 
         // Preview Dark
-        ApplyPreview(service, ThemePreference.Dark);
+        service.ApplyPreviewPreference(ThemePreference.Dark);
 
         // Commit Light
-        var changed = SetPreference(service, ThemePreference.Light);
+        var changed = service.SetPreference(ThemePreference.Light);
 
         Assert.IsTrue(changed);
         Assert.AreEqual((int)ThemePreference.Light, prefs.Get("theme_preference", -1));
-        Assert.AreEqual(ThemePreference.Light, GetPreference(service));
-        Assert.IsNull(GetPreviewPreference(service));
-        Assert.AreEqual(ThemePreference.Light, GetEffectiveTheme(service));
+        Assert.AreEqual(ThemePreference.Light, service.Preference);
+        Assert.IsNull(service.PreviewPreference);
+        Assert.AreEqual(ThemePreference.Light, service.EffectiveTheme);
     }
 
     [TestMethod]
@@ -352,7 +278,7 @@ public sealed class ThemeServicePreviewTests
         prefs.ResetSetCount();
 
         // No preview active, preference is already Dark and persisted as Dark
-        var changed = SetPreference(service, ThemePreference.Dark);
+        var changed = service.SetPreference(ThemePreference.Dark);
 
         Assert.IsFalse(changed, "SetPreference must return false for a genuine no-op with no preview active.");
         Assert.AreEqual(0, prefs.SetCount);
@@ -367,7 +293,7 @@ public sealed class ThemeServicePreviewTests
         var service = CreateAndInitializeService(prefs, app);
         prefs.ResetSetCount();
 
-        var changed = SetPreference(service, ThemePreference.System);
+        var changed = service.SetPreference(ThemePreference.System);
 
         Assert.IsTrue(changed, "Committing System when no preference key exists must return true.");
         Assert.IsTrue(prefs.ContainsKey("theme_preference"), "Explicit System commit must persist unambiguous System marker.");
@@ -382,13 +308,13 @@ public sealed class ThemeServicePreviewTests
         var app = new TestThemeApplication { RequestedTheme = AppTheme.Light };
         var service = CreateAndInitializeService(prefs, app);
 
-        ApplyPreview(service, ThemePreference.Light);
-        Assert.IsNotNull(GetPreviewPreference(service));
+        service.ApplyPreviewPreference(ThemePreference.Light);
+        Assert.IsNotNull(service.PreviewPreference);
 
-        ResetPreference(service);
+        service.ResetPreference();
 
-        Assert.IsNull(GetPreviewPreference(service), "ResetPreference must clear preview.");
+        Assert.IsNull(service.PreviewPreference, "ResetPreference must clear preview.");
         Assert.IsFalse(prefs.ContainsKey("theme_preference"), "ResetPreference must remove persistent preference.");
-        Assert.AreEqual(ThemePreference.System, GetPreference(service));
+        Assert.AreEqual(ThemePreference.System, service.Preference);
     }
 }

@@ -324,16 +324,20 @@ public sealed class LanguageSelectionServiceTests
         var ifacePreviewProp = interfaceType.GetProperty("PreviewUiLanguage");
         Assert.IsNotNull(ifacePreviewProp, "ILanguageSelectionService must expose PreviewUiLanguage property.");
         Assert.AreEqual(typeof(string), ifacePreviewProp.PropertyType);
+        Assert.IsTrue(ifacePreviewProp.GetMethod!.IsAbstract, "PreviewUiLanguage getter must be required.");
 
         var ifaceSystemPreviewProp = interfaceType.GetProperty("IsSystemPreviewActive");
         Assert.IsNotNull(ifaceSystemPreviewProp, "ILanguageSelectionService must expose IsSystemPreviewActive property.");
         Assert.AreEqual(typeof(bool), ifaceSystemPreviewProp.PropertyType);
+        Assert.IsTrue(ifaceSystemPreviewProp.GetMethod!.IsAbstract, "IsSystemPreviewActive getter must be required.");
 
         var ifaceApplyMethod = interfaceType.GetMethod("ApplyPreviewLanguage", [typeof(string)]);
         Assert.IsNotNull(ifaceApplyMethod, "ILanguageSelectionService must expose ApplyPreviewLanguage(string) method.");
+        Assert.IsTrue(ifaceApplyMethod.IsAbstract, "ApplyPreviewLanguage must be required.");
 
         var ifaceClearMethod = interfaceType.GetMethod("ClearPreview", Type.EmptyTypes);
         Assert.IsNotNull(ifaceClearMethod, "ILanguageSelectionService must expose ClearPreview() method.");
+        Assert.IsTrue(ifaceClearMethod.IsAbstract, "ClearPreview must be required.");
 
         var svcPreviewProp = serviceType.GetProperty("PreviewUiLanguage");
         Assert.IsNotNull(svcPreviewProp, "LanguageSelectionService must implement PreviewUiLanguage property.");

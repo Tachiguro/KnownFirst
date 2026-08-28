@@ -1,4 +1,3 @@
-using System.Reflection;
 using KnownFirst.Core.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.ApplicationModel;
@@ -23,30 +22,13 @@ public sealed class ThemeService(IPreferences preferences, ILogger<ThemeService>
     public string EffectiveThemeCssName =>
         EffectiveTheme == ThemePreference.Dark ? "dark" : "light";
 
+#if ANDROID || WINDOWS
     public void Initialize(Microsoft.Maui.Controls.Application application)
     {
         ArgumentNullException.ThrowIfNull(application);
         Initialize(new MauiApplicationAdapter(application));
     }
-
-    public void Initialize(object application)
-    {
-        ArgumentNullException.ThrowIfNull(application);
-
-        if (application is Microsoft.Maui.Controls.Application mauiApp)
-        {
-            Initialize(new MauiApplicationAdapter(mauiApp));
-            return;
-        }
-
-        if (application is IThemeApplication themeApp)
-        {
-            Initialize(themeApp);
-            return;
-        }
-
-        Initialize(new DuckTypedApplicationAdapter(application));
-    }
+#endif
 
     public void Initialize(IThemeApplication application)
     {
@@ -260,6 +242,7 @@ public sealed class ThemeService(IPreferences preferences, ILogger<ThemeService>
         }
     }
 
+#if ANDROID || WINDOWS
     private sealed class MauiApplicationAdapter : IThemeApplication
     {
         private readonly Microsoft.Maui.Controls.Application _app;
@@ -285,41 +268,5 @@ public sealed class ThemeService(IPreferences preferences, ILogger<ThemeService>
             RequestedThemeChanged?.Invoke(sender, EventArgs.Empty);
         }
     }
-
-    private sealed class DuckTypedApplicationAdapter : IThemeApplication
-    {
-        private readonly object _target;
-        private readonly PropertyInfo? _userAppThemeProp;
-        private readonly PropertyInfo? _requestedThemeProp;
-
-        public DuckTypedApplicationAdapter(object target)
-        {
-            _target = target;
-            var type = target.GetType();
-            _userAppThemeProp = type.GetProperty("UserAppTheme");
-            _requestedThemeProp = type.GetProperty("RequestedTheme");
-            var requestedThemeChangedEvent = type.GetEvent("RequestedThemeChanged");
-
-            if (requestedThemeChangedEvent is not null)
-            {
-                var handlerType = requestedThemeChangedEvent.EventHandlerType;
-                if (handlerType == typeof(EventHandler))
-                {
-                    EventHandler handler = (s, e) => RequestedThemeChanged?.Invoke(s, e);
-                    requestedThemeChangedEvent.AddEventHandler(_target, handler);
-                }
-            }
-        }
-
-        public AppTheme UserAppTheme
-        {
-            get => (AppTheme)(_userAppThemeProp?.GetValue(_target) ?? AppTheme.Unspecified);
-            set => _userAppThemeProp?.SetValue(_target, value);
-        }
-
-        public AppTheme RequestedTheme =>
-            (AppTheme)(_requestedThemeProp?.GetValue(_target) ?? AppTheme.Light);
-
-        public event EventHandler? RequestedThemeChanged;
-    }
+#endif
 }

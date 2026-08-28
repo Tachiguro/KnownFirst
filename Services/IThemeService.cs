@@ -16,21 +16,21 @@ public interface IThemeService : IThemePreferenceReset
 
     ThemePreference Preference { get; }
 
-    ThemePreference? PreviewPreference => null;
+    ThemePreference? PreviewPreference { get; }
 
     ThemePreference EffectiveTheme { get; }
 
     string EffectiveThemeCssName { get; }
 
+#if ANDROID || WINDOWS
     void Initialize(Microsoft.Maui.Controls.Application application);
+#endif
 
     void Initialize(IThemeApplication application);
 
-    void Initialize(object application) { }
-
     bool SetPreference(ThemePreference preference);
 
-    void ApplyPreviewPreference(ThemePreference preference) { }
+    void ApplyPreviewPreference(ThemePreference preference);
 
-    void ClearPreview() { }
+    void ClearPreview();
 }

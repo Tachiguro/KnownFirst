@@ -8,6 +8,7 @@
 @using KnownFirst.Services.Onboarding
 @inject IOnboardingStateStore OnboardingStateStore
 @inject IOnboardingProgressStore OnboardingProgressStore
+@inject IOnboardingDraftStore OnboardingDraftStore
 @inject IOnboardingCompletionService CompletionService
 @inject ILanguageSelectionService LanguageSelection
 @inject IDeviceCultureProvider DeviceCultureProvider
@@ -39,7 +40,7 @@
                                 </select>
                             </div>
 
-                            @if (LanguageSelection.IsSystemPreferenceActive)
+                            @if (string.Equals(_draft.UiLanguage, LanguagePreferencePolicy.SystemPreferenceCode, StringComparison.OrdinalIgnoreCase))
                             {
                                 <div id="onboarding-system-language-status" class="onboarding-system-language-status" role="status" aria-live="polite">
                                     <p class="setting-status">
@@ -60,22 +61,22 @@
                             <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-appearance-title">
                                 <button type="button"
                                         id="onboarding-theme-system"
-                                        class="choice-button @(ThemeService.Preference == ThemePreference.System ? "active" : null)"
-                                        aria-pressed="@(ThemeService.Preference == ThemePreference.System)"
+                                        class="choice-button @(_draft.Theme == ThemePreference.System ? "active" : null)"
+                                        aria-pressed="@(_draft.Theme == ThemePreference.System)"
                                         @onclick="() => SelectTheme(ThemePreference.System)">
                                     @Localizer["Settings_AppearanceSystem"]
                                 </button>
                                 <button type="button"
                                         id="onboarding-theme-light"
-                                        class="choice-button @(ThemeService.Preference == ThemePreference.Light ? "active" : null)"
-                                        aria-pressed="@(ThemeService.Preference == ThemePreference.Light)"
+                                        class="choice-button @(_draft.Theme == ThemePreference.Light ? "active" : null)"
+                                        aria-pressed="@(_draft.Theme == ThemePreference.Light)"
                                         @onclick="() => SelectTheme(ThemePreference.Light)">
                                     @Localizer["Settings_AppearanceLight"]
                                 </button>
                                 <button type="button"
                                         id="onboarding-theme-dark"
-                                        class="choice-button @(ThemeService.Preference == ThemePreference.Dark ? "active" : null)"
-                                        aria-pressed="@(ThemeService.Preference == ThemePreference.Dark)"
+                                        class="choice-button @(_draft.Theme == ThemePreference.Dark ? "active" : null)"
+                                        aria-pressed="@(_draft.Theme == ThemePreference.Dark)"
                                         @onclick="() => SelectTheme(ThemePreference.Dark)">
                                     @Localizer["Settings_AppearanceDark"]
                                 </button>
@@ -94,7 +95,10 @@
                     break;
 
                 case OnboardingStep.DisplayName:
-                    <DisplayNameStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    <DisplayNameStep DisplayName="@_draft.DisplayName"
+                                     OnDisplayNameChanged="HandleDisplayNameChanged"
+                                     OnContinue="AdvanceToNextStep"
+                                     OnBack="GoToPreviousStep" />
                     break;
 
                 case OnboardingStep.Workflow:
@@ -102,27 +106,50 @@
                     break;
 
                 case OnboardingStep.OnlineLookup:
-                    <OnlineLookupStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    <OnlineLookupStep OnlineLookupConsent="@_draft.OnlineLookupConsent"
+                                      OnConsentChanged="HandleOnlineLookupConsentChanged"
+                                      OnContinue="AdvanceToNextStep"
+                                      OnBack="GoToPreviousStep" />
                     break;
 
                 case OnboardingStep.EnhancedTermRecognition:
-                    <EnhancedTermRecognitionStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    <EnhancedTermRecognitionStep EnhancedTermRecognitionEnabled="@_draft.EnhancedTermRecognitionEnabled"
+                                                 OnEnhancedTermRecognitionChanged="HandleEnhancedTermRecognitionChanged"
+                                                 OnContinue="AdvanceToNextStep"
+                                                 OnBack="GoToPreviousStep" />
                     break;
 
                 case OnboardingStep.Practice:
-                    <PracticeStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    <PracticeStep CardDirection="@_draft.CardDirection"
+                                  LearningMode="@_draft.LearningMode"
+                                  OnCardDirectionChanged="HandleCardDirectionChanged"
+                                  OnLearningModeChanged="HandleLearningModeChanged"
+                                  OnContinue="AdvanceToNextStep"
+                                  OnBack="GoToPreviousStep" />
                     break;
 
                 case OnboardingStep.DailyPace:
-                    <DailyPaceStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    <DailyPaceStep PreparationLimit="@_draft.PreparationLimit"
+                                   OnPreparationLimitChanged="HandlePreparationLimitChanged"
+                                   OnContinue="AdvanceToNextStep"
+                                   OnBack="GoToPreviousStep" />
                     break;
 
                 case OnboardingStep.LearningDayTiming:
-                    <LearningDayTimingStep OnContinue="AdvanceToNextStep" OnBack="GoToPreviousStep" />
+                    <LearningDayTimingStep LearningTimezoneMode="@_draft.LearningTimezoneMode"
+                                           ExplicitLearningTimezoneId="@_draft.ExplicitLearningTimezoneId"
+                                           LearningDayCutoffMinutes="@_draft.LearningDayCutoffMinutes"
+                                           OnTimezoneChanged="HandleTimezoneChanged"
+                                           OnCutoffMinutesChanged="HandleCutoffMinutesChanged"
+                                           OnContinue="AdvanceToNextStep"
+                                           OnBack="GoToPreviousStep" />
                     break;
 
                 case OnboardingStep.Summary:
-                    <SummaryStep OnFinish="FinishOnboardingAsync" OnBack="GoToPreviousStep" />
+                    <SummaryStep Draft="@_draft"
+                                 ErrorMessage="@_finishErrorMessage"
+                                 OnFinish="FinishOnboardingAsync"
+                                 OnBack="GoToPreviousStep" />
                     break;
 
                 default:
@@ -147,10 +174,12 @@
     [Parameter] public EventCallback OnCompleted { get; set; }
 
     private OnboardingStep _currentStep = OnboardingStepPolicy.FirstStep;
+    private OnboardingDraft _draft = OnboardingDraftPolicy.CreateDefault();
     private string _selectedLanguagePreference = LanguagePreferencePolicy.SystemPreferenceCode;
     private string _detectedDeviceCultureName = string.Empty;
     private DeviceLanguageClassification _deviceLanguageClassification =
         new(false, LanguagePreferencePolicy.EnglishLanguageCode);
+    private string? _finishErrorMessage;
 
     protected override void OnInitialized()
     {
@@ -169,9 +198,23 @@
             _currentStep = OnboardingStepPolicy.FirstStep;
         }
 
+        var draftResult = OnboardingDraftStore.GetDraft();
+        if (draftResult.Status == OnboardingDraftStatus.Valid && draftResult.Draft is not null)
+        {
+            _draft = draftResult.Draft;
+        }
+        else
+        {
+            _draft = OnboardingDraftPolicy.CreateDefault();
+            OnboardingDraftStore.Save(_draft);
+        }
+
+        LanguageSelection.ApplyPreviewLanguage(_draft.UiLanguage);
+        ThemeService.ApplyPreviewPreference(_draft.Theme);
+
         SyncSelectedLanguagePreference();
 
-        if (LanguageSelection.IsSystemPreferenceActive)
+        if (string.Equals(_draft.UiLanguage, LanguagePreferencePolicy.SystemPreferenceCode, StringComparison.OrdinalIgnoreCase))
         {
             RefreshDeviceCultureStatus();
         }
@@ -191,17 +234,16 @@
 
     private void SyncSelectedLanguagePreference()
     {
-        _selectedLanguagePreference = LanguageSelection.IsSystemPreferenceActive
-            ? LanguagePreferencePolicy.SystemPreferenceCode
-            : LanguageSelection.CurrentUiLanguage;
+        _selectedLanguagePreference = _draft.UiLanguage;
     }
 
     private void SetLanguage(string languageCode)
     {
-        LanguageSelection.SetUiLanguage(languageCode);
+        LanguageSelection.ApplyPreviewLanguage(languageCode);
+        UpdateDraft(_draft with { UiLanguage = languageCode });
         SyncSelectedLanguagePreference();
 
-        if (LanguageSelection.IsSystemPreferenceActive)
+        if (string.Equals(_draft.UiLanguage, LanguagePreferencePolicy.SystemPreferenceCode, StringComparison.OrdinalIgnoreCase))
         {
             RefreshDeviceCultureStatus();
         }
@@ -209,7 +251,8 @@
 
     private void SelectTheme(ThemePreference preference)
     {
-        ThemeService.SetPreference(preference);
+        ThemeService.ApplyPreviewPreference(preference);
+        UpdateDraft(_draft with { Theme = preference });
     }
 
     private string DetectedDeviceCultureCode =>
@@ -235,8 +278,64 @@
         _deviceLanguageClassification = LanguagePreferencePolicy.ClassifyDeviceCulture(_detectedDeviceCultureName);
     }
 
+    private void UpdateDraft(OnboardingDraft newDraft)
+    {
+        _draft = newDraft;
+        OnboardingDraftStore.Save(_draft);
+    }
+
+    private void HandleDisplayNameChanged(string? name)
+    {
+        UpdateDraft(_draft with { DisplayName = name });
+    }
+
+    private void HandleOnlineLookupConsentChanged(bool? consent)
+    {
+        UpdateDraft(_draft with { OnlineLookupConsent = consent });
+    }
+
+    private void HandleEnhancedTermRecognitionChanged(bool enabled)
+    {
+        UpdateDraft(_draft with { EnhancedTermRecognitionEnabled = enabled });
+    }
+
+    private void HandleCardDirectionChanged(CardDirectionPreference cardDirection)
+    {
+        UpdateDraft(_draft with { CardDirection = cardDirection });
+    }
+
+    private void HandleLearningModeChanged(LearningMode learningMode)
+    {
+        UpdateDraft(_draft with { LearningMode = learningMode });
+    }
+
+    private void HandlePreparationLimitChanged(int limit)
+    {
+        UpdateDraft(_draft with { PreparationLimit = limit });
+    }
+
+    private void HandleTimezoneChanged((LearningTimezoneMode Mode, string? ExplicitId) timezone)
+    {
+        UpdateDraft(_draft with
+        {
+            LearningTimezoneMode = timezone.Mode,
+            ExplicitLearningTimezoneId = timezone.ExplicitId
+        });
+    }
+
+    private void HandleCutoffMinutesChanged(int cutoffMinutes)
+    {
+        UpdateDraft(_draft with { LearningDayCutoffMinutes = cutoffMinutes });
+    }
+
     private void AdvanceToNextStep()
     {
+        if (_currentStep == OnboardingStep.OnlineLookup && _draft.OnlineLookupConsent is null)
+        {
+            return;
+        }
+
+        OnboardingDraftStore.Save(_draft);
         if (OnboardingStepPolicy.TryGetNext(_currentStep, out var nextStep))
         {
             _currentStep = nextStep;
@@ -246,6 +345,7 @@
 
     private void GoToPreviousStep()
     {
+        OnboardingDraftStore.Save(_draft);
         if (OnboardingStepPolicy.TryGetPrevious(_currentStep, out var prevStep))
         {
             _currentStep = prevStep;
@@ -255,11 +355,37 @@
 
     private async Task FinishOnboardingAsync()
     {
-        CompletionService.CompleteOnboarding();
+        _finishErrorMessage = null;
+        OnboardingDraftStore.Save(_draft);
 
-        if (OnCompleted.HasDelegate)
+        if (!_draft.OnlineLookupConsent.HasValue)
         {
-            await OnCompleted.InvokeAsync();
+            _finishErrorMessage = Localizer["Settings_SaveError"];
+            return;
+        }
+
+        bool success = false;
+        try
+        {
+            success = CompletionService.CompleteOnboarding(_draft);
+        }
+        catch
+        {
+            success = false;
+        }
+
+        if (success || OnboardingStateStore.GetState() == OnboardingState.Completed)
+        {
+            if (OnCompleted.HasDelegate)
+            {
+                await OnCompleted.InvokeAsync();
+            }
+        }
+        else
+        {
+            _finishErrorMessage = Localizer["Settings_SaveError"];
+            LanguageSelection.ApplyPreviewLanguage(_draft.UiLanguage);
+            ThemeService.ApplyPreviewPreference(_draft.Theme);
         }
     }
 

@@ -1,9 +1,7 @@
 @namespace KnownFirst.Components.Onboarding.Steps
 @using System.Globalization
 @using KnownFirst.Core.Settings
-@using KnownFirst.Services
 @using KnownFirst.Services.Time
-@inject IAppSettingsService AppSettings
 @inject ILearningTimezoneResolver LearningTimezoneResolver
 @inject IStringLocalizer<SharedResource> Localizer
 
@@ -81,6 +79,11 @@
 @code {
     private const string SystemLearningTimezoneValue = "system";
 
+    [Parameter] public LearningTimezoneMode LearningTimezoneMode { get; set; }
+    [Parameter] public string? ExplicitLearningTimezoneId { get; set; }
+    [Parameter] public int LearningDayCutoffMinutes { get; set; }
+    [Parameter] public EventCallback<(LearningTimezoneMode Mode, string? ExplicitId)> OnTimezoneChanged { get; set; }
+    [Parameter] public EventCallback<int> OnCutoffMinutesChanged { get; set; }
     [Parameter] public EventCallback OnContinue { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
@@ -88,25 +91,25 @@
     private string _selectedCutoffHour = "04";
     private string _selectedCutoffMinute = "00";
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
         _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
-        var cutoff = AppSettings.LearningDayCutoffMinutes;
+        var cutoff = LearningDayCutoffMinutes;
         _selectedCutoffHour = (cutoff / 60).ToString("D2", CultureInfo.InvariantCulture);
         _selectedCutoffMinute = (cutoff % 60).ToString("D2", CultureInfo.InvariantCulture);
     }
 
     private string CurrentLearningTimezoneValue =>
-        AppSettings.LearningTimezoneMode == LearningTimezoneMode.Explicit
-        && LearningTimezoneCatalog.ContainsTimezoneId(AppSettings.ExplicitLearningTimezoneId)
-            ? AppSettings.ExplicitLearningTimezoneId!
+        LearningTimezoneMode == LearningTimezoneMode.Explicit
+        && LearningTimezoneCatalog.ContainsTimezoneId(ExplicitLearningTimezoneId)
+            ? ExplicitLearningTimezoneId!
             : SystemLearningTimezoneValue;
 
     private string EffectiveLearningTimezoneOffsetLabel =>
         LearningTimezoneLabelFormatter.FormatUtcOffset(
             LearningTimezoneResolver.ResolveEffectiveTimeZone(
-                AppSettings.LearningTimezoneMode,
-                AppSettings.ExplicitLearningTimezoneId),
+                LearningTimezoneMode,
+                ExplicitLearningTimezoneId),
             DateTime.UtcNow);
 
     private string GetLearningTimezoneOptionLabel(LearningTimezoneOption option)
@@ -123,28 +126,33 @@
         }
     }
 
-    private void SelectLearningTimezone()
+    private async Task SelectLearningTimezone()
     {
         if (string.Equals(_selectedLearningTimezoneValue, SystemLearningTimezoneValue, StringComparison.Ordinal))
         {
-            AppSettings.SetLearningTimezoneMode(LearningTimezoneMode.System);
-            AppSettings.SetExplicitLearningTimezoneId(null);
+            if (OnTimezoneChanged.HasDelegate)
+            {
+                await OnTimezoneChanged.InvokeAsync((LearningTimezoneMode.System, null));
+            }
         }
         else if (LearningTimezoneCatalog.ContainsTimezoneId(_selectedLearningTimezoneValue))
         {
-            AppSettings.SetExplicitLearningTimezoneId(_selectedLearningTimezoneValue);
-            AppSettings.SetLearningTimezoneMode(LearningTimezoneMode.Explicit);
+            if (OnTimezoneChanged.HasDelegate)
+            {
+                await OnTimezoneChanged.InvokeAsync((LearningTimezoneMode.Explicit, _selectedLearningTimezoneValue));
+            }
         }
-
-        _selectedLearningTimezoneValue = CurrentLearningTimezoneValue;
     }
 
-    private void SaveLearningDayCutoff()
+    private async Task SaveLearningDayCutoff()
     {
         if (int.TryParse(_selectedCutoffHour, NumberStyles.None, CultureInfo.InvariantCulture, out var hour)
             && int.TryParse(_selectedCutoffMinute, NumberStyles.None, CultureInfo.InvariantCulture, out var minute))
         {
-            AppSettings.SetLearningDayCutoffMinutes((hour * 60) + minute);
+            if (OnCutoffMinutesChanged.HasDelegate)
+            {
+                await OnCutoffMinutesChanged.InvokeAsync((hour * 60) + minute);
+            }
         }
     }
 }

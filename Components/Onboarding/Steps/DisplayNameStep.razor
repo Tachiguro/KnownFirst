@@ -1,7 +1,5 @@
 @namespace KnownFirst.Components.Onboarding.Steps
 @using KnownFirst.Core.Settings
-@using KnownFirst.Services.Settings
-@inject IDisplayNameStore DisplayNameStore
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-display-name-step">
@@ -40,20 +38,25 @@
 </div>
 
 @code {
+    [Parameter] public string? DisplayName { get; set; }
+    [Parameter] public EventCallback<string?> OnDisplayNameChanged { get; set; }
     [Parameter] public EventCallback OnContinue { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
     private string _nameInput = string.Empty;
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
-        _nameInput = DisplayNameStore.GetDisplayName() ?? string.Empty;
+        _nameInput = DisplayName ?? string.Empty;
     }
 
     private async Task SaveAndContinue()
     {
         var normalized = DisplayNamePolicy.Normalize(_nameInput);
-        DisplayNameStore.SetDisplayName(normalized);
+        if (OnDisplayNameChanged.HasDelegate)
+        {
+            await OnDisplayNameChanged.InvokeAsync(normalized);
+        }
         await OnContinue.InvokeAsync();
     }
 }

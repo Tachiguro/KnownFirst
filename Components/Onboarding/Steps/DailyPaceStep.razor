@@ -1,8 +1,6 @@
 @namespace KnownFirst.Components.Onboarding.Steps
 @using System.Globalization
 @using KnownFirst.Core.Settings
-@using KnownFirst.Services
-@inject IAppSettingsService AppSettings
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-daily-pace-step">
@@ -93,6 +91,8 @@
 </div>
 
 @code {
+    [Parameter] public int PreparationLimit { get; set; }
+    [Parameter] public EventCallback<int> OnPreparationLimitChanged { get; set; }
     [Parameter] public EventCallback OnContinue { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
@@ -101,9 +101,9 @@
     private string _customLimitInput = string.Empty;
     private string? _customLimitValidationError;
 
-    protected override void OnInitialized()
+    protected override void OnParametersSet()
     {
-        _selectedPreparationLimit = AppSettings.PreparationLimit;
+        _selectedPreparationLimit = PreparationLimit;
         _isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);
         _customLimitInput = _selectedPreparationLimit.ToString(CultureInfo.InvariantCulture);
     }
@@ -131,7 +131,10 @@
         _selectedPreparationLimit = limit;
         _customLimitInput = limit.ToString(CultureInfo.InvariantCulture);
         _customLimitValidationError = null;
-        AppSettings.SetPreparationLimit(limit);
+        if (OnPreparationLimitChanged.HasDelegate)
+        {
+            _ = OnPreparationLimitChanged.InvokeAsync(limit);
+        }
     }
 
     private void SelectCustom()
@@ -176,11 +179,14 @@
                 return;
             }
 
-            AppSettings.SetPreparationLimit(customValue);
-            _selectedPreparationLimit = AppSettings.PreparationLimit;
+            _selectedPreparationLimit = customValue;
             _isCustomActive = !PreparationLimitPolicy.IsPreset(_selectedPreparationLimit);
             _customLimitInput = _selectedPreparationLimit.ToString(CultureInfo.InvariantCulture);
             _customLimitValidationError = null;
+            if (OnPreparationLimitChanged.HasDelegate)
+            {
+                await OnPreparationLimitChanged.InvokeAsync(customValue);
+            }
         }
 
         await OnContinue.InvokeAsync();

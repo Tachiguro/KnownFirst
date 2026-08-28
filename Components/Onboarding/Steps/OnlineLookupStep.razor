@@ -1,6 +1,4 @@
 @namespace KnownFirst.Components.Onboarding.Steps
-@using KnownFirst.Services
-@inject IAppSettingsService AppSettings
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-online-lookup-step">
@@ -23,57 +21,27 @@
         <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-online-lookup-title">
             <button type="button"
                     id="onboarding-online-consent-enable-button"
-                    class="choice-button @(_explicitConsentChoice == true ? "active" : null)"
-                    aria-pressed="@(_explicitConsentChoice == true)"
+                    class="choice-button @(OnlineLookupConsent == true ? "active" : null)"
+                    aria-pressed="@(OnlineLookupConsent == true)"
                     @onclick="EnableOnlineConsent">
                 @Localizer["Onboarding_OnlineLookupEnable"]
             </button>
             <button type="button"
                     id="onboarding-online-consent-disable-button"
-                    class="choice-button @(_explicitConsentChoice == false ? "active" : null)"
-                    aria-pressed="@(_explicitConsentChoice == false)"
-                    @ref="_onlineConsentRevokeButton"
+                    class="choice-button @(OnlineLookupConsent == false ? "active" : null)"
+                    aria-pressed="@(OnlineLookupConsent == false)"
                     @onclick="DisableOnlineConsent">
                 @Localizer["Onboarding_OnlineLookupKeepDisabled"]
             </button>
         </div>
-
-        @if (_showOnlineConsentRevokeConfirmation)
-        {
-            <div id="onboarding-online-consent-revoke-confirmation"
-                 class="destructive-confirmation"
-                 role="alertdialog"
-                 aria-labelledby="onboarding-online-consent-revoke-confirmation-message"
-                 @onkeydown="HandleOnlineConsentRevokeDialogKeyDown">
-                <p id="onboarding-online-consent-revoke-confirmation-message">
-                    @Localizer["Settings_RevokeOnlineConsentConfirmMessage"]
-                </p>
-                <div class="button-row">
-                    <button type="button"
-                            id="onboarding-online-consent-revoke-cancel-button"
-                            class="button button-secondary"
-                            @ref="_cancelOnlineConsentRevokeButton"
-                            @onclick="CancelOnlineConsentRevocation">
-                        @Localizer["Common_Cancel"]
-                    </button>
-                    <button type="button"
-                            id="onboarding-online-consent-revoke-confirm-button"
-                            class="button button-danger"
-                            data-destructive-confirm
-                            @onclick="ConfirmOnlineConsentRevocation">
-                        @Localizer["Settings_RevokeOnlineConsent"]
-                    </button>
-                </div>
-            </div>
-        }
     </section>
 
     <div class="onboarding-actions">
         <button type="button"
                 id="onboarding-online-lookup-continue-button"
                 class="button button-primary onboarding-continue-button"
-                disabled="@(_explicitConsentChoice is null)"
-                @onclick="OnContinue">
+                disabled="@(OnlineLookupConsent is null)"
+                @onclick="HandleContinue">
             @Localizer["Common_Continue"]
         </button>
         <button type="button"
@@ -86,81 +54,32 @@
 </div>
 
 @code {
+    [Parameter] public bool? OnlineLookupConsent { get; set; }
+    [Parameter] public EventCallback<bool?> OnConsentChanged { get; set; }
     [Parameter] public EventCallback OnContinue { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
-    private bool? _explicitConsentChoice;
-    private bool _showOnlineConsentRevokeConfirmation;
-    private bool _revealOnlineConsentRevokeConfirmation;
-    private bool _returnFocusToOnlineConsentRevokeButton;
-    private ElementReference _onlineConsentRevokeButton;
-    private ElementReference _cancelOnlineConsentRevokeButton;
-
-    protected override void OnInitialized()
+    private async Task EnableOnlineConsent()
     {
-        if (AppSettings.HasOnlineLookupConsent)
+        if (OnConsentChanged.HasDelegate)
         {
-            _explicitConsentChoice = true;
+            await OnConsentChanged.InvokeAsync(true);
         }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task DisableOnlineConsent()
     {
-        if (_revealOnlineConsentRevokeConfirmation)
+        if (OnConsentChanged.HasDelegate)
         {
-            _revealOnlineConsentRevokeConfirmation = false;
-            await _cancelOnlineConsentRevokeButton.FocusAsync(preventScroll: true);
-        }
-        else if (_returnFocusToOnlineConsentRevokeButton)
-        {
-            _returnFocusToOnlineConsentRevokeButton = false;
-            await _onlineConsentRevokeButton.FocusAsync();
+            await OnConsentChanged.InvokeAsync(false);
         }
     }
 
-    private void EnableOnlineConsent()
+    private async Task HandleContinue()
     {
-        AppSettings.GrantOnlineLookupConsent();
-        _explicitConsentChoice = true;
-        _showOnlineConsentRevokeConfirmation = false;
-    }
-
-    private void DisableOnlineConsent()
-    {
-        if (AppSettings.HasOnlineLookupConsent)
+        if (OnlineLookupConsent is not null)
         {
-            ShowOnlineConsentRevokeConfirmation();
+            await OnContinue.InvokeAsync();
         }
-        else
-        {
-            _explicitConsentChoice = false;
-        }
-    }
-
-    private void ShowOnlineConsentRevokeConfirmation()
-    {
-        _showOnlineConsentRevokeConfirmation = true;
-        _revealOnlineConsentRevokeConfirmation = true;
-    }
-
-    private void CancelOnlineConsentRevocation()
-    {
-        _showOnlineConsentRevokeConfirmation = false;
-        _returnFocusToOnlineConsentRevokeButton = true;
-    }
-
-    private void HandleOnlineConsentRevokeDialogKeyDown(KeyboardEventArgs eventArgs)
-    {
-        if (eventArgs.Key == "Escape")
-        {
-            CancelOnlineConsentRevocation();
-        }
-    }
-
-    private void ConfirmOnlineConsentRevocation()
-    {
-        AppSettings.RevokeOnlineLookupConsent();
-        _showOnlineConsentRevokeConfirmation = false;
-        _explicitConsentChoice = false;
     }
 }

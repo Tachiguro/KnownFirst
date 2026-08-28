@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-27 (active package KF-REVIEW-WORDS-COMPACT-ACTION-BAR-001 on fix/review-words-compact-action-bar-v1; Schema is 12; Archive format is V2).
+2026-08-28 (active package KF-ONLINE-LOOKUP-CONSENT-001 on fix/online-lookup-consent-enforcement-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,23 +17,30 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `KF-REVIEW-WORDS-COMPACT-ACTION-BAR-001` (`fix: compact review words action bar`)
-- **Branch:** `fix/review-words-compact-action-bar-v1`
-- **Base master SHA:** `577ded143d2699f7775a61dea14c992de010c15f`
-- **Current checkpoint HEAD:** `2a16620207025452cec30d1bcf2bc8b63598edec`
-- **Objective:** Visually align the `/review-words` action bar with `/prepare-words` based on user-inspected Windows Release UI feedback, superseding the previous equal-width 4-column layout: group Known, Unknown, and Undo into a compact content-sized action group on the left, position Discard import as a separately aligned destructive end action on the far right with flexible space in between, preserve standard button height and geometry across all four actions, preserve responsive single-column collapse at narrow breakpoints, and preserve all review decision, undo, shortcut, and service semantics.
-- **Completed lifecycle:** `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/1 (`compact-review-action-bar`, checkpoint commit `2a16620207025452cec30d1bcf2bc8b63598edec`) → consolidated `REVIEW_ONLY` (disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; process finding `PROCESS_NONCOMPLIANCE_CONFIRMED` for implementing agent `manage_task`/`schedule` usage with confirmed zero repository contamination; open decisions: none).
-- **Current lifecycle:** `DOCUMENT_ONLY` (in progress).
-- **Next lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY`.
+- **Active work package:** `KF-ONLINE-LOOKUP-CONSENT-001` (`fix: authoritative online lookup consent enforcement and fail-closed privacy architecture`)
+- **Branch:** `fix/online-lookup-consent-enforcement-v1`
+- **Base master SHA:** `e6518f2c92331e6fc3c6a94077dda091fa8f755e`
+- **Current checkpoint HEAD:** `67a04239edf605e81c4a1a88a0d98ccd992d8f82`
+- **Objective:** Establish a strict, fail-closed privacy architecture for online dictionary lookups across all execution layers: enforce transport authorization in the outbound lexical HTTP pipeline (`IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler`), fail-fast in lexical enrichment before provider/fallback/lemma network requests, protect automatic preparation and prefetching orchestration with authorization epochs and prompt revocation cancellation, remove contextual consent disclosure from Prepare Words, disable Automatic Online method selection when consent is OFF, provide a dedicated blocked-online candidate state with Settings navigation and manual fallback without data loss, and disable lookup retries while consent is absent.
+- **Completed lifecycle:**
+  - `PLAN_ONLY`
+  - `IMPLEMENT_SLICE` 1/3 (`authoritative-consent-transport-gate`, checkpoint commit `115a6f53b8d860a5eee3ec34731121f746f6bdf4`)
+  - `IMPLEMENT_SLICE` 2/3 (`preparation-orchestration-and-prefetch-safety`, checkpoint commit `d5da5063a339c05d155b1238bc145c3cd782a33c`)
+  - `IMPLEMENT_SLICE` 3/3 (`preparation-ui-consent-state-integration`, checkpoint commit `67a04239edf605e81c4a1a88a0d98ccd992d8f82`)
+  - Consolidated `REVIEW_ONLY` (disposition `PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`; privacy audit `PRIVACY_PATH_AUDIT_PASS`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR requiring source/test correction, 1 non-blocking NIT regarding default interface event accessors; open decisions: none).
+- **Current lifecycle:** `DOCUMENT_ONLY` (in progress; reconciling durable repository documentation without code, test, or commit modifications).
+- **Next lifecycle:** candidate `COMMIT_ONLY` (for documentation reconciliation) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY`. (Subject to orchestrator verification; Package B transactional onboarding has not started).
 - **Verification evidence:**
-  - Implementation genuine RED: missing `.review-actions-layout`, obsolete `.review-actions-grid` / `repeat(4, minmax(0, 1fr))` four-column stretching (1 passed / 3 failed). Focused GREEN: 4 passed / 0 failed.
-  - Reviewed targeted regression: 140 passed / 0 failed / 0 skipped across focused suites (`ReviewWordsCompactActionBar_*` 4, `UiWorkflowContractTests` 136).
-  - `git diff --check`: passed cleanly (0 errors).
-- **Evidence boundaries:** Proves unit, Razor markup, CSS grid/flex layout contracts, and component binding on compiled production types. Does not prove exact-candidate pre-PR validation on final documentation commit, rendered pixel dimensions in Windows WebView, physical touch/timing interaction, Android device rendering, APK/AAB packaging, signing, or distribution.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No database migrations, persistence changes, or schema mutations.
-- **Non-goals & boundaries:** No changes to Review service logic, import analysis semantics, preparation or learning workflows, scheduler, or release tooling.
+  - Checkpoint 1 (transport gate & AppSettings notifications): Genuine RED (missing gate/handler, notifications) -> focused GREEN (12 passed / 0 failed in `OnlineLookupAuthorizationTests`).
+  - Checkpoint 2 (orchestration & prefetch safety): Genuine RED (missing gate in PreparationService, unauthorized start/lookup, prefetch epoch cancellation) -> focused GREEN (18 passed / 0 failed in `PreparationAuthorizationOrchestrationTests`).
+  - Checkpoint 3 (UI consent integration & blocked state): Genuine RED (disabled card, blocked state, retry disabled, revocation cancellation) -> focused GREEN (13 passed / 0 failed in `PreparationUiConsentStateTests`).
+  - Consolidated regression / continuity: clean test execution across affected test suites; `git diff --check` clean (0 errors).
+- **Evidence boundaries:** Proves unit, service orchestration, transport delegation, Razor markup/UI state bindings, and localization contracts against compiled production types. Does not prove exact-candidate pre-PR validation on final documentation commit, rendered pixel layout in WebView, physical touch/focus interaction on devices, Android device execution, APK/AAB packaging, signing, or distribution.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No database schema mutations, table migrations, or archive format changes.
+- **Non-goals & boundaries:** No Package B transactional onboarding changes, no new database tables or schema changes, no remote push or PR operations, no APK/AAB builds.
 - **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #180 (`fix: compact review words action bar`): Visually aligned the `/review-words` action bar with `/prepare-words`, grouping Known, Unknown, and Undo into a compact content-sized action group on the left, positioning Discard import as a separately aligned destructive end action on the far right with flexible space in between, preserving standard button geometry and responsive single-column collapse at narrow breakpoints. Merged to `e6518f2c92331e6fc3c6a94077dda091fa8f755e`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #179 (`fix: align review words action bar`): Initial Review Words action bar reconciliation unifying Known, Unknown, Undo, and Discard import, converting Undo to a standard secondary button, and shortening localized Undo labels. Merged to `577ded143d2699f7775a61dea14c992de010c15f`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #177 (`fix: restore onboarding card direction help localization`): Restored missing `Settings_CardDirectionHelp` localization across English, German, and Russian resources and added repository-wide literal Razor localization key guard tests. Merged to `41e6211932b848909f0e311252805d5fe7b85df5`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #176 (`fix: improve learning rating button accessibility and non-destructive styling`): Eliminated destructive danger-red styling from the "Again" learning rating button in `RatingButtons.razor.css`, replacing it with accessible neutral muted styling, and established a clear non-color visual hierarchy across all four ratings (`Again`, `Hard`, `Good`, `Easy`) using distinct fill, border width, and border pattern styling while preserving all ReviewRating mappings, localized labels, scheduler behavior, and theme contrast. Merged to `4727af654f5b973c3188faaf0f331b00a0fd59cd`. `POST_MERGE_SYNC_ONLY` completed.

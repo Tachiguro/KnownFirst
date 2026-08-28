@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-28 (active package KF-ONLINE-LOOKUP-CONSENT-001 on fix/online-lookup-consent-enforcement-v1; Schema is 12; Archive format is V2).
+2026-08-28 (active package KF-TRANSACTIONAL-ONBOARDING-001 on feature/transactional-onboarding-settings-v1; Schema is 12; Archive format is V2).
 
 ## Repository and Worktree Governance
 
@@ -17,29 +17,36 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package
 
-- **Active work package:** `KF-ONLINE-LOOKUP-CONSENT-001` (`fix: authoritative online lookup consent enforcement and fail-closed privacy architecture`)
-- **Branch:** `fix/online-lookup-consent-enforcement-v1`
-- **Base master SHA:** `e6518f2c92331e6fc3c6a94077dda091fa8f755e`
-- **Current checkpoint HEAD:** `67a04239edf605e81c4a1a88a0d98ccd992d8f82`
-- **Objective:** Establish a strict, fail-closed privacy architecture for online dictionary lookups across all execution layers: enforce transport authorization in the outbound lexical HTTP pipeline (`IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler`), fail-fast in lexical enrichment before provider/fallback/lemma network requests, protect automatic preparation and prefetching orchestration with authorization epochs and prompt revocation cancellation, remove contextual consent disclosure from Prepare Words, disable Automatic Online method selection when consent is OFF, provide a dedicated blocked-online candidate state with Settings navigation and manual fallback without data loss, and disable lookup retries while consent is absent.
+- **Active work package:** `KF-TRANSACTIONAL-ONBOARDING-001` (`feat: transactional first-run onboarding settings and startup recovery`)
+- **Branch:** `feature/transactional-onboarding-settings-v1`
+- **Base master SHA:** `be70ffcede1fb03f9083c21e148c963658459c8b`
+- **Current candidate HEAD:** `cf0d53728e66fc5532f91bb083c74fc655542828`
+- **Current lifecycle:** `DOCUMENT_ONLY` (in progress; reconciling durable repository documentation without code, test, or commit modifications).
+- **Consolidated review disposition:** `PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`
+- **Branch status:** local only / unpushed; no PR exists.
+- **Objective:** Onboarding choices are staged in one versioned persisted draft (`OnboardingDraft`) and applied together only when Finish Setup is confirmed. Language and theme preview is immediate and non-persisting during the flow; committed Settings values are unchanged until completion. Startup recovery executes before database initialization and handles unsupported future Package B data, corrupt/incomplete state, and deterministic replay without a compensating fake multi-key transaction. Completion freezes one verified `OnboardingCompletionJournal` target with a deterministic fingerprint, enforces a durability barrier before any committed writes, and rolls forward idempotently, with Completed state authoritative before any cleanup. Legacy incomplete onboarding migrates safely via a crash-safe marker protocol that revokes active true consent during normalization and treats undecided consent as null draft. Online Dictionary draft true consent does not authorize external lookup; Package A transport authorization remains closed until verified completion roll-forward grants true. After onboarding completion, Settings remains authoritative for all consent decisions.
 - **Completed lifecycle:**
   - `PLAN_ONLY`
-  - `IMPLEMENT_SLICE` 1/3 (`authoritative-consent-transport-gate`, checkpoint commit `115a6f53b8d860a5eee3ec34731121f746f6bdf4`)
-  - `IMPLEMENT_SLICE` 2/3 (`preparation-orchestration-and-prefetch-safety`, checkpoint commit `d5da5063a339c05d155b1238bc145c3cd782a33c`)
-  - `IMPLEMENT_SLICE` 3/3 (`preparation-ui-consent-state-integration`, checkpoint commit `67a04239edf605e81c4a1a88a0d98ccd992d8f82`)
-  - Consolidated `REVIEW_ONLY` (disposition `PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`; privacy audit `PRIVACY_PATH_AUDIT_PASS`; findings: 0 BLOCKER, 0 MAJOR, 0 MINOR requiring source/test correction, 1 non-blocking NIT regarding default interface event accessors; open decisions: none).
-- **Current lifecycle:** `DOCUMENT_ONLY` (in progress; reconciling durable repository documentation without code, test, or commit modifications).
-- **Next lifecycle:** candidate `COMMIT_ONLY` (for documentation reconciliation) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY`. (Subject to orchestrator verification; Package B transactional onboarding has not started).
+  - B1 storage infrastructure checkpoint (`38abf5a5d1613d5b2ce50d4e9a5ff8a799435088`)
+  - B1 consent correction checkpoint (`5ed3a798f825ebeba43972c239f0a51eaa547ec2`)
+  - B2 preview/commit separation checkpoint (`7182edffa9abbc58b0d7ca98010e5b63d1bdeb75`)
+  - B2 AOT-safe contract correction checkpoint (`c36d0f94c44df5278f10b3c4080622ca602d6b51`)
+  - B3 completion/recovery engine checkpoint (`b310f46866141e72977547c3e63f74b41c54e0ae`)
+  - B3 null-consent progress correction checkpoint (`46f63b067a644251d4811fcad92cb5d1bbd36448`)
+  - B4 atomic transactional cutover checkpoint (`cf0d53728e66fc5532f91bb083c74fc655542828`)
+  - Consolidated package `REVIEW_ONLY` (disposition `PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`; 0 BLOCKER / 0 MAJOR / 0 MINOR; 2 non-blocking NITs: no explicit concurrent-Finish UI flag; unused `System.Reflection` using in the new cutover test file).
+- **Next lifecycle:** `COMMIT_ONLY` (for these documentation changes) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
 - **Verification evidence:**
-  - Checkpoint 1 (transport gate & AppSettings notifications): Genuine RED (missing gate/handler, notifications) -> focused GREEN (12 passed / 0 failed in `OnlineLookupAuthorizationTests`).
-  - Checkpoint 2 (orchestration & prefetch safety): Genuine RED (missing gate in PreparationService, unauthorized start/lookup, prefetch epoch cancellation) -> focused GREEN (18 passed / 0 failed in `PreparationAuthorizationOrchestrationTests`).
-  - Checkpoint 3 (UI consent integration & blocked state): Genuine RED (disabled card, blocked state, retry disabled, revocation cancellation) -> focused GREEN (13 passed / 0 failed in `PreparationUiConsentStateTests`).
-  - Consolidated regression / continuity: clean test execution across affected test suites; `git diff --check` clean (0 errors).
-- **Evidence boundaries:** Proves unit, service orchestration, transport delegation, Razor markup/UI state bindings, and localization contracts against compiled production types. Does not prove exact-candidate pre-PR validation on final documentation commit, rendered pixel layout in WebView, physical touch/focus interaction on devices, Android device execution, APK/AAB packaging, signing, or distribution.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No database schema mutations, table migrations, or archive format changes.
-- **Non-goals & boundaries:** No Package B transactional onboarding changes, no new database tables or schema changes, no remote push or PR operations, no APK/AAB builds.
-- **Package provenance & live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
+  - 181 passed / 0 failed across the seven package-focused review groups (B1 storage infrastructure, B1 consent correction, B2 preview/commit separation, B2 AOT-safe contract correction, B3 completion/recovery engine, B3 null-consent progress correction, B4 atomic transactional cutover).
+  - Cumulative `git diff --check`: clean.
+  - Package review: 0 BLOCKER / 0 MAJOR / 0 MINOR.
+  - 2 non-blocking NITs (no explicit concurrent-Finish UI flag; unused `System.Reflection` using in the new cutover test file). The approved review did not require correction.
+- **Evidence boundaries:** Verifies unit, service, completion/recovery, migration, and UI state contract tests against compiled production types using isolated temporary databases. Does **not** establish: exact-candidate-HEAD `FULL_VALIDATION`; Windows or Android Debug/Release build gates; rendered WebView GUI; Windows focus behavior; Android touch behavior; device testing; APK/AAB packaging; signing; upload; distribution.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No database schema change, table migration, or archive format change.
+- **Non-goals and boundaries:** No database schema change, no new archive format version, no remote push or PR operations, no APK/AAB builds.
+- **Package provenance and live state:** Authoritative live checkout/branch, worktree state, and operational task positions are discovered directly from Git/GitHub, with `master` as the canonical branch.
 - **Previous merged packages:**
+  - PR #181 (`fix: authoritative online lookup consent enforcement` / KF-ONLINE-LOOKUP-CONSENT-001): Established strict fail-closed privacy architecture for online dictionary lookups — transport authorization gate (`IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler`) blocking unauthorized outbound HTTP, authorization-epoch-bound orchestration with revocation cancellation, dedicated blocked-candidate Prepare Words state with Settings link and manual fallback, disabled Automatic Online method when consent is OFF, and disabled lookup retry while consent is absent. Merged to `be70ffcede1fb03f9083c21e148c963658459c8b`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #180 (`fix: compact review words action bar`): Visually aligned the `/review-words` action bar with `/prepare-words`, grouping Known, Unknown, and Undo into a compact content-sized action group on the left, positioning Discard import as a separately aligned destructive end action on the far right with flexible space in between, preserving standard button geometry and responsive single-column collapse at narrow breakpoints. Merged to `e6518f2c92331e6fc3c6a94077dda091fa8f755e`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #179 (`fix: align review words action bar`): Initial Review Words action bar reconciliation unifying Known, Unknown, Undo, and Discard import, converting Undo to a standard secondary button, and shortening localized Undo labels. Merged to `577ded143d2699f7775a61dea14c992de010c15f`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #177 (`fix: restore onboarding card direction help localization`): Restored missing `Settings_CardDirectionHelp` localization across English, German, and Russian resources and added repository-wide literal Razor localization key guard tests. Merged to `41e6211932b848909f0e311252805d5fe7b85df5`. `POST_MERGE_SYNC_ONLY` completed.
@@ -60,6 +67,14 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - PR #152 (`docs: record build14 aab packaging evidence`): Reconciled durable release documentation with physical Google Play AAB bundle `KnownFirst-1.0.0-beta.13-code14.aab` produced and verified locally on certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Merged to `2a5b10735a1ea27e3db348e0cd855d7768376372`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #153 (`feat: add onboarding install-origin foundation`): Merged First-Run Onboarding & Daily-Budget UX Slice 1 — application-local preference-backed onboarding state (`Required`/`InProgress`/`Completed`), startup install-origin classification via legacy preference evidence without database-file dependency, grandfathered legacy budget pinning (10), and destructive/non-destructive reset contracts. Merged to `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #154 (`docs: simplify multi-slice governance`): Established the multi-slice feature-package lifecycle — checkpoint commits with `KnownFirst-Checkpoint:` trailers, consolidated package-level review and documentation gates, candidate finalization without artificial empty commits, the interruption/resume contract, and anti-treadmill documentation discipline — while preserving every repository, safety, and exact-HEAD validation invariant. Merged to `18c1e7998c1ffc34607e0a6feb54e930996353bd`. `POST_MERGE_SYNC_ONLY` completed.
+
+## Online Lookup Consent Enforcement — Package A (Merged Production State)
+
+Merged to `master` via PR #181 (`fix: authoritative online lookup consent enforcement` / KF-ONLINE-LOOKUP-CONSENT-001; merge commit `be70ffcede1fb03f9083c21e148c963658459c8b`; validated PR head `9e8302b... docs: document online lookup consent enforcement`). Full architectural framing: [docs/PROJECT_STATE.md](PROJECT_STATE.md) "Online Lookup Consent Enforcement (Merged Production State)."
+
+- **Scope:** Established a strict, fail-closed privacy architecture for online dictionary lookups: `IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler` transport gate blocking unauthorized outbound lexical HTTP; authorization epochs bound to in-flight and prefetch operations with immediate cancellation on revocation; contextual consent disclosure removed from Prepare Words so Settings is the sole post-onboarding authority; dedicated blocked-candidate state for existing Automatic Online sessions with Settings link and manual fallback without data loss; Automatic Online method disabled when consent is OFF; lookup retry disabled while consent is absent.
+- **Completed lifecycle:** `PLAN_ONLY`, `IMPLEMENT_SLICE` 1/3 (transport gate), `IMPLEMENT_SLICE` 2/3 (orchestration/prefetch safety), `IMPLEMENT_SLICE` 3/3 (UI consent integration), consolidated `REVIEW_ONLY` (`PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`; privacy audit `PRIVACY_PATH_AUDIT_PASS`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 1 NIT), `DOCUMENT_ONLY`, `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY` (PR #181), manual user merge, `POST_MERGE_SYNC_ONLY`.
+- **Remaining lifecycle:** None. Package A is fully merged on `master` at `be70ffcede1fb03f9083c21e148c963658459c8b`.
 
 ## Onboarding & Settings Parity Feedback (Merged Production State)
 
@@ -268,6 +283,12 @@ Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding i
 1. ~~**Install-Origin Foundation & Reset Contracts.**~~ Completed — merged via PR #153 (merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`).
 2. ~~**First-Run Onboarding + Daily New-Word Budget UX Core (`onboarding-core-v1` & `visual-consistency-v1`).**~~ Completed — merged via PR #155 and PR #156.
 3. ~~**Home greeting/personalization (Milestone 19h).**~~ Completed — merged via PR #158 (merge commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`).
+4. **Transactional Onboarding Settings & Recovery (KF-TRANSACTIONAL-ONBOARDING-001).** Package B implementation complete through B4 cutover checkpoint (`cf0d53728e66fc5532f91bb083c74fc655542828`). Consolidated package `REVIEW_ONLY` approved (`PACKAGE_REVIEW_APPROVED_FOR_DOCUMENTATION`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 2 non-blocking NITs). Currently in `DOCUMENT_ONLY`. Branch `feature/transactional-onboarding-settings-v1` is local/unpushed; no PR exists. Next: `COMMIT_ONLY` → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+
+### Online Lookup Consent Enforcement sequence — complete
+
+1. ~~Package A (KF-ONLINE-LOOKUP-CONSENT-001) `PLAN_ONLY` → `IMPLEMENT_SLICE` 1/3 → `IMPLEMENT_SLICE` 2/3 → `IMPLEMENT_SLICE` 3/3 → `REVIEW_ONLY` (0 BLOCKER/0 MAJOR/0 MINOR/1 NIT; `PRIVACY_PATH_AUDIT_PASS`) → `DOCUMENT_ONLY` → `COMMIT_ONLY` → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY`.~~ Completed — merged via PR #181 (merge commit `be70ffcede1fb03f9083c21e148c963658459c8b`).
+2. ~~`POST_MERGE_SYNC_ONLY` for PR #181.~~ Completed — local `master`/`origin/master` synchronized to `be70ffcede1fb03f9083c21e148c963658459c8b`.
 
 ### German Enhanced Term Recognition sequence — complete through Package 5B
 

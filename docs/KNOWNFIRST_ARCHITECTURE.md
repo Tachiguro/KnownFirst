@@ -910,19 +910,29 @@ Long free-text definitions are never graded by AI in the MVP.
 
 ## 21. Spaced-repetition architecture
 
+### 21.0 Active scheduler and FSRS-6 foundation boundary
+
+KnownFirst maintains a strict separation between the active production scheduler composition and the available algorithm foundations:
+
+- **Current Active Production Scheduler:** The application runtime learning workflow (`LearningService`, `MauiProgram.cs`) uses `SimpleSpacedRepetitionScheduler` implementing `ISpacedRepetitionScheduler` over the current Schema-12 persistence path.
+- **Available FSRS-6 Core Engine Foundation:** `KnownFirst.Core.Learning.Fsrs6` provides a pure, deterministic, platform-neutral FSRS-6 engine and replay foundation (`Fsrs6Scheduler`, `Fsrs6Replayer`, `Fsrs6Card`, `Fsrs6Parameters`, `Fsrs6ReviewEvent`, `Fsrs6CardState`), governed by [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md). The Core engine is completely independent of MAUI, SQLite, DI, JSON, network, and platform APIs.
+- **Planned Integration Boundary:** Full runtime activation, persistence mapping (card projections and append-only factual review logs), and data cutover belong to a separate, later persistence and learning integration package. Core value types and replay contracts do not contain database identity or persistence concepts.
+
+### 21.1 Initial deterministic scheduling rules (Current Production)
+
 Use an abstraction:
 
 ```csharp
 ISpacedRepetitionScheduler
 ```
 
-The initial implementation is:
+The initial production implementation is:
 
 ```csharp
 SimpleSpacedRepetitionScheduler
 ```
 
-It must be isolated so a future FSRS implementation can replace it without changing page logic, learning history, or card models.
+It is isolated so the FSRS-6 Core implementation can replace it in a future integration package without changing page logic, learning history, or card models.
 
 Use an injectable clock.
 
@@ -1016,7 +1026,7 @@ Review intervals continue to grow. They do not end automatically after 7 or 14 d
    - Pending repeat queue rows are persisted transactionally as active-session state in the database.
    - Unfinished repeat rows survive leaving and re-entering the learning workflow, application restarts, and service recreation.
 
-A future milestone may implement FSRS with a configurable desired retention. The current data model must not prevent that migration.
+The FSRS-6 core scheduling foundation is established in `KnownFirst.Core` per [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md); future persistence integration and production scheduler activation will be delivered in a dedicated migration package.
 
 ### 21.3 Daily new-word budget, learning-day boundaries, and Bridge state
 

@@ -11,6 +11,17 @@ namespace KnownFirst.Tests;
 [TestClass]
 public sealed class OnboardingCompletionTests
 {
+    [TestMethod]
+    public void TransactionalCompletionContract_IsExposedAlongsideTheLegacyCompletionMethod()
+    {
+        var transactionalCompletion = typeof(IOnboardingCompletionService).GetMethod(
+            nameof(IOnboardingCompletionService.CompleteOnboarding),
+            [typeof(OnboardingDraft)]);
+
+        Assert.IsNotNull(transactionalCompletion, "The B3 transactional completion overload must be available.");
+        Assert.AreEqual(typeof(bool), transactionalCompletion.ReturnType);
+    }
+
     private sealed class InMemoryPreferences : IPreferences
     {
         private readonly Dictionary<string, object> _store = new(StringComparer.Ordinal);

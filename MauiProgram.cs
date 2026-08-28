@@ -88,6 +88,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IWhatsNewPreferenceStore, MauiWhatsNewPreferenceStore>();
         builder.Services.AddSingleton<IReleaseNotesService, ReleaseNotesService>();
         builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingCompletionService, KnownFirst.Services.Onboarding.OnboardingCompletionService>();
+        builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingRecoveryService, KnownFirst.Services.Onboarding.OnboardingRecoveryService>();
         builder.Services.AddSingleton<IBugReportLauncherService, BugReportLauncherService>();
         builder.Services.AddSingleton<IKnownFirstDatabase, KnownFirstDatabase>();
         builder.Services.AddSingleton<IBackupPlatformInfo, MauiBackupPlatformInfo>();

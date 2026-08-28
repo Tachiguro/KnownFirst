@@ -105,6 +105,86 @@ public sealed class OnboardingCompletionRecoveryTests
         Assert.IsFalse(future.Journals.Cleared);
         Assert.IsFalse(future.App.ResetCalled);
     }
+
+    [TestMethod]
+    public void Recovery_NoJournalValidDraft_PreservesDraftAndProgress_WhenConsentExplicit()
+    {
+        // Setup: InProgress, journal missing, no migration marker, valid draft with explicit consent true, progress = Summary
+        var fixture = new RecoveryFixture { State = OnboardingState.InProgress };
+        fixture.Journals.Result = OnboardingCompletionJournalReadResult.Missing();
+        fixture.Progress.Step = OnboardingStep.Summary;
+        var draftWithConsent = B3TestData.Draft with { OnlineLookupConsent = true, LastCompletionAttemptFingerprint = null };
+        fixture.Drafts.Result = OnboardingDraftReadResult.Valid(draftWithConsent);
+        // No migration marker: InMemoryPreferences starts empty
+
+        var outcome = fixture.Recovery.Recover();
+
+        Assert.AreEqual(OnboardingRecoveryOutcome.Ready, outcome);
+        // Draft preserved: not cleared, not rewritten
+        Assert.IsFalse(fixture.Drafts.Cleared, "Draft must not be cleared during no-journal valid-draft recovery.");
+        Assert.IsNull(fixture.Drafts.Saved, "Draft must not be rewritten during no-journal valid-draft recovery.");
+        // Progress unchanged: explicit consent, Summary must stay Summary
+        Assert.AreEqual(OnboardingStep.Summary, fixture.Progress.Step,
+            "Progress must remain Summary when OnlineLookupConsent is explicitly true.");
+        // No baseline reset
+        Assert.IsFalse(fixture.App.ResetCalled, "Baseline normalization must not occur in no-journal valid-draft recovery.");
+        Assert.IsFalse(fixture.App.Revoked, "Consent must not be revoked in no-journal valid-draft recovery.");
+    }
+
+    [TestMethod]
+    public void Recovery_NoJournalValidDraft_ClampsProgressToOnlineLookup_WhenConsentNull()
+    {
+        // Setup: InProgress, journal missing, no migration marker, valid draft with null consent, progress = Summary
+        var fixture = new RecoveryFixture { State = OnboardingState.InProgress };
+        fixture.Journals.Result = OnboardingCompletionJournalReadResult.Missing();
+        fixture.Progress.Step = OnboardingStep.Summary;
+        var draftNullConsent = B3TestData.Draft with { OnlineLookupConsent = null, LastCompletionAttemptFingerprint = null };
+        fixture.Drafts.Result = OnboardingDraftReadResult.Valid(draftNullConsent);
+        // No migration marker
+
+        var outcome = fixture.Recovery.Recover();
+
+        Assert.AreEqual(OnboardingRecoveryOutcome.Ready, outcome);
+        // Draft preserved: not cleared, not rewritten
+        Assert.IsFalse(fixture.Drafts.Cleared, "Draft must not be cleared during no-journal null-consent recovery.");
+        Assert.IsNull(fixture.Drafts.Saved, "Draft must not be rewritten during no-journal null-consent recovery.");
+        // Progress clamped to OnlineLookup
+        Assert.AreEqual(OnboardingStep.OnlineLookup, fixture.Progress.Step,
+            "Progress must be clamped to OnlineLookup when OnlineLookupConsent is null and progress was after OnlineLookup.");
+        // No baseline reset
+        Assert.IsFalse(fixture.App.ResetCalled, "Baseline normalization must not occur in no-journal valid-draft recovery.");
+        Assert.IsFalse(fixture.App.Revoked, "Consent must not be granted or revoked by the null-consent clamp.");
+    }
+
+    [TestMethod]
+    public void Recovery_FailClosedValidDraft_ClampsProgressToOnlineLookup_WhenConsentNull()
+    {
+        // Setup: InProgress, corrupt journal, valid draft with null consent, progress later than OnlineLookup
+        var fixture = new RecoveryFixture { State = OnboardingState.InProgress };
+        fixture.Journals.Result = OnboardingCompletionJournalReadResult.Malformed();
+        fixture.Progress.Step = OnboardingStep.Summary;
+        var draftNullConsent = B3TestData.Draft with { OnlineLookupConsent = null, LastCompletionAttemptFingerprint = null };
+        fixture.Drafts.Result = OnboardingDraftReadResult.Valid(draftNullConsent);
+
+        var outcome = fixture.Recovery.Recover();
+
+        Assert.AreEqual(OnboardingRecoveryOutcome.Ready, outcome);
+        // Baseline normalization occurred
+        Assert.IsTrue(fixture.App.ResetCalled, "Baseline normalization (NormalizeCommittedBaseline) must occur in fail-closed recovery.");
+        // Consent revoked during fail-closed normalization
+        Assert.IsTrue(fixture.App.Revoked, "Consent must be revoked during fail-closed normalization.");
+        // Draft preserved: not cleared, not rewritten
+        Assert.IsFalse(fixture.Drafts.Cleared, "Valid draft must not be cleared during fail-closed null-consent recovery.");
+        Assert.IsNull(fixture.Drafts.Saved, "Draft must not be rewritten during fail-closed null-consent recovery.");
+        // Progress clamped to OnlineLookup
+        Assert.AreEqual(OnboardingStep.OnlineLookup, fixture.Progress.Step,
+            "Progress must be clamped to OnlineLookup when OnlineLookupConsent is null and progress was after OnlineLookup.");
+        // Language/theme restored only through preview
+        Assert.AreEqual("de", fixture.Language.Preview, "Language must be restored via preview API only.");
+        Assert.AreEqual(ThemePreference.Dark, fixture.Theme.Preview, "Theme must be restored via preview API only.");
+        Assert.IsFalse(fixture.Language.SetCalled, "Language committed setter must not be called.");
+        Assert.IsFalse(fixture.Theme.SetCalled, "Theme committed setter must not be called.");
+    }
 }
 
 internal static class B3TestData

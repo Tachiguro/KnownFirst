@@ -84,7 +84,7 @@ public sealed class OnboardingRecoveryService(
         var draftResult = draftStore.Read();
         return draftResult.Status switch
         {
-            OnboardingDraftStatus.Valid => OnboardingRecoveryOutcome.Ready,
+            OnboardingDraftStatus.Valid => ClampAndReturnReady(draftResult.Draft!),
             OnboardingDraftStatus.UnsupportedVersion => OnboardingRecoveryOutcome.UnsupportedFutureData,
             OnboardingDraftStatus.Missing => MigrateLegacyInProgressState(),
             _ => ResetInvalidDraftToFirstStep()
@@ -97,6 +97,7 @@ public sealed class OnboardingRecoveryService(
         if (draftResult.Status == OnboardingDraftStatus.Valid)
         {
             progressStore.SetCurrentStep(OnboardingStep.Summary);
+            ClampProgressForNullConsent(draftResult.Draft!);
             ApplyDraftPreview(draftResult.Draft!);
             return OnboardingRecoveryOutcome.Ready;
         }
@@ -150,7 +151,7 @@ public sealed class OnboardingRecoveryService(
         {
             NormalizeCommittedBaseline();
             ApplyDraftPreview(draftResult.Draft!);
-            CorrectProgressForMigratedConsent(draftResult.Draft!);
+            ClampProgressForNullConsent(draftResult.Draft!);
         }
         else
         {
@@ -164,6 +165,12 @@ public sealed class OnboardingRecoveryService(
         }
 
         preferences.Remove(MigrationStatePreferenceKey);
+        return OnboardingRecoveryOutcome.Ready;
+    }
+
+    private OnboardingRecoveryOutcome ClampAndReturnReady(OnboardingDraft draft)
+    {
+        ClampProgressForNullConsent(draft);
         return OnboardingRecoveryOutcome.Ready;
     }
 
@@ -200,7 +207,7 @@ public sealed class OnboardingRecoveryService(
         themeService.ApplyPreviewPreference(draft.Theme);
     }
 
-    private void CorrectProgressForMigratedConsent(OnboardingDraft draft)
+    private void ClampProgressForNullConsent(OnboardingDraft draft)
     {
         if (draft.OnlineLookupConsent.HasValue)
         {

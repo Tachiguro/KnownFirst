@@ -75,7 +75,7 @@ public sealed class OnboardingCompletionJournalStoreTests
         string uiLanguage = "en",
         ThemePreference theme = ThemePreference.Light,
         string? displayName = "Test User",
-        bool? onlineLookupConsent = true,
+        bool onlineLookupConsent = true,
         bool enhancedTermRecognitionEnabled = true,
         CardDirectionPreference cardDirection = CardDirectionPreference.Both,
         LearningMode learningMode = LearningMode.Automatic,
@@ -202,6 +202,18 @@ public sealed class OnboardingCompletionJournalStoreTests
     }
 
     [TestMethod]
+    public void Journal_OnlineLookupConsentProperty_IsNonNullableBool()
+    {
+        var journalType = GetJournalType();
+        var prop = journalType.GetProperty("OnlineLookupConsent");
+        Assert.IsNotNull(prop, "OnlineLookupConsent property must exist on OnboardingCompletionJournal.");
+        Assert.AreEqual(
+            typeof(bool),
+            prop.PropertyType,
+            "OnboardingCompletionJournal.OnlineLookupConsent must be non-nullable bool, not bool?.");
+    }
+
+    [TestMethod]
     public void AllFrozenTargetFields_SurviveSerializationRoundTrip()
     {
         var prefs = new InMemoryPreferences();
@@ -236,7 +248,7 @@ public sealed class OnboardingCompletionJournalStoreTests
         Assert.AreEqual("de", GetProp<string>(readJournal, "UiLanguage"));
         Assert.AreEqual(ThemePreference.Dark, GetProp<ThemePreference>(readJournal, "Theme"));
         Assert.AreEqual("Test User", GetProp<string?>(readJournal, "DisplayName"));
-        Assert.AreEqual(false, GetProp<bool?>(readJournal, "OnlineLookupConsent"));
+        Assert.AreEqual(false, GetProp<bool>(readJournal, "OnlineLookupConsent"));
         Assert.IsFalse(GetProp<bool>(readJournal, "EnhancedTermRecognitionEnabled"));
         Assert.AreEqual(CardDirectionPreference.MeaningToTerm, GetProp<CardDirectionPreference>(readJournal, "CardDirection"));
         Assert.AreEqual(LearningMode.Reading, GetProp<LearningMode>(readJournal, "LearningMode"));
@@ -245,6 +257,38 @@ public sealed class OnboardingCompletionJournalStoreTests
         Assert.AreEqual("Europe/Berlin", GetProp<string?>(readJournal, "ExplicitLearningTimezoneId"));
         Assert.AreEqual(240, GetProp<int>(readJournal, "LearningDayCutoffMinutes"));
         Assert.AreEqual("1.0.0-beta.13", GetProp<string>(readJournal, "AppVersion"));
+    }
+
+    [TestMethod]
+    public void ExplicitFalseConsent_SurvivesRoundTripAndSaveVerified()
+    {
+        var prefs = new InMemoryPreferences();
+        var store = CreateStore(prefs);
+
+        var journal = CreateJournal(onlineLookupConsent: false);
+        var success = SaveVerifiedToStore(store, journal);
+        Assert.IsTrue(success, "SaveVerified must succeed for an explicit-false consent journal.");
+
+        var (status, readJournal, _) = ReadFromStore(store);
+        Assert.AreEqual("Valid", status);
+        Assert.IsNotNull(readJournal);
+        Assert.IsFalse(GetProp<bool>(readJournal, "OnlineLookupConsent"), "Explicit false consent must survive round-trip.");
+    }
+
+    [TestMethod]
+    public void ExplicitTrueConsent_SurvivesRoundTripAndSaveVerified()
+    {
+        var prefs = new InMemoryPreferences();
+        var store = CreateStore(prefs);
+
+        var journal = CreateJournal(onlineLookupConsent: true);
+        var success = SaveVerifiedToStore(store, journal);
+        Assert.IsTrue(success, "SaveVerified must succeed for an explicit-true consent journal.");
+
+        var (status, readJournal, _) = ReadFromStore(store);
+        Assert.AreEqual("Valid", status);
+        Assert.IsNotNull(readJournal);
+        Assert.IsTrue(GetProp<bool>(readJournal, "OnlineLookupConsent"), "Explicit true consent must survive round-trip.");
     }
 
     [TestMethod]
@@ -329,7 +373,7 @@ public sealed class OnboardingCompletionJournalStoreTests
         var prefs = new InMemoryPreferences();
         const string journalKey = "onboarding_completion_journal";
         // AttemptId is empty, which is invalid
-        const string invalidJson = "{\"version\":1,\"attemptId\":\"\",\"targetFingerprint\":\"fp\",\"appVersion\":\"1.0\",\"preparationLimit\":5}";
+        const string invalidJson = "{\"version\":1,\"attemptId\":\"\",\"targetFingerprint\":\"fp\",\"appVersion\":\"1.0\",\"preparationLimit\":5,\"onlineLookupConsent\":true}";
         prefs.SetRawString(journalKey, invalidJson);
 
         var store = CreateStore(prefs);
@@ -338,6 +382,37 @@ public sealed class OnboardingCompletionJournalStoreTests
         Assert.AreEqual("Invalid", status);
         Assert.IsNull(journal);
         Assert.AreEqual(invalidJson, prefs.GetRawString(journalKey));
+    }
+
+    [TestMethod]
+    public void PersistedJson_WithNullOnlineLookupConsent_IsNotClassifiedValid()
+    {
+        var prefs = new InMemoryPreferences();
+        const string journalKey = "onboarding_completion_journal";
+        const string nullConsentJson = "{\"version\":1,\"attemptId\":\"att-1\",\"targetFingerprint\":\"fp-1\",\"uiLanguage\":\"en\",\"theme\":\"System\",\"onlineLookupConsent\":null,\"enhancedTermRecognitionEnabled\":true,\"cardDirection\":\"Both\",\"learningMode\":\"Automatic\",\"preparationLimit\":5,\"learningTimezoneMode\":\"System\",\"learningDayCutoffMinutes\":0,\"appVersion\":\"1.0.0\"}";
+        prefs.SetRawString(journalKey, nullConsentJson);
+
+        var store = CreateStore(prefs);
+        var (status, journal, _) = ReadFromStore(store);
+
+        Assert.AreNotEqual("Valid", status, "Persisted journal with null onlineLookupConsent must NOT be classified Valid.");
+        Assert.IsNull(journal);
+    }
+
+    [TestMethod]
+    public void PersistedJson_WithMissingOnlineLookupConsent_IsNotClassifiedValid()
+    {
+        var prefs = new InMemoryPreferences();
+        const string journalKey = "onboarding_completion_journal";
+        // onlineLookupConsent property is entirely absent from JSON
+        const string missingConsentJson = "{\"version\":1,\"attemptId\":\"att-1\",\"targetFingerprint\":\"fp-1\",\"uiLanguage\":\"en\",\"theme\":\"System\",\"enhancedTermRecognitionEnabled\":true,\"cardDirection\":\"Both\",\"learningMode\":\"Automatic\",\"preparationLimit\":5,\"learningTimezoneMode\":\"System\",\"learningDayCutoffMinutes\":0,\"appVersion\":\"1.0.0\"}";
+        prefs.SetRawString(journalKey, missingConsentJson);
+
+        var store = CreateStore(prefs);
+        var (status, journal, _) = ReadFromStore(store);
+
+        Assert.AreNotEqual("Valid", status, "Persisted journal with missing onlineLookupConsent property must NOT be classified Valid.");
+        Assert.IsNull(journal);
     }
 
     [TestMethod]

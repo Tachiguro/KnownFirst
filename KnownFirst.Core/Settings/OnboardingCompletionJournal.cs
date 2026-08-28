@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using KnownFirst.Core.Language;
 
 namespace KnownFirst.Core.Settings;
@@ -39,7 +40,7 @@ public sealed record OnboardingCompletionJournal(
     string UiLanguage,
     ThemePreference Theme,
     string? DisplayName,
-    bool? OnlineLookupConsent,
+    [property: JsonRequired] bool OnlineLookupConsent,
     bool EnhancedTermRecognitionEnabled,
     CardDirectionPreference CardDirection,
     LearningMode LearningMode,

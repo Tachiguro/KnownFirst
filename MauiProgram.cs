@@ -75,6 +75,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<KnownFirst.Services.Settings.IDisplayNameStore, KnownFirst.Services.Settings.MauiDisplayNameStore>();
         builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingStateStore, KnownFirst.Services.Onboarding.MauiOnboardingStateStore>();
         builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingProgressStore, KnownFirst.Services.Onboarding.MauiOnboardingProgressStore>();
+        builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingDraftStore, KnownFirst.Services.Onboarding.MauiOnboardingDraftStore>();
+        builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IOnboardingCompletionJournalStore, KnownFirst.Services.Onboarding.MauiOnboardingCompletionJournalStore>();
         builder.Services.AddSingleton<KnownFirst.Services.Onboarding.IInstallOriginClassifier, KnownFirst.Services.Onboarding.InstallOriginClassifier>();
         builder.Services.AddSingleton<KnownFirst.Services.Settings.ISettingsDefaultsService>(serviceProvider =>
             new KnownFirst.Services.Settings.SettingsDefaultsService(

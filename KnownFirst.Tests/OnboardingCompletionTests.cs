@@ -11,6 +11,17 @@ namespace KnownFirst.Tests;
 [TestClass]
 public sealed class OnboardingCompletionTests
 {
+    [TestMethod]
+    public void TransactionalCompletionContract_IsExposedAlongsideTheLegacyCompletionMethod()
+    {
+        var transactionalCompletion = typeof(IOnboardingCompletionService).GetMethod(
+            nameof(IOnboardingCompletionService.CompleteOnboarding),
+            [typeof(OnboardingDraft)]);
+
+        Assert.IsNotNull(transactionalCompletion, "The B3 transactional completion overload must be available.");
+        Assert.AreEqual(typeof(bool), transactionalCompletion.ReturnType);
+    }
+
     private sealed class InMemoryPreferences : IPreferences
     {
         private readonly Dictionary<string, object> _store = new(StringComparer.Ordinal);
@@ -81,11 +92,15 @@ public sealed class OnboardingCompletionTests
         public event EventHandler? UiLanguageChanged;
         public string CurrentUiLanguage => "en";
         public bool IsSystemPreferenceActive => true;
+        public string? PreviewUiLanguage => null;
+        public bool IsSystemPreviewActive => false;
         public IReadOnlyList<string> SupportedUiLanguages => ["en", "de", "ru"];
         public void Initialize() { }
         public void SetUiLanguage(string languageCode) { }
         public void ResetToDeviceLanguage() { }
         public void ReapplyCurrentCulture() { }
+        public void ApplyPreviewLanguage(string languageCode) => throw new NotSupportedException();
+        public void ClearPreview() => throw new NotSupportedException();
     }
 
     private sealed class RecordingReleaseNotesService(List<string> eventLog, Action? onMarkSeen = null) : IReleaseNotesService

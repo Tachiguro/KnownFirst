@@ -30,10 +30,17 @@ public sealed class LanguageSelectionService : ILanguageSelectionService
 
     public bool IsSystemPreferenceActive { get; private set; }
 
+    public string? PreviewUiLanguage { get; private set; }
+
+    public bool IsSystemPreviewActive { get; private set; }
+
     public IReadOnlyList<string> SupportedUiLanguages => LanguagePreferencePolicy.SupportedLanguageCodes;
 
     public void Initialize()
     {
+        PreviewUiLanguage = null;
+        IsSystemPreviewActive = false;
+
         var hasSavedPreference = _preferenceStore.HasSavedLanguage;
         var storedPreference = hasSavedPreference ? _preferenceStore.GetSavedLanguage() : null;
         _diagnostics.LogInitialization(hasSavedPreference, storedPreference);
@@ -63,17 +70,85 @@ public sealed class LanguageSelectionService : ILanguageSelectionService
         _diagnostics.LogStartupLanguageResolved(manualLanguage);
     }
 
+    public void ApplyPreviewLanguage(string languageCode)
+    {
+        _diagnostics.LogManualLanguageRequested(languageCode);
+
+        if (LanguagePreferencePolicy.IsExplicitSystemSelector(languageCode))
+        {
+            var deviceCulture = _deviceCultureProvider.GetDeviceCultureName();
+            _diagnostics.LogDeviceCultureDetected(deviceCulture);
+            var selectedLanguage = LanguagePreferencePolicy.Normalize(deviceCulture);
+
+            var previewChanged = !IsSystemPreviewActive || !string.Equals(PreviewUiLanguage, selectedLanguage, StringComparison.Ordinal);
+            PreviewUiLanguage = selectedLanguage;
+            IsSystemPreviewActive = true;
+            ApplyCulture(selectedLanguage);
+
+            if (previewChanged)
+            {
+                UiLanguageChanged?.Invoke(this, EventArgs.Empty);
+            }
+            return;
+        }
+
+        if (!LanguagePreferencePolicy.TryNormalizeSupportedLanguage(languageCode, out var normalizedLanguage))
+        {
+            throw new ArgumentOutOfRangeException(nameof(languageCode));
+        }
+
+        var manualPreviewChanged = IsSystemPreviewActive || !string.Equals(PreviewUiLanguage, normalizedLanguage, StringComparison.Ordinal);
+        PreviewUiLanguage = normalizedLanguage;
+        IsSystemPreviewActive = false;
+        ApplyCulture(normalizedLanguage);
+
+        if (manualPreviewChanged)
+        {
+            UiLanguageChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void ClearPreview()
+    {
+        if (PreviewUiLanguage is null && !IsSystemPreviewActive)
+        {
+            return;
+        }
+
+        PreviewUiLanguage = null;
+        IsSystemPreviewActive = false;
+
+        if (IsSystemPreferenceActive)
+        {
+            var deviceCulture = _deviceCultureProvider.GetDeviceCultureName();
+            _diagnostics.LogDeviceCultureDetected(deviceCulture);
+            var selectedLanguage = LanguagePreferencePolicy.Normalize(deviceCulture);
+            ApplyCulture(selectedLanguage);
+            CurrentUiLanguage = selectedLanguage;
+        }
+        else
+        {
+            ApplyCulture(CurrentUiLanguage);
+        }
+
+        UiLanguageChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void SetUiLanguage(string languageCode)
     {
         _diagnostics.LogManualLanguageRequested(languageCode);
 
         if (LanguagePreferencePolicy.IsExplicitSystemSelector(languageCode))
         {
-            if (IsSystemPreferenceActive)
+            var noPreview = PreviewUiLanguage is null && !IsSystemPreviewActive;
+            var storeHasSystem = _preferenceStore.HasSavedLanguage && LanguagePreferencePolicy.IsExplicitSystemSelector(_preferenceStore.GetSavedLanguage());
+            if (noPreview && IsSystemPreferenceActive && storeHasSystem)
             {
                 return;
             }
 
+            PreviewUiLanguage = null;
+            IsSystemPreviewActive = false;
             ApplySystemSelection(persistExplicitMarker: true);
             return;
         }
@@ -83,12 +158,19 @@ public sealed class LanguageSelectionService : ILanguageSelectionService
             throw new ArgumentOutOfRangeException(nameof(languageCode));
         }
 
-        if (!IsSystemPreferenceActive
-            && string.Equals(CurrentUiLanguage, normalizedLanguage, StringComparison.Ordinal))
+        var noPreviewActive = PreviewUiLanguage is null && !IsSystemPreviewActive;
+        var storeHasManual = _preferenceStore.HasSavedLanguage && string.Equals(_preferenceStore.GetSavedLanguage(), normalizedLanguage, StringComparison.Ordinal);
+
+        if (noPreviewActive
+            && !IsSystemPreferenceActive
+            && string.Equals(CurrentUiLanguage, normalizedLanguage, StringComparison.Ordinal)
+            && storeHasManual)
         {
             return;
         }
 
+        PreviewUiLanguage = null;
+        IsSystemPreviewActive = false;
         PersistAndVerify(normalizedLanguage);
         ApplyCulture(normalizedLanguage);
         CurrentUiLanguage = normalizedLanguage;
@@ -98,12 +180,15 @@ public sealed class LanguageSelectionService : ILanguageSelectionService
 
     public void ResetToDeviceLanguage()
     {
+        PreviewUiLanguage = null;
+        IsSystemPreviewActive = false;
         ApplySystemSelection(persistExplicitMarker: true);
     }
 
     public void ReapplyCurrentCulture()
     {
-        ApplyCulture(CurrentUiLanguage);
+        var effectiveLanguage = PreviewUiLanguage ?? CurrentUiLanguage;
+        ApplyCulture(effectiveLanguage);
     }
 
     private void ApplySystemSelection(bool persistExplicitMarker)

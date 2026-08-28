@@ -1,7 +1,5 @@
 @namespace KnownFirst.Components.Onboarding.Steps
 @using KnownFirst.Core.Settings
-@using KnownFirst.Services
-@inject IAppSettingsService AppSettings
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-practice-step">
@@ -14,23 +12,23 @@
         <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-card-direction-title" aria-describedby="onboarding-card-direction-help">
             <button type="button"
                     id="onboarding-card-direction-both"
-                    class="choice-button @(AppSettings.CardDirection == CardDirectionPreference.Both ? "active" : null)"
-                    aria-pressed="@(AppSettings.CardDirection == CardDirectionPreference.Both)"
-                    @onclick="() => SetCardDirection(CardDirectionPreference.Both)">
+                    class="choice-button @(CardDirection == CardDirectionPreference.Both ? "active" : null)"
+                    aria-pressed="@(CardDirection == CardDirectionPreference.Both)"
+                    @onclick="() => SelectCardDirection(CardDirectionPreference.Both)">
                 @Localizer["Settings_CardDirectionBoth"]
             </button>
             <button type="button"
                     id="onboarding-card-direction-term-to-meaning"
-                    class="choice-button @(AppSettings.CardDirection == CardDirectionPreference.TermToMeaning ? "active" : null)"
-                    aria-pressed="@(AppSettings.CardDirection == CardDirectionPreference.TermToMeaning)"
-                    @onclick="() => SetCardDirection(CardDirectionPreference.TermToMeaning)">
+                    class="choice-button @(CardDirection == CardDirectionPreference.TermToMeaning ? "active" : null)"
+                    aria-pressed="@(CardDirection == CardDirectionPreference.TermToMeaning)"
+                    @onclick="() => SelectCardDirection(CardDirectionPreference.TermToMeaning)">
                 @Localizer["Settings_CardDirectionTermToMeaning"]
             </button>
             <button type="button"
                     id="onboarding-card-direction-meaning-to-term"
-                    class="choice-button @(AppSettings.CardDirection == CardDirectionPreference.MeaningToTerm ? "active" : null)"
-                    aria-pressed="@(AppSettings.CardDirection == CardDirectionPreference.MeaningToTerm)"
-                    @onclick="() => SetCardDirection(CardDirectionPreference.MeaningToTerm)">
+                    class="choice-button @(CardDirection == CardDirectionPreference.MeaningToTerm ? "active" : null)"
+                    aria-pressed="@(CardDirection == CardDirectionPreference.MeaningToTerm)"
+                    @onclick="() => SelectCardDirection(CardDirectionPreference.MeaningToTerm)">
                 @Localizer["Settings_CardDirectionMeaningToTerm"]
             </button>
         </div>
@@ -42,23 +40,23 @@
         <div class="choice-grid choice-grid-three" role="group" aria-labelledby="onboarding-learning-mode-title" aria-describedby="onboarding-learning-mode-help">
             <button type="button"
                     id="onboarding-learning-mode-automatic"
-                    class="choice-button @(AppSettings.LearningMode == LearningMode.Automatic ? "active" : null)"
-                    aria-pressed="@(AppSettings.LearningMode == LearningMode.Automatic)"
-                    @onclick="() => SetLearningMode(LearningMode.Automatic)">
+                    class="choice-button @(LearningMode == LearningMode.Automatic ? "active" : null)"
+                    aria-pressed="@(LearningMode == LearningMode.Automatic)"
+                    @onclick="() => SelectLearningMode(LearningMode.Automatic)">
                 @Localizer["Settings_LearningModeAutomatic"]
             </button>
             <button type="button"
                     id="onboarding-learning-mode-reading"
-                    class="choice-button @(AppSettings.LearningMode == LearningMode.Reading ? "active" : null)"
-                    aria-pressed="@(AppSettings.LearningMode == LearningMode.Reading)"
-                    @onclick="() => SetLearningMode(LearningMode.Reading)">
+                    class="choice-button @(LearningMode == LearningMode.Reading ? "active" : null)"
+                    aria-pressed="@(LearningMode == LearningMode.Reading)"
+                    @onclick="() => SelectLearningMode(LearningMode.Reading)">
                 @Localizer["Settings_LearningModeReading"]
             </button>
             <button type="button"
                     id="onboarding-learning-mode-typing"
-                    class="choice-button @(AppSettings.LearningMode == LearningMode.Typing ? "active" : null)"
-                    aria-pressed="@(AppSettings.LearningMode == LearningMode.Typing)"
-                    @onclick="() => SetLearningMode(LearningMode.Typing)">
+                    class="choice-button @(LearningMode == LearningMode.Typing ? "active" : null)"
+                    aria-pressed="@(LearningMode == LearningMode.Typing)"
+                    @onclick="() => SelectLearningMode(LearningMode.Typing)">
                 @Localizer["Settings_LearningModeTyping"]
             </button>
         </div>
@@ -81,16 +79,26 @@
 </div>
 
 @code {
+    [Parameter] public CardDirectionPreference CardDirection { get; set; }
+    [Parameter] public LearningMode LearningMode { get; set; }
+    [Parameter] public EventCallback<CardDirectionPreference> OnCardDirectionChanged { get; set; }
+    [Parameter] public EventCallback<LearningMode> OnLearningModeChanged { get; set; }
     [Parameter] public EventCallback OnContinue { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
-    private void SetCardDirection(CardDirectionPreference preference)
+    private async Task SelectCardDirection(CardDirectionPreference preference)
     {
-        AppSettings.SetCardDirection(preference);
+        if (OnCardDirectionChanged.HasDelegate)
+        {
+            await OnCardDirectionChanged.InvokeAsync(preference);
+        }
     }
 
-    private void SetLearningMode(LearningMode mode)
+    private async Task SelectLearningMode(LearningMode mode)
     {
-        AppSettings.SetLearningMode(mode);
+        if (OnLearningModeChanged.HasDelegate)
+        {
+            await OnLearningModeChanged.InvokeAsync(mode);
+        }
     }
 }

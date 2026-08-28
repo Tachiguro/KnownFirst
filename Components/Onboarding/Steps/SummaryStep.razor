@@ -2,16 +2,16 @@
 @using System.Globalization
 @using KnownFirst.Core.Language
 @using KnownFirst.Core.Settings
-@using KnownFirst.Services
-@using KnownFirst.Services.Settings
-@inject IAppSettingsService AppSettings
-@inject IDisplayNameStore DisplayNameStore
-@inject ILanguageSelectionService LanguageSelection
-@inject IThemeService ThemeService
+@using KnownFirst.Services.Time
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-summary-step">
     <h1 class="onboarding-title" id="onboarding-summary-title">@Localizer["Onboarding_SummaryTitle"]</h1>
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <p class="setting-feedback setting-feedback-error" role="alert">@ErrorMessage</p>
+    }
 
     <div class="onboarding-card summary-card" role="region" aria-labelledby="onboarding-summary-title">
         <dl class="summary-list">
@@ -25,27 +25,27 @@
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_DisplayName"]</dt>
-                <dd>@(DisplayNameStore.GetDisplayName() ?? Localizer["Onboarding_SummaryDisplayNameNotSet"])</dd>
+                <dd>@(Draft.DisplayName ?? Localizer["Onboarding_SummaryDisplayNameNotSet"])</dd>
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_OnlineDictionary"]</dt>
-                <dd>@Localizer[AppSettings.HasOnlineLookupConsent ? "Settings_EnhancedTermRecognitionOn" : "Settings_EnhancedTermRecognitionOff"]</dd>
+                <dd>@Localizer[Draft.OnlineLookupConsent == true ? "Settings_EnhancedTermRecognitionOn" : "Settings_EnhancedTermRecognitionOff"]</dd>
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_EnhancedTermRecognition"]</dt>
-                <dd>@Localizer[AppSettings.EnhancedTermRecognitionEnabled ? "Settings_EnhancedTermRecognitionOn" : "Settings_EnhancedTermRecognitionOff"]</dd>
+                <dd>@Localizer[Draft.EnhancedTermRecognitionEnabled ? "Settings_EnhancedTermRecognitionOn" : "Settings_EnhancedTermRecognitionOff"]</dd>
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_CardDirection"]</dt>
-                <dd>@GetCardDirectionLabel(AppSettings.CardDirection)</dd>
+                <dd>@GetCardDirectionLabel(Draft.CardDirection)</dd>
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_LearningMode"]</dt>
-                <dd>@GetLearningModeLabel(AppSettings.LearningMode)</dd>
+                <dd>@GetLearningModeLabel(Draft.LearningMode)</dd>
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_PreparationLimit"]</dt>
-                <dd>@AppSettings.PreparationLimit</dd>
+                <dd>@Draft.PreparationLimit</dd>
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_LearningTimezone"]</dt>
@@ -53,7 +53,7 @@
             </div>
             <div class="summary-item">
                 <dt>@Localizer["Settings_LearningDayCutoff"]</dt>
-                <dd>@GetCutoffLabel(AppSettings.LearningDayCutoffMinutes)</dd>
+                <dd>@GetCutoffLabel(Draft.LearningDayCutoffMinutes)</dd>
             </div>
         </dl>
         <p id="onboarding-summary-settings-notice" class="setting-help">@Localizer["Onboarding_SummarySettingsNotice"]</p>
@@ -63,6 +63,7 @@
         <button type="button"
                 id="onboarding-finish-button"
                 class="button button-primary onboarding-continue-button"
+                disabled="@(!Draft.OnlineLookupConsent.HasValue)"
                 @onclick="OnFinish">
             @Localizer["Onboarding_FinishSetup"]
         </button>
@@ -76,25 +77,27 @@
 </div>
 
 @code {
+    [Parameter, EditorRequired] public OnboardingDraft Draft { get; set; } = null!;
+    [Parameter] public string? ErrorMessage { get; set; }
     [Parameter] public EventCallback OnFinish { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
     private string GetLanguagePreferenceDisplayName()
     {
-        if (LanguageSelection.IsSystemPreferenceActive)
+        if (string.Equals(Draft.UiLanguage, LanguagePreferencePolicy.SystemPreferenceCode, StringComparison.OrdinalIgnoreCase))
         {
             return Localizer["Settings_UILanguageSystem"];
         }
 
-        return LanguageSelection.CurrentUiLanguage switch
+        return Draft.UiLanguage switch
         {
-            LanguageSelectionService.GermanLanguageCode => Localizer["Settings_German"],
-            LanguageSelectionService.RussianLanguageCode => Localizer["Settings_Russian"],
+            LanguagePreferencePolicy.GermanLanguageCode => Localizer["Settings_German"],
+            LanguagePreferencePolicy.RussianLanguageCode => Localizer["Settings_Russian"],
             _ => Localizer["Settings_English"]
         };
     }
 
-    private string GetAppearancePreferenceDisplayName() => ThemeService.Preference switch
+    private string GetAppearancePreferenceDisplayName() => Draft.Theme switch
     {
         ThemePreference.Light => Localizer["Settings_AppearanceLight"],
         ThemePreference.Dark => Localizer["Settings_AppearanceDark"],
@@ -117,10 +120,10 @@
 
     private string GetTimezoneLabel()
     {
-        if (AppSettings.LearningTimezoneMode == LearningTimezoneMode.Explicit
-            && LearningTimezoneCatalog.ContainsTimezoneId(AppSettings.ExplicitLearningTimezoneId))
+        if (Draft.LearningTimezoneMode == LearningTimezoneMode.Explicit
+            && LearningTimezoneCatalog.ContainsTimezoneId(Draft.ExplicitLearningTimezoneId))
         {
-            var option = LearningTimezoneCatalog.Options.FirstOrDefault(o => o.TimezoneId == AppSettings.ExplicitLearningTimezoneId);
+            var option = LearningTimezoneCatalog.Options.FirstOrDefault(o => o.TimezoneId == Draft.ExplicitLearningTimezoneId);
             if (option is not null)
             {
                 string cityName = Localizer[option.CityResourceKey];

@@ -8,6 +8,10 @@ public interface ILanguageSelectionService
 
     bool IsSystemPreferenceActive { get; }
 
+    string? PreviewUiLanguage { get; }
+
+    bool IsSystemPreviewActive { get; }
+
     IReadOnlyList<string> SupportedUiLanguages { get; }
 
     void Initialize();
@@ -17,4 +21,8 @@ public interface ILanguageSelectionService
     void ResetToDeviceLanguage();
 
     void ReapplyCurrentCulture();
+
+    void ApplyPreviewLanguage(string languageCode);
+
+    void ClearPreview();
 }

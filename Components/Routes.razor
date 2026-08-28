@@ -4,6 +4,7 @@
 @inject IJSRuntime JsRuntime
 @inject KnownFirst.Services.Study.IStartupMaintenanceService StartupMaintenance
 @inject KnownFirst.Services.Onboarding.IOnboardingStateStore OnboardingStateStore
+@inject KnownFirst.Services.Onboarding.IOnboardingRecoveryService OnboardingRecoveryService
 @inject ILogger<Routes> Logger
 
 <div class="app-theme-root" data-theme="@ThemeService.EffectiveThemeCssName">
@@ -75,6 +76,14 @@
 
         try
         {
+            var recoveryOutcome = OnboardingRecoveryService.Recover();
+            if (recoveryOutcome == KnownFirst.Services.Onboarding.OnboardingRecoveryOutcome.UnsupportedFutureData)
+            {
+                Logger.LogError("Onboarding recovery encountered unsupported future data.");
+                _initializationFailed = true;
+                return;
+            }
+
             await Database.InitializeAsync();
             StartupMaintenance.Start();
             Logger.LogInformation("Application data initialization completed.");

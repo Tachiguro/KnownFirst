@@ -1,6 +1,4 @@
 @namespace KnownFirst.Components.Onboarding.Steps
-@using KnownFirst.Services
-@inject IAppSettingsService AppSettings
 @inject IStringLocalizer<SharedResource> Localizer
 
 <div class="onboarding-step onboarding-etr-step">
@@ -11,15 +9,15 @@
         <div class="choice-grid choice-grid-two" role="group" aria-labelledby="onboarding-etr-title">
             <button type="button"
                     id="onboarding-etr-on-button"
-                    class="choice-button @(AppSettings.EnhancedTermRecognitionEnabled ? "active" : null)"
-                    aria-pressed="@AppSettings.EnhancedTermRecognitionEnabled"
+                    class="choice-button @(EnhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@EnhancedTermRecognitionEnabled"
                     @onclick="() => SetEtr(true)">
                 @Localizer["Settings_EnhancedTermRecognitionOn"]
             </button>
             <button type="button"
                     id="onboarding-etr-off-button"
-                    class="choice-button @(!AppSettings.EnhancedTermRecognitionEnabled ? "active" : null)"
-                    aria-pressed="@(!AppSettings.EnhancedTermRecognitionEnabled)"
+                    class="choice-button @(!EnhancedTermRecognitionEnabled ? "active" : null)"
+                    aria-pressed="@(!EnhancedTermRecognitionEnabled)"
                     @onclick="() => SetEtr(false)">
                 @Localizer["Settings_EnhancedTermRecognitionOff"]
             </button>
@@ -43,11 +41,16 @@
 </div>
 
 @code {
+    [Parameter] public bool EnhancedTermRecognitionEnabled { get; set; }
+    [Parameter] public EventCallback<bool> OnEnhancedTermRecognitionChanged { get; set; }
     [Parameter] public EventCallback OnContinue { get; set; }
     [Parameter] public EventCallback OnBack { get; set; }
 
-    private void SetEtr(bool enabled)
+    private async Task SetEtr(bool enabled)
     {
-        AppSettings.SetEnhancedTermRecognitionEnabled(enabled);
+        if (OnEnhancedTermRecognitionChanged.HasDelegate)
+        {
+            await OnEnhancedTermRecognitionChanged.InvokeAsync(enabled);
+        }
     }
 }

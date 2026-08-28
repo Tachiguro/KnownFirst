@@ -315,6 +315,200 @@ public sealed class LanguageSelectionServiceTests
             operations);
     }
 
+    [TestMethod]
+    public void InterfaceAndService_ExposeLanguagePreviewApi()
+    {
+        var interfaceType = typeof(ILanguageSelectionService);
+        var serviceType = typeof(LanguageSelectionService);
+
+        var ifacePreviewProp = interfaceType.GetProperty("PreviewUiLanguage");
+        Assert.IsNotNull(ifacePreviewProp, "ILanguageSelectionService must expose PreviewUiLanguage property.");
+        Assert.AreEqual(typeof(string), ifacePreviewProp.PropertyType);
+        Assert.IsTrue(ifacePreviewProp.GetMethod!.IsAbstract, "PreviewUiLanguage getter must be required.");
+
+        var ifaceSystemPreviewProp = interfaceType.GetProperty("IsSystemPreviewActive");
+        Assert.IsNotNull(ifaceSystemPreviewProp, "ILanguageSelectionService must expose IsSystemPreviewActive property.");
+        Assert.AreEqual(typeof(bool), ifaceSystemPreviewProp.PropertyType);
+        Assert.IsTrue(ifaceSystemPreviewProp.GetMethod!.IsAbstract, "IsSystemPreviewActive getter must be required.");
+
+        var ifaceApplyMethod = interfaceType.GetMethod("ApplyPreviewLanguage", [typeof(string)]);
+        Assert.IsNotNull(ifaceApplyMethod, "ILanguageSelectionService must expose ApplyPreviewLanguage(string) method.");
+        Assert.IsTrue(ifaceApplyMethod.IsAbstract, "ApplyPreviewLanguage must be required.");
+
+        var ifaceClearMethod = interfaceType.GetMethod("ClearPreview", Type.EmptyTypes);
+        Assert.IsNotNull(ifaceClearMethod, "ILanguageSelectionService must expose ClearPreview() method.");
+        Assert.IsTrue(ifaceClearMethod.IsAbstract, "ClearPreview must be required.");
+
+        var svcPreviewProp = serviceType.GetProperty("PreviewUiLanguage");
+        Assert.IsNotNull(svcPreviewProp, "LanguageSelectionService must implement PreviewUiLanguage property.");
+
+        var svcSystemPreviewProp = serviceType.GetProperty("IsSystemPreviewActive");
+        Assert.IsNotNull(svcSystemPreviewProp, "LanguageSelectionService must implement IsSystemPreviewActive property.");
+
+        var svcApplyMethod = serviceType.GetMethod("ApplyPreviewLanguage", [typeof(string)]);
+        Assert.IsNotNull(svcApplyMethod, "LanguageSelectionService must implement ApplyPreviewLanguage(string) method.");
+
+        var svcClearMethod = serviceType.GetMethod("ClearPreview", Type.EmptyTypes);
+        Assert.IsNotNull(svcClearMethod, "LanguageSelectionService must implement ClearPreview() method.");
+    }
+
+    [TestMethod]
+    public void ManualPreview_AppliesLiveCulture_WithoutModifyingCommittedStateOrStore()
+    {
+        var service = CreateInitializedService(true, "en", "en-US", out var store, out _, out var cultureContext);
+        var applyMethod = service.GetType().GetMethod("ApplyPreviewLanguage", [typeof(string)])
+            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewLanguage must exist.");
+
+        var notificationCount = 0;
+        service.UiLanguageChanged += (_, _) => notificationCount++;
+
+        applyMethod.Invoke(service, ["de"]);
+
+        Assert.AreEqual("de", cultureContext.CurrentUiLanguage, "Live culture must reflect previewed language.");
+        Assert.AreEqual(0, store.SetCount, "Preview must perform zero preference writes.");
+        Assert.AreEqual("en", service.CurrentUiLanguage, "Committed CurrentUiLanguage must remain unchanged.");
+        Assert.IsFalse(service.IsSystemPreferenceActive, "Committed IsSystemPreferenceActive must remain unchanged.");
+
+        var previewProp = service.GetType().GetProperty("PreviewUiLanguage")!;
+        Assert.AreEqual("de", previewProp.GetValue(service));
+
+        var systemPreviewProp = service.GetType().GetProperty("IsSystemPreviewActive")!;
+        Assert.AreEqual(false, systemPreviewProp.GetValue(service));
+
+        Assert.AreEqual(1, notificationCount, "Preview should notify subscribers of effective culture change.");
+    }
+
+    [TestMethod]
+    public void SystemPreview_ResolvesDeviceCulture_WithoutModifyingCommittedStateOrStore()
+    {
+        var service = CreateInitializedService(true, "en", "de-DE", out var store, out _, out var cultureContext);
+        var applyMethod = service.GetType().GetMethod("ApplyPreviewLanguage", [typeof(string)])
+            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewLanguage must exist.");
+
+        applyMethod.Invoke(service, ["system"]);
+
+        Assert.AreEqual("de", cultureContext.CurrentUiLanguage, "System preview must apply resolved device culture.");
+        Assert.AreEqual(0, store.SetCount, "Preview must not write to preference store.");
+        Assert.AreEqual("en", service.CurrentUiLanguage, "Committed CurrentUiLanguage must remain unchanged.");
+        Assert.IsFalse(service.IsSystemPreferenceActive, "Committed IsSystemPreferenceActive must remain unchanged.");
+
+        var previewProp = service.GetType().GetProperty("PreviewUiLanguage")!;
+        Assert.AreEqual("de", previewProp.GetValue(service));
+
+        var systemPreviewProp = service.GetType().GetProperty("IsSystemPreviewActive")!;
+        Assert.AreEqual(true, systemPreviewProp.GetValue(service));
+    }
+
+    [TestMethod]
+    public void ClearPreview_RestoresCommittedCulture_WithZeroPersistence()
+    {
+        var service = CreateInitializedService(true, "en", "en-US", out var store, out _, out var cultureContext);
+        var applyMethod = service.GetType().GetMethod("ApplyPreviewLanguage", [typeof(string)])
+            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewLanguage must exist.");
+        var clearMethod = service.GetType().GetMethod("ClearPreview", Type.EmptyTypes)
+            ?? throw new AssertFailedException("Missing B2 behavior: ClearPreview must exist.");
+
+        applyMethod.Invoke(service, ["de"]);
+        Assert.AreEqual("de", cultureContext.CurrentUiLanguage);
+
+        clearMethod.Invoke(service, null);
+
+        Assert.AreEqual("en", cultureContext.CurrentUiLanguage, "ClearPreview must restore committed culture.");
+        Assert.AreEqual(0, store.SetCount, "ClearPreview must not perform preference writes.");
+
+        var previewProp = service.GetType().GetProperty("PreviewUiLanguage")!;
+        Assert.IsNull(previewProp.GetValue(service));
+
+        var systemPreviewProp = service.GetType().GetProperty("IsSystemPreviewActive")!;
+        Assert.AreEqual(false, systemPreviewProp.GetValue(service));
+    }
+
+    [TestMethod]
+    public void ReapplyCurrentCulture_ReappliesPreview_WhenPreviewActive()
+    {
+        var operations = new List<string>();
+        var store = new InMemoryLanguagePreferenceStore(true, "en", operations);
+        var deviceCultureProvider = new FakeDeviceCultureProvider("en-US", operations);
+        var cultureContext = new FakeUiCultureContext(operations);
+        var service = new LanguageSelectionService(store, deviceCultureProvider, cultureContext);
+        service.Initialize();
+        operations.Clear();
+
+        var applyMethod = service.GetType().GetMethod("ApplyPreviewLanguage", [typeof(string)])
+            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewLanguage must exist.");
+
+        applyMethod.Invoke(service, ["de"]);
+        operations.Clear();
+
+        service.ReapplyCurrentCulture();
+
+        Assert.IsTrue(operations.Contains("culture:de"), "ReapplyCurrentCulture must reapply the active preview culture.");
+    }
+
+    [TestMethod]
+    public void Initialize_ClearsPreview_AndRestoresCommittedPersistedPreference()
+    {
+        var service = CreateInitializedService(true, "en", "en-US", out var store, out _, out var cultureContext);
+        var applyMethod = service.GetType().GetMethod("ApplyPreviewLanguage", [typeof(string)])
+            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewLanguage must exist.");
+
+        applyMethod.Invoke(service, ["de"]);
+        Assert.AreEqual("de", cultureContext.CurrentUiLanguage);
+
+        service.Initialize();
+
+        var previewProp = service.GetType().GetProperty("PreviewUiLanguage")!;
+        Assert.IsNull(previewProp.GetValue(service), "Initialize must clear preview.");
+        Assert.AreEqual("en", service.CurrentUiLanguage);
+        Assert.AreEqual("en", cultureContext.CurrentUiLanguage);
+    }
+
+    [TestMethod]
+    public void PreviewGerman_ThenSetUiLanguageGerman_PersistsGerman()
+    {
+        var service = CreateInitializedService(true, "en", "en-US", out var store, out _, out var cultureContext);
+        var applyMethod = service.GetType().GetMethod("ApplyPreviewLanguage", [typeof(string)])
+            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewLanguage must exist.");
+
+        // Preview German
+        applyMethod.Invoke(service, ["de"]);
+        Assert.AreEqual(0, store.SetCount);
+        Assert.AreEqual("de", cultureContext.CurrentUiLanguage);
+
+        // Now commit German
+        service.SetUiLanguage("de");
+
+        Assert.AreEqual("de", store.SavedLanguage, "SetUiLanguage must persist German even if it was actively previewed.");
+        Assert.AreEqual(1, store.SetCount);
+        Assert.AreEqual("de", service.CurrentUiLanguage);
+        Assert.IsFalse(service.IsSystemPreferenceActive);
+
+        var previewProp = service.GetType().GetProperty("PreviewUiLanguage")!;
+        Assert.IsNull(previewProp.GetValue(service), "SetUiLanguage must clear preview.");
+    }
+
+    [TestMethod]
+    public void PreviewSystem_ThenSetUiLanguageSystem_VerifiesAndPersistsSystemMarker()
+    {
+        var service = CreateInitializedService(true, "en", "de-DE", out var store, out _, out var cultureContext);
+        var applyMethod = service.GetType().GetMethod("ApplyPreviewLanguage", [typeof(string)])
+            ?? throw new AssertFailedException("Missing B2 behavior: ApplyPreviewLanguage must exist.");
+
+        // Preview System
+        applyMethod.Invoke(service, ["system"]);
+        Assert.AreEqual(0, store.SetCount);
+
+        // Now commit System
+        service.SetUiLanguage("system");
+
+        Assert.AreEqual("system", store.SavedLanguage, "SetUiLanguage(system) must persist explicit system marker.");
+        Assert.IsTrue(service.IsSystemPreferenceActive);
+        Assert.AreEqual("de", service.CurrentUiLanguage);
+
+        var previewProp = service.GetType().GetProperty("PreviewUiLanguage")!;
+        Assert.IsNull(previewProp.GetValue(service), "SetUiLanguage must clear preview.");
+    }
+
     private static LanguageSelectionService CreateInitializedService(
         bool hasSavedLanguage,
         string? savedLanguage,

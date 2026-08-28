@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-26
-**State source:** Synchronized `master` baseline. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Status date:** 2026-08-28
+**State source:** `master` baseline plus the reviewed local `KF-TRANSACTIONAL-ONBOARDING-001` source/corrective checkpoint `fbb9c408a7eafa7115ed909af267b1a4a896bb5a` on `feature/transactional-onboarding-settings-v1`, not yet pushed or merged. The exact `FULL_VALIDATION` candidate will be the documentation-adjusted HEAD created by the subsequent documentation commit and must be taken from live Git. Authoritative live Git and PR state are discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -61,7 +61,63 @@ This document records stable, verified architectural facts and current capabilit
 - first-run onboarding vertical scroll reachability: bounded scroll surface on `.onboarding-host` with auto-centering on `.onboarding-main`, ensuring all onboarding steps and actions remain fully reachable at constrained viewport heights (merged via PR #169);
 - scheduled review next-due summary authority: `LearningSessionSummary.NextDueAtUtc` is strictly restricted to scheduled work in Learning, Review, or Relearning states that have at least one active Required answer assignment, excluding genuinely-new card admission seed timestamps and nonqueueable zero-Required cards without altering persisted timestamps or card states;
 - clock-driven Learn summary due monitoring: mounted completed learning session summaries dynamically detect when a scheduled review becomes due via `IClock.UtcNow` authority, reactively revealing an explicit primary Learn action without automatic session replacement, while preserving completed session statistics and local-time presentation formatting;
-- unified Review Words workflow action bar: Known, Unknown, and Undo organized into a compact content-sized left action group and Discard import positioned as a separately aligned destructive end action on wide layouts, with flexible separation between primary decisions and full-import discard; common standard button geometry and minimum height across all four actions; safe responsive stacking across narrow and extra-narrow viewports; standard secondary button styling and disabled-state binding for Undo; preserved destructive styling and irreversible confirmation for Discard import; and concise localized Undo button labels across English, German, and Russian.
+- unified Review Words workflow action bar: Known, Unknown, and Undo organized into a compact content-sized left action group and Discard import positioned as a separately aligned destructive end action on wide layouts, with flexible separation between primary decisions and full-import discard; common standard button geometry and minimum height across all four actions; safe responsive stacking across narrow and extra-narrow viewports; standard secondary button styling and disabled-state binding for Undo; preserved destructive styling and irreversible confirmation for Discard import; and concise localized Undo button labels across English, German, and Russian;
+- authoritative post-onboarding online lookup consent enforcement and fail-closed privacy architecture (merged via PR #181 / KF-ONLINE-LOOKUP-CONSENT-001): `IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler` transport gate blocking unauthorized outbound lexical HTTP; authorization-epoch-bound orchestration and prefetch safety with immediate cancellation on consent revocation; contextual consent disclosure removed from Prepare Words so Settings is the sole post-onboarding authority; dedicated blocked-candidate state with Settings navigation and manual fallback without data loss; Automatic Online method disabled and lookup retry disabled while consent is absent.
+
+## Transactional Onboarding Settings & Recovery — Reviewed Local Candidate (KF-TRANSACTIONAL-ONBOARDING-001)
+
+**Candidate status:** Reviewed local source/corrective checkpoint `fbb9c408a7eafa7115ed909af267b1a4a896bb5a` on `feature/transactional-onboarding-settings-v1`; the correction makes `OnboardingHost` consume canonical `IOnboardingDraftStore.Read()`. Not yet pushed, not yet merged. No PR exists. `master` remains at `be70ffcede1fb03f9083c21e148c963658459c8b`. The previous exact-candidate `ValidateAll` on `4e8cef72ce20094ee3ccfa24da8d49e0720729a9` failed at Windows Debug after 2752 / 2752 tests passed because of the stale `GetDraft()` compile call; Windows Release, Android, and AOT gates were not reached. Corrective source-contract review/tests are green but are not compiler/platform evidence, and no successful `FULL_VALIDATION` exists yet for the corrected source. The exact candidate for the next `FULL_VALIDATION` is the subsequent documentation commit HEAD and must be taken from live Git. This section documents the reviewed architecture, not a shipped production capability.
+
+This package replaces the step-by-step direct-persistence onboarding model with a fully transactional draft-and-commit model. All onboarding choices are staged in a single versioned persisted draft and applied atomically only when Finish Setup is confirmed.
+
+**1. Draft ownership**
+
+- One versioned persisted `OnboardingDraft` accumulates all onboarding-configurable values throughout the flow, including a nullable `OnlineLookupConsent`.
+- The draft supports persisted restart resume: an interrupted setup resumes at the last completed step with its saved choices intact.
+- `OnboardingHost` is the full aggregate owner of the draft; child setting steps are parameter/callback components with no independent persistence authority.
+- No individual step commits its values to Settings while onboarding is in progress.
+
+**2. Language and theme preview**
+
+- Language and theme can be previewed immediately and non-persistingly during setup: the user sees the effect without committing it to Settings.
+- Committed language and theme remain unchanged until Finish Setup applies the draft.
+
+**3. Completion**
+
+- Completion creates and verifies a single `OnboardingCompletionJournal` with a deterministic target fingerprint (SHA-256 of the draft's canonical representation).
+- A durability barrier is enforced before any committed Settings writes.
+- Roll-forward is idempotent: if interrupted, the next startup replays the journal to completion without duplicating writes.
+- Completed state becomes authoritative before any cleanup (clearing the draft, clearing progress).
+- Journal consent must be non-null; a null consent blocks completion.
+
+**4. Startup recovery**
+
+- Startup recovery executes before database initialization, not after.
+- Unsupported future Package B data (unrecognized journal version) fails closed without guessing.
+- Corrupt or incomplete journal state is recovered deterministically.
+- No compensating fake multi-key transaction is used; replay is deterministic from the journal.
+
+**5. Legacy migration**
+
+- Existing incomplete onboarding (InProgress state without a draft) is normalized via a crash-safe Capturing/Normalizing marker protocol.
+- An existing true consent becomes draft true, then the live consent is revoked during normalization so the user re-confirms during completion.
+- An absent or false legacy consent becomes draft null (undecided).
+- A user with undecided consent cannot retain setup progress past the Online Lookup step.
+
+**6. Privacy**
+
+- An onboarding draft value of true for Online Dictionary consent does **not** authorize external lookup. Package A's (`KF-ONLINE-LOOKUP-CONSENT-001`, merged on `master`) transport authorization gate remains closed until verified completion roll-forward grants true to the authoritative preference.
+- After onboarding is completed, Settings is the sole authority for granting or revoking Online Dictionary consent. Post-onboarding destructive consent revocation behavior in Settings is unchanged by this package.
+
+**7. Persistence boundary**
+
+- All draft and journal state is preference-backed only; no database schema change was introduced.
+- `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
+
+**8. Evidence boundary**
+
+- Source and contract tests (181 passed / 0 failed across seven package-focused review groups) verify unit, service, completion/recovery, migration, and UI state contracts using isolated temporary databases.
+- These tests are **not** rendered GUI evidence and do **not** establish: exact-candidate-HEAD `FULL_VALIDATION`; Windows or Android Debug/Release build gates; rendered WebView output; Windows focus behavior; Android touch behavior; device testing; APK/AAB packaging; signing; upload; distribution.
 
 ## Onboarding & Settings Tester-Feedback Parity (Merged Production State)
 

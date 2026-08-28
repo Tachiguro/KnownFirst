@@ -13,6 +13,11 @@ and uses the application's prerelease version identifiers.
 - Optional local Display Name configurable during onboarding or in Settings, stored strictly locally on the device.
 - Personalized Home greeting displaying a localized welcome message ("Welcome, {0}.", "Willkommen, {0}.", "Добро пожаловать, {0}.") before the subtitle when an optional local Display Name is configured, while preserving the unchanged KnownFirst heading and the subtitle-only presentation when no name is set.
 - Daily new-word budget presets (`1`, `5 Recommended`, `10`, and `Custom`) with an expanded technical range (`1..50`), updated recommended default of `5` new words per day, and a non-blocking study workload advisory for custom values above `15`.
+- Transactional first-run setup: all setup choices (language, appearance, online dictionary, and other preferences) are staged together and applied only when Finish Setup is confirmed, so no partial changes persist if setup is abandoned mid-way.
+- Setup choices are saved across restarts: if the app is closed during setup, choices made so far are preserved and setup resumes at the step where the user left off.
+- Language and appearance can be previewed during setup without committing the selection; the existing Settings values are not changed until Finish Setup is confirmed.
+- Online Dictionary consent can be freely changed between Enable and Keep Disabled at any point during setup without a destructive confirmation; an explicit choice is still required before proceeding past the Online Dictionary step.
+- Incomplete or interrupted setup recovers safely on the next launch, replaying any committed Finish Setup action to completion before proceeding.
 
 ### Changed
 

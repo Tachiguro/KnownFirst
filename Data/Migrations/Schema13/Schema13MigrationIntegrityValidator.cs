@@ -7,8 +7,6 @@ namespace KnownFirst.Data.Migrations.Schema13;
 
 public static class Schema13MigrationIntegrityValidator
 {
-    private const double FloatingPointTolerance = 1e-9;
-
     public static bool Validate(SQLiteConnection connection, out string? failureDetail)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -43,24 +41,24 @@ public static class Schema13MigrationIntegrityValidator
             return false;
         }
 
-        // 2. WordLearningControls 1:1 with Words(Status = Known)
-        int expectedWordControls = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Words WHERE Status = 1");
-        int actualWordControls = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM WordLearningControls");
-        if (expectedWordControls != actualWordControls)
+        // 2. Orphan detection for history and word controls (especially when foreign keys are disabled)
+        int orphanedHistory = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM FsrsReviewHistoryEntries h LEFT JOIN LearningCards c ON c.Id = h.CardId WHERE c.Id IS NULL");
+        if (orphanedHistory > 0)
         {
-            failureDetail = $"Expected {expectedWordControls} WordLearningControls for Known words, but found {actualWordControls}.";
+            failureDetail = $"Found {orphanedHistory} FsrsReviewHistoryEntries rows with no matching LearningCard.";
             return false;
         }
 
-        int invalidWordControls = connection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM WordLearningControls wlc LEFT JOIN Words w ON w.Id = wlc.WordId WHERE w.Id IS NULL OR w.Status != 1");
-        if (invalidWordControls > 0)
+        int orphanedWordControls = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM WordLearningControls wlc LEFT JOIN Words w ON w.Id = wlc.WordId WHERE w.Id IS NULL");
+        if (orphanedWordControls > 0)
         {
-            failureDetail = $"Found {invalidWordControls} invalid WordLearningControls rows not matching Words with Status = Known.";
+            failureDetail = $"Found {orphanedWordControls} WordLearningControls rows with no matching Word.";
             return false;
         }
 
-        // 3. SenseLearningControls must remain empty
+        // 3. SenseLearningControls must remain empty in Schema 12 -> 13 migration
         int senseControls = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM SenseLearningControls");
         if (senseControls > 0)
         {
@@ -68,20 +66,201 @@ public static class Schema13MigrationIntegrityValidator
             return false;
         }
 
-        // 4. History sequence and replay reproducibility
-        var cardStates = connection.Query<CardStateCheckRow>(
-            "SELECT CardId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc FROM FsrsCardStates ORDER BY CardId ASC");
+        // 4. Derive expected migration plan from surviving Schema 12 source facts
+        Schema13BootstrapPlan expectedPlan;
+        try
+        {
+            expectedPlan = Schema13LearningBootstrap.BuildPlan(connection);
+        }
+        catch (Exception ex)
+        {
+            failureDetail = $"Failed to build expected Schema 13 plan from source data: {ex.Message}";
+            return false;
+        }
 
-        var historyRows = connection.Query<HistoryCheckRow>(
-            "SELECT CardId, SequenceNumber, Rating, ReviewedAtUtc FROM FsrsReviewHistoryEntries ORDER BY CardId ASC, SequenceNumber ASC");
+        // 5. Validate WordLearningControls: exact source-to-target equivalence
+        var actualWordControls = connection.Query<WordLearningControlCheckRow>(
+            "SELECT WordId, DecidedAtUtc FROM WordLearningControls ORDER BY WordId ASC");
+        if (actualWordControls.Count != expectedPlan.WordControls.Count)
+        {
+            failureDetail = $"WordLearningControls count mismatch: expected {expectedPlan.WordControls.Count}, found {actualWordControls.Count}.";
+            return false;
+        }
 
-        var historyByCardId = historyRows
+        for (int i = 0; i < actualWordControls.Count; i++)
+        {
+            var actual = actualWordControls[i];
+            var expected = expectedPlan.WordControls[i];
+
+            if (actual.WordId != expected.WordId)
+            {
+                failureDetail = $"WordLearningControls WordId mismatch at position {i}: expected {expected.WordId}, found {actual.WordId}.";
+                return false;
+            }
+
+            if (!string.Equals(actual.DecidedAtUtc, expected.DecidedAtUtc, StringComparison.Ordinal))
+            {
+                failureDetail = $"WordLearningControls DecidedAtUtc mismatch for WordId {expected.WordId}: expected '{expected.DecidedAtUtc}', found '{actual.DecidedAtUtc}'.";
+                return false;
+            }
+        }
+
+        // 6. Validate FsrsReviewHistoryEntries: exact source-to-target equivalence
+        var actualHistory = connection.Query<HistoryCheckRow>(
+            "SELECT StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc FROM FsrsReviewHistoryEntries ORDER BY CardId ASC, SequenceNumber ASC");
+        if (actualHistory.Count != expectedPlan.ReviewHistory.Count)
+        {
+            failureDetail = $"FsrsReviewHistoryEntries count mismatch: expected {expectedPlan.ReviewHistory.Count}, found {actualHistory.Count}.";
+            return false;
+        }
+
+        for (int i = 0; i < actualHistory.Count; i++)
+        {
+            var actual = actualHistory[i];
+            var expected = expectedPlan.ReviewHistory[i];
+
+            if (actual.CardId != expected.CardId)
+            {
+                failureDetail = $"FsrsReviewHistoryEntries CardId mismatch at position {i}: expected {expected.CardId}, found {actual.CardId}.";
+                return false;
+            }
+
+            if (actual.SequenceNumber != expected.SequenceNumber)
+            {
+                failureDetail = $"Card {expected.CardId} history sequence broken at index {i}: expected SequenceNumber {expected.SequenceNumber}, found {actual.SequenceNumber}.";
+                return false;
+            }
+
+            if (!string.Equals(actual.StableId, expected.StableId, StringComparison.Ordinal))
+            {
+                failureDetail = $"FsrsReviewHistoryEntries StableId mismatch for CardId {expected.CardId}, SequenceNumber {expected.SequenceNumber}: expected '{expected.StableId}', found '{actual.StableId}'.";
+                return false;
+            }
+
+            if (actual.Rating != expected.Rating)
+            {
+                failureDetail = $"FsrsReviewHistoryEntries Rating mismatch for CardId {expected.CardId}, SequenceNumber {expected.SequenceNumber}: expected {expected.Rating}, found {actual.Rating}.";
+                return false;
+            }
+
+            if (!string.Equals(actual.ReviewedAtUtc, expected.ReviewedAtUtc, StringComparison.Ordinal))
+            {
+                failureDetail = $"FsrsReviewHistoryEntries ReviewedAtUtc mismatch for CardId {expected.CardId}, SequenceNumber {expected.SequenceNumber}: expected '{expected.ReviewedAtUtc}', found '{actual.ReviewedAtUtc}'.";
+                return false;
+            }
+        }
+
+        // 7. Validate target history sequence continuity, ratings, and timestamp ordering per card
+        var historyByCardId = actualHistory
             .GroupBy(h => h.CardId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var replayer = new Fsrs6Replayer();
+        foreach (var (cId, cardHistory) in historyByCardId)
+        {
+            DateTimeOffset? prevTime = null;
+            for (int i = 0; i < cardHistory.Count; i++)
+            {
+                var h = cardHistory[i];
+                int expectedSeq = i + 1;
+                if (h.SequenceNumber != expectedSeq)
+                {
+                    failureDetail = $"Card {cId} history sequence broken at index {i}: expected SequenceNumber {expectedSeq}, found {h.SequenceNumber}.";
+                    return false;
+                }
 
-        foreach (var state in cardStates)
+                if (h.Rating < 0 || h.Rating > 3)
+                {
+                    failureDetail = $"Card {cId} history entry has invalid Rating {h.Rating}.";
+                    return false;
+                }
+
+                DateTimeOffset eventTime;
+                try
+                {
+                    eventTime = Schema13TimestampCodec.ParseUtcDateTimeOffset(h.ReviewedAtUtc);
+                }
+                catch (Exception ex)
+                {
+                    failureDetail = $"Card {cId} history entry has corrupt ReviewedAtUtc '{h.ReviewedAtUtc}': {ex.Message}";
+                    return false;
+                }
+
+                if (prevTime.HasValue && eventTime < prevTime.Value)
+                {
+                    failureDetail = $"Card {cId} history entry SequenceNumber {h.SequenceNumber} has timestamp {eventTime:O} earlier than previous {prevTime.Value:O}.";
+                    return false;
+                }
+
+                prevTime = eventTime;
+            }
+        }
+
+        // 8. Validate FsrsCardStates: exact source-to-target equivalence
+        var actualCardStates = connection.Query<CardStateCheckRow>(
+            "SELECT CardId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc FROM FsrsCardStates ORDER BY CardId ASC");
+        if (actualCardStates.Count != expectedPlan.CardStates.Count)
+        {
+            failureDetail = $"FsrsCardStates count mismatch: expected {expectedPlan.CardStates.Count}, found {actualCardStates.Count}.";
+            return false;
+        }
+
+        for (int i = 0; i < actualCardStates.Count; i++)
+        {
+            var actual = actualCardStates[i];
+            var expected = expectedPlan.CardStates[i];
+
+            if (actual.CardId != expected.CardId)
+            {
+                failureDetail = $"FsrsCardStates CardId mismatch at position {i}: expected {expected.CardId}, found {actual.CardId}.";
+                return false;
+            }
+
+            if (actual.State != (int)expected.Card.State)
+            {
+                failureDetail = $"Card {actual.CardId} State mismatch: expected={(int)expected.Card.State}, persisted={actual.State}.";
+                return false;
+            }
+
+            if (!AreExactDoublesEqual(expected.Card.Stability, actual.Stability))
+            {
+                failureDetail = $"Card {actual.CardId} Stability mismatch: expected={expected.Card.Stability}, persisted={actual.Stability}.";
+                return false;
+            }
+
+            if (!AreExactDoublesEqual(expected.Card.Difficulty, actual.Difficulty))
+            {
+                failureDetail = $"Card {actual.CardId} Difficulty mismatch: expected={expected.Card.Difficulty}, persisted={actual.Difficulty}.";
+                return false;
+            }
+
+            string? expectedLastReviewed = expected.Card.LastReviewedAtUtc.HasValue
+                ? Schema13TimestampCodec.FormatUtc(expected.Card.LastReviewedAtUtc.Value)
+                : null;
+            if (!string.Equals(actual.LastReviewedAtUtc, expectedLastReviewed, StringComparison.Ordinal))
+            {
+                failureDetail = $"Card {actual.CardId} LastReviewedAtUtc mismatch: expected='{expectedLastReviewed}', persisted='{actual.LastReviewedAtUtc}'.";
+                return false;
+            }
+
+            if (actual.StepIndex != expected.Card.StepIndex)
+            {
+                failureDetail = $"Card {actual.CardId} StepIndex mismatch: expected={expected.Card.StepIndex}, persisted={actual.StepIndex}.";
+                return false;
+            }
+
+            string? expectedDue = expected.Card.DueAtUtc.HasValue
+                ? Schema13TimestampCodec.FormatUtc(expected.Card.DueAtUtc.Value)
+                : null;
+            if (!string.Equals(actual.DueAtUtc, expectedDue, StringComparison.Ordinal))
+            {
+                failureDetail = $"Card {actual.CardId} DueAtUtc mismatch: expected='{expectedDue}', persisted='{actual.DueAtUtc}'.";
+                return false;
+            }
+        }
+
+        // 9. Independent target replay verification
+        var replayer = new Fsrs6Replayer();
+        foreach (var state in actualCardStates)
         {
             var cardHistory = historyByCardId.TryGetValue(state.CardId, out var hList)
                 ? hList
@@ -99,17 +278,6 @@ public static class Schema13MigrationIntegrityValidator
                     failureDetail = $"Card {state.CardId} has zero history entries but FsrsCardStates is not clean New.";
                     return false;
                 }
-
-                // Verify source card is genuinely unreviewed
-                var sourceCards = connection.Query<LegacyCardRow>(
-                    "SELECT Id AS CardId, State, IntervalDays, EaseFactor, SuccessfulReviewCount, LapseCount, LastReviewedAtUtc, LastRating FROM LearningCards WHERE Id = ?",
-                    state.CardId);
-                var sourceCard = sourceCards.FirstOrDefault();
-                if (sourceCard is not null && !Schema13LearningBootstrap.IsGenuinelyUnreviewed(sourceCard))
-                {
-                    failureDetail = $"Card {state.CardId} was persisted as New but source LearningCard shows prior progress without history.";
-                    return false;
-                }
             }
             else
             {
@@ -120,42 +288,9 @@ public static class Schema13MigrationIntegrityValidator
                 }
 
                 var events = new List<Fsrs6ReviewEvent>(cardHistory.Count);
-                DateTimeOffset? prevTime = null;
-
-                for (int i = 0; i < cardHistory.Count; i++)
+                foreach (var h in cardHistory)
                 {
-                    var h = cardHistory[i];
-                    int expectedSeq = i + 1;
-                    if (h.SequenceNumber != expectedSeq)
-                    {
-                        failureDetail = $"Card {state.CardId} history sequence broken at index {i}: expected SequenceNumber {expectedSeq}, found {h.SequenceNumber}.";
-                        return false;
-                    }
-
-                    if (h.Rating < 0 || h.Rating > 3)
-                    {
-                        failureDetail = $"Card {state.CardId} history entry has invalid Rating {h.Rating}.";
-                        return false;
-                    }
-
-                    DateTimeOffset eventTime;
-                    try
-                    {
-                        eventTime = Schema13TimestampCodec.ParseUtcDateTimeOffset(h.ReviewedAtUtc);
-                    }
-                    catch (Exception ex)
-                    {
-                        failureDetail = $"Card {state.CardId} history entry has corrupt ReviewedAtUtc '{h.ReviewedAtUtc}': {ex.Message}";
-                        return false;
-                    }
-
-                    if (prevTime.HasValue && eventTime < prevTime.Value)
-                    {
-                        failureDetail = $"Card {state.CardId} history entry SequenceNumber {h.SequenceNumber} has timestamp {eventTime:O} earlier than previous {prevTime.Value:O}.";
-                        return false;
-                    }
-
-                    prevTime = eventTime;
+                    var eventTime = Schema13TimestampCodec.ParseUtcDateTimeOffset(h.ReviewedAtUtc);
                     events.Add(new Fsrs6ReviewEvent(eventTime, (ReviewRating)h.Rating));
                 }
 
@@ -176,13 +311,13 @@ public static class Schema13MigrationIntegrityValidator
                     return false;
                 }
 
-                if (!AreDoublesClose(replayed.Stability, state.Stability))
+                if (!AreExactDoublesEqual(replayed.Stability, state.Stability))
                 {
                     failureDetail = $"Card {state.CardId} Stability mismatch: replayed={replayed.Stability}, persisted={state.Stability}.";
                     return false;
                 }
 
-                if (!AreDoublesClose(replayed.Difficulty, state.Difficulty))
+                if (!AreExactDoublesEqual(replayed.Difficulty, state.Difficulty))
                 {
                     failureDetail = $"Card {state.CardId} Difficulty mismatch: replayed={replayed.Difficulty}, persisted={state.Difficulty}.";
                     return false;
@@ -218,11 +353,17 @@ public static class Schema13MigrationIntegrityValidator
         return true;
     }
 
-    private static bool AreDoublesClose(double? a, double? b)
+    private static bool AreExactDoublesEqual(double? a, double? b)
     {
         if (a is null && b is null) return true;
         if (a is null || b is null) return false;
-        return Math.Abs(a.Value - b.Value) < FloatingPointTolerance;
+        return BitConverter.DoubleToInt64Bits(a.Value) == BitConverter.DoubleToInt64Bits(b.Value);
+    }
+
+    private sealed class WordLearningControlCheckRow
+    {
+        public int WordId { get; set; }
+        public string DecidedAtUtc { get; set; } = string.Empty;
     }
 
     private sealed class CardStateCheckRow
@@ -238,6 +379,7 @@ public static class Schema13MigrationIntegrityValidator
 
     private sealed class HistoryCheckRow
     {
+        public string StableId { get; set; } = string.Empty;
         public int CardId { get; set; }
         public int SequenceNumber { get; set; }
         public int Rating { get; set; }

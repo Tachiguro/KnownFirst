@@ -418,6 +418,45 @@ public sealed class Schema13MigrationBootstrapTests
             await fixture3.Connection.RunInTransactionAsync(conn => Schema13LearningBootstrap.BuildPlan(conn));
         });
         Assert.AreEqual("schema13-migration-missing-review-history", exCount.ErrorCode);
+
+        // 4. LastRating non-null with 0 reviews
+        await using var fixture4 = await CreateValidSchema12DatabaseAsync();
+        await fixture4.Connection.RunInTransactionAsync(conn =>
+        {
+            var (_, _, cardId) = SeedGraph(conn, "progress-last-rating");
+            conn.Execute("UPDATE LearningCards SET LastRating = 2 WHERE Id = ?", cardId);
+        });
+        var exLastRating = await Assert.ThrowsExactlyAsync<Schema13MigrationException>(async () =>
+        {
+            await fixture4.Connection.RunInTransactionAsync(conn => Schema13LearningBootstrap.BuildPlan(conn));
+        });
+        Assert.AreEqual("schema13-migration-missing-review-history", exLastRating.ErrorCode);
+
+        // 5. LapseCount > 0 with 0 reviews
+        await using var fixture5 = await CreateValidSchema12DatabaseAsync();
+        await fixture5.Connection.RunInTransactionAsync(conn =>
+        {
+            var (_, _, cardId) = SeedGraph(conn, "progress-lapse-count");
+            conn.Execute("UPDATE LearningCards SET LapseCount = 1 WHERE Id = ?", cardId);
+        });
+        var exLapse = await Assert.ThrowsExactlyAsync<Schema13MigrationException>(async () =>
+        {
+            await fixture5.Connection.RunInTransactionAsync(conn => Schema13LearningBootstrap.BuildPlan(conn));
+        });
+        Assert.AreEqual("schema13-migration-missing-review-history", exLapse.ErrorCode);
+
+        // 6. IntervalDays > 0 with 0 reviews
+        await using var fixture6 = await CreateValidSchema12DatabaseAsync();
+        await fixture6.Connection.RunInTransactionAsync(conn =>
+        {
+            var (_, _, cardId) = SeedGraph(conn, "progress-interval-days");
+            conn.Execute("UPDATE LearningCards SET IntervalDays = 5 WHERE Id = ?", cardId);
+        });
+        var exInterval = await Assert.ThrowsExactlyAsync<Schema13MigrationException>(async () =>
+        {
+            await fixture6.Connection.RunInTransactionAsync(conn => Schema13LearningBootstrap.BuildPlan(conn));
+        });
+        Assert.AreEqual("schema13-migration-missing-review-history", exInterval.ErrorCode);
     }
 
     #endregion
@@ -457,18 +496,16 @@ public sealed class Schema13MigrationBootstrapTests
         await fixture.Connection.RunInTransactionAsync(conn =>
         {
             var (wId, sId, _) = SeedGraph(conn, "sense-status-check");
-            // Set sense status to Mastered (2) or Suspended (3)
+            // Set sense status to Mastered (2)
             conn.Execute("UPDATE Senses SET Status = 2 WHERE Id = ?", sId);
-        });
 
-        Schema13BootstrapPlan plan = null!;
-        await fixture.Connection.RunInTransactionAsync(conn =>
-        {
-            plan = Schema13LearningBootstrap.BuildPlan(conn);
-        });
+            ApplySchema13TargetDdl(conn);
+            var plan = Schema13LearningBootstrap.BuildPlan(conn);
+            MaterializeBootstrapPlan(conn, plan);
 
-        // Plan contains zero sense controls
-        Assert.AreEqual(0, plan.WordControls.Count); // WordStatus was Unreviewed
+            int senseControls = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM SenseLearningControls");
+            Assert.AreEqual(0, senseControls, "Schema 12 -> 13 migration must produce zero SenseLearningControls.");
+        });
     }
 
     #endregion
@@ -623,6 +660,244 @@ public sealed class Schema13MigrationBootstrapTests
         Assert.IsFalse(isValid);
         Assert.IsNotNull(failure);
         StringAssert.Contains(failure, "SenseLearningControls must be empty");
+    }
+
+    [TestMethod]
+    public async Task MigrationIntegrityValidator_RejectsDroppedSourceReviewEvenWhenTargetIsSelfConsistent()
+    {
+        await using var fixture = await CreateValidSchema12DatabaseAsync();
+        int cardId = 0;
+        var t1 = new DateTime(2026, 8, 29, 10, 0, 0, DateTimeKind.Utc);
+        var t2 = new DateTime(2026, 8, 29, 10, 10, 0, DateTimeKind.Utc);
+        var t3 = new DateTime(2026, 8, 29, 10, 20, 0, DateTimeKind.Utc);
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            (_, _, cardId) = SeedGraph(conn, "dropped-review");
+            var sessionId = SeedSession(conn, t1);
+            conn.Execute("INSERT INTO LearningReviews (SessionId, CardId, Rating, ReviewedAtUtc) VALUES (?, ?, 0, ?)", sessionId, cardId, t1);
+            conn.Execute("INSERT INTO LearningReviews (SessionId, CardId, Rating, ReviewedAtUtc) VALUES (?, ?, 2, ?)", sessionId, cardId, t2);
+            conn.Execute("INSERT INTO LearningReviews (SessionId, CardId, Rating, ReviewedAtUtc) VALUES (?, ?, 2, ?)", sessionId, cardId, t3);
+
+            ApplySchema13TargetDdl(conn);
+            var plan = Schema13LearningBootstrap.BuildPlan(conn);
+            MaterializeBootstrapPlan(conn, plan);
+
+            // Intentionally alter target data to simulate a lossy migration:
+            // 1. Remove the final history entry (SequenceNumber = 3)
+            conn.Execute("DELETE FROM FsrsReviewHistoryEntries WHERE CardId = ? AND SequenceNumber = 3", cardId);
+
+            // 2. Replay remaining 2 events so target FsrsCardStates matches target history exactly
+            var remainingEvents = new[]
+            {
+                new Fsrs6ReviewEvent(new DateTimeOffset(t1, TimeSpan.Zero), ReviewRating.Again),
+                new Fsrs6ReviewEvent(new DateTimeOffset(t2, TimeSpan.Zero), ReviewRating.Good)
+            };
+            var replayedCard = new Fsrs6Replayer().Replay(Fsrs6Card.New(), remainingEvents);
+
+            conn.Execute(
+                """
+                UPDATE FsrsCardStates
+                SET State = ?, Stability = ?, Difficulty = ?, LastReviewedAtUtc = ?, StepIndex = ?, DueAtUtc = ?
+                WHERE CardId = ?
+                """,
+                (int)replayedCard.State,
+                replayedCard.Stability,
+                replayedCard.Difficulty,
+                replayedCard.LastReviewedAtUtc.HasValue ? Schema13TimestampCodec.FormatUtc(replayedCard.LastReviewedAtUtc.Value) : null,
+                replayedCard.StepIndex,
+                replayedCard.DueAtUtc.HasValue ? Schema13TimestampCodec.FormatUtc(replayedCard.DueAtUtc.Value) : null,
+                cardId);
+        });
+
+        bool isValid = false;
+        string? failure = null;
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            isValid = Schema13MigrationIntegrityValidator.Validate(conn, out failure);
+        });
+
+        Assert.IsFalse(isValid, "Validator must reject target data when a source review was dropped, even if target is internally self-consistent.");
+        Assert.IsNotNull(failure);
+    }
+
+    [TestMethod]
+    public async Task MigrationIntegrityValidator_RejectsExcessTargetReview()
+    {
+        await using var fixture = await CreateValidSchema12DatabaseAsync();
+        int cardId = 0;
+        var t1 = new DateTime(2026, 8, 29, 10, 0, 0, DateTimeKind.Utc);
+        var t2 = new DateTime(2026, 8, 29, 10, 10, 0, DateTimeKind.Utc);
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            (_, _, cardId) = SeedGraph(conn, "excess-review");
+            var sessionId = SeedSession(conn, t1);
+            conn.Execute("INSERT INTO LearningReviews (SessionId, CardId, Rating, ReviewedAtUtc) VALUES (?, ?, 0, ?)", sessionId, cardId, t1);
+
+            ApplySchema13TargetDdl(conn);
+            var plan = Schema13LearningBootstrap.BuildPlan(conn);
+            MaterializeBootstrapPlan(conn, plan);
+
+            // Inject an extra target review not in source
+            var extraStableId = Guid.NewGuid().ToString("N").ToLowerInvariant();
+            conn.Execute(
+                "INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc) VALUES (?, ?, 2, 2, ?)",
+                extraStableId, cardId, Schema13TimestampCodec.FormatUtc(t2));
+        });
+
+        bool isValid = false;
+        string? failure = null;
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            isValid = Schema13MigrationIntegrityValidator.Validate(conn, out failure);
+        });
+
+        Assert.IsFalse(isValid);
+        Assert.IsNotNull(failure);
+        StringAssert.Contains(failure, "FsrsReviewHistoryEntries count mismatch");
+    }
+
+    [TestMethod]
+    public async Task MigrationIntegrityValidator_RejectsWrongStableId()
+    {
+        await using var fixture = await CreateValidSchema12DatabaseAsync();
+        int cardId = 0;
+        var t1 = new DateTime(2026, 8, 29, 10, 0, 0, DateTimeKind.Utc);
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            (_, _, cardId) = SeedGraph(conn, "wrong-stableid");
+            var sessionId = SeedSession(conn, t1);
+            conn.Execute("INSERT INTO LearningReviews (SessionId, CardId, Rating, ReviewedAtUtc) VALUES (?, ?, 2, ?)", sessionId, cardId, t1);
+
+            ApplySchema13TargetDdl(conn);
+            var plan = Schema13LearningBootstrap.BuildPlan(conn);
+            MaterializeBootstrapPlan(conn, plan);
+
+            // Replace StableId with a different valid non-empty unique 64-hex string
+            var wrongStableId = new string('a', 64);
+            conn.Execute("UPDATE FsrsReviewHistoryEntries SET StableId = ? WHERE CardId = ?", wrongStableId, cardId);
+        });
+
+        bool isValid = false;
+        string? failure = null;
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            isValid = Schema13MigrationIntegrityValidator.Validate(conn, out failure);
+        });
+
+        Assert.IsFalse(isValid);
+        Assert.IsNotNull(failure);
+        StringAssert.Contains(failure, "StableId mismatch");
+    }
+
+    [TestMethod]
+    public async Task MigrationIntegrityValidator_RejectsWrongWordLearningControlTimestamp()
+    {
+        await using var fixture = await CreateValidSchema12DatabaseAsync();
+        int wordId = 0;
+        var originalTime = new DateTime(2026, 8, 20, 10, 0, 0, DateTimeKind.Utc);
+        var wrongTime = new DateTime(2026, 8, 25, 15, 0, 0, DateTimeKind.Utc);
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            (wordId, _, _) = SeedGraph(conn, "known-wrong-time", WordStatus.Known, originalTime);
+
+            ApplySchema13TargetDdl(conn);
+            var plan = Schema13LearningBootstrap.BuildPlan(conn);
+            MaterializeBootstrapPlan(conn, plan);
+
+            // Replace DecidedAtUtc with a different valid UTC timestamp
+            conn.Execute(
+                "UPDATE WordLearningControls SET DecidedAtUtc = ? WHERE WordId = ?",
+                Schema13TimestampCodec.FormatUtc(wrongTime), wordId);
+        });
+
+        bool isValid = false;
+        string? failure = null;
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            isValid = Schema13MigrationIntegrityValidator.Validate(conn, out failure);
+        });
+
+        Assert.IsFalse(isValid);
+        Assert.IsNotNull(failure);
+        StringAssert.Contains(failure, "DecidedAtUtc mismatch");
+    }
+
+    [TestMethod]
+    public async Task MigrationIntegrityValidator_RejectsOrphanHistory()
+    {
+        await using var fixture = await CreateValidSchema12DatabaseAsync();
+
+        // Consistent with production FK reality where FK enforcement is not explicitly enabled,
+        // disable foreign_keys on the test connection to insert an orphan history entry.
+        await fixture.Connection.ExecuteAsync("PRAGMA foreign_keys = OFF");
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            ApplySchema13TargetDdl(conn);
+
+            // Insert orphan history row for nonexistent CardId
+            var orphanStableId = Guid.NewGuid().ToString("N").ToLowerInvariant();
+            conn.Execute(
+                "INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc) VALUES (?, 99999, 1, 2, '2026-08-29T10:00:00.0000000Z')",
+                orphanStableId);
+        });
+
+        bool isValid = false;
+        string? failure = null;
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            isValid = Schema13MigrationIntegrityValidator.Validate(conn, out failure);
+        });
+
+        Assert.IsFalse(isValid);
+        Assert.IsNotNull(failure);
+        StringAssert.Contains(failure, "with no matching LearningCard");
+    }
+
+    [TestMethod]
+    public async Task MigrationIntegrityValidator_RejectsFloatingPointDiscrepancyWithinOldTolerance()
+    {
+        await using var fixture = await CreateValidSchema12DatabaseAsync();
+        int cardId = 0;
+        var t1 = new DateTime(2026, 8, 29, 10, 0, 0, DateTimeKind.Utc);
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            (_, _, cardId) = SeedGraph(conn, "fp-discrepancy");
+            var sessionId = SeedSession(conn, t1);
+            conn.Execute("INSERT INTO LearningReviews (SessionId, CardId, Rating, ReviewedAtUtc) VALUES (?, ?, 2, ?)", sessionId, cardId, t1);
+
+            ApplySchema13TargetDdl(conn);
+            var plan = Schema13LearningBootstrap.BuildPlan(conn);
+            MaterializeBootstrapPlan(conn, plan);
+
+            var initialStability = conn.ExecuteScalar<double>("SELECT Stability FROM FsrsCardStates WHERE CardId = ?", cardId);
+            Assert.IsTrue(initialStability >= 0.001);
+
+            // Perturb stability by 1e-10 (which is < 1e-9 old tolerance, but observably distinct in IEEE-754 binary64)
+            conn.Execute("UPDATE FsrsCardStates SET Stability = Stability + 1e-10 WHERE CardId = ?", cardId);
+
+            var perturbedStability = conn.ExecuteScalar<double>("SELECT Stability FROM FsrsCardStates WHERE CardId = ?", cardId);
+            Assert.AreNotEqual(
+                BitConverter.DoubleToInt64Bits(initialStability),
+                BitConverter.DoubleToInt64Bits(perturbedStability),
+                "Perturbation must produce a distinct IEEE-754 double.");
+        });
+
+        bool isValid = false;
+        string? failure = null;
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            isValid = Schema13MigrationIntegrityValidator.Validate(conn, out failure);
+        });
+
+        Assert.IsFalse(isValid);
+        Assert.IsNotNull(failure);
+        StringAssert.Contains(failure, "Stability mismatch");
     }
 
     #endregion

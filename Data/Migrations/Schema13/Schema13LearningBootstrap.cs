@@ -65,7 +65,7 @@ public static class Schema13LearningBootstrap
 
         var cards = connection.Query<LegacyCardRow>(
             """
-            SELECT 
+            SELECT
                 c.Id AS CardId,
                 c.SenseId AS SenseId,
                 s.StableId AS SenseStableId,
@@ -85,7 +85,7 @@ public static class Schema13LearningBootstrap
 
         var reviews = connection.Query<LegacyReviewRow>(
             """
-            SELECT 
+            SELECT
                 Id,
                 CardId,
                 Rating,

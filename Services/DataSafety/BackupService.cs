@@ -514,6 +514,12 @@ public sealed class BackupService(
                     payloadV2FromSchema11, platformInfo, schema11.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
                 break;
 
+            case CapturedSchema13SnapshotEnvelope schema13:
+                var payloadV3 = BackupModelMapperV3.MapToExternal(schema13.Snapshot);
+                await BackupArchiveWriterV3.WriteArchiveAsync(
+                    payloadV3, platformInfo, DateTime.UtcNow, destinationStream, cancellationToken);
+                break;
+
             default:
                 throw new InvalidOperationException("Unrecognized captured backup snapshot envelope.");
         }

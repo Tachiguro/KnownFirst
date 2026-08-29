@@ -51,6 +51,21 @@ public sealed record PortableImportPreview(
         new(PortableImportPreviewDisposition.MergeChanges, true, true, true, archiveSummary,
             insertedCount, enrichedCount, preservedVariantCount, skippedCount, warningCodes, null);
 
+    /// <summary>
+    /// Schema-13 Slice-4 preview: the plan is executable, but confirmation remains disabled until the
+    /// populated-target writer is implemented. The counts describe future mutations; preview itself is
+    /// read-only and creates no safety copy.
+    /// </summary>
+    public static PortableImportPreview ForMergeChangesWithoutWriter(
+        BackupPortableArchiveSummary archiveSummary,
+        int insertedCount,
+        int enrichedCount,
+        int preservedVariantCount,
+        int skippedCount,
+        IReadOnlyList<string> warningCodes) =>
+        new(PortableImportPreviewDisposition.MergeChanges, false, true, true, archiveSummary,
+            insertedCount, enrichedCount, preservedVariantCount, skippedCount, warningCodes, null);
+
     public static PortableImportPreview ForMergeNoChange(
         BackupPortableArchiveSummary archiveSummary,
         int skippedCount,

@@ -197,15 +197,13 @@ public sealed class BackupService(
 
             if (capability is Schema13CapabilityResult)
             {
-                return targetHasDurableData
-                    ? PortableImportPreview.ForBlocked(
-                        PortableImportPreviewDisposition.Blocked,
-                        BackupErrorCodes.TargetNotEmpty,
-                        archiveSummary)
-                    : PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+                if (!targetHasDurableData)
+                {
+                    return PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+                }
             }
 
-            if (validated.V3 is not null)
+            if (validated.V3 is not null && capability is not Schema13CapabilityResult)
             {
                 return PortableImportPreview.ForBlocked(
                     PortableImportPreviewDisposition.ValidationFailed,
@@ -226,6 +224,17 @@ public sealed class BackupService(
             }
 
             var (inserted, enriched, preserved, skipped) = AggregateMergeCounts(plan);
+            if (capability is Schema13CapabilityResult && RequiresWriterExecution(plan))
+            {
+                return PortableImportPreview.ForMergeChangesWithoutWriter(
+                    archiveSummary,
+                    inserted,
+                    enriched,
+                    preserved,
+                    skipped,
+                    plan.WarningCodes);
+            }
+
             return RequiresWriterExecution(plan)
                 ? PortableImportPreview.ForMergeChanges(archiveSummary, inserted, enriched, preserved, skipped, plan.WarningCodes)
                 : PortableImportPreview.ForMergeNoChange(archiveSummary, skipped, plan.WarningCodes);
@@ -257,6 +266,8 @@ public sealed class BackupService(
                 (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? PortableImportPreviewErrorCodes.MergeRequiresUserDecision),
             MergePreflightStatus.BlockedByPrerequisite =>
                 (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? PortableImportPreviewErrorCodes.MergeBlockedByPrerequisite),
+            MergePreflightStatus.NonExecutableConflict =>
+                (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? Schema13MergePreflightErrorCodes.CausalHistoryConflict),
             _ => (PortableImportPreviewDisposition.Failed, plan.ErrorCode ?? MergePreflightErrorCodes.UnexpectedFailure)
         };
 
@@ -509,7 +520,9 @@ public sealed class BackupService(
     /// comparing database row counts before/after.
     /// </summary>
     private static bool RequiresWriterExecution(MergePreflightPlan plan) =>
-        plan.PerEntity.Values.Any(counts => counts.TotalInsertableCount > 0) || plan.RequiresSchedulerReplay;
+        plan.PerEntity.Values.Any(counts => counts.TotalInsertableCount > 0)
+        || plan.RequiresSchedulerReplay
+        || plan.Schema13Plan?.RequiresMutation == true;
 
     private static PortableImportStatus MapNonExecutablePreflightStatus(MergePreflightStatus status) => status switch
     {
@@ -549,6 +562,33 @@ public sealed class BackupService(
             enriched += counts.EnrichedCount;
             preserved += counts.PreservedVariantCount;
             skipped += counts.ExactDuplicateSkippedCount + counts.DeduplicatedEventCount;
+        }
+
+        if (plan.Schema13Plan is { } schema13)
+        {
+            foreach (var action in schema13.Actions)
+            {
+                switch (action.Classification)
+                {
+                    case Schema13MergeActionClassification.AddWordLearningControl:
+                    case Schema13MergeActionClassification.AddSenseLearningControl:
+                    case Schema13MergeActionClassification.AppendFsrsReviewHistory:
+                    case Schema13MergeActionClassification.InsertFsrsCardState:
+                        inserted++;
+                        break;
+                    case Schema13MergeActionClassification.ReconcileWordLearningControlTimestamp:
+                    case Schema13MergeActionClassification.ReconcileSenseLearningControlTimestamp:
+                    case Schema13MergeActionClassification.UpdateFsrsCardState:
+                        enriched++;
+                        break;
+                    case Schema13MergeActionClassification.PreserveTargetOnly:
+                        preserved++;
+                        break;
+                    case Schema13MergeActionClassification.NoChange:
+                        skipped++;
+                        break;
+                }
+            }
         }
 
         return (inserted, enriched, preserved, skipped);

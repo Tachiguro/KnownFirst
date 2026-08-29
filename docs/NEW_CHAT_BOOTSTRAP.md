@@ -39,11 +39,14 @@ When repository access is available, execute read-only discovery in this order a
    - Check local branch history (`git log`) for checkpoint trailers (`KnownFirst-Checkpoint:`) and correlate them with the declared slice list in `docs/CURRENT_WORK.md` per the resume contract in [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md).
 2. **Default Branch Baseline:**
    - Read `docs/CURRENT_WORK.md` from the current default branch only when no active open pull request or in-progress task branch exists.
-3. Treat live Git/GitHub state as authoritative over stale operational prose in status files.
-4. Never trust pasted SHAs, pull-request numbers, branch names, task names, or historical chat text without live verification.
-5. Never repeat work that is already merged into the default branch.
-6. Never create a duplicate pull request for a branch that already has an open or merged pull request.
-7. Avoid selecting arbitrarily when several open pull requests exist; ask the user for clarification if the primary active package remains ambiguous after inspection.
+3. **Durable Backlog Discovery:**
+   - When no active pull request or in-progress local task branch exists on the default branch, inspect [docs/BACKLOG.md](BACKLOG.md) to discover accepted open defects, follow-ups, unprioritized initiatives, and unresolved product decisions (`REQUIRES_PRODUCT_DECISION`).
+   - The backlog is the authoritative registry of all accepted open work outside active branches. An agent must not select an open backlog item or initiate an unapproved sequence on its own; task selection and prioritization require user or orchestrator confirmation.
+4. Treat live Git/GitHub state as authoritative over stale operational prose in status files.
+5. Never trust pasted SHAs, pull-request numbers, branch names, task names, or historical chat text without live verification.
+6. Never repeat work that is already merged into the default branch.
+7. Never create a duplicate pull request for a branch that already has an open or merged pull request.
+8. Avoid selecting arbitrarily when several open pull requests exist; ask the user for clarification if the primary active package remains ambiguous after inspection.
 
 ## 5. Local-State Verification
 

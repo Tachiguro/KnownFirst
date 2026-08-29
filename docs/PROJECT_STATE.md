@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-28
-**State source:** `master` baseline (including `KF-FSRS6-CORE-001` merged via PR #184) plus active candidate package `KF-CLEAN-DOMAIN-013-001` on branch `feature/clean-domain-013-learning-control-v1`. Live Git remains authoritative for the current master HEAD and pull-request states, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Status date:** 2026-08-29
+**State source:** `master` baseline (including `KF-FSRS6-CORE-001` merged via PR #184 and `KF-CLEAN-DOMAIN-013-001` merged via PR #186). Live Git remains authoritative for the current master HEAD and pull-request states, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -316,11 +316,11 @@ This merged package resolves the manual preparation persistence defect, aligns D
 - **Save-versus-Progression Recovery:** Successful acceptance is transactionally committed before attempting to load the next candidate. Failure to retrieve or render the next candidate is not reported as a save failure; the UI informs the user that the item was saved but the next item could not be loaded, and Retry executes progression/loading only without repeating acceptance.
 - **Neutral Preparation Action Semantics:** "End preparation" is styled as a neutral/secondary action in the bottom action bar with inline confirmation. Confirmation ends the active batch and its resumability while retaining already accepted learning cards and lasting Known/Ignored decisions; unresolved and skipped items return to the backlog. Competing disposition actions are suppressed while confirmation is open.
 
-## Clean Domain & Application Layer Architecture — Candidate State (KF-CLEAN-DOMAIN-013-001)
+## Clean Domain & Application Layer Architecture (Merged Production State)
 
-**Lifecycle status:** Active candidate package `KF-CLEAN-DOMAIN-013-001` on feature branch `feature/clean-domain-013-learning-control-v1` (Checkpoint 1/2 `d758f1b`, Checkpoint 2/2 `70f6601`). Consolidated `PACKAGE_REVIEW_APPROVED`; currently in `DOCUMENT_ONLY` lifecycle phase. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** Merged production `master` state via PR #186 (`feat(clean-domain): clean domain learning-control and application boundary foundation` / `KF-CLEAN-DOMAIN-013-001`; merge commit `e7cb91aad8db49b5366dab96295c2e8aa20c92c7`; validated PR head `eae1ca38d157d13ddd830a635d6ce31dd2fe4336`). Exact-head `FULL_VALIDATION` passed (2896 passed / 0 failed / 0 skipped, all four Windows/Android Debug/Release build gates PASS, strict warning/linking gate PASS, exit code 0). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
 
-This package establishes the clean domain model in `KnownFirst.Core` and introduces the separate `KnownFirst.Application` project to define deterministic, production-neutral learning control and FSRS-6 scheduling boundaries ahead of downstream Schema 13 persistence.
+This merged package establishes the clean domain model in `KnownFirst.Core` and introduces the separate `KnownFirst.Application` project to define deterministic, production-neutral learning control and FSRS-6 scheduling boundaries ahead of downstream Schema 13 persistence:
 
 **1. Clean Core Domain Foundation (`KnownFirst.Core.Learning`, `KnownFirst.Core.Preparation`)**
 
@@ -347,7 +347,7 @@ This package establishes the clean domain model in `KnownFirst.Core` and introdu
 - **Active Schema & Archive:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
 - **Production Scheduler Wiring:** `SimpleSpacedRepetitionScheduler` remains the sole production-registered `ISpacedRepetitionScheduler`.
 - **Dormancy:** `KnownFirst.Application` and clean learning-control contracts are completely dormant from runtime execution.
-- **Future Milestone Boundaries:** Schema 13 physical tables, migrations, Archive V3, and runtime FSRS cutover are deferred to subsequent dedicated packages.
+- **Downstream Initiatives:** Schema 13 physical tables and migrations (`KF-PERSIST-013-001`), Archive V3 format evolution (`KF-BACKUP-006`), and runtime FSRS production cutover (`KF-FSRS-003`) are tracked as open work in [docs/BACKLOG.md](BACKLOG.md).
 
 ## Evidence Boundaries & Release Limitations
 

@@ -315,9 +315,14 @@ PLAN_ONLY
 
 Update only:
 - directly affected product, architecture, database, UI, or workflow contracts;
+- `docs/BACKLOG.md` to register newly discovered defects, deferred follow-ups, open product decisions, or downstream packages per the Follow-Up Closure Audit;
 - `CHANGELOG.md` for verified user-visible or internal-foundation behavior changes;
 - concise user-facing release notes for the intended future release (see [docs/VERSIONING.md](VERSIONING.md));
 - `docs/CURRENT_WORK.md` when operational task state changes.
+
+**Follow-Up Closure Audit & Foundation Milestone Rule:**
+- An agent prompt cannot declare a package fully reconciled when accepted deferred follow-ups, defects, or downstream requirements remain untracked. Every deferred or downstream item must either reference an existing open `KF-*` ID in `docs/BACKLOG.md` or be added to `docs/BACKLOG.md` before reconciliation is declared complete.
+- Merging a foundation package (such as a core scheduling engine or clean domain model) never marks a parent initiative or roadmap milestone complete while downstream packages (persistence, archive, runtime cutover, UI) remain open.
 
 **Anti-Treadmill Discipline:**
 - Do **not** record exact `FULL_VALIDATION` test totals, PR numbers, or merge commit SHAs in durable project status documents (`docs/PROJECT_STATE.md`, `docs/ROADMAP.md`). Those facts belong to Git history, validation logs, and the PR body.

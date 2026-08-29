@@ -1,4 +1,5 @@
 using KnownFirst.Core.Learning;
+using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Models;
@@ -633,6 +634,44 @@ public static class BackupEnumMappings
     {
         "required" => BackupAnswerVariantRequirement.Required,
         "accepted-only" => BackupAnswerVariantRequirement.AcceptedOnly,
+        _ => throw UnknownEnum()
+    };
+
+    // ---- Archive format v3 additions (KF-BACKUP-006 Slice 1) — purely additive ----
+
+    public static string ToExternalString(BackupFsrsCardStateKind value) => value switch
+    {
+        BackupFsrsCardStateKind.New => "new",
+        BackupFsrsCardStateKind.Learning => "learning",
+        BackupFsrsCardStateKind.Review => "review",
+        BackupFsrsCardStateKind.Relearning => "relearning",
+        _ => throw UnknownEnum()
+    };
+
+    public static BackupFsrsCardStateKind ParseFsrsCardStateKind(string value) => value switch
+    {
+        "new" => BackupFsrsCardStateKind.New,
+        "learning" => BackupFsrsCardStateKind.Learning,
+        "review" => BackupFsrsCardStateKind.Review,
+        "relearning" => BackupFsrsCardStateKind.Relearning,
+        _ => throw UnknownEnum()
+    };
+
+    public static Fsrs6CardState ToCore(BackupFsrsCardStateKind value) => value switch
+    {
+        BackupFsrsCardStateKind.New => Fsrs6CardState.New,
+        BackupFsrsCardStateKind.Learning => Fsrs6CardState.Learning,
+        BackupFsrsCardStateKind.Review => Fsrs6CardState.Review,
+        BackupFsrsCardStateKind.Relearning => Fsrs6CardState.Relearning,
+        _ => throw UnknownEnum()
+    };
+
+    public static BackupFsrsCardStateKind ToBackup(Fsrs6CardState value) => value switch
+    {
+        Fsrs6CardState.New => BackupFsrsCardStateKind.New,
+        Fsrs6CardState.Learning => BackupFsrsCardStateKind.Learning,
+        Fsrs6CardState.Review => BackupFsrsCardStateKind.Review,
+        Fsrs6CardState.Relearning => BackupFsrsCardStateKind.Relearning,
         _ => throw UnknownEnum()
     };
 

@@ -1,28 +1,33 @@
 using System.Security.Cryptography;
 using System.Text;
+using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data.Schema10;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety;
 
 /// <summary>
-/// Archive format v2 field/collection/enum contract validation (KF-MEANING-001 Slice 2). Deliberately
-/// does not reach into <see cref="BackupModelContract"/>'s internals — it implements its own small set
-/// of primitive checks locally. This is a bounded amount of duplication traded for zero regression risk
-/// to the existing, proven v1 validator and its tests.
+/// Archive format v3 field/collection/enum contract validation (KF-BACKUP-006 Slice 1).
+/// Validates Schema-13 clean learning controls and FSRS-6 card states and review history.
 /// </summary>
-public static class BackupModelContractV2
+public static class BackupModelContractV3
 {
-    public static void ValidateManifest(BackupManifestV2 manifest)
+    public const int Schema13Version = 13;
+
+    public static void ValidateManifest(BackupManifestV3 manifest)
     {
         Require(manifest, BackupErrorCodes.ManifestInvalid);
-        if (manifest.FormatVersion != BackupFormatLimits.FormatVersionV2)
+        if (manifest.FormatVersion != BackupFormatLimits.FormatVersionV3)
         {
             throw Error(BackupErrorCodes.UnsupportedFormat);
         }
 
         ValidateRequiredString(manifest.SourceAppVersion);
-        ValidateNonNegative(manifest.SourceDatabaseSchemaVersion);
+        if (manifest.SourceDatabaseSchemaVersion != Schema13Version)
+        {
+            throw Error(BackupErrorCodes.ManifestInvalid);
+        }
+
         ValidateUtc(manifest.CreatedAtUtc);
         BackupEnumMappings.ToExternalString(manifest.SourcePlatform);
         ValidateRecordCountsShape(Require(manifest.RecordCounts, BackupErrorCodes.ManifestInvalid));
@@ -36,7 +41,7 @@ public static class BackupModelContractV2
         }
     }
 
-    public static void ValidatePayload(BackupPayloadV2 payload)
+    public static void ValidatePayload(BackupPayloadV3 payload)
     {
         Require(payload, BackupErrorCodes.InvariantViolation);
         var sourceMaterials = ValidateCollection(payload.SourceMaterials, BackupFormatLimits.MaxSourceMaterials);
@@ -49,6 +54,10 @@ public static class BackupModelContractV2
         var learning = Require(payload.Learning, BackupErrorCodes.InvariantViolation);
         var workflows = Require(payload.Workflows, BackupErrorCodes.InvariantViolation);
         var extensions = Require(payload.Extensions, BackupErrorCodes.InvariantViolation);
+        var wordControls = ValidateCollection(payload.WordLearningControls);
+        var senseControls = ValidateCollection(payload.SenseLearningControls);
+        var historyEntries = ValidateCollection(payload.FsrsReviewHistoryEntries);
+        var cardStates = ValidateCollection(payload.FsrsCardStates);
 
         foreach (var item in sourceMaterials)
         {
@@ -115,17 +124,37 @@ public static class BackupModelContractV2
             ValidateDerivedTermEvidence(Require(evidence, BackupErrorCodes.InvariantViolation));
         }
 
+        foreach (var control in wordControls)
+        {
+            ValidateWordLearningControl(Require(control, BackupErrorCodes.InvariantViolation));
+        }
+
+        foreach (var control in senseControls)
+        {
+            ValidateSenseLearningControl(Require(control, BackupErrorCodes.InvariantViolation));
+        }
+
+        foreach (var entry in historyEntries)
+        {
+            ValidateFsrsReviewHistoryEntry(Require(entry, BackupErrorCodes.InvariantViolation));
+        }
+
+        foreach (var state in cardStates)
+        {
+            ValidateFsrsCardState(Require(state, BackupErrorCodes.InvariantViolation));
+        }
+
         ValidateExtensions(extensions);
         ValidateRecordCountsShape(CountRecordsWithoutValidation(payload));
     }
 
-    public static BackupRecordCountsV2 CountRecords(BackupPayloadV2 payload)
+    public static BackupRecordCountsV3 CountRecords(BackupPayloadV3 payload)
     {
         ValidatePayload(payload);
         return CountRecordsWithoutValidation(payload);
     }
 
-    public static void ValidateRecordCounts(BackupManifestV2 manifest, BackupPayloadV2 payload)
+    public static void ValidateRecordCounts(BackupManifestV3 manifest, BackupPayloadV3 payload)
     {
         ValidateManifest(manifest);
         var actual = CountRecords(payload);
@@ -137,24 +166,7 @@ public static class BackupModelContractV2
         ValidateLearningWorkflowStableIds(manifest.SourceDatabaseSchemaVersion, payload);
     }
 
-    /// <summary>
-    /// The KF-BACKUP-005A learning-workflow identity rule, decided by the manifest's declared source
-    /// schema version — the only field that says whether the writing database could have had identities
-    /// at all.
-    ///
-    /// <list type="bullet">
-    /// <item><description><b>Source schema &lt;= 9.</b> Absent identities are valid and expected: those
-    /// databases had no <c>StableId</c> column. Ordinary legacy portable workflows are Completed, so the
-    /// importer reconstructs each identity through the exact deterministic bootstrap the Schema-10
-    /// migration uses. An identity that <em>is</em> present must still be well-formed and unique — a
-    /// malformed value is never silently dropped.</description></item>
-    /// <item><description><b>Source schema &gt;= 10.</b> Identities are mandatory. A missing or malformed
-    /// value fails closed rather than being regenerated, because regenerating it would invent an identity
-    /// that disagrees with the one the source database actually persists. Supplied identities are
-    /// preserved exactly as written.</description></item>
-    /// </list>
-    /// </summary>
-    public static void ValidateLearningWorkflowStableIds(int sourceDatabaseSchemaVersion, BackupPayloadV2 payload)
+    public static void ValidateLearningWorkflowStableIds(int sourceDatabaseSchemaVersion, BackupPayloadV3 payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
 
@@ -195,7 +207,7 @@ public static class BackupModelContractV2
         }
     }
 
-    private static BackupRecordCountsV2 CountRecordsWithoutValidation(BackupPayloadV2 payload) => new(
+    private static BackupRecordCountsV3 CountRecordsWithoutValidation(BackupPayloadV3 payload) => new(
         payload.SourceMaterials.Count,
         CheckedCount(payload.SourceMaterials.Sum(item => (long)item.Sentences.Count)),
         payload.Vocabulary.Count,
@@ -216,7 +228,128 @@ public static class BackupModelContractV2
         payload.AnswerVariants.Count,
         payload.SenseAnswerVariantAssignments.Count,
         payload.AnswerVariantProgress.Count,
-        payload.DerivedTermEvidence.Count);
+        payload.DerivedTermEvidence.Count,
+        payload.WordLearningControls.Count,
+        payload.SenseLearningControls.Count,
+        payload.FsrsReviewHistoryEntries.Count,
+        payload.FsrsCardStates.Count);
+
+    private static void ValidateWordLearningControl(BackupWordLearningControl control)
+    {
+        ValidateArchiveId(control.VocabularyId);
+        ValidateUtc(control.DecidedAtUtc);
+    }
+
+    private static void ValidateSenseLearningControl(BackupSenseLearningControl control)
+    {
+        ValidateArchiveId(control.SenseId);
+        ValidateUtc(control.DecidedAtUtc);
+    }
+
+    private static void ValidateFsrsReviewHistoryEntry(BackupFsrsReviewHistoryEntry entry)
+    {
+        ValidateRequiredString(entry.StableId);
+        ValidateArchiveId(entry.CardId);
+        ValidatePositive(entry.SequenceNumber);
+        BackupEnumMappings.ToExternalString(entry.Rating);
+        ValidateUtc(entry.ReviewedAtUtc);
+    }
+
+    private static void ValidateFsrsCardState(BackupFsrsCardState state)
+    {
+        ValidateArchiveId(state.CardId);
+        BackupEnumMappings.ToExternalString(state.State);
+
+        switch (state.State)
+        {
+            case BackupFsrsCardStateKind.New:
+                if (state.Stability.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                if (state.Difficulty.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                if (state.LastReviewedAtUtc.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                if (state.StepIndex.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                ValidateOptionalUtc(state.DueAtUtc);
+                break;
+
+            case BackupFsrsCardStateKind.Learning:
+                ValidateFsrsStability(state.Stability);
+                ValidateFsrsDifficulty(state.Difficulty);
+                if (!state.LastReviewedAtUtc.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                ValidateUtc(state.LastReviewedAtUtc.Value);
+                if (!state.StepIndex.HasValue || state.StepIndex.Value != 0)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                ValidateOptionalUtc(state.DueAtUtc);
+                break;
+
+            case BackupFsrsCardStateKind.Review:
+                ValidateFsrsStability(state.Stability);
+                ValidateFsrsDifficulty(state.Difficulty);
+                if (!state.LastReviewedAtUtc.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                ValidateUtc(state.LastReviewedAtUtc.Value);
+                if (state.StepIndex.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                ValidateOptionalUtc(state.DueAtUtc);
+                break;
+
+            case BackupFsrsCardStateKind.Relearning:
+                ValidateFsrsStability(state.Stability);
+                ValidateFsrsDifficulty(state.Difficulty);
+                if (!state.LastReviewedAtUtc.HasValue)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                ValidateUtc(state.LastReviewedAtUtc.Value);
+                if (!state.StepIndex.HasValue || state.StepIndex.Value != 0)
+                {
+                    throw Error(BackupErrorCodes.InvariantViolation);
+                }
+                ValidateOptionalUtc(state.DueAtUtc);
+                break;
+
+            default:
+                throw Error(BackupErrorCodes.InvariantViolation);
+        }
+    }
+
+    private static void ValidateFsrsStability(double? stability)
+    {
+        if (!stability.HasValue || !double.IsFinite(stability.Value) || stability.Value < Fsrs6Card.MinimumStability)
+        {
+            throw Error(BackupErrorCodes.InvariantViolation);
+        }
+    }
+
+    private static void ValidateFsrsDifficulty(double? difficulty)
+    {
+        if (!difficulty.HasValue
+            || !double.IsFinite(difficulty.Value)
+            || difficulty.Value < Fsrs6Card.MinimumDifficulty
+            || difficulty.Value > Fsrs6Card.MaximumDifficulty)
+        {
+            throw Error(BackupErrorCodes.InvariantViolation);
+        }
+    }
 
     private static void ValidateSourceMaterial(BackupSourceMaterial item)
     {
@@ -267,9 +400,6 @@ public static class BackupModelContractV2
         ValidateUtc(item.CreatedAtUtc);
         ValidateUtc(item.UpdatedAtUtc);
 
-        // Schema-8 Word-status invariant: Prepared/Learning/Mastered now mean nothing at the Word
-        // level once Sense progression (BackupSense.Status) owns that concern — mirrors
-        // Schema8DormantMigration.Step7_ValidateFinalInvariants's identical live-database rule.
         if (item.KnowledgeState is BackupKnowledgeState.Prepared or BackupKnowledgeState.Learning or BackupKnowledgeState.Mastered)
         {
             throw Error(BackupErrorCodes.InvariantViolation);
@@ -393,9 +523,6 @@ public static class BackupModelContractV2
         ValidateUtc(assignment.CreatedAtUtc);
         ValidateUtc(assignment.UpdatedAtUtc);
 
-        // KF-MEANING-001 Slice 4 invariant I1: Required iff RequiredSinceUtc is non-null. A v2 archive that
-        // predates the field deserializes it as null and is therefore rejected here whenever it claims a
-        // Required assignment, rather than silently importing a Required row with no replay boundary.
         var isRequired = assignment.Requirement == BackupAnswerVariantRequirement.Required;
         if (isRequired != assignment.RequiredSinceUtc.HasValue)
         {
@@ -543,13 +670,6 @@ public static class BackupModelContractV2
         }
     }
 
-    /// <summary>
-    /// Field-shape validation only (non-null/non-empty strings, non-negative/positive numbers) — mirrors
-    /// the same minimal-shape pattern <see cref="ValidateVocabularyReviewWorkflow"/>'s item loop already
-    /// uses. Cross-referential invariants (owning-reference resolution, document/sentence range containment,
-    /// surface-form/vocabulary-identity match, duplicate semantic evidence) require other collections and
-    /// belong to <see cref="BackupArchiveWriterV2.ValidatePayloadGraphV2"/> instead.
-    /// </summary>
     private static void ValidateDerivedTermEvidence(BackupDerivedTermEvidenceV2 evidence)
     {
         ValidateArchiveId(evidence.ReviewItemId);
@@ -577,7 +697,7 @@ public static class BackupModelContractV2
         }
     }
 
-    private static void ValidateRecordCountsShape(BackupRecordCountsV2 counts)
+    private static void ValidateRecordCountsShape(BackupRecordCountsV3 counts)
     {
         int[] values =
         [
@@ -586,7 +706,9 @@ public static class BackupModelContractV2
             counts.VocabularyReviewWorkflows, counts.VocabularyReviewItems, counts.PreparationWorkflows,
             counts.PreparationItems, counts.LearningCards, counts.LearningReviews, counts.LearningWorkflows,
             counts.LearningQueueItems, counts.Senses, counts.AnswerVariants,
-            counts.SenseAnswerVariantAssignments, counts.AnswerVariantProgress, counts.DerivedTermEvidence
+            counts.SenseAnswerVariantAssignments, counts.AnswerVariantProgress, counts.DerivedTermEvidence,
+            counts.WordLearningControls, counts.SenseLearningControls,
+            counts.FsrsReviewHistoryEntries, counts.FsrsCardStates
         ];
 
         if (values.Any(value => value < 0)

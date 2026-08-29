@@ -72,23 +72,45 @@ public sealed class BackupService(
                     counts.LearningQueueItems, null, null, null, null));
         }
 
-        var v2 = validated.V2!;
-        var v2Counts = v2.Manifest.RecordCounts;
+        if (validated.V2 is { } v2)
+        {
+            var v2Counts = v2.Manifest.RecordCounts;
+            return new BackupPortableArchiveSummary(
+                v2.Manifest.FormatVersion,
+                v2.Manifest.SourceAppVersion,
+                v2.Manifest.SourceDatabaseSchemaVersion,
+                v2.Manifest.CreatedAtUtc,
+                v2.Manifest.SourcePlatform,
+                v2.Manifest.OptionalFeatures,
+                v2.Manifest.RequiredFeatures,
+                new BackupPortableArchiveCounts(
+                    v2Counts.SourceMaterials, v2Counts.SentenceRanges, v2Counts.VocabularyItems, v2Counts.EncounteredForms,
+                    v2Counts.Occurrences, v2Counts.PreparedItems, v2Counts.ContextSnapshots, v2Counts.LegacyReviewSummaries,
+                    v2Counts.VocabularyReviewWorkflows, v2Counts.VocabularyReviewItems, v2Counts.PreparationWorkflows,
+                    v2Counts.PreparationItems, v2Counts.LearningCards, v2Counts.LearningReviews, v2Counts.LearningWorkflows,
+                    v2Counts.LearningQueueItems, v2Counts.Senses, v2Counts.AnswerVariants,
+                    v2Counts.SenseAnswerVariantAssignments, v2Counts.AnswerVariantProgress));
+        }
+
+        var v3 = validated.V3!;
+        var v3Counts = v3.Manifest.RecordCounts;
         return new BackupPortableArchiveSummary(
-            v2.Manifest.FormatVersion,
-            v2.Manifest.SourceAppVersion,
-            v2.Manifest.SourceDatabaseSchemaVersion,
-            v2.Manifest.CreatedAtUtc,
-            v2.Manifest.SourcePlatform,
-            v2.Manifest.OptionalFeatures,
-            v2.Manifest.RequiredFeatures,
+            v3.Manifest.FormatVersion,
+            v3.Manifest.SourceAppVersion,
+            v3.Manifest.SourceDatabaseSchemaVersion,
+            v3.Manifest.CreatedAtUtc,
+            v3.Manifest.SourcePlatform,
+            v3.Manifest.OptionalFeatures,
+            v3.Manifest.RequiredFeatures,
             new BackupPortableArchiveCounts(
-                v2Counts.SourceMaterials, v2Counts.SentenceRanges, v2Counts.VocabularyItems, v2Counts.EncounteredForms,
-                v2Counts.Occurrences, v2Counts.PreparedItems, v2Counts.ContextSnapshots, v2Counts.LegacyReviewSummaries,
-                v2Counts.VocabularyReviewWorkflows, v2Counts.VocabularyReviewItems, v2Counts.PreparationWorkflows,
-                v2Counts.PreparationItems, v2Counts.LearningCards, v2Counts.LearningReviews, v2Counts.LearningWorkflows,
-                v2Counts.LearningQueueItems, v2Counts.Senses, v2Counts.AnswerVariants,
-                v2Counts.SenseAnswerVariantAssignments, v2Counts.AnswerVariantProgress));
+                v3Counts.SourceMaterials, v3Counts.SentenceRanges, v3Counts.VocabularyItems, v3Counts.EncounteredForms,
+                v3Counts.Occurrences, v3Counts.PreparedItems, v3Counts.ContextSnapshots, v3Counts.LegacyReviewSummaries,
+                v3Counts.VocabularyReviewWorkflows, v3Counts.VocabularyReviewItems, v3Counts.PreparationWorkflows,
+                v3Counts.PreparationItems, v3Counts.LearningCards, v3Counts.LearningReviews, v3Counts.LearningWorkflows,
+                v3Counts.LearningQueueItems, v3Counts.Senses, v3Counts.AnswerVariants,
+                v3Counts.SenseAnswerVariantAssignments, v3Counts.AnswerVariantProgress,
+                v3Counts.WordLearningControls, v3Counts.SenseLearningControls,
+                v3Counts.FsrsReviewHistoryEntries, v3Counts.FsrsCardStates));
     }
 
     /// <summary>

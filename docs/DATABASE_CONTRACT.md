@@ -5,7 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version 11 on `master`. Schema 10 is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below; Schema 11 (German Enhanced Term Recognition derivation-evidence persistence) is documented in the [Schema-11 contract](#schema-11-derived-term-evidence-contract) section below. Merged KF-BACKUP-005B changes portable Active learning-workflow behavior without changing the physical schema version or archive format; its binding current-master contract is recorded explicitly below.
+It describes the current SQLite model at schema version 12 on `master`. Schema 10 is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below; Schema 11 (German Enhanced Term Recognition derivation-evidence persistence) is documented in the [Schema-11 contract](#schema-11-derived-term-evidence-contract) section below; Schema 12 (Learning-Day and Daily New-Word Budget persistence) is documented in the [Schema-12 contract](#schema-12-learning-day-and-daily-new-word-budget-contract-merged-production-state) section below; the dormant Schema-13 persistence and migration foundation (KF-PERSIST-013-001) is documented in the [Dormant Schema-13 contract](#dormant-schema-13-persistence-and-migration-foundation-contract-kf-persist-013-001) section below. Merged KF-BACKUP-005B changes portable Active learning-workflow behavior without changing the physical schema version or archive format; its binding current-master contract is recorded explicitly below.
 
 ## Storage boundary
 
@@ -514,3 +514,172 @@ Records each genuinely-new `WordId` admitted to a logical learning day.
 - **Archive format:** Remains V2. No V3 format is introduced.
 - **Export/Import:** `LearningDayState` and `LearningDayGrants` are never serialized into portable archives or backups. Restore into empty installations or merge into populated installations initializes fresh local learning-day state upon first learning access.
 - **Merge isolation:** Populated-target merge operates entirely independent of target learning-day state and grants.
+
+---
+
+## Dormant Schema-13 Persistence and Migration Foundation Contract (KF-PERSIST-013-001)
+
+### 1. Activation and Dormancy Boundary
+
+- **Source Foundation:** Schema-13 table definitions, shape validation, repositories, atomic persistence coordinator, and the `Schema13DormantMigration` engine are implemented in source on `feature/schema13-clean-persistence-v1`.
+- **Production Schema Unchanged:** `DatabaseSchema.CurrentVersion` remains **12** on `master`. Normal application startup through `DatabaseSchema.InitializeAsync` initializes or migrates databases up to Schema 12 only and does **not** call `Schema13DormantMigration.ApplyAsync`. A healthy initialized production database reports `PRAGMA user_version = 12`.
+- **Explicit Migration Scope:** `Schema13DormantMigration.ApplyAsync` is an explicit, callable migration method that migrates a specified Schema-12 SQLite connection to Schema 13 in isolation.
+- **Production Activation Ownership:** Production activation (incrementing `DatabaseSchema.CurrentVersion` to 13, updating `InitializeAsync`, and wiring DI runtime services) is deferred to `KF-FSRS-003`.
+
+### 2. Physical Target Tables, Indexes, and Constraints
+
+Schema 13 introduces four physical tables defined in `KnownFirst.Data.Migrations.Schema13.Schema13Ddl`:
+
+#### A. `FsrsCardStates`
+
+One-to-one scheduling-state table for `LearningCards` representing the current factual `Fsrs6Card` state.
+
+```sql
+CREATE TABLE FsrsCardStates (
+    CardId INTEGER PRIMARY KEY,
+    State INTEGER NOT NULL,
+    Stability REAL,
+    Difficulty REAL,
+    LastReviewedAtUtc TEXT,
+    StepIndex INTEGER,
+    DueAtUtc TEXT,
+    FOREIGN KEY (CardId) REFERENCES LearningCards(Id) ON DELETE CASCADE,
+    CHECK (State IN (0, 1, 2, 3)),
+    CHECK (
+        (Stability IS NULL OR Stability >= 0.001)
+        AND (Difficulty IS NULL OR (Difficulty >= 1.0 AND Difficulty <= 10.0))
+    ),
+    CHECK (
+        (State = 0 AND Stability IS NULL AND Difficulty IS NULL AND LastReviewedAtUtc IS NULL AND StepIndex IS NULL)
+        OR (State = 1 AND Stability IS NOT NULL AND Difficulty IS NOT NULL AND LastReviewedAtUtc IS NOT NULL AND StepIndex = 0)
+        OR (State = 2 AND Stability IS NOT NULL AND Difficulty IS NOT NULL AND LastReviewedAtUtc IS NOT NULL AND StepIndex IS NULL)
+        OR (State = 3 AND Stability IS NOT NULL AND Difficulty IS NOT NULL AND LastReviewedAtUtc IS NOT NULL AND StepIndex = 0)
+    )
+);
+```
+
+- **Index:** `IX_FsrsCardStates_State_DueAtUtc` ON `FsrsCardStates (State, DueAtUtc)` for efficient due-card and state querying.
+
+#### B. `FsrsReviewHistoryEntries`
+
+Append-only factual review log recording every historical review event.
+
+```sql
+CREATE TABLE FsrsReviewHistoryEntries (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    StableId TEXT NOT NULL,
+    CardId INTEGER NOT NULL,
+    SequenceNumber INTEGER NOT NULL,
+    Rating INTEGER NOT NULL,
+    ReviewedAtUtc TEXT NOT NULL,
+    FOREIGN KEY (CardId) REFERENCES LearningCards(Id) ON DELETE CASCADE,
+    CHECK (LENGTH(TRIM(StableId)) > 0),
+    CHECK (SequenceNumber > 0),
+    CHECK (Rating IN (0, 1, 2, 3))
+);
+```
+
+- **Indexes:**
+  - `IX_FsrsReviewHistoryEntries_StableId` (UNIQUE ON `StableId`): enforces unique global event identity.
+  - `IX_FsrsReviewHistoryEntries_Card_Sequence` (UNIQUE ON `CardId, SequenceNumber`): enforces deterministic, gapless 1-based causal review order per card.
+  - `IX_FsrsReviewHistoryEntries_Card_Replay` (INDEX ON `CardId, ReviewedAtUtc, SequenceNumber`): optimizes chronological event replay.
+
+#### C. `WordLearningControls`
+
+Physical persistence for reversible Word-level learning decisions (`AlreadyKnown`).
+
+```sql
+CREATE TABLE WordLearningControls (
+    WordId INTEGER PRIMARY KEY,
+    DecidedAtUtc TEXT NOT NULL,
+    FOREIGN KEY (WordId) REFERENCES Words(Id) ON DELETE CASCADE,
+    CHECK (LENGTH(TRIM(DecidedAtUtc)) > 0)
+);
+```
+
+#### D. `SenseLearningControls`
+
+Physical persistence for reversible Sense-level learning decisions (`StopLearning`).
+
+```sql
+CREATE TABLE SenseLearningControls (
+    SenseId INTEGER PRIMARY KEY,
+    DecidedAtUtc TEXT NOT NULL,
+    FOREIGN KEY (SenseId) REFERENCES Senses(Id) ON DELETE CASCADE,
+    CHECK (LENGTH(TRIM(DecidedAtUtc)) > 0)
+);
+```
+
+- **Shape Validation:** `Schema13ShapeValidator.IsValidDatabase` strictly validates the presence, column nullabilities, affinities, foreign keys, CHECK constraints, and exact index configurations before the database can be used.
+
+### 3. Semantic Separation and Learning Control Invariants
+
+- **`WordLearningControl` Semantics:**
+  - Represents the reversible user decision that a word was already known before KnownFirst taught it.
+  - Absence of a row in `WordLearningControls` corresponds to `WordLearningControl.Default` (not marked already known).
+  - Setting `WordLearningControl.Default` deletes the row from `WordLearningControls`.
+  - Marking a word already known persists an explicit row with a strict UTC timestamp (`DecidedAtUtc`).
+  - No dual-write or synchronization with `Words.Status` occurs; `Words.Status` remains untouched.
+  - No semantic graph data (`Words`, `Senses`, `Meanings`, `LearningCards`) is deleted.
+- **`SenseLearningControl` Semantics:**
+  - Represents the reversible user decision to halt learning on an individual Sense.
+  - Absence of a row corresponds to `SenseLearningControl.Default` (learning active).
+  - Setting `SenseLearningControl.Default` deletes the row from `SenseLearningControls`.
+  - No dual-write to `Sense.Status` or legacy scheduler columns occurs.
+  - Schema-12 forward migration creates **zero** `SenseLearningControls` because Schema 12 contains no equivalent user decision.
+- **FSRS State vs. Factual History Separation:**
+  - `FsrsCardStates` is the target factual scheduling state for one `Fsrs6Card` per `LearningCard`.
+  - `FsrsReviewHistoryEntries` is the append-only factual log of past review events.
+  - State and history remain completely separate; no fallback or synchronization to legacy `LearningCards` scheduler columns (`EaseFactor`, `IntervalDays`, `Mastered`, `Retired`, `Suspended`).
+- **Identity and Ordering Roles:**
+  - `StableId`: unique event identity across installations.
+  - `SequenceNumber`: strictly increasing 1-based causal order per card.
+  - `ReviewedAtUtc`: factual timestamp of review. Equal timestamps and equal timestamp/rating multiplicity are valid and preserved deterministically.
+
+### 4. Atomic Runtime Persistence Foundation (`FsrsReviewPersistenceCoordinator`)
+
+- **Atomic Resulting-State and History Write:** `FsrsReviewPersistenceCoordinator.PersistReviewAsync` persists a caller-computed resulting `Fsrs6Card` and appends the corresponding factual `Fsrs6ReviewEvent` in a single SQLite transaction.
+- **Formula Isolation:** The persistence coordinator does **not** duplicate or recompute FSRS mathematical scheduling formulas.
+- **Transactional Rollback:** State update and history append roll back together on any error; partial persistence is impossible. No legacy dual-write is performed.
+
+### 5. Migration Engine (`Schema13DormantMigration`)
+
+- **Source and Target Versions:** `SourceVersion = 12`, `TargetVersion = 13`.
+- **Precondition & Version Guards:**
+  - `sourceVersion > TargetVersion` (source $> 13$): fails closed with `Schema13MigrationException.FutureVersion`.
+  - `sourceVersion == TargetVersion` (source $= 13$): runs `ValidateAlreadyApplied` (`Schema13ShapeValidator` and `Schema13MigrationIntegrityValidator`) without mutating data and returns `AlreadyApplied`.
+  - `sourceVersion != SourceVersion` (source $\ne 12$): fails closed with `Schema13MigrationException.UnsupportedSourceVersion`.
+- **Source Shape Verification:** Verifies source Schema-12 shape via `Schema12ShapeValidator` before creating target structures.
+- **Partial-Target Protection:** Checks for pre-existing Schema-13 tables or indexes on a version-12 database; any pre-existing target artifact throws an `InvariantViolation` fail-closed error.
+- **Single Transaction:** DDL execution, bootstrap data materialization, shape validation, integrity validation, and `PRAGMA user_version = 13` run within a single `RunInTransactionAsync` block. Any error rolls back all target changes.
+
+### 6. Historical Transformation Semantics (`Schema13LearningBootstrap`)
+
+- **1:1 Review History Preservation:** Every source `LearningReviewEntity` row maps 1:1 to an `FsrsReviewHistoryEntries` row.
+- **Deterministic Ordering:** Source reviews are ordered deterministically by `ReviewedAtUtc` ascending with legacy `Id` ascending as tie-breaker.
+- **Rating Domain:** Mapped rating is `ReviewRating` ($0 \dots 3$).
+- **Deterministic Migration StableId:** `Schema13HistoricalReviewStableIdPolicy` computes a SHA-256 stable identity under domain `KnownFirst.Identity.FsrsReviewHistoryEntry.MigrationBootstrap.v1` combining Sense identifier, `CardDirection`, `ReviewedAtUtc`, `Rating`, and a 0-based multiplicity ordinal for duplicate timestamps. No random GUIDs are used in migration.
+- **FSRS Target State Derivation via Replay:** Target `Fsrs6Card` state is derived exclusively by streaming the mapped review events through `Fsrs6Replayer`. Legacy `EaseFactor` and `IntervalDays` never synthesize FSRS parameters. Replay-derived `DueAtUtc` is preserved without legacy override.
+- **Unreviewed & Historyless Progress Cards:**
+  - Genuinely unreviewed cards (0 review history rows, New state) map to `Fsrs6Card.New`.
+  - Progressed cards with missing review history fail closed with `Schema13MigrationException.InvariantViolation` instead of silently resetting to New.
+- **Word Learning Controls Migration:** Words with `Status = WordStatus.Known` produce a `WordLearningControl` row with `DecidedAtUtc` taken from the legacy `Words.UpdatedAt` timestamp (or `CreatedAtUtc` fallback).
+- **No Sense Learning Controls:** Schema-12 migration creates zero `SenseLearningControls`.
+- **Semantic Graph Preservation:** Previously deleted semantic graph data is not recreated.
+
+### 7. Source Preservation
+
+- Existing Schema-12 tables (`Words`, `Senses`, `Meanings`, `LearningCards`, `LearningReviews`, `LearningSessions`, `LearningSessionCards`, `LearningDayState`, `LearningDayGrants`, `DerivedTermEvidenceEntries`, `Documents`, etc.) remain logically unchanged and fully intact after migration.
+- No columns are dropped and no legacy data is destructively transformed during Schema 13 migration.
+
+### 8. Foreign-Key Boundary
+
+- Schema-13 DDL defines physical SQLite foreign keys referencing `LearningCards(Id)`, `Words(Id)`, and `Senses(Id)` with `ON DELETE CASCADE`.
+- Schema-13 shape and integrity tests verify that target data is valid under explicit `PRAGMA foreign_keys = ON`.
+- Production `KnownFirstDatabase` does **not** yet globally enable `PRAGMA foreign_keys = ON`. Global production foreign-key enablement prerequisite belongs to `KF-FSRS-003`.
+
+### 9. Backup and Restore Boundary
+
+- **Archive Format Remains V2:** Portable `.kfarchive` export and import remain format V2.
+- **Archive V3 Prerequisite:** Schema-13 structures (`FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, `SenseLearningControls`) are not exported to V2 archives. Export and cross-installation transport of Schema-13 state belong to `KF-BACKUP-006` (Archive V3).
+- **No Incompatible Transport:** Schema-13 data is never coerced or truncated into Schema-12/V2 archives.

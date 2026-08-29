@@ -63,12 +63,12 @@ Beta-13 Build-14 AAB creation and packaging evidence are recorded as completed i
 The following initiatives represent accepted product directions whose individual packages, acceptance criteria, and dependencies are durably tracked in [docs/BACKLOG.md](BACKLOG.md). Their global sequence and priority ordering are subject to explicit user confirmation rather than assumed numeric priority:
 
 ### 1. FSRS-6 Production Cutover & Clean Domain Persistence
-- **Foundation State (Merged):** In-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008) and clean domain learning controls with dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186) are committed to `master`.
+- **Foundation State:** In-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008) and clean domain learning controls with dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186) are committed to `master`; dormant Schema 13 physical persistence and migration foundation (`KF-PERSIST-013-001`) is source-complete.
 - **Open Downstream Packages:**
-  - `KF-PERSIST-013-001`: Schema 13 physical SQLite tables and transactional forward migration for FSRS states, review history facts, and clean learning controls (`WordLearningControl`, `SenseLearningControl`).
   - `KF-BACKUP-006`: Archive V3 format evolution and cross-installation transport.
   - `KF-FSRS-003`: Production FSRS-6 cutover, runtime DI wiring, factual review event logging, and legacy New + Hard $\to$ 15-minute learning step resolution, while strictly preserving the implemented active-session Again tail-repeat invariant.
   - `KF-CLEANUP-001`: Legacy scheduler deprecation, column removal (`IntervalDays`, `EaseFactor`), and replay policy cleanup.
+- **Dependency Sequence:** Completed Core, Domain & Persistence Foundations (`KF-FSRS6-CORE-001`, `KF-CLEAN-DOMAIN-013-001`, `KF-PERSIST-013-001`) $\to$ Archive V3 (`KF-BACKUP-006`) $\to$ Production Cutover (`KF-FSRS-003`) $\to$ Legacy Cleanup (`KF-CLEANUP-001`).
 
 ### 2. Vocabulary Management Area
 - **Objective:** Replace the `/dictionary` placeholder card (`KF-VOCAB-001`) with a real, production-grade Vocabulary area.

@@ -347,7 +347,48 @@ This merged package establishes the clean domain model in `KnownFirst.Core` and 
 - **Active Schema & Archive:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
 - **Production Scheduler Wiring:** `SimpleSpacedRepetitionScheduler` remains the sole production-registered `ISpacedRepetitionScheduler`.
 - **Dormancy:** `KnownFirst.Application` and clean learning-control contracts are completely dormant from runtime execution.
-- **Downstream Initiatives:** Schema 13 physical tables and migrations (`KF-PERSIST-013-001`), Archive V3 format evolution (`KF-BACKUP-006`), and runtime FSRS production cutover (`KF-FSRS-003`) are tracked as open work in [docs/BACKLOG.md](BACKLOG.md).
+- **Downstream Initiatives:** Downstream Archive V3 format evolution (`KF-BACKUP-006`), runtime FSRS production cutover (`KF-FSRS-003`), and legacy cleanup (`KF-CLEANUP-001`) are tracked as open work in [docs/BACKLOG.md](BACKLOG.md).
+
+## Dormant Schema-13 Persistence & Migration Foundation (KF-PERSIST-013-001)
+
+**Lifecycle status:** Source implementation complete across five logical checkpoints / six source commits on `feature/schema13-clean-persistence-v1`. Consolidated `REVIEW_ONLY` approved with `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+
+This package establishes the physical SQLite Schema-13 storage structures, repositories, atomic persistence coordinator, and deterministic Schema 12 $\to$ 13 migration engine as a dormant foundation ahead of runtime FSRS activation and Archive V3:
+
+**1. Physical Schema-13 Target Structures (`KnownFirst.Data.Migrations.Schema13.Schema13Ddl`)**
+
+- **`FsrsCardStates`:** One-to-one scheduling-state table for `LearningCards` (`CardId` PK/FK to `LearningCards.Id`), storing `State` ($0 \dots 3$), nullable `Stability` ($\ge 0.001$), nullable `Difficulty` ($1.0 \dots 10.0$), nullable `LastReviewedAtUtc`, nullable `StepIndex`, and nullable `DueAtUtc`. State-dependent CHECK constraints enforce valid FSRS state configurations (`New`: null parameters; `Learning`/`Relearning`: non-null stability/difficulty/last-reviewed, step index 0; `Review`: non-null stability/difficulty/last-reviewed, null step index). Indexed by `IX_FsrsCardStates_State_DueAtUtc` on `(State, DueAtUtc)`.
+- **`FsrsReviewHistoryEntries`:** Append-only factual review log storing `Id` (PK autoincrement), `StableId` (TEXT NOT NULL, unique event identifier), `CardId` (FK to `LearningCards.Id`), `SequenceNumber` (INTEGER NOT NULL $> 0$, per-card causal order), `Rating` ($0 \dots 3$, corresponding to `ReviewRating`), and `ReviewedAtUtc` (TEXT NOT NULL). Constrained by unique indexes `IX_FsrsReviewHistoryEntries_StableId` on `(StableId)` and `IX_FsrsReviewHistoryEntries_Card_Sequence` on `(CardId, SequenceNumber)`, and indexed by `IX_FsrsReviewHistoryEntries_Card_Replay` on `(CardId, ReviewedAtUtc, SequenceNumber)`.
+- **`WordLearningControls`:** Physical storage for reversible Word-level `AlreadyKnown` user decisions (`WordId` PK/FK to `Words.Id`, `DecidedAtUtc` TEXT NOT NULL). Absence of a row represents `WordLearningControl.Default`; saving `Default` deletes the row. No dual-write to `Words.Status` and no semantic graph deletion.
+- **`SenseLearningControls`:** Physical storage for reversible Sense-level `StopLearning` user decisions (`SenseId` PK/FK to `Senses.Id`, `DecidedAtUtc` TEXT NOT NULL). Absence of a row represents `SenseLearningControl.Default`; saving `Default` deletes the row. No dual-write to `Sense.Status` or scheduler columns.
+- **Fail-Closed Shape Validation:** `Schema13ShapeValidator` enforces table existence, column nullability/affinities, primary keys, foreign key declarations, CHECK constraints, and exact index definitions before exposure.
+
+**2. Clean Repositories & Atomic Persistence Coordinator (`KnownFirst.Data.Schema13`)**
+
+- **`WordLearningControlRepository` & `SenseLearningControlRepository`:** Clean domain persistence mapping between Core control types and SQLite tables. Missing rows yield default control instances.
+- **`FsrsCardStateRepository` & `FsrsReviewHistoryRepository`:** Separate repositories for FSRS card scheduling state and append-only factual review history. Replay history ordering is causal and deterministic.
+- **`FsrsReviewPersistenceCoordinator`:** Atomically persists one caller-computed resulting `Fsrs6Card` and the corresponding factual `Fsrs6ReviewEvent` in a single SQLite transaction. Does not duplicate or recompute FSRS scheduling logic. State write and history append roll back together on failure.
+
+**3. Deterministic Transactional Migration (`Schema13DormantMigration`)**
+
+- **Version Boundaries & Transaction Safety:** `SourceVersion = 12`, `TargetVersion = 13`. Executes inside a single SQLite transaction. Source user_version $> 13$ fails closed with `FutureVersion`; source version 13 validates existing shape and integrity without mutation (`AlreadyApplied`); source version $\ne 12$ fails closed with `UnsupportedSourceVersion`.
+- **Source Verification & Pre-Existing Artifact Guards:** Validates Schema 12 source shape via `Schema12ShapeValidator` before creating target structures. Fails closed if any Schema 13 target table or index already exists on a version-12 database.
+- **Deterministic Historical Bootstrap (`Schema13LearningBootstrap`):**
+  - Source `LearningReview` rows map 1:1 to `FsrsReviewHistoryEntries`, ordered deterministically by `ReviewedAtUtc` ascending with legacy `Id` as tie-breaker.
+  - Deterministic `StableId` generated by `Schema13HistoricalReviewStableIdPolicy` using Sense identity, `CardDirection`, factual timestamp, rating, and multiplicity ordinal under the domain `KnownFirst.Identity.FsrsReviewHistoryEntry.MigrationBootstrap.v1`.
+  - Target `Fsrs6Card` states are derived exclusively through `Fsrs6Replayer` over the mapped factual history. Legacy `IntervalDays` and `EaseFactor` do not synthesize FSRS stability or difficulty. Replay-derived `DueAtUtc` is preserved without legacy override.
+  - Genuinely unreviewed cards map to `Fsrs6Card.New`. Progressed cards with missing review history fail closed.
+  - `WordStatus.Known` words produce `WordLearningControl` rows using the surviving legacy `Words.UpdatedAt` timestamp. Schema 12 migration produces zero `SenseLearningControls`.
+- **Exact Target Integrity Validation (`Schema13MigrationIntegrityValidator`):** Validates actual materialized target data against the source-derived bootstrap plan with exact equality for controls, event facts, causal sequences, stable identities, and binary64 FSRS parameters. Dropped, excess, wrong, or orphan rows fail closed.
+- **Atomic Finalization:** `PRAGMA user_version = 13` is written only after shape and integrity validation pass. Any error rolls back all target DDL, data, and version changes. Source Schema 12 tables and rows remain preserved and unmodified.
+
+**4. Preserved Production Boundaries**
+
+- **Dormancy:** `DatabaseSchema.CurrentVersion` remains 12. Production `DatabaseSchema.InitializeAsync` does not invoke `Schema13DormantMigration`. Ordinary initialized production databases remain `user_version 12`.
+- **Production Scheduler:** `SimpleSpacedRepetitionScheduler` remains the active production scheduler.
+- **Archive Format:** Portable archive format remains V2.
+- **Foreign-Key Activation:** Physical target foreign keys are verified under explicit connection enforcement, but global production `PRAGMA foreign_keys = ON` activation remains deferred to `KF-FSRS-003`.
+- **Downstream Ownership:** Archive V3 transport semantics (`KF-BACKUP-006`), production FSRS-6 cutover and DI composition (`KF-FSRS-003`), legacy cleanup (`KF-CLEANUP-001`), and Vocabulary UI workflows (`KF-VOCAB-005`, `KF-VOCAB-006`) remain tracked in [docs/BACKLOG.md](BACKLOG.md).
 
 ## Evidence Boundaries & Release Limitations
 

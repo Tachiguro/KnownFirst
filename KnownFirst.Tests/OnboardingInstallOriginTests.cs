@@ -366,14 +366,6 @@ public sealed class OnboardingInstallOriginTests
             12,
             currentSchemaVersion,
             "Onboarding state is preference-level application state and must not move the database schema.");
-
-        var schema13Types = typeof(DatabaseSchema).Assembly
-            .GetTypes()
-            .Where(type => type.Name.Contains("Schema13", StringComparison.Ordinal))
-            .Select(type => type.FullName ?? type.Name)
-            .ToArray();
-
-        Assert.IsEmpty(schema13Types, $"Unexpected Schema-13 types: {string.Join(", ", schema13Types)}");
     }
 
     private static string LoadStartupArtifact(string fileName) =>

@@ -47,6 +47,7 @@ and uses the application's prerelease version identifiers.
 
 ### Internal
 
+- Added dormant Schema-13 persistence and migration foundation for clean learning controls and FSRS factual review state/history (KF-PERSIST-013-001), including deterministic transactional 12 -> 13 migration, separate FSRS card state and append-only review history tables, clean word and sense learning control tables, and an atomic state-plus-history persistence coordinator, while production remains Schema 12 and runtime behavior is unchanged.
 - Advanced release-preparation candidate build number from `14` to `15` for the upcoming Beta 13 Google Play package and reconciled durable release records (KF-RELEASE-002).
 
 ## [1.0.0-beta.13] - 2026-08-23 (merged source — next Internal Testing candidate, not yet gated or distributed)

@@ -306,7 +306,7 @@ public sealed class Schema13BackupRestoreTests
     }
 
     [TestMethod]
-    public async Task ImportV3_IntoPopulatedSchema13_IsBlockedWithoutMergeOrMutation()
+    public async Task ImportV3_WithAmbiguousSiblingSenses_IntoPopulatedSchema13_FailsClosedWithoutMutation()
     {
         await using var source = await CreateEmptySchema13DatabaseAsync();
         await SeedNativeV3SourceAsync(source);
@@ -322,8 +322,8 @@ public sealed class Schema13BackupRestoreTests
         var result = await new BackupService(target, new FakePlatformInfo())
             .ImportPortableArchiveAsync(new MemoryStream(archiveBytes), CancellationToken.None);
 
-        Assert.AreEqual(PortableImportStatus.TargetNotEmpty, result.Status);
-        Assert.AreEqual(BackupErrorCodes.TargetNotEmpty, result.ErrorCode);
+        Assert.AreEqual(PortableImportStatus.Failed, result.Status);
+        Assert.AreEqual(BackupErrorCodes.DuplicateId, result.ErrorCode);
         await target.RunInTransactionAsync(connection =>
         {
             Assert.AreEqual(1, connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Words"));

@@ -46,7 +46,7 @@ public sealed class Schema13MergePreflightTests
                 CancellationToken.None);
 
         Assert.AreEqual(PortableImportPreviewDisposition.MergeChanges, preview.Disposition, preview.ErrorCode);
-        Assert.IsFalse(preview.CanConfirm);
+        Assert.IsTrue(preview.CanConfirm);
         Assert.IsTrue(preview.WillMutate);
     }
 
@@ -283,7 +283,7 @@ public sealed class Schema13MergePreflightTests
     }
 
     [TestMethod]
-    public async Task Preview_IsReadOnly_CreatesNoSafetyCopy_AndImportRemainsBlocked()
+    public async Task Preview_IsReadOnly_AndIdenticalImportCompletesWithoutSafetyCopyOrWriter()
     {
         var targetArchive = await WriteV3Async(CreatePayload());
         await using var target = await CreateSchema13TargetAsync(targetArchive);
@@ -310,7 +310,8 @@ public sealed class Schema13MergePreflightTests
         var import = await service.ImportPortableArchiveAsync(
             new MemoryStream(targetArchive),
             CancellationToken.None);
-        Assert.AreEqual(PortableImportStatus.TargetNotEmpty, import.Status);
+        Assert.AreEqual(PortableImportStatus.Success, import.Status, import.ErrorCode);
+        Assert.AreEqual(PortableImportDisposition.MergeNoChange, import.Summary?.Disposition);
         Assert.AreEqual(0, safetyCopy.CallCount);
         Assert.AreEqual(0, writer.CallCount);
     }
@@ -671,6 +672,15 @@ public sealed class Schema13MergePreflightTests
 
         public Task<MergeWriteResult> ApplyAsync(
             BackupPayloadV2 archive,
+            MergePreflightPlan plan,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(MergeWriteResult.SuccessResult);
+        }
+
+        public Task<MergeWriteResult> ApplySchema13Async(
+            BackupPayloadV3 archive,
             MergePreflightPlan plan,
             CancellationToken cancellationToken)
         {

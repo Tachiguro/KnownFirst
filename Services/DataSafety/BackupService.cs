@@ -224,17 +224,6 @@ public sealed class BackupService(
             }
 
             var (inserted, enriched, preserved, skipped) = AggregateMergeCounts(plan);
-            if (capability is Schema13CapabilityResult && RequiresWriterExecution(plan))
-            {
-                return PortableImportPreview.ForMergeChangesWithoutWriter(
-                    archiveSummary,
-                    inserted,
-                    enriched,
-                    preserved,
-                    skipped,
-                    plan.WarningCodes);
-            }
-
             return RequiresWriterExecution(plan)
                 ? PortableImportPreview.ForMergeChanges(archiveSummary, inserted, enriched, preserved, skipped, plan.WarningCodes)
                 : PortableImportPreview.ForMergeNoChange(archiveSummary, skipped, plan.WarningCodes);
@@ -321,7 +310,7 @@ public sealed class BackupService(
 
             if (capability is Schema13CapabilityResult && targetHasDurableData)
             {
-                return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
+                return await ImportIntoPopulatedSchema13Async(validated, cancellationToken);
             }
 
             if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult) && targetHasDurableData)
@@ -503,6 +492,64 @@ public sealed class BackupService(
         {
             // The safety copy already created above is deliberately retained — never deleted here,
             // regardless of why the writer refused or rolled back.
+            return new PortableImportResult(
+                MapWriterFailureStatus(writeResult.Status),
+                writeResult.ErrorCode);
+        }
+
+        return new PortableImportResult(
+            PortableImportStatus.Success,
+            null,
+            BuildMergeSummary(plan, PortableImportDisposition.MergeApplied, safetyCopyCreated: true));
+    }
+
+    /// <summary>
+    /// Governed populated-target execution for Schema 13. Preflight rejects every conflict before the
+    /// safety copy; no-change imports remain write-free. Executable changes retain the validated V3
+    /// safety copy and enter the writer's single stale-checked transaction.
+    /// </summary>
+    private async Task<PortableImportResult> ImportIntoPopulatedSchema13Async(
+        ValidatedBackupArchiveEnvelope validated,
+        CancellationToken cancellationToken)
+    {
+        var plan = await _mergePreflightService.CreatePreflightPlanAsync(validated, cancellationToken);
+
+        if (!plan.IsExecutable)
+        {
+            return new PortableImportResult(
+                MapNonExecutablePreflightStatus(plan.Status),
+                plan.ErrorCode ?? MergeWriterErrorCodes.PlanNotExecutable);
+        }
+
+        if (!RequiresWriterExecution(plan))
+        {
+            return new PortableImportResult(
+                PortableImportStatus.Success,
+                null,
+                BuildMergeSummary(plan, PortableImportDisposition.MergeNoChange, safetyCopyCreated: false));
+        }
+
+        var sourceV3 = validated.V3?.Payload;
+        if (sourceV3 is null)
+        {
+            var legacyPayload = validated.V2?.Payload
+                ?? BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
+            sourceV3 = await Schema13LegacySourceProjector.ProjectAsync(legacyPayload, cancellationToken);
+        }
+
+        var sourceDescription =
+            $"Schema 13 merge import ({plan.Manifest!.SourcePlatform}, app {plan.Manifest.SourceAppVersion}, archived {plan.Manifest.CreatedAtUtc:O})";
+        var safetyCopyResult = await _mergeSafetyCopyService.CreateSafetyCopyAsync(sourceDescription, cancellationToken);
+        if (safetyCopyResult.Status != MergeSafetyCopyStatus.Success)
+        {
+            return new PortableImportResult(
+                MapSafetyCopyFailureStatus(safetyCopyResult.Status),
+                safetyCopyResult.ErrorCode);
+        }
+
+        var writeResult = await _mergeWriterService.ApplySchema13Async(sourceV3, plan, cancellationToken);
+        if (writeResult.Status != MergeWriteStatus.Success)
+        {
             return new PortableImportResult(
                 MapWriterFailureStatus(writeResult.Status),
                 writeResult.ErrorCode);

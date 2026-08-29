@@ -113,8 +113,29 @@ internal sealed class MergeWriterExecutor
         CancellationToken cancellationToken,
         IBackupImportFailureInjector? failureInjector)
     {
+        _ = ExecuteWithMappings(connection, targetSnapshot, targetIndex, archive, plan, cancellationToken, failureInjector);
+    }
+
+    /// <summary>
+    /// Applies the inherited graph and returns the final target-local ids for source semantic rows. The
+    /// Schema-13 writer uses these maps only to attach its four extension collections after the base
+    /// graph has been written; ids never escape the transaction or enter the governed plan.
+    /// </summary>
+    internal static MergeWriterExecutionMaps ExecuteWithMappings(
+        SQLiteConnection connection,
+        Schema8BackupSnapshot targetSnapshot,
+        MergeWriterTargetIndex targetIndex,
+        BackupPayloadV2 archive,
+        MergePreflightPlan plan,
+        CancellationToken cancellationToken,
+        IBackupImportFailureInjector? failureInjector)
+    {
         var executor = new MergeWriterExecutor(connection, targetSnapshot, targetIndex, archive, plan, cancellationToken, failureInjector);
         executor.Run();
+        return new MergeWriterExecutionMaps(
+            new Dictionary<string, int>(executor._wordIds, StringComparer.Ordinal),
+            new Dictionary<string, int>(executor._senseIds, StringComparer.Ordinal),
+            new Dictionary<string, int>(executor._cardIds, StringComparer.Ordinal));
     }
 
     private void Run()

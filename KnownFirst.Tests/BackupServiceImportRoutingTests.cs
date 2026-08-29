@@ -191,6 +191,12 @@ public sealed class BackupServiceImportRoutingTests
             callLog.Add("writer");
             return Task.FromResult(result);
         }
+
+        public Task<MergeWriteResult> ApplySchema13Async(BackupPayloadV3 archive, MergePreflightPlan plan, CancellationToken cancellationToken)
+        {
+            callLog.Add("writer");
+            return Task.FromResult(result);
+        }
     }
 
     private static MergeManifestInfo DummyManifest() =>

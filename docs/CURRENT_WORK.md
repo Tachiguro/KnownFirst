@@ -17,11 +17,37 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active work package selection:** None pre-selected on `master`. Active branch and task state are discovered dynamically from live Git/GitHub state per [NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+- **Active work package selection:** `KF-PERSIST-013-001` (`feature/schema13-clean-persistence-v1`): Schema 13 persistence and dormant migration foundation. Source implementation complete across five logical checkpoints (six source commits); consolidated `REVIEW_ONLY` approved (`REVIEW_APPROVED_FOR_DOCUMENT_ONLY`); proceeding through package-level documentation and validation lifecycle.
 - **Backlog and sequencing authority:** [docs/BACKLOG.md](BACKLOG.md) owns the authoritative registry of all accepted open work, product decisions, deferred follow-ups, and unprioritized initiatives. [docs/ROADMAP.md](ROADMAP.md) owns milestone sequencing.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. Production databases initialize to version 12; Schema 13 migration remains dormant.
 - **Production scheduler boundary:** `SimpleSpacedRepetitionScheduler` remains the active production scheduler.
+- **Downstream ownership:**
+  - `KF-BACKUP-006`: Archive V3 format evolution and cross-installation transport.
+  - `KF-FSRS-003`: Production FSRS-6 cutover, runtime DI wiring, factual review logging, and production foreign-key enablement.
+  - `KF-CLEANUP-001`: Legacy scheduler deprecation and column removal.
+  - `KF-VOCAB-005` / `KF-VOCAB-006`: Vocabulary area UI and service integration for clean learning controls.
 - **Live state precedence:** Live Git branch/HEAD, worktree status, open pull requests, and repository state override static document text.
+
+## Schema 13 Persistence & Dormant Migration Foundation (KF-PERSIST-013-001)
+
+**Lifecycle status:** Source implementation complete across five logical checkpoints / six source commits on `feature/schema13-clean-persistence-v1`. Consolidated `REVIEW_ONLY` approved with `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`. `DatabaseSchema.CurrentVersion` remains 12, portable archive format remains V2, and production scheduler remains `SimpleSpacedRepetitionScheduler`.
+
+- **Scope & Architecture:**
+  - Physical Schema 13 foundation defining four target tables: `FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, and `SenseLearningControls`, with physical foreign keys, check constraints, and canonical indexes.
+  - Clean learning controls: non-destructive `WordLearningControls` (word-level `AlreadyKnown`) and `SenseLearningControls` (sense-level `StopLearning`), with absence representing Default and no dual-write to legacy status columns.
+  - Separate FSRS card scheduling state and append-only factual review history (`StableId` event identity, `SequenceNumber` per-card order).
+  - Atomic persistence coordinator (`FsrsReviewPersistenceCoordinator`) writing caller-computed resulting `Fsrs6Card` and appending `Fsrs6ReviewEvent` in a single transaction without duplicating scheduling logic.
+  - Deterministic transactional dormant migration (`Schema13DormantMigration`) from Schema 12 to Schema 13 with source-derived bootstrap (`Schema13LearningBootstrap`), `Fsrs6Replayer` target state derivation, fail-closed validation (`Schema13ShapeValidator`, `Schema13MigrationIntegrityValidator`), and full rollback on failure.
+- **Production Boundaries:**
+  - Schema 13 remains production-dormant: `DatabaseSchema.CurrentVersion` is 12; `DatabaseSchema.InitializeAsync` does not invoke Schema 13 migration; ordinary initialized production databases remain `user_version 12`.
+  - Production scheduler remains `SimpleSpacedRepetitionScheduler`.
+  - Archive format remains V2.
+  - SQLite foreign-key enforcement is verified on Schema 13 structures but global production `PRAGMA foreign_keys = ON` is deferred.
+- **Downstream Ownership:**
+  - `KF-BACKUP-006`: Archive V3 transport semantics for Schema-13 state, controls, and factual history.
+  - `KF-FSRS-003`: Production Schema-13 activation, runtime FSRS-6 cutover, DI wiring, and production foreign-key enablement.
+  - `KF-CLEANUP-001`: Legacy scheduler and column deprecation/cleanup.
+  - `KF-VOCAB-005` / `KF-VOCAB-006`: UI and service workflows for AlreadyKnown reversal and Sense Stop/Resume.
 - **Previous merged packages:**
   - PR #187 (`docs: establish durable backlog governance` / `KF-GOV-BACKLOG-001`): Reconciled `BACKLOG.md` as the authoritative registry for accepted open work, added Follow-Up Closure Audit rule and Foundation Milestone Invariant to `AGENT_WORKFLOW.md`, updated `ROADMAP.md` initiatives, and linked bootstrap/routing governance. Merged to `master` via merge commit `838a968c3ab9fd596889aa269c2be43caa2f13c0`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #186 (`feat(clean-domain): clean domain learning-control and application boundary foundation` / `KF-CLEAN-DOMAIN-013-001`): Merged to `master` via merge commit `e7cb91aad8db49b5366dab96295c2e8aa20c92c7` (validated PR head `eae1ca38d157d13ddd830a635d6ce31dd2fe4336`). Added clean domain learning-control foundation in `KnownFirst.Core.Learning` and introduced `KnownFirst.Application` project defining deterministic, production-neutral FSRS-6 scheduling boundaries. Dormant from production runtime composition; Schema remains 12; Archive format remains V2; production scheduler remains `SimpleSpacedRepetitionScheduler`. Exact candidate `FULL_VALIDATION` passed (2896 passed / 0 failed / 0 skipped, Windows Debug/Release PASS, Android Debug/Release PASS, AOT/trimming/linker gate PASS, exit code 0). `POST_MERGE_SYNC_ONLY` completed.

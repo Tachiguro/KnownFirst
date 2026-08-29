@@ -1,12 +1,18 @@
 # KnownFirst Roadmap
 
-**Prioritization date:** 2026-08-28
+**Prioritization date:** 2026-08-29
 
-This roadmap records intended sequence and priority. Verified current implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
+This roadmap records intended sequence and priority. Verified current implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md); durable accepted open work and initiative dependencies belong in [BACKLOG.md](BACKLOG.md).
 
 ## Active Priority
 
-The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and merged to `master`. Slice 1 (install-origin classification, existing-install grandfathering, legacy budget pinning, and reset contracts) is merged to `master` (Committed via PR #153). The core onboarding package (`onboarding-core-v1`: 9-screen first-run flow, restart resume, Display Name persistence/settings, daily budget presets `1 / 5 Recommended / 10 / Custom`, range `1..50`, non-blocking `>15` warning, What's New completion coordination, and reset preservation) is merged to `master` (Committed via PR #155). The Settings and onboarding visual consistency unification package (`visual-consistency-v1`) is merged to `master` (Committed via PR #156). Home personalization (`home-personalization-greeting-v1`) is merged to `master` (Committed via PR #158). Online lookup consent enforcement (KF-ONLINE-LOOKUP-CONSENT-001) is merged to `master` (Committed via PR #181). Transactional onboarding settings & recovery (KF-TRANSACTIONAL-ONBOARDING-001) is merged to `master` (Committed via PR #182). Broad feature expansion freezes after the onboarding program except bug fixes, required release corrections, and evidenced tester feedback. Security, test-effectiveness, governance, repository hardening, public-trust/OSS, and distribution/branding/website work remain later priorities. Beta-13 Build-14 AAB creation and packaging evidence are recorded as completed in repository history (PR #152); Google Play Internal Testing distribution and Public-Release Readiness (Priority 20) remain separately deferred until explicitly authorized.
+The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and merged to `master` (PRs #153, #155, #156, #158, #181, #182). Following onboarding completion, two foundational architecture packages were merged to `master`: the in-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008) and the clean domain learning-control foundation with a separate, dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186).
+
+The current active work package is **KF-GOV-BACKLOG-001** (`docs/durable-backlog-governance-reconciliation-v1`), establishing durable backlog and repository governance tracking so accepted bugs, product decisions, deferred follow-ups, and incomplete multi-package initiatives cannot be lost between chats or mistaken for completed work.
+
+Accepted multi-package initiatives (FSRS Production Cutover & Clean Domain Persistence, Vocabulary Management Area, Learning Interaction & Direction UX, and Navigation/Settings Corrections) have their requirements, constraints, and dependencies established in [docs/BACKLOG.md](BACKLOG.md); their global execution sequence is recorded under Accepted Initiatives below, pending explicit product prioritization.
+
+Beta-13 Build-14 AAB creation and packaging evidence are recorded as completed in repository history (PR #152); Google Play Internal Testing distribution and Public-Release Readiness (Priority 20) remain separately deferred until explicitly authorized.
 
 ## Status Definitions
 
@@ -51,6 +57,46 @@ The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and
 | 19j | First-Run Onboarding — Transactional Settings & Recovery (KF-TRANSACTIONAL-ONBOARDING-001) | Committed | Transactional draft-and-commit onboarding model: versioned `OnboardingDraft` accumulating all choices (including nullable online consent), applied atomically at Finish Setup; persisted restart resume; language/theme preview non-persisting during the flow; `OnboardingCompletionJournal` with deterministic fingerprint, pre-write durability barrier, idempotent roll-forward, and startup recovery before database initialization; fail-closed on unsupported future journal data; crash-safe legacy migration via Capturing/Normalizing marker protocol; null consent cannot retain progress past Online Lookup step; draft true consent does not authorize transport (Package A gate remains closed until verified roll-forward). No schema/archive-format change (`DatabaseSchema.CurrentVersion` = 12, archive V2). Merged via PR #182 (merge commit `172587f4dc52bf3f5573bcfda53297de3216d3b6`; validated PR head `5d8cada0406c4243a9a4d2cea51c6c1491ab2c6d`). See [docs/CURRENT_WORK.md](CURRENT_WORK.md) and [docs/PROJECT_STATE.md](PROJECT_STATE.md). |
 | 20 | Public-Release Readiness | Deferred — blocker when resumed | Privacy disclosures, Wikimedia attribution review, website, and store materials. Required for public Google Play Production promotion; deferred behind Internal Testing preparation; resumes on explicit user authorization, not cancelled. |
 | 21 | Russian Source-Text Support | Deferred | Cyrillic tokenization/normalization, Russian Wiktionary parsing, Wikipedia fallback. |
+
+## Accepted Initiatives (Sequencing Pending Product Prioritization)
+
+The following initiatives represent accepted product directions whose individual packages, acceptance criteria, and dependencies are durably tracked in [docs/BACKLOG.md](BACKLOG.md). Their global sequence and priority ordering are subject to explicit user confirmation rather than assumed numeric priority:
+
+### 1. FSRS-6 Production Cutover & Clean Domain Persistence
+- **Foundation State (Merged):** In-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008) and clean domain learning controls with dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186) are committed to `master`.
+- **Open Downstream Packages:**
+  - `KF-PERSIST-013-001`: Schema 13 physical SQLite tables and transactional forward migration for FSRS states, review history facts, and clean learning controls (`WordLearningControl`, `SenseLearningControl`).
+  - `KF-BACKUP-006`: Archive V3 format evolution and cross-installation transport.
+  - `KF-FSRS-003`: Production FSRS-6 cutover, runtime DI wiring, factual review event logging, and legacy New + Hard $\to$ 15-minute learning step resolution, while strictly preserving the implemented active-session Again tail-repeat invariant.
+  - `KF-CLEANUP-001`: Legacy scheduler deprecation, column removal (`IntervalDays`, `EaseFactor`), and replay policy cleanup.
+
+### 2. Vocabulary Management Area
+- **Objective:** Replace the `/dictionary` placeholder card (`KF-VOCAB-001`) with a real, production-grade Vocabulary area.
+- **Open Packages:**
+  - `KF-VOCAB-002`: Scalable database-backed, normalization-aware, paginated search.
+  - `KF-VOCAB-003`: Vocabulary detail view for senses, definitions, contexts, and learning history.
+  - `KF-VOCAB-004`: Post-acceptance correction/editing of definitions, translations, and answer variants.
+  - `KF-PREP-002`: Re-preparation / fresh lexical lookup for existing vocabulary.
+  - `KF-VOCAB-005`: AlreadyKnown reversal UI and persistence ("learn this after all"). Consumes Schema 13 persistence (`KF-PERSIST-013-001`).
+  - `KF-VOCAB-006`: Sense-level Stop Learning / Resume Learning UI and persistence. Consumes Schema 13 persistence (`KF-PERSIST-013-001`).
+
+### 3. Learning Interaction & Direction UX
+- **Objective:** Align learning card presentation and progression with genuine direction semantics.
+- **Open Packages:**
+  - `KF-LEARN-003`: Genuinely distinct presentation semantics for `CardDirection.TermToMeaning` (term front, meaning reveal; no long typing) and `CardDirection.MeaningToTerm` (meaning prompt, term answer; typing supported).
+  - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures).
+  - `KF-LEARN-005`: Open product decision resolving recall rating threshold (Good/Easy only vs any non-Again rating).
+  - `KF-LEARN-006`: Dynamic context target masking in `ContextView.razor` matching actual encountered target length.
+  - `KF-LEARN-007`: User-facing session summary and next-due phrasing improvements.
+  - `KF-LEARN-008`: Learn card edit/correction entry point into Vocabulary detail flow.
+  - `KF-LEARN-009`: Clearing stale `_actionFailed` error banners after successful actions in `Learn.razor`.
+
+### 4. Navigation, Settings & Feedback Corrections
+- **Open Packages:**
+  - `KF-NAV-001`: Onboarding completion navigation to Home (`/`) after reset from Settings.
+  - `KF-PREP-001`: Prepare Words link to Settings auto-scrolling and focusing Online Dictionary section.
+  - `KF-SETTINGS-001`: Visible failure feedback when saving learning timezone in `Settings.razor`.
+  - `KF-HOME-002`: User-centric learning progress metrics on Home (depending on product decision `KF-METRIC-001`).
 
 ## Cleanup & Release Sequence
 

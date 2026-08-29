@@ -101,6 +101,8 @@ Every behavior-changing slice must produce and report this evidence sequence:
 
 1. **Consolidated Review:** Once all declared slices are completed, an independent `REVIEW_ONLY` inspects the full branch diff against `master`. Review findings requiring corrections are addressed via correction slices and re-reviewed.
 2. **Package-Level Documentation Reconciliation:** Mandatory `DOCUMENT_ONLY` reconciles durable documentation (`docs/`, `CHANGELOG.md`) once for the entire package.
+   - **Follow-Up Closure Audit:** Every package-level `DOCUMENT_ONLY` phase must perform a Follow-Up Closure Audit: every intentionally deferred, excluded, newly discovered, or downstream accepted item must either link to an existing open `KF-*` ID in `docs/BACKLOG.md` or be added to `docs/BACKLOG.md` before package reconciliation is declared complete. Unfinished accepted work must never exist solely in chat history, review comments, or transient prompt notes.
+   - **Foundation Milestone Invariant:** Merging a foundation or sub-package (such as a core scheduling engine or domain model) must never cause its parent initiative or roadmap milestone to be marked complete while required downstream packages (persistence, archive, runtime cutover, UI) remain open. Downstream packages must be tracked as open work in `docs/BACKLOG.md`.
 3. **Mandatory Pre-PR FULL_VALIDATION Gate:** Before pushing or opening a PR, the exact candidate HEAD must successfully pass:
    ```powershell
    .\scripts\knownfirst.ps1 -Action ValidateAll

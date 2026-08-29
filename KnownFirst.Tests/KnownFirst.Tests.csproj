@@ -121,6 +121,7 @@
     <Compile Include="..\Data\Migrations\Schema13\*.cs" Link="Production\Data\Migrations\Schema13\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Schema8\*.cs" Link="Production\Data\Schema8\%(Filename)%(Extension)" />
     <Compile Include="..\Data\Schema10\*.cs" Link="Production\Data\Schema10\%(Filename)%(Extension)" />
+    <Compile Include="..\Data\Schema13\*.cs" Link="Production\Data\Schema13\%(Filename)%(Extension)" />
     <Compile Include="..\Models\*.cs" Link="Production\Models\%(Filename)%(Extension)" />
     <Compile Include="..\Services\ActiveReviewExistsException.cs" Link="Production\Services\ActiveReviewExistsException.cs" />
     <Compile Include="..\Services\IDashboardService.cs" Link="Production\Services\IDashboardService.cs" />

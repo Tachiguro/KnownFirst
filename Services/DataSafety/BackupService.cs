@@ -1,4 +1,5 @@
 using KnownFirst.Data;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety.Merge;
@@ -165,6 +166,7 @@ public sealed class BackupService(
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema13CapabilityResult => Schema13BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
@@ -172,11 +174,13 @@ public sealed class BackupService(
 
             if (capability is Schema7CapabilityResult)
             {
-                if (validated.V2 is not null)
+                if (validated.V2 is not null || validated.V3 is not null)
                 {
                     return PortableImportPreview.ForBlocked(
                         PortableImportPreviewDisposition.ValidationFailed,
-                        BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target,
+                        validated.V3 is not null
+                            ? BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget
+                            : BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target,
                         archiveSummary);
                 }
 
@@ -189,6 +193,24 @@ public sealed class BackupService(
                 }
 
                 return PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+            }
+
+            if (capability is Schema13CapabilityResult)
+            {
+                return targetHasDurableData
+                    ? PortableImportPreview.ForBlocked(
+                        PortableImportPreviewDisposition.Blocked,
+                        BackupErrorCodes.TargetNotEmpty,
+                        archiveSummary)
+                    : PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+            }
+
+            if (validated.V3 is not null)
+            {
+                return PortableImportPreview.ForBlocked(
+                    PortableImportPreviewDisposition.ValidationFailed,
+                    BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget,
+                    archiveSummary);
             }
 
             if (!targetHasDurableData)
@@ -273,10 +295,23 @@ public sealed class BackupService(
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema13CapabilityResult => Schema13BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
             });
+
+            if (validated.V3 is not null && capability is not Schema13CapabilityResult)
+            {
+                return new PortableImportResult(
+                    PortableImportStatus.ValidationFailed,
+                    BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget);
+            }
+
+            if (capability is Schema13CapabilityResult && targetHasDurableData)
+            {
+                return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
+            }
 
             if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult) && targetHasDurableData)
             {
@@ -291,13 +326,15 @@ public sealed class BackupService(
                 switch (resolvedCapability)
                 {
                     case Schema7CapabilityResult:
-                        if (validated.V2 is not null)
+                        if (validated.V2 is not null || validated.V3 is not null)
                         {
                             // Zero mutation: no read beyond the capability/version check above has
                             // happened yet, and nothing is written below this point.
                             return new PortableImportResult(
                                 PortableImportStatus.ValidationFailed,
-                                BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target);
+                                validated.V3 is not null
+                                    ? BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget
+                                    : BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target);
                         }
 
                         if (BackupImportRepository.HasDurableUserData(connection))
@@ -317,6 +354,13 @@ public sealed class BackupService(
                     case Schema10CapabilityResult:
                     case Schema11CapabilityResult:
                     case Schema12CapabilityResult:
+                        if (validated.V3 is not null)
+                        {
+                            return new PortableImportResult(
+                                PortableImportStatus.ValidationFailed,
+                                BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget);
+                        }
+
                         if (Schema8BackupImportRepository.HasDurableUserData(connection))
                         {
                             return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
@@ -334,6 +378,39 @@ public sealed class BackupService(
                             : new ValidatedSchema8Capability();
                         Schema8BackupImportRepository.ImportIntoEmptySchema8Database(
                             connection, schema8ImportCapability, payloadV2, cancellationToken, failureInjector);
+                        return new PortableImportResult(
+                            PortableImportStatus.Success,
+                            null,
+                            new PortableImportSummary(PortableImportDisposition.RestoredIntoEmpty, false, 0, 0, 0, 0));
+
+                    case Schema13CapabilityResult schema13:
+                        if (Schema13BackupImportRepository.HasDurableUserData(connection))
+                        {
+                            return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
+                        }
+
+                        if (validated.V3 is { } nativeV3)
+                        {
+                            Schema13BackupImportRepository.ImportNativeV3IntoEmptyDatabase(
+                                connection,
+                                schema13.Capability,
+                                nativeV3.Payload,
+                                cancellationToken,
+                                failureInjector);
+                        }
+                        else
+                        {
+                            var legacyPayload = validated.V2 is not null
+                                ? validated.V2.Payload
+                                : BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
+                            Schema13BackupImportRepository.AdaptLegacyIntoEmptyDatabase(
+                                connection,
+                                schema13.Capability,
+                                legacyPayload,
+                                cancellationToken,
+                                failureInjector);
+                        }
+
                         return new PortableImportResult(
                             PortableImportStatus.Success,
                             null,

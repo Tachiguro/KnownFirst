@@ -7,6 +7,11 @@ using SQLite;
 
 namespace KnownFirst.Data.Schema8;
 
+internal sealed record Schema8BackupImportMaps(
+    IReadOnlyDictionary<string, int> WordIds,
+    IReadOnlyDictionary<string, int> SenseIds,
+    IReadOnlyDictionary<string, int> CardIds);
+
 /// <summary>
 /// Schema-8 counterpart of <see cref="BackupImportRepository"/> (KF-MEANING-001 Slice 2). Requires a
 /// <see cref="ValidatedSchema8Capability"/> — reachable only after <c>BackupSchemaCapability.Resolve</c>
@@ -56,6 +61,21 @@ public static class Schema8BackupImportRepository
         || connection.ExecuteScalar<int>("SELECT COUNT(*) FROM AnswerVariantProgress") != 0;
 
     public static void ImportIntoEmptySchema8Database(
+        SQLiteConnection connection,
+        ValidatedSchema8Capability capability,
+        BackupPayloadV2 payload,
+        CancellationToken cancellationToken,
+        IBackupImportFailureInjector? failureInjector = null)
+    {
+        _ = ImportIntoEmptySchema8DatabaseWithMappings(
+            connection,
+            capability,
+            payload,
+            cancellationToken,
+            failureInjector);
+    }
+
+    internal static Schema8BackupImportMaps ImportIntoEmptySchema8DatabaseWithMappings(
         SQLiteConnection connection,
         ValidatedSchema8Capability capability,
         BackupPayloadV2 payload,
@@ -517,6 +537,8 @@ public static class Schema8BackupImportRepository
         {
             throw new BackupFormatException(BackupErrorCodes.MissingReference);
         }
+
+        return new Schema8BackupImportMaps(wordIds, senseIds, cardIds);
     }
 
     /// <summary>Internal (not private) so the Slice 8 populated-target merge writer can reuse the exact

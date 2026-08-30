@@ -20,6 +20,137 @@ public sealed class LearningServiceSchema13FsrsTests
         new(2026, 8, 30, 9, 15, 0, DateTimeKind.Utc);
 
     [TestMethod]
+    public async Task RateAsync_Again_AppendsOneTailRepeatAndSkipsUnrelatedFutureDueWork()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var unrelatedQueueItemId = await AddFutureDueUnrelatedQueueRowAsync(fixture);
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+
+        var result = await service.RateAsync(fixture.QueueItemId, ReviewRating.Again);
+
+        var rows = await LoadQueueAttemptRowsAsync(fixture);
+        var original = rows.Single(row => row.Id == fixture.QueueItemId);
+        var unrelated = rows.Single(row => row.Id == unrelatedQueueItemId);
+        var repeat = rows.Single(row => row.IsAgainRepeat);
+        DateTimeOffset? fsrsDueAtUtc = null;
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+            fsrsDueAtUtc = FsrsCardStateRepository.Load(connection, fixture.CardId)?.DueAtUtc);
+        var session = await fixture.DatabaseFixture.Connection.QueryAsync<SessionRow>(
+            "SELECT Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, CompletedAtUtc FROM LearningSessions WHERE Id = ?",
+            fixture.SessionId);
+
+        Assert.HasCount(3, rows);
+        Assert.IsTrue(original.IsCompleted);
+        Assert.IsFalse(original.IsAgainRepeat);
+        Assert.AreEqual(0, original.QueueOrder);
+        Assert.IsFalse(unrelated.IsCompleted);
+        Assert.IsFalse(unrelated.IsAgainRepeat);
+        Assert.AreEqual(1, unrelated.QueueOrder);
+        Assert.AreEqual(fixture.CardId, repeat.CardId);
+        Assert.AreEqual(fixture.TargetAnswerVariantId, repeat.TargetAnswerVariantId);
+        Assert.AreEqual(2, repeat.QueueOrder);
+        Assert.IsFalse(repeat.IsCompleted);
+        Assert.AreNotEqual(fixture.QueueStableId, repeat.StableId);
+        Assert.IsNotNull(fsrsDueAtUtc);
+        Assert.IsGreaterThan(new DateTimeOffset(ReviewTime, TimeSpan.Zero), fsrsDueAtUtc.Value);
+        Assert.IsNotNull(result.Card);
+        Assert.AreEqual(repeat.Id, result.Card.QueueItemId,
+            "The future-due ordinary row must remain suppressed while the active-session repeat is selectable.");
+        Assert.IsTrue(result.Card.IsAgainRepeat);
+        Assert.AreEqual(3, session.Single().TotalCards);
+        Assert.AreEqual(1, session.Single().CompletedCards);
+        Assert.AreEqual(1, session.Single().AgainCount);
+        Assert.AreEqual(LearningSessionStatus.Active, session.Single().Status);
+    }
+
+    [TestMethod]
+    public async Task RateAsync_AgainOnRepeat_AppendsAnotherTailRepeatWithoutCap()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+
+        var firstResult = await service.RateAsync(fixture.QueueItemId, ReviewRating.Again);
+        Assert.IsNotNull(firstResult.Card);
+        var firstRepeatId = firstResult.Card.QueueItemId;
+        await service.RevealAnswerAsync(firstRepeatId);
+        var secondResult = await service.RateAsync(firstRepeatId, ReviewRating.Again);
+
+        var rows = await LoadQueueAttemptRowsAsync(fixture);
+        var history = await fixture.DatabaseFixture.Connection.QueryAsync<HistoryAttemptRow>(
+            "SELECT StableId, SequenceNumber FROM FsrsReviewHistoryEntries WHERE CardId = ? ORDER BY SequenceNumber",
+            fixture.CardId);
+
+        Assert.HasCount(3, rows);
+        CollectionAssert.AreEqual(new[] { 0, 1, 2 }, rows.Select(row => row.QueueOrder).ToArray());
+        Assert.AreEqual(2, rows.Count(row => row.IsCompleted));
+        Assert.AreEqual(2, rows.Count(row => row.IsAgainRepeat));
+        Assert.AreEqual(1, rows.Count(row => !row.IsCompleted));
+        Assert.IsNotNull(secondResult.Card);
+        Assert.AreEqual(rows[2].Id, secondResult.Card.QueueItemId);
+        Assert.AreEqual(fixture.QueueStableId, history[0].StableId);
+        Assert.AreEqual(rows[1].StableId, history[1].StableId);
+        CollectionAssert.AreEqual(new[] { 1, 2 }, history.Select(row => row.SequenceNumber).ToArray());
+        Assert.AreNotEqual(rows[0].StableId, rows[1].StableId);
+        Assert.AreNotEqual(rows[1].StableId, rows[2].StableId);
+    }
+
+    [DataTestMethod]
+    [DataRow(ReviewRating.Hard)]
+    [DataRow(ReviewRating.Good)]
+    [DataRow(ReviewRating.Easy)]
+    public async Task RateAsync_NonAgain_AppendsNoRepeat(ReviewRating rating)
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+
+        await service.RateAsync(fixture.QueueItemId, rating);
+
+        var rows = await LoadQueueAttemptRowsAsync(fixture);
+        Assert.HasCount(1, rows);
+        Assert.AreEqual(0, rows.Count(row => row.IsAgainRepeat));
+        Assert.AreEqual(1, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT TotalCards FROM LearningSessions WHERE Id = ?", fixture.SessionId));
+    }
+
+    [TestMethod]
+    public async Task RateAsync_Again_FailureAfterRepeatInsertionRollsBackWithoutOrphanAndRetriesOnce()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+        var before = await CaptureTransactionFactsAsync(fixture);
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "CREATE TRIGGER fail_schema13_again_session_update BEFORE UPDATE ON LearningSessions BEGIN SELECT RAISE(ABORT, 'injected session failure'); END");
+
+        await Assert.ThrowsExactlyAsync<SQLiteException>(() =>
+            service.RateAsync(fixture.QueueItemId, ReviewRating.Again));
+
+        CollectionAssert.AreEqual(before, await CaptureTransactionFactsAsync(fixture));
+        Assert.AreEqual(0, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE IsAgainRepeat = 1"));
+
+        await fixture.DatabaseFixture.Connection.ExecuteAsync("DROP TRIGGER fail_schema13_again_session_update");
+        var retried = await service.RateAsync(fixture.QueueItemId, ReviewRating.Again);
+
+        Assert.IsNotNull(retried.Card);
+        Assert.AreEqual(1, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE IsAgainRepeat = 1"));
+        Assert.AreEqual(1, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM FsrsReviewHistoryEntries WHERE CardId = ?", fixture.CardId));
+    }
+
+    [TestMethod]
     public async Task RateAsync_ValidSchema13_PersistsOneFactualReviewAndExactFsrsState()
     {
         await using var fixture = await CreateFixtureAsync();
@@ -410,6 +541,72 @@ public sealed class LearningServiceSchema13FsrsTests
         Assert.AreEqual(acceptedOnlyCreatedAt.Ticks, Schema8Utc.Normalize(acceptedOnly.CreatedAtUtc).Ticks);
         Assert.AreEqual(acceptedOnlyCreatedAt.Ticks, Schema8Utc.Normalize(acceptedOnly.UpdatedAtUtc).Ticks);
     }
+
+    private static async Task<int> AddFutureDueUnrelatedQueueRowAsync(Fixture fixture)
+    {
+        var queueItemId = 0;
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            connection.Execute(
+                """
+                INSERT INTO SenseAnswerVariantAssignments (
+                    StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred,
+                    RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('schema13-future-assignment', ?, 1, ?, 0, 1, ?, ?, ?)
+                """,
+                fixture.SenseId,
+                fixture.TargetAnswerVariantId,
+                fixture.LegacyDueAtUtc,
+                fixture.LegacyDueAtUtc,
+                fixture.LegacyDueAtUtc);
+            connection.Execute(
+                """
+                INSERT INTO LearningCards (
+                    WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays,
+                    EaseFactor, SuccessfulReviewCount, LapseCount, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, 1, 2, ?, 3, 2.5, 1, 0, ?, ?)
+                """,
+                fixture.WordId,
+                fixture.SenseId,
+                fixture.MeaningId,
+                ReviewTime.AddDays(-30),
+                fixture.LegacyDueAtUtc,
+                fixture.LegacyDueAtUtc);
+            var cardId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            var reviewedAtUtc = new DateTimeOffset(ReviewTime, TimeSpan.Zero);
+            var reviewEvent = new Fsrs6ReviewEvent(reviewedAtUtc, ReviewRating.Good);
+            var scheduled = new Fsrs6Scheduler().Schedule(
+                Fsrs6Card.New(), ReviewRating.Good, reviewedAtUtc);
+            FsrsReviewPersistenceCoordinator.PersistReview(
+                connection,
+                cardId,
+                "schema13-future-card-review",
+                reviewEvent,
+                scheduled);
+            Schema8LearningRepository.InsertQueueRow(
+                connection,
+                fixture.SessionId,
+                cardId,
+                queueOrder: 1,
+                isDueCard: false,
+                targetAnswerVariantId: fixture.TargetAnswerVariantId);
+            queueItemId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            connection.Execute(
+                "UPDATE LearningSessions SET TotalCards = 2 WHERE Id = ?",
+                fixture.SessionId);
+        });
+        return queueItemId;
+    }
+
+    private static async Task<List<QueueAttemptRow>> LoadQueueAttemptRowsAsync(Fixture fixture) =>
+        await fixture.DatabaseFixture.Connection.QueryAsync<QueueAttemptRow>(
+            """
+            SELECT Id, CardId, QueueOrder, IsAgainRepeat, IsCompleted, TargetAnswerVariantId, StableId
+            FROM LearningSessionCards
+            WHERE SessionId = ?
+            ORDER BY QueueOrder, Id
+            """,
+            fixture.SessionId);
 
     private static LearningService CreateLearningService(
         Fixture fixture,
@@ -845,6 +1042,23 @@ public sealed class LearningServiceSchema13FsrsTests
         public ReviewRating? Rating { get; set; }
         public DateTime? CompletedAtUtc { get; set; }
         public string StableId { get; set; } = string.Empty;
+    }
+
+    private sealed class QueueAttemptRow
+    {
+        public int Id { get; set; }
+        public int CardId { get; set; }
+        public int QueueOrder { get; set; }
+        public bool IsAgainRepeat { get; set; }
+        public bool IsCompleted { get; set; }
+        public int TargetAnswerVariantId { get; set; }
+        public string StableId { get; set; } = string.Empty;
+    }
+
+    private sealed class HistoryAttemptRow
+    {
+        public string StableId { get; set; } = string.Empty;
+        public int SequenceNumber { get; set; }
     }
 
     private sealed class SessionRow

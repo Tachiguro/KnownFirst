@@ -1366,7 +1366,7 @@ public sealed class LearningService : ILearningService
     /// <summary>
     /// The complete factual Schema-13 rating transaction. The queue-row StableId is the event identity;
     /// FSRS history is appended before its resulting state; legacy schedule columns remain untouched.
-    /// Again is recorded factually but deliberately receives no Slice-4 tail-repeat row here.
+    /// Every Again appends one fresh attempt for the same queue assignment at the session tail.
     /// </summary>
     private Schema8RatingOutcome PersistRatingSchema13(
         SQLiteConnection connection, int queueItemId, ReviewRating rating, bool fromIncorrectSpellingCheck)
@@ -1465,8 +1465,13 @@ public sealed class LearningService : ILearningService
             default: throw new ArgumentOutOfRangeException(nameof(rating));
         }
 
-        // Slice 4 owns Again tail repetition. This slice only advances the already-existing attempt and the
-        // schedule-independent counters. No queue row is inserted and TotalCards/QueueOrder remain unchanged.
+        if (rating == ReviewRating.Again)
+        {
+            var nextOrder = Schema8LearningRepository.MaxQueueOrder(connection, session.Id) + 1;
+            Schema8LearningRepository.InsertAgainRepeatQueueRow(connection, queueItemId, nextOrder);
+            session.TotalCards++;
+        }
+
         if (session.Status == LearningSessionStatus.Active
             && Schema8LearningRepository.CountIncompleteQueueRows(connection, session.Id) == 0)
         {

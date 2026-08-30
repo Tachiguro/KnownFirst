@@ -19,6 +19,14 @@ public static class DatabaseSchema
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        await connection.ExecuteAsync("PRAGMA foreign_keys = ON");
+        var foreignKeysEnabled = await connection.ExecuteScalarAsync<int>("PRAGMA foreign_keys");
+        if (foreignKeysEnabled != 1)
+        {
+            throw new InvalidOperationException(
+                "SQLite foreign-key enforcement could not be enabled for this database connection.");
+        }
+
         var existingVersion = await connection.ExecuteScalarAsync<int>("PRAGMA user_version");
         if (existingVersion > CurrentVersion)
         {

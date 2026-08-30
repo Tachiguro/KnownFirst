@@ -700,6 +700,35 @@ public sealed class Schema13PersistenceRepositoryTests
     }
 
     [TestMethod]
+    public async Task FsrsReviewHistoryRepository_LoadHistory_RejectsSequenceGapWithoutRenumbering()
+    {
+        await using var fixture = await CreateValidSchema13DatabaseAsync();
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            var (_, _, cardId) = SeedGraph(conn);
+            conn.Execute(
+                "INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc) VALUES ('gap-1', ?, 1, 2, '2026-08-29T10:00:00.0000000Z')",
+                cardId);
+            conn.Execute(
+                "INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc) VALUES ('gap-3', ?, 3, 2, '2026-08-29T10:05:00.0000000Z')",
+                cardId);
+
+            var exception = Assert.ThrowsExactly<InvalidOperationException>(
+                () => FsrsReviewHistoryRepository.LoadHistory(conn, cardId));
+
+            StringAssert.Contains(exception.Message, "expected SequenceNumber 2, found 3");
+            CollectionAssert.AreEqual(
+                new[] { 1, 3 },
+                conn.Query<SequenceRow>(
+                        "SELECT SequenceNumber FROM FsrsReviewHistoryEntries WHERE CardId = ? ORDER BY SequenceNumber",
+                        cardId)
+                    .Select(row => row.SequenceNumber)
+                    .ToArray());
+        });
+    }
+
+    [TestMethod]
     public async Task FsrsReviewHistoryRepository_CorruptOutOfOrderHistory_FailsClosed()
     {
         await using var fixture = await CreateValidSchema13DatabaseAsync();
@@ -816,5 +845,10 @@ public sealed class Schema13PersistenceRepositoryTests
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table);
             Assert.AreEqual(0, exists, $"Table {table} must not exist in a production Schema 12 database.");
         }
+    }
+
+    private sealed class SequenceRow
+    {
+        public int SequenceNumber { get; set; }
     }
 }

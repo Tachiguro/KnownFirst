@@ -37,15 +37,10 @@ public static class Schema13DormantMigration
 
     private static void ValidateAlreadyApplied(SQLiteConnection connection)
     {
-        if (!Schema13ShapeValidator.IsValidDatabase(connection, out var shapeFailureDetail))
-        {
-            throw Schema13MigrationException.AlreadyAppliedShapeInvalid(shapeFailureDetail!);
-        }
-
-        if (!Schema13MigrationIntegrityValidator.Validate(connection, out var integrityFailureDetail))
+        if (!Schema13RuntimeIntegrityValidator.Validate(connection, out var integrityFailureDetail))
         {
             throw Schema13MigrationException.AlreadyAppliedShapeInvalid(
-                $"Source-to-target migration integrity is invalid: {integrityFailureDetail}");
+                $"Runtime integrity is invalid: {integrityFailureDetail}");
         }
     }
 
@@ -73,6 +68,12 @@ public static class Schema13DormantMigration
         {
             throw Schema13MigrationException.InvariantViolation(
                 $"Schema-13 source-to-target migration integrity is invalid: {integrityFailureDetail}");
+        }
+
+        if (!Schema13RuntimeIntegrityValidator.Validate(connection, out var runtimeIntegrityFailureDetail))
+        {
+            throw Schema13MigrationException.InvariantViolation(
+                $"Schema-13 runtime integrity is invalid: {runtimeIntegrityFailureDetail}");
         }
 
         connection.Execute($"PRAGMA user_version = {TargetVersion}");

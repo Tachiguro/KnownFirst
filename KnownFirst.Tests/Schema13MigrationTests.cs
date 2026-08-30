@@ -395,13 +395,13 @@ public sealed class Schema13MigrationTests
     }
 
     [TestMethod]
-    public async Task Schema13DormantMigration_AlreadyAppliedInvalidData_FailsWithoutRepair()
+    public async Task Schema13DormantMigration_AlreadyAppliedInvalidRuntimeState_FailsWithoutRepair()
     {
         await using var fixture = await CreateValidSchema12DatabaseAsync();
         await fixture.Connection.RunInTransactionAsync(SeedPopulatedSchema12);
         await Schema13DormantMigration.ApplyAsync(fixture.Connection);
         await fixture.Connection.ExecuteAsync(
-            "UPDATE WordLearningControls SET DecidedAtUtc = '2000-01-01T00:00:00.0000000Z'");
+            "UPDATE FsrsCardStates SET DueAtUtc = '2000-01-01T00:00:00.0000000Z'");
         string[] before = null!;
         await fixture.Connection.RunInTransactionAsync(connection => before = CaptureTargetState(connection));
 

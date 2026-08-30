@@ -3,6 +3,8 @@ using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Settings;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Services.Lexical;
 using SQLite;
@@ -48,6 +50,7 @@ public sealed partial class PreparationService(
             PreparationSchema10CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema11CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema12CapabilityResult => new ValidatedPreparationSchema8Capability(),
+            PreparationSchema13CapabilityResult => new ValidatedPreparationSchema8Capability(),
             _ => null
         };
 #if DEBUG
@@ -57,35 +60,37 @@ public sealed partial class PreparationService(
     private long _timingSequence;
 #endif
 
-    public Task<PreparationOverview> GetOverviewAsync() => database.ReadAsync(async connection =>
+    public Task<PreparationOverview> GetOverviewAsync() => database.ExecuteSnapshotAsync(connection =>
     {
         var now = clock.UtcNow;
-        var words = await connection.Table<WordEntity>().ToListAsync();
-        var active = await connection.Table<PreparationSessionEntity>()
-            .Where(session => session.Status == PreparationSessionStatus.Active)
-            .FirstOrDefaultAsync();
-        var latestCompleted = await connection.Table<PreparationSessionEntity>()
+        var words = connection.Table<WordEntity>().ToList();
+        var active = connection.Table<PreparationSessionEntity>()
+            .FirstOrDefault(session => session.Status == PreparationSessionStatus.Active);
+        var latestCompleted = connection.Table<PreparationSessionEntity>()
             .Where(session => session.Status == PreparationSessionStatus.Completed)
             .OrderByDescending(session => session.Id)
-            .FirstOrDefaultAsync();
+            .FirstOrDefault();
         var lastCompletedPreparedItems = latestCompleted is null
             ? 0
-            : await connection.Table<PreparationCandidateEntity>()
-                .Where(candidate => candidate.SessionId == latestCompleted.Id
-                    && candidate.Status == PreparationCandidateStatus.Prepared)
-                .CountAsync();
-        var dueCardCount = await connection.Table<LearningCardEntity>()
-            .Where(card => card.State != CardState.New
+            : connection.Table<PreparationCandidateEntity>()
+                .Count(candidate => candidate.SessionId == latestCompleted.Id
+                    && candidate.Status == PreparationCandidateStatus.Prepared);
+        var capability = PreparationSchemaCapability.Resolve(connection);
+        var isSchema13 = capability is PreparationSchema13CapabilityResult;
+        var dueCardCount = isSchema13
+            ? Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(now))
+            : connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
                 && card.State != CardState.Suspended
                 && card.State != CardState.Retired
-                && card.DueAtUtc <= now)
-            .CountAsync();
-        var preparedNewWordIds = (await connection.Table<LearningCardEntity>()
+                && card.DueAtUtc <= now);
+        var preparedNewWordIds = isSchema13
+            ? Schema13LearningRepository.CountNewWords(connection)
+            : connection.Table<LearningCardEntity>()
                 .Where(card => card.State == CardState.New)
-                .ToListAsync())
-            .Select(card => card.WordId)
-            .Distinct()
-            .Count();
+                .ToList()
+                .Select(card => card.WordId)
+                .Distinct()
+                .Count();
         var unprepared = words.Count(word => word.Status == WordStatus.UnknownBacklog
             && word.PreparationState != PreparationState.Prepared);
         return new PreparationOverview(
@@ -555,8 +560,21 @@ public sealed partial class PreparationService(
                 // BackupSchemaCapability. The Schema-7 branch below is otherwise byte-for-byte the
                 // pre-Slice-3 behavior; the Schema-8 branch lives entirely in PreparationServiceSchema8.cs.
                 var capability = PreparationSchemaCapability.Resolve(connection);
+                var createSchema13State = capability is PreparationSchema13CapabilityResult;
+                if (createSchema13State
+                    && !Schema13RuntimeIntegrityValidator.Validate(connection, out var failureDetail))
+                {
+                    throw new InvalidOperationException(
+                        $"Schema-13 runtime integrity validation failed before preparation acceptance: {failureDetail}");
+                }
                 return AsSchema8CompatibleCapability(capability) is { } schema8AcceptCapability
-                    ? AcceptSchema8(connection, candidateId, input, cardDirectionPreference, schema8AcceptCapability)
+                    ? AcceptSchema8(
+                        connection,
+                        candidateId,
+                        input,
+                        cardDirectionPreference,
+                        schema8AcceptCapability,
+                        createSchema13State)
                     : AcceptSchema7(connection, candidateId, input, cardDirectionPreference);
             });
             RecordTiming(

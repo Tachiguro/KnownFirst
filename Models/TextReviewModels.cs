@@ -209,9 +209,9 @@ public sealed record DiagnosticsLearningCard(
     int MeaningId,
     CardDirection Direction,
     CardState State,
-    DateTime DueAtUtc,
-    int IntervalDays,
-    double EaseFactor,
+    DateTime? DueAtUtc,
+    int? IntervalDays,
+    double? EaseFactor,
     ReviewRating? LastRating);
 
 public sealed record DiagnosticsLearningReview(

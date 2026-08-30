@@ -1,8 +1,10 @@
 using KnownFirst.Core.Learning;
+using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Services.DataSafety;
 using KnownFirst.Services.Study;
@@ -362,7 +364,19 @@ public sealed class TextReviewService(
 
     public async Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync()
     {
-        var capability = await database.ExecuteSnapshotAsync(BackupSchemaCapability.Resolve);
+        var (capability, schema13LearningCards) = await database.ExecuteSnapshotAsync(connection =>
+        {
+            var resolvedCapability = BackupSchemaCapability.Resolve(connection);
+            DiagnosticLearningCardRow[]? authoritativeSchema13Cards = null;
+            if (resolvedCapability is Schema13CapabilityResult)
+            {
+                authoritativeSchema13Cards = Schema13LearningRepository.LoadAllCards(connection)
+                    .Select(DiagnosticLearningCardRow.FromSchema13)
+                    .ToArray();
+            }
+
+            return (resolvedCapability, authoritativeSchema13Cards);
+        });
         return await database.ReadAsync(async connection =>
         {
         var documents = await connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToListAsync();
@@ -390,6 +404,8 @@ public sealed class TextReviewService(
                 ORDER BY Id
                 """))
                 .ToArray(),
+            Schema13CapabilityResult => schema13LearningCards
+                ?? throw new InvalidOperationException("Schema-13 diagnostics projection was not captured."),
             _ => throw new InvalidOperationException("Unsupported schema capability result.")
         };
         var learningReviews = await connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToListAsync();
@@ -589,9 +605,9 @@ public sealed class TextReviewService(
         public int MeaningId { get; set; }
         public CardDirection Direction { get; set; }
         public CardState State { get; set; }
-        public DateTime DueAtUtc { get; set; }
-        public int IntervalDays { get; set; }
-        public double EaseFactor { get; set; }
+        public DateTime? DueAtUtc { get; set; }
+        public int? IntervalDays { get; set; }
+        public double? EaseFactor { get; set; }
         public ReviewRating? LastRating { get; set; }
 
         public static DiagnosticLearningCardRow FromSchema7(LearningCardEntity card) => new()
@@ -605,6 +621,26 @@ public sealed class TextReviewService(
             IntervalDays = card.IntervalDays,
             EaseFactor = card.EaseFactor,
             LastRating = card.LastRating
+        };
+
+        public static DiagnosticLearningCardRow FromSchema13(Schema13LearningCardRow card) => new()
+        {
+            Id = card.Id,
+            WordId = card.WordId,
+            MeaningId = card.PreferredMeaningId,
+            Direction = card.Direction,
+            State = card.State switch
+            {
+                Fsrs6CardState.New => CardState.New,
+                Fsrs6CardState.Learning => CardState.Learning,
+                Fsrs6CardState.Review => CardState.Review,
+                Fsrs6CardState.Relearning => CardState.Relearning,
+                _ => throw new InvalidOperationException($"Unsupported FSRS card state {(int)card.State}.")
+            },
+            DueAtUtc = card.DueAtUtc?.UtcDateTime,
+            IntervalDays = null,
+            EaseFactor = null,
+            LastRating = null
         };
     }
 

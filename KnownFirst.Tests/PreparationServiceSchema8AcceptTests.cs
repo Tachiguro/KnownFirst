@@ -5,6 +5,7 @@ using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Services;
 using KnownFirst.Services.DataSafety;
@@ -806,6 +807,105 @@ public sealed class PreparationServiceSchema8AcceptTests
         await _preparation.AcceptAsync(item.CandidateId, InputFrom(item), CardDirectionPreference.Both);
         var retriedCandidate = await _database.ReadAsync(c => c.Table<KnownFirst.Data.Entities.PreparationCandidateEntity>().FirstAsync());
         Assert.AreEqual(PreparationCandidateStatus.Prepared, retriedCandidate.Status);
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema13_CreatesCleanFsrsStateWithEachNewCard()
+    {
+        var wordId = await ImportSingleUnknownAsync("bank text here.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+        await _preparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await _preparation.LookupCurrentAsync();
+        await _database.ReadAsync(async connection =>
+        {
+            await Schema13DormantMigration.ApplyAsync(connection);
+            return true;
+        });
+
+        await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.Both);
+
+        var states = await _database.ReadAsync(connection => connection.QueryAsync<FsrsStateProbe>(
+            """
+            SELECT f.CardId, f.State, f.Stability, f.Difficulty, f.LastReviewedAtUtc, f.StepIndex, f.DueAtUtc
+            FROM FsrsCardStates f
+            JOIN LearningCards c ON c.Id = f.CardId
+            WHERE c.WordId = ?
+            ORDER BY f.CardId
+            """,
+            wordId));
+        Assert.HasCount(2, states);
+        Assert.IsTrue(states.All(state => state.State == 0
+            && state.Stability is null
+            && state.Difficulty is null
+            && state.LastReviewedAtUtc is null
+            && state.StepIndex is null
+            && state.DueAtUtc is null));
+
+        // Deliberate split-brain fixture: legacy columns claim both cards are overdue Review cards.
+        // Preparation/workflow/learning read paths must continue to observe the clean FSRS New projection.
+        await _database.ReadAsync(async connection =>
+        {
+            await connection.ExecuteAsync(
+                "UPDATE LearningCards SET State = ?, DueAtUtc = ? WHERE WordId = ?",
+                (int)CardState.Review,
+                Now.AddDays(-1),
+                wordId);
+            return true;
+        });
+
+        var overview = await _preparation.GetOverviewAsync();
+        Assert.AreEqual(0, overview.DueCardCount);
+        Assert.AreEqual(1, overview.PreparedNewItemCount);
+
+        var workflow = await new WorkflowStateService(_database, _clock).GetSnapshotAsync();
+        Assert.AreEqual(0, workflow.DueCardCount);
+        Assert.AreEqual(1, workflow.PreparedNewItemCount);
+        Assert.AreEqual(WorkflowPrimaryAction.StartLearning, workflow.PrimaryAction);
+
+        var learning = new LearningService(
+            _database,
+            new SimpleSpacedRepetitionScheduler(),
+            new SpellingAnswerComparer(),
+            _clock);
+        var load = await learning.GetOrStartAsync();
+        Assert.IsNotNull(load.Card);
+        Assert.AreEqual(CardState.New, load.Card.State);
+    }
+
+    [TestMethod]
+    public async Task AcceptSchema13_FaultAfterCardInsertion_RollsBackCardsAndFsrsStates()
+    {
+        await ImportSingleUnknownAsync("bank text here.", "bank");
+        _provider.MeaningsFactory = _ => [Meaning("wikt-financial-institution")];
+        var faultyPreparation = CreatePreparationService(
+            _provider,
+            new RecordingFaultInjector(PreparationSchema8Checkpoints.AfterCardInsert));
+        await faultyPreparation.StartAsync(PreparationMethod.Manual, 1);
+        var item = await faultyPreparation.LookupCurrentAsync();
+        await _database.ReadAsync(async connection =>
+        {
+            await Schema13DormantMigration.ApplyAsync(connection);
+            return true;
+        });
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => faultyPreparation.AcceptAsync(
+            item!.CandidateId,
+            InputFrom(item),
+            CardDirectionPreference.Both));
+
+        Assert.AreEqual(0, await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningCards")));
+        Assert.AreEqual(0, await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM FsrsCardStates")));
+    }
+
+    private sealed class FsrsStateProbe
+    {
+        public int CardId { get; set; }
+        public int State { get; set; }
+        public double? Stability { get; set; }
+        public double? Difficulty { get; set; }
+        public string? LastReviewedAtUtc { get; set; }
+        public int? StepIndex { get; set; }
+        public string? DueAtUtc { get; set; }
     }
 
     // ========== KF-MEANING-001 Slice 4: answer-variant and assignment initialization on accept ==========

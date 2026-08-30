@@ -5,6 +5,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema8;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Services;
 using KnownFirst.Services.Time;
@@ -64,7 +65,11 @@ public sealed class LearningService : ILearningService
             or LearningSchema9CapabilityResult
             or LearningSchema10CapabilityResult
             or LearningSchema11CapabilityResult
-            or LearningSchema12CapabilityResult;
+            or LearningSchema12CapabilityResult
+            or LearningSchema13CapabilityResult;
+
+    private static bool IsSchema13(LearningSchemaCapabilityResult capability) =>
+        capability is LearningSchema13CapabilityResult;
 
     public async Task<LearningLoadResult> GetOrStartAsync()
     {
@@ -98,7 +103,7 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is not LearningSchema12CapabilityResult)
+                if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult))
                 {
                     return new LearningPreparationReadiness(false, null, 0, 0);
                 }
@@ -156,10 +161,19 @@ public sealed class LearningService : ILearningService
             // One transaction for both schemas. The Schema-8 pending-match handoff is stored only after the
             // transaction has committed successfully.
             var outcome = await database.RunInTransactionAsync(connection =>
-                IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection))
+            {
+                var capability = LearningSchemaCapability.Resolve(connection);
+                if (IsSchema13(capability))
+                {
+                    throw new InvalidOperationException(
+                        "Schema-13 rating persistence is not active in this checkpoint.");
+                }
+
+                return IsSchema8OrNewer(capability)
                     ? CheckSpellingSchema8(connection, queueItemId, enteredAnswer)
                     : new Schema8SpellingOutcome(
-                        CheckSpellingSchema7(connection, queueItemId, enteredAnswer), null, IsSchema8: false));
+                        CheckSpellingSchema7(connection, queueItemId, enteredAnswer), null, IsSchema8: false);
+            });
 
             if (outcome.IsSchema8)
             {
@@ -258,7 +272,14 @@ public sealed class LearningService : ILearningService
         {
             var schema8Outcome = await database.RunInTransactionAsync<Schema8RatingOutcome?>(connection =>
             {
-                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
+                var capability = LearningSchemaCapability.Resolve(connection);
+                if (IsSchema13(capability))
+                {
+                    throw new InvalidOperationException(
+                        "Schema-13 rating persistence is not active in this checkpoint.");
+                }
+
+                if (IsSchema8OrNewer(capability))
                 {
                     return PersistRatingSchema8(
                         connection, queueItemId, rating, fromIncorrectSpellingCheck: false);
@@ -335,7 +356,14 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
-                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
+                var capability = LearningSchemaCapability.Resolve(connection);
+                if (IsSchema13(capability))
+                {
+                    throw new InvalidOperationException(
+                        "Schema-13 learning-control mutations are not active in this checkpoint.");
+                }
+
+                if (IsSchema8OrNewer(capability))
                 {
                     return MarkPermanentlyKnownSchema8(connection, wordId);
                 }
@@ -1053,7 +1081,7 @@ public sealed class LearningService : ILearningService
                 $"Session {session.Id} is {session.Status}, not Active.");
         }
 
-        var card = Schema8LearningRepository.LoadCard(connection, queue.CardId)
+        var card = LoadSchedulingCard(connection, queue.CardId)
             ?? throw Reject(Schema8LearningDataErrorCode.CardNotFound,
                 $"Queue row {queueItemId} references missing card {queue.CardId}.");
         ValidateSchema8CardState(card);
@@ -1705,7 +1733,7 @@ public sealed class LearningService : ILearningService
 
     private Schema12LearningDayStateRow? EnsureDayStateSchema12(SQLiteConnection connection, DateTime nowUtc)
     {
-        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema12CapabilityResult)
+        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult))
         {
             return null;
         }
@@ -1832,7 +1860,7 @@ public sealed class LearningService : ILearningService
         var limitN = appSettings is not null
             ? PreparationLimitPolicy.Normalize(appSettings.PreparationLimit)
             : PreparationLimitPolicy.DefaultLimit;
-        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        var cards = LoadSchedulingCards(connection);
         foreach (var card in cards)
         {
             ValidateSchema8CardState(card);
@@ -1955,7 +1983,7 @@ public sealed class LearningService : ILearningService
         DateTime selectionNow)
     {
         var initialTotalCards = active.TotalCards;
-        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        var cards = LoadSchedulingCards(connection);
         foreach (var card in cards)
         {
             ValidateSchema8CardState(card);
@@ -2075,7 +2103,7 @@ public sealed class LearningService : ILearningService
         int limitN,
         DateTime selectionNow)
     {
-        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        var cards = LoadSchedulingCards(connection);
         foreach (var card in cards)
         {
             ValidateSchema8CardState(card);
@@ -2376,7 +2404,7 @@ public sealed class LearningService : ILearningService
 
         foreach (var row in incompleteRows)
         {
-            var card = Schema8LearningRepository.LoadCard(connection, row.CardId);
+            var card = LoadSchedulingCard(connection, row.CardId);
             if (card is null)
             {
                 continue;
@@ -2466,7 +2494,7 @@ public sealed class LearningService : ILearningService
         session.HardCount,
         session.GoodCount,
         session.EasyCount,
-        Schema8LearningRepository.SelectNextDueAtUtc(connection),
+        SelectNextSchedulingDueAtUtc(connection),
         Schema8LearningRepository.CountRemainingUnprepared(connection));
 
     private static LearningSessionSummary BuildSchema8Summary(
@@ -2477,8 +2505,51 @@ public sealed class LearningService : ILearningService
         session.HardCount,
         session.GoodCount,
         session.EasyCount,
-        Schema8LearningRepository.SelectNextDueAtUtc(connection),
+        SelectNextSchedulingDueAtUtc(connection),
         Schema8LearningRepository.CountRemainingUnprepared(connection));
+
+    private static IReadOnlyList<Schema8CardRow> LoadSchedulingCards(SQLiteConnection connection)
+    {
+        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        {
+            return Schema8LearningRepository.LoadAllCards(connection);
+        }
+
+        return Schema13LearningRepository.LoadAllCards(connection)
+            .Select(AdaptSchema13Card)
+            .ToList();
+    }
+
+    private static Schema8CardRow? LoadSchedulingCard(SQLiteConnection connection, int cardId)
+    {
+        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        {
+            return Schema8LearningRepository.LoadCard(connection, cardId);
+        }
+
+        var card = Schema13LearningRepository.LoadCard(connection, cardId);
+        return card is null ? null : AdaptSchema13Card(card);
+    }
+
+    private static Schema8CardRow AdaptSchema13Card(Schema13LearningCardRow card) => new()
+    {
+        Id = card.Id,
+        WordId = card.WordId,
+        SenseId = card.SenseId,
+        PreferredMeaningId = card.PreferredMeaningId,
+        Direction = card.Direction,
+        State = (CardState)(int)card.State,
+        DueAtUtc = card.DueAtUtc?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc),
+        EaseFactor = SimpleSpacedRepetitionScheduler.DefaultEaseFactor,
+        LastReviewedAtUtc = card.LastReviewedAtUtc?.UtcDateTime,
+        CreatedAtUtc = card.CreatedAtUtc,
+        UpdatedAtUtc = card.UpdatedAtUtc
+    };
+
+    private static DateTime? SelectNextSchedulingDueAtUtc(SQLiteConnection connection) =>
+        LearningSchemaCapability.Resolve(connection) is LearningSchema13CapabilityResult
+            ? Schema13LearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime
+            : Schema8LearningRepository.SelectNextDueAtUtc(connection);
 
     private static bool IsValidSnapshot(ContextSnapshotEntity snapshot) =>
         snapshot.TargetStart >= 0

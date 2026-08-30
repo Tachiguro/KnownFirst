@@ -1,4 +1,5 @@
 using KnownFirst.Data;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety.Merge;
@@ -72,23 +73,45 @@ public sealed class BackupService(
                     counts.LearningQueueItems, null, null, null, null));
         }
 
-        var v2 = validated.V2!;
-        var v2Counts = v2.Manifest.RecordCounts;
+        if (validated.V2 is { } v2)
+        {
+            var v2Counts = v2.Manifest.RecordCounts;
+            return new BackupPortableArchiveSummary(
+                v2.Manifest.FormatVersion,
+                v2.Manifest.SourceAppVersion,
+                v2.Manifest.SourceDatabaseSchemaVersion,
+                v2.Manifest.CreatedAtUtc,
+                v2.Manifest.SourcePlatform,
+                v2.Manifest.OptionalFeatures,
+                v2.Manifest.RequiredFeatures,
+                new BackupPortableArchiveCounts(
+                    v2Counts.SourceMaterials, v2Counts.SentenceRanges, v2Counts.VocabularyItems, v2Counts.EncounteredForms,
+                    v2Counts.Occurrences, v2Counts.PreparedItems, v2Counts.ContextSnapshots, v2Counts.LegacyReviewSummaries,
+                    v2Counts.VocabularyReviewWorkflows, v2Counts.VocabularyReviewItems, v2Counts.PreparationWorkflows,
+                    v2Counts.PreparationItems, v2Counts.LearningCards, v2Counts.LearningReviews, v2Counts.LearningWorkflows,
+                    v2Counts.LearningQueueItems, v2Counts.Senses, v2Counts.AnswerVariants,
+                    v2Counts.SenseAnswerVariantAssignments, v2Counts.AnswerVariantProgress));
+        }
+
+        var v3 = validated.V3!;
+        var v3Counts = v3.Manifest.RecordCounts;
         return new BackupPortableArchiveSummary(
-            v2.Manifest.FormatVersion,
-            v2.Manifest.SourceAppVersion,
-            v2.Manifest.SourceDatabaseSchemaVersion,
-            v2.Manifest.CreatedAtUtc,
-            v2.Manifest.SourcePlatform,
-            v2.Manifest.OptionalFeatures,
-            v2.Manifest.RequiredFeatures,
+            v3.Manifest.FormatVersion,
+            v3.Manifest.SourceAppVersion,
+            v3.Manifest.SourceDatabaseSchemaVersion,
+            v3.Manifest.CreatedAtUtc,
+            v3.Manifest.SourcePlatform,
+            v3.Manifest.OptionalFeatures,
+            v3.Manifest.RequiredFeatures,
             new BackupPortableArchiveCounts(
-                v2Counts.SourceMaterials, v2Counts.SentenceRanges, v2Counts.VocabularyItems, v2Counts.EncounteredForms,
-                v2Counts.Occurrences, v2Counts.PreparedItems, v2Counts.ContextSnapshots, v2Counts.LegacyReviewSummaries,
-                v2Counts.VocabularyReviewWorkflows, v2Counts.VocabularyReviewItems, v2Counts.PreparationWorkflows,
-                v2Counts.PreparationItems, v2Counts.LearningCards, v2Counts.LearningReviews, v2Counts.LearningWorkflows,
-                v2Counts.LearningQueueItems, v2Counts.Senses, v2Counts.AnswerVariants,
-                v2Counts.SenseAnswerVariantAssignments, v2Counts.AnswerVariantProgress));
+                v3Counts.SourceMaterials, v3Counts.SentenceRanges, v3Counts.VocabularyItems, v3Counts.EncounteredForms,
+                v3Counts.Occurrences, v3Counts.PreparedItems, v3Counts.ContextSnapshots, v3Counts.LegacyReviewSummaries,
+                v3Counts.VocabularyReviewWorkflows, v3Counts.VocabularyReviewItems, v3Counts.PreparationWorkflows,
+                v3Counts.PreparationItems, v3Counts.LearningCards, v3Counts.LearningReviews, v3Counts.LearningWorkflows,
+                v3Counts.LearningQueueItems, v3Counts.Senses, v3Counts.AnswerVariants,
+                v3Counts.SenseAnswerVariantAssignments, v3Counts.AnswerVariantProgress,
+                v3Counts.WordLearningControls, v3Counts.SenseLearningControls,
+                v3Counts.FsrsReviewHistoryEntries, v3Counts.FsrsCardStates));
     }
 
     /// <summary>
@@ -143,6 +166,7 @@ public sealed class BackupService(
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema13CapabilityResult => Schema13BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
@@ -150,11 +174,13 @@ public sealed class BackupService(
 
             if (capability is Schema7CapabilityResult)
             {
-                if (validated.V2 is not null)
+                if (validated.V2 is not null || validated.V3 is not null)
                 {
                     return PortableImportPreview.ForBlocked(
                         PortableImportPreviewDisposition.ValidationFailed,
-                        BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target,
+                        validated.V3 is not null
+                            ? BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget
+                            : BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target,
                         archiveSummary);
                 }
 
@@ -167,6 +193,22 @@ public sealed class BackupService(
                 }
 
                 return PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+            }
+
+            if (capability is Schema13CapabilityResult)
+            {
+                if (!targetHasDurableData)
+                {
+                    return PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
+                }
+            }
+
+            if (validated.V3 is not null && capability is not Schema13CapabilityResult)
+            {
+                return PortableImportPreview.ForBlocked(
+                    PortableImportPreviewDisposition.ValidationFailed,
+                    BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget,
+                    archiveSummary);
             }
 
             if (!targetHasDurableData)
@@ -213,6 +255,8 @@ public sealed class BackupService(
                 (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? PortableImportPreviewErrorCodes.MergeRequiresUserDecision),
             MergePreflightStatus.BlockedByPrerequisite =>
                 (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? PortableImportPreviewErrorCodes.MergeBlockedByPrerequisite),
+            MergePreflightStatus.NonExecutableConflict =>
+                (PortableImportPreviewDisposition.Blocked, plan.ErrorCode ?? Schema13MergePreflightErrorCodes.CausalHistoryConflict),
             _ => (PortableImportPreviewDisposition.Failed, plan.ErrorCode ?? MergePreflightErrorCodes.UnexpectedFailure)
         };
 
@@ -251,10 +295,23 @@ public sealed class BackupService(
                     Schema10CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
+                    Schema13CapabilityResult => Schema13BackupImportRepository.HasDurableUserData(connection),
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
             });
+
+            if (validated.V3 is not null && capability is not Schema13CapabilityResult)
+            {
+                return new PortableImportResult(
+                    PortableImportStatus.ValidationFailed,
+                    BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget);
+            }
+
+            if (capability is Schema13CapabilityResult && targetHasDurableData)
+            {
+                return await ImportIntoPopulatedSchema13Async(validated, cancellationToken);
+            }
 
             if ((capability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult) && targetHasDurableData)
             {
@@ -269,13 +326,15 @@ public sealed class BackupService(
                 switch (resolvedCapability)
                 {
                     case Schema7CapabilityResult:
-                        if (validated.V2 is not null)
+                        if (validated.V2 is not null || validated.V3 is not null)
                         {
                             // Zero mutation: no read beyond the capability/version check above has
                             // happened yet, and nothing is written below this point.
                             return new PortableImportResult(
                                 PortableImportStatus.ValidationFailed,
-                                BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target);
+                                validated.V3 is not null
+                                    ? BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget
+                                    : BackupErrorCodes.Schema8ArchiveIncompatibleWithSchema7Target);
                         }
 
                         if (BackupImportRepository.HasDurableUserData(connection))
@@ -295,6 +354,13 @@ public sealed class BackupService(
                     case Schema10CapabilityResult:
                     case Schema11CapabilityResult:
                     case Schema12CapabilityResult:
+                        if (validated.V3 is not null)
+                        {
+                            return new PortableImportResult(
+                                PortableImportStatus.ValidationFailed,
+                                BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget);
+                        }
+
                         if (Schema8BackupImportRepository.HasDurableUserData(connection))
                         {
                             return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
@@ -312,6 +378,39 @@ public sealed class BackupService(
                             : new ValidatedSchema8Capability();
                         Schema8BackupImportRepository.ImportIntoEmptySchema8Database(
                             connection, schema8ImportCapability, payloadV2, cancellationToken, failureInjector);
+                        return new PortableImportResult(
+                            PortableImportStatus.Success,
+                            null,
+                            new PortableImportSummary(PortableImportDisposition.RestoredIntoEmpty, false, 0, 0, 0, 0));
+
+                    case Schema13CapabilityResult schema13:
+                        if (Schema13BackupImportRepository.HasDurableUserData(connection))
+                        {
+                            return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
+                        }
+
+                        if (validated.V3 is { } nativeV3)
+                        {
+                            Schema13BackupImportRepository.ImportNativeV3IntoEmptyDatabase(
+                                connection,
+                                schema13.Capability,
+                                nativeV3.Payload,
+                                cancellationToken,
+                                failureInjector);
+                        }
+                        else
+                        {
+                            var legacyPayload = validated.V2 is not null
+                                ? validated.V2.Payload
+                                : BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
+                            Schema13BackupImportRepository.AdaptLegacyIntoEmptyDatabase(
+                                connection,
+                                schema13.Capability,
+                                legacyPayload,
+                                cancellationToken,
+                                failureInjector);
+                        }
+
                         return new PortableImportResult(
                             PortableImportStatus.Success,
                             null,
@@ -405,12 +504,72 @@ public sealed class BackupService(
     }
 
     /// <summary>
+    /// Governed populated-target execution for Schema 13. Preflight rejects every conflict before the
+    /// safety copy; no-change imports remain write-free. Executable changes retain the validated V3
+    /// safety copy and enter the writer's single stale-checked transaction.
+    /// </summary>
+    private async Task<PortableImportResult> ImportIntoPopulatedSchema13Async(
+        ValidatedBackupArchiveEnvelope validated,
+        CancellationToken cancellationToken)
+    {
+        var plan = await _mergePreflightService.CreatePreflightPlanAsync(validated, cancellationToken);
+
+        if (!plan.IsExecutable)
+        {
+            return new PortableImportResult(
+                MapNonExecutablePreflightStatus(plan.Status),
+                plan.ErrorCode ?? MergeWriterErrorCodes.PlanNotExecutable);
+        }
+
+        if (!RequiresWriterExecution(plan))
+        {
+            return new PortableImportResult(
+                PortableImportStatus.Success,
+                null,
+                BuildMergeSummary(plan, PortableImportDisposition.MergeNoChange, safetyCopyCreated: false));
+        }
+
+        var sourceV3 = validated.V3?.Payload;
+        if (sourceV3 is null)
+        {
+            var legacyPayload = validated.V2?.Payload
+                ?? BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
+            sourceV3 = await Schema13LegacySourceProjector.ProjectAsync(legacyPayload, cancellationToken);
+        }
+
+        var sourceDescription =
+            $"Schema 13 merge import ({plan.Manifest!.SourcePlatform}, app {plan.Manifest.SourceAppVersion}, archived {plan.Manifest.CreatedAtUtc:O})";
+        var safetyCopyResult = await _mergeSafetyCopyService.CreateSafetyCopyAsync(sourceDescription, cancellationToken);
+        if (safetyCopyResult.Status != MergeSafetyCopyStatus.Success)
+        {
+            return new PortableImportResult(
+                MapSafetyCopyFailureStatus(safetyCopyResult.Status),
+                safetyCopyResult.ErrorCode);
+        }
+
+        var writeResult = await _mergeWriterService.ApplySchema13Async(sourceV3, plan, cancellationToken);
+        if (writeResult.Status != MergeWriteStatus.Success)
+        {
+            return new PortableImportResult(
+                MapWriterFailureStatus(writeResult.Status),
+                writeResult.ErrorCode);
+        }
+
+        return new PortableImportResult(
+            PortableImportStatus.Success,
+            null,
+            BuildMergeSummary(plan, PortableImportDisposition.MergeApplied, safetyCopyCreated: true));
+    }
+
+    /// <summary>
     /// A plan requires the writer only when it contains at least one action requiring insertion,
     /// enrichment, or preserved-variant handling, or requires scheduler replay — never determined by
     /// comparing database row counts before/after.
     /// </summary>
     private static bool RequiresWriterExecution(MergePreflightPlan plan) =>
-        plan.PerEntity.Values.Any(counts => counts.TotalInsertableCount > 0) || plan.RequiresSchedulerReplay;
+        plan.PerEntity.Values.Any(counts => counts.TotalInsertableCount > 0)
+        || plan.RequiresSchedulerReplay
+        || plan.Schema13Plan?.RequiresMutation == true;
 
     private static PortableImportStatus MapNonExecutablePreflightStatus(MergePreflightStatus status) => status switch
     {
@@ -452,6 +611,33 @@ public sealed class BackupService(
             skipped += counts.ExactDuplicateSkippedCount + counts.DeduplicatedEventCount;
         }
 
+        if (plan.Schema13Plan is { } schema13)
+        {
+            foreach (var action in schema13.Actions)
+            {
+                switch (action.Classification)
+                {
+                    case Schema13MergeActionClassification.AddWordLearningControl:
+                    case Schema13MergeActionClassification.AddSenseLearningControl:
+                    case Schema13MergeActionClassification.AppendFsrsReviewHistory:
+                    case Schema13MergeActionClassification.InsertFsrsCardState:
+                        inserted++;
+                        break;
+                    case Schema13MergeActionClassification.ReconcileWordLearningControlTimestamp:
+                    case Schema13MergeActionClassification.ReconcileSenseLearningControlTimestamp:
+                    case Schema13MergeActionClassification.UpdateFsrsCardState:
+                        enriched++;
+                        break;
+                    case Schema13MergeActionClassification.PreserveTargetOnly:
+                        preserved++;
+                        break;
+                    case Schema13MergeActionClassification.NoChange:
+                        skipped++;
+                        break;
+                }
+            }
+        }
+
         return (inserted, enriched, preserved, skipped);
     }
 
@@ -490,6 +676,12 @@ public sealed class BackupService(
                 var payloadV2FromSchema11 = BackupModelMapperV2.MapToExternal(schema11.Snapshot);
                 await BackupArchiveWriterV2.WriteArchiveAsync(
                     payloadV2FromSchema11, platformInfo, schema11.Capability, DateTime.UtcNow, destinationStream, cancellationToken);
+                break;
+
+            case CapturedSchema13SnapshotEnvelope schema13:
+                var payloadV3 = BackupModelMapperV3.MapToExternal(schema13.Snapshot);
+                await BackupArchiveWriterV3.WriteArchiveAsync(
+                    payloadV3, platformInfo, DateTime.UtcNow, destinationStream, cancellationToken);
                 break;
 
             default:

@@ -1,4 +1,6 @@
 using KnownFirst.Data;
+using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety.Merge;
@@ -60,19 +62,27 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
         DateTime createdAtUtc;
         BackupSourcePlatform sourcePlatform;
 
-        if (validated.FormatVersion == BackupFormatLimits.FormatVersion)
+        if (validated.V1 is { } v1)
         {
-            sourceAppVersion = validated.V1!.Manifest.SourceAppVersion;
-            sourceDatabaseSchemaVersion = validated.V1!.Manifest.SourceDatabaseSchemaVersion;
-            createdAtUtc = validated.V1!.Manifest.CreatedAtUtc;
-            sourcePlatform = validated.V1!.Manifest.SourcePlatform;
+            sourceAppVersion = v1.Manifest.SourceAppVersion;
+            sourceDatabaseSchemaVersion = v1.Manifest.SourceDatabaseSchemaVersion;
+            createdAtUtc = v1.Manifest.CreatedAtUtc;
+            sourcePlatform = v1.Manifest.SourcePlatform;
+        }
+        else if (validated.V2 is { } v2)
+        {
+            sourceAppVersion = v2.Manifest.SourceAppVersion;
+            sourceDatabaseSchemaVersion = v2.Manifest.SourceDatabaseSchemaVersion;
+            createdAtUtc = v2.Manifest.CreatedAtUtc;
+            sourcePlatform = v2.Manifest.SourcePlatform;
         }
         else
         {
-            sourceAppVersion = validated.V2!.Manifest.SourceAppVersion;
-            sourceDatabaseSchemaVersion = validated.V2!.Manifest.SourceDatabaseSchemaVersion;
-            createdAtUtc = validated.V2!.Manifest.CreatedAtUtc;
-            sourcePlatform = validated.V2!.Manifest.SourcePlatform;
+            var v3 = validated.V3!;
+            sourceAppVersion = v3.Manifest.SourceAppVersion;
+            sourceDatabaseSchemaVersion = v3.Manifest.SourceDatabaseSchemaVersion;
+            createdAtUtc = v3.Manifest.CreatedAtUtc;
+            sourcePlatform = v3.Manifest.SourcePlatform;
         }
 
         var manifestInfo = new MergeManifestInfo(
@@ -82,8 +92,11 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             createdAtUtc,
             sourcePlatform);
 
-        var archiveContainsActiveLearning = validated.V2?.Payload.Workflows.LearningSessions
-            .Any(session => session.Status == BackupLearningSessionStatus.Active) == true;
+        var archiveLearningSessions = validated.V3?.Payload.Workflows.LearningSessions
+            ?? validated.V2?.Payload.Workflows.LearningSessions
+            ?? [];
+        var archiveContainsActiveLearning = archiveLearningSessions
+            .Any(session => session.Status == BackupLearningSessionStatus.Active);
 
         BackupSchemaCapabilityResult targetCapability;
         try
@@ -101,6 +114,89 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
         catch (Exception)
         {
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+        }
+
+        if (targetCapability is Schema13CapabilityResult)
+        {
+            Schema13PortableSnapshotCaptureResult schema13Capture;
+            try
+            {
+                schema13Capture = await database.ExecuteSnapshotAsync(
+                    Schema13BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy);
+            }
+            catch (OperationCanceledException)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Cancelled, manifestInfo, true, BackupErrorCodes.OperationCancelled);
+            }
+            catch (BackupSchemaCapabilityException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.ValidationFailed, manifestInfo, true, exception.ErrorCode);
+            }
+            catch (Exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+            }
+
+            if (schema13Capture.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.BlockedByActiveWorkflow, manifestInfo, true, BackupErrorCodes.ActiveWorkflowUnsupported);
+            }
+
+            var targetPayload = BackupModelMapperV3.MapToExternal(
+                schema13Capture.Snapshot
+                ?? throw new InvalidOperationException("Schema-13 capture reported success without a snapshot."));
+            var sourceBasePayload = validated.V2?.Payload
+                ?? (validated.V1 is { } legacyV1 ? BackupArchiveV1UpgradePolicy.Upgrade(legacyV1.Payload) : null);
+
+            BackupPayloadV3 sourcePayload;
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                sourcePayload = validated.V3?.Payload
+                    ?? await Schema13LegacySourceProjector.ProjectAsync(sourceBasePayload!, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Cancelled, manifestInfo, true, BackupErrorCodes.OperationCancelled);
+            }
+            catch (Schema13MigrationException exception)
+                when (exception.ErrorCode == "schema13-migration-missing-review-history")
+            {
+                var legacyConflict = Schema13MergePreflightPlan.ForLegacyProjectionConflict(
+                    Schema13MergePreflightErrorCodes.LegacyHistoryInsufficient);
+                var basePlan = MergePreflightPlannerV2.CreatePlan(
+                    Schema13MergePreflightPlanner.ToV2(targetPayload),
+                    sourceBasePayload!,
+                    manifestInfo);
+                return basePlan with
+                {
+                    Status = MergePreflightStatus.NonExecutableConflict,
+                    IsExecutable = false,
+                    ErrorCode = Schema13MergePreflightErrorCodes.LegacyHistoryInsufficient,
+                    Schema13Plan = legacyConflict
+                };
+            }
+            catch (MergePlanningException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, exception.Code);
+            }
+            catch (Exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+            }
+
+            try
+            {
+                return Schema13MergePreflightPlanner.CreateCombinedPlan(targetPayload, sourcePayload, manifestInfo);
+            }
+            catch (MergePlanningException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, exception.Code);
+            }
+            catch (Exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+            }
         }
 
         if (targetCapability is Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult)

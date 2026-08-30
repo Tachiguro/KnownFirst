@@ -139,7 +139,7 @@ public static class BackupArchiveWriterV2
             var recordCounts = BackupModelContractV2.CountRecords(payload);
 
             var manifest = new BackupManifestV2(
-                FormatVersion: BackupFormatLimits.CurrentArchiveFormatVersion,
+                FormatVersion: BackupFormatLimits.FormatVersionV2,
                 SourceAppVersion: platformInfo.SourceAppVersion,
                 SourceDatabaseSchemaVersion: sourceDatabaseSchemaVersion,
                 SourcePlatform: platformInfo.SourcePlatform,

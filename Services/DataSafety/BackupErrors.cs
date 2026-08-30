@@ -30,6 +30,10 @@ public static class BackupErrorCodes
     /// Restore never downgrades or migrates the target — this is a stable, machine-readable rejection
     /// with zero mutation.</summary>
     public const string Schema8ArchiveIncompatibleWithSchema7Target = "schema8-archive-incompatible-with-schema7-target";
+
+    /// <summary>A native Schema-13/archive-v3 payload cannot be restored into a Schema-7 through
+    /// Schema-12 target. Import never upgrades the target implicitly and rejects before mutation.</summary>
+    public const string Schema13ArchiveIncompatibleWithLegacyTarget = "schema13-archive-incompatible-with-legacy-target";
 }
 
 public sealed class BackupFormatException : Exception

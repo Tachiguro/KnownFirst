@@ -3,12 +3,14 @@ namespace KnownFirst.Services.DataSafety;
 public static class BackupFormatLimits
 {
     public const int FormatVersion = 1;
+    public const int FormatVersionV2 = 2;
+    public const int FormatVersionV3 = 3;
 
     /// <summary>Lowest archive format the reader still accepts (v1, never removed).</summary>
     public const int MinimumSupportedFormatVersion = 1;
 
-    /// <summary>Highest archive format this build understands (v2 — Schema-8 dual-format support).</summary>
-    public const int CurrentArchiveFormatVersion = 2;
+    /// <summary>Highest archive format this build understands (v3 — Schema-13 transport support).</summary>
+    public const int CurrentArchiveFormatVersion = 3;
 
     public const int RequiredZipEntryCount = 2;
     public const long MaxArchiveBytes = 128L * 1024 * 1024;

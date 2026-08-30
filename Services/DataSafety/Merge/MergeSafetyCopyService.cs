@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using KnownFirst.Data;
 using KnownFirst.Data.Schema8;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety.Merge;
@@ -284,6 +285,12 @@ public sealed class MergeSafetyCopyService(
                     payloadV2FromSchema12, platformInfo, schema12.Capability, timestampUtc, destinationStream, cancellationToken);
                 break;
 
+            case MergeSafetyCopySchema13Captured schema13:
+                var payloadV3 = BackupModelMapperV3.MapToExternal(schema13.Snapshot);
+                await BackupArchiveWriterV3.WriteArchiveAsync(
+                    payloadV3, platformInfo, timestampUtc, destinationStream, cancellationToken);
+                break;
+
             default:
                 throw new InvalidOperationException("Unrecognized merge safety-copy capture envelope.");
         }
@@ -302,6 +309,7 @@ public sealed class MergeSafetyCopyService(
             MergeSafetyCopySchema10Captured schema10 => BuildExpectedCounts(schema10.Snapshot),
             MergeSafetyCopySchema11Captured schema11 => BuildExpectedCounts(schema11.Snapshot),
             MergeSafetyCopySchema12Captured schema12 => BuildExpectedCounts(schema12.Snapshot),
+            MergeSafetyCopySchema13Captured schema13 => BuildExpectedCounts(schema13.Snapshot),
             _ => throw new InvalidOperationException("Unrecognized merge safety-copy capture envelope.")
         };
 
@@ -326,6 +334,16 @@ public sealed class MergeSafetyCopyService(
         snapshot.PreparationCandidates.Count, snapshot.LearningCards.Count, snapshot.LearningReviews.Count,
         snapshot.LearningSessions.Count, snapshot.LearningSessionCards.Count,
         snapshot.Senses.Count, snapshot.AnswerVariants.Count, snapshot.Assignments.Count, snapshot.AnswerVariantProgress.Count);
+
+    private static BackupPortableArchiveCounts BuildExpectedCounts(Schema13BackupSnapshot snapshot) => new(
+        snapshot.BaseSnapshot.Documents.Count, snapshot.BaseSnapshot.SentenceSpans.Count, snapshot.BaseSnapshot.Words.Count, snapshot.BaseSnapshot.WordForms.Count,
+        snapshot.BaseSnapshot.WordOccurrences.Count, snapshot.BaseSnapshot.Meanings.Count, snapshot.BaseSnapshot.ContextSnapshots.Count, snapshot.BaseSnapshot.ReviewStates.Count,
+        snapshot.BaseSnapshot.ReviewSessions.Count, snapshot.BaseSnapshot.ReviewCandidates.Count, snapshot.BaseSnapshot.PreparationSessions.Count,
+        snapshot.BaseSnapshot.PreparationCandidates.Count, snapshot.BaseSnapshot.LearningCards.Count, snapshot.BaseSnapshot.LearningReviews.Count,
+        snapshot.BaseSnapshot.LearningSessions.Count, snapshot.BaseSnapshot.LearningSessionCards.Count,
+        snapshot.BaseSnapshot.Senses.Count, snapshot.BaseSnapshot.AnswerVariants.Count, snapshot.BaseSnapshot.Assignments.Count, snapshot.BaseSnapshot.AnswerVariantProgress.Count,
+        snapshot.WordLearningControls.Count, snapshot.SenseLearningControls.Count,
+        snapshot.FsrsReviewHistoryEntries.Count, snapshot.FsrsCardStates.Count);
 
     private static string FormatArchiveFileName(DateTime timestampUtc, string shortId) =>
         $"merge-safety-{timestampUtc:yyyyMMdd'T'HHmmssfff'Z'}-{shortId}.kfarchive";

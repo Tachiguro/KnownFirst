@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-29
-**State source:** `master` baseline (including `KF-FSRS6-CORE-001` merged via PR #184 and `KF-CLEAN-DOMAIN-013-001` merged via PR #186). Live Git remains authoritative for the current master HEAD and pull-request states, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Status date:** 2026-08-30
+**State source:** `master` baseline (including `KF-FSRS6-CORE-001` merged via PR #184, `KF-CLEAN-DOMAIN-013-001` merged via PR #186, and `KF-PERSIST-013-001` merged via PR #189). Live Git remains authoritative for the current master HEAD and pull-request states, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -389,6 +389,40 @@ This package establishes the physical SQLite Schema-13 storage structures, repos
 - **Archive Format:** Portable archive format remains V2.
 - **Foreign-Key Activation:** Physical target foreign keys are verified under explicit connection enforcement, but global production `PRAGMA foreign_keys = ON` activation remains deferred to `KF-FSRS-003`.
 - **Downstream Ownership:** Archive V3 transport semantics (`KF-BACKUP-006`), production FSRS-6 cutover and DI composition (`KF-FSRS-003`), legacy cleanup (`KF-CLEANUP-001`), and Vocabulary UI workflows (`KF-VOCAB-005`, `KF-VOCAB-006`) remain tracked in [docs/BACKLOG.md](BACKLOG.md).
+
+## Archive V3 Transport & Schema-13 Merge (KF-BACKUP-006 — Implementation Candidate)
+
+**Lifecycle status:** Source implementation complete across five logical checkpoints on candidate branch `feature/archive-v3-schema13-transport-v1` (candidate HEAD `03a6eff513b50377adfdee8dbb340f439e7dd0ce`). Consolidated `REVIEW_ONLY` approved with `REVIEW_APPROVED_FOR_DOCUMENTATION_AND_FULL_VALIDATION`. `DatabaseSchema.CurrentVersion` remains 12, ordinary production archive format remains V2, and production scheduler remains `SimpleSpacedRepetitionScheduler`.
+
+This package implements the Archive V3 portable archive format evolution, export, restore, preflight planning, and transactional populated-target merge for validated Schema-13 databases:
+
+**1. Portable Archive V3 Contract (`BackupModelContractV3`)**
+- **Schema-13 Extensions:** Adds top-level payload collections for `WordLearningControls` (`BackupWordLearningControlV3`: `WordIdentity`, `DecidedAtUtc`), `SenseLearningControls` (`BackupSenseLearningControlV3`: `WordIdentity`, `SenseIndex`, `DecidedAtUtc`), `FsrsReviewHistoryEntries` (`BackupFsrsReviewHistoryEntryV3`: `StableId`, `CardIdentity`, `SequenceNumber`, `Rating`, `ReviewedAtUtc`), and `FsrsCardStates` (`BackupFsrsCardStateV3`: `CardIdentity`, `State`, `Stability`, `Difficulty`, `LastReviewedAtUtc`, `StepIndex`, `DueAtUtc`), with matching `BackupRecordCountsV3`.
+- **Strict Invariant Validation:** `BackupArchiveWriterV3.ValidatePayloadGraphV3` enforces format version 3, non-null collections, strict UTC ISO-8601 timestamps, valid FSRS state constraints matching SQLite CHECK constraints, unique `StableId`s, gapless sequence numbers per card, valid ratings ($0 \dots 3$), and exact record counts before export or restore.
+
+**2. Deterministic Archive V3 Export (`BackupModelMapperV3`, `BackupArchiveWriterV3`)**
+- **Schema-13 Target Support:** Gated by `CanExportArchiveV3Async` ensuring target database is valid Schema 13 before export.
+- **Deterministic Portable Order:** Sorts controls, history entries, and card states by stable portable identities (`WordIdentity`, `SenseIndex`, `CardIdentity`, `SequenceNumber`, `StableId`). Assigns deterministic 1-based portable card IDs for cross-installation reference.
+
+**3. Empty-Target Restore (`BackupService.ImportIntoEmptySchema13Async`)**
+- **Native V3 Restore:** Deserializes and restores native Archive V3 into empty Schema-13 databases with transactional rollback, restoring base entities, controls, history entries, and FSRS card states, finalized by `Schema13MigrationIntegrityValidator` validation.
+- **Legacy V1/V2 Adaptation:** Adapts legacy Schema 7–12 archives deterministically into empty Schema-13 targets using `Schema13LearningBootstrap` to derive FSRS states, deterministic `StableId`s, and Word learning controls.
+
+**4. Populated-Target Merge Preflight & Safety Copy (`Schema13MergePreflightPlanner`, `BackupService`)**
+- **Pure Preflight Planning:** Read-only planner computing explicit action plan (`AddWordLearningControl`, `ReconcileWordLearningControlTimestamp`, `AddSenseLearningControl`, `ReconcileSenseLearningControlTimestamp`, `AppendFsrsReviewHistory`, `InsertFsrsCardState`, `UpdateFsrsCardState`, `PreserveTargetOnly`, `NoChange`).
+- **Complete Fingerprinting:** Captures target state fingerprint with exact binary64 IEEE-754 `"G17"` double precision for stability and difficulty.
+- **Pre-Merge Safety Copy:** Populated mutating merges write a validated Archive V3 safety copy of the pre-mutation target database before applying any changes. Read-only previews and executable `NoChanges` merges create no safety copy.
+
+**5. Transactional Populated-Target Merge Writer (`Schema13MergeWriterExecutor`, `MergeWriterService`)**
+- **Atomic Transaction Boundary:** `ApplySchema13Async` wraps target state re-capture, plan comparison, base-graph merge execution, Schema-13 extension execution, and final integrity validation in a single atomic transaction.
+- **Stale-Plan Rejection:** Recomputes the write plan inside the transaction and compares it structurally with the preflight plan via `MergeWritePlanComparer`. Any target divergence aborts before the first mutation.
+- **Exact Data Preservation:** Preserves exact binary64 `Stability` and `Difficulty` without precision loss. Exact `StableId`s, gapless sequences, and equal review timestamps are preserved. Word and Sense controls converge to the earliest timestamp (`Min(target, source)`).
+- **Post-Write Validation:** Validates `pragma_foreign_key_check`, snapshot integrity, `ValidateExactReplay`, exact planned action counts, and preflight re-evaluation converging to `MergeNoChange`.
+- **Fail-Closed Conflict Policies:** Divergent causal histories, `StableId` collisions, missing legacy review history, and ambiguous sibling senses without semantic discriminators fail closed.
+
+**6. Backward Compatibility & Production Boundaries**
+- Schema 7–12 databases continue using existing V1/V2 restore and merge paths. V3 archives reject legacy targets with `Schema13ArchiveIncompatibleWithLegacyTarget`.
+- `DatabaseSchema.CurrentVersion` remains 12; normal production database initialization stops at Schema 12; ordinary production archives remain V2; production scheduler remains `SimpleSpacedRepetitionScheduler`. Production cutover is owned by `KF-FSRS-003`.
 
 ## Evidence Boundaries & Release Limitations
 

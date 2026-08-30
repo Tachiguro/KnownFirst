@@ -27,6 +27,7 @@ public enum MergePreflightStatus
     BlockedByActiveWorkflow,
     ValidationFailed,
     Cancelled,
+    NonExecutableConflict,
     Failed
 }
 
@@ -316,7 +317,8 @@ public sealed record MergePreflightPlan(
     IReadOnlyDictionary<MergeEntityClassification, IReadOnlyList<string>> SampleDetails,
     IReadOnlyList<string> WarningCodes,
     bool RequiresSchedulerReplay,
-    string? ErrorCode)
+    string? ErrorCode,
+    Schema13MergePreflightPlan? Schema13Plan = null)
 {
     public const int MaxSampleDetailsPerCategory = 20;
 

@@ -36,7 +36,10 @@ namespace KnownFirst.Services.DataSafety;
 /// </summary>
 public static class BackupModelMapperV2
 {
-    public static BackupPayloadV2 MapToExternal(Schema8BackupSnapshot snapshot)
+    public static BackupPayloadV2 MapToExternal(Schema8BackupSnapshot snapshot) =>
+        MapToExternalWithContext(snapshot).Payload;
+
+    internal static BackupModelMapperContext MapToExternalWithContext(Schema8BackupSnapshot snapshot)
     {
         // ---- Vocabulary (Words): ordered by (Language, IdentityKey) — required-unique ----
         //
@@ -291,7 +294,7 @@ public static class BackupModelMapperV2
                 e.ComponentForm))
             .ToList();
 
-        return new BackupPayloadV2(
+        var payload = new BackupPayloadV2(
             sourceMaterials,
             vocabulary,
             senses,
@@ -303,7 +306,15 @@ public static class BackupModelMapperV2
             new BackupWorkflowDataV2(vocabReviews, prepBatches, learningSessionsOut),
             derivedTermEvidenceOut,
             new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
+
+        return new BackupModelMapperContext(payload, vocabIdMap, senseIdMap, cardIdMap);
     }
+
+internal sealed record BackupModelMapperContext(
+    BackupPayloadV2 Payload,
+    IReadOnlyDictionary<int, string> VocabIdMap,
+    IReadOnlyDictionary<int, string> SenseIdMap,
+    IReadOnlyDictionary<int, string> CardIdMap);
 
     /// <summary>
     /// Ordering material only — never an identity. Its own domain keeps it in a separate hash family from

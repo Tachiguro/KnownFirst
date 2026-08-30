@@ -19,9 +19,14 @@ namespace KnownFirst.Data.Schema8;
 /// </summary>
 public static class Schema8LearningRepository
 {
-    private const string QueueColumns =
+    private const string QueueColumnsWithoutStableId =
         "Id, SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked, " +
         "SpellingCorrect, IsCompleted, Rating, CompletedAtUtc, TargetAnswerVariantId";
+
+    private static string QueueColumns(SQLiteConnection connection) =>
+        Schema10LearningIdentityWriter.HasLearningWorkflowIdentity(connection)
+            ? $"{QueueColumnsWithoutStableId}, StableId"
+            : $"{QueueColumnsWithoutStableId}, NULL AS StableId";
 
     private const string CardColumns =
         "Id, WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays, EaseFactor, " +
@@ -47,24 +52,24 @@ public static class Schema8LearningRepository
 
     public static Schema8QueueTargetRow? LoadQueueRow(SQLiteConnection connection, int queueItemId) =>
         connection.Query<Schema8QueueTargetRow>(
-            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE Id = ?", queueItemId).FirstOrDefault();
+            $"SELECT {QueueColumns(connection)} FROM LearningSessionCards WHERE Id = ?", queueItemId).FirstOrDefault();
 
     public static List<Schema8QueueTargetRow> LoadQueueRowsForSession(SQLiteConnection connection, int sessionId) =>
         connection.Query<Schema8QueueTargetRow>(
-            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder, Id", sessionId);
+            $"SELECT {QueueColumns(connection)} FROM LearningSessionCards WHERE SessionId = ? ORDER BY QueueOrder, Id", sessionId);
 
     public static Schema8QueueTargetRow? LoadFirstIncompleteQueueRow(SQLiteConnection connection, int sessionId) =>
         connection.Query<Schema8QueueTargetRow>(
-            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0 ORDER BY QueueOrder, Id LIMIT 1",
+            $"SELECT {QueueColumns(connection)} FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0 ORDER BY QueueOrder, Id LIMIT 1",
             sessionId).FirstOrDefault();
 
     public static List<Schema8QueueTargetRow> LoadQueueRowsForCard(SQLiteConnection connection, int cardId) =>
         connection.Query<Schema8QueueTargetRow>(
-            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE CardId = ? ORDER BY Id", cardId);
+            $"SELECT {QueueColumns(connection)} FROM LearningSessionCards WHERE CardId = ? ORDER BY Id", cardId);
 
     public static List<Schema8QueueTargetRow> LoadIncompleteQueueRowsForCard(SQLiteConnection connection, int cardId) =>
         connection.Query<Schema8QueueTargetRow>(
-            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE CardId = ? AND IsCompleted = 0 ORDER BY Id", cardId);
+            $"SELECT {QueueColumns(connection)} FROM LearningSessionCards WHERE CardId = ? AND IsCompleted = 0 ORDER BY Id", cardId);
 
     /// <summary>
     /// Inserts one fresh queue row. On a Schema-10 database the statement additionally supplies a fresh
@@ -387,7 +392,49 @@ public static class Schema8LearningRepository
         bool wasTypedAnswer,
         bool wasCorrect,
         DateTime reviewedAtUtc,
-        CardSchedule postReviewSchedule)
+        CardSchedule postReviewSchedule) =>
+        InsertReviewRow(
+            connection,
+            cardId,
+            sessionId,
+            rating,
+            wasTypedAnswer,
+            wasCorrect,
+            reviewedAtUtc,
+            postReviewSchedule);
+
+    /// <summary>
+    /// Persists Schema-13 interaction and answer attribution without representing FSRS state as a legacy
+    /// schedule. Schedule-shaped compatibility columns retain the truthful legacy pre-review snapshot.
+    /// </summary>
+    public static int InsertSchema13CompatibilityReview(
+        SQLiteConnection connection,
+        int cardId,
+        int sessionId,
+        ReviewRating rating,
+        bool wasTypedAnswer,
+        bool wasCorrect,
+        DateTime reviewedAtUtc,
+        CardSchedule truthfulLegacyPreReviewSnapshot) =>
+        InsertReviewRow(
+            connection,
+            cardId,
+            sessionId,
+            rating,
+            wasTypedAnswer,
+            wasCorrect,
+            reviewedAtUtc,
+            truthfulLegacyPreReviewSnapshot);
+
+    private static int InsertReviewRow(
+        SQLiteConnection connection,
+        int cardId,
+        int sessionId,
+        ReviewRating rating,
+        bool wasTypedAnswer,
+        bool wasCorrect,
+        DateTime reviewedAtUtc,
+        CardSchedule scheduleSnapshot)
     {
         connection.Execute(
             """
@@ -397,7 +444,7 @@ public static class Schema8LearningRepository
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
             """,
             cardId, sessionId, (int)rating, wasTypedAnswer, wasCorrect, reviewedAtUtc,
-            postReviewSchedule.DueAtUtc, postReviewSchedule.IntervalDays, postReviewSchedule.EaseFactor);
+            scheduleSnapshot.DueAtUtc, scheduleSnapshot.IntervalDays, scheduleSnapshot.EaseFactor);
         return (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
     }
 
@@ -631,7 +678,7 @@ public static class Schema8LearningRepository
 
     public static List<Schema8QueueTargetRow> LoadIncompleteQueueRowsForSession(SQLiteConnection connection, int sessionId) =>
         connection.Query<Schema8QueueTargetRow>(
-            $"SELECT {QueueColumns} FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0 ORDER BY QueueOrder, Id",
+            $"SELECT {QueueColumns(connection)} FROM LearningSessionCards WHERE SessionId = ? AND IsCompleted = 0 ORDER BY QueueOrder, Id",
             sessionId);
 
     public static Schema12LearningDayStateRow? LoadLearningDayState(SQLiteConnection connection)

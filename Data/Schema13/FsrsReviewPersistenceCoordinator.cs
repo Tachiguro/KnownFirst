@@ -59,7 +59,9 @@ public sealed class FsrsReviewPersistenceCoordinator
                 nameof(resultingCard));
         }
 
+        var persistedEvent = FsrsReviewHistoryRepository.AppendEvent(
+            connection, cardId, stableId, reviewEvent);
         FsrsCardStateRepository.Save(connection, cardId, resultingCard);
-        return FsrsReviewHistoryRepository.AppendEvent(connection, cardId, stableId, reviewEvent);
+        return persistedEvent;
     }
 }

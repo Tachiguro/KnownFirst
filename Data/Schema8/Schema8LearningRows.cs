@@ -48,6 +48,7 @@ public static class Schema8Utc
 public sealed class Schema8QueueTargetRow
 {
     public int Id { get; set; }
+    public string? StableId { get; set; }
     public int SessionId { get; set; }
     public int CardId { get; set; }
     public int QueueOrder { get; set; }

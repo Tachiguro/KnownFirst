@@ -3,6 +3,7 @@ using KnownFirst.Core.Language;
 using KnownFirst.Core.Text;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Application.Learning;
 using KnownFirst.Services;
 using KnownFirst.Services.Diagnostics;
 using KnownFirst.Services.Isolation;
@@ -128,6 +129,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IClock, SystemClock>();
 #endif
         builder.Services.AddSingleton<ISpacedRepetitionScheduler, SimpleSpacedRepetitionScheduler>();
+        builder.Services.AddSingleton<IFsrs6SchedulingService, Fsrs6SchedulingService>();
         builder.Services.AddSingleton<SpellingAnswerComparer>();
         builder.Services.AddSingleton<AcronymExpansionDetector>();
         builder.Services.AddSingleton<MeaningRanker>();

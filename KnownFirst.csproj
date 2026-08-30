@@ -207,6 +207,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="KnownFirst.Application\KnownFirst.Application.csproj" />
         <ProjectReference Include="KnownFirst.Core\KnownFirst.Core.csproj" />
     </ItemGroup>
 

@@ -169,8 +169,7 @@ public sealed class LearningService : ILearningService
                 var capability = LearningSchemaCapability.Resolve(connection);
                 if (IsSchema13(capability))
                 {
-                    throw new InvalidOperationException(
-                        "Schema-13 spelling mutations are not active in this checkpoint.");
+                    return CheckSpellingSchema13(connection, queueItemId, enteredAnswer);
                 }
 
                 return IsSchema8OrNewer(capability)
@@ -363,8 +362,7 @@ public sealed class LearningService : ILearningService
                 var capability = LearningSchemaCapability.Resolve(connection);
                 if (IsSchema13(capability))
                 {
-                    throw new InvalidOperationException(
-                        "Schema-13 learning-control mutations are not active in this checkpoint.");
+                    return MarkPermanentlyKnownSchema13(connection, wordId);
                 }
 
                 if (IsSchema8OrNewer(capability))
@@ -1364,6 +1362,56 @@ public sealed class LearningService : ILearningService
     }
 
     /// <summary>
+    /// Schema-13 typed-answer check. Correct spelling creates only the pending attribution handoff; incorrect
+    /// spelling delegates the one factual Again event and its one tail repeat to the established rating path.
+    /// </summary>
+    private Schema8SpellingOutcome CheckSpellingSchema13(
+        SQLiteConnection connection, int queueItemId, string enteredAnswer)
+    {
+        var (graph, _, interaction, _) = LoadSchema13RatingState(connection, queueItemId);
+        if (graph.Queue.IsCompleted)
+        {
+            throw Reject(Schema8LearningDataErrorCode.DuplicateSubmission,
+                $"Queue row {queueItemId} was already submitted.");
+        }
+
+        if (graph.Card.Direction != CardDirection.MeaningToTerm)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidQueueState,
+                "Only MeaningToTerm cards accept a typed answer.");
+        }
+
+        if (interaction != LearningInteractionMode.Typing)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidQueueState,
+                "Only typing-mode cards accept a typed answer.");
+        }
+
+        var match = Schema8AnswerMatchPolicy.Resolve(
+            spellingComparer, enteredAnswer, graph.TargetAnswerVariantId, graph.Assignments,
+            graph.Word.TokenKind, graph.Word.Language);
+
+        if (match.IsCorrect)
+        {
+            Schema8LearningRepository.SetQueueSpellingResult(connection, queueItemId, spellingCorrect: true);
+            var result = new SpellingSubmissionResult(
+                true, match.EnteredAnswer, match.ExpectedAnswer, string.Empty, null,
+                RatingWasPersisted: false, match.MatchedAnswerVariantId);
+            return new Schema8SpellingOutcome(
+                result,
+                new Schema8PendingMatch(queueItemId, enteredAnswer ?? string.Empty, match.MatchedAnswerVariantId!.Value),
+                IsSchema8: true);
+        }
+
+        Schema8LearningRepository.SetQueueSpellingResult(connection, queueItemId, spellingCorrect: false);
+        PersistRatingSchema13(connection, queueItemId, ReviewRating.Again, fromIncorrectSpellingCheck: true);
+        var failed = new SpellingSubmissionResult(
+            false, match.EnteredAnswer, match.ExpectedAnswer, match.Difference, null,
+            RatingWasPersisted: true, MatchedAnswerVariantId: null);
+        return new Schema8SpellingOutcome(failed, null, IsSchema8: true);
+    }
+
+    /// <summary>
     /// The complete factual Schema-13 rating transaction. The queue-row StableId is the event identity;
     /// FSRS history is appended before its resulting state; legacy schedule columns remain untouched.
     /// Every Again appends one fresh attempt for the same queue assignment at the session tail.
@@ -1901,6 +1949,93 @@ public sealed class LearningService : ILearningService
         return true;
     }
 
+    /// <summary>
+    /// Records the reversible clean Word-level decision without rewriting factual reviews, FSRS state, legacy
+    /// compatibility facts, interaction progress, or the semantic graph. Only incomplete active-session queue
+    /// attempts for the controlled Word are removed and their owning sessions are normalized atomically.
+    /// </summary>
+    private bool MarkPermanentlyKnownSchema13(SQLiteConnection connection, int wordId)
+    {
+        if (connection.Find<WordEntity>(wordId) is null)
+        {
+            return false;
+        }
+
+        var current = WordLearningControlRepository.Load(connection, wordId);
+        var next = current.IsAlreadyKnown
+            ? current
+            : current.MarkAlreadyKnown(clock.UtcNow);
+
+        var affectedSessionIds = connection.Query<LearningSessionIdRow>(
+                """
+                SELECT DISTINCT q.SessionId AS Id
+                FROM LearningSessionCards q
+                JOIN LearningCards c ON c.Id = q.CardId
+                WHERE c.WordId = ? AND q.IsCompleted = 0
+                ORDER BY q.SessionId
+                """,
+                wordId)
+            .Select(row => row.Id)
+            .ToHashSet();
+
+        WordLearningControlRepository.Save(connection, wordId, next);
+        connection.Execute(
+            """
+            DELETE FROM LearningSessionCards
+            WHERE IsCompleted = 0
+              AND CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)
+            """,
+            wordId);
+        NormalizeSchema13LearningSessions(connection, affectedSessionIds, next.AlreadyKnown!.DecidedAtUtc);
+        return true;
+    }
+
+    private static void NormalizeSchema13LearningSessions(
+        SQLiteConnection connection,
+        IReadOnlySet<int> sessionIds,
+        DateTime nowUtc)
+    {
+        foreach (var sessionId in sessionIds)
+        {
+            var session = connection.Find<LearningSessionEntity>(sessionId);
+            if (session is null)
+            {
+                continue;
+            }
+
+            var rows = connection.Table<LearningSessionCardEntity>()
+                .Where(item => item.SessionId == sessionId)
+                .ToList();
+            var reviews = connection.Table<LearningReviewEntity>()
+                .Where(item => item.SessionId == sessionId)
+                .ToList();
+            if (rows.Count == 0 && reviews.Count == 0)
+            {
+                connection.Delete(session);
+                continue;
+            }
+
+            session.TotalCards = rows.Count;
+            session.CompletedCards = rows.Count(row => row.IsCompleted);
+            session.AgainCount = reviews.Count(review => review.Rating == ReviewRating.Again);
+            session.HardCount = reviews.Count(review => review.Rating == ReviewRating.Hard);
+            session.GoodCount = reviews.Count(review => review.Rating == ReviewRating.Good);
+            session.EasyCount = reviews.Count(review => review.Rating == ReviewRating.Easy);
+            session.UpdatedAtUtc = nowUtc;
+            if (rows.Any(row => !row.IsCompleted))
+            {
+                session.Status = LearningSessionStatus.Active;
+                session.CompletedAtUtc = null;
+            }
+            else
+            {
+                session.Status = LearningSessionStatus.Completed;
+                session.CompletedAtUtc ??= nowUtc;
+            }
+            connection.Update(session);
+        }
+    }
+
     private Schema12LearningDayStateRow? EnsureDayStateSchema12(SQLiteConnection connection, DateTime nowUtc)
     {
         if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult))
@@ -2420,6 +2555,12 @@ public sealed class LearningService : ILearningService
         int limitN,
         DateTime nowUtc)
     {
+        if (LearningSchemaCapability.Resolve(connection) is LearningSchema13CapabilityResult
+            && WordLearningControlRepository.Load(connection, card.WordId).IsAlreadyKnown)
+        {
+            return false;
+        }
+
         if (card.State is CardState.Suspended or CardState.Retired)
         {
             return false;
@@ -2711,6 +2852,7 @@ public sealed class LearningService : ILearningService
         }
 
         return Schema13LearningRepository.LoadAllCards(connection)
+            .Where(card => !WordLearningControlRepository.Load(connection, card.WordId).IsAlreadyKnown)
             .Select(AdaptSchema13Card)
             .ToList();
     }
@@ -2723,7 +2865,9 @@ public sealed class LearningService : ILearningService
         }
 
         var card = Schema13LearningRepository.LoadCard(connection, cardId);
-        return card is null ? null : AdaptSchema13Card(card);
+        return card is null || WordLearningControlRepository.Load(connection, card.WordId).IsAlreadyKnown
+            ? null
+            : AdaptSchema13Card(card);
     }
 
     private static Schema8CardRow AdaptSchema13Card(Schema13LearningCardRow card) => new()
@@ -2741,10 +2885,22 @@ public sealed class LearningService : ILearningService
         UpdatedAtUtc = card.UpdatedAtUtc
     };
 
-    private static DateTime? SelectNextSchedulingDueAtUtc(SQLiteConnection connection) =>
-        LearningSchemaCapability.Resolve(connection) is LearningSchema13CapabilityResult
-            ? Schema13LearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime
-            : Schema8LearningRepository.SelectNextDueAtUtc(connection);
+    private static DateTime? SelectNextSchedulingDueAtUtc(SQLiteConnection connection)
+    {
+        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        {
+            return Schema8LearningRepository.SelectNextDueAtUtc(connection);
+        }
+
+        return LoadSchedulingCards(connection)
+            .Where(card => card.State is CardState.Learning or CardState.Review or CardState.Relearning)
+            .Where(card => card.SenseId.HasValue
+                && Schema8LearningRepository.LoadAssignmentsForSenseDirection(
+                    connection, card.SenseId.Value, card.Direction).Any(assignment => assignment.IsRequired))
+            .Select(card => (DateTime?)Schema8Utc.Normalize(card.DueAtUtc))
+            .OrderBy(dueAtUtc => dueAtUtc)
+            .FirstOrDefault();
+    }
 
     private static bool IsValidSnapshot(ContextSnapshotEntity snapshot) =>
         snapshot.TargetStart >= 0
@@ -2769,4 +2925,9 @@ public sealed class LearningService : ILearningService
 
     private static string? EmptyToNull(string value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private sealed class LearningSessionIdRow
+    {
+        public int Id { get; set; }
+    }
 }

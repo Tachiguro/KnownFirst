@@ -1,12 +1,14 @@
 using KnownFirst.Application.Learning;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Learning.Fsrs6;
+using KnownFirst.Core.Settings;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
+using KnownFirst.Services;
 using KnownFirst.Services.Study;
 using SQLite;
 
@@ -18,6 +20,213 @@ public sealed class LearningServiceSchema13FsrsTests
 {
     private static readonly DateTime ReviewTime =
         new(2026, 8, 30, 9, 15, 0, DateTimeKind.Utc);
+
+    [TestMethod]
+    public async Task Slice5_CheckSpellingAsync_CorrectSchema13DefersReviewAndRatingPersistsOneAttributedFsrsFact()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
+        var clock = new CountingClock(ReviewTime);
+        var fsrs = new CountingFsrsSchedulingService(new Fsrs6SchedulingService(clock));
+        var service = CreateLearningService(fixture, clock, fsrs, LearningMode.Typing);
+
+        var spelling = await service.CheckSpellingAsync(fixture.QueueItemId, "fact");
+
+        Assert.IsTrue(spelling.IsCorrect);
+        Assert.IsFalse(spelling.RatingWasPersisted);
+        Assert.AreEqual(fixture.TargetAnswerVariantId, spelling.MatchedAnswerVariantId);
+        Assert.AreEqual(0, await CountRowsAsync(fixture, "FsrsReviewHistoryEntries"));
+        Assert.AreEqual(0, await CountRowsAsync(fixture, "LearningReviews"));
+        Assert.AreEqual(0, fsrs.ScheduleCallCount);
+
+        await service.RateAsync(fixture.QueueItemId, ReviewRating.Good);
+
+        Assert.AreEqual(1, await CountRowsAsync(fixture, "FsrsReviewHistoryEntries"));
+        Assert.AreEqual(1, await CountRowsAsync(fixture, "LearningReviews"));
+        Assert.AreEqual(1, fsrs.ScheduleCallCount);
+        var review = (await fixture.DatabaseFixture.Connection.QueryAsync<ReviewRow>(
+            "SELECT * FROM LearningReviews WHERE CardId = ?", fixture.CardId)).Single();
+        Assert.IsTrue(review.WasTypedAnswer);
+        Assert.IsTrue(review.WasCorrect);
+        Assert.AreEqual(fixture.TargetAnswerVariantId, review.TargetAnswerVariantId);
+        Assert.AreEqual(fixture.TargetAnswerVariantId, review.MatchedAnswerVariantId);
+    }
+
+    [TestMethod]
+    public async Task Slice5_CheckSpellingAsync_IncorrectSchema13PersistsOneAgainAndOneTailRepeat()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
+        var queuedAheadId = await AddIncompleteQueueRowForSameCardAsync(fixture);
+        var clock = new CountingClock(ReviewTime);
+        var fsrs = new CountingFsrsSchedulingService(new Fsrs6SchedulingService(clock));
+        var service = CreateLearningService(fixture, clock, fsrs, LearningMode.Typing);
+        var expected = new Fsrs6SchedulingService(new FixedClock(ReviewTime)).Schedule(
+            Fsrs6ScheduleProjection.New(),
+            ReviewRating.Again,
+            new DateTimeOffset(ReviewTime, TimeSpan.Zero));
+
+        var spelling = await service.CheckSpellingAsync(fixture.QueueItemId, "wrong");
+
+        Assert.IsFalse(spelling.IsCorrect);
+        Assert.IsTrue(spelling.RatingWasPersisted);
+        Assert.AreEqual(1, fsrs.ScheduleCallCount);
+        var history = await fixture.DatabaseFixture.Connection.QueryAsync<HistoryAttemptRow>(
+            "SELECT StableId, SequenceNumber FROM FsrsReviewHistoryEntries WHERE CardId = ? ORDER BY SequenceNumber",
+            fixture.CardId);
+        Assert.HasCount(1, history);
+        Assert.AreEqual(fixture.QueueStableId, history[0].StableId);
+        Assert.AreEqual(1, history[0].SequenceNumber);
+
+        var rows = await LoadQueueAttemptRowsAsync(fixture);
+        Assert.HasCount(3, rows);
+        Assert.IsFalse(rows.Single(row => row.Id == queuedAheadId).IsCompleted);
+        Assert.AreEqual(1, rows.Single(row => row.Id == queuedAheadId).QueueOrder);
+        var repeat = rows.Single(row => row.IsAgainRepeat);
+        Assert.AreEqual(2, repeat.QueueOrder);
+        Assert.IsFalse(repeat.IsCompleted);
+
+        var review = (await fixture.DatabaseFixture.Connection.QueryAsync<ReviewRow>(
+            "SELECT * FROM LearningReviews WHERE CardId = ?", fixture.CardId)).Single();
+        Assert.AreEqual(ReviewRating.Again, review.Rating);
+        Assert.IsTrue(review.WasTypedAnswer);
+        Assert.IsFalse(review.WasCorrect);
+        Assert.AreEqual(fixture.TargetAnswerVariantId, review.TargetAnswerVariantId);
+        Assert.IsNull(review.MatchedAnswerVariantId);
+
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            var state = FsrsCardStateRepository.Load(connection, fixture.CardId);
+            Assert.IsNotNull(state);
+            Assert.AreEqual(expected.State, state.State);
+            AssertExactDouble(expected.Stability, state.Stability, nameof(state.Stability));
+            AssertExactDouble(expected.Difficulty, state.Difficulty, nameof(state.Difficulty));
+            Assert.AreEqual(expected.DueAtUtc, state.DueAtUtc);
+        });
+    }
+
+    [TestMethod]
+    public async Task Slice5_CheckSpellingAsync_IncorrectSchema13FailureRollsBackAndRetryConvergesOnce()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)),
+            LearningMode.Typing);
+        var before = await CaptureTransactionFactsAsync(fixture);
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "CREATE TRIGGER fail_slice5_typed_session_update BEFORE UPDATE ON LearningSessions BEGIN SELECT RAISE(ABORT, 'injected typed failure'); END");
+
+        await Assert.ThrowsExactlyAsync<SQLiteException>(() =>
+            service.CheckSpellingAsync(fixture.QueueItemId, "wrong"));
+
+        CollectionAssert.AreEqual(before, await CaptureTransactionFactsAsync(fixture));
+        Assert.AreEqual(0, await CountRowsAsync(fixture, "FsrsReviewHistoryEntries"));
+        Assert.AreEqual(0, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE IsAgainRepeat = 1"));
+
+        await fixture.DatabaseFixture.Connection.ExecuteAsync("DROP TRIGGER fail_slice5_typed_session_update");
+        var retried = await service.CheckSpellingAsync(fixture.QueueItemId, "wrong");
+
+        Assert.IsTrue(retried.RatingWasPersisted);
+        Assert.AreEqual(1, await CountRowsAsync(fixture, "FsrsReviewHistoryEntries"));
+        Assert.AreEqual(1, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards WHERE IsAgainRepeat = 1"));
+    }
+
+    [TestMethod]
+    public async Task Slice5_MarkPermanentlyKnownAsync_Schema13PersistsCleanWordControlAndPreservesFactsAndGraph()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await AddSiblingSenseAsync(fixture);
+        var historicalTime = ReviewTime.AddDays(-2);
+        await AddHistoricalInteractionAsync(
+            fixture, 1, historicalTime, ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            fixture.TargetAnswerVariantId, null, LegacySnapshot(historicalTime.AddDays(1), intervalDays: 1));
+        var historyBefore = await LoadFactualHistoryFactsAsync(fixture);
+        var stateBefore = await LoadFsrsStateFactsAsync(fixture);
+        var graphBefore = await LoadSemanticGraphCountsAsync(fixture);
+        var wordStatusBefore = await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT Status FROM Words WHERE Id = ?", fixture.WordId);
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+
+        Assert.IsTrue(await service.MarkPermanentlyKnownAsync(fixture.WordId, confirmed: true));
+
+        Assert.AreEqual(1, await CountRowsAsync(fixture, "WordLearningControls"));
+        var decidedAtUtc = await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT DecidedAtUtc FROM WordLearningControls WHERE WordId = ?", fixture.WordId);
+        Assert.AreEqual(ReviewTime, Schema13TimestampCodec.ParseUtcDateTime(decidedAtUtc));
+        CollectionAssert.AreEqual(historyBefore, await LoadFactualHistoryFactsAsync(fixture));
+        CollectionAssert.AreEqual(stateBefore, await LoadFsrsStateFactsAsync(fixture));
+        CollectionAssert.AreEqual(graphBefore, await LoadSemanticGraphCountsAsync(fixture));
+        Assert.AreEqual(wordStatusBefore, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT Status FROM Words WHERE Id = ?", fixture.WordId));
+        Assert.AreEqual(0, await CountRowsAsync(fixture, "SenseLearningControls"));
+        Assert.AreEqual(0, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards q JOIN LearningCards c ON c.Id = q.CardId WHERE c.WordId = ? AND q.IsCompleted = 0",
+            fixture.WordId));
+
+        var load = await service.GetOrStartAsync();
+        Assert.IsNull(load.Card, "A clean AlreadyKnown control must make every card of the word ineligible.");
+    }
+
+    [TestMethod]
+    public async Task Slice5_MarkPermanentlyKnownAsync_Schema13FailureRollsBackAndRetryConverges()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var historicalTime = ReviewTime.AddDays(-2);
+        await AddHistoricalInteractionAsync(
+            fixture, 1, historicalTime, ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            fixture.TargetAnswerVariantId, null, LegacySnapshot(historicalTime.AddDays(1), intervalDays: 1));
+        var before = await CaptureTransactionFactsAsync(fixture);
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "CREATE TRIGGER fail_slice5_known_session_update BEFORE UPDATE ON LearningSessions BEGIN SELECT RAISE(ABORT, 'injected known failure'); END");
+
+        await Assert.ThrowsExactlyAsync<SQLiteException>(() =>
+            service.MarkPermanentlyKnownAsync(fixture.WordId, confirmed: true));
+
+        Assert.AreEqual(0, await CountRowsAsync(fixture, "WordLearningControls"));
+        CollectionAssert.AreEqual(before, await CaptureTransactionFactsAsync(fixture));
+
+        await fixture.DatabaseFixture.Connection.ExecuteAsync("DROP TRIGGER fail_slice5_known_session_update");
+        Assert.IsTrue(await service.MarkPermanentlyKnownAsync(fixture.WordId, confirmed: true));
+        Assert.AreEqual(1, await CountRowsAsync(fixture, "WordLearningControls"));
+        Assert.AreEqual(0, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM LearningSessionCards q JOIN LearningCards c ON c.Id = q.CardId WHERE c.WordId = ? AND q.IsCompleted = 0",
+            fixture.WordId));
+    }
+
+    [TestMethod]
+    public async Task Slice5_MarkPermanentlyKnownAsync_Schema13RepeatedCallPreservesOriginalDecision()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        var first = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+        var secondTime = ReviewTime.AddHours(1);
+        var second = CreateLearningService(
+            fixture,
+            new FixedClock(secondTime),
+            new Fsrs6SchedulingService(new FixedClock(secondTime)));
+
+        Assert.IsTrue(await first.MarkPermanentlyKnownAsync(fixture.WordId, confirmed: true));
+        Assert.IsTrue(await second.MarkPermanentlyKnownAsync(fixture.WordId, confirmed: true));
+
+        Assert.AreEqual(1, await CountRowsAsync(fixture, "WordLearningControls"));
+        var decidedAtUtc = await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<string>(
+            "SELECT DecidedAtUtc FROM WordLearningControls WHERE WordId = ?", fixture.WordId);
+        Assert.AreEqual(ReviewTime, Schema13TimestampCodec.ParseUtcDateTime(decidedAtUtc));
+    }
 
     [TestMethod]
     public async Task RateAsync_Again_AppendsOneTailRepeatAndSkipsUnrelatedFutureDueWork()
@@ -608,10 +817,88 @@ public sealed class LearningServiceSchema13FsrsTests
             """,
             fixture.SessionId);
 
+    private static Task ConfigureMeaningToTermAsync(Fixture fixture) =>
+        fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            connection.Execute(
+                "UPDATE LearningCards SET Direction = ? WHERE Id = ?",
+                (int)CardDirection.MeaningToTerm,
+                fixture.CardId);
+            connection.Execute(
+                "UPDATE SenseAnswerVariantAssignments SET CardDirection = ? WHERE AnswerVariantId = ?",
+                (int)CardDirection.MeaningToTerm,
+                fixture.TargetAnswerVariantId);
+            connection.Execute(
+                "UPDATE LearningSessionCards SET AnswerRevealed = 0 WHERE Id = ?",
+                fixture.QueueItemId);
+        });
+
+    private static async Task<int> AddIncompleteQueueRowForSameCardAsync(Fixture fixture)
+    {
+        var queueItemId = 0;
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            Schema8LearningRepository.InsertQueueRow(
+                connection,
+                fixture.SessionId,
+                fixture.CardId,
+                queueOrder: 1,
+                isDueCard: true,
+                targetAnswerVariantId: fixture.TargetAnswerVariantId);
+            queueItemId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            connection.Execute(
+                "UPDATE LearningSessions SET TotalCards = 2 WHERE Id = ?",
+                fixture.SessionId);
+        });
+        return queueItemId;
+    }
+
+    private static Task AddSiblingSenseAsync(Fixture fixture) =>
+        fixture.DatabaseFixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO Senses (
+                StableId, WordId, SourceLanguage, ExplanationLanguage, Status, CreatedAtUtc, UpdatedAtUtc)
+            VALUES ('schema13-sibling-sense', ?, 'en', 'en', 0, ?, ?)
+            """,
+            fixture.WordId,
+            fixture.LegacyDueAtUtc,
+            fixture.LegacyDueAtUtc);
+
+    private static Task<int> CountRowsAsync(Fixture fixture, string tableName) =>
+        fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>($"SELECT COUNT(*) FROM {tableName}");
+
+    private static async Task<string[]> LoadFactualHistoryFactsAsync(Fixture fixture) =>
+        (await fixture.DatabaseFixture.Connection.QueryAsync<ValueRow>(
+            """
+            SELECT StableId||'|'||CardId||'|'||SequenceNumber||'|'||Rating||'|'||ReviewedAtUtc AS Value
+            FROM FsrsReviewHistoryEntries
+            ORDER BY CardId, SequenceNumber
+            """)).Select(row => row.Value).ToArray();
+
+    private static async Task<string[]> LoadFsrsStateFactsAsync(Fixture fixture) =>
+        (await fixture.DatabaseFixture.Connection.QueryAsync<ValueRow>(
+            """
+            SELECT CardId||'|'||State||'|'||quote(Stability)||'|'||quote(Difficulty)||'|'||
+                   quote(LastReviewedAtUtc)||'|'||quote(StepIndex)||'|'||quote(DueAtUtc) AS Value
+            FROM FsrsCardStates
+            ORDER BY CardId
+            """)).Select(row => row.Value).ToArray();
+
+    private static async Task<string[]> LoadSemanticGraphCountsAsync(Fixture fixture)
+    {
+        var counts = new List<string>();
+        foreach (var table in new[] { "Words", "Senses", "Meanings", "AnswerVariants", "LearningCards" })
+        {
+            counts.Add($"{table}|{await CountRowsAsync(fixture, table)}");
+        }
+        return [.. counts];
+    }
+
     private static LearningService CreateLearningService(
         Fixture fixture,
         IClock clock,
-        IFsrs6SchedulingService fsrsSchedulingService)
+        IFsrs6SchedulingService fsrsSchedulingService,
+        LearningMode? learningMode = null)
     {
         var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture.DatabaseFixture);
         return new LearningService(
@@ -619,7 +906,7 @@ public sealed class LearningServiceSchema13FsrsTests
             new ThrowingLegacyScheduler(),
             new SpellingAnswerComparer(),
             clock,
-            null,
+            learningMode.HasValue ? new FixedAppSettings(learningMode.Value) : null,
             null,
             null,
             fsrsSchedulingService);
@@ -963,6 +1250,29 @@ public sealed class LearningServiceSchema13FsrsTests
     private sealed class FixedClock(DateTime utcNow) : IClock
     {
         public DateTime UtcNow => utcNow;
+    }
+
+    private sealed class FixedAppSettings(LearningMode learningMode) : IAppSettingsService
+    {
+        public int PreparationLimit => PreparationLimitPolicy.DefaultLimit;
+        public IReadOnlyList<int> SupportedPreparationLimits => [PreparationLimitPolicy.DefaultLimit];
+        public CardDirectionPreference CardDirection => CardDirectionPreference.Both;
+        public LearningMode LearningMode => learningMode;
+        public bool HasOnlineLookupConsent => false;
+        public bool EnhancedTermRecognitionEnabled => false;
+        public LearningTimezoneMode LearningTimezoneMode => LearningTimezoneMode.System;
+        public string? ExplicitLearningTimezoneId => null;
+        public int LearningDayCutoffMinutes => LearningDayConfiguration.DefaultCutoffMinutes;
+        public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
+        public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
+        public void SetLearningMode(LearningMode mode) => throw new NotSupportedException();
+        public void GrantOnlineLookupConsent() => throw new NotSupportedException();
+        public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
+        public void SetEnhancedTermRecognitionEnabled(bool enabled) => throw new NotSupportedException();
+        public void SetLearningTimezoneMode(LearningTimezoneMode mode) => throw new NotSupportedException();
+        public void SetExplicitLearningTimezoneId(string? timezoneId) => throw new NotSupportedException();
+        public void SetLearningDayCutoffMinutes(int minutes) => throw new NotSupportedException();
+        public void Reset() => throw new NotSupportedException();
     }
 
     private sealed class CountingFsrsSchedulingService(IFsrs6SchedulingService inner) : IFsrs6SchedulingService

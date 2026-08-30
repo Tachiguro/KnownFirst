@@ -1222,7 +1222,20 @@ public sealed class LearningService : ILearningService
     /// <summary>Schema-8 reveal: validate the Required target and Reading mode before one queue-column write.</summary>
     private void RevealAnswerSchema8(SQLiteConnection connection, int queueItemId)
     {
-        var (graph, _, interaction, _) = LoadSchema8RatingState(connection, queueItemId);
+        Schema8Graph graph;
+        LearningInteractionMode interaction;
+        if (IsSchema13(LearningSchemaCapability.Resolve(connection)))
+        {
+            var schema13State = LoadSchema13RatingState(connection, queueItemId);
+            graph = schema13State.Graph;
+            interaction = schema13State.Interaction;
+        }
+        else
+        {
+            var schema8State = LoadSchema8RatingState(connection, queueItemId);
+            graph = schema8State.Graph;
+            interaction = schema8State.Interaction;
+        }
         if (graph.Queue.IsCompleted)
         {
             throw Reject(Schema8LearningDataErrorCode.DuplicateSubmission,
@@ -1274,6 +1287,33 @@ public sealed class LearningService : ILearningService
             appSettings?.LearningMode, targetOutcome);
 
         return (graph, priorReplay, interaction, persistedProgress);
+    }
+
+    /// <summary>
+    /// Loads Schema-13 rating state from physical factual interaction rows only. Compatibility schedule
+    /// columns never participate in projection, interaction-mode selection, reveal gates, or rating gates.
+    /// </summary>
+    private (Schema8Graph Graph, Schema13InteractionProjection PriorProjection,
+        LearningInteractionMode Interaction, IReadOnlyList<AnswerVariantProgressRow> PersistedProgress)
+        LoadSchema13RatingState(SQLiteConnection connection, int queueItemId)
+    {
+        var graph = LoadSchema8Graph(connection, queueItemId);
+        if (!graph.TargetAssignment.IsRequired)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidTarget,
+                $"Target variant {graph.TargetAnswerVariantId} is currently AcceptedOnly and cannot be rated.");
+        }
+
+        var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, graph.Card.Id);
+        var persistedProgress = Schema8LearningRepository.LoadProgressForCard(connection, graph.Card.Id);
+        var priorProjection = Schema13LearningReviewPolicy.Project(
+            graph.Card.Id, graph.Assignments, reviews, persistedProgress);
+        var targetOutcome = priorProjection.FindOutcome(graph.TargetAnswerVariantId)
+            ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                $"No projected outcome exists for Required target variant {graph.TargetAnswerVariantId}.");
+        var interaction = Schema13LearningReviewPolicy.ResolveInteraction(
+            appSettings?.LearningMode, targetOutcome);
+        return (graph, priorProjection, interaction, persistedProgress);
     }
 
     /// <summary>Schema-8 typed-answer check. The incorrect branch persists the Again rating in this same transaction.</summary>
@@ -1348,17 +1388,10 @@ public sealed class LearningService : ILearningService
                 $"Schema-13 queue row {queueItemId} has no immutable StableId.");
         }
 
-        var (graph, priorReplay, interaction, persistedProgress) =
-            LoadSchema8RatingState(connection, queueItemId);
+        var (graph, _, interaction, persistedProgress) =
+            LoadSchema13RatingState(connection, queueItemId);
         var (wasTypedAnswer, wasCorrect, matchedVariantId) =
             EnforceSchema8Gates(connection, graph, interaction, rating, fromIncorrectSpellingCheck);
-
-        var creditedVariantId = matchedVariantId ?? graph.TargetAnswerVariantId;
-        var creditedAssignment = graph.Assignments.Single(
-            row => row.AnswerVariantId == creditedVariantId);
-        var creditedOutcome = creditedAssignment.IsRequired
-            ? priorReplay.FindOutcome(creditedVariantId)
-            : null;
 
         var authoritativeState = FsrsCardStateRepository.Load(connection, graph.Card.Id)
             ?? throw Reject(
@@ -1407,15 +1440,14 @@ public sealed class LearningService : ILearningService
         Schema8LearningRepository.UpdateReviewAttribution(
             connection, reviewId, graph.TargetAnswerVariantId, matchedVariantId);
 
-        var progressPlan = Schema13LearningReviewPolicy.PlanCreditedProgress(
-            creditedAssignment,
-            creditedOutcome,
-            persistedProgress,
-            rating,
-            wasTypedAnswer,
-            wasCorrect,
-            reviewedAtUtc);
-        Schema8LearningReviewReplayPolicy.ApplyProgressPlan(connection, graph.Card.Id, progressPlan);
+        // Re-read the complete physical interaction history after inserting the current compatibility fact,
+        // then replace every current Required projection in this same caller-owned factual transaction.
+        var completeReviews = Schema8LearningRepository.LoadReviewsForCard(connection, graph.Card.Id);
+        var completeProjection = Schema13LearningReviewPolicy.Project(
+            graph.Card.Id, graph.Assignments, completeReviews, persistedProgress);
+        var progressPlan = Schema13LearningReviewPolicy.PlanProgressReplacement(
+            graph.Assignments, persistedProgress, completeProjection);
+        Schema13LearningReviewPolicy.ApplyProgressPlan(connection, graph.Card.Id, progressPlan);
 
         Schema8LearningRepository.CompleteQueueRow(connection, queueItemId, rating, reviewedAtUtc);
         var session = Schema8LearningRepository.LoadSession(connection, graph.Session.Id)
@@ -2469,9 +2501,7 @@ public sealed class LearningService : ILearningService
                 $"Sense {senseId}/{card.Direction} has an assignment whose variant is missing or belongs to another Sense.");
         }
 
-        var events = Schema8LearningRepository.LoadReviewsForCard(connection, card.Id)
-            .Select(Schema8LearningReviewReplayPolicy.ToReplayEvent)
-            .ToList();
+        var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, card.Id);
         var progress = Schema8LearningRepository.LoadProgressForCard(connection, card.Id);
         if (Schema8LearningRepository.CountInvalidProgressRowsForCard(connection, card.Id) != 0)
         {
@@ -2479,17 +2509,31 @@ public sealed class LearningService : ILearningService
                 $"Card {card.Id} has progress that cannot be attributed to its Sense and direction.");
         }
 
-        var replay = Schema8LearningReviewReplayPolicy.Replay(card, assignments, events, progress);
-
         var candidates = new List<(Schema8AttributionCandidateRow Assignment, DateTime RequiredSinceUtc)>();
-        foreach (var assignment in assignments.Where(row => row.IsRequired))
+        if (IsSchema13(LearningSchemaCapability.Resolve(connection)))
         {
-            var outcome = replay.FindOutcome(assignment.AnswerVariantId)
-                ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
-                    $"No replayed outcome exists for Required variant {assignment.AnswerVariantId} on card {card.Id}.");
-            if (!outcome.IsMastered)
+            var projection = Schema13LearningReviewPolicy.Project(card.Id, assignments, reviews, progress);
+            foreach (var assignment in assignments.Where(row => row.IsRequired))
             {
+                _ = projection.FindOutcome(assignment.AnswerVariantId)
+                    ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                        $"No projected outcome exists for Required variant {assignment.AnswerVariantId} on card {card.Id}.");
                 candidates.Add((assignment, Schema8Utc.Normalize(assignment.RequiredSinceUtc!.Value)));
+            }
+        }
+        else
+        {
+            var events = reviews.Select(Schema8LearningReviewReplayPolicy.ToReplayEvent).ToList();
+            var replay = Schema8LearningReviewReplayPolicy.Replay(card, assignments, events, progress);
+            foreach (var assignment in assignments.Where(row => row.IsRequired))
+            {
+                var outcome = replay.FindOutcome(assignment.AnswerVariantId)
+                    ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                        $"No replayed outcome exists for Required variant {assignment.AnswerVariantId} on card {card.Id}.");
+                if (!outcome.IsMastered)
+                {
+                    candidates.Add((assignment, Schema8Utc.Normalize(assignment.RequiredSinceUtc!.Value)));
+                }
             }
         }
 
@@ -2554,7 +2598,20 @@ public sealed class LearningService : ILearningService
 
     private LearningCardView BuildSchema8CardView(SQLiteConnection connection, int queueItemId)
     {
-        var (graph, _, interaction, _) = LoadSchema8RatingState(connection, queueItemId);
+        Schema8Graph graph;
+        LearningInteractionMode interaction;
+        if (IsSchema13(LearningSchemaCapability.Resolve(connection)))
+        {
+            var schema13State = LoadSchema13RatingState(connection, queueItemId);
+            graph = schema13State.Graph;
+            interaction = schema13State.Interaction;
+        }
+        else
+        {
+            var schema8State = LoadSchema8RatingState(connection, queueItemId);
+            graph = schema8State.Graph;
+            interaction = schema8State.Interaction;
+        }
         var meaning = Schema8LearningRepository.LoadMeaning(connection, graph.Card.PreferredMeaningId)
             ?? throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
                 $"Card {graph.Card.Id} references missing preferred Meaning {graph.Card.PreferredMeaningId}.");

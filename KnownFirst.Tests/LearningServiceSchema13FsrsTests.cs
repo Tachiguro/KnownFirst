@@ -2,6 +2,7 @@ using KnownFirst.Application.Learning;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data;
+using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Data.Schema13;
@@ -195,6 +196,221 @@ public sealed class LearningServiceSchema13FsrsTests
             "SELECT COUNT(*) FROM FsrsReviewHistoryEntries WHERE StableId = ?", collisionStableId));
     }
 
+    [TestMethod]
+    public async Task RateAsync_Repeated365DayCompatibilityHistory_DoesNotSynthesizeLegacyMasteryOrExtension()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await SetRequiredSinceAsync(fixture, ReviewTime.AddDays(-500));
+        var firstReview = ReviewTime.AddDays(-400);
+        var masterySnapshot = LegacySnapshot(firstReview.AddDays(365), intervalDays: 365);
+        await AddHistoricalInteractionAsync(
+            fixture, 1, firstReview, ReviewRating.Good, wasTypedAnswer: true, wasCorrect: true,
+            fixture.TargetAnswerVariantId, fixture.TargetAnswerVariantId, masterySnapshot);
+        await AddHistoricalInteractionAsync(
+            fixture, 2, firstReview.AddDays(1), ReviewRating.Good, wasTypedAnswer: true, wasCorrect: true,
+            fixture.TargetAnswerVariantId, fixture.TargetAnswerVariantId, masterySnapshot);
+        await AddHistoricalInteractionAsync(
+            fixture, 3, firstReview.AddDays(2), ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            fixture.TargetAnswerVariantId, null, masterySnapshot);
+
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+        await service.RateAsync(fixture.QueueItemId, ReviewRating.Good);
+
+        var progress = await LoadProgressAsync(fixture, fixture.TargetAnswerVariantId);
+        Assert.IsFalse(progress.MasteryReviewExtensionScheduled);
+        Assert.IsFalse(progress.IsMastered);
+        Assert.AreEqual(LearningInteractionMode.Typing, progress.InteractionMode);
+        Assert.AreEqual(2, progress.ConsecutiveReadingSuccessCount);
+        Assert.AreEqual(2, progress.ConsecutiveTypingSuccessCount);
+        Assert.AreEqual(4, await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM FsrsReviewHistoryEntries WHERE CardId = ?", fixture.CardId));
+        var legacyCard = await fixture.DatabaseFixture.Connection.QueryAsync<LegacyCardRow>(
+            "SELECT State, DueAtUtc, IntervalDays, EaseFactor FROM LearningCards WHERE Id = ?",
+            fixture.CardId);
+        Assert.AreEqual(CardState.Review, legacyCard.Single().State);
+        Assert.AreEqual(365, legacyCard.Single().IntervalDays);
+    }
+
+    [TestMethod]
+    public async Task GetOrStartAsync_LegacyMasteryCannotSuppressPreferredSchema13QueueTarget()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await SetRequiredSinceAsync(fixture, ReviewTime.AddDays(-500));
+        var alternateVariantId = await AddAnswerVariantAsync(
+            fixture, "schema13-alternate-required", "alternate", AnswerVariantRequirement.Required);
+        var firstReview = ReviewTime.AddDays(-400);
+        var masterySnapshot = LegacySnapshot(firstReview.AddDays(365), intervalDays: 365);
+        await AddHistoricalInteractionAsync(
+            fixture, 1, firstReview, ReviewRating.Good, wasTypedAnswer: true, wasCorrect: true,
+            fixture.TargetAnswerVariantId, fixture.TargetAnswerVariantId, masterySnapshot);
+        await AddHistoricalInteractionAsync(
+            fixture, 2, firstReview.AddDays(1), ReviewRating.Good, wasTypedAnswer: true, wasCorrect: true,
+            fixture.TargetAnswerVariantId, fixture.TargetAnswerVariantId, masterySnapshot);
+        await CompleteSeedSessionAsync(fixture);
+
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+        var result = await service.GetOrStartAsync();
+
+        Assert.IsNotNull(result.Card);
+        var selectedTarget = await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<int>(
+            "SELECT TargetAnswerVariantId FROM LearningSessionCards WHERE Id = ?", result.Card.QueueItemId);
+        Assert.AreEqual(fixture.TargetAnswerVariantId, selectedTarget);
+        Assert.AreNotEqual(alternateVariantId, selectedTarget);
+    }
+
+    [TestMethod]
+    public async Task GetOrStartAsync_AutomaticModeIsIndependentOfCompatibilityScheduleFields()
+    {
+        await using var identicalSchedules = await CreateFixtureAsync();
+        await using var differentSchedules = await CreateFixtureAsync();
+        await SetRequiredSinceAsync(identicalSchedules, ReviewTime.AddDays(-500));
+        await SetRequiredSinceAsync(differentSchedules, ReviewTime.AddDays(-500));
+        var reviewedAtUtc = ReviewTime.AddDays(-400);
+        var scheduleA = LegacySnapshot(reviewedAtUtc.AddDays(1), intervalDays: 1);
+        var scheduleB = LegacySnapshot(reviewedAtUtc.AddDays(2), intervalDays: 2);
+
+        foreach (var fixture in new[] { identicalSchedules, differentSchedules })
+        {
+            await AddHistoricalInteractionAsync(
+                fixture, 1, reviewedAtUtc, ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+                fixture.TargetAnswerVariantId, null, scheduleA);
+        }
+        await AddHistoricalInteractionAsync(
+            identicalSchedules, 2, reviewedAtUtc, ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            identicalSchedules.TargetAnswerVariantId, null, scheduleA);
+        await AddHistoricalInteractionAsync(
+            differentSchedules, 2, reviewedAtUtc, ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            differentSchedules.TargetAnswerVariantId, null, scheduleB);
+
+        var identicalResult = await CreateLearningService(
+            identicalSchedules,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime))).GetOrStartAsync();
+        var differentResult = await CreateLearningService(
+            differentSchedules,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime))).GetOrStartAsync();
+
+        Assert.IsNotNull(identicalResult.Card);
+        Assert.IsNotNull(differentResult.Card);
+        Assert.AreEqual(LearningInteractionMode.Typing, identicalResult.Card.InteractionMode);
+        Assert.AreEqual(identicalResult.Card.InteractionMode, differentResult.Card.InteractionMode);
+    }
+
+    [TestMethod]
+    public async Task RateAsync_RebuildsCompleteRequiredProgressAndPreservesAcceptedOnlyRows()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await SetRequiredSinceAsync(fixture, ReviewTime.AddDays(-500));
+        var uncreditedRequiredVariantId = await AddAnswerVariantAsync(
+            fixture, "schema13-uncredited-required", "uncredited", AnswerVariantRequirement.Required);
+        var acceptedOnlyVariantId = await AddAnswerVariantAsync(
+            fixture, "schema13-accepted-only", "accepted", AnswerVariantRequirement.AcceptedOnly);
+        var firstReview = ReviewTime.AddDays(-10);
+        await AddHistoricalInteractionAsync(
+            fixture, 1, firstReview, ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            fixture.TargetAnswerVariantId, null, LegacySnapshot(firstReview.AddDays(1), intervalDays: 1));
+
+        var requiredSinceUtc = await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<DateTime>(
+            "SELECT RequiredSinceUtc FROM SenseAnswerVariantAssignments WHERE AnswerVariantId = ?",
+            fixture.TargetAnswerVariantId);
+        var uncreditedRequiredSinceUtc = await fixture.DatabaseFixture.Connection.ExecuteScalarAsync<DateTime>(
+            "SELECT RequiredSinceUtc FROM SenseAnswerVariantAssignments WHERE AnswerVariantId = ?",
+            uncreditedRequiredVariantId);
+        var acceptedOnlyCreatedAt = ReviewTime.AddDays(-30);
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            Schema8LearningRepository.InsertProgress(connection, new AnswerVariantProgressRow
+            {
+                CardId = fixture.CardId,
+                AnswerVariantId = fixture.TargetAnswerVariantId,
+                InteractionMode = LearningInteractionMode.Reading,
+                ConsecutiveReadingSuccessCount = 0,
+                ConsecutiveTypingSuccessCount = 0,
+                ConsecutiveTypingFailureCount = 0,
+                LastAssessedAtUtc = firstReview,
+                MasteryReviewExtensionScheduled = true,
+                IsMastered = true,
+                ReplayVersion = Schema8LearningReviewReplayPolicy.ReplayVersion,
+                CreatedAtUtc = requiredSinceUtc,
+                UpdatedAtUtc = firstReview
+            });
+            Schema8LearningRepository.InsertProgress(connection, new AnswerVariantProgressRow
+            {
+                CardId = fixture.CardId,
+                AnswerVariantId = uncreditedRequiredVariantId,
+                InteractionMode = LearningInteractionMode.Typing,
+                ConsecutiveReadingSuccessCount = 2,
+                ConsecutiveTypingSuccessCount = 2,
+                ConsecutiveTypingFailureCount = 0,
+                LastAssessedAtUtc = firstReview,
+                MasteryReviewExtensionScheduled = true,
+                IsMastered = true,
+                ReplayVersion = Schema8LearningReviewReplayPolicy.ReplayVersion,
+                CreatedAtUtc = uncreditedRequiredSinceUtc,
+                UpdatedAtUtc = firstReview
+            });
+            Schema8LearningRepository.InsertProgress(connection, new AnswerVariantProgressRow
+            {
+                CardId = fixture.CardId,
+                AnswerVariantId = acceptedOnlyVariantId,
+                InteractionMode = LearningInteractionMode.Typing,
+                ConsecutiveReadingSuccessCount = 2,
+                ConsecutiveTypingSuccessCount = 1,
+                ConsecutiveTypingFailureCount = 1,
+                LastAssessedAtUtc = acceptedOnlyCreatedAt,
+                MasteryReviewExtensionScheduled = true,
+                IsMastered = true,
+                ReplayVersion = 0,
+                CreatedAtUtc = acceptedOnlyCreatedAt,
+                UpdatedAtUtc = acceptedOnlyCreatedAt
+            });
+        });
+
+        var service = CreateLearningService(
+            fixture,
+            new FixedClock(ReviewTime),
+            new Fsrs6SchedulingService(new FixedClock(ReviewTime)));
+        await service.RateAsync(fixture.QueueItemId, ReviewRating.Good);
+
+        var rebuilt = await LoadProgressAsync(fixture, fixture.TargetAnswerVariantId);
+        Assert.AreEqual(LearningInteractionMode.Typing, rebuilt.InteractionMode);
+        Assert.AreEqual(2, rebuilt.ConsecutiveReadingSuccessCount);
+        Assert.AreEqual(0, rebuilt.ConsecutiveTypingSuccessCount);
+        Assert.AreEqual(0, rebuilt.ConsecutiveTypingFailureCount);
+        Assert.IsFalse(rebuilt.MasteryReviewExtensionScheduled);
+        Assert.IsFalse(rebuilt.IsMastered);
+
+        var uncreditedRequired = await LoadProgressAsync(fixture, uncreditedRequiredVariantId);
+        Assert.AreEqual(LearningInteractionMode.Reading, uncreditedRequired.InteractionMode);
+        Assert.AreEqual(0, uncreditedRequired.ConsecutiveReadingSuccessCount);
+        Assert.AreEqual(0, uncreditedRequired.ConsecutiveTypingSuccessCount);
+        Assert.AreEqual(0, uncreditedRequired.ConsecutiveTypingFailureCount);
+        Assert.IsNull(uncreditedRequired.LastAssessedAtUtc);
+        Assert.IsFalse(uncreditedRequired.MasteryReviewExtensionScheduled);
+        Assert.IsFalse(uncreditedRequired.IsMastered);
+        Assert.AreEqual(
+            uncreditedRequiredSinceUtc.Ticks,
+            Schema8Utc.Normalize(uncreditedRequired.CreatedAtUtc).Ticks);
+
+        var acceptedOnly = await LoadProgressAsync(fixture, acceptedOnlyVariantId);
+        Assert.AreEqual(LearningInteractionMode.Typing, acceptedOnly.InteractionMode);
+        Assert.AreEqual(2, acceptedOnly.ConsecutiveReadingSuccessCount);
+        Assert.AreEqual(1, acceptedOnly.ConsecutiveTypingSuccessCount);
+        Assert.AreEqual(1, acceptedOnly.ConsecutiveTypingFailureCount);
+        Assert.IsTrue(acceptedOnly.MasteryReviewExtensionScheduled);
+        Assert.IsTrue(acceptedOnly.IsMastered);
+        Assert.AreEqual(0, acceptedOnly.ReplayVersion);
+        Assert.AreEqual(acceptedOnlyCreatedAt.Ticks, Schema8Utc.Normalize(acceptedOnly.CreatedAtUtc).Ticks);
+        Assert.AreEqual(acceptedOnlyCreatedAt.Ticks, Schema8Utc.Normalize(acceptedOnly.UpdatedAtUtc).Ticks);
+    }
+
     private static LearningService CreateLearningService(
         Fixture fixture,
         IClock clock,
@@ -211,6 +427,143 @@ public sealed class LearningServiceSchema13FsrsTests
             null,
             fsrsSchedulingService);
     }
+
+    private static CardSchedule LegacySnapshot(DateTime dueAtUtc, int intervalDays) => new(
+        CardState.Review,
+        dueAtUtc,
+        intervalDays,
+        2.5,
+        0,
+        0,
+        null,
+        null);
+
+    private static async Task AddHistoricalInteractionAsync(
+        Fixture fixture,
+        int ordinal,
+        DateTime reviewedAtUtc,
+        ReviewRating rating,
+        bool wasTypedAnswer,
+        bool wasCorrect,
+        int targetAnswerVariantId,
+        int? matchedAnswerVariantId,
+        CardSchedule legacySnapshot)
+    {
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            connection.Execute(
+                """
+                UPDATE LearningCards
+                SET State = ?, DueAtUtc = ?, IntervalDays = ?, EaseFactor = ?, SuccessfulReviewCount = ?,
+                    LapseCount = ?, LastReviewedAtUtc = ?, LastRating = ?
+                WHERE Id = ?
+                """,
+                (int)legacySnapshot.State,
+                legacySnapshot.DueAtUtc,
+                legacySnapshot.IntervalDays,
+                legacySnapshot.EaseFactor,
+                legacySnapshot.SuccessfulReviewCount,
+                legacySnapshot.LapseCount,
+                legacySnapshot.LastReviewedAtUtc,
+                legacySnapshot.LastRating,
+                fixture.CardId);
+            var current = FsrsCardStateRepository.Load(connection, fixture.CardId)
+                ?? throw new AssertFailedException("Schema-13 fixture has no FSRS card state.");
+            var reviewedAtOffset = new DateTimeOffset(reviewedAtUtc, TimeSpan.Zero);
+            var next = new Fsrs6Scheduler().Schedule(current, rating, reviewedAtOffset);
+            FsrsReviewPersistenceCoordinator.PersistReview(
+                connection,
+                fixture.CardId,
+                ordinal.ToString("x32"),
+                new Fsrs6ReviewEvent(reviewedAtOffset, rating),
+                next);
+            var reviewId = Schema8LearningRepository.InsertSchema13CompatibilityReview(
+                connection,
+                fixture.CardId,
+                fixture.SessionId,
+                rating,
+                wasTypedAnswer,
+                wasCorrect,
+                reviewedAtUtc,
+                legacySnapshot);
+            Schema8LearningRepository.UpdateReviewAttribution(
+                connection, reviewId, targetAnswerVariantId, matchedAnswerVariantId);
+        });
+    }
+
+    private static async Task<int> AddAnswerVariantAsync(
+        Fixture fixture,
+        string stableId,
+        string text,
+        AnswerVariantRequirement? requirement)
+    {
+        var variantId = 0;
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            connection.Execute(
+                """
+                INSERT INTO AnswerVariants (
+                    StableId, SenseId, AnswerLanguage, DisplayText, NormalizedText, SourceMeaningId,
+                    CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, 'en', ?, ?, ?, ?, ?)
+                """,
+                stableId,
+                fixture.SenseId,
+                text,
+                text,
+                fixture.MeaningId,
+                fixture.LegacyDueAtUtc,
+                fixture.LegacyDueAtUtc);
+            variantId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            if (requirement.HasValue)
+            {
+                connection.Execute(
+                    """
+                    INSERT INTO SenseAnswerVariantAssignments (
+                        StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred,
+                        RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                    VALUES (?, ?, 0, ?, ?, 0, ?, ?, ?)
+                    """,
+                    $"{stableId}-assignment",
+                    fixture.SenseId,
+                    variantId,
+                    (int)requirement.Value,
+                    requirement == AnswerVariantRequirement.Required ? fixture.LegacyDueAtUtc : null,
+                    fixture.LegacyDueAtUtc,
+                    fixture.LegacyDueAtUtc);
+            }
+        });
+        return variantId;
+    }
+
+    private static async Task CompleteSeedSessionAsync(Fixture fixture)
+    {
+        await fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
+        {
+            connection.Execute(
+                "UPDATE LearningSessionCards SET IsCompleted = 1, Rating = ?, CompletedAtUtc = ? WHERE Id = ?",
+                (int)ReviewRating.Good,
+                ReviewTime.AddDays(-399),
+                fixture.QueueItemId);
+            connection.Execute(
+                "UPDATE LearningSessions SET Status = 1, CompletedCards = TotalCards, CompletedAtUtc = ?, UpdatedAtUtc = ? WHERE Id = ?",
+                ReviewTime.AddDays(-399),
+                ReviewTime.AddDays(-399),
+                fixture.SessionId);
+        });
+    }
+
+    private static Task SetRequiredSinceAsync(Fixture fixture, DateTime requiredSinceUtc) =>
+        fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE SenseAnswerVariantAssignments SET RequiredSinceUtc = ? WHERE AnswerVariantId = ?",
+            requiredSinceUtc,
+            fixture.TargetAnswerVariantId);
+
+    private static async Task<AnswerVariantProgressRow> LoadProgressAsync(Fixture fixture, int answerVariantId) =>
+        (await fixture.DatabaseFixture.Connection.QueryAsync<AnswerVariantProgressRow>(
+            "SELECT * FROM AnswerVariantProgress WHERE CardId = ? AND AnswerVariantId = ?",
+            fixture.CardId,
+            answerVariantId)).Single();
 
     private static async Task<Fixture> CreateFixtureAsync()
     {

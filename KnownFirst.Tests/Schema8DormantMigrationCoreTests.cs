@@ -389,20 +389,20 @@ public sealed class Schema8DormantMigrationCoreTests
     }
 
     /// <summary>
-    /// Ordinary current-schema initialization runs the Schema-8 semantic migration as an internal step,
-    /// then continues on to <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9) — never stopping at 8.
+    /// Explicit historical construction runs the Schema-8 semantic migration, then continues to Schema 9.
     /// </summary>
     [TestMethod]
-    public async Task Core8_OrdinaryInitializeAsync_ActivatesCurrentSchemaAfterSchema8Step()
+    public async Task Core8_ExplicitHistoricalChain_ActivatesSchema9AfterSchema8Step()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         await fixture.InsertWordAsync("dormant", status: WordStatus.Unreviewed);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema8DormantMigration.ApplyAsync(fixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(fixture.Connection);
 
         var versionAfter = await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection);
 
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, versionAfter);
+        Assert.AreEqual(9, versionAfter);
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "Senses"));
         Assert.IsFalse(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "MeaningId"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.ColumnExistsAsync(fixture.Connection, "LearningCards", "PreferredMeaningId"));

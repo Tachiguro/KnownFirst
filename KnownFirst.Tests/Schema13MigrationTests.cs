@@ -29,7 +29,7 @@ public sealed class Schema13MigrationTests
     private static async Task<Schema7Fixture> CreateValidSchema12DatabaseAsync(bool enableForeignKeys = false)
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         if (enableForeignKeys)
         {
             await fixture.Connection.ExecuteAsync("PRAGMA foreign_keys = ON");
@@ -538,15 +538,15 @@ public sealed class Schema13MigrationTests
     }
 
     [TestMethod]
-    public async Task Schema13DormantMigration_ProductionInitializationRemainsSchema12()
+    public async Task Schema13DormantMigration_ProductionInitializationCreatesSchema13WithoutDormantUpgrade()
     {
-        Assert.AreEqual(12, DatabaseSchema.CurrentVersion);
-        await using var fixture = await Schema7Fixture.CreateAsync();
+        Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
+        await using var database = new DatabaseSchema13ProductionCutoverTests.ProductionInitializedDatabase();
+        await database.InitializeAsync();
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-
-        Assert.AreEqual(12, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
-        await fixture.Connection.RunInTransactionAsync(connection => Assert.AreEqual(0, CountTargetArtifacts(connection)));
+        Assert.AreEqual(13, await database.ReadAsync(connection =>
+            connection.ExecuteScalarAsync<int>("PRAGMA user_version")));
+        Assert.AreEqual(8, await database.ExecuteSnapshotAsync(CountTargetArtifacts));
     }
 
     [TestMethod]

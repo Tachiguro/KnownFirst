@@ -53,7 +53,7 @@ public static class Schema13DormantMigration
         }
 
         RejectPreExistingTargetArtifacts(connection);
-        CreateTargetShape(connection);
+        Schema13TargetShapeBuilder.Create(connection);
 
         var plan = Schema13LearningBootstrap.BuildPlan(connection);
         MaterializePlan(connection, plan);
@@ -105,18 +105,6 @@ public static class Schema13DormantMigration
                     $"Schema-12 source already contains Schema-13 target {type} '{name}'.");
             }
         }
-    }
-
-    private static void CreateTargetShape(SQLiteConnection connection)
-    {
-        connection.Execute(Schema13Ddl.CreateFsrsCardStatesTable);
-        connection.Execute(Schema13Ddl.CreateFsrsCardStatesDueIndex);
-        connection.Execute(Schema13Ddl.CreateFsrsReviewHistoryEntriesTable);
-        connection.Execute(Schema13Ddl.CreateFsrsReviewHistoryEntriesStableIdIndex);
-        connection.Execute(Schema13Ddl.CreateFsrsReviewHistoryEntriesCardSequenceIndex);
-        connection.Execute(Schema13Ddl.CreateFsrsReviewHistoryEntriesReplayIndex);
-        connection.Execute(Schema13Ddl.CreateWordLearningControlsTable);
-        connection.Execute(Schema13Ddl.CreateSenseLearningControlsTable);
     }
 
     private static void MaterializePlan(SQLiteConnection connection, Schema13BootstrapPlan plan)

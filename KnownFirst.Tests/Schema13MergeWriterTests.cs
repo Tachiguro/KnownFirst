@@ -588,7 +588,7 @@ public sealed class Schema13MergeWriterTests
         var targetPayload = ToV2(CreatePayload(BaseTime));
         var sourcePayload = ToV2(CreatePayloadFor("2", "protocol", BaseTime));
         await using var target = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(target.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(target.Connection);
         var service = CreateService(target);
         var seed = await service.ImportPortableArchiveAsync(
             new MemoryStream(await WriteV2Async(targetPayload)), CancellationToken.None);
@@ -611,8 +611,7 @@ public sealed class Schema13MergeWriterTests
     private static async Task<Schema7Fixture> CreateSchema13TargetAsync(BackupPayloadV3 payload)
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        await Schema13DormantMigration.ApplyAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema13Async(fixture.Connection);
         var result = await CreateService(fixture).ImportPortableArchiveAsync(
             new MemoryStream(await WriteV3Async(payload)),
             CancellationToken.None);

@@ -16,7 +16,7 @@ public sealed class Schema13RuntimeIntegrityValidatorTests
     private static async Task<(Schema7Fixture Fixture, GraphIds Graph)> CreateMigratedDatabaseAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         GraphIds graph = null!;
         await fixture.Connection.RunInTransactionAsync(connection => graph = SeedGraph(connection));

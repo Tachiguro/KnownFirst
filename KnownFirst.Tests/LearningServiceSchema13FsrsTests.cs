@@ -1052,7 +1052,7 @@ public sealed class LearningServiceSchema13FsrsTests
     private static async Task<Fixture> CreateFixtureAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         const int legacyIntervalDays = 0;
         const double legacyEaseFactor = 2.5;

@@ -45,7 +45,7 @@ public sealed class Schema13ReviewPersistenceTransactionTests
     private static async Task<TemporaryDatabaseAdapter> CreateValidSchema13DatabaseAsync(bool enableForeignKeys = false)
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         if (enableForeignKeys)
         {
             await fixture.Connection.ExecuteAsync("PRAGMA foreign_keys = ON;");
@@ -546,7 +546,7 @@ public sealed class Schema13ReviewPersistenceTransactionTests
     public async Task FsrsReviewPersistenceCoordinator_DormantTableFailClosed_WhenSchema13TablesAbsent()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         var db = new TemporaryDatabaseAdapter(fixture);
 
         int cardId = 0;
@@ -666,21 +666,21 @@ public sealed class Schema13ReviewPersistenceTransactionTests
     // ========================================================================
 
     [TestMethod]
-    public async Task FsrsReviewPersistenceCoordinator_CurrentVersionRemains12_AndDormantSchemaNotActive()
+    public async Task FsrsReviewPersistenceCoordinator_CurrentVersion13_AndProductionSchemaIsActive()
     {
-        Assert.AreEqual(12, DatabaseSchema.CurrentVersion);
+        Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
+        await using var database = new DatabaseSchema13ProductionCutoverTests.ProductionInitializedDatabase();
+        await database.InitializeAsync();
 
-        await using var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-
-        var version = await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version");
-        Assert.AreEqual(12, version);
+        var version = await database.ReadAsync(connection =>
+            connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(13, version);
 
         foreach (var table in new[] { Schema13Ddl.FsrsCardStatesTableName, Schema13Ddl.FsrsReviewHistoryEntriesTableName, Schema13Ddl.WordLearningControlsTableName, Schema13Ddl.SenseLearningControlsTableName })
         {
-            var exists = await fixture.Connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table);
-            Assert.AreEqual(0, exists, $"Table {table} must not exist in a production Schema 12 database.");
+            var exists = await database.ReadAsync(connection => connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table));
+            Assert.AreEqual(1, exists, $"Table {table} must exist in a production Schema 13 database.");
         }
     }
 }

@@ -1,5 +1,6 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
+using KnownFirst.Data.Migrations.Schema10;
 using SQLite;
 
 namespace KnownFirst.Tests;
@@ -27,7 +28,7 @@ public sealed class Schema10MigrationTests
     }
 
     [TestMethod]
-    public async Task FreshDatabase_InitializesToSchema10WithoutDuplicateColumnFailure()
+    public async Task FreshDatabase_DirectlyInitializesCurrentSchemaWithoutDuplicateSchema10Columns()
     {
         var path = TemporaryDatabasePath();
         SQLiteAsyncConnection? connection = null;
@@ -35,10 +36,9 @@ public sealed class Schema10MigrationTests
         {
             connection = new SQLiteAsyncConnection(path);
 
-            // A fresh database runs the Schema-7 baseline (which creates LearningSessions and
-            // LearningSessionCards from the entity classes) and then the whole migration chain. If the
-            // Schema-10 columns were ever added to those entities, this call would fail with a duplicate
-            // column error rather than reaching version 10.
+            // Clean production bootstrap creates the current final shape directly. If the Schema-10
+            // columns were also added to the baseline entities, construction would fail with a duplicate
+            // column error rather than reaching the current version.
             await DatabaseSchema.InitializeAsync(connection);
 
             Assert.AreEqual(DatabaseSchema.CurrentVersion, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
@@ -57,12 +57,12 @@ public sealed class Schema10MigrationTests
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
         Assert.AreEqual(9, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
 
         Assert.AreEqual(
-            DatabaseSchema.CurrentVersion,
+            Schema10,
             await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"),
-            "A Schema-9 database must reach the current schema through the established migration chain.");
+            "The explicit historical Schema-10 migration must reach its target version.");
 
         var sessions = await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture);
         Assert.HasCount(1, sessions);
@@ -88,17 +88,17 @@ public sealed class Schema10MigrationTests
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
+        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var firstSessions = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture))
             .Select(row => row.StableId).ToList();
         var firstQueueRows = (await Schema10LegacyLearningFixtures.LoadQueueStableIdsAsync(fixture))
             .Select(row => row.StableId).ToList();
 
-        // Re-running initialization on an already-migrated database revalidates the shape; it must never
+        // Re-running the historical migration on an already-migrated database revalidates the shape; it must never
         // reassign an identity that is already persisted.
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
 
         var secondSessions = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture))
             .Select(row => row.StableId).ToList();
@@ -114,8 +114,8 @@ public sealed class Schema10MigrationTests
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateTwoCompletedSessionsSharingStartedAtUtcAsync();
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
+        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var sessionIds = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture))
             .Select(row => row.StableId).ToList();
@@ -138,8 +138,8 @@ public sealed class Schema10MigrationTests
     public async Task Schema10Database_AssignsStableIdsToSessionsAndQueueRowsCreatedAfterMigration()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await Schema10DormantMigration.ApplyAsync(fixture.Connection);
+        Assert.AreEqual(Schema10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var cardId = await Schema10LegacyLearningFixtures.SingleCardIdAsync(fixture);
         var before = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture))

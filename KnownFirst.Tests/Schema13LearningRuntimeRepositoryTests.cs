@@ -210,7 +210,7 @@ public sealed class Schema13LearningRuntimeRepositoryTests
     private static async Task<Schema7Fixture> CreateSchema13Async(bool seedCard)
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         if (seedCard)
         {
             await fixture.Connection.RunInTransactionAsync(SeedGraph);

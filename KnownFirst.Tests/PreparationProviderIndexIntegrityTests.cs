@@ -34,7 +34,7 @@ public sealed class PreparationProviderIndexIntegrityTests
         // This class characterizes provider/index integrity, not literal-version behavior. The fixture
         // upgrades immediately after construction so TextReviewService's review-selection/completion
         // setup methods, which now require the current schema, keep working.
-        await _database.UpgradeToCurrentSchemaAsync();
+        await _database.UpgradeToHistoricalSchema12Async();
         _clock = new FakeClock(Now);
         _review = new TextReviewService(
             _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());

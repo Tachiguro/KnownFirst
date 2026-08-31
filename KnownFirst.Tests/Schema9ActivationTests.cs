@@ -8,12 +8,10 @@ using SQLite;
 namespace KnownFirst.Tests;
 
 /// <summary>
-/// Schema-9 activation tests (backup-merge data-integrity program, Package 1): index-only Schema 8 -&gt;
-/// Schema 9 migration through <see cref="DatabaseSchema.InitializeAsync"/>. Every database is an isolated
-/// temporary SQLite file; no real user database is ever opened. Deliberately does not reference any
-/// not-yet-existing production type (e.g. a future <c>Schema9DormantMigration</c>) — every fixture below
-/// expresses its own expectations independently via raw SQLite DDL/PRAGMA introspection, so the tests can
-/// never pass merely because they share an oracle with the production code under test.
+/// Schema-9 activation tests (backup-merge data-integrity program, Package 1): explicit historical,
+/// index-only Schema 8 -&gt; Schema 9 migration. Every database is an isolated temporary SQLite file;
+/// no real user database is ever opened. Fixtures express expectations independently through raw SQLite
+/// DDL/PRAGMA introspection rather than production startup, which no longer upgrades old databases.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -43,7 +41,7 @@ public sealed class Schema9ActivationTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_PinnedSchema8Database_UpgradesToCurrentSchemaAndPreservesRows()
+    public async Task Schema9DormantMigration_PinnedSchema8Database_UpgradesAndPreservesRows()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var documentId = await fixture.InsertDocumentAsync(content: "schema9 upgrade evidence");
@@ -51,8 +49,7 @@ public sealed class Schema9ActivationTests
         var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "upgrade", translation: "Aktualisierung");
         await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
 
-        // Pinned Schema-8 source built only through existing production/test infrastructure — never through
-        // DatabaseSchema.InitializeAsync, which after implementation activates the current schema.
+        // Pinned Schema-8 source built explicitly through historical test infrastructure.
         await Schema8DormantMigration.ApplyAsync(fixture.Connection);
 
         var completedAt = new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc);
@@ -60,9 +57,9 @@ public sealed class Schema9ActivationTests
             fixture.Connection, documentId, ReviewSessionStatus.Completed, completedAt);
         var candidateId = await InsertReviewCandidateAsync(fixture.Connection, sessionId, wordId, order: 0);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(fixture.Connection);
 
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(9, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(1, await IndexCountAsync(fixture.Connection, Schema9RawFixture.NormalIndexName));
         Assert.AreEqual(1, await IndexCountAsync(fixture.Connection, Schema9RawFixture.ActiveIndexName));
         Assert.AreEqual(
@@ -87,20 +84,20 @@ public sealed class Schema9ActivationTests
     {
         await using var fixture = await Schema9RawFixture.CreateValidSchema9FixtureAsync();
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(fixture.Connection);
         Assert.AreEqual(
-            DatabaseSchema.CurrentVersion,
+            9,
             await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.Connection);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(fixture.Connection);
 
         var after = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.Connection);
 
         CollectionAssert.AreEqual(before, after);
         Assert.AreEqual(
-            DatabaseSchema.CurrentVersion,
+            9,
             await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
     }
 
@@ -117,7 +114,7 @@ public sealed class Schema9ActivationTests
         Exception? caught = null;
         try
         {
-            await DatabaseSchema.InitializeAsync(fixture.Connection);
+            await Schema9DormantMigration.ApplyAsync(fixture.Connection);
         }
         catch (Exception ex)
         {
@@ -151,7 +148,7 @@ public sealed class Schema9ActivationTests
         Exception? caught = null;
         try
         {
-            await DatabaseSchema.InitializeAsync(fixture.Connection);
+            await Schema9DormantMigration.ApplyAsync(fixture.Connection);
         }
         catch (Exception ex)
         {
@@ -183,7 +180,7 @@ public sealed class Schema9ActivationTests
         Exception? caught = null;
         try
         {
-            await DatabaseSchema.InitializeAsync(fixture.Connection);
+            await Schema9DormantMigration.ApplyAsync(fixture.Connection);
         }
         catch (Exception ex)
         {
@@ -213,7 +210,7 @@ public sealed class Schema9ActivationTests
         var documentId = await fixture.InsertDocumentAsync();
         await Schema8DormantMigration.ApplyAsync(fixture.Connection);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(fixture.Connection);
 
         await InsertReviewSessionAsync(
             fixture.Connection, documentId, ReviewSessionStatus.Completed, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
@@ -234,7 +231,7 @@ public sealed class Schema9ActivationTests
         var documentId = await fixture.InsertDocumentAsync();
         await Schema8DormantMigration.ApplyAsync(fixture.Connection);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await Schema9DormantMigration.ApplyAsync(fixture.Connection);
 
         await InsertReviewSessionAsync(fixture.Connection, documentId, ReviewSessionStatus.Active, completedAt: null);
 
@@ -324,7 +321,7 @@ public sealed class Schema9ActivationTests
     /// <summary>
     /// Builds a valid Schema-9 database via the independent <see cref="Schema9RawFixture"/> (never through
     /// production migration code), applies the given raw-SQL corruption, then proves
-    /// <see cref="DatabaseSchema.InitializeAsync"/> fails closed with the expected
+    /// <see cref="Schema9DormantMigration.ApplyAsync"/> fails closed with the expected
     /// <see cref="Schema9MigrationException.ErrorCode"/>, leaves <c>PRAGMA user_version</c> at 9, and
     /// leaves the complete persistent snapshot (every table's DDL, columns, indexes, and rows) byte-for-byte
     /// unchanged.
@@ -339,7 +336,7 @@ public sealed class Schema9ActivationTests
         var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.Connection);
 
         var exception = await Assert.ThrowsExactlyAsync<Schema9MigrationException>(
-            () => DatabaseSchema.InitializeAsync(fixture.Connection));
+            () => Schema9DormantMigration.ApplyAsync(fixture.Connection));
         Assert.AreEqual(expectedErrorCode, exception.ErrorCode);
         Assert.AreEqual(9, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
@@ -384,7 +381,7 @@ public sealed class Schema9ActivationTests
         var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(fixture.Connection);
 
         var exception = await Assert.ThrowsExactlyAsync<Schema9MigrationException>(
-            () => DatabaseSchema.InitializeAsync(fixture.Connection));
+            () => Schema9DormantMigration.ApplyAsync(fixture.Connection));
         Assert.AreEqual("schema9-migration-missing-legacy-index", exception.ErrorCode);
         Assert.AreEqual(8, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 

@@ -41,9 +41,9 @@ public sealed class PreparationServiceSchema8AcceptTests
         // literal-PRAGMA-version behavior (Schema 9-11 share Schema 8's meaning-centric data model exactly,
         // and every capability family here routes them through the identical Schema-8-shape handlers). The
         // fixture upgrades immediately after construction so TextReviewService's review-selection/completion
-        // setup methods, which now require the current schema, keep working. The two tests below that assert
-        // PRAGMA user_version afterward assert DatabaseSchema.CurrentVersion accordingly.
-        await _database.UpgradeToCurrentSchemaAsync();
+        // setup methods, which now require the historical Schema-12 shape, keep working. The two tests below
+        // that inspect PRAGMA user_version therefore assert the fixture's explicit Schema-12 version.
+        await _database.UpgradeToHistoricalSchema12Async();
         _clock = new FakeClock(Now);
         _review = new TextReviewService(
             _database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
@@ -787,7 +787,7 @@ public sealed class PreparationServiceSchema8AcceptTests
             () => faultyPreparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.Both));
 
         var userVersion = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("PRAGMA user_version"));
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, userVersion);
+        Assert.AreEqual(12, userVersion);
 
         var senseCount = await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Senses"));
         Assert.AreEqual(0, senseCount);
@@ -950,7 +950,7 @@ public sealed class PreparationServiceSchema8AcceptTests
         var item = await _preparation.LookupCurrentAsync();
         await _preparation.AcceptAsync(item!.CandidateId, InputFrom(item), CardDirectionPreference.Both);
 
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("PRAGMA user_version")));
+        Assert.AreEqual(12, await _database.ReadAsync(c => c.ExecuteScalarAsync<int>("PRAGMA user_version")));
 
         var senseId = await ReadSenseIdAsync(wordId);
         var assignments = await ReadAssignmentsAsync(senseId);

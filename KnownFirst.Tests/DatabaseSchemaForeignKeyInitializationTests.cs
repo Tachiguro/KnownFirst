@@ -1,4 +1,5 @@
 using KnownFirst.Data;
+using SQLite;
 
 namespace KnownFirst.Tests;
 
@@ -8,12 +9,21 @@ public sealed class DatabaseSchemaForeignKeyInitializationTests
     [TestMethod]
     public async Task InitializeAsync_EnablesAndVerifiesForeignKeyEnforcement()
     {
-        await using var fixture = await Schema7Fixture.CreateAsync();
+        var path = Path.Combine(Path.GetTempPath(), $"knownfirst-foreign-key-cutover-{Guid.NewGuid():N}.db3");
+        SQLiteAsyncConnection? connection = null;
+        try
+        {
+            connection = new SQLiteAsyncConnection(path);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+            await DatabaseSchema.InitializeAsync(connection);
 
-        Assert.AreEqual(12, DatabaseSchema.CurrentVersion);
-        Assert.AreEqual(12, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
-        Assert.AreEqual(1, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA foreign_keys"));
+            Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
+            Assert.AreEqual(13, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(1, await connection.ExecuteScalarAsync<int>("PRAGMA foreign_keys"));
+        }
+        finally
+        {
+            await TemporaryDatabaseFiles.CloseAndDeleteAsync(connection, path);
+        }
     }
 }

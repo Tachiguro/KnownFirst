@@ -296,7 +296,7 @@ public sealed class Schema13BackupRestoreTests
 
         Assert.AreEqual(PortableImportStatus.ValidationFailed, result.Status);
         Assert.AreEqual(BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget, result.ErrorCode);
-        Assert.AreEqual(12, DatabaseSchema.CurrentVersion);
+        Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
         await target.RunInTransactionAsync(connection =>
         {
             Assert.AreEqual(12, connection.ExecuteScalar<int>("PRAGMA user_version"));
@@ -452,15 +452,14 @@ public sealed class Schema13BackupRestoreTests
     private static async Task<TemporaryDatabase> CreateEmptySchema13DatabaseAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        await Schema13DormantMigration.ApplyAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema13Async(fixture.Connection);
         return new TemporaryDatabase(fixture);
     }
 
     private static async Task<TemporaryDatabase> CreateEmptySchema12DatabaseAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         return new TemporaryDatabase(fixture);
     }
 

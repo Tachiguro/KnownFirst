@@ -18,7 +18,7 @@ namespace KnownFirst.Services.Study;
 public sealed class LearningService : ILearningService
 {
     private readonly IKnownFirstDatabase database;
-    private readonly ISpacedRepetitionScheduler scheduler;
+    private readonly ISpacedRepetitionScheduler? scheduler;
     private readonly IFsrs6SchedulingService fsrs6SchedulingService;
     private readonly SpellingAnswerComparer spellingComparer;
     private readonly IClock clock;
@@ -63,6 +63,29 @@ public sealed class LearningService : ILearningService
         this.schema8FailureInjector = schema8FailureInjector;
         _timezoneResolver = timezoneResolver ?? new LearningTimezoneResolver();
     }
+
+    public LearningService(
+        IKnownFirstDatabase database,
+        SpellingAnswerComparer spellingComparer,
+        IClock clock,
+        IFsrs6SchedulingService fsrs6SchedulingService,
+        IAppSettingsService? appSettings = null,
+        ISchema8LearningFailureInjector? schema8FailureInjector = null,
+        ILearningTimezoneResolver? timezoneResolver = null)
+    {
+        this.database = database;
+        scheduler = null;
+        this.fsrs6SchedulingService = fsrs6SchedulingService;
+        this.spellingComparer = spellingComparer;
+        this.clock = clock;
+        this.appSettings = appSettings;
+        this.schema8FailureInjector = schema8FailureInjector;
+        _timezoneResolver = timezoneResolver ?? new LearningTimezoneResolver();
+    }
+
+    private ISpacedRepetitionScheduler LegacyScheduler => scheduler
+        ?? throw new InvalidOperationException(
+            "Legacy Schema 7-12 scheduling requires an explicitly supplied legacy scheduler.");
 
     private static bool IsSchema8OrNewer(LearningSchemaCapabilityResult capability) =>
         capability is LearningSchema8CapabilityResult
@@ -694,7 +717,7 @@ public sealed class LearningService : ILearningService
             && wasTypedAnswer
             && wasCorrect
             && AutomaticLearningPolicy.HasTypingMastery(automaticState);
-        var next = scheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
+        var next = LegacyScheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
         if (isMasteryReview
             && rating != ReviewRating.Again
             && !masteryAchieved
@@ -1594,7 +1617,7 @@ public sealed class LearningService : ILearningService
             && creditedOutcome?.State.MasteryReviewExtensionScheduled != true;
 
         // 16-17: final scheduler result plus the 365-day extension when the policy demands it.
-        var next = scheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
+        var next = LegacyScheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
         if (extensionScheduled)
         {
             next = next with

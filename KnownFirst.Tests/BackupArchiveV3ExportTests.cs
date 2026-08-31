@@ -57,7 +57,7 @@ public sealed class BackupArchiveV3ExportTests
     private static async Task<TemporaryDatabaseAdapter> CreateValidSchema13DatabaseAsync(bool enableForeignKeys = false)
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         if (enableForeignKeys)
         {
             await fixture.Connection.ExecuteAsync("PRAGMA foreign_keys = ON;");
@@ -514,7 +514,7 @@ public sealed class BackupArchiveV3ExportTests
     public async Task SchemaCapability_Schema12_RemainsValidForV2Export()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         await using var db = new TemporaryDatabaseAdapter(fixture);
 
         var cap = await db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));

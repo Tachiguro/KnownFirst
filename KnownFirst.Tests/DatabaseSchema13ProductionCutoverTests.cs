@@ -3,6 +3,7 @@ using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
 using SQLite;
@@ -127,6 +128,128 @@ public sealed class DatabaseSchema13ProductionCutoverTests
     }
 
     [TestMethod]
+    public async Task InitializeAsync_MalformedWordLearningControlTimestamp_RejectsWithoutMutation()
+    {
+        const string malformedTimestamp = "not-a-utc-timestamp";
+        const string privateContent = "private-word-control-content";
+        Assert.ThrowsExactly<FormatException>(
+            () => Schema13TimestampCodec.ParseUtcDateTime(malformedTimestamp));
+
+        await using var fixture = await CreateSchema13FixtureAsync();
+        var wordId = await fixture.InsertWordAsync(
+            privateContent,
+            status: KnownFirst.Models.WordStatus.Unreviewed);
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO WordLearningControls (WordId, DecidedAtUtc) VALUES (?, ?)",
+            wordId,
+            malformedTimestamp);
+
+        await AssertControlTimestampRejectedWithoutMutationAsync(
+            fixture,
+            "WordLearningControls",
+            "WordId",
+            wordId,
+            malformedTimestamp,
+            privateContent,
+            $"WordLearningControl {wordId} has invalid DecidedAtUtc.");
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_MalformedSenseLearningControlTimestamp_RejectsWithoutMutation()
+    {
+        const string malformedTimestamp = "malformed-sense-control-timestamp";
+        const string privateContent = "private-sense-control-content";
+        Assert.ThrowsExactly<FormatException>(
+            () => Schema13TimestampCodec.ParseUtcDateTime(malformedTimestamp));
+
+        await using var fixture = await CreateSchema13FixtureAsync();
+        var wordId = await fixture.InsertWordAsync(
+            "sense-control-owner",
+            status: KnownFirst.Models.WordStatus.Unreviewed);
+        var senseId = await fixture.InsertSenseAsync(wordId, providerSenseId: privateContent);
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO SenseLearningControls (SenseId, DecidedAtUtc) VALUES (?, ?)",
+            senseId,
+            malformedTimestamp);
+
+        await AssertControlTimestampRejectedWithoutMutationAsync(
+            fixture,
+            "SenseLearningControls",
+            "SenseId",
+            senseId,
+            malformedTimestamp,
+            privateContent,
+            $"SenseLearningControl {senseId} has invalid DecidedAtUtc.");
+    }
+
+    [DataTestMethod]
+    [DataRow("2026-08-30T09:00:00+00:00")]
+    [DataRow("2026-08-30T09:00:00+02:00")]
+    public async Task InitializeAsync_OffsetControlTimestamp_RejectsWithoutMutation(string offsetTimestamp)
+    {
+        Assert.ThrowsExactly<FormatException>(
+            () => Schema13TimestampCodec.ParseUtcDateTime(offsetTimestamp));
+
+        await using var fixture = await CreateSchema13FixtureAsync();
+        var wordId = await fixture.InsertWordAsync(
+            "private-offset-control-content",
+            status: KnownFirst.Models.WordStatus.Unreviewed);
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO WordLearningControls (WordId, DecidedAtUtc) VALUES (?, ?)",
+            wordId,
+            offsetTimestamp);
+
+        await AssertControlTimestampRejectedWithoutMutationAsync(
+            fixture,
+            "WordLearningControls",
+            "WordId",
+            wordId,
+            offsetTimestamp,
+            "private-offset-control-content",
+            $"WordLearningControl {wordId} has invalid DecidedAtUtc.");
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_StrictUtcWordAndSenseLearningControlTimestamps_AreAcceptedWithoutMutation()
+    {
+        const string wordTimestamp = "2026-08-30T09:00:00Z";
+        const string senseTimestamp = "2026-08-30T09:00:00.1Z";
+        Assert.AreEqual(DateTimeKind.Utc, Schema13TimestampCodec.ParseUtcDateTime(wordTimestamp).Kind);
+        Assert.AreEqual(DateTimeKind.Utc, Schema13TimestampCodec.ParseUtcDateTime(senseTimestamp).Kind);
+
+        await using var fixture = await CreateSchema13FixtureAsync();
+        var wordId = await fixture.InsertWordAsync(
+            "valid-strict-control-owner",
+            status: KnownFirst.Models.WordStatus.Unreviewed);
+        var senseId = await fixture.InsertSenseAsync(wordId, providerSenseId: "valid-strict-sense-owner");
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO WordLearningControls (WordId, DecidedAtUtc) VALUES (?, ?)",
+            wordId,
+            wordTimestamp);
+        await fixture.Connection.ExecuteAsync(
+            "INSERT INTO SenseLearningControls (SenseId, DecidedAtUtc) VALUES (?, ?)",
+            senseId,
+            senseTimestamp);
+        var before = await fixture.CapturePersistentStateAsync();
+
+        await DatabaseSchema.InitializeAsync(fixture.Connection);
+
+        CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
+        Assert.AreEqual(13, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(
+            wordTimestamp,
+            await fixture.Connection.ExecuteScalarAsync<string>(
+                "SELECT DecidedAtUtc FROM WordLearningControls WHERE WordId = ?",
+                wordId));
+        Assert.AreEqual(
+            senseTimestamp,
+            await fixture.Connection.ExecuteScalarAsync<string>(
+                "SELECT DecidedAtUtc FROM SenseLearningControls WHERE SenseId = ?",
+                senseId));
+        Assert.IsTrue(File.Exists(fixture.DatabasePath));
+    }
+
+    [TestMethod]
     public async Task InitializeAsync_MalformedSchema13_RejectsAsInvalidCurrentSchemaWithoutRepair()
     {
         await using var fixture = await CreateSchema13FixtureAsync();
@@ -242,6 +365,34 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         var actual = exception.GetType().GetProperty("Reason")?.GetValue(exception)?.ToString();
         Assert.AreEqual(expected, actual);
         Assert.AreEqual(DatabaseSchemaCompatibilityException.StableErrorCode, exception.ErrorCode);
+    }
+
+    private static async Task AssertControlTimestampRejectedWithoutMutationAsync(
+        Schema7Fixture fixture,
+        string tableName,
+        string idColumn,
+        int ownerId,
+        string persistedTimestamp,
+        string privateContent,
+        string expectedDiagnostic)
+    {
+        var before = await fixture.CapturePersistentStateAsync();
+
+        var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
+            () => DatabaseSchema.InitializeAsync(fixture.Connection));
+
+        AssertReason(exception, "InvalidCurrentSchema");
+        Assert.AreEqual(expectedDiagnostic, exception.DiagnosticDetail);
+        Assert.DoesNotContain(persistedTimestamp, exception.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(privateContent, exception.Message, StringComparison.Ordinal);
+        CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
+        Assert.AreEqual(13, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(
+            persistedTimestamp,
+            await fixture.Connection.ExecuteScalarAsync<string>(
+                $"SELECT DecidedAtUtc FROM {tableName} WHERE {idColumn} = ?",
+                ownerId));
+        Assert.IsTrue(File.Exists(fixture.DatabasePath));
     }
 
     private static async Task<Schema7Fixture> CreateSchema12FixtureAsync()

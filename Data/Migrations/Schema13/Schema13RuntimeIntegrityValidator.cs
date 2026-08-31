@@ -72,6 +72,36 @@ public static class Schema13RuntimeIntegrityValidator
             return false;
         }
 
+        var wordControls = connection.Query<WordControlTimestampCheckRow>(
+            "SELECT WordId, DecidedAtUtc FROM WordLearningControls ORDER BY WordId ASC");
+        foreach (var row in wordControls)
+        {
+            try
+            {
+                Schema13TimestampCodec.ParseUtcDateTime(row.DecidedAtUtc);
+            }
+            catch (Exception ex) when (ex is FormatException or ArgumentException)
+            {
+                failureDetail = $"WordLearningControl {row.WordId} has invalid DecidedAtUtc.";
+                return false;
+            }
+        }
+
+        var senseControls = connection.Query<SenseControlTimestampCheckRow>(
+            "SELECT SenseId, DecidedAtUtc FROM SenseLearningControls ORDER BY SenseId ASC");
+        foreach (var row in senseControls)
+        {
+            try
+            {
+                Schema13TimestampCodec.ParseUtcDateTime(row.DecidedAtUtc);
+            }
+            catch (Exception ex) when (ex is FormatException or ArgumentException)
+            {
+                failureDetail = $"SenseLearningControl {row.SenseId} has invalid DecidedAtUtc.";
+                return false;
+            }
+        }
+
         var history = connection.Query<HistoryCheckRow>(
             "SELECT StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc FROM FsrsReviewHistoryEntries ORDER BY CardId ASC, SequenceNumber ASC");
         var stableIds = new HashSet<string>(StringComparer.Ordinal);
@@ -235,5 +265,17 @@ public static class Schema13RuntimeIntegrityValidator
         public int SequenceNumber { get; set; }
         public int Rating { get; set; }
         public string ReviewedAtUtc { get; set; } = string.Empty;
+    }
+
+    private sealed class WordControlTimestampCheckRow
+    {
+        public int WordId { get; set; }
+        public string DecidedAtUtc { get; set; } = string.Empty;
+    }
+
+    private sealed class SenseControlTimestampCheckRow
+    {
+        public int SenseId { get; set; }
+        public string DecidedAtUtc { get; set; } = string.Empty;
     }
 }

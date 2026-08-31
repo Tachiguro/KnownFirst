@@ -25,60 +25,58 @@ public static class Schema13LearningRepository
         return QueryCards(connection, cardId).SingleOrDefault();
     }
 
+    public static IReadOnlyList<Schema13LearningCardRow> LoadActiveLearningCards(SQLiteConnection connection)
+    {
+        EnsureRuntimeIntegrity(connection);
+        return QueryActiveLearningCandidates(connection, null)
+            .Select(candidate => candidate.Card)
+            .ToList();
+    }
+
+    public static Schema13LearningCardRow? LoadActiveLearningCard(SQLiteConnection connection, int cardId)
+    {
+        EnsureRuntimeIntegrity(connection);
+        return QueryActiveLearningCandidates(connection, cardId)
+            .Select(candidate => candidate.Card)
+            .SingleOrDefault();
+    }
+
     public static int CountDueCards(SQLiteConnection connection, DateTimeOffset nowUtc)
     {
         EnsureRuntimeIntegrity(connection);
-        return connection.ExecuteScalar<int>(
-            """
-            SELECT COUNT(*)
-            FROM LearningCards c
-            JOIN FsrsCardStates f ON f.CardId = c.Id
-            WHERE f.State IN (?, ?, ?)
-              AND f.DueAtUtc IS NOT NULL
-              AND f.DueAtUtc <= ?
-            """,
-            (int)Fsrs6CardState.Learning,
-            (int)Fsrs6CardState.Review,
-            (int)Fsrs6CardState.Relearning,
-            Schema13TimestampCodec.FormatUtc(RequireUtc(nowUtc)));
+        var now = RequireUtc(nowUtc);
+        return QueryActiveLearningCandidates(connection, null)
+            .Count(candidate =>
+                candidate.Card.State is Fsrs6CardState.Learning
+                    or Fsrs6CardState.Review
+                    or Fsrs6CardState.Relearning
+                && candidate.Card.DueAtUtc.HasValue
+                && candidate.Card.DueAtUtc.Value <= now);
     }
 
     public static int CountNewWords(SQLiteConnection connection)
     {
         EnsureRuntimeIntegrity(connection);
-        return connection.ExecuteScalar<int>(
-            """
-            SELECT COUNT(DISTINCT c.WordId)
-            FROM LearningCards c
-            JOIN FsrsCardStates f ON f.CardId = c.Id
-            WHERE f.State = ?
-            """,
-            (int)Fsrs6CardState.New);
+        return QueryActiveLearningCandidates(connection, null)
+            .Where(candidate => candidate.Card.State == Fsrs6CardState.New)
+            .Select(candidate => candidate.Card.WordId)
+            .Distinct()
+            .Count();
     }
 
     public static DateTimeOffset? SelectNextDueAtUtc(SQLiteConnection connection)
     {
         EnsureRuntimeIntegrity(connection);
-        var raw = connection.ExecuteScalar<string?>(
-            """
-            SELECT MIN(f.DueAtUtc)
-            FROM LearningCards c
-            JOIN FsrsCardStates f ON f.CardId = c.Id
-            WHERE f.State IN (?, ?, ?)
-              AND f.DueAtUtc IS NOT NULL
-              AND EXISTS (
-                  SELECT 1
-                  FROM SenseAnswerVariantAssignments a
-                  WHERE a.SenseId = c.SenseId
-                    AND a.CardDirection = c.Direction
-                    AND a.Requirement = ?
-              )
-            """,
-            (int)Fsrs6CardState.Learning,
-            (int)Fsrs6CardState.Review,
-            (int)Fsrs6CardState.Relearning,
-            (int)AnswerVariantRequirement.Required);
-        return raw is null ? null : Schema13TimestampCodec.ParseUtcDateTimeOffset(raw);
+        return QueryActiveLearningCandidates(connection, null)
+            .Where(candidate =>
+                candidate.Card.State is Fsrs6CardState.Learning
+                    or Fsrs6CardState.Review
+                    or Fsrs6CardState.Relearning
+                && candidate.Card.DueAtUtc.HasValue
+                && HasRequiredAnswerVariant(connection, candidate.Card))
+            .Select(candidate => candidate.Card.DueAtUtc)
+            .OrderBy(dueAtUtc => dueAtUtc)
+            .FirstOrDefault();
     }
 
     /// <summary>
@@ -136,6 +134,56 @@ public static class Schema13LearningRepository
             probe.UpdatedAtUtc)).ToList();
     }
 
+    private static List<Schema13ActiveLearningCandidate> QueryActiveLearningCandidates(
+        SQLiteConnection connection,
+        int? cardId)
+    {
+        var wordControls = new Dictionary<int, WordLearningControl>();
+        var senseControls = new Dictionary<int, SenseLearningControl>();
+        var eligibleCandidates = new List<Schema13ActiveLearningCandidate>();
+
+        foreach (var card in QueryCards(connection, cardId))
+        {
+            if (!wordControls.TryGetValue(card.WordId, out var wordControl))
+            {
+                wordControl = WordLearningControlRepository.Load(connection, card.WordId);
+                wordControls.Add(card.WordId, wordControl);
+            }
+
+            var senseControl = SenseLearningControl.Default;
+            if (card.SenseId is { } senseId
+                && !senseControls.TryGetValue(senseId, out senseControl))
+            {
+                senseControl = SenseLearningControlRepository.Load(connection, senseId);
+                senseControls.Add(senseId, senseControl);
+            }
+
+            var candidate = new Schema13ActiveLearningCandidate(card, wordControl, senseControl);
+            if (ActiveLearningEligibilityPolicy.IsEligible(candidate.WordControl, candidate.SenseControl))
+            {
+                eligibleCandidates.Add(candidate);
+            }
+        }
+
+        return eligibleCandidates;
+    }
+
+    private static bool HasRequiredAnswerVariant(
+        SQLiteConnection connection,
+        Schema13LearningCardRow card) =>
+        card.SenseId.HasValue
+        && connection.ExecuteScalar<int>(
+            """
+            SELECT COUNT(*)
+            FROM SenseAnswerVariantAssignments
+            WHERE SenseId = ?
+              AND CardDirection = ?
+              AND Requirement = ?
+            """,
+            card.SenseId.Value,
+            (int)card.Direction,
+            (int)AnswerVariantRequirement.Required) > 0;
+
     private static void EnsureRuntimeIntegrity(SQLiteConnection connection)
     {
         ArgumentNullException.ThrowIfNull(connection);
@@ -165,6 +213,11 @@ public static class Schema13LearningRepository
         public DateTime CreatedAtUtc { get; set; }
         public DateTime UpdatedAtUtc { get; set; }
     }
+
+    private sealed record Schema13ActiveLearningCandidate(
+        Schema13LearningCardRow Card,
+        WordLearningControl WordControl,
+        SenseLearningControl SenseControl);
 }
 
 public sealed record Schema13LearningCardRow(

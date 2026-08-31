@@ -2578,12 +2578,6 @@ public sealed class LearningService : ILearningService
         int limitN,
         DateTime nowUtc)
     {
-        if (LearningSchemaCapability.Resolve(connection) is LearningSchema13CapabilityResult
-            && WordLearningControlRepository.Load(connection, card.WordId).IsAlreadyKnown)
-        {
-            return false;
-        }
-
         if (card.State is CardState.Suspended or CardState.Retired)
         {
             return false;
@@ -2874,8 +2868,7 @@ public sealed class LearningService : ILearningService
             return Schema8LearningRepository.LoadAllCards(connection);
         }
 
-        return Schema13LearningRepository.LoadAllCards(connection)
-            .Where(card => !WordLearningControlRepository.Load(connection, card.WordId).IsAlreadyKnown)
+        return Schema13LearningRepository.LoadActiveLearningCards(connection)
             .Select(AdaptSchema13Card)
             .ToList();
     }
@@ -2887,10 +2880,8 @@ public sealed class LearningService : ILearningService
             return Schema8LearningRepository.LoadCard(connection, cardId);
         }
 
-        var card = Schema13LearningRepository.LoadCard(connection, cardId);
-        return card is null || WordLearningControlRepository.Load(connection, card.WordId).IsAlreadyKnown
-            ? null
-            : AdaptSchema13Card(card);
+        var card = Schema13LearningRepository.LoadActiveLearningCard(connection, cardId);
+        return card is null ? null : AdaptSchema13Card(card);
     }
 
     private static Schema8CardRow AdaptSchema13Card(Schema13LearningCardRow card) => new()
@@ -2915,14 +2906,7 @@ public sealed class LearningService : ILearningService
             return Schema8LearningRepository.SelectNextDueAtUtc(connection);
         }
 
-        return LoadSchedulingCards(connection)
-            .Where(card => card.State is CardState.Learning or CardState.Review or CardState.Relearning)
-            .Where(card => card.SenseId.HasValue
-                && Schema8LearningRepository.LoadAssignmentsForSenseDirection(
-                    connection, card.SenseId.Value, card.Direction).Any(assignment => assignment.IsRequired))
-            .Select(card => (DateTime?)Schema8Utc.Normalize(card.DueAtUtc))
-            .OrderBy(dueAtUtc => dueAtUtc)
-            .FirstOrDefault();
+        return Schema13LearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime;
     }
 
     private static bool IsValidSnapshot(ContextSnapshotEntity snapshot) =>

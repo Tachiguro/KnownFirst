@@ -90,7 +90,10 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             sourceAppVersion,
             sourceDatabaseSchemaVersion,
             createdAtUtc,
-            sourcePlatform);
+            sourcePlatform,
+            validated.V3?.Manifest.RequiredFeatures.Contains(
+                ArchiveLearningReviewCausalOrderPolicy.RequiredFeature,
+                StringComparer.Ordinal) == true);
 
         var archiveLearningSessions = validated.V3?.Payload.Workflows.LearningSessions
             ?? validated.V2?.Payload.Workflows.LearningSessions

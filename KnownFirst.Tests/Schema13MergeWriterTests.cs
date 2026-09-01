@@ -5,10 +5,12 @@ using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Schema8;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
 using KnownFirst.Services.DataSafety.Merge;
+using KnownFirst.Services.Study;
 
 namespace KnownFirst.Tests;
 
@@ -340,6 +342,221 @@ public sealed class Schema13MergeWriterTests
         CollectionAssert.AreEqual(new[] { "equal-1", "equal-2", "equal-3" }, rows.Select(row => row.StableId).ToArray());
         CollectionAssert.AreEqual(new[] { 1, 2, 3 }, rows.Select(row => row.SequenceNumber).ToArray());
         Assert.IsTrue(rows.All(row => row.ReviewedAtUtc == "2026-08-30T10:00:00.0000000Z"));
+    }
+
+    [TestMethod]
+    public async Task PopulatedSchema13V3Import_ReversedEqualTimestampInteractionOverlap_FailsBeforeMutation()
+    {
+        var fsrsHistory = new HistoryFact("interaction-fsrs-1", 1, BackupReviewRating.Good, BaseTime);
+        var targetPayload = Combine(
+            WithInteractionReviews(CreatePayload(BaseTime, fsrsHistory), InteractionB()),
+            CreatePayloadFor("unrelated", "target-only", BaseTime.AddHours(1)));
+        var sourcePayload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionB());
+        await using var target = await CreateSchema13TargetAsync(targetPayload);
+        var before = await target.CapturePersistentStateAsync();
+        var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(target);
+        var sourceBytes = await WriteV3Async(sourcePayload);
+        var preflight = await new MergePreflightService(database).CreatePreflightPlanAsync(
+            new MemoryStream(sourceBytes),
+            CancellationToken.None);
+        var conflictingReviews = preflight.Actions
+            .Where(action => action.EntityKind == MergeEntityKind.LearningReview)
+            .ToList();
+        Assert.AreEqual(MergePreflightStatus.NonExecutableConflict, preflight.Status);
+        Assert.IsFalse(preflight.IsExecutable);
+        Assert.AreEqual(Schema13MergePreflightErrorCodes.CausalHistoryConflict, preflight.ErrorCode);
+        Assert.HasCount(2, conflictingReviews);
+        Assert.IsTrue(conflictingReviews.All(action =>
+            action.Classification == MergeEntityClassification.UnresolvedConflict
+            && action.DecisionId is null));
+
+        var preview = await new BackupService(database, new TestPlatformInfo())
+            .PreviewPortableImportAsync(new MemoryStream(sourceBytes), CancellationToken.None);
+        Assert.AreEqual(PortableImportPreviewDisposition.Blocked, preview.Disposition);
+        Assert.AreEqual(Schema13MergePreflightErrorCodes.CausalHistoryConflict, preview.ErrorCode);
+        Assert.IsFalse(preview.CanConfirm);
+
+        var directWrite = await new MergeWriterService(database).ApplySchema13Async(
+            sourcePayload,
+            preflight,
+            CancellationToken.None);
+        Assert.AreEqual(MergeWriteStatus.NotExecutable, directWrite.Status);
+        Assert.AreEqual(MergeWriterErrorCodes.PlanNotExecutable, directWrite.ErrorCode);
+        CollectionAssert.AreEqual(before, await target.CapturePersistentStateAsync());
+
+        var safety = new RecordingSafetyCopyService();
+        var writer = new RecordingDelegatingWriterService(new MergeWriterService(database));
+        var service = new BackupService(
+            database,
+            new TestPlatformInfo(),
+            mergeSafetyCopyService: safety,
+            mergeWriterService: writer);
+
+        var result = await service.ImportPortableArchiveAsync(
+            new MemoryStream(sourceBytes), CancellationToken.None);
+
+        var actualReviews = await LoadInteractionReviewSequenceAsync(target);
+        Assert.AreEqual(
+            PortableImportStatus.Failed,
+            result.Status,
+            $"Actual result={result.Status}/{result.ErrorCode}; reviews=[{string.Join(',', actualReviews)}]; " +
+            $"safetyCalls={safety.Calls}; writerCalls={writer.Schema13Calls}.");
+        Assert.AreEqual(Schema13MergePreflightErrorCodes.CausalHistoryConflict, result.ErrorCode);
+        Assert.AreEqual(0, safety.Calls);
+        Assert.AreEqual(0, writer.Schema13Calls);
+        CollectionAssert.AreEqual(new[] { "B" }, actualReviews);
+        CollectionAssert.AreEqual(before, await target.CapturePersistentStateAsync());
+    }
+
+    [TestMethod]
+    public async Task PopulatedSchema13V3Import_DuplicateEqualTimestampInteractionPrefix_AppendsOneOccurrenceAndReimportNoChange()
+    {
+        var fsrsHistory = new HistoryFact("multiplicity-fsrs-1", 1, BackupReviewRating.Good, BaseTime);
+        var targetPayload = WithInteractionReviews(CreatePayload(BaseTime, fsrsHistory), InteractionA());
+        var sourcePayload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionA());
+        var sourceBytes = await WriteV3Async(sourcePayload);
+        await using var target = await CreateSchema13TargetAsync(targetPayload);
+        var service = CreateService(target);
+
+        var first = await service.ImportPortableArchiveAsync(
+            new MemoryStream(sourceBytes), CancellationToken.None);
+        var afterFirst = await LoadInteractionReviewSequenceAsync(target);
+        Assert.AreEqual(
+            PortableImportDisposition.MergeApplied,
+            first.Summary?.Disposition,
+            $"Actual result={first.Status}/{first.ErrorCode}/{first.Summary?.Disposition}; " +
+            $"reviews=[{string.Join(',', afterFirst)}].");
+        CollectionAssert.AreEqual(new[] { "A", "A" }, afterFirst);
+
+        var second = await service.ImportPortableArchiveAsync(
+            new MemoryStream(sourceBytes), CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Success, first.Status, first.ErrorCode);
+        Assert.AreEqual(PortableImportStatus.Success, second.Status, second.ErrorCode);
+        Assert.AreEqual(PortableImportDisposition.MergeNoChange, second.Summary?.Disposition);
+        CollectionAssert.AreEqual(
+            new[] { "A", "A" },
+            await LoadInteractionReviewSequenceAsync(target));
+    }
+
+    [TestMethod]
+    public async Task PopulatedSchema13V3Import_ExactInteractionSequence_IsNoChange()
+    {
+        var fsrsHistory = new HistoryFact("exact-fsrs-1", 1, BackupReviewRating.Good, BaseTime);
+        var payload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionB());
+        await using var target = await CreateSchema13TargetAsync(payload);
+        var safety = new RecordingSafetyCopyService();
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(target),
+            new TestPlatformInfo(),
+            mergeSafetyCopyService: safety);
+
+        var result = await service.ImportPortableArchiveAsync(
+            new MemoryStream(await WriteV3Async(payload)), CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, result.ErrorCode);
+        Assert.AreEqual(PortableImportDisposition.MergeNoChange, result.Summary?.Disposition);
+        Assert.AreEqual(0, safety.Calls);
+        CollectionAssert.AreEqual(new[] { "A", "B" }, await LoadInteractionReviewSequenceAsync(target));
+    }
+
+    [TestMethod]
+    public async Task PopulatedSchema13V3Import_EqualTimestampInteractionTail_PreservesAutomaticLearningProjection()
+    {
+        var fsrsHistory = new HistoryFact("prefix-fsrs-1", 1, BackupReviewRating.Good, BaseTime);
+        var targetPayload = WithInteractionReviews(CreatePayload(BaseTime, fsrsHistory), InteractionA());
+        var sourcePayload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionB());
+        await using var expectedSource = await CreateSchema13TargetAsync(sourcePayload);
+        var expectedProjection = await ProjectPrimaryInteractionStateAsync(expectedSource);
+        await using var target = await CreateSchema13TargetAsync(targetPayload);
+
+        var result = await CreateService(target).ImportPortableArchiveAsync(
+            new MemoryStream(await WriteV3Async(sourcePayload)), CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, result.ErrorCode);
+        Assert.AreEqual(PortableImportDisposition.MergeApplied, result.Summary?.Disposition);
+        CollectionAssert.AreEqual(new[] { "A", "B" }, await LoadInteractionReviewSequenceAsync(target));
+        Assert.AreEqual(expectedProjection, await ProjectPrimaryInteractionStateAsync(target));
+    }
+
+    [TestMethod]
+    public async Task PopulatedSchema13V3Import_TargetAheadInteractionSequence_IsPreserved()
+    {
+        var fsrsHistory = new HistoryFact("ahead-interaction-fsrs-1", 1, BackupReviewRating.Good, BaseTime);
+        var targetPayload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionB());
+        var sourcePayload = WithInteractionReviews(CreatePayload(BaseTime, fsrsHistory), InteractionA());
+        await using var target = await CreateSchema13TargetAsync(targetPayload);
+
+        var result = await CreateService(target).ImportPortableArchiveAsync(
+            new MemoryStream(await WriteV3Async(sourcePayload)), CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, result.ErrorCode);
+        Assert.AreEqual(PortableImportDisposition.MergeNoChange, result.Summary?.Disposition);
+        CollectionAssert.AreEqual(new[] { "A", "B" }, await LoadInteractionReviewSequenceAsync(target));
+    }
+
+    [TestMethod]
+    public async Task PopulatedSchema13V3Import_DivergentEqualTimestampInteractionOverlap_FailsBeforeMutation()
+    {
+        var fsrsHistory = new HistoryFact("divergent-interaction-fsrs-1", 1, BackupReviewRating.Good, BaseTime);
+        var targetPayload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionC());
+        var sourcePayload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionB());
+        await using var target = await CreateSchema13TargetAsync(targetPayload);
+        var before = await target.CapturePersistentStateAsync();
+        var safety = new RecordingSafetyCopyService();
+        var service = new BackupService(
+            new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(target),
+            new TestPlatformInfo(),
+            mergeSafetyCopyService: safety);
+
+        var result = await service.ImportPortableArchiveAsync(
+            new MemoryStream(await WriteV3Async(sourcePayload)), CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Failed, result.Status);
+        Assert.AreEqual(Schema13MergePreflightErrorCodes.CausalHistoryConflict, result.ErrorCode);
+        Assert.AreEqual(0, safety.Calls);
+        CollectionAssert.AreEqual(new[] { "A", "C" }, await LoadInteractionReviewSequenceAsync(target));
+        CollectionAssert.AreEqual(before, await target.CapturePersistentStateAsync());
+    }
+
+    [TestMethod]
+    public async Task PopulatedSchema13V3Import_NonEqualTimestampInteractionTail_RemainsCompatible()
+    {
+        var fsrsHistory = new HistoryFact("ordinary-interaction-fsrs-1", 1, BackupReviewRating.Good, BaseTime);
+        var targetPayload = WithInteractionReviews(CreatePayload(BaseTime, fsrsHistory), InteractionA());
+        var sourcePayload = WithInteractionReviews(
+            CreatePayload(BaseTime, fsrsHistory),
+            InteractionA(),
+            InteractionB(BaseTime.AddMinutes(1)));
+        await using var target = await CreateSchema13TargetAsync(targetPayload);
+
+        var result = await CreateService(target).ImportPortableArchiveAsync(
+            new MemoryStream(await WriteV3Async(sourcePayload)), CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, result.ErrorCode);
+        Assert.AreEqual(PortableImportDisposition.MergeApplied, result.Summary?.Disposition);
+        CollectionAssert.AreEqual(new[] { "A", "B" }, await LoadInteractionReviewSequenceAsync(target));
     }
 
     [TestMethod]
@@ -702,6 +919,98 @@ public sealed class Schema13MergeWriterTests
     private static BackupPayloadV3 CreatePayload(DateTime wordControlTimestamp, params HistoryFact[] history) =>
         CreatePayloadFor("1", "network", wordControlTimestamp, history);
 
+    private static BackupPayloadV3 WithInteractionReviews(
+        BackupPayloadV3 payload,
+        params BackupLearningReviewV2[] reviews)
+    {
+        const string workflowId = "learning_interaction_1";
+        var workflow = new BackupLearningWorkflowV2(
+            workflowId,
+            BackupLearningSessionStatus.Completed,
+            1,
+            1,
+            0,
+            0,
+            1,
+            0,
+            BaseTime.AddMinutes(-10),
+            BaseTime,
+            BaseTime,
+            [new BackupLearningQueueItemV2(
+                "queue_interaction_1",
+                "card_1",
+                0,
+                true,
+                false,
+                true,
+                false,
+                true,
+                true,
+                BackupReviewRating.Good,
+                BaseTime,
+                "ans_1",
+                "11111111111111111111111111111111")],
+            "22222222222222222222222222222222");
+
+        return payload with
+        {
+            Learning = payload.Learning with { ReviewEvents = reviews },
+            Workflows = payload.Workflows with { LearningSessions = [workflow] }
+        };
+    }
+
+    private static BackupLearningReviewV2 InteractionA() => new(
+        "card_1", "learning_interaction_1", BackupReviewRating.Good, false, true,
+        BaseTime, BaseTime.AddDays(1), 1, 2.5, "ans_1", "ans_1");
+
+    private static BackupLearningReviewV2 InteractionB(DateTime? reviewedAtUtc = null)
+    {
+        var timestamp = reviewedAtUtc ?? BaseTime;
+        return new BackupLearningReviewV2(
+            "card_1", "learning_interaction_1", BackupReviewRating.Again, true, false,
+            timestamp, timestamp.AddMinutes(10), 0, 2.5, "ans_1", null);
+    }
+
+    private static BackupLearningReviewV2 InteractionC() => new(
+        "card_1", "learning_interaction_1", BackupReviewRating.Easy, false, true,
+        BaseTime, BaseTime.AddDays(3), 3, 2.6, "ans_1", "ans_1");
+
+    private static async Task<string[]> LoadInteractionReviewSequenceAsync(Schema7Fixture target)
+    {
+        var rows = await target.Connection.QueryAsync<InteractionReviewRow>(
+            "SELECT Rating, WasTypedAnswer, WasCorrect FROM LearningReviews ORDER BY ReviewedAtUtc, Id");
+        return rows.Select(row => row.Rating switch
+        {
+            (int)ReviewRating.Good when !row.WasTypedAnswer && row.WasCorrect => "A",
+            (int)ReviewRating.Again when row.WasTypedAnswer && !row.WasCorrect => "B",
+            (int)ReviewRating.Easy when !row.WasTypedAnswer && row.WasCorrect => "C",
+            _ => $"unexpected:{row.Rating}:{row.WasTypedAnswer}:{row.WasCorrect}"
+        }).ToArray();
+    }
+
+    private static async Task<AutomaticLearningState> ProjectPrimaryInteractionStateAsync(
+        Schema7Fixture target)
+    {
+        var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(target);
+        return await database.ExecuteSnapshotAsync(connection =>
+        {
+            var cardId = connection.ExecuteScalar<int>(
+                "SELECT c.Id FROM LearningCards c JOIN Senses s ON s.Id = c.SenseId WHERE s.StableId = 'st_sense_1'");
+            var senseId = connection.ExecuteScalar<int>("SELECT Id FROM Senses WHERE StableId = 'st_sense_1'");
+            var answerVariantId = connection.ExecuteScalar<int>(
+                "SELECT Id FROM AnswerVariants WHERE StableId = 'st_ans_1'");
+            var assignments = Schema8LearningRepository.LoadAssignmentsForSenseDirection(
+                connection,
+                senseId,
+                CardDirection.MeaningToTerm);
+            var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, cardId);
+            var progress = Schema8LearningRepository.LoadProgressForCard(connection, cardId);
+            return Schema13LearningReviewPolicy.Project(cardId, assignments, reviews, progress)
+                .FindOutcome(answerVariantId)!
+                .State;
+        });
+    }
+
     private static BackupPayloadV3 CreatePayloadFor(
         string suffix,
         string text,
@@ -807,6 +1116,13 @@ public sealed class Schema13MergeWriterTests
         public int SenseId { get; set; }
     }
 
+    private sealed class InteractionReviewRow
+    {
+        public int Rating { get; set; }
+        public bool WasTypedAnswer { get; set; }
+        public bool WasCorrect { get; set; }
+    }
+
     private sealed class TestPlatformInfo : IBackupPlatformInfo
     {
         public BackupSourcePlatform SourcePlatform => BackupSourcePlatform.Windows;
@@ -875,6 +1191,26 @@ public sealed class Schema13MergeWriterTests
         {
             Schema13Calls++;
             return Task.FromResult(MergeWriteResult.SuccessResult);
+        }
+    }
+
+    private sealed class RecordingDelegatingWriterService(IMergeWriterService inner) : IMergeWriterService
+    {
+        public int Schema13Calls { get; private set; }
+
+        public Task<MergeWriteResult> ApplyAsync(
+            BackupPayloadV2 archive,
+            MergePreflightPlan plan,
+            CancellationToken cancellationToken) =>
+            inner.ApplyAsync(archive, plan, cancellationToken);
+
+        public Task<MergeWriteResult> ApplySchema13Async(
+            BackupPayloadV3 archive,
+            MergePreflightPlan plan,
+            CancellationToken cancellationToken)
+        {
+            Schema13Calls++;
+            return inner.ApplySchema13Async(archive, plan, cancellationToken);
         }
     }
 

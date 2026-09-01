@@ -124,9 +124,10 @@ public sealed record MergeEntityPlanCounts(
 /// id such as a LearningReview, a synthesized positional label), retained only so a future writer can
 /// look the content back up inside the same archive <see cref="BackupPayload"/> it already holds — it is
 /// never a target-local id. Physical rows that can be classified independently require distinct lookup
-/// labels within their <see cref="MergeEntityKind"/>. <see cref="DecisionId"/> is non-null if and only if <see cref="Classification"/>
-/// is <see cref="MergeEntityClassification.UnresolvedConflict"/>, and matches exactly one decision
-/// object's own <see cref="DecisionId"/> in the plan.
+/// labels within their <see cref="MergeEntityKind"/>. <see cref="DecisionId"/> is non-null only when an
+/// <see cref="MergeEntityClassification.UnresolvedConflict"/> is backed by a user decision, and then
+/// matches exactly one decision object's own <see cref="DecisionId"/> in the plan. Invariant conflicts
+/// that have no valid user choice keep it null.
 /// </summary>
 public sealed record MergePlanAction(
     MergeEntityKind EntityKind,
@@ -289,7 +290,8 @@ public sealed record MergeManifestInfo(
     string SourceAppVersion,
     int SourceDatabaseSchemaVersion,
     DateTime CreatedAtUtc,
-    BackupSourcePlatform SourcePlatform);
+    BackupSourcePlatform SourcePlatform,
+    bool LearningReviewCausalOrderRequired = false);
 
 /// <summary>
 /// The complete, deterministic read-only merge preflight result (design §9, KF-BACKUP-002 Slice 3 /

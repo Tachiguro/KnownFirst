@@ -2,6 +2,7 @@ using KnownFirst.Core.Learning;
 using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
+using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Data.Schema13;
@@ -154,6 +155,54 @@ public sealed class Schema13LearningRuntimeRepositoryTests
     }
 
     [TestMethod]
+    public async Task TextReviewDiagnostics_Schema13_ConcurrentReviewCannotMixCardAndReviewSnapshots()
+    {
+        await using var fixture = await CreateSchema13Async(seedCard: true);
+        var initialCard = await SetFsrsReviewWithConflictingLegacyNewAsync(fixture);
+        var cardId = await fixture.Connection.ExecuteScalarAsync<int>("SELECT Id FROM LearningCards");
+        var secondReviewTime = ReviewTime.AddDays(30);
+        Fsrs6Card advancedCard = null!;
+        var database = new AfterSnapshotMutationDatabase(fixture, connection =>
+        {
+            var initialEvent = new Fsrs6ReviewEvent(ReviewTime, ReviewRating.Good);
+            var secondEvent = new Fsrs6ReviewEvent(secondReviewTime, ReviewRating.Good);
+            FsrsReviewHistoryRepository.AppendEvent(connection, cardId, "diagnostics-concurrent-review", secondEvent);
+            advancedCard = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [initialEvent, secondEvent]);
+            FsrsCardStateRepository.Save(connection, cardId, advancedCard);
+            var sessionId = Schema8LearningRepository.InsertSession(connection, secondReviewTime.UtcDateTime, totalCards: 1);
+            connection.Insert(new LearningReviewEntity
+            {
+                CardId = cardId,
+                SessionId = sessionId,
+                Rating = ReviewRating.Good,
+                WasTypedAnswer = false,
+                WasCorrect = true,
+                ReviewedAtUtc = secondReviewTime.UtcDateTime,
+                DueAtUtc = advancedCard.DueAtUtc!.Value.UtcDateTime,
+                IntervalDays = (int)(advancedCard.DueAtUtc.Value - secondReviewTime).TotalDays,
+                EaseFactor = 2.5
+            });
+        });
+        var service = new TextReviewService(
+            database,
+            new TextAnalyzer(),
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var diagnostics = await service.GetDiagnosticsAsync();
+
+        Assert.HasCount(1, diagnostics.LearningCards);
+        var diagnosticDueAt = diagnostics.LearningCards[0].DueAtUtc;
+        var containsConcurrentReview = diagnostics.LearningReviews.Any(review => review.ReviewedAtUtc == secondReviewTime.UtcDateTime);
+        var isBeforeMutation = !containsConcurrentReview && diagnosticDueAt == initialCard.DueAtUtc!.Value.UtcDateTime;
+        var isAfterMutation = containsConcurrentReview && diagnosticDueAt == advancedCard.DueAtUtc!.Value.UtcDateTime;
+        Assert.IsTrue(
+            isBeforeMutation || isAfterMutation,
+            $"Diagnostics mixed snapshots: concurrent review present={containsConcurrentReview}, card due={diagnosticDueAt:O}, " +
+            $"initial due={initialCard.DueAtUtc:O}, advanced due={advancedCard.DueAtUtc:O}.");
+    }
+
+    [TestMethod]
     public async Task LearningSessionSelection_Schema13_FsrsDueWinsOverLegacyNewFutureState()
     {
         await using var fixture = await CreateSchema13Async(seedCard: true);
@@ -246,6 +295,69 @@ public sealed class Schema13LearningRuntimeRepositoryTests
         new SimpleSpacedRepetitionScheduler(),
         new SpellingAnswerComparer(),
         new FakeClock(nowUtc));
+
+    private sealed class AfterSnapshotMutationDatabase(
+        Schema7Fixture fixture,
+        Action<SQLiteConnection> afterSnapshot) : IKnownFirstDatabase
+    {
+        private readonly SemaphoreSlim _gate = new(1, 1);
+        private Action<SQLiteConnection>? _afterSnapshot = afterSnapshot;
+
+        public string DatabasePath => fixture.DatabasePath;
+
+        public Task InitializeAsync() => Task.CompletedTask;
+
+        public async Task<T> ReadAsync<T>(Func<SQLiteAsyncConnection, Task<T>> operation)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                return await operation(fixture.Connection);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+
+        public async Task<T> RunInTransactionAsync<T>(Func<SQLiteConnection, T> operation)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                T? result = default;
+                await fixture.Connection.RunInTransactionAsync(connection => result = operation(connection));
+                return result!;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+
+        public async Task<T> ExecuteSnapshotAsync<T>(Func<SQLiteConnection, T> operation)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                T? result = default;
+                await fixture.Connection.RunInTransactionAsync(connection => result = operation(connection));
+                var mutation = Interlocked.Exchange(ref _afterSnapshot, null);
+                if (mutation is not null)
+                {
+                    await fixture.Connection.RunInTransactionAsync(mutation);
+                }
+
+                return result!;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+
+        public Task ResetAsync() => throw new NotSupportedException("Not used by this test.");
+    }
 
     private static void SeedGraph(SQLiteConnection connection)
     {

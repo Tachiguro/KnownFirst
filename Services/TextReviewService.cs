@@ -364,53 +364,42 @@ public sealed class TextReviewService(
 
     public async Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync()
     {
-        var (capability, schema13LearningCards) = await database.ExecuteSnapshotAsync(connection =>
+        return await database.ExecuteSnapshotAsync(connection =>
         {
-            var resolvedCapability = BackupSchemaCapability.Resolve(connection);
-            DiagnosticLearningCardRow[]? authoritativeSchema13Cards = null;
-            if (resolvedCapability is Schema13CapabilityResult)
-            {
-                authoritativeSchema13Cards = Schema13LearningRepository.LoadAllCards(connection)
-                    .Select(DiagnosticLearningCardRow.FromSchema13)
-                    .ToArray();
-            }
-
-            return (resolvedCapability, authoritativeSchema13Cards);
-        });
-        return await database.ReadAsync(async connection =>
-        {
-        var documents = await connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToListAsync();
-        var sentences = await connection.Table<SentenceSpanEntity>().OrderBy(item => item.Id).ToListAsync();
-        var words = await connection.Table<WordEntity>().OrderBy(item => item.Id).ToListAsync();
-        var forms = await connection.Table<WordFormEntity>().OrderBy(item => item.Id).ToListAsync();
-        var occurrences = await connection.Table<WordOccurrenceEntity>().OrderBy(item => item.Id).ToListAsync();
-        var sessions = await connection.Table<ReviewSessionEntity>().OrderBy(item => item.Id).ToListAsync();
-        var lexicalCache = await connection.Table<LexicalCacheEntity>().OrderBy(item => item.Id).ToListAsync();
-        var preparationSessions = await connection.Table<PreparationSessionEntity>().OrderBy(item => item.Id).ToListAsync();
-        var preparationCandidates = await connection.Table<PreparationCandidateEntity>().OrderBy(item => item.Id).ToListAsync();
-        var meanings = await connection.Table<MeaningEntity>().OrderBy(item => item.Id).ToListAsync();
+        var capability = BackupSchemaCapability.Resolve(connection);
+        var documents = connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToList();
+        var sentences = connection.Table<SentenceSpanEntity>().OrderBy(item => item.Id).ToList();
+        var words = connection.Table<WordEntity>().OrderBy(item => item.Id).ToList();
+        var forms = connection.Table<WordFormEntity>().OrderBy(item => item.Id).ToList();
+        var occurrences = connection.Table<WordOccurrenceEntity>().OrderBy(item => item.Id).ToList();
+        var sessions = connection.Table<ReviewSessionEntity>().OrderBy(item => item.Id).ToList();
+        var lexicalCache = connection.Table<LexicalCacheEntity>().OrderBy(item => item.Id).ToList();
+        var preparationSessions = connection.Table<PreparationSessionEntity>().OrderBy(item => item.Id).ToList();
+        var preparationCandidates = connection.Table<PreparationCandidateEntity>().OrderBy(item => item.Id).ToList();
+        var meanings = connection.Table<MeaningEntity>().OrderBy(item => item.Id).ToList();
         var learningCards = capability switch
         {
-            Schema7CapabilityResult => (await connection.Table<LearningCardEntity>()
+            Schema7CapabilityResult => connection.Table<LearningCardEntity>()
                     .OrderBy(item => item.Id)
-                    .ToListAsync())
+                    .ToList()
                 .Select(card => DiagnosticLearningCardRow.FromSchema7(card))
                 .ToArray(),
-            Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult => (await connection.QueryAsync<DiagnosticLearningCardRow>(
+            Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult => connection.Query<DiagnosticLearningCardRow>(
                 """
                 SELECT Id, WordId, PreferredMeaningId AS MeaningId, Direction, State, DueAtUtc,
                        IntervalDays, EaseFactor, LastRating
                 FROM LearningCards
                 ORDER BY Id
-                """))
+                """)
                 .ToArray(),
-            Schema13CapabilityResult => schema13LearningCards
-                ?? throw new InvalidOperationException("Schema-13 diagnostics projection was not captured."),
+            Schema13CapabilityResult => Schema13LearningRepository.LoadAllCards(connection)
+                .Select(DiagnosticLearningCardRow.FromSchema13)
+                .ToArray(),
             _ => throw new InvalidOperationException("Unsupported schema capability result.")
         };
-        var learningReviews = await connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToListAsync();
-        var learningSessions = await connection.Table<LearningSessionEntity>().OrderBy(item => item.Id).ToListAsync();
-        var contextSnapshots = await connection.Table<ContextSnapshotEntity>().OrderBy(item => item.Id).ToListAsync();
+        var learningReviews = connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToList();
+        var learningSessions = connection.Table<LearningSessionEntity>().OrderBy(item => item.Id).ToList();
+        var contextSnapshots = connection.Table<ContextSnapshotEntity>().OrderBy(item => item.Id).ToList();
         var documentsById = documents.ToDictionary(item => item.Id);
         var sentencesById = sentences.ToDictionary(item => item.Id);
         var wordsById = words.ToDictionary(item => item.Id);

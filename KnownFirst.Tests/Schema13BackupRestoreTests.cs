@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data;
@@ -160,6 +161,43 @@ public sealed class Schema13BackupRestoreTests
             Assert.AreEqual(history[0].ReviewedAtUtc, history[1].ReviewedAtUtc);
             return true;
         });
+    }
+
+    [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task ImportV3_IntoEmptySchema13_NearEqualReplayStateIsRejectedAndTargetRemainsEmpty(
+        bool mutateStability)
+    {
+        await using var source = await CreateEmptySchema13DatabaseAsync();
+        await SeedNativeV3SourceAsync(source);
+        var archiveBytes = await ExportAsync(source);
+        var invalidArchiveBytes = await RewriteV3ArchiveAsync(
+            archiveBytes,
+            payload => payload with
+            {
+                FsrsCardStates = payload.FsrsCardStates
+                    .Select(state => state.Stability.HasValue && state.Difficulty.HasValue
+                        ? state with
+                        {
+                            Stability = mutateStability
+                                ? Math.BitIncrement(state.Stability.Value)
+                                : state.Stability,
+                            Difficulty = mutateStability
+                                ? state.Difficulty
+                                : Math.BitIncrement(state.Difficulty.Value)
+                        }
+                        : state)
+                    .ToList()
+            });
+
+        await using var target = await CreateEmptySchema13DatabaseAsync();
+        var result = await new BackupService(target, new FakePlatformInfo())
+            .ImportPortableArchiveAsync(new MemoryStream(invalidArchiveBytes), CancellationToken.None);
+
+        Assert.AreEqual(PortableImportStatus.ValidationFailed, result.Status);
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, result.ErrorCode);
+        await AssertSchema13TargetEmptyAsync(target);
     }
 
     [TestMethod]
@@ -521,6 +559,34 @@ public sealed class Schema13BackupRestoreTests
             }
 
             using (var data = archive.CreateEntry("data.json").Open())
+            {
+                data.Write(dataBytes);
+            }
+        }
+
+        return output.ToArray();
+    }
+
+    private static async Task<byte[]> RewriteV3ArchiveAsync(
+        byte[] archiveBytes,
+        Func<BackupPayloadV3, BackupPayloadV3> payloadMutator)
+    {
+        var validated = await ValidateV3Async(archiveBytes);
+        var payload = payloadMutator(validated.Payload);
+        var dataBytes = BackupJsonCodecV3.SerializeData(payload);
+        var checksum = "sha256:" + Convert.ToHexString(SHA256.HashData(dataBytes)).ToLowerInvariant();
+        var manifestBytes = BackupJsonCodecV3.SerializeManifest(
+            validated.Manifest with { DataChecksum = checksum });
+
+        using var output = new MemoryStream();
+        using (var archive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            using (var manifest = archive.CreateEntry("manifest.json", CompressionLevel.Optimal).Open())
+            {
+                manifest.Write(manifestBytes);
+            }
+
+            using (var data = archive.CreateEntry("data.json", CompressionLevel.Optimal).Open())
             {
                 data.Write(dataBytes);
             }

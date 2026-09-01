@@ -339,8 +339,8 @@ public static class Schema13BackupSnapshotRepository
                     throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
                 }
 
-                if (!AreDoublesEqual(replayed.Stability, state.Stability)
-                    || !AreDoublesEqual(replayed.Difficulty, state.Difficulty))
+                if (!AreExactDoublesEqual(replayed.Stability, state.Stability)
+                    || !AreExactDoublesEqual(replayed.Difficulty, state.Difficulty))
                 {
                     throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
                 }
@@ -360,11 +360,14 @@ public static class Schema13BackupSnapshotRepository
         return (wordControls, senseControls, historyEntries, cardStates);
     }
 
-    private static bool AreDoublesEqual(double? a, double? b)
+    private static bool AreExactDoublesEqual(double? left, double? right)
     {
-        if (!a.HasValue && !b.HasValue) return true;
-        if (!a.HasValue || !b.HasValue) return false;
-        return Math.Abs(a.Value - b.Value) < 1e-9;
+        if (!left.HasValue || !right.HasValue)
+        {
+            return left.HasValue == right.HasValue;
+        }
+
+        return BitConverter.DoubleToInt64Bits(left.Value) == BitConverter.DoubleToInt64Bits(right.Value);
     }
 
     private static List<T> GetBoundedTable<T>(SQLiteConnection connection, int limit) where T : new()

@@ -255,6 +255,13 @@ public static class Schema13BackupImportRepository
         BackupPayloadV3 payload,
         Schema8BackupImportMaps maps)
     {
+        if (!Schema13RuntimeIntegrityValidator.Validate(connection, out var runtimeFailureDetail))
+        {
+            throw new BackupFormatException(
+                BackupErrorCodes.InvariantViolation,
+                new InvalidOperationException(runtimeFailureDetail));
+        }
+
         if (!Schema13ShapeValidator.IsValidDatabase(connection, out var shapeFailure))
         {
             throw new BackupFormatException(

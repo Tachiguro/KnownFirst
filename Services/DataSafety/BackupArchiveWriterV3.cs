@@ -532,8 +532,8 @@ public static class BackupArchiveWriterV3
                     throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
                 }
 
-                if (!AreDoublesEqual(replayed.Stability, state.Stability)
-                    || !AreDoublesEqual(replayed.Difficulty, state.Difficulty))
+                if (!AreExactDoublesEqual(replayed.Stability, state.Stability)
+                    || !AreExactDoublesEqual(replayed.Difficulty, state.Difficulty))
                 {
                     throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
                 }
@@ -556,12 +556,14 @@ public static class BackupArchiveWriterV3
         }
     }
 
-    private static bool AreDoublesEqual(double? a, double? b)
+    private static bool AreExactDoublesEqual(double? left, double? right)
     {
-        if (a is null && b is null) return true;
-        if (a is null || b is null) return false;
-        return BitConverter.DoubleToInt64Bits(a.Value) == BitConverter.DoubleToInt64Bits(b.Value)
-            || Math.Abs(a.Value - b.Value) < 1e-7;
+        if (!left.HasValue || !right.HasValue)
+        {
+            return left.HasValue == right.HasValue;
+        }
+
+        return BitConverter.DoubleToInt64Bits(left.Value) == BitConverter.DoubleToInt64Bits(right.Value);
     }
 
     private static void EnsureUniqueIds(IEnumerable<string> ids)

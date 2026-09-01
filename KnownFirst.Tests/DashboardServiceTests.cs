@@ -48,7 +48,7 @@ public sealed class DashboardServiceTests
     }
 
     [TestMethod]
-    public async Task NormallyMigratedSchema8_ReportsSenseBasedDistinctWordCount()
+    public async Task HistoricallyMigratedSchema8_ReportsSenseBasedDistinctWordCount()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var preparedWordId = await fixture.InsertWordAsync("prepared-migrated", status: WordStatus.Prepared);
@@ -59,7 +59,7 @@ public sealed class DashboardServiceTests
         var masteredWordId = await fixture.InsertWordAsync("mastered-migrated", status: WordStatus.Mastered);
         await fixture.InsertMeaningAsync(masteredWordId, translation: "gemeistert");
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema8Async(fixture.Connection);
         var statistics = await new DashboardService(
             new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture)).GetStatisticsAsync();
 

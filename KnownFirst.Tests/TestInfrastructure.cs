@@ -16,20 +16,61 @@ namespace KnownFirst.Tests;
 /// </summary>
 internal static class HistoricalMigrationFixture
 {
+    public static Task UpgradeToSchema8Async(SQLiteAsyncConnection connection) =>
+        Schema8DormantMigration.ApplyAsync(connection);
+
+    public static async Task UpgradeToSchema9Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema8DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema8Async(connection);
+        }
+
+        await Schema9DormantMigration.ApplyAsync(connection);
+    }
+
+    public static async Task UpgradeToSchema10Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema9DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema9Async(connection);
+        }
+
+        await Schema10DormantMigration.ApplyAsync(connection);
+    }
+
+    public static async Task UpgradeToSchema11Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema10DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema10Async(connection);
+        }
+
+        await Schema11DormantMigration.ApplyAsync(connection);
+    }
+
     public static async Task UpgradeToSchema12Async(SQLiteAsyncConnection connection)
     {
-        await Schema8DormantMigration.ApplyAsync(connection);
-        await Schema9DormantMigration.ApplyAsync(connection);
-        await Schema10DormantMigration.ApplyAsync(connection);
-        await Schema11DormantMigration.ApplyAsync(connection);
+        if (await ReadVersionAsync(connection) < Schema11DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema11Async(connection);
+        }
+
         await Schema12DormantMigration.ApplyAsync(connection);
     }
 
     public static async Task UpgradeToSchema13Async(SQLiteAsyncConnection connection)
     {
-        await UpgradeToSchema12Async(connection);
+        if (await ReadVersionAsync(connection) < Schema12DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema12Async(connection);
+        }
+
         await Schema13DormantMigration.ApplyAsync(connection);
     }
+
+    private static Task<int> ReadVersionAsync(SQLiteAsyncConnection connection) =>
+        connection.ExecuteScalarAsync<int>("PRAGMA user_version");
 }
 
 internal sealed class FakeClock(DateTime utcNow) : IClock

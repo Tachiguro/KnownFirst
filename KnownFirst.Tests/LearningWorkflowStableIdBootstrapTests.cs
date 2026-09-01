@@ -30,11 +30,11 @@ public sealed class LearningWorkflowStableIdBootstrapTests
         await using var installationA = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
         await using var installationB = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync(localIdOffset: 3);
 
-        await DatabaseSchema.InitializeAsync(installationA.Connection);
-        await DatabaseSchema.InitializeAsync(installationB.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(installationA.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(installationB.Connection);
 
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await installationA.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await installationB.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(10, await installationA.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(10, await installationB.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var sessionsA = await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(installationA);
         var sessionsB = await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(installationB);
@@ -64,8 +64,8 @@ public sealed class LearningWorkflowStableIdBootstrapTests
     public async Task CompletedBootstrap_ProducesTheDeterministicSha256Shape()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(fixture.Connection);
+        Assert.AreEqual(10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var session = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture)).Single();
         Assert.AreEqual(
@@ -87,8 +87,8 @@ public sealed class LearningWorkflowStableIdBootstrapTests
             "SELECT COUNT(*) FROM LearningSessions WHERE StartedAtUtc = (SELECT StartedAtUtc FROM LearningSessions ORDER BY Id LIMIT 1)");
         Assert.AreEqual(2, sharedTimestampCount, "The fixture must genuinely contain two sessions at one StartedAtUtc.");
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(fixture.Connection);
+        Assert.AreEqual(10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var sessions = await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture);
         Assert.HasCount(2, sessions);
@@ -103,8 +103,8 @@ public sealed class LearningWorkflowStableIdBootstrapTests
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(fixture.Connection);
+        Assert.AreEqual(10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var assigned = (await Schema10LegacyLearningFixtures.LoadSessionStableIdsAsync(fixture)).Single();
         Assert.AreEqual(
@@ -141,8 +141,8 @@ public sealed class LearningWorkflowStableIdBootstrapTests
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(fixture.Connection);
+        Assert.AreEqual(10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var before = await Schema10LegacyLearningFixtures.LoadQueueStableIdsAsync(fixture);
         Assert.HasCount(2, before);
@@ -166,8 +166,8 @@ public sealed class LearningWorkflowStableIdBootstrapTests
     public async Task AgainRepeatQueueRow_ReceivesItsOwnIdentity_AndNeverCopiesItsSourceRow()
     {
         await using var fixture = await Schema10LegacyLearningFixtures.CreateActiveSessionSchema9FixtureAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(fixture.Connection);
+        Assert.AreEqual(10, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
 
         var before = await Schema10LegacyLearningFixtures.LoadQueueStableIdsAsync(fixture);
         var sourceRow = before[0];

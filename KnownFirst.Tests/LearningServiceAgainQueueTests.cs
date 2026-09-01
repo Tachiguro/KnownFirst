@@ -274,7 +274,7 @@ public sealed class LearningServiceAgainQueueTests
                 id: 40 + index);
         }
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         return fixture;
     }
 

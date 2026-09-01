@@ -377,21 +377,20 @@ public sealed class Schema8DormantMigrationFocusedTests
     }
 
     /// <summary>
-    /// Ordinary current-schema initialization against a populated database: the Schema-8 semantic upgrade
-    /// (Senses/AnswerVariants/assignments/progress) happens correctly as an internal step, then
-    /// initialization continues on to <see cref="DatabaseSchema.CurrentVersion"/> (Schema 9).
+    /// Explicit historical advancement against a populated database: the Schema-8 semantic upgrade
+    /// (Senses/AnswerVariants/assignments/progress) happens correctly, then advances to Schema 9.
     /// </summary>
     [TestMethod]
-    public async Task NormalInitializeAsync_PopulatedDatabase_ReportsCurrentVersionAndValidSchema9Shape()
+    public async Task HistoricalAdvancement_PopulatedDatabase_ReportsSchema9AndValidShape()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         var wordId = await fixture.InsertWordAsync("populated");
         var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "populated", translation: "x");
         await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema9Async(fixture.Connection);
 
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection));
+        Assert.AreEqual(9, await Schema8MigrationAssertHelpers.GetUserVersionAsync(fixture.Connection));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "Senses"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "AnswerVariants"));
         Assert.IsTrue(await Schema8MigrationAssertHelpers.TableExistsAsync(fixture.Connection, "SenseAnswerVariantAssignments"));

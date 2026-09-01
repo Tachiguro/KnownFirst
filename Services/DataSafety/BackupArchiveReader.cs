@@ -148,10 +148,9 @@ public static class BackupArchiveReader
             else
             {
                 var manifest = BackupJsonCodecV3.DeserializeManifest(manifestBytes);
-                if (manifest.RequiredFeatures.Count != 0 || manifest.OptionalFeatures.Count != 0)
-                {
-                    throw new BackupFormatException(BackupErrorCodes.UnsupportedRequiredFeature);
-                }
+                ArchiveLearningReviewCausalOrderPolicy.ValidateV3Features(
+                    manifest.RequiredFeatures,
+                    manifest.OptionalFeatures);
 
                 var dataBytes = await ReadEntryAsync(dataEntry, BackupFormatLimits.MaxDataUncompressedBytes, cancellationToken);
                 VerifyChecksum(manifest.DataChecksum, dataBytes);
@@ -165,6 +164,9 @@ public static class BackupArchiveReader
                 BackupModelContractV3.ValidateRecordCounts(manifest, payload);
                 BackupArchiveWriterV3.ValidatePayloadGraphV3(payload);
                 ValidatePortableRecoveryScopeV3(payload);
+                ArchiveLearningReviewCausalOrderPolicy.ValidateV3ReviewOrder(
+                    manifest.RequiredFeatures,
+                    payload.Learning.ReviewEvents);
 
                 return new ValidatedBackupArchiveEnvelope(
                     formatVersion,

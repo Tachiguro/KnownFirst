@@ -1,6 +1,7 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety;
@@ -96,6 +97,13 @@ public static class BackupModelMapperV3
             .OrderBy(s => s.CardId, StringComparer.Ordinal)
             .ToList();
 
+        var causalReviews = context.LearningReviews
+            .OrderBy(review => review.Review.CardId, StringComparer.Ordinal)
+            .ThenBy(review => Schema8Utc.Normalize(review.Review.ReviewedAtUtc).Ticks)
+            .ThenBy(review => review.SourceLocalId)
+            .Select(review => review.Review)
+            .ToList();
+
         return new BackupPayloadV3(
             context.Payload.SourceMaterials,
             context.Payload.Vocabulary,
@@ -104,7 +112,7 @@ public static class BackupModelMapperV3
             context.Payload.AnswerVariants,
             context.Payload.SenseAnswerVariantAssignments,
             context.Payload.AnswerVariantProgress,
-            context.Payload.Learning,
+            context.Payload.Learning with { ReviewEvents = causalReviews },
             context.Payload.Workflows,
             context.Payload.DerivedTermEvidence,
             wordControls,

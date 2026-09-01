@@ -142,6 +142,7 @@ public static class Schema13BackupImportRepository
 
         BackupModelContractV2.ValidatePayload(payload);
         BackupArchiveWriterV2.ValidatePayloadGraphV2(payload);
+        ArchiveLearningReviewCausalOrderPolicy.ThrowIfAmbiguous(payload.Learning.ReviewEvents);
         ValidateEmptyTarget(connection);
 
         _ = Schema8BackupImportRepository.ImportIntoEmptySchema8DatabaseWithMappings(

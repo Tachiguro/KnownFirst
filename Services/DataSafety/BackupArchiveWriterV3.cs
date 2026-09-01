@@ -39,7 +39,7 @@ public static class BackupArchiveWriterV3
             CreatedAtUtc: timestampUtc,
             RecordCounts: recordCounts,
             OptionalFeatures: Array.Empty<string>(),
-            RequiredFeatures: Array.Empty<string>(),
+            RequiredFeatures: new[] { ArchiveLearningReviewCausalOrderPolicy.RequiredFeature },
             DataChecksum: hashString);
 
         var manifestBytes = BackupJsonCodecV3.SerializeManifest(manifest);

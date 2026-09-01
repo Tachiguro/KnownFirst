@@ -118,6 +118,24 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
 
         if (targetCapability is Schema13CapabilityResult)
         {
+            var sourceBasePayload = validated.V2?.Payload
+                ?? (validated.V1 is { } legacyV1 ? BackupArchiveV1UpgradePolicy.Upgrade(legacyV1.Payload) : null);
+            if (sourceBasePayload is not null)
+            {
+                try
+                {
+                    ArchiveLearningReviewCausalOrderPolicy.ThrowIfAmbiguous(sourceBasePayload.Learning.ReviewEvents);
+                }
+                catch (BackupFormatException exception)
+                {
+                    return MergePreflightPlan.ForEarlyExit(
+                        MergePreflightStatus.ValidationFailed,
+                        manifestInfo,
+                        true,
+                        exception.Code);
+                }
+            }
+
             Schema13PortableSnapshotCaptureResult schema13Capture;
             try
             {
@@ -145,9 +163,6 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             var targetPayload = BackupModelMapperV3.MapToExternal(
                 schema13Capture.Snapshot
                 ?? throw new InvalidOperationException("Schema-13 capture reported success without a snapshot."));
-            var sourceBasePayload = validated.V2?.Payload
-                ?? (validated.V1 is { } legacyV1 ? BackupArchiveV1UpgradePolicy.Upgrade(legacyV1.Payload) : null);
-
             BackupPayloadV3 sourcePayload;
             try
             {

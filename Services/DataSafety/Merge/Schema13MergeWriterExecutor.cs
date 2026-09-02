@@ -1,5 +1,5 @@
-using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
 using KnownFirst.Models.Backup;
 using SQLite;
@@ -219,11 +219,16 @@ internal static class Schema13MergeWriterExecutor
             throw new BackupFormatException(BackupErrorCodes.MissingReference);
         }
 
-        // Capture validates the complete inherited graph, unique ownership, history sequence continuity,
-        // one state per card, timestamps, and replay shape. The checks below strengthen replay to exact
-        // IEEE-754 equality and verify every action-carried persisted fact byte-for-byte.
+        if (!Schema13RuntimeIntegrityValidator.Validate(connection, out var runtimeFailureDetail))
+        {
+            throw new BackupFormatException(
+                BackupErrorCodes.InvariantViolation,
+                new InvalidOperationException(runtimeFailureDetail));
+        }
+
+        // Capture validates the complete inherited archive graph and the checks below verify every
+        // action-carried persisted fact byte-for-byte.
         var finalSnapshot = Schema13BackupSnapshotRepository.CapturePortableSnapshot(connection);
-        ValidateExactReplay(finalSnapshot);
 
         foreach (var action in schemaPlan.Actions)
         {
@@ -265,42 +270,6 @@ internal static class Schema13MergeWriterExecutor
             || convergence.Schema13Plan?.RequiresMutation == true)
         {
             throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
-        }
-    }
-
-    private static void ValidateExactReplay(Schema13BackupSnapshot snapshot)
-    {
-        var histories = snapshot.FsrsReviewHistoryEntries
-            .GroupBy(item => item.CardId)
-            .ToDictionary(group => group.Key, group => group.OrderBy(item => item.SequenceNumber).ToList());
-        var states = snapshot.FsrsCardStates.ToDictionary(item => item.CardId);
-        var replayer = new Fsrs6Replayer();
-
-        foreach (var card in snapshot.BaseSnapshot.LearningCards)
-        {
-            if (!states.TryGetValue(card.Id, out var actual))
-            {
-                throw new BackupFormatException(BackupErrorCodes.MissingReference);
-            }
-            if (!histories.TryGetValue(card.Id, out var history) || history.Count == 0)
-            {
-                continue;
-            }
-
-            var replayed = replayer.Replay(
-                Fsrs6Card.New(),
-                history.Select(item => new Fsrs6ReviewEvent(
-                    new DateTimeOffset(item.ReviewedAtUtc, TimeSpan.Zero),
-                    item.Rating)));
-            if (actual.State != replayed.State
-                || !ExactDouble(actual.Stability, replayed.Stability)
-                || !ExactDouble(actual.Difficulty, replayed.Difficulty)
-                || actual.LastReviewedAtUtc != replayed.LastReviewedAtUtc?.UtcDateTime
-                || actual.StepIndex != replayed.StepIndex
-                || actual.DueAtUtc != replayed.DueAtUtc?.UtcDateTime)
-            {
-                throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
-            }
         }
     }
 

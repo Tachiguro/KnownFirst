@@ -20,6 +20,19 @@ This section states the final user-facing behavior this design and [backup-forma
 - Corrupt, manipulated, incompatible, or unsafe archives **still fail closed without mutation**, exactly as today's Restore path already guarantees — Merge only relaxes the empty-target precondition; it does not relax validation, checksum verification, or format-compatibility checks.
 - Restoring a private pre-merge recovery copy (§8, "safety copy") remains a **separate, distinct Recovery action** in Settings — it is not part of the "Import data" flow and is never triggered implicitly by Import.
 
+## Current V3 causal interaction merge extension (KF-FSRS-003 Repairs 005–006)
+
+This section is the binding populated-target contract for feature-marked Schema-13 Archive V3 imports. It supplements the historical V1/V2 design below without changing their legacy and unmarked semantics. The interaction/answer-attribution stream (`LearningReviews`) remains distinct from the factual FSRS stream (`FsrsReviewHistoryEntries` and `FsrsCardStates`); no `LearningReview` identity is inferred from FSRS `StableId` or `SequenceNumber`.
+
+For each card and equal normalized review-timestamp group, let `S` be the ordered source interaction occurrence sequence and `T` the ordered existing target runtime occurrence sequence. Order is the feature-marked normative causal order.
+
+1. `T == S`: no change.
+2. `T` is an exact ordered prefix of `S`: append exactly the missing source tail, in source order.
+3. `S` is an exact ordered prefix of `T`: preserve the target tail without deleting, reordering, or rewriting target rows.
+4. Every other overlap or divergence: fail closed before mutation with causal-history-conflict semantics.
+
+Occurrence multiplicity is factual. Field-identical repeated reviews remain separate occurrences; equal value fingerprints never justify set-based collapse. The initial read-only preflight and the transaction-time recomputation use the same causal interpretation. A conflict prevents partial interaction or FSRS mutation. A successful tail merge is deterministic and idempotent: exact reimport converges to no change.
+
 ## 0. Revision history
 
 This is a **revision** of the design first written for this task, not a restart. Everything in §§0–15 below either carries a prior section forward unchanged, or replaces it in response to one of ten defect categories raised in review. The table maps each category to what changed and why; sections not listed here (worked-scenario framing, format-compatibility conclusion, the R1 "history is truth" principle, the out-of-scope note) carry forward from the prior revision essentially unchanged.

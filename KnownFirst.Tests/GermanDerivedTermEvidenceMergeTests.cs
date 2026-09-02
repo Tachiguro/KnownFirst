@@ -18,8 +18,8 @@ namespace KnownFirst.Tests;
 /// <summary>
 /// German Enhanced Term Recognition Package 5A-2 — populated-target merge/convergence coverage for
 /// transported <see cref="DerivedTermEvidenceEntity"/> rows. Every database is a synthetic, isolated
-/// <see cref="Schema7Fixture"/> upgraded to the current schema via the real <see cref="DatabaseSchema.InitializeAsync"/>
-/// path — each fixture gets its own unique root directory (see <see cref="Schema7Fixture.CreateAsync"/>), so
+/// <see cref="Schema7Fixture"/> explicitly advanced to historical Schema 11 through the shared test seam —
+/// each fixture gets its own unique root directory (see <see cref="Schema7Fixture.CreateAsync"/>), so
 /// concurrent tests' merge-safety-copy sibling directories can never collide.
 /// </summary>
 [TestClass]
@@ -29,7 +29,7 @@ public sealed class GermanDerivedTermEvidenceMergeTests
     private static async Task<Schema7Fixture> CreateSchema11FixtureAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema11Async(fixture.Connection);
         return fixture;
     }
 

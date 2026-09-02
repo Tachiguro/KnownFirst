@@ -450,8 +450,7 @@ public sealed class Schema13MergePreflightTests
     private static async Task<Schema7Fixture> CreateSchema13TargetAsync(byte[] archive)
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        await Schema13DormantMigration.ApplyAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema13Async(fixture.Connection);
 
         var result = await CreateService(fixture)
             .ImportPortableArchiveAsync(new MemoryStream(archive), CancellationToken.None);

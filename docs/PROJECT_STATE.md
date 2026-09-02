@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
-**Status date:** 2026-08-30
-**State source:** `master` baseline (including `KF-FSRS6-CORE-001` merged via PR #184, `KF-CLEAN-DOMAIN-013-001` merged via PR #186, and `KF-PERSIST-013-001` merged via PR #189). Live Git remains authoritative for the current master HEAD and pull-request states, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Status date:** 2026-09-02
+**State source:** `master` baseline (through PR #189 / `KF-PERSIST-013-001`) plus the local, unpushed KF-FSRS-003 implementation candidate on `feature/fsrs6-schema13-cutover-v1` (HEAD `b7c979bf188e0c5526b9a7dfccf419ac387c2d9e`). The candidate is not merged; live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -11,7 +11,7 @@ This document records stable, verified architectural facts and current capabilit
 | :--- | :--- |
 | **Project** | KnownFirst |
 | **Source Version (`master`)** | `1.0.0-beta.13` (build 15) — prepared via release-identity package KF-RELEASE-002 |
-| **Active Database Schema** | SQLite `PRAGMA user_version` 12 |
+| **Active Database Schema** | SQLite `PRAGMA user_version` 13 (KF-FSRS-003 candidate; not yet merged to `master`) |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
 | **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Signed replacement bundle `KnownFirst-1.0.0-beta.13-code14.aab` (`48,002,097` bytes, SHA-256 `7a84da599ae7435614d95ff316707669d69e21b311fe252f5419ac9cb8ecbbcd`, `StrictVerified`) was created and verified locally from certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13. Active candidate build identity is Build 15, for which no AAB package has yet been created or distributed. |
@@ -37,15 +37,17 @@ This document records stable, verified architectural facts and current capabilit
 - recognition and spelling card directions with independent deterministic schedules;
 - Learn screen card direction indicators and visual "Repeat" badges for `IsAgainRepeat` cards;
 - resumable learning sessions and permanent-known cleanup;
-- portable `.kfarchive` (v2) data export with native Save dialog on Windows and Android;
+- portable `.kfarchive` (v3) data export with Schema-13 FSRS state/history transport and native Save dialog on Windows and Android; V3 archives carry `requiredFeatures: ["learning-review-causal-order-v1"]` declaring normative causal interaction order; V1/V2 archives remain importable only where Schema-13 causal interaction order is provable;
 - recovery import of `.kfarchive` into empty installations with native Open dialog;
 - transactional populated-target import with validated pre-merge safety copies, preflight preview, collision-free action keys, and atomic commit-or-rollback (stale plans rejected; re-import converges to `NoChanges`);
 - portable Active learning-workflow preservation and resume into empty Schema-10 targets (KF-BACKUP-005B) and populated-target Active-workflow convergence/conflict safety (KF-BACKUP-005C);
-- card scheduling replay through existing scheduler in deterministic order preserving Sense, PreferredMeaning, and Direction;
+- FSRS-6 production scheduling (`IFsrs6SchedulingService` / `Fsrs6SchedulingService`) with card-state replay from append-only `FsrsReviewHistoryEntries` in deterministic `SequenceNumber` order; factual review history and FSRS card state are persisted atomically, exactly replay-consistent, and separate from compatibility `LearningReviews` and legacy scheduling columns;
+- distinct Schema-13 AlreadyKnown word controls and StopLearning sense controls, preserving factual history while governing runtime eligibility;
+- coherent `ReviewDiagnosticsSnapshot` capture from one database snapshot;
 - reopenable release-note history (`/release-notes`) and Help & Support entry point;
 - functional "Report a bug" email composer action launching with structured template prompts and clipboard copy fallback;
 - one-time localized What's New notice shown once per version;
-- transactional local persistence (Schema 11), startup maintenance, and bounded structured diagnostics;
+- transactional local persistence (Schema 13), global `PRAGMA foreign_keys = ON` enforcement, startup maintenance, and bounded structured diagnostics;
 - production offline German Enhanced Term Recognition (missing-preference default ON on `master` via PR #144, `EnhancedTermRecognitionEnabled` in Settings): conservative German compound decomposition against the production `GeneratedGermanLexicon`, wired into `TextReviewService` analysis, with Schema-11 `DerivedTermEvidence` persistence;
 - full Settings GUI exposing learning timezone (System or 50 curated IANA zones spanning inhabited UTC-11 through UTC+14, with dynamic DST-aware labels), deterministic 24-hour learning-day cutoff (`00..23` hour, `00..59` minute selectors), default-first card direction and learning mode choices, non-destructive Restore Defaults preserving online dictionary consent, and destructive Full Reset revoking consent (merged via PR #144);
 - preference-backed onboarding state foundation (`Required`, `InProgress`, `Completed`), startup install-origin classification distinguishing fresh from grandfathered existing installations, grandfathered 10-word daily budget pinning, and reset contracts (merged via PR #153);
@@ -64,6 +66,10 @@ This document records stable, verified architectural facts and current capabilit
 - unified Review Words workflow action bar: Known, Unknown, and Undo organized into a compact content-sized left action group and Discard import positioned as a separately aligned destructive end action on wide layouts, with flexible separation between primary decisions and full-import discard; common standard button geometry and minimum height across all four actions; safe responsive stacking across narrow and extra-narrow viewports; standard secondary button styling and disabled-state binding for Undo; preserved destructive styling and irreversible confirmation for Discard import; and concise localized Undo button labels across English, German, and Russian;
 - authoritative post-onboarding online lookup consent enforcement and fail-closed privacy architecture (merged via PR #181 / KF-ONLINE-LOOKUP-CONSENT-001): `IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler` transport gate blocking unauthorized outbound lexical HTTP; authorization-epoch-bound orchestration and prefetch safety with immediate cancellation on consent revocation; contextual consent disclosure removed from Prepare Words so Settings is the sole post-onboarding authority; dedicated blocked-candidate state with Settings navigation and manual fallback without data loss; Automatic Online method disabled and lookup retry disabled while consent is absent;
 - transactional first-run onboarding settings and startup recovery (merged via PR #182 / KF-TRANSACTIONAL-ONBOARDING-001): versioned persisted `OnboardingDraft` accumulating setup choices across steps with persisted restart resume; Finish Setup as the sole atomic commit boundary; immediate non-persisting language and theme preview during setup; deterministic `OnboardingCompletionJournal` with SHA-256 fingerprint and pre-write durability barrier; idempotent startup recovery executing before database initialization; fail-closed handling of unsupported future journal versions; crash-safe legacy migration with consent reconfirmation; and strict preservation of Package A's fail-closed online-lookup transport authorization gate (draft consent true does not authorize transport until verified completion roll-forward).
+
+## Schema-13 / FSRS-6 Candidate State (KF-FSRS-003)
+
+The local candidate implements the clean Schema-13 production cutover, FSRS-6 authority, factual FSRS state/history persistence, Archive V3 integrity and causal interaction ordering, and Repairs 001–006. Consolidated technical review found no remaining correctness blocker. This is implementation state only: it does not record validation, publication, merge, release, or deployment evidence.
 
 ## Transactional Onboarding Settings & Recovery — Merged Production State (KF-TRANSACTIONAL-ONBOARDING-001)
 
@@ -349,9 +355,9 @@ This merged package establishes the clean domain model in `KnownFirst.Core` and 
 - **Dormancy:** `KnownFirst.Application` and clean learning-control contracts are completely dormant from runtime execution.
 - **Downstream Initiatives:** Downstream Archive V3 format evolution (`KF-BACKUP-006`), runtime FSRS production cutover (`KF-FSRS-003`), and legacy cleanup (`KF-CLEANUP-001`) are tracked as open work in [docs/BACKLOG.md](BACKLOG.md).
 
-## Dormant Schema-13 Persistence & Migration Foundation (KF-PERSIST-013-001)
+## Historical Dormant Schema-13 Persistence & Migration Foundation (KF-PERSIST-013-001)
 
-**Lifecycle status:** Source implementation complete across five logical checkpoints / six source commits on `feature/schema13-clean-persistence-v1`. Consolidated `REVIEW_ONLY` approved with `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Historical lifecycle status:** This records the pre-cutover foundation state. Its Schema-12, V2, dormant-runtime, and deferred-FK statements are superseded for the KF-FSRS-003 candidate by the Schema-13 / FSRS-6 candidate state above.
 
 This package establishes the physical SQLite Schema-13 storage structures, repositories, atomic persistence coordinator, and deterministic Schema 12 $\to$ 13 migration engine as a dormant foundation ahead of runtime FSRS activation and Archive V3:
 
@@ -390,9 +396,9 @@ This package establishes the physical SQLite Schema-13 storage structures, repos
 - **Foreign-Key Activation:** Physical target foreign keys are verified under explicit connection enforcement, but global production `PRAGMA foreign_keys = ON` activation remains deferred to `KF-FSRS-003`.
 - **Downstream Ownership:** Archive V3 transport semantics (`KF-BACKUP-006`), production FSRS-6 cutover and DI composition (`KF-FSRS-003`), legacy cleanup (`KF-CLEANUP-001`), and Vocabulary UI workflows (`KF-VOCAB-005`, `KF-VOCAB-006`) remain tracked in [docs/BACKLOG.md](BACKLOG.md).
 
-## Archive V3 Transport & Schema-13 Merge (KF-BACKUP-006 — Implementation Candidate)
+## Historical Archive V3 Transport & Schema-13 Merge Candidate (KF-BACKUP-006)
 
-**Lifecycle status:** Source implementation complete across five logical checkpoints on candidate branch `feature/archive-v3-schema13-transport-v1` (candidate HEAD `03a6eff513b50377adfdee8dbb340f439e7dd0ce`). Consolidated `REVIEW_ONLY` approved with `REVIEW_APPROVED_FOR_DOCUMENTATION_AND_FULL_VALIDATION`. `DatabaseSchema.CurrentVersion` remains 12, ordinary production archive format remains V2, and production scheduler remains `SimpleSpacedRepetitionScheduler`.
+**Historical lifecycle status:** This records the pre-cutover V3 transport candidate. Its Schema-12, ordinary-V2, and legacy-scheduler statements are superseded for the KF-FSRS-003 candidate by the Schema-13 / FSRS-6 candidate state above.
 
 This package implements the Archive V3 portable archive format evolution, export, restore, preflight planning, and transactional populated-target merge for validated Schema-13 databases:
 

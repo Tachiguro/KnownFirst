@@ -177,10 +177,15 @@ public sealed class Schema11EvidenceValidationTests
                 isValid = Schema11ShapeValidator.IsValidDatabase(conn, out _);
             });
             Assert.IsFalse(isValid, "Corrupted evidence entry must fail validation.");
+            var beforeReopen = await PersistentDatabaseSnapshot.CaptureCompleteAsync(connection);
 
-            var exception = await Assert.ThrowsExactlyAsync<KnownFirst.Data.Migrations.Schema12.Schema12MigrationException>(
+            var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
                 () => DatabaseSchema.InitializeAsync(connection));
-            Assert.AreEqual("schema12-migration-already-applied-shape-invalid", exception.ErrorCode);
+            Assert.AreEqual(DatabaseSchemaCompatibilityReason.InvalidCurrentSchema, exception.Reason);
+            Assert.AreEqual(DatabaseSchemaCompatibilityException.StableErrorCode, exception.ErrorCode);
+            CollectionAssert.AreEqual(
+                beforeReopen,
+                await PersistentDatabaseSnapshot.CaptureCompleteAsync(connection));
         }
         finally
         {

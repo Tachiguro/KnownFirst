@@ -1,8 +1,10 @@
 using KnownFirst.Core.Learning;
+using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Services.DataSafety;
 using KnownFirst.Services.Study;
@@ -362,39 +364,42 @@ public sealed class TextReviewService(
 
     public async Task<ReviewDiagnosticsSnapshot> GetDiagnosticsAsync()
     {
-        var capability = await database.ExecuteSnapshotAsync(BackupSchemaCapability.Resolve);
-        return await database.ReadAsync(async connection =>
+        return await database.ExecuteSnapshotAsync(connection =>
         {
-        var documents = await connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToListAsync();
-        var sentences = await connection.Table<SentenceSpanEntity>().OrderBy(item => item.Id).ToListAsync();
-        var words = await connection.Table<WordEntity>().OrderBy(item => item.Id).ToListAsync();
-        var forms = await connection.Table<WordFormEntity>().OrderBy(item => item.Id).ToListAsync();
-        var occurrences = await connection.Table<WordOccurrenceEntity>().OrderBy(item => item.Id).ToListAsync();
-        var sessions = await connection.Table<ReviewSessionEntity>().OrderBy(item => item.Id).ToListAsync();
-        var lexicalCache = await connection.Table<LexicalCacheEntity>().OrderBy(item => item.Id).ToListAsync();
-        var preparationSessions = await connection.Table<PreparationSessionEntity>().OrderBy(item => item.Id).ToListAsync();
-        var preparationCandidates = await connection.Table<PreparationCandidateEntity>().OrderBy(item => item.Id).ToListAsync();
-        var meanings = await connection.Table<MeaningEntity>().OrderBy(item => item.Id).ToListAsync();
+        var capability = BackupSchemaCapability.Resolve(connection);
+        var documents = connection.Table<DocumentEntity>().OrderBy(item => item.Id).ToList();
+        var sentences = connection.Table<SentenceSpanEntity>().OrderBy(item => item.Id).ToList();
+        var words = connection.Table<WordEntity>().OrderBy(item => item.Id).ToList();
+        var forms = connection.Table<WordFormEntity>().OrderBy(item => item.Id).ToList();
+        var occurrences = connection.Table<WordOccurrenceEntity>().OrderBy(item => item.Id).ToList();
+        var sessions = connection.Table<ReviewSessionEntity>().OrderBy(item => item.Id).ToList();
+        var lexicalCache = connection.Table<LexicalCacheEntity>().OrderBy(item => item.Id).ToList();
+        var preparationSessions = connection.Table<PreparationSessionEntity>().OrderBy(item => item.Id).ToList();
+        var preparationCandidates = connection.Table<PreparationCandidateEntity>().OrderBy(item => item.Id).ToList();
+        var meanings = connection.Table<MeaningEntity>().OrderBy(item => item.Id).ToList();
         var learningCards = capability switch
         {
-            Schema7CapabilityResult => (await connection.Table<LearningCardEntity>()
+            Schema7CapabilityResult => connection.Table<LearningCardEntity>()
                     .OrderBy(item => item.Id)
-                    .ToListAsync())
+                    .ToList()
                 .Select(card => DiagnosticLearningCardRow.FromSchema7(card))
                 .ToArray(),
-            Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult => (await connection.QueryAsync<DiagnosticLearningCardRow>(
+            Schema8CapabilityResult or Schema9CapabilityResult or Schema10CapabilityResult or Schema11CapabilityResult or Schema12CapabilityResult => connection.Query<DiagnosticLearningCardRow>(
                 """
                 SELECT Id, WordId, PreferredMeaningId AS MeaningId, Direction, State, DueAtUtc,
                        IntervalDays, EaseFactor, LastRating
                 FROM LearningCards
                 ORDER BY Id
-                """))
+                """)
+                .ToArray(),
+            Schema13CapabilityResult => Schema13LearningRepository.LoadAllCards(connection)
+                .Select(DiagnosticLearningCardRow.FromSchema13)
                 .ToArray(),
             _ => throw new InvalidOperationException("Unsupported schema capability result.")
         };
-        var learningReviews = await connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToListAsync();
-        var learningSessions = await connection.Table<LearningSessionEntity>().OrderBy(item => item.Id).ToListAsync();
-        var contextSnapshots = await connection.Table<ContextSnapshotEntity>().OrderBy(item => item.Id).ToListAsync();
+        var learningReviews = connection.Table<LearningReviewEntity>().OrderBy(item => item.Id).ToList();
+        var learningSessions = connection.Table<LearningSessionEntity>().OrderBy(item => item.Id).ToList();
+        var contextSnapshots = connection.Table<ContextSnapshotEntity>().OrderBy(item => item.Id).ToList();
         var documentsById = documents.ToDictionary(item => item.Id);
         var sentencesById = sentences.ToDictionary(item => item.Id);
         var wordsById = words.ToDictionary(item => item.Id);
@@ -589,9 +594,9 @@ public sealed class TextReviewService(
         public int MeaningId { get; set; }
         public CardDirection Direction { get; set; }
         public CardState State { get; set; }
-        public DateTime DueAtUtc { get; set; }
-        public int IntervalDays { get; set; }
-        public double EaseFactor { get; set; }
+        public DateTime? DueAtUtc { get; set; }
+        public int? IntervalDays { get; set; }
+        public double? EaseFactor { get; set; }
         public ReviewRating? LastRating { get; set; }
 
         public static DiagnosticLearningCardRow FromSchema7(LearningCardEntity card) => new()
@@ -605,6 +610,26 @@ public sealed class TextReviewService(
             IntervalDays = card.IntervalDays,
             EaseFactor = card.EaseFactor,
             LastRating = card.LastRating
+        };
+
+        public static DiagnosticLearningCardRow FromSchema13(Schema13LearningCardRow card) => new()
+        {
+            Id = card.Id,
+            WordId = card.WordId,
+            MeaningId = card.PreferredMeaningId,
+            Direction = card.Direction,
+            State = card.State switch
+            {
+                Fsrs6CardState.New => CardState.New,
+                Fsrs6CardState.Learning => CardState.Learning,
+                Fsrs6CardState.Review => CardState.Review,
+                Fsrs6CardState.Relearning => CardState.Relearning,
+                _ => throw new InvalidOperationException($"Unsupported FSRS card state {(int)card.State}.")
+            },
+            DueAtUtc = card.DueAtUtc?.UtcDateTime,
+            IntervalDays = null,
+            EaseFactor = null,
+            LastRating = null
         };
     }
 

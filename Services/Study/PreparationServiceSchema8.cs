@@ -3,6 +3,7 @@ using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Settings;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
@@ -87,7 +88,8 @@ public sealed partial class PreparationService
         int candidateId,
         PreparedMeaningInput input,
         CardDirectionPreference cardDirectionPreference,
-        ValidatedPreparationSchema8Capability capability)
+        ValidatedPreparationSchema8Capability capability,
+        bool createSchema13State)
     {
         ArgumentNullException.ThrowIfNull(capability);
 
@@ -237,7 +239,7 @@ public sealed partial class PreparationService
         Trip(PreparationSchema8Checkpoints.AfterContextLink);
 
         var newDirections = EnsureCardsForDirections(
-            connection, word.Id, senseId, meaningId, cardDirectionPreference, now);
+            connection, word.Id, senseId, meaningId, cardDirectionPreference, now, createSchema13State);
 
         Trip(PreparationSchema8Checkpoints.AfterCardInsert);
 
@@ -718,7 +720,8 @@ public sealed partial class PreparationService
         int senseId,
         int meaningId,
         CardDirectionPreference cardDirectionPreference,
-        DateTime now)
+        DateTime now,
+        bool createSchema13State)
     {
         var created = new List<CardDirection>();
         foreach (var direction in CardDirectionPreferencePolicy.GetDirections(cardDirectionPreference))
@@ -740,6 +743,11 @@ public sealed partial class PreparationService
                 """,
                 wordId, senseId, meaningId, (int)direction, (int)CardState.New, now,
                 SimpleSpacedRepetitionScheduler.DefaultEaseFactor, now, now);
+            if (createSchema13State)
+            {
+                var cardId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+                Schema13LearningRepository.InsertCleanNewState(connection, cardId);
+            }
             created.Add(direction);
         }
 

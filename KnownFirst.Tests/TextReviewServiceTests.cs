@@ -41,7 +41,7 @@ public sealed class TextReviewServiceTests
         var wordId = await fixture.InsertWordAsync("diagnostic");
         var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "diagnostic", translation: "Diagnose");
         var cardId = await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema8Async(fixture.Connection);
         var database = new ExistingFixtureDatabase(fixture);
         var service = new TextReviewService(
             database, new TextAnalyzer(), new DisabledEnhancedRecognitionSettings(), new ThrowingGermanLexicon());
@@ -1763,55 +1763,28 @@ public sealed class TextReviewServiceTests
             };
             await connection.InsertAsync(legacyOccurrence);
 
-            await DatabaseSchema.InitializeAsync(connection);
+            var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(connection);
 
-            var preservedDocument = await connection.FindAsync<DocumentEntity>(document.Id);
-            var preservedSetting = await connection.ExecuteScalarAsync<string>(
-                "SELECT SettingValue FROM AppSettings WHERE SettingKey = ?",
-                "theme_preference");
-            var version = await connection.ExecuteScalarAsync<int>("PRAGMA user_version");
-            var migratedMeaning = await connection.FindAsync<MeaningEntity>(legacyMeaning.Id);
-            var migratedSentence = await connection.FindAsync<SentenceSpanEntity>(legacySentence.Id);
-            var migratedOccurrence = await connection.FindAsync<WordOccurrenceEntity>(legacyOccurrence.Id);
+            var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
+                () => DatabaseSchema.InitializeAsync(connection));
 
-            Assert.AreEqual(documentContent, preservedDocument!.Content);
-            Assert.AreEqual(LexicalLookupMode.Definition, preservedDocument.LookupMode);
-            Assert.AreEqual("2", preservedSetting);
-            Assert.AreEqual(DatabaseSchema.CurrentVersion, version);
-            Assert.AreEqual("systems", migratedMeaning!.DisplayTerm);
-            Assert.AreEqual(TokenKind.Word, migratedMeaning.TokenKind);
-            Assert.AreEqual(string.Empty, migratedMeaning.EncounteredSurfaceForm);
-            Assert.AreEqual(string.Empty, migratedMeaning.GrammaticalRelationship);
-            Assert.IsNotNull(migratedSentence);
-            Assert.AreEqual(7, migratedSentence.Id);
-            Assert.AreEqual(document.Id, migratedSentence.DocumentId);
-            Assert.AreEqual(0, migratedSentence.StartPosition);
-            Assert.AreEqual(documentContent.Length, migratedSentence.Length);
-            Assert.AreEqual(0, migratedSentence.Order);
-
-            // Full coordinate evidence: identity, ownership, offsets and the exact text the offsets address.
-            Assert.IsNotNull(migratedOccurrence);
-            Assert.AreEqual(legacyOccurrence.Id, migratedOccurrence.Id);
-            Assert.AreEqual(42, migratedOccurrence.WordId);
-            Assert.AreEqual(document.Id, migratedOccurrence.DocumentId);
-            Assert.AreEqual(migratedSentence.DocumentId, migratedOccurrence.DocumentId);
-            Assert.AreEqual(migratedSentence.Id, migratedOccurrence.SentenceSpanId);
-            Assert.AreEqual(occurrenceStart, migratedOccurrence.StartPosition);
-            Assert.AreEqual(occurrenceLength, migratedOccurrence.Length);
-            Assert.AreEqual(surfaceForm, migratedOccurrence.SurfaceForm);
-            Assert.AreEqual(1, migratedOccurrence.Order);
-            Assert.AreEqual(TechnicalTokenFamily.None, migratedOccurrence.TechnicalFamily);
-
-            var occurrenceEnd = migratedOccurrence.StartPosition + migratedOccurrence.Length;
-            var sentenceEnd = migratedSentence.StartPosition + migratedSentence.Length;
-            Assert.IsTrue(migratedOccurrence.StartPosition >= 0);
-            Assert.IsTrue(occurrenceEnd <= preservedDocument.Content.Length);
-            Assert.IsTrue(migratedOccurrence.StartPosition >= migratedSentence.StartPosition);
-            Assert.IsTrue(occurrenceEnd <= sentenceEnd);
-            Assert.IsTrue(sentenceEnd <= preservedDocument.Content.Length);
             Assert.AreEqual(
-                migratedOccurrence.SurfaceForm,
-                preservedDocument.Content.Substring(migratedOccurrence.StartPosition, migratedOccurrence.Length));
+                DatabaseSchemaCompatibilityReason.UnknownNonEmptyUnversionedDatabase,
+                exception.Reason);
+            Assert.AreEqual(DatabaseSchemaCompatibilityException.StableErrorCode, exception.ErrorCode);
+            Assert.AreEqual(0, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            CollectionAssert.AreEqual(before, await PersistentDatabaseSnapshot.CaptureCompleteAsync(connection));
+            Assert.AreEqual(documentContent, await connection.ExecuteScalarAsync<string>(
+                "SELECT Content FROM Documents WHERE Id = ?", document.Id));
+            Assert.AreEqual("2", await connection.ExecuteScalarAsync<string>(
+                "SELECT SettingValue FROM AppSettings WHERE SettingKey = 'theme_preference'"));
+            Assert.AreEqual("systems", await connection.ExecuteScalarAsync<string>(
+                "SELECT DisplayTerm FROM Meanings WHERE Id = ?", legacyMeaning.Id));
+            Assert.AreEqual(surfaceForm, await connection.ExecuteScalarAsync<string>(
+                "SELECT SurfaceForm FROM WordOccurrences WHERE Id = ?", legacyOccurrence.Id));
+            Assert.AreEqual(0, await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'Senses'"));
+            Assert.IsTrue(File.Exists(path));
         }
         finally
         {

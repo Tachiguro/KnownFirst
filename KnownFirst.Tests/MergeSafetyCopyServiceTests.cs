@@ -125,11 +125,18 @@ public sealed class MergeSafetyCopyServiceTests
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private readonly string _testRoot;
+        private readonly bool _initializeCurrentSchema;
         private SQLite.SQLiteAsyncConnection? _connection;
         private bool _initialized;
 
         public IsolatedDatabase(params string[] extraSegments)
+            : this(initializeCurrentSchema: false, extraSegments)
         {
+        }
+
+        public IsolatedDatabase(bool initializeCurrentSchema, params string[] extraSegments)
+        {
+            _initializeCurrentSchema = initializeCurrentSchema;
             _testRoot = Path.Combine(Path.GetTempPath(), "kf-safety-copy-test", Guid.NewGuid().ToString("N"));
             var directory = extraSegments.Length == 0
                 ? _testRoot
@@ -148,7 +155,14 @@ public sealed class MergeSafetyCopyServiceTests
             }
 
             _connection ??= new SQLite.SQLiteAsyncConnection(DatabasePath);
-            await Schema7Fixture.InitializeEmptyAsync(_connection);
+            if (_initializeCurrentSchema)
+            {
+                await DatabaseSchema.InitializeAsync(_connection);
+            }
+            else
+            {
+                await Schema7Fixture.InitializeEmptyAsync(_connection);
+            }
             _initialized = true;
         }
 
@@ -1259,12 +1273,24 @@ public sealed class MergeSafetyCopyServiceTests
     [DoNotParallelize]
     public async Task CreateSafetyCopy_FromNormallyInitializedCurrentSchemaDatabase_ProducesValidV2Archive()
     {
-        await using var fixture = await Schema7Fixture.CreateAsync();
-        var wordId = await fixture.InsertWordAsync("safety-copy");
-        var meaningId = await fixture.InsertMeaningAsync(wordId, displayTerm: "safety-copy", translation: "Sicherungskopie");
-        await fixture.InsertCardAsync(wordId, meaningId, CardDirection.MeaningToTerm);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-        var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture);
+        await using var database = new IsolatedDatabase(initializeCurrentSchema: true);
+        await database.InitializeAsync();
+        await database.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new WordEntity
+            {
+                Language = "en",
+                CanonicalTerm = "safety-copy",
+                NormalizedTerm = "safety-copy",
+                Status = WordStatus.Unreviewed,
+                TokenKind = TokenKind.Word,
+                PreparationState = PreparationState.Unprepared,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            return true;
+        });
+        var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(database.DatabasePath);
         try
         {
             var service = CreateService(database, new FixedIdentityProvider(DateTime.UtcNow, "aabbcc"));
@@ -1276,13 +1302,19 @@ public sealed class MergeSafetyCopyServiceTests
 
             await using var readStream = new FileStream(result.ArchivePath!, FileMode.Open, FileAccess.Read);
             var versioned = await BackupArchiveReader.ValidateVersionedAsync(readStream, CancellationToken.None);
-            Assert.AreEqual(2, versioned.FormatVersion);
-            Assert.IsNotNull(versioned.V2);
-            Assert.AreEqual(DatabaseSchema.CurrentVersion, versioned.V2!.Manifest.SourceDatabaseSchemaVersion);
-            Assert.IsGreaterThan(0, versioned.V2.Payload.Senses.Count);
+            Assert.AreEqual(3, versioned.FormatVersion);
+            Assert.IsNotNull(versioned.V3);
+            Assert.AreEqual(13, versioned.V3!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(1, versioned.V3.Payload.Vocabulary.Count);
+            Assert.AreEqual("safety-copy", versioned.V3.Payload.Vocabulary[0].CanonicalTerm);
+            Assert.IsEmpty(versioned.V3.Payload.FsrsCardStates);
+            Assert.IsEmpty(versioned.V3.Payload.FsrsReviewHistoryEntries);
+            Assert.IsEmpty(versioned.V3.Payload.WordLearningControls);
+            Assert.IsEmpty(versioned.V3.Payload.SenseLearningControls);
 
-            Assert.AreEqual(2, result.ValidatedManifest!.FormatVersion);
-            Assert.IsNotNull(result.RecordCounts!.Senses);
+            Assert.AreEqual(3, result.ValidatedManifest!.FormatVersion);
+            Assert.AreEqual(1, result.RecordCounts!.VocabularyItems);
+            CollectionAssert.AreEqual(before, await PersistentDatabaseSnapshot.CaptureCompleteAsync(database.DatabasePath));
         }
         finally
         {

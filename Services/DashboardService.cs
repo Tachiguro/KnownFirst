@@ -21,7 +21,7 @@ public sealed class DashboardService(IKnownFirstDatabase database) : IDashboardS
             {
                 LearningSchema7CapabilityResult =>
                     CountWords(connection, WordStatus.Prepared) + CountWords(connection, WordStatus.Learning),
-                LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult or LearningSchema12CapabilityResult => connection.ExecuteScalar<int>(
+                LearningSchema8CapabilityResult or LearningSchema9CapabilityResult or LearningSchema10CapabilityResult or LearningSchema11CapabilityResult or LearningSchema12CapabilityResult or LearningSchema13CapabilityResult => connection.ExecuteScalar<int>(
                     """
                     SELECT COUNT(DISTINCT s.WordId)
                     FROM Senses s

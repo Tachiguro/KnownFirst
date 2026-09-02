@@ -3,6 +3,7 @@ using KnownFirst.Core.Language;
 using KnownFirst.Core.Text;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Application.Learning;
 using KnownFirst.Services;
 using KnownFirst.Services.Diagnostics;
 using KnownFirst.Services.Isolation;
@@ -127,7 +128,6 @@ public static class MauiProgram
 #else
         builder.Services.AddSingleton<IClock, SystemClock>();
 #endif
-        builder.Services.AddSingleton<ISpacedRepetitionScheduler, SimpleSpacedRepetitionScheduler>();
         builder.Services.AddSingleton<SpellingAnswerComparer>();
         builder.Services.AddSingleton<AcronymExpansionDetector>();
         builder.Services.AddSingleton<MeaningRanker>();
@@ -173,7 +173,7 @@ public static class MauiProgram
 #endif
         builder.Services.AddSingleton<IPreparationService, PreparationService>();
         builder.Services.AddSingleton<KnownFirst.Services.Time.ILearningTimezoneResolver, KnownFirst.Services.Time.LearningTimezoneResolver>();
-        builder.Services.AddSingleton<ILearningService, LearningService>();
+        builder.Services.AddKnownFirstLearningRuntime();
         builder.Services.AddSingleton<IWorkflowStateService, WorkflowStateService>();
         builder.Services.AddSingleton<IWorkflowChangeNotifier, WorkflowChangeNotifier>();
         builder.Services.AddSingleton<IStartupMaintenanceService, StartupMaintenanceService>();

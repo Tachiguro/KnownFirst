@@ -14,7 +14,7 @@ public sealed class Schema13PersistenceRepositoryTests
     private static async Task<Schema7Fixture> CreateValidSchema13DatabaseAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         await fixture.Connection.RunInTransactionAsync(conn =>
         {
             conn.Execute(Schema13Ddl.CreateFsrsCardStatesTable);
@@ -700,6 +700,35 @@ public sealed class Schema13PersistenceRepositoryTests
     }
 
     [TestMethod]
+    public async Task FsrsReviewHistoryRepository_LoadHistory_RejectsSequenceGapWithoutRenumbering()
+    {
+        await using var fixture = await CreateValidSchema13DatabaseAsync();
+
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            var (_, _, cardId) = SeedGraph(conn);
+            conn.Execute(
+                "INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc) VALUES ('gap-1', ?, 1, 2, '2026-08-29T10:00:00.0000000Z')",
+                cardId);
+            conn.Execute(
+                "INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc) VALUES ('gap-3', ?, 3, 2, '2026-08-29T10:05:00.0000000Z')",
+                cardId);
+
+            var exception = Assert.ThrowsExactly<InvalidOperationException>(
+                () => FsrsReviewHistoryRepository.LoadHistory(conn, cardId));
+
+            StringAssert.Contains(exception.Message, "expected SequenceNumber 2, found 3");
+            CollectionAssert.AreEqual(
+                new[] { 1, 3 },
+                conn.Query<SequenceRow>(
+                        "SELECT SequenceNumber FROM FsrsReviewHistoryEntries WHERE CardId = ? ORDER BY SequenceNumber",
+                        cardId)
+                    .Select(row => row.SequenceNumber)
+                    .ToArray());
+        });
+    }
+
+    [TestMethod]
     public async Task FsrsReviewHistoryRepository_CorruptOutOfOrderHistory_FailsClosed()
     {
         await using var fixture = await CreateValidSchema13DatabaseAsync();
@@ -787,7 +816,7 @@ public sealed class Schema13PersistenceRepositoryTests
     public async Task Schema13_Repositories_FailClosed_WhenInvokedAgainstActiveSchema12WithoutDormantTables()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         // Verify Schema 12 without dormant Schema 13 DDL
         await fixture.Connection.RunInTransactionAsync(conn =>
@@ -800,21 +829,26 @@ public sealed class Schema13PersistenceRepositoryTests
     }
 
     [TestMethod]
-    public async Task DatabaseSchema_CurrentVersion_Remains12_AndProductionInitializeUnchanged()
+    public async Task DatabaseSchema_CurrentVersion13_ProductionInitializeCreatesSchema13Repositories()
     {
-        Assert.AreEqual(12, DatabaseSchema.CurrentVersion);
+        Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
+        await using var database = new DatabaseSchema13ProductionCutoverTests.ProductionInitializedDatabase();
+        await database.InitializeAsync();
 
-        await using var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
-
-        var version = await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version");
-        Assert.AreEqual(12, version);
+        var version = await database.ReadAsync(connection =>
+            connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(13, version);
 
         foreach (var table in new[] { Schema13Ddl.FsrsCardStatesTableName, Schema13Ddl.FsrsReviewHistoryEntriesTableName, Schema13Ddl.WordLearningControlsTableName, Schema13Ddl.SenseLearningControlsTableName })
         {
-            var exists = await fixture.Connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table);
-            Assert.AreEqual(0, exists, $"Table {table} must not exist in a production Schema 12 database.");
+            var exists = await database.ReadAsync(connection => connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table));
+            Assert.AreEqual(1, exists, $"Table {table} must exist in a production Schema 13 database.");
         }
+    }
+
+    private sealed class SequenceRow
+    {
+        public int SequenceNumber { get; set; }
     }
 }

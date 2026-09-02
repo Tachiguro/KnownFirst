@@ -192,14 +192,25 @@ public sealed class Schema9RuntimeCompatibilityTests
     /// and that the mandatory pre-merge safety copy is created, reopened, and strictly validated before the
     /// writer mutates anything. The target is built through real production initialization, so it tracks
     /// <see cref="DatabaseSchema.CurrentVersion"/> rather than being pinned to a raw Schema-9 shape. The
-    /// archive carries deterministic archive-only data (a representative Schema-8 fixture's "bank"/"light"
-    /// words) that produces <see cref="MergePreflightStatus.Ready"/> /
+    /// archive carries one deterministic word-only Schema-8 source and no learning graph, producing
+    /// <see cref="MergePreflightStatus.Ready"/> /
     /// <see cref="PortableImportDisposition.MergeApplied"/>, never a no-change import.
     /// </summary>
     [TestMethod]
     public async Task BackupService_ImportPortableArchiveAsync_PopulatedCurrentSchemaTarget_RoutesThroughMergeAndCreatesSafetyCopy()
     {
-        await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
+        await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateEmptySchema8FixtureAsync();
+        await sourceFixture.Connection.InsertAsync(new WordEntity
+        {
+            Language = "en",
+            CanonicalTerm = "bank",
+            NormalizedTerm = "bank",
+            Status = WordStatus.Unreviewed,
+            TokenKind = TokenKind.Word,
+            PreparationState = PreparationState.Unprepared,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
         Schema8BackupSnapshot? sourceSnapshot = null;
         await sourceFixture.Connection.RunInTransactionAsync(
             connection => sourceSnapshot = Schema8BackupSnapshotRepository.CaptureSnapshot(connection));
@@ -214,6 +225,19 @@ public sealed class Schema9RuntimeCompatibilityTests
             archivePayload, new Schema8BackupFixtureBuilders.FakePlatformInfo(), sourceCapability, DateTime.UtcNow,
             archiveStream, CancellationToken.None);
         var archiveBytes = archiveStream.ToArray();
+        using (var validationStream = new MemoryStream(archiveBytes))
+        {
+            var validatedInput = await BackupArchiveReader.ValidateVersionedAsync(
+                validationStream, CancellationToken.None);
+            Assert.AreEqual(2, validatedInput.FormatVersion);
+            Assert.IsNotNull(validatedInput.V2);
+            Assert.AreEqual(8, validatedInput.V2!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.HasCount(1, validatedInput.V2.Payload.Vocabulary);
+            Assert.AreEqual("bank", validatedInput.V2.Payload.Vocabulary[0].CanonicalTerm);
+            Assert.IsEmpty(validatedInput.V2.Payload.Learning.Cards);
+            Assert.IsEmpty(validatedInput.V2.Payload.Learning.ReviewEvents);
+            Assert.IsEmpty(validatedInput.V2.Payload.Workflows.LearningSessions);
+        }
 
         // Populated current-schema target with deterministic target-only durable data, built through real
         // production initialization: DatabaseSchema.InitializeAsync activates a fresh database directly to
@@ -252,7 +276,7 @@ public sealed class Schema9RuntimeCompatibilityTests
         Assert.IsNotNull(result.Summary);
         Assert.AreEqual(PortableImportDisposition.MergeApplied, result.Summary.Disposition);
         Assert.IsTrue(result.Summary.SafetyCopyCreated, "The mandatory pre-merge safety copy must have been created.");
-        Assert.IsGreaterThan(0, result.Summary.InsertedCount);
+        Assert.AreEqual(1, result.Summary.InsertedCount);
 
         // Target-only data remains; archive-only data was inserted alongside it.
         Assert.AreEqual(1, await targetDb.ExecuteSnapshotAsync(connection =>
@@ -262,7 +286,7 @@ public sealed class Schema9RuntimeCompatibilityTests
 
         // The mandatory safety copy exists, reopens, and strictly validates as an explicit current-schema
         // envelope capturing the target's state BEFORE merge — exactly the one target-only word, never the
-        // archive's "bank"/"light" — proving it was captured before the writer mutated anything.
+        // archive's "bank" — proving it was captured before the writer mutated anything.
         var safetyCopyDirectory = Path.Combine(Path.GetDirectoryName(targetDb.DatabasePath)!, MergeSafetyCopyService.DirectoryName);
         var safetyCopyFiles = Directory.GetFiles(safetyCopyDirectory, "*.kfarchive");
         Assert.HasCount(1, safetyCopyFiles);
@@ -270,10 +294,15 @@ public sealed class Schema9RuntimeCompatibilityTests
         await using (var safetyCopyStream = new FileStream(safetyCopyFiles[0], FileMode.Open, FileAccess.Read))
         {
             var validatedSafetyCopy = await BackupArchiveReader.ValidateVersionedAsync(safetyCopyStream, CancellationToken.None);
-            Assert.IsNotNull(validatedSafetyCopy.V2);
-            Assert.AreEqual(DatabaseSchema.CurrentVersion, validatedSafetyCopy.V2!.Manifest.SourceDatabaseSchemaVersion);
-            Assert.AreEqual(1, validatedSafetyCopy.V2.Payload.Vocabulary.Count);
-            Assert.AreEqual("targetonlyword", validatedSafetyCopy.V2.Payload.Vocabulary[0].CanonicalTerm);
+            Assert.AreEqual(3, validatedSafetyCopy.FormatVersion);
+            Assert.IsNotNull(validatedSafetyCopy.V3);
+            Assert.AreEqual(13, validatedSafetyCopy.V3!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(1, validatedSafetyCopy.V3.Payload.Vocabulary.Count);
+            Assert.AreEqual("targetonlyword", validatedSafetyCopy.V3.Payload.Vocabulary[0].CanonicalTerm);
+            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.FsrsCardStates);
+            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.FsrsReviewHistoryEntries);
+            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.WordLearningControls);
+            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.SenseLearningControls);
         }
 
         // The final target database remains structurally sound after the merge writer's transaction commits.
@@ -351,10 +380,15 @@ public sealed class Schema9RuntimeCompatibilityTests
         await using (var readStream = new FileStream(result.ArchivePath!, FileMode.Open, FileAccess.Read))
         {
             var validated = await BackupArchiveReader.ValidateVersionedAsync(readStream, CancellationToken.None);
-            Assert.IsNotNull(validated.V2);
-            Assert.AreEqual(DatabaseSchema.CurrentVersion, validated.V2!.Manifest.SourceDatabaseSchemaVersion);
-            Assert.AreEqual(1, validated.V2.Payload.SourceMaterials.Count);
-            Assert.AreEqual(1, validated.V2.Payload.Vocabulary.Count);
+            Assert.AreEqual(3, validated.FormatVersion);
+            Assert.IsNotNull(validated.V3);
+            Assert.AreEqual(13, validated.V3!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(1, validated.V3.Payload.SourceMaterials.Count);
+            Assert.AreEqual(1, validated.V3.Payload.Vocabulary.Count);
+            Assert.IsEmpty(validated.V3.Payload.FsrsCardStates);
+            Assert.IsEmpty(validated.V3.Payload.FsrsReviewHistoryEntries);
+            Assert.IsEmpty(validated.V3.Payload.WordLearningControls);
+            Assert.IsEmpty(validated.V3.Payload.SenseLearningControls);
         }
 
         Assert.IsNotNull(result.ValidatedManifest);

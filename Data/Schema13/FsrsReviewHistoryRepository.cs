@@ -105,6 +105,11 @@ public sealed class FsrsReviewHistoryRepository
             {
                 throw new InvalidOperationException($"Corrupt history entry Id {row.Id}: non-positive SequenceNumber {row.SequenceNumber}.");
             }
+            if (row.SequenceNumber != expectedSeq)
+            {
+                throw new InvalidOperationException(
+                    $"Corrupt history for CardId {cardId}: expected SequenceNumber {expectedSeq}, found {row.SequenceNumber} at history entry Id {row.Id}.");
+            }
             if (!Enum.IsDefined(row.Rating))
             {
                 throw new InvalidOperationException($"Corrupt history entry Id {row.Id}: invalid Rating {(int)row.Rating}.");

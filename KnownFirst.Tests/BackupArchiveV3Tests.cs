@@ -11,6 +11,8 @@ namespace KnownFirst.Tests;
 [TestClass]
 public sealed class BackupArchiveV3Tests
 {
+    private const string CausalOrderFeature = "learning-review-causal-order-v1";
+
     [TestMethod]
     public async Task ValidateVersionedAsync_ValidFormat3Archive_IsAccepted()
     {
@@ -79,6 +81,41 @@ public sealed class BackupArchiveV3Tests
         Assert.AreEqual(2, envelope.V3.Payload.FsrsReviewHistoryEntries.Count);
         Assert.AreEqual(envelope.V3.Payload.FsrsReviewHistoryEntries[0].ReviewedAtUtc, envelope.V3.Payload.FsrsReviewHistoryEntries[1].ReviewedAtUtc);
         Assert.AreNotEqual(envelope.V3.Payload.FsrsReviewHistoryEntries[0].StableId, envelope.V3.Payload.FsrsReviewHistoryEntries[1].StableId);
+    }
+
+    [TestMethod]
+    public async Task ValidateVersionedAsync_FeatureMarkedV3_WithEqualTimestampInteractionReviews_IsAccepted()
+    {
+        using var stream = BuildArchiveV3(
+            payloadMutator: AddEqualTimestampInteractionReviews,
+            requiredFeatures: [CausalOrderFeature]);
+
+        var envelope = await BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None);
+
+        CollectionAssert.AreEqual(new[] { CausalOrderFeature }, envelope.V3!.Manifest.RequiredFeatures.ToArray());
+        Assert.HasCount(4, envelope.V3.Payload.Learning.ReviewEvents);
+    }
+
+    [TestMethod]
+    public async Task ValidateVersionedAsync_UnmarkedV3_WithEqualTimestampInteractionReviews_FailsClosed()
+    {
+        using var stream = BuildArchiveV3(payloadMutator: AddEqualTimestampInteractionReviews);
+
+        var exception = await Assert.ThrowsExactlyAsync<BackupFormatException>(
+            () => BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None));
+
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+    }
+
+    [TestMethod]
+    public async Task ValidateVersionedAsync_V3WithUnknownRequiredFeature_RemainsRejected()
+    {
+        using var stream = BuildArchiveV3(requiredFeatures: ["unknown-required-v3-feature"]);
+
+        var exception = await Assert.ThrowsExactlyAsync<BackupFormatException>(
+            () => BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None));
+
+        Assert.AreEqual(BackupErrorCodes.UnsupportedRequiredFeature, exception.Code);
     }
 
     [TestMethod]
@@ -434,7 +471,8 @@ public sealed class BackupArchiveV3Tests
     private static MemoryStream BuildArchiveV3(
         Func<BackupPayloadV3, BackupPayloadV3>? payloadMutator = null,
         Func<string, string>? dataMutator = null,
-        Func<string, string>? manifestMutator = null)
+        Func<string, string>? manifestMutator = null,
+        IReadOnlyList<string>? requiredFeatures = null)
     {
         var payload = CreateValidPayloadV3();
         if (payloadMutator is not null)
@@ -492,7 +530,7 @@ public sealed class BackupArchiveV3Tests
             RecordCounts: counts,
             DataChecksum: checksum,
             OptionalFeatures: [],
-            RequiredFeatures: []);
+            RequiredFeatures: requiredFeatures ?? []);
 
         byte[] manifestBytes;
         if (manifestMutator is not null)
@@ -524,5 +562,52 @@ public sealed class BackupArchiveV3Tests
 
         output.Position = 0;
         return output;
+    }
+
+    private static BackupPayloadV3 AddEqualTimestampInteractionReviews(BackupPayloadV3 payload)
+    {
+        var reviewedAtUtc = new DateTime(2026, 8, 29, 10, 0, 0, DateTimeKind.Utc);
+        var reviews = new[]
+        {
+            new BackupLearningReviewV2("card_1", "learning_1", BackupReviewRating.Good, false, true, reviewedAtUtc, reviewedAtUtc.AddDays(1), 1, 2.5, "ans_1", null),
+            new BackupLearningReviewV2("card_1", "learning_1", BackupReviewRating.Good, false, true, reviewedAtUtc, reviewedAtUtc.AddDays(1), 1, 2.5, "ans_1", null),
+            new BackupLearningReviewV2("card_1", "learning_1", BackupReviewRating.Again, true, false, reviewedAtUtc, reviewedAtUtc.AddMinutes(10), 0, 2.5, "ans_1", null),
+            new BackupLearningReviewV2("card_1", "learning_1", BackupReviewRating.Again, true, false, reviewedAtUtc, reviewedAtUtc.AddMinutes(10), 0, 2.5, "ans_1", null)
+        };
+        var queue = reviews.Select((review, index) => new BackupLearningQueueItemV2(
+            $"queue_{index + 1}",
+            "card_1",
+            index,
+            true,
+            index >= 2,
+            true,
+            review.WasTypedAnswer,
+            review.WasCorrect,
+            true,
+            review.Rating,
+            reviewedAtUtc,
+            "ans_1",
+            $"0123456789abcdef0123456789abcd{index + 1:D2}"))
+            .ToList();
+        var workflow = new BackupLearningWorkflowV2(
+            "learning_1",
+            BackupLearningSessionStatus.Completed,
+            4,
+            4,
+            2,
+            0,
+            2,
+            0,
+            reviewedAtUtc.AddMinutes(-10),
+            reviewedAtUtc,
+            reviewedAtUtc,
+            queue,
+            "0123456789abcdef0123456789abcdec");
+
+        return payload with
+        {
+            Learning = payload.Learning with { ReviewEvents = reviews },
+            Workflows = payload.Workflows with { LearningSessions = [workflow] }
+        };
     }
 }

@@ -1,9 +1,77 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Migrations.Schema9;
+using KnownFirst.Data.Migrations.Schema10;
+using KnownFirst.Data.Migrations.Schema11;
+using KnownFirst.Data.Migrations.Schema12;
+using KnownFirst.Data.Migrations.Schema13;
 using SQLite;
 
 namespace KnownFirst.Tests;
+
+/// <summary>
+/// Explicit test-only construction of historical database fixtures. Production initialization must never
+/// call this ladder; tests that characterize old schemas opt into it at the exact fixture boundary.
+/// </summary>
+internal static class HistoricalMigrationFixture
+{
+    public static Task UpgradeToSchema8Async(SQLiteAsyncConnection connection) =>
+        Schema8DormantMigration.ApplyAsync(connection);
+
+    public static async Task UpgradeToSchema9Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema8DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema8Async(connection);
+        }
+
+        await Schema9DormantMigration.ApplyAsync(connection);
+    }
+
+    public static async Task UpgradeToSchema10Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema9DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema9Async(connection);
+        }
+
+        await Schema10DormantMigration.ApplyAsync(connection);
+    }
+
+    public static async Task UpgradeToSchema11Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema10DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema10Async(connection);
+        }
+
+        await Schema11DormantMigration.ApplyAsync(connection);
+    }
+
+    public static async Task UpgradeToSchema12Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema11DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema11Async(connection);
+        }
+
+        await Schema12DormantMigration.ApplyAsync(connection);
+    }
+
+    public static async Task UpgradeToSchema13Async(SQLiteAsyncConnection connection)
+    {
+        if (await ReadVersionAsync(connection) < Schema12DormantMigration.TargetVersion)
+        {
+            await UpgradeToSchema12Async(connection);
+        }
+
+        await Schema13DormantMigration.ApplyAsync(connection);
+    }
+
+    private static Task<int> ReadVersionAsync(SQLiteAsyncConnection connection) =>
+        connection.ExecuteScalarAsync<int>("PRAGMA user_version");
+}
 
 internal sealed class FakeClock(DateTime utcNow) : IClock
 {
@@ -232,9 +300,8 @@ internal sealed class TemporarySchema8Database : IKnownFirstDatabase, IAsyncDisp
     }
 
     /// <summary>
-    /// Test-only opt-in transition from this fixture's frozen Schema-8 baseline to the real current
-    /// schema, via the same <see cref="DatabaseSchema.InitializeAsync"/> path production uses. Call this
-    /// only at the exact point a test begins exercising current-schema behavior (e.g.
+    /// Test-only opt-in transition from this fixture's frozen Schema-8 baseline to historical Schema 12.
+    /// Call this only at the exact point a legacy test begins exercising Schema-12 behavior (e.g.
     /// <c>TextReviewService</c>'s <c>DerivedTermEvidenceEntries</c>-dependent methods) — never implicitly
     /// from <see cref="InitializeAsync"/> itself, so tests that intentionally characterize the frozen
     /// Schema-8 shape, capability resolution, or lazy-upgrade behavior remain unaffected unless they opt
@@ -242,10 +309,13 @@ internal sealed class TemporarySchema8Database : IKnownFirstDatabase, IAsyncDisp
     /// hide the resulting <c>PRAGMA user_version</c>: callers can read it back through <see cref="ReadAsync{T}"/>
     /// exactly as with any other operation.
     /// </summary>
-    public async Task UpgradeToCurrentSchemaAsync()
+    public async Task UpgradeToHistoricalSchema12Async()
     {
         await InitializeAsync();
-        await DatabaseSchema.InitializeAsync(_connection!);
+        await Schema9DormantMigration.ApplyAsync(_connection!);
+        await Schema10DormantMigration.ApplyAsync(_connection!);
+        await Schema11DormantMigration.ApplyAsync(_connection!);
+        await Schema12DormantMigration.ApplyAsync(_connection!);
     }
 
     public async Task<T> ReadAsync<T>(Func<SQLiteAsyncConnection, Task<T>> operation)

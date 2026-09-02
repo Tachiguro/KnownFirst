@@ -1,3 +1,4 @@
+using KnownFirst.Application.Learning;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Settings;
@@ -5,6 +6,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema8;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Services;
 using KnownFirst.Services.Time;
@@ -16,7 +18,8 @@ namespace KnownFirst.Services.Study;
 public sealed class LearningService : ILearningService
 {
     private readonly IKnownFirstDatabase database;
-    private readonly ISpacedRepetitionScheduler scheduler;
+    private readonly ISpacedRepetitionScheduler? scheduler;
+    private readonly IFsrs6SchedulingService fsrs6SchedulingService;
     private readonly SpellingAnswerComparer spellingComparer;
     private readonly IClock clock;
     private readonly IAppSettingsService? appSettings;
@@ -37,7 +40,7 @@ public sealed class LearningService : ILearningService
         ISpacedRepetitionScheduler scheduler,
         SpellingAnswerComparer spellingComparer,
         IClock clock)
-        : this(database, scheduler, spellingComparer, clock, null, null, null)
+        : this(database, scheduler, spellingComparer, clock, null, null, null, null)
     {
     }
 
@@ -48,10 +51,12 @@ public sealed class LearningService : ILearningService
         IClock clock,
         IAppSettingsService? appSettings,
         ISchema8LearningFailureInjector? schema8FailureInjector = null,
-        ILearningTimezoneResolver? timezoneResolver = null)
+        ILearningTimezoneResolver? timezoneResolver = null,
+        IFsrs6SchedulingService? fsrs6SchedulingService = null)
     {
         this.database = database;
         this.scheduler = scheduler;
+        this.fsrs6SchedulingService = fsrs6SchedulingService ?? new Fsrs6SchedulingService(clock);
         this.spellingComparer = spellingComparer;
         this.clock = clock;
         this.appSettings = appSettings;
@@ -59,12 +64,39 @@ public sealed class LearningService : ILearningService
         _timezoneResolver = timezoneResolver ?? new LearningTimezoneResolver();
     }
 
+    public LearningService(
+        IKnownFirstDatabase database,
+        SpellingAnswerComparer spellingComparer,
+        IClock clock,
+        IFsrs6SchedulingService fsrs6SchedulingService,
+        IAppSettingsService? appSettings = null,
+        ISchema8LearningFailureInjector? schema8FailureInjector = null,
+        ILearningTimezoneResolver? timezoneResolver = null)
+    {
+        this.database = database;
+        scheduler = null;
+        this.fsrs6SchedulingService = fsrs6SchedulingService;
+        this.spellingComparer = spellingComparer;
+        this.clock = clock;
+        this.appSettings = appSettings;
+        this.schema8FailureInjector = schema8FailureInjector;
+        _timezoneResolver = timezoneResolver ?? new LearningTimezoneResolver();
+    }
+
+    private ISpacedRepetitionScheduler LegacyScheduler => scheduler
+        ?? throw new InvalidOperationException(
+            "Legacy Schema 7-12 scheduling requires an explicitly supplied legacy scheduler.");
+
     private static bool IsSchema8OrNewer(LearningSchemaCapabilityResult capability) =>
         capability is LearningSchema8CapabilityResult
             or LearningSchema9CapabilityResult
             or LearningSchema10CapabilityResult
             or LearningSchema11CapabilityResult
-            or LearningSchema12CapabilityResult;
+            or LearningSchema12CapabilityResult
+            or LearningSchema13CapabilityResult;
+
+    private static bool IsSchema13(LearningSchemaCapabilityResult capability) =>
+        capability is LearningSchema13CapabilityResult;
 
     public async Task<LearningLoadResult> GetOrStartAsync()
     {
@@ -98,7 +130,7 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is not LearningSchema12CapabilityResult)
+                if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult))
                 {
                     return new LearningPreparationReadiness(false, null, 0, 0);
                 }
@@ -156,10 +188,18 @@ public sealed class LearningService : ILearningService
             // One transaction for both schemas. The Schema-8 pending-match handoff is stored only after the
             // transaction has committed successfully.
             var outcome = await database.RunInTransactionAsync(connection =>
-                IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection))
+            {
+                var capability = LearningSchemaCapability.Resolve(connection);
+                if (IsSchema13(capability))
+                {
+                    return CheckSpellingSchema13(connection, queueItemId, enteredAnswer);
+                }
+
+                return IsSchema8OrNewer(capability)
                     ? CheckSpellingSchema8(connection, queueItemId, enteredAnswer)
                     : new Schema8SpellingOutcome(
-                        CheckSpellingSchema7(connection, queueItemId, enteredAnswer), null, IsSchema8: false));
+                        CheckSpellingSchema7(connection, queueItemId, enteredAnswer), null, IsSchema8: false);
+            });
 
             if (outcome.IsSchema8)
             {
@@ -258,7 +298,14 @@ public sealed class LearningService : ILearningService
         {
             var schema8Outcome = await database.RunInTransactionAsync<Schema8RatingOutcome?>(connection =>
             {
-                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
+                var capability = LearningSchemaCapability.Resolve(connection);
+                if (IsSchema13(capability))
+                {
+                    return PersistRatingSchema13(
+                        connection, queueItemId, rating, fromIncorrectSpellingCheck: false);
+                }
+
+                if (IsSchema8OrNewer(capability))
                 {
                     return PersistRatingSchema8(
                         connection, queueItemId, rating, fromIncorrectSpellingCheck: false);
@@ -335,7 +382,13 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
-                if (IsSchema8OrNewer(LearningSchemaCapability.Resolve(connection)))
+                var capability = LearningSchemaCapability.Resolve(connection);
+                if (IsSchema13(capability))
+                {
+                    return MarkPermanentlyKnownSchema13(connection, wordId);
+                }
+
+                if (IsSchema8OrNewer(capability))
                 {
                     return MarkPermanentlyKnownSchema8(connection, wordId);
                 }
@@ -664,7 +717,7 @@ public sealed class LearningService : ILearningService
             && wasTypedAnswer
             && wasCorrect
             && AutomaticLearningPolicy.HasTypingMastery(automaticState);
-        var next = scheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
+        var next = LegacyScheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
         if (isMasteryReview
             && rating != ReviewRating.Again
             && !masteryAchieved
@@ -1053,7 +1106,7 @@ public sealed class LearningService : ILearningService
                 $"Session {session.Id} is {session.Status}, not Active.");
         }
 
-        var card = Schema8LearningRepository.LoadCard(connection, queue.CardId)
+        var card = LoadSchedulingCard(connection, queue.CardId)
             ?? throw Reject(Schema8LearningDataErrorCode.CardNotFound,
                 $"Queue row {queueItemId} references missing card {queue.CardId}.");
         ValidateSchema8CardState(card);
@@ -1190,7 +1243,20 @@ public sealed class LearningService : ILearningService
     /// <summary>Schema-8 reveal: validate the Required target and Reading mode before one queue-column write.</summary>
     private void RevealAnswerSchema8(SQLiteConnection connection, int queueItemId)
     {
-        var (graph, _, interaction, _) = LoadSchema8RatingState(connection, queueItemId);
+        Schema8Graph graph;
+        LearningInteractionMode interaction;
+        if (IsSchema13(LearningSchemaCapability.Resolve(connection)))
+        {
+            var schema13State = LoadSchema13RatingState(connection, queueItemId);
+            graph = schema13State.Graph;
+            interaction = schema13State.Interaction;
+        }
+        else
+        {
+            var schema8State = LoadSchema8RatingState(connection, queueItemId);
+            graph = schema8State.Graph;
+            interaction = schema8State.Interaction;
+        }
         if (graph.Queue.IsCompleted)
         {
             throw Reject(Schema8LearningDataErrorCode.DuplicateSubmission,
@@ -1244,6 +1310,33 @@ public sealed class LearningService : ILearningService
         return (graph, priorReplay, interaction, persistedProgress);
     }
 
+    /// <summary>
+    /// Loads Schema-13 rating state from physical factual interaction rows only. Compatibility schedule
+    /// columns never participate in projection, interaction-mode selection, reveal gates, or rating gates.
+    /// </summary>
+    private (Schema8Graph Graph, Schema13InteractionProjection PriorProjection,
+        LearningInteractionMode Interaction, IReadOnlyList<AnswerVariantProgressRow> PersistedProgress)
+        LoadSchema13RatingState(SQLiteConnection connection, int queueItemId)
+    {
+        var graph = LoadSchema8Graph(connection, queueItemId);
+        if (!graph.TargetAssignment.IsRequired)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidTarget,
+                $"Target variant {graph.TargetAnswerVariantId} is currently AcceptedOnly and cannot be rated.");
+        }
+
+        var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, graph.Card.Id);
+        var persistedProgress = Schema8LearningRepository.LoadProgressForCard(connection, graph.Card.Id);
+        var priorProjection = Schema13LearningReviewPolicy.Project(
+            graph.Card.Id, graph.Assignments, reviews, persistedProgress);
+        var targetOutcome = priorProjection.FindOutcome(graph.TargetAnswerVariantId)
+            ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                $"No projected outcome exists for Required target variant {graph.TargetAnswerVariantId}.");
+        var interaction = Schema13LearningReviewPolicy.ResolveInteraction(
+            appSettings?.LearningMode, targetOutcome);
+        return (graph, priorProjection, interaction, persistedProgress);
+    }
+
     /// <summary>Schema-8 typed-answer check. The incorrect branch persists the Again rating in this same transaction.</summary>
     private Schema8SpellingOutcome CheckSpellingSchema8(
         SQLiteConnection connection, int queueItemId, string enteredAnswer)
@@ -1289,6 +1382,182 @@ public sealed class LearningService : ILearningService
             false, match.EnteredAnswer, match.ExpectedAnswer, match.Difference, null,
             RatingWasPersisted: true, MatchedAnswerVariantId: null);
         return new Schema8SpellingOutcome(failed, null, IsSchema8: true);
+    }
+
+    /// <summary>
+    /// Schema-13 typed-answer check. Correct spelling creates only the pending attribution handoff; incorrect
+    /// spelling delegates the one factual Again event and its one tail repeat to the established rating path.
+    /// </summary>
+    private Schema8SpellingOutcome CheckSpellingSchema13(
+        SQLiteConnection connection, int queueItemId, string enteredAnswer)
+    {
+        var (graph, _, interaction, _) = LoadSchema13RatingState(connection, queueItemId);
+        if (graph.Queue.IsCompleted)
+        {
+            throw Reject(Schema8LearningDataErrorCode.DuplicateSubmission,
+                $"Queue row {queueItemId} was already submitted.");
+        }
+
+        if (graph.Card.Direction != CardDirection.MeaningToTerm)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidQueueState,
+                "Only MeaningToTerm cards accept a typed answer.");
+        }
+
+        if (interaction != LearningInteractionMode.Typing)
+        {
+            throw Reject(Schema8LearningDataErrorCode.InvalidQueueState,
+                "Only typing-mode cards accept a typed answer.");
+        }
+
+        var match = Schema8AnswerMatchPolicy.Resolve(
+            spellingComparer, enteredAnswer, graph.TargetAnswerVariantId, graph.Assignments,
+            graph.Word.TokenKind, graph.Word.Language);
+
+        if (match.IsCorrect)
+        {
+            Schema8LearningRepository.SetQueueSpellingResult(connection, queueItemId, spellingCorrect: true);
+            var result = new SpellingSubmissionResult(
+                true, match.EnteredAnswer, match.ExpectedAnswer, string.Empty, null,
+                RatingWasPersisted: false, match.MatchedAnswerVariantId);
+            return new Schema8SpellingOutcome(
+                result,
+                new Schema8PendingMatch(queueItemId, enteredAnswer ?? string.Empty, match.MatchedAnswerVariantId!.Value),
+                IsSchema8: true);
+        }
+
+        Schema8LearningRepository.SetQueueSpellingResult(connection, queueItemId, spellingCorrect: false);
+        PersistRatingSchema13(connection, queueItemId, ReviewRating.Again, fromIncorrectSpellingCheck: true);
+        var failed = new SpellingSubmissionResult(
+            false, match.EnteredAnswer, match.ExpectedAnswer, match.Difference, null,
+            RatingWasPersisted: true, MatchedAnswerVariantId: null);
+        return new Schema8SpellingOutcome(failed, null, IsSchema8: true);
+    }
+
+    /// <summary>
+    /// The complete factual Schema-13 rating transaction. The queue-row StableId is the event identity;
+    /// FSRS history is appended before its resulting state; legacy schedule columns remain untouched.
+    /// Every Again appends one fresh attempt for the same queue assignment at the session tail.
+    /// </summary>
+    private Schema8RatingOutcome PersistRatingSchema13(
+        SQLiteConnection connection, int queueItemId, ReviewRating rating, bool fromIncorrectSpellingCheck)
+    {
+        var attempt = Schema8LearningRepository.LoadQueueRow(connection, queueItemId)
+            ?? throw Reject(
+                Schema8LearningDataErrorCode.QueueItemNotFound,
+                $"Queue row {queueItemId} does not exist.");
+        if (attempt.IsCompleted)
+        {
+            throw Reject(
+                Schema8LearningDataErrorCode.DuplicateSubmission,
+                $"Queue row {queueItemId} was already submitted.");
+        }
+        if (string.IsNullOrWhiteSpace(attempt.StableId))
+        {
+            throw Reject(
+                Schema8LearningDataErrorCode.InvalidQueueState,
+                $"Schema-13 queue row {queueItemId} has no immutable StableId.");
+        }
+
+        var (graph, _, interaction, persistedProgress) =
+            LoadSchema13RatingState(connection, queueItemId);
+        var (wasTypedAnswer, wasCorrect, matchedVariantId) =
+            EnforceSchema8Gates(connection, graph, interaction, rating, fromIncorrectSpellingCheck);
+
+        var authoritativeState = FsrsCardStateRepository.Load(connection, graph.Card.Id)
+            ?? throw Reject(
+                Schema8LearningDataErrorCode.InvalidCardGraph,
+                $"Schema-13 card {graph.Card.Id} has no authoritative FsrsCardStates row.");
+        var currentProjection = Fsrs6ScheduleProjection.FromCard(authoritativeState);
+        var reviewedAtUtc = Schema8Utc.Normalize(clock.UtcNow);
+        var reviewedAtOffset = new DateTimeOffset(reviewedAtUtc, TimeSpan.Zero);
+
+        // One calculation only. This explicit timestamp overload must not consult another clock.
+        var scheduledProjection = fsrs6SchedulingService.Schedule(
+            currentProjection, rating, reviewedAtOffset);
+        var reviewEvent = new KnownFirst.Core.Learning.Fsrs6.Fsrs6ReviewEvent(
+            reviewedAtOffset, rating);
+        FsrsReviewPersistenceCoordinator.PersistReview(
+            connection,
+            graph.Card.Id,
+            attempt.StableId,
+            reviewEvent,
+            scheduledProjection.ToCard());
+
+        // LearningReviews remains an interaction/answer-attribution compatibility fact. Its schedule-shaped
+        // fields contain only the real pre-review legacy snapshot and are never read as Schema-13 authority.
+        var legacyCard = Schema8LearningRepository.LoadCard(connection, graph.Card.Id)
+            ?? throw Reject(
+                Schema8LearningDataErrorCode.CardNotFound,
+                $"Learning card {graph.Card.Id} vanished during the Schema-13 rating transaction.");
+        var truthfulLegacySnapshot = new CardSchedule(
+            legacyCard.State,
+            Schema8Utc.Normalize(legacyCard.DueAtUtc),
+            legacyCard.IntervalDays,
+            legacyCard.EaseFactor,
+            legacyCard.SuccessfulReviewCount,
+            legacyCard.LapseCount,
+            Schema8Utc.Normalize(legacyCard.LastReviewedAtUtc),
+            legacyCard.LastRating);
+        var reviewId = Schema8LearningRepository.InsertSchema13CompatibilityReview(
+            connection,
+            graph.Card.Id,
+            graph.Session.Id,
+            rating,
+            wasTypedAnswer,
+            wasCorrect,
+            reviewedAtUtc,
+            truthfulLegacySnapshot);
+        Schema8LearningRepository.UpdateReviewAttribution(
+            connection, reviewId, graph.TargetAnswerVariantId, matchedVariantId);
+
+        // Re-read the complete physical interaction history after inserting the current compatibility fact,
+        // then replace every current Required projection in this same caller-owned factual transaction.
+        var completeReviews = Schema8LearningRepository.LoadReviewsForCard(connection, graph.Card.Id);
+        var completeProjection = Schema13LearningReviewPolicy.Project(
+            graph.Card.Id, graph.Assignments, completeReviews, persistedProgress);
+        var progressPlan = Schema13LearningReviewPolicy.PlanProgressReplacement(
+            graph.Assignments, persistedProgress, completeProjection);
+        Schema13LearningReviewPolicy.ApplyProgressPlan(connection, graph.Card.Id, progressPlan);
+
+        Schema8LearningRepository.CompleteQueueRow(connection, queueItemId, rating, reviewedAtUtc);
+        var session = Schema8LearningRepository.LoadSession(connection, graph.Session.Id)
+            ?? throw Reject(
+                Schema8LearningDataErrorCode.SessionMissingForRatedQueueItem,
+                $"Session {graph.Session.Id} vanished during the Schema-13 rating transaction.");
+        session.CompletedCards++;
+        session.UpdatedAtUtc = reviewedAtUtc;
+        switch (rating)
+        {
+            case ReviewRating.Again: session.AgainCount++; break;
+            case ReviewRating.Hard: session.HardCount++; break;
+            case ReviewRating.Good: session.GoodCount++; break;
+            case ReviewRating.Easy: session.EasyCount++; break;
+            default: throw new ArgumentOutOfRangeException(nameof(rating));
+        }
+
+        if (rating == ReviewRating.Again)
+        {
+            var nextOrder = Schema8LearningRepository.MaxQueueOrder(connection, session.Id) + 1;
+            Schema8LearningRepository.InsertAgainRepeatQueueRow(connection, queueItemId, nextOrder);
+            session.TotalCards++;
+        }
+
+        if (session.Status == LearningSessionStatus.Active
+            && Schema8LearningRepository.CountIncompleteQueueRows(connection, session.Id) == 0)
+        {
+            session.Status = LearningSessionStatus.Completed;
+            session.CompletedAtUtc ??= reviewedAtUtc;
+        }
+        Schema8LearningRepository.UpdateSessionCounters(connection, session);
+
+        var dayState = EnsureDayStateSchema12(connection, reviewedAtUtc);
+        var limitN = appSettings is not null
+            ? PreparationLimitPolicy.Normalize(appSettings.PreparationLimit)
+            : PreparationLimitPolicy.DefaultLimit;
+        return new Schema8RatingOutcome(
+            session.Id,
+            BuildSchema8ResultForSession(connection, session.Id, dayState, limitN, reviewedAtUtc));
     }
 
     /// <summary>
@@ -1348,7 +1617,7 @@ public sealed class LearningService : ILearningService
             && creditedOutcome?.State.MasteryReviewExtensionScheduled != true;
 
         // 16-17: final scheduler result plus the 365-day extension when the policy demands it.
-        var next = scheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
+        var next = LegacyScheduler.Schedule(currentSchedule, rating, reviewedAtUtc);
         if (extensionScheduled)
         {
             next = next with
@@ -1703,9 +1972,96 @@ public sealed class LearningService : ILearningService
         return true;
     }
 
+    /// <summary>
+    /// Records the reversible clean Word-level decision without rewriting factual reviews, FSRS state, legacy
+    /// compatibility facts, interaction progress, or the semantic graph. Only incomplete active-session queue
+    /// attempts for the controlled Word are removed and their owning sessions are normalized atomically.
+    /// </summary>
+    private bool MarkPermanentlyKnownSchema13(SQLiteConnection connection, int wordId)
+    {
+        if (connection.Find<WordEntity>(wordId) is null)
+        {
+            return false;
+        }
+
+        var current = WordLearningControlRepository.Load(connection, wordId);
+        var next = current.IsAlreadyKnown
+            ? current
+            : current.MarkAlreadyKnown(clock.UtcNow);
+
+        var affectedSessionIds = connection.Query<LearningSessionIdRow>(
+                """
+                SELECT DISTINCT q.SessionId AS Id
+                FROM LearningSessionCards q
+                JOIN LearningCards c ON c.Id = q.CardId
+                WHERE c.WordId = ? AND q.IsCompleted = 0
+                ORDER BY q.SessionId
+                """,
+                wordId)
+            .Select(row => row.Id)
+            .ToHashSet();
+
+        WordLearningControlRepository.Save(connection, wordId, next);
+        connection.Execute(
+            """
+            DELETE FROM LearningSessionCards
+            WHERE IsCompleted = 0
+              AND CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)
+            """,
+            wordId);
+        NormalizeSchema13LearningSessions(connection, affectedSessionIds, next.AlreadyKnown!.DecidedAtUtc);
+        return true;
+    }
+
+    private static void NormalizeSchema13LearningSessions(
+        SQLiteConnection connection,
+        IReadOnlySet<int> sessionIds,
+        DateTime nowUtc)
+    {
+        foreach (var sessionId in sessionIds)
+        {
+            var session = connection.Find<LearningSessionEntity>(sessionId);
+            if (session is null)
+            {
+                continue;
+            }
+
+            var rows = connection.Table<LearningSessionCardEntity>()
+                .Where(item => item.SessionId == sessionId)
+                .ToList();
+            var reviews = connection.Table<LearningReviewEntity>()
+                .Where(item => item.SessionId == sessionId)
+                .ToList();
+            if (rows.Count == 0 && reviews.Count == 0)
+            {
+                connection.Delete(session);
+                continue;
+            }
+
+            session.TotalCards = rows.Count;
+            session.CompletedCards = rows.Count(row => row.IsCompleted);
+            session.AgainCount = reviews.Count(review => review.Rating == ReviewRating.Again);
+            session.HardCount = reviews.Count(review => review.Rating == ReviewRating.Hard);
+            session.GoodCount = reviews.Count(review => review.Rating == ReviewRating.Good);
+            session.EasyCount = reviews.Count(review => review.Rating == ReviewRating.Easy);
+            session.UpdatedAtUtc = nowUtc;
+            if (rows.Any(row => !row.IsCompleted))
+            {
+                session.Status = LearningSessionStatus.Active;
+                session.CompletedAtUtc = null;
+            }
+            else
+            {
+                session.Status = LearningSessionStatus.Completed;
+                session.CompletedAtUtc ??= nowUtc;
+            }
+            connection.Update(session);
+        }
+    }
+
     private Schema12LearningDayStateRow? EnsureDayStateSchema12(SQLiteConnection connection, DateTime nowUtc)
     {
-        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema12CapabilityResult)
+        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult))
         {
             return null;
         }
@@ -1832,7 +2188,7 @@ public sealed class LearningService : ILearningService
         var limitN = appSettings is not null
             ? PreparationLimitPolicy.Normalize(appSettings.PreparationLimit)
             : PreparationLimitPolicy.DefaultLimit;
-        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        var cards = LoadSchedulingCards(connection);
         foreach (var card in cards)
         {
             ValidateSchema8CardState(card);
@@ -1955,7 +2311,7 @@ public sealed class LearningService : ILearningService
         DateTime selectionNow)
     {
         var initialTotalCards = active.TotalCards;
-        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        var cards = LoadSchedulingCards(connection);
         foreach (var card in cards)
         {
             ValidateSchema8CardState(card);
@@ -2075,7 +2431,7 @@ public sealed class LearningService : ILearningService
         int limitN,
         DateTime selectionNow)
     {
-        var cards = Schema8LearningRepository.LoadAllCards(connection);
+        var cards = LoadSchedulingCards(connection);
         foreach (var card in cards)
         {
             ValidateSchema8CardState(card);
@@ -2308,9 +2664,7 @@ public sealed class LearningService : ILearningService
                 $"Sense {senseId}/{card.Direction} has an assignment whose variant is missing or belongs to another Sense.");
         }
 
-        var events = Schema8LearningRepository.LoadReviewsForCard(connection, card.Id)
-            .Select(Schema8LearningReviewReplayPolicy.ToReplayEvent)
-            .ToList();
+        var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, card.Id);
         var progress = Schema8LearningRepository.LoadProgressForCard(connection, card.Id);
         if (Schema8LearningRepository.CountInvalidProgressRowsForCard(connection, card.Id) != 0)
         {
@@ -2318,17 +2672,31 @@ public sealed class LearningService : ILearningService
                 $"Card {card.Id} has progress that cannot be attributed to its Sense and direction.");
         }
 
-        var replay = Schema8LearningReviewReplayPolicy.Replay(card, assignments, events, progress);
-
         var candidates = new List<(Schema8AttributionCandidateRow Assignment, DateTime RequiredSinceUtc)>();
-        foreach (var assignment in assignments.Where(row => row.IsRequired))
+        if (IsSchema13(LearningSchemaCapability.Resolve(connection)))
         {
-            var outcome = replay.FindOutcome(assignment.AnswerVariantId)
-                ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
-                    $"No replayed outcome exists for Required variant {assignment.AnswerVariantId} on card {card.Id}.");
-            if (!outcome.IsMastered)
+            var projection = Schema13LearningReviewPolicy.Project(card.Id, assignments, reviews, progress);
+            foreach (var assignment in assignments.Where(row => row.IsRequired))
             {
+                _ = projection.FindOutcome(assignment.AnswerVariantId)
+                    ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                        $"No projected outcome exists for Required variant {assignment.AnswerVariantId} on card {card.Id}.");
                 candidates.Add((assignment, Schema8Utc.Normalize(assignment.RequiredSinceUtc!.Value)));
+            }
+        }
+        else
+        {
+            var events = reviews.Select(Schema8LearningReviewReplayPolicy.ToReplayEvent).ToList();
+            var replay = Schema8LearningReviewReplayPolicy.Replay(card, assignments, events, progress);
+            foreach (var assignment in assignments.Where(row => row.IsRequired))
+            {
+                var outcome = replay.FindOutcome(assignment.AnswerVariantId)
+                    ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
+                        $"No replayed outcome exists for Required variant {assignment.AnswerVariantId} on card {card.Id}.");
+                if (!outcome.IsMastered)
+                {
+                    candidates.Add((assignment, Schema8Utc.Normalize(assignment.RequiredSinceUtc!.Value)));
+                }
             }
         }
 
@@ -2376,7 +2744,7 @@ public sealed class LearningService : ILearningService
 
         foreach (var row in incompleteRows)
         {
-            var card = Schema8LearningRepository.LoadCard(connection, row.CardId);
+            var card = LoadSchedulingCard(connection, row.CardId);
             if (card is null)
             {
                 continue;
@@ -2393,7 +2761,20 @@ public sealed class LearningService : ILearningService
 
     private LearningCardView BuildSchema8CardView(SQLiteConnection connection, int queueItemId)
     {
-        var (graph, _, interaction, _) = LoadSchema8RatingState(connection, queueItemId);
+        Schema8Graph graph;
+        LearningInteractionMode interaction;
+        if (IsSchema13(LearningSchemaCapability.Resolve(connection)))
+        {
+            var schema13State = LoadSchema13RatingState(connection, queueItemId);
+            graph = schema13State.Graph;
+            interaction = schema13State.Interaction;
+        }
+        else
+        {
+            var schema8State = LoadSchema8RatingState(connection, queueItemId);
+            graph = schema8State.Graph;
+            interaction = schema8State.Interaction;
+        }
         var meaning = Schema8LearningRepository.LoadMeaning(connection, graph.Card.PreferredMeaningId)
             ?? throw Reject(Schema8LearningDataErrorCode.InvalidCardGraph,
                 $"Card {graph.Card.Id} references missing preferred Meaning {graph.Card.PreferredMeaningId}.");
@@ -2466,7 +2847,7 @@ public sealed class LearningService : ILearningService
         session.HardCount,
         session.GoodCount,
         session.EasyCount,
-        Schema8LearningRepository.SelectNextDueAtUtc(connection),
+        SelectNextSchedulingDueAtUtc(connection),
         Schema8LearningRepository.CountRemainingUnprepared(connection));
 
     private static LearningSessionSummary BuildSchema8Summary(
@@ -2477,8 +2858,56 @@ public sealed class LearningService : ILearningService
         session.HardCount,
         session.GoodCount,
         session.EasyCount,
-        Schema8LearningRepository.SelectNextDueAtUtc(connection),
+        SelectNextSchedulingDueAtUtc(connection),
         Schema8LearningRepository.CountRemainingUnprepared(connection));
+
+    private static IReadOnlyList<Schema8CardRow> LoadSchedulingCards(SQLiteConnection connection)
+    {
+        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        {
+            return Schema8LearningRepository.LoadAllCards(connection);
+        }
+
+        return Schema13LearningRepository.LoadActiveLearningCards(connection)
+            .Select(AdaptSchema13Card)
+            .ToList();
+    }
+
+    private static Schema8CardRow? LoadSchedulingCard(SQLiteConnection connection, int cardId)
+    {
+        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        {
+            return Schema8LearningRepository.LoadCard(connection, cardId);
+        }
+
+        var card = Schema13LearningRepository.LoadActiveLearningCard(connection, cardId);
+        return card is null ? null : AdaptSchema13Card(card);
+    }
+
+    private static Schema8CardRow AdaptSchema13Card(Schema13LearningCardRow card) => new()
+    {
+        Id = card.Id,
+        WordId = card.WordId,
+        SenseId = card.SenseId,
+        PreferredMeaningId = card.PreferredMeaningId,
+        Direction = card.Direction,
+        State = (CardState)(int)card.State,
+        DueAtUtc = card.DueAtUtc?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc),
+        EaseFactor = SimpleSpacedRepetitionScheduler.DefaultEaseFactor,
+        LastReviewedAtUtc = card.LastReviewedAtUtc?.UtcDateTime,
+        CreatedAtUtc = card.CreatedAtUtc,
+        UpdatedAtUtc = card.UpdatedAtUtc
+    };
+
+    private static DateTime? SelectNextSchedulingDueAtUtc(SQLiteConnection connection)
+    {
+        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        {
+            return Schema8LearningRepository.SelectNextDueAtUtc(connection);
+        }
+
+        return Schema13LearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime;
+    }
 
     private static bool IsValidSnapshot(ContextSnapshotEntity snapshot) =>
         snapshot.TargetStart >= 0
@@ -2503,4 +2932,9 @@ public sealed class LearningService : ILearningService
 
     private static string? EmptyToNull(string value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private sealed class LearningSessionIdRow
+    {
+        public int Id { get; set; }
+    }
 }

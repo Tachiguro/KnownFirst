@@ -35,7 +35,7 @@ public sealed class LearningServicePreparationReadinessTests
                 fixture, cardId: 100 + index, term: $"eligible-{index}", frequency: 10 - index));
         }
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var service = CreateService(
             fixture,
@@ -83,7 +83,7 @@ public sealed class LearningServicePreparationReadinessTests
         {
             await SeedNewCardAsync(fixture, 200 + index, $"eligible-{index}", frequency: 10 - index);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var service = CreateService(
             fixture,
@@ -107,7 +107,7 @@ public sealed class LearningServicePreparationReadinessTests
         {
             await SeedNewCardAsync(fixture, 300 + index, $"eligible-{index}", frequency: 10 - index);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var service = CreateService(
             fixture,
@@ -134,7 +134,7 @@ public sealed class LearningServicePreparationReadinessTests
     public async Task Readiness_FullyConsumedOrReducedLimit_IsFalseAndPreservesGrants()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var settings = new TestAppSettingsService { PreparationLimit = 5 };
         var service = CreateService(fixture, new FakeClock(NowUtc), settings);
@@ -166,7 +166,7 @@ public sealed class LearningServicePreparationReadinessTests
         {
             await SeedNewCardAsync(fixture, 400 + index, $"eligible-{index}", frequency: index);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         await fixture.Connection.ExecuteAsync(
             """
             INSERT INTO LearningDayState
@@ -207,7 +207,7 @@ public sealed class LearningServicePreparationReadinessTests
         await fixture.InsertWordAsync(
             "ignored", status: WordStatus.Ignored, preparationState: PreparationState.Unprepared,
             totalOccurrenceCount: 10, createdAt: NowUtc, updatedAt: NowUtc);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var service = CreateService(
             fixture,
@@ -247,7 +247,7 @@ public sealed class LearningServicePreparationReadinessTests
         await fixture.InsertReviewAsync(
             dueCardId, pastSessionId, ReviewRating.Good, reviewedAtUtc: learnedAt,
             dueAtUtc: NowUtc.AddHours(-1));
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var service = CreateService(
             fixture,
@@ -285,7 +285,7 @@ public sealed class LearningServicePreparationReadinessTests
             freshWordIds.Add(await SeedNewCardAsync(
                 fixture, 610 + index, $"fresh-{index}", frequency: 10 - index));
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var settings = new TestAppSettingsService { PreparationLimit = 1 };
         var clock = new FakeClock(NowUtc);
@@ -336,7 +336,7 @@ public sealed class LearningServicePreparationReadinessTests
         await fixture.InsertCardAsync(
             wordId, meaningId, CardDirection.MeaningToTerm, CardState.New,
             dueAtUtc: NowUtc, createdAtUtc: NowUtc, updatedAtUtc: NowUtc, id: 702);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var settings = new TestAppSettingsService { PreparationLimit = 2 };
         var service = CreateService(fixture, new FakeClock(NowUtc), settings);
@@ -360,7 +360,7 @@ public sealed class LearningServicePreparationReadinessTests
         {
             await SeedNewCardAsync(fixture, 800 + index, $"eligible-{index}", frequency: index);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var settings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(NowUtc);
@@ -378,7 +378,7 @@ public sealed class LearningServicePreparationReadinessTests
         await using var fixture = await Schema7Fixture.CreateAsync();
         await SeedNewCardAsync(fixture, 901, "invalid-graph", frequency: 10);
         await SeedNewCardAsync(fixture, 902, "other-word", frequency: 1);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         await fixture.Connection.ExecuteAsync(
             """
             UPDATE LearningCards

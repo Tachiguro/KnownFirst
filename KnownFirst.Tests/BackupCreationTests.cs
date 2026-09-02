@@ -1449,7 +1449,7 @@ public class BackupCreationTests
         // review-selection/completion methods, which now require the current schema, keep working; the
         // later Schema8BackupSnapshotRepository capture call is schema-version-agnostic at the raw-table
         // level (Schema 9-11 share Schema 8's meaning-centric data model exactly).
-        await database.UpgradeToCurrentSchemaAsync();
+        await database.UpgradeToHistoricalSchema12Async();
         var service = new KnownFirst.Services.TextReviewService(
             database,
             new KnownFirst.Core.Text.TextAnalyzer(),

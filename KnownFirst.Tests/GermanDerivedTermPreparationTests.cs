@@ -40,7 +40,7 @@ public sealed class GermanDerivedTermPreparationTests
     {
         _database = new TemporarySchema8Database("knownfirst-german-derived-preparation");
         await _database.InitializeAsync();
-        await _database.UpgradeToCurrentSchemaAsync();
+        await _database.UpgradeToHistoricalSchema12Async();
         _clock = new FakeClock(Now);
         _review = new TextReviewService(
             _database, new TextAnalyzer(), new EnabledEnhancedRecognitionSettings(), new FixtureGermanLexicon());
@@ -532,7 +532,7 @@ public sealed class GermanDerivedTermPreparationTests
         await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
 
         await using var target = new TemporarySchema8Database("knownfirst-german-derived-restore-target");
-        await target.UpgradeToCurrentSchemaAsync();
+        await target.UpgradeToHistoricalSchema12Async();
         var targetService = new BackupService(target, new Schema8BackupFixtureBuilders.FakePlatformInfo());
 
         archiveStream.Position = 0;
@@ -591,7 +591,7 @@ public sealed class GermanDerivedTermPreparationTests
         await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
 
         await using var target = new TemporarySchema8Database("knownfirst-german-derived-restore-multi-evidence");
-        await target.UpgradeToCurrentSchemaAsync();
+        await target.UpgradeToHistoricalSchema12Async();
         var targetService = new BackupService(target, new Schema8BackupFixtureBuilders.FakePlatformInfo());
 
         archiveStream.Position = 0;
@@ -621,7 +621,7 @@ public sealed class GermanDerivedTermPreparationTests
         await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
 
         await using var target = new TemporarySchema8Database("knownfirst-german-derived-restore-preparation");
-        await target.UpgradeToCurrentSchemaAsync();
+        await target.UpgradeToHistoricalSchema12Async();
         var targetService = new BackupService(target, new Schema8BackupFixtureBuilders.FakePlatformInfo());
 
         archiveStream.Position = 0;
@@ -659,9 +659,9 @@ public sealed class GermanDerivedTermPreparationTests
     /// (<c>DocumentCleanupOperations.CleanupEligibleDocuments</c>), reached from any unrelated
     /// MarkKnown/Exclude action anywhere in the app, did not recognize retained derived evidence and could
     /// therefore delete the Document/SentenceSpan/ReviewCandidate a surviving DerivedTermEvidenceEntries
-    /// row depends on, orphaning it and making the next <see cref="DatabaseSchema.InitializeAsync"/> fail
-    /// closed. This proves the trigger — acting on a completely unrelated word — does not disturb the
-    /// German document, and that a full startup reopen still succeeds afterward.
+    /// row depends on, orphaning it and making an explicit foreign-key check fail. This proves the trigger
+    /// — acting on a completely unrelated word — does not disturb the German document, and that the
+    /// historical fixture remains referentially valid after a reopen.
     /// </summary>
     [TestMethod]
     public async Task GenericDocumentCleanup_DoesNotOrphanRetainedDerivedEvidence()
@@ -711,12 +711,15 @@ public sealed class GermanDerivedTermPreparationTests
         var evidenceCount = await _database.ReadAsync(conn => conn.Table<DerivedTermEvidenceEntity>().CountAsync());
         Assert.IsGreaterThan(0, evidenceCount, "Retained derivation evidence must survive the unrelated cleanup trigger.");
 
-        // Reopen through the real startup path — proves no dependency (Document/SentenceSpan/
-        // ReviewCandidate) was silently deleted while the evidence referencing it survived.
+        // Reopen the historical fixture and validate its foreign keys directly. Production startup now
+        // rejects Schema 12 by design, so it is not a generic validation helper for this legacy fixture.
         var reopenedConnection = new SQLiteAsyncConnection(_database.DatabasePath);
         try
         {
-            await DatabaseSchema.InitializeAsync(reopenedConnection);
+            await reopenedConnection.ExecuteAsync("PRAGMA foreign_keys = ON;");
+            Assert.AreEqual(
+                0,
+                await reopenedConnection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM pragma_foreign_key_check"));
         }
         finally
         {

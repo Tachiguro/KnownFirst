@@ -24,7 +24,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -55,7 +55,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -89,7 +89,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -139,7 +139,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 10 };
         var clock = new FakeClock(Day1Utc);
@@ -211,7 +211,7 @@ public sealed class LearningServiceDailyLimitTests
             startedAtUtc: seededPast, updatedAtUtc: seededPast, completedAtUtc: seededPast);
         await fixture.InsertReviewAsync(card60Learned, pastSessionId, ReviewRating.Good, true, true, Day1Utc.AddDays(-1), Day1Utc.AddDays(5), 1, 2.5);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -245,7 +245,7 @@ public sealed class LearningServiceDailyLimitTests
             await SeedCardAsync(fixture, cardId: 200 + i, term: $"due-word-{i}", ordinal: 10 + i, CardState.Review, atUtc: Day1Utc, dueAtUtc: Day1Utc.AddHours(-1));
         }
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         // Put DayState into Bridge phase
         await fixture.Connection.ExecuteAsync(
@@ -281,7 +281,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -304,7 +304,7 @@ public sealed class LearningServiceDailyLimitTests
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
         await SeedCardAsync(fixture, cardId: 101, term: "word-1", ordinal: 1, CardState.New, atUtc: Day1Utc);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService
         {
@@ -342,7 +342,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -381,7 +381,7 @@ public sealed class LearningServiceDailyLimitTests
         var meaningId2 = await fixture.InsertMeaningAsync(wordId2, displayTerm: "second-word", translation: "translation2", createdAt: Day1Utc, updatedAt: Day1Utc);
         await fixture.InsertCardAsync(wordId2, meaningId2, CardDirection.TermToMeaning, CardState.New, dueAtUtc: Day1Utc, createdAtUtc: Day1Utc, updatedAtUtc: Day1Utc, id: 103);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -416,7 +416,7 @@ public sealed class LearningServiceDailyLimitTests
         var m2Id = await fixture.InsertMeaningAsync(wordId, displayTerm: "polysemous-word", translation: "sense 2 answer", createdAt: Day1Utc, updatedAt: Day1Utc);
         await fixture.InsertCardAsync(wordId, m2Id, CardDirection.MeaningToTerm, CardState.New, dueAtUtc: Day1Utc, createdAtUtc: Day1Utc, updatedAtUtc: Day1Utc, id: 202);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -441,7 +441,7 @@ public sealed class LearningServiceDailyLimitTests
         await using var fixture = await Schema7Fixture.CreateAsync();
         await SeedCardAsync(fixture, cardId: 101, term: "word-1", ordinal: 1, CardState.New, atUtc: Day1Utc);
         await SeedCardAsync(fixture, cardId: 102, term: "word-2", ordinal: 2, CardState.New, atUtc: Day1Utc);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -474,7 +474,7 @@ public sealed class LearningServiceDailyLimitTests
         await using var fixture = await Schema7Fixture.CreateAsync();
         await SeedCardAsync(fixture, cardId: 101, term: "word-1", ordinal: 1, CardState.New, atUtc: Day1Utc);
         await SeedCardAsync(fixture, cardId: 102, term: "word-2", ordinal: 2, CardState.New, atUtc: Day1Utc);
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -506,7 +506,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -550,7 +550,7 @@ public sealed class LearningServiceDailyLimitTests
         {
             await SeedCardAsync(fixture, cardId: 100 + i, term: $"word-{i}", ordinal: i, CardState.New, atUtc: Day1Utc);
         }
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);

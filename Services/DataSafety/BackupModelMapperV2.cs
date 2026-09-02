@@ -248,7 +248,7 @@ public static class BackupModelMapperV2
         // TargetAnswerVariantId or MatchedAnswerVariantId, so two review rows differing only in those three
         // references fell through to raw snapshot enumeration order. EaseFactor is compared as numeric data,
         // never as culture-formatted text.
-        var sortedReviews = snapshot.LearningReviews
+        var mappedReviews = snapshot.LearningReviews
             .OrderBy(r => cardIdMap.TryGetValue(r.CardId, out var c) ? c : string.Empty, StringComparer.Ordinal)
             .ThenBy(r => EnsureUtc(r.ReviewedAtUtc).Ticks)
             .ThenBy(r => (int)r.Rating)
@@ -263,8 +263,11 @@ public static class BackupModelMapperV2
             .ThenBy(r => r.MatchedAnswerVariantId.HasValue)
             .ThenBy(r => ResolveVariantOrderingReference(r.MatchedAnswerVariantId, variantIdMap), StringComparer.Ordinal)
             .ThenBy(r => r.Id)
-            .Select(r => MapReview(r, cardIdMap, learningSessionIdMap, variantIdMap))
+            .Select(r => new MappedLearningReviewV2(
+                r.Id,
+                MapReview(r, cardIdMap, learningSessionIdMap, variantIdMap)))
             .ToList();
+        var sortedReviews = mappedReviews.Select(review => review.Review).ToList();
 
         var progressOut = snapshot.AnswerVariantProgress
             .OrderBy(p => cardIdMap.TryGetValue(p.CardId, out var c) ? c : string.Empty, StringComparer.Ordinal)
@@ -307,14 +310,19 @@ public static class BackupModelMapperV2
             derivedTermEvidenceOut,
             new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
 
-        return new BackupModelMapperContext(payload, vocabIdMap, senseIdMap, cardIdMap);
+        return new BackupModelMapperContext(payload, vocabIdMap, senseIdMap, cardIdMap, mappedReviews);
     }
 
 internal sealed record BackupModelMapperContext(
     BackupPayloadV2 Payload,
     IReadOnlyDictionary<int, string> VocabIdMap,
     IReadOnlyDictionary<int, string> SenseIdMap,
-    IReadOnlyDictionary<int, string> CardIdMap);
+    IReadOnlyDictionary<int, string> CardIdMap,
+    IReadOnlyList<MappedLearningReviewV2> LearningReviews);
+
+internal sealed record MappedLearningReviewV2(
+    int SourceLocalId,
+    BackupLearningReviewV2 Review);
 
     /// <summary>
     /// Ordering material only — never an identity. Its own domain keeps it in a separate hash family from

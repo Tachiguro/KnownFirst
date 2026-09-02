@@ -614,22 +614,29 @@ public sealed class WiktionaryProviderTests
         });
         Assert.AreEqual(2, await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().CountAsync()));
 
-        // Run real production startup initialization so its own cache cleanup executes — the test must never
-        // reproduce the cleanup SQL or delete the legacy row itself.
-        await database.ReadAsync(async connection =>
+        var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(database.DatabasePath);
+
+        var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(async () =>
         {
-            await DatabaseSchema.InitializeAsync(connection);
-            return true;
+            await database.ReadAsync(async connection =>
+            {
+                await DatabaseSchema.InitializeAsync(connection);
+                return true;
+            });
         });
 
         var remaining = await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>().ToListAsync());
-        Assert.HasCount(1, remaining);
-        Assert.AreEqual(currentKey, remaining[0].CacheKey);
+        Assert.AreEqual(DatabaseSchemaCompatibilityReason.UnsupportedOlderVersion, exception.Reason);
+        Assert.HasCount(2, remaining);
+        Assert.IsTrue(remaining.Any(row => row.CacheKey == currentKey));
         Assert.AreEqual(
-            0,
+            1,
             await database.ReadAsync(connection => connection.Table<LexicalCacheEntity>()
                 .Where(row => row.CacheKey == "en|network|0|de|wiktionary|2").CountAsync()),
-            "The legacy incomplete cache key must be removed by startup initialization.");
+            "Fail-closed startup must preserve the legacy cache row.");
+        CollectionAssert.AreEqual(before, await PersistentDatabaseSnapshot.CaptureCompleteAsync(database.DatabasePath));
+        Assert.AreEqual(7, await database.ReadAsync(connection => connection.ExecuteScalarAsync<int>("PRAGMA user_version")));
+        Assert.IsTrue(File.Exists(database.DatabasePath));
     }
 
     [TestMethod]

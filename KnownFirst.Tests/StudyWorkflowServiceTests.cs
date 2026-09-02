@@ -459,7 +459,7 @@ public sealed class StudyWorkflowServiceTests
         // the Schema-7 preparation-exclude characterization already completed.
         await _database.ReadAsync(async connection =>
         {
-            await DatabaseSchema.InitializeAsync(connection);
+            await HistoricalMigrationFixture.UpgradeToSchema12Async(connection);
             return true;
         });
         var import = await _review.ImportAsync(Request("network protection."));

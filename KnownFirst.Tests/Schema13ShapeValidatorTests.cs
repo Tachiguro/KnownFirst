@@ -13,7 +13,7 @@ public sealed class Schema13ShapeValidatorTests
     private static async Task<Schema7Fixture> CreateValidSchema12DatabaseAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         return fixture;
     }
 
@@ -50,10 +50,8 @@ public sealed class Schema13ShapeValidatorTests
     }
 
     [TestMethod]
-    public async Task ProductionDatabase_DoesNotCreateSchema13Tables()
+    public async Task ExplicitHistoricalSchema12Fixture_DoesNotCreateSchema13Tables()
     {
-        Assert.AreEqual(12, DatabaseSchema.CurrentVersion, "Production CurrentVersion must remain exactly 12.");
-
         await using var fixture = await CreateValidSchema12DatabaseAsync();
 
         var version = await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version");
@@ -63,7 +61,7 @@ public sealed class Schema13ShapeValidatorTests
         {
             var count = await fixture.Connection.ExecuteScalarAsync<int>(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table);
-            Assert.AreEqual(0, count, $"Production initialization must not create dormant table {table}.");
+            Assert.AreEqual(0, count, $"Historical Schema 12 construction must not create Schema 13 table {table}.");
         }
     }
 

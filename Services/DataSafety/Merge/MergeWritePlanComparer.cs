@@ -5,8 +5,8 @@ namespace KnownFirst.Services.DataSafety.Merge;
 /// determine what the writer would actually do (KF-MEANING-001 Slice 8). Used to detect a stale or
 /// mismatched plan: the writer recomputes the plan against the current target and the supplied archive,
 /// then requires the result to match the plan it was handed, byte-for-byte on every substantive field.
-/// <see cref="MergePreflightPlan.Manifest"/> is never compared — it is an echo of whatever the caller
-/// passes to <see cref="MergePreflightPlannerV2.CreatePlan"/> and carries no bearing on what gets written.
+/// <see cref="MergePreflightPlan.Manifest"/> is not compared separately: its causal-order feature flag is
+/// already consumed while recomputing the substantive actions from the same supplied manifest.
 /// </summary>
 internal static class MergeWritePlanComparer
 {

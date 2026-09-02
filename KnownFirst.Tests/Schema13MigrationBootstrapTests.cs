@@ -14,7 +14,7 @@ public sealed class Schema13MigrationBootstrapTests
     private static async Task<Schema7Fixture> CreateValidSchema12DatabaseAsync()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         return fixture;
     }
 

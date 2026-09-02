@@ -85,7 +85,7 @@ public sealed class PreparationAuthorizationOrchestrationTests
     {
         _database = new TemporarySchema8Database("knownfirst-prep-auth");
         await _database.InitializeAsync();
-        await _database.UpgradeToCurrentSchemaAsync();
+        await _database.UpgradeToHistoricalSchema12Async();
         _clock = new FakeClock(Now);
         var preferences = new InMemoryPreferences();
         _settings = new AppSettingsService(preferences, NullLogger<AppSettingsService>.Instance);

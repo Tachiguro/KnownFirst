@@ -5,6 +5,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Migrations.Schema10;
+using KnownFirst.Data.Migrations.Schema12;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
@@ -149,7 +150,7 @@ public sealed class Schema8BackupRestoreTests
     }
 
     [TestMethod]
-    public async Task V2NullableTargets_EmptyRestoreReopensToCurrentSchemaWithoutDataMutation()
+    public async Task V2NullableTargets_EmptyRestoreAdvancesToHistoricalSchema12WithoutDataMutation()
     {
         await using var sourceFixture = await Schema8BackupFixtureBuilders.CreateSchema8FixtureAsync();
         await sourceFixture.Connection.ExecuteAsync("UPDATE LearningReviews SET TargetAnswerVariantId = NULL");
@@ -167,7 +168,7 @@ public sealed class Schema8BackupRestoreTests
     }
 
     [TestMethod]
-    public async Task V1NullableHistoricalTargets_UpgradeRestoreReopensToCurrentSchemaWithoutDataMutation()
+    public async Task V1NullableHistoricalTargets_UpgradeRestoreAdvancesToHistoricalSchema12WithoutDataMutation()
     {
         await using var sourceFixture = await Schema7Fixture.CreateAsync();
         var wordId = await sourceFixture.InsertWordAsync("unattributed");
@@ -252,9 +253,8 @@ public sealed class Schema8BackupRestoreTests
     }
 
     /// <summary>
-    /// The restored database is a valid pinned Schema-8 database. Reopening it through
-    /// <see cref="DatabaseSchema.InitializeAsync"/> is ordinary current-schema initialization and legitimately
-    /// migrates it to <see cref="DatabaseSchema.CurrentVersion"/> — so this proves the durable-data contract
+    /// The restored database is a valid pinned Schema-8 database. Explicit historical advancement to
+    /// Schema 12 proves the durable-data contract
     /// (every restored row, keyed by table, survives byte-for-byte) rather than a full schema-level snapshot,
     /// which would wrongly fail on the expected user_version bump and ReviewSessions index migration.
     /// <para>The row comparison tolerates exactly the two additive Schema-10 learning-workflow identity
@@ -283,10 +283,10 @@ public sealed class Schema8BackupRestoreTests
         }
 
         var reopened = new SQLiteAsyncConnection(fixture.DatabasePath);
-        await DatabaseSchema.InitializeAsync(reopened);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(reopened);
 
         var versionAfterReopen = await reopened.ExecuteScalarAsync<int>("PRAGMA user_version");
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, versionAfterReopen);
+        Assert.AreEqual(12, versionAfterReopen);
 
         var integrity = await reopened.ExecuteScalarAsync<string>("PRAGMA integrity_check");
         Assert.AreEqual("ok", integrity);
@@ -296,7 +296,7 @@ public sealed class Schema8BackupRestoreTests
         var validShape = false;
         string? shapeFailureDetail = null;
         await reopened.RunInTransactionAsync(connection =>
-            validShape = Schema10ShapeValidator.IsValidDatabase(connection, out shapeFailureDetail));
+            validShape = Schema12ShapeValidator.IsValidDatabase(connection, out shapeFailureDetail));
         Assert.IsTrue(validShape, shapeFailureDetail);
 
         var after = await PersistentDatabaseSnapshot.CaptureTableRowsIgnoringAdditiveColumnsAsync(

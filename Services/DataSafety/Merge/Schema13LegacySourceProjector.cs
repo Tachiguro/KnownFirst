@@ -1,5 +1,4 @@
 using KnownFirst.Data;
-using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
 using KnownFirst.Models.Backup;
 using SQLite;
@@ -7,9 +6,8 @@ using SQLite;
 namespace KnownFirst.Services.DataSafety.Merge;
 
 /// <summary>
-/// Builds the V1/V2 source-side Schema-13 semantic projection by executing the same empty-target import
-/// and <see cref="Schema13LearningBootstrap"/> oracle used by Slice 3. The private temporary database is
-/// never the target database and is removed after projection.
+/// Builds the V1/V2 source-side Schema-13 semantic projection in a private clean Schema-13 database.
+/// The temporary database is never the target database and is removed after projection.
 /// </summary>
 internal static class Schema13LegacySourceProjector
 {
@@ -27,7 +25,6 @@ internal static class Schema13LegacySourceProjector
         try
         {
             await DatabaseSchema.InitializeAsync(connection).ConfigureAwait(false);
-            await Schema13DormantMigration.ApplyAsync(connection).ConfigureAwait(false);
 
             Schema13BackupSnapshot? snapshot = null;
             await connection.RunInTransactionAsync(sqliteConnection =>

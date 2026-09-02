@@ -8,10 +8,10 @@ namespace KnownFirst.Tests;
 public sealed class Schema12MigrationTests
 {
     [TestMethod]
-    public async Task Schema12Migration_AppliesCleanly_OnSchema11Database()
+    public async Task Schema12Migration_AppliesCleanly_ThroughExplicitHistoricalChain()
     {
         await using var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var version = await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version");
         Assert.AreEqual(12, version);

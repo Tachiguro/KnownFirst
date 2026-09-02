@@ -37,7 +37,7 @@ public sealed class LearningNextDueAvailabilityTests
             LearningSessionStatus.Completed, totalCards: 1, completedCards: 1,
             startedAtUtc: Day1Utc.AddHours(-2), updatedAtUtc: Day1Utc.AddHours(-2), completedAtUtc: Day1Utc.AddHours(-2));
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 1 };
         var clock = new FakeClock(Day1Utc);
@@ -80,7 +80,7 @@ public sealed class LearningNextDueAvailabilityTests
             LearningSessionStatus.Completed, totalCards: 1, completedCards: 1,
             startedAtUtc: Day1Utc.AddHours(-2), updatedAtUtc: Day1Utc.AddHours(-2), completedAtUtc: Day1Utc.AddHours(-2));
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 1 };
         var clock = new FakeClock(Day1Utc);
@@ -119,7 +119,7 @@ public sealed class LearningNextDueAvailabilityTests
         var cardBDueUtc = Day1Utc.AddMinutes(10);
         await SeedCardAsync(fixture, cardId: 201, term: "card-b", ordinal: 2, CardState.Review, atUtc: Day1Utc.AddHours(-1), dueAtUtc: cardBDueUtc);
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         var appSettings = new TestAppSettingsService { PreparationLimit = 5 };
         var clock = new FakeClock(Day1Utc);
@@ -164,7 +164,7 @@ public sealed class LearningNextDueAvailabilityTests
             LearningSessionStatus.Completed, totalCards: 1, completedCards: 1,
             startedAtUtc: Day1Utc.AddHours(-2), updatedAtUtc: Day1Utc.AddHours(-2), completedAtUtc: Day1Utc.AddHours(-2));
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         // Demote the only assignment to AcceptedOnly, leaving zero Required assignments for this Sense + Direction
         var senseId = await fixture.Connection.ExecuteScalarAsync<int>(
@@ -223,7 +223,7 @@ public sealed class LearningNextDueAvailabilityTests
             LearningSessionStatus.Completed, totalCards: 1, completedCards: 1,
             startedAtUtc: Day1Utc.AddHours(-2), updatedAtUtc: Day1Utc.AddHours(-2), completedAtUtc: Day1Utc.AddHours(-2));
 
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
 
         // Demote Card A's assignment to AcceptedOnly, leaving Card A with zero Required assignments
         var senseAId = await fixture.Connection.ExecuteScalarAsync<int>(

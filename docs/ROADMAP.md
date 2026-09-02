@@ -63,12 +63,12 @@ Beta-13 Build-14 AAB creation and packaging evidence are recorded as completed i
 The following initiatives represent accepted product directions whose individual packages, acceptance criteria, and dependencies are durably tracked in [docs/BACKLOG.md](BACKLOG.md). Their global sequence and priority ordering are subject to explicit user confirmation rather than assumed numeric priority:
 
 ### 1. FSRS-6 Production Cutover & Clean Domain Persistence
-- **Foundation State:** In-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008), clean domain learning controls with dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186), and dormant Schema 13 physical persistence and migration foundation (`KF-PERSIST-013-001`, PR #189) are committed to `master`. Archive V3 transport foundation (`KF-BACKUP-006`) is source-complete across all 5 slices on candidate branch `feature/archive-v3-schema13-transport-v1` (candidate HEAD `03a6eff513b50377adfdee8dbb340f439e7dd0ce`).
+- **Foundation State:** In-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008), clean domain learning controls with dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186), and dormant Schema 13 physical persistence and migration foundation (`KF-PERSIST-013-001`, PR #189) are committed to `master`. Archive V3 transport foundation (`KF-BACKUP-006`) is merged to `master` via PR #190 (feature head `03a6eff513b50377adfdee8dbb340f439e7dd0ce`, exact-HEAD `FULL_VALIDATION` passed, `POST_MERGE_SYNC_ONLY` complete).
+- **Current:**
+  - `KF-FSRS-003`: The Schema-13 / FSRS-6 cutover implementation candidate is locally complete and review-approved. Documentation reconciliation, candidate finalization, `FULL_VALIDATION`, push, and PR lifecycle remain before source integration is complete.
 - **Open Downstream Packages:**
-  - `KF-BACKUP-006`: Archive V3 format evolution, export, empty-target restore, preflight planning, and populated-target merge (source complete, validation in progress).
-  - `KF-FSRS-003`: Production FSRS-6 cutover, runtime DI wiring, factual review event logging, and legacy New + Hard $\to$ 15-minute learning step resolution, while strictly preserving the implemented active-session Again tail-repeat invariant.
   - `KF-CLEANUP-001`: Legacy scheduler deprecation, column removal (`IntervalDays`, `EaseFactor`), and replay policy cleanup.
-- **Dependency Sequence:** Completed Core, Domain, Persistence & Transport Foundations (`KF-FSRS6-CORE-001`, `KF-CLEAN-DOMAIN-013-001`, `KF-PERSIST-013-001`, `KF-BACKUP-006`) $\to$ Production Cutover (`KF-FSRS-003`) $\to$ Legacy Cleanup (`KF-CLEANUP-001`).
+- **Dependency Sequence:** Completed Core, Domain, Persistence & Transport Foundations (`KF-FSRS6-CORE-001`, `KF-CLEAN-DOMAIN-013-001`, `KF-PERSIST-013-001`, `KF-BACKUP-006`) $\to$ Production Cutover (`KF-FSRS-003`) $\to$ release-oriented blocker triage for functioning Web and Android/AAB paths after merge. `KF-CLEANUP-001` is downstream and begins only when it is an appropriate, genuine blocker.
 
 ### 2. Vocabulary Management Area
 - **Objective:** Replace the `/dictionary` placeholder card (`KF-VOCAB-001`) with a real, production-grade Vocabulary area.

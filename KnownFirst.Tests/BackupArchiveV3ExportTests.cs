@@ -57,7 +57,7 @@ public sealed class BackupArchiveV3ExportTests
     private static async Task<TemporaryDatabaseAdapter> CreateValidSchema13DatabaseAsync(bool enableForeignKeys = false)
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         if (enableForeignKeys)
         {
             await fixture.Connection.ExecuteAsync("PRAGMA foreign_keys = ON;");
@@ -299,6 +299,58 @@ public sealed class BackupArchiveV3ExportTests
     }
 
     [TestMethod]
+    [DataRow(true)]
+    [DataRow(false)]
+    public async Task CreatePortableArchiveAsync_NearEqualReplayStateIsRejected(bool mutateStability)
+    {
+        await using var db = await CreateValidSchema13DatabaseAsync();
+        await db.RunInTransactionAsync(conn =>
+        {
+            var wordId = InsertWord(conn, "apple", "2026-08-29T10:00:00.0000000Z");
+            conn.Execute(
+                "INSERT INTO Senses (StableId, WordId, SourceLanguage, ExplanationLanguage, Status, CreatedAtUtc, UpdatedAtUtc) VALUES ('sense-apple', ?, 'en', 'en', 0, '2026-08-29T10:00:00.0000000Z', '2026-08-29T10:00:00.0000000Z')",
+                wordId);
+            var senseId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            conn.Execute(
+                "INSERT INTO Meanings (WordId, SenseId, ExplanationLanguage, SourceLanguage, DisplayTerm, EncounteredSurfaceForm, GrammaticalRelationship, TokenKind, Translation, Definition, DictionaryExample, AdditionalNote, AcceptedAliasesJson, TranslationOrDefinition, Source, SourceProject, SourcePageTitle, Attribution, ConfirmedByUser, CreatedAt, UpdatedAt, PreparedAt, StableId) VALUES (?, ?, 'en', 'en', 'apple', 'apple', '', 0, 'Apfel', 'fruit', '', '', '[]', 'Apfel', 'test', 'test', 'test', 'test', 1, '2026-08-29T10:00:00.0000000Z', '2026-08-29T10:00:00.0000000Z', '2026-08-29T10:00:00.0000000Z', 'meaning-apple')",
+                wordId,
+                senseId);
+            var meaningId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            conn.Execute("UPDATE Senses SET DefaultMeaningId = ? WHERE Id = ?", meaningId, senseId);
+            conn.Execute(
+                "INSERT INTO LearningCards (WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays, EaseFactor, SuccessfulReviewCount, LapseCount, CreatedAtUtc, UpdatedAtUtc) VALUES (?, ?, ?, 0, 0, '2026-08-29T10:00:00.0000000Z', 0, 2.5, 0, 0, '2026-08-29T10:00:00.0000000Z', '2026-08-29T10:00:00.0000000Z')",
+                wordId,
+                senseId,
+                meaningId);
+            var cardId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            var reviewTime = new DateTimeOffset(2026, 8, 29, 10, 0, 0, TimeSpan.Zero);
+            conn.Execute(
+                "INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc) VALUES ('history-apple', ?, 1, 2, '2026-08-29T10:00:00.0000000Z')",
+                cardId);
+            var replayed = new Fsrs6Replayer().Replay(
+                Fsrs6Card.New(),
+                [new Fsrs6ReviewEvent(reviewTime, ReviewRating.Good)]);
+            conn.Execute(
+                "INSERT INTO FsrsCardStates (CardId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc) VALUES (?, ?, ?, ?, '2026-08-29T10:00:00.0000000Z', ?, ?)",
+                cardId,
+                (int)replayed.State,
+                mutateStability ? Math.BitIncrement(replayed.Stability!.Value) : replayed.Stability,
+                mutateStability ? replayed.Difficulty : Math.BitIncrement(replayed.Difficulty!.Value),
+                replayed.StepIndex,
+                Schema13TimestampCodec.FormatUtc(replayed.DueAtUtc!.Value));
+            return true;
+        });
+
+        using var destination = new MemoryStream();
+        var exception = await Assert.ThrowsExactlyAsync<BackupFormatException>(() =>
+            new BackupService(db, new FakePlatformInfo())
+                .CreatePortableArchiveAsync(destination, CancellationToken.None));
+
+        Assert.AreEqual(BackupErrorCodes.InvariantViolation, exception.Code);
+    }
+
+    [TestMethod]
     public async Task CreatePortableArchiveAsync_FromSemanticallyEquivalentDatabasesWithDifferentRowIds_IsDeterministic()
     {
         await using var db1 = await CreateValidSchema13DatabaseAsync();
@@ -514,7 +566,7 @@ public sealed class BackupArchiveV3ExportTests
     public async Task SchemaCapability_Schema12_RemainsValidForV2Export()
     {
         var fixture = await Schema7Fixture.CreateAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema12Async(fixture.Connection);
         await using var db = new TemporaryDatabaseAdapter(fixture);
 
         var cap = await db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));

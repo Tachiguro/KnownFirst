@@ -18,6 +18,7 @@ public static class MergePreflightPlannerV2
         var knowledgeStateDecisions = new List<KnowledgeStateConflictDecision>();
         var workflowStatusDecisions = new List<WorkflowStatusConflictDecision>();
         var preferredVariantSelectionDecisions = new List<PreferredVariantSelectionDecision>();
+        var hasCausalLearningReviewConflict = false;
 
         void Record(MergeEntityKind kind, string stableIdentity, string archiveLocalId, MergeEntityClassification classification, string reason, DecisionId? decisionId = null)
         {
@@ -649,10 +650,41 @@ public static class MergePreflightPlannerV2
         // exact field set, and for why LearningSessionId is deliberately not part of event identity).
         // Answer-variant references are resolved to stable AnswerVariantIdentity values through the side's
         // own map, never hashed as raw archive-local av-* ids.
-        var targetReviewFingerprints = new HashSet<string>(
-            target.Learning.ReviewEvents.Select(r => ComputeReviewFingerprint(
-                MergePreflightPlanner.Resolve(targetFutureCardIdByLocalId, r.CardId, "target learning review card"),
-                r, targetAnswerVariantByLocalId, "target")), StringComparer.Ordinal);
+        var targetReviewFingerprints = archiveManifest.LearningReviewCausalOrderRequired
+            ? null
+            : new HashSet<string>(
+                target.Learning.ReviewEvents.Select(r => ComputeReviewFingerprint(
+                    MergePreflightPlanner.Resolve(targetFutureCardIdByLocalId, r.CardId, "target learning review card"),
+                    r, targetAnswerVariantByLocalId, "target")), StringComparer.Ordinal);
+        var causalClassifications = archiveManifest.LearningReviewCausalOrderRequired
+            ? PlanCausalLearningReviewActions(
+                target.Learning.ReviewEvents,
+                archive.Learning.ReviewEvents,
+                review => MergePreflightPlanner.Resolve(
+                    targetFutureCardIdByLocalId,
+                    review.CardId,
+                    "target causal learning review card"),
+                review => MergePreflightPlanner.Resolve(
+                    archiveFutureCardIdByLocalId,
+                    review.CardId,
+                    "archive causal learning review card"),
+                review => ComputeReviewFingerprint(
+                    MergePreflightPlanner.Resolve(
+                        targetFutureCardIdByLocalId,
+                        review.CardId,
+                        "target causal learning review card"),
+                    review,
+                    targetAnswerVariantByLocalId,
+                    "target"),
+                review => ComputeReviewFingerprint(
+                    MergePreflightPlanner.Resolve(
+                        archiveFutureCardIdByLocalId,
+                        review.CardId,
+                        "archive causal learning review card"),
+                    review,
+                    archiveAnswerVariantByLocalId,
+                    "archive"))
+            : null;
         var cardsWithNewEvents = new HashSet<FutureCardIdentity>();
 
         for (var reviewIndex = 0; reviewIndex < archive.Learning.ReviewEvents.Count; reviewIndex++)
@@ -688,7 +720,28 @@ public static class MergePreflightPlannerV2
             MergeEntityClassification classification;
             string reason;
             DecisionId? decisionId = null;
-            if (targetReviewFingerprints.Contains(fingerprint))
+            if (causalClassifications is not null)
+            {
+                var causalClassification = causalClassifications[reviewIndex];
+                classification = causalClassification.Classification;
+                reason = causalClassification.ReasonCode;
+                if (classification == MergeEntityClassification.UnresolvedConflict)
+                {
+                    hasCausalLearningReviewConflict = true;
+                }
+                else if (classification == MergeEntityClassification.New
+                         && activeWorkflowConflictsByArchiveId.TryGetValue(review.LearningSessionId, out var causalActiveConflict))
+                {
+                    classification = MergeEntityClassification.UnresolvedConflict;
+                    reason = causalActiveConflict.Reason;
+                    decisionId = causalActiveConflict.DecisionId;
+                }
+                else if (classification == MergeEntityClassification.New)
+                {
+                    cardsWithNewEvents.Add(futureCardIdentity);
+                }
+            }
+            else if (targetReviewFingerprints!.Contains(fingerprint))
             {
                 classification = MergeEntityClassification.DeduplicatedEvent;
                 reason = "learning-review-exact-duplicate-event";
@@ -1204,7 +1257,13 @@ public static class MergePreflightPlannerV2
             .ToList();
 
         var status = MergePreflightStatus.Ready;
-        if (sortedBlockingPrerequisites.Count > 0)
+        string? errorCode = null;
+        if (hasCausalLearningReviewConflict)
+        {
+            status = MergePreflightStatus.NonExecutableConflict;
+            errorCode = Schema13MergePreflightErrorCodes.CausalHistoryConflict;
+        }
+        else if (sortedBlockingPrerequisites.Count > 0)
         {
             status = MergePreflightStatus.BlockedByPrerequisite;
         }
@@ -1236,6 +1295,121 @@ public static class MergePreflightPlannerV2
             sampleDetailsReadOnly,
             warningCodes.ToList(),
             requiresSchedulerReplay,
-            null);
+            errorCode);
     }
+
+    private static IReadOnlyDictionary<int, CausalLearningReviewAction> PlanCausalLearningReviewActions(
+        IReadOnlyList<BackupLearningReviewV2> targetReviews,
+        IReadOnlyList<BackupLearningReviewV2> sourceReviews,
+        Func<BackupLearningReviewV2, FutureCardIdentity> targetCardIdentity,
+        Func<BackupLearningReviewV2, FutureCardIdentity> sourceCardIdentity,
+        Func<BackupLearningReviewV2, string> targetFingerprint,
+        Func<BackupLearningReviewV2, string> sourceFingerprint)
+    {
+        var targetGroups = BuildCausalLearningReviewGroups(
+            targetReviews,
+            targetCardIdentity,
+            targetFingerprint);
+        var sourceGroups = BuildCausalLearningReviewGroups(
+            sourceReviews,
+            sourceCardIdentity,
+            sourceFingerprint);
+        var actions = new Dictionary<int, CausalLearningReviewAction>();
+
+        foreach (var (key, sourceOccurrences) in sourceGroups)
+        {
+            var targetOccurrences = targetGroups.TryGetValue(key, out var existing)
+                ? existing
+                : [];
+            var targetIsPrefix = IsExactFingerprintPrefix(targetOccurrences, sourceOccurrences);
+            var sourceIsPrefix = IsExactFingerprintPrefix(sourceOccurrences, targetOccurrences);
+
+            for (var occurrenceIndex = 0; occurrenceIndex < sourceOccurrences.Count; occurrenceIndex++)
+            {
+                var sourceOccurrence = sourceOccurrences[occurrenceIndex];
+                CausalLearningReviewAction action;
+                if (targetIsPrefix)
+                {
+                    action = occurrenceIndex < targetOccurrences.Count
+                        ? new CausalLearningReviewAction(
+                            MergeEntityClassification.DeduplicatedEvent,
+                            "learning-review-causal-prefix-occurrence-deduplicated")
+                        : new CausalLearningReviewAction(
+                            MergeEntityClassification.New,
+                            "learning-review-causal-source-tail-new");
+                }
+                else if (sourceIsPrefix)
+                {
+                    action = new CausalLearningReviewAction(
+                        MergeEntityClassification.DeduplicatedEvent,
+                        "learning-review-causal-target-ahead-occurrence-deduplicated");
+                }
+                else
+                {
+                    action = new CausalLearningReviewAction(
+                        MergeEntityClassification.UnresolvedConflict,
+                        Schema13MergePreflightErrorCodes.CausalHistoryConflict);
+                }
+
+                actions.Add(sourceOccurrence.SourceIndex, action);
+            }
+        }
+
+        return actions;
+    }
+
+    private static Dictionary<CausalLearningReviewGroupKey, List<CausalLearningReviewOccurrence>>
+        BuildCausalLearningReviewGroups(
+            IReadOnlyList<BackupLearningReviewV2> reviews,
+            Func<BackupLearningReviewV2, FutureCardIdentity> cardIdentity,
+            Func<BackupLearningReviewV2, string> fingerprint)
+    {
+        var groups = new Dictionary<CausalLearningReviewGroupKey, List<CausalLearningReviewOccurrence>>();
+        for (var index = 0; index < reviews.Count; index++)
+        {
+            var review = reviews[index];
+            var key = new CausalLearningReviewGroupKey(
+                cardIdentity(review).Value,
+                Data.Schema8.Schema8Utc.Normalize(review.ReviewedAtUtc).Ticks);
+            if (!groups.TryGetValue(key, out var occurrences))
+            {
+                occurrences = [];
+                groups.Add(key, occurrences);
+            }
+
+            occurrences.Add(new CausalLearningReviewOccurrence(index, fingerprint(review)));
+        }
+
+        return groups;
+    }
+
+    private static bool IsExactFingerprintPrefix(
+        IReadOnlyList<CausalLearningReviewOccurrence> prefix,
+        IReadOnlyList<CausalLearningReviewOccurrence> full)
+    {
+        if (prefix.Count > full.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < prefix.Count; index++)
+        {
+            if (!string.Equals(prefix[index].Fingerprint, full[index].Fingerprint, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private readonly record struct CausalLearningReviewGroupKey(
+        string FutureCardIdentity,
+        long ReviewedAtUtcTicks);
+
+    private sealed record CausalLearningReviewOccurrence(int SourceIndex, string Fingerprint);
+
+    private sealed record CausalLearningReviewAction(
+        MergeEntityClassification Classification,
+        string ReasonCode);
 }

@@ -69,7 +69,7 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
 
             await Schema8DormantMigration.ApplyAsync(fixture.Connection);
             await fixture.ReopenAsync();
-            await DatabaseSchema.InitializeAsync(fixture.Connection);
+            await HistoricalMigrationFixture.UpgradeToSchema10Async(fixture.Connection);
             await AssertRepresentativeDataPreservedAsync(
                 fixture,
                 seed,
@@ -113,7 +113,7 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
 
         await Schema8DormantMigration.ApplyAsync(fixture.Connection);
         await fixture.ReopenAsync();
-        await DatabaseSchema.InitializeAsync(fixture.Connection);
+        await HistoricalMigrationFixture.UpgradeToSchema10Async(fixture.Connection);
         await AssertRepresentativeDataPreservedAsync(
             fixture,
             seed,
@@ -282,10 +282,9 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
     }
 
     /// <summary>
-    /// Called only after the successful retry through <see cref="DatabaseSchema.InitializeAsync"/> (never
-    /// after the pinned Schema-7 rollback assertions above, which stay pinned at version 7): ordinary
-    /// initialization advances the retried database through the Schema-8 semantic step and on to
-    /// <see cref="DatabaseSchema.CurrentVersion"/>.
+    /// Called only after the successful retry through the explicit historical fixture ladder (never after
+    /// the pinned Schema-7 rollback assertions above, which stay pinned at version 7): the fixture advances
+    /// through the Schema-8 semantic step and on to historical Schema 10.
     /// <para>The unchanged-table row comparison tolerates exactly one additive Schema-10 column,
     /// <c>LearningSessions.StableId</c>. <c>LearningSessionCards</c> is not part of this snapshot path — it
     /// is covered by <see cref="CaptureTransformedAuthoritativeRowsAsync"/>, whose explicit legacy column
@@ -298,7 +297,7 @@ public sealed class Schema8DormantMigrationFaultInjectionTests
         string[] transformedRowsBefore,
         string assertionMessage)
     {
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.ReadUserVersionAsync(), assertionMessage);
+        Assert.AreEqual(10, await fixture.ReadUserVersionAsync(), assertionMessage);
         bool validCurrentSchema = false;
         string? validationFailure = null;
         await fixture.Connection.RunInTransactionAsync(connection =>

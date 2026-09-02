@@ -622,7 +622,7 @@
                     <tbody>
                         @foreach (var card in _snapshot.LearningCards)
                         {
-                            <tr><td>@card.Id</td><td>@card.Direction</td><td>@card.State</td><td>@card.DueAtUtc.ToString("u")</td><td>@card.IntervalDays</td><td>@card.EaseFactor.ToString("0.00")</td><td>@card.LastRating</td></tr>
+                            <tr><td>@card.Id</td><td>@card.Direction</td><td>@card.State</td><td>@card.DueAtUtc?.ToString("u")</td><td>@card.IntervalDays</td><td>@card.EaseFactor?.ToString("0.00")</td><td>@card.LastRating</td></tr>
                         }
                     </tbody>
                 </table>

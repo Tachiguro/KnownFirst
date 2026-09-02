@@ -1,10 +1,26 @@
 # KnownFirst backup format v1
 
-**Status:** Format v1 was first shipped in Beta 10 for portable recovery into an empty installation. This document continues to define format v1's external layout, payload model, validation rules, resource limits, checksum behavior, privacy boundary, exclusions, and AOT/source-generated JSON requirements. The current application can also consume a valid format-v1 archive on a populated Schema-8/9 target by upgrading its payload in memory and applying the current non-destructive merge pipeline. The in-memory upgrade and later merge pipeline do not change the external format-v1 bytes or redefine format v1 as a native merge format. Schema-8/9 exports currently use format v2 and are consumed natively by the current Schema-8/9 import path. Destructive overwrite and delete-then-insert `ReplaceAll` remain unimplemented and were superseded by non-destructive merge.
+**Status:** Format v1 was first shipped in Beta 10 for portable recovery into an empty installation. This document continues to define format v1's external layout, payload model, validation rules, resource limits, checksum behavior, privacy boundary, exclusions, and AOT/source-generated JSON requirements. Legacy Schema-8/9 targets can consume a valid format-v1 archive through their compatibility path by upgrading its payload in memory and applying the non-destructive merge pipeline. The in-memory upgrade and later merge pipeline do not change the external format-v1 bytes or redefine format v1 as a native merge format. Schema-8/9 exports use format v2; Schema-13 exports use the V3 extension below. Destructive overwrite and delete-then-insert `ReplaceAll` remain unimplemented and were superseded by non-destructive merge.
 **File extension:** `.kfarchive`
 **Container:** ZIP with exactly two root entries
 
 This document defines the logical, versioned local backup/recovery format for KnownFirst. It does not make the SQLite file a public format. The source findings and background risks are in [database-audit.md](database-audit.md).
+
+## Current Archive V3 / Schema-13 extension
+
+The historical V1 and V2 sections below retain their compatibility contracts. On the KF-FSRS-003 candidate, the current Schema-13 export format is `formatVersion: 3`; no V4, portable `LearningReview` local-ID field, or source-generated JSON architecture change was introduced.
+
+V3 carries Schema-13 `FsrsReviewHistoryEntries` and `FsrsCardStates` in addition to the established portable graph. Factual FSRS history and the exported state must agree exactly under replay. `Stability` and `Difficulty` use exact IEEE-754 binary64 equality; approximate replay-state tolerance is not an accepted validity definition. Invalid state or replay agreement fails closed. A native V3 restore into a genuinely empty target validates production-equivalent Schema-13 shape, foreign keys, runtime integrity, record counts, and exact state before its transaction succeeds. A populated target uses compatible authoritative validation before its transactional merge succeeds; neither path silently repairs or normalizes invalid archive state.
+
+### Required causal interaction feature
+
+Applicable new V3 exports declare `requiredFeatures: ["learning-review-causal-order-v1"]`. For a feature-marked archive, `Learning.ReviewEvents` array order is normative causal interaction order. Equal normalized timestamps are valid. Export may use source-local `LearningReview.Id` internally as the deterministic tie-breaker for equal timestamps; that local ID is not serialized as portable identity.
+
+Unknown required features fail closed. Older KnownFirst versions may intentionally reject an archive requiring a feature they do not understand. Repair-005 of KF-FSRS-003 introduced this required feature; Repair-006 did not add another required-feature contract.
+
+### Historical interaction-order ambiguity
+
+An unmarked V3 archive remains compatible only when it contains no same-card/equal-normalized-timestamp causal ambiguity. An ambiguous unmarked V3 archive fails closed before Schema-13 mutation. V1/V2 interaction history imported into Schema 13 likewise fails closed when exact causal order cannot be proven. Supported legacy Schema 7–12 behavior remains governed by its legacy compatibility paths. The importer never guesses interaction order or heuristically reconstructs FSRS facts from ambiguous `LearningReviews`.
 
 ## Goals and non-goals
 

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-08-29 (Authoritative operational baseline synchronized with master; Schema is 12; Archive format is V2; production scheduler remains SimpleSpacedRepetitionScheduler).
+2026-09-02 (KF-FSRS-003 is locally complete through Repair-006 and approved for documentation; Schema 13 and FSRS-6 are active in the local candidate; the candidate remains unpushed).
 
 ## Repository and Worktree Governance
 
@@ -17,39 +17,22 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active work package selection:** `KF-BACKUP-006` (`feature/archive-v3-schema13-transport-v1`): Archive V3 transport, clean learning controls, and Schema-13 restore/merge. Source implementation complete across all five slices (`1/5 v3-contract`, `2/5 v3-export`, `3/5 v3-empty-restore`, `4/5 v3-preflight`, `5/5 v3-merge`); consolidated `REVIEW_ONLY` approved (`REVIEW_APPROVED_FOR_DOCUMENTATION_AND_FULL_VALIDATION`); proceeding through package-level documentation and validation lifecycle on local candidate HEAD `03a6eff513b50377adfdee8dbb340f439e7dd0ce`.
+- **Active work package selection:** `KF-FSRS-003` (`feature/fsrs6-schema13-cutover-v1`): Production Schema-13 / FSRS-6 cutover, complete locally through Repair-006 across 14 checkpoint commits. Consolidated `REVIEW_ONLY` approved (`REVIEW_APPROVED_FOR_DOCUMENTATION`). Mandatory package-level `DOCUMENT_ONLY` is active on candidate HEAD `b7c979bf188e0c5526b9a7dfccf419ac387c2d9e`; post-documentation candidate `FULL_VALIDATION` has not run, the branch is unpushed, no PR exists, and source is not merged to `master`.
 - **Backlog and sequencing authority:** [docs/BACKLOG.md](BACKLOG.md) owns the authoritative registry of all accepted open work, product decisions, deferred follow-ups, and unprioritized initiatives. [docs/ROADMAP.md](ROADMAP.md) owns milestone sequencing.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` remains 12 and normal production database initialization stops at Schema 12. Portable archive format for production Schema 8–12 databases remains V2. Validated Schema-13 databases support Archive V3 transport.
-- **Production scheduler boundary:** `SimpleSpacedRepetitionScheduler` remains the active production scheduler; FSRS runtime cutover is deferred to `KF-FSRS-003`.
+- **Persistence boundary:** `DatabaseSchema.CurrentVersion` is **13**. Fresh genuinely empty databases bootstrap directly to Schema 13 via `Schema13CleanBootstrap`. Existing Schema 1–12 databases are unsupported by the production startup path and fail closed with `DatabaseSchemaCompatibilityException` without automatic migration, reset, or mutation. Malformed or future-version databases also fail closed. Portable archive format for Schema-13 databases is V3; V1/V2 archives are accepted into Schema-13 targets only when their required causal interaction order is provable. `PRAGMA foreign_keys = ON` is enforced globally for every production database connection.
+- **Scheduling boundary:** `IFsrs6SchedulingService` / `Fsrs6SchedulingService` is the live production FSRS-6 scheduling authority wired into `LearningService` via `AddKnownFirstLearningRuntime()`. `SimpleSpacedRepetitionScheduler` is no longer the authoritative production scheduler for Schema-13 databases. Legacy physical columns (`IntervalDays`, `EaseFactor`) remain present but are not authoritative for Schema-13 scheduling.
 - **Downstream ownership:**
-  - `KF-FSRS-003`: Production Schema-13 activation, runtime DI wiring, replacing `SimpleSpacedRepetitionScheduler`, factual review logging, and production foreign-key enablement.
-  - `KF-CLEANUP-001`: Legacy scheduler deprecation and column removal.
+  - `KF-CLEANUP-001`: Legacy scheduler column deprecation and removal (`IntervalDays`, `EaseFactor`). Not part of this package.
   - `KF-VOCAB-005` / `KF-VOCAB-006`: Vocabulary area UI and service integration for clean learning controls.
 - **Live state precedence:** Live Git branch/HEAD, worktree status, open pull requests, and repository state override static document text.
 
-## Archive V3 Transport & Schema-13 Merge (KF-BACKUP-006 — Local Candidate)
+## Production Schema-13 / FSRS-6 Cutover (KF-FSRS-003 — Local Candidate)
 
-**Lifecycle status:** Source implementation complete across five logical checkpoints on `feature/archive-v3-schema13-transport-v1` (candidate HEAD `03a6eff513b50377adfdee8dbb340f439e7dd0ce`). Consolidated `REVIEW_ONLY` approved with `REVIEW_APPROVED_FOR_DOCUMENTATION_AND_FULL_VALIDATION`. Reconciling documentation in `DOCUMENT_ONLY` mode before candidate-HEAD `FULL_VALIDATION`. Package is local and unpushed (0 open PRs). `DatabaseSchema.CurrentVersion` remains 12, production archive format remains V2, and production scheduler remains `SimpleSpacedRepetitionScheduler`.
+The candidate activates Schema 13, FSRS-6 runtime composition, global foreign-key enforcement, factual FSRS persistence, clean learning controls, and Archive V3 integrity. Repair-005 introduced `learning-review-causal-order-v1`; Repair-006 completes feature-marked populated-import handling. The detailed persistence and archive contracts belong in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [backup-format-v1.md](architecture/backup-format-v1.md), and [backup-merge-v1-design.md](architecture/backup-merge-v1-design.md).
 
-- **Scope & Architecture:**
-  - **Archive V3 Contract:** Introduced format version 3 supporting clean learning controls (`WordLearningControls`, `SenseLearningControls`), append-only factual review entries (`FsrsReviewHistoryEntries`), and exact card states (`FsrsCardStates`), with strict contract validation (`BackupModelContractV3`, `BackupArchiveWriterV3.ValidatePayloadGraphV3`).
-  - **Deterministic V3 Export:** Emits validated Archive V3 payloads from validated Schema-13 databases (`Schema13BackupSnapshotRepository`, `BackupModelMapperV3`, `BackupArchiveWriterV3`), sorting collections by stable portable keys and assigning durable card IDs.
-  - **Empty-Target Restore:** Restores native Archive V3 into empty Schema-13 databases with exact portable identity, history/state preservation, transactional rollback, and post-write integrity validation. Adapts legacy V1/V2 archives deterministically through the `Schema13LearningBootstrap` oracle.
-  - **Populated-Target Preflight:** Pure, read-only preflight planning (`Schema13MergePreflightPlanner`) computing explicit actions (`AddWordLearningControl`, `ReconcileWordLearningControlTimestamp`, `AddSenseLearningControl`, `ReconcileSenseLearningControlTimestamp`, `AppendFsrsReviewHistory`, `InsertFsrsCardState`, `UpdateFsrsCardState`, `PreserveTargetOnly`, `NoChange`) and capturing complete target expectations and fingerprints.
-  - **Governed Populated-Target Merge Writer:** Executes populated Schema-13 merges inside a single atomic transaction: verifies capability, captures target state and compares recomputed plan against preflight plan (stale-plan rejection before first mutation), applies base graph via `MergeWriterExecutor.ExecuteWithMappings`, executes Schema-13 extensions via `Schema13MergeWriterExecutor`, and runs comprehensive post-write integrity and convergence validation (`pragma_foreign_key_check`, snapshot validation, `ValidateExactReplay`, exact action row checks, and preflight convergence).
-  - **Data Integrity & Exactness:** Preserves exact IEEE-754 binary64 `Stability` and `Difficulty` values, exact `StableId`s, gapless sequence numbers, and equal review timestamps without renumbering or averaging. Controls converge to earliest `DecidedAtUtc`.
-  - **Safety-Copy Ordering:** Mutating populated merges create a validated Archive V3 safety copy of the pre-merge target before any database mutation. Read-only previews and executable no-change imports create no safety copy.
-  - **Fail-Closed Boundaries:** Divergent causal histories, StableId collisions, insufficient legacy history, and ambiguous sibling senses without semantic discriminators fail closed before mutation.
-  - **V1/V2 Backward Compatibility:** Schema 7–12 targets continue using existing V1/V2 restore and merge paths. V3 archives reject legacy targets with `Schema13ArchiveIncompatibleWithLegacyTarget`.
-- **Production Boundaries:**
-  - `DatabaseSchema.CurrentVersion` remains 12; `Schema13DormantMigration` remains dormant.
-  - Normal production database initialization stops at Schema 12; ordinary production archives remain V2.
-  - Production scheduler remains `SimpleSpacedRepetitionScheduler`.
-  - Global `PRAGMA foreign_keys = ON` is deferred to `KF-FSRS-003`.
-- **Downstream Ownership:**
-  - `KF-FSRS-003`: Production Schema-13 activation, runtime FSRS-6 cutover, DI wiring, and production foreign-key enablement.
-  - `KF-CLEANUP-001`: Legacy scheduler and column deprecation/cleanup.
-  - `KF-VOCAB-005` / `KF-VOCAB-006`: UI and service workflows for AlreadyKnown reversal and Sense Stop/Resume.
+For a feature-marked populated V3 import, each affected card/equal-normalized-timestamp interaction group compares ordered source sequence `S` with target sequence `T`: `T == S` makes no change; a target prefix appends only the missing source tail; a source prefix preserves the target tail; any other divergence fails closed before mutation. Repeated equal-valued occurrences remain distinct.
+
+Legacy physical scheduling fields remain for compatibility and later `KF-CLEANUP-001` work. Vocabulary-management reversal and stop/resume UI work remains downstream in `KF-VOCAB-005` and `KF-VOCAB-006`.
 - **Previous merged packages:**
   - PR #189 (`feat(persistence): add dormant schema 13 persistence foundation` / `KF-PERSIST-013-001`): Added dormant physical Schema-13 persistence in `KnownFirst.Data` (`FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, `SenseLearningControls`), repositories, shape validator, atomic persistence coordinator (`FsrsReviewPersistenceCoordinator`), and transactional `Schema13DormantMigration` from Schema 12 to 13 with `Schema13LearningBootstrap` oracle. Merged to `master` via merge commit `db8a355768167871362aba53c55e411290f8cfd0`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #187 (`docs: establish durable backlog governance` / `KF-GOV-BACKLOG-001`): Reconciled `BACKLOG.md` as the authoritative registry for accepted open work, added Follow-Up Closure Audit rule and Foundation Milestone Invariant to `AGENT_WORKFLOW.md`, updated `ROADMAP.md` initiatives, and linked bootstrap/routing governance. Merged to `master` via merge commit `838a968c3ab9fd596889aa269c2be43caa2f13c0`. `POST_MERGE_SYNC_ONLY` completed.

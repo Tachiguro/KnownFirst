@@ -641,7 +641,7 @@ When a learning session starts:
 
 An active session is persisted and resumable.
 
-An active learning session does not block import.
+An active learning session does not block import. In Schema-13 runtime composition, `IFsrs6SchedulingService` is the scheduling authority. Each card direction has its own FSRS-6 state and factual history; legacy scheduling fields may remain for compatibility but do not authoritatively schedule Schema-13 cards.
 
 Every successfully committed explicit user Again action appends exactly one repeat attempt at the deterministic tail of the current active learning-session queue, regardless of whether the source attempt was an ordinary card or an existing Again repeat. There is no arbitrary one-repeat-per-card or one-repeat-per-session cap, but repeats are never generated automatically: each additional repeat requires another explicit committed user Again rating. Existing queued cards remain ahead in deterministic queue order without reordering. While the scheduler persists the normal future due time and Learning/Relearning state for subsequent sessions, the incomplete repeat row remains active and presentable within the current session until its turn is reached. Session completion occurs only when no incomplete queue row remains.
 
@@ -789,7 +789,7 @@ Meaning:
 
 Behavior:
 
-- schedule in 10 minutes
+- apply the FSRS-6 Again transition and its resulting due state
 - append one repeat attempt at the deterministic tail of the current active learning-session queue (including for repeated Again actions on existing repeats, without an arbitrary repeat cap)
 - enter Learning or Relearning
 - record a lapse where applicable
@@ -806,8 +806,7 @@ Meaning:
 
 Behavior:
 
-- schedule a short interval
-- reduce ease where applicable
+- apply the FSRS-6 Hard transition and its resulting due state
 
 Hard must not be used for a failed recall.
 
@@ -823,7 +822,7 @@ Meaning:
 
 Behavior:
 
-- schedule the normal interval
+- apply the FSRS-6 Good transition and its resulting due state
 
 Presentation:
 
@@ -837,7 +836,7 @@ Meaning:
 
 Behavior:
 
-- schedule a longer interval
+- apply the FSRS-6 Easy transition and its resulting due state
 
 Presentation:
 
@@ -847,43 +846,9 @@ Intervals continue to grow. They do not end automatically after 7 or 14 days.
 
 ---
 
-## 18. Permanent-known action
+## 18. Learning controls
 
-A card menu provides:
-
-English:
-
-> Mark permanently known
-
-German:
-
-> Dauerhaft als bekannt markieren
-
-Confirmation:
-
-English:
-
-> Future reviews for this word will stop. Its personal definition, translation, contexts, frequency data, card schedules, and learning history may be deleted. A minimal known-word marker will remain so KnownFirst does not ask again.
-
-German:
-
-> Zukünftige Wiederholungen für dieses Wort werden beendet. Persönliche Definitionen, Übersetzungen, Kontexte, Häufigkeitsdaten, Kartenpläne und Lernhistorie können gelöscht werden. Ein minimaler Marker bleibt erhalten, damit KnownFirst nicht erneut danach fragt.
-
-Actions:
-
-- Mark permanently known
-- Cancel
-
-After confirmation:
-
-- stop all card directions
-- delete their scheduling state
-- delete personal prepared content and context snapshots
-- retain the minimal known marker
-- update all affected documents
-- trigger document cleanup
-
-KnownFirst may suggest this action after long successful intervals, but never performs it automatically.
+Schema 13 separates word-level AlreadyKnown from sense-level StopLearning. AlreadyKnown affects eligibility for all cards of its word; StopLearning affects only the controlled sense, leaving sibling senses and their card directions independent. These clean controls preserve factual learning history and FSRS state. They are not inferred from stale legacy status fields, and they are never applied automatically. User-interface reversal and stop/resume workflows are outside this package.
 
 ---
 
@@ -1251,6 +1216,5 @@ The MVP does not require:
 - AI grading of definitions
 - local language model
 - full offline dictionary packages
-- FSRS implementation
 
-The initial scheduler remains replaceable by FSRS later.
+FSRS-6 (`IFsrs6SchedulingService`) is the production scheduling authority as of `KF-FSRS-003`; the initial simple scheduler has been superseded.

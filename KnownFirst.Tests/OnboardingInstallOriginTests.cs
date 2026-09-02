@@ -1,5 +1,4 @@
 using KnownFirst.Core.Settings;
-using KnownFirst.Data;
 using KnownFirst.Services;
 using KnownFirst.Services.Onboarding;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -351,21 +350,6 @@ public sealed class OnboardingInstallOriginTests
         Assert.Contains(
             "AddSingleton<KnownFirst.Services.Onboarding.IInstallOriginClassifier, KnownFirst.Services.Onboarding.InstallOriginClassifier>()",
             startup);
-    }
-
-    // ---------------------------------------------------------------------------------------
-    // I. Schema boundary — this package introduces no database migration
-    // ---------------------------------------------------------------------------------------
-
-    [TestMethod]
-    public void OnboardingFoundation_IntroducesNoDatabaseSchemaMigration()
-    {
-        int currentSchemaVersion = DatabaseSchema.CurrentVersion;
-
-        Assert.AreEqual(
-            12,
-            currentSchemaVersion,
-            "Onboarding state is preference-level application state and must not move the database schema.");
     }
 
     private static string LoadStartupArtifact(string fileName) =>

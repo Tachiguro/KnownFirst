@@ -91,10 +91,9 @@ The following initiatives represent accepted product directions whose individual
   - `KF-LEARN-009`: Clearing stale `_actionFailed` error banners after successful actions in `Learn.razor`.
 
 ### 4. Navigation, Settings & Feedback Corrections
-- **Status:** `KF-NAV-001` merged to `master` via PR #193.
+- **Status:** `KF-NAV-001` merged to `master` via PR #193; `KF-PREP-001` merged to `master` via PR #194.
 - **Open Packages:**
-  - `KF-PREP-001`: Prepare Words link to Settings auto-scrolling and focusing Online Dictionary section (candidate implemented on `fix/prepare-online-settings-deeplink-v1`).
-  - `KF-SETTINGS-001`: Visible failure feedback when saving learning timezone in `Settings.razor`.
+  - `KF-SETTINGS-001`: Visible failure feedback when saving learning timezone in `Settings.razor` (candidate implemented on `fix/settings-learning-timezone-error-feedback-v1`).
   - `KF-HOME-002`: User-centric learning progress metrics on Home (depending on product decision `KF-METRIC-001`).
 
 ## Cleanup & Release Sequence

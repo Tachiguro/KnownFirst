@@ -103,4 +103,21 @@ public sealed class LearnCardDirectionContractTests
             || markup.Contains("_card.Direction == CardDirection.TermToMeaning", StringComparison.Ordinal),
             "CheckSpellingAsync must be protected against invocation on TermToMeaning.");
     }
+
+    [TestMethod]
+    public void ContextView_HiddenTarget_UsesDynamicTargetMaskPolicyInsteadOfHardCodedUnderscores()
+    {
+        var markup = UiWorkflowContractTests.LoadUi("ContextView.razor");
+
+        // ContextView must not hardcode the literal five underscores "_____"
+        Assert.IsFalse(
+            markup.Contains("_____", StringComparison.Ordinal),
+            "ContextView.razor must not hard-code a five-underscore placeholder ('_____').");
+
+        // ContextView must use ContextTargetMaskPolicy to dynamically mask Context.Target
+        Assert.IsTrue(
+            markup.Contains("ContextTargetMaskPolicy.CreateMask(Context.Target)", StringComparison.Ordinal)
+            || markup.Contains("ContextTargetMaskPolicy.CreateMask", StringComparison.Ordinal),
+            "ContextView.razor must mask the target dynamically using ContextTargetMaskPolicy.CreateMask.");
+    }
 }

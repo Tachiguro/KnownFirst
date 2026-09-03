@@ -131,6 +131,132 @@ public sealed class StudyWorkflowServiceTests
     }
 
     [TestMethod]
+    public async Task Workflow_ActiveLearningSessionExposesCompletedAndTotalCards()
+    {
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new LearningSessionEntity
+            {
+                Status = LearningSessionStatus.Active,
+                TotalCards = 7,
+                CompletedCards = 3,
+                StartedAtUtc = Now.AddMinutes(-10),
+                UpdatedAtUtc = Now
+            });
+            return true;
+        });
+
+        var snapshot = await new WorkflowStateService(_database, _clock).GetSnapshotAsync();
+
+        Assert.IsTrue(snapshot.HasActiveLearning);
+        Assert.AreEqual(3, snapshot.ActiveLearningSessionCompletedCards);
+        Assert.AreEqual(7, snapshot.ActiveLearningSessionTotalCards);
+    }
+
+    [TestMethod]
+    public async Task Workflow_ActiveBudgetDayExposesEndWhileBridgeDoesNot()
+    {
+        await _database.ReadAsync(async connection =>
+        {
+            await HistoricalMigrationFixture.UpgradeToSchema12Async(connection);
+            return true;
+        });
+        var activeDayEndUtc = Now.AddHours(16);
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new LearningDayStateEntity
+            {
+                Phase = LearningDayPhase.ActiveBudgetDay,
+                DayOrdinal = 4,
+                ActiveDayStartUtc = Now.AddHours(-8),
+                ActiveDayEndUtc = activeDayEndUtc,
+                FrozenTimeZoneId = TimeZoneInfo.Utc.Id,
+                FrozenCutoffMinutes = 240,
+                UpdatedAtUtc = Now
+            });
+            return true;
+        });
+        var service = new WorkflowStateService(_database, _clock);
+
+        var active = await service.GetSnapshotAsync();
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Execute(
+                """
+                UPDATE LearningDayState
+                SET Phase = ?, BridgeStartedUtc = ?, BridgeTargetTimeZoneId = ?,
+                    BridgeTargetCutoffMinutes = ?, BridgeTargetUtc = ?
+                WHERE Id = 1
+                """,
+                (int)LearningDayPhase.Bridge,
+                Now,
+                TimeZoneInfo.Utc.Id,
+                240,
+                activeDayEndUtc.AddHours(1));
+            return true;
+        });
+        var bridge = await service.GetSnapshotAsync();
+
+        Assert.AreEqual(activeDayEndUtc, active.ActiveLearningDayEndUtc);
+        Assert.IsNull(bridge.ActiveLearningDayEndUtc);
+    }
+
+    [TestMethod]
+    public async Task Workflow_PrimaryActionPriorityRemainsReviewPreparationLearningThenDue()
+    {
+        await SeedDueCardAsync();
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Insert(new ReviewSessionEntity
+            {
+                DocumentId = 0,
+                Status = ReviewSessionStatus.Active,
+                StartedAt = Now
+            });
+            connection.Insert(new PreparationSessionEntity
+            {
+                Status = PreparationSessionStatus.Active,
+                StartedAtUtc = Now,
+                UpdatedAtUtc = Now
+            });
+            connection.Insert(new LearningSessionEntity
+            {
+                Status = LearningSessionStatus.Active,
+                TotalCards = 1,
+                StartedAtUtc = Now,
+                UpdatedAtUtc = Now
+            });
+            return true;
+        });
+        var service = new WorkflowStateService(_database, _clock);
+
+        var review = await service.GetSnapshotAsync();
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Execute("UPDATE ReviewSessions SET Status = ?", (int)ReviewSessionStatus.Completed);
+            return true;
+        });
+        var preparation = await service.GetSnapshotAsync();
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Execute("UPDATE PreparationSessions SET Status = ?", (int)PreparationSessionStatus.Completed);
+            return true;
+        });
+        var learning = await service.GetSnapshotAsync();
+        await _database.RunInTransactionAsync(connection =>
+        {
+            connection.Execute("UPDATE LearningSessions SET Status = ?", (int)LearningSessionStatus.Completed);
+            return true;
+        });
+        var due = await service.GetSnapshotAsync();
+
+        Assert.AreEqual(WorkflowPrimaryAction.ContinueReview, review.PrimaryAction);
+        Assert.AreEqual(WorkflowPrimaryAction.ContinuePreparation, preparation.PrimaryAction);
+        Assert.AreEqual(WorkflowPrimaryAction.ContinueLearning, learning.PrimaryAction);
+        Assert.AreEqual(WorkflowPrimaryAction.LearnDueCards, due.PrimaryAction);
+    }
+
+    [TestMethod]
     public async Task Preparation_ExistingLearningCardsDoNotPreventLaterBacklog()
     {
         await ImportAllUnknownAsync("existing.");

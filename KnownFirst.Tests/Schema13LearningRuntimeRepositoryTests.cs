@@ -109,6 +109,21 @@ public sealed class Schema13LearningRuntimeRepositoryTests
     }
 
     [TestMethod]
+    public async Task CountDueCards_DueCardWithoutRequiredAnswerAssignment_IsNotCounted()
+    {
+        await using var fixture = await CreateSchema13Async(seedCard: true);
+        var scheduled = await SetFsrsReviewWithConflictingLegacyNewAsync(fixture);
+        await fixture.Connection.ExecuteAsync("DELETE FROM SenseAnswerVariantAssignments");
+
+        await fixture.Connection.RunInTransactionAsync(connection =>
+        {
+            Assert.IsNotNull(scheduled.DueAtUtc);
+            Assert.IsLessThanOrEqualTo(ReviewTime.AddYears(1), scheduled.DueAtUtc.Value);
+            Assert.AreEqual(0, Schema13LearningRepository.CountDueCards(connection, ReviewTime.AddYears(1)));
+        });
+    }
+
+    [TestMethod]
     public async Task Repository_MissingFsrsState_FailsClosedWithoutLegacyFallback()
     {
         await using var fixture = await CreateSchema13Async(seedCard: true);

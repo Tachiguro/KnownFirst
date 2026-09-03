@@ -18,7 +18,11 @@ public sealed record WorkflowSnapshot(
     int DueCardCount,
     int PreparedNewItemCount,
     int UnpreparedUnknownCount,
-    WorkflowPrimaryAction PrimaryAction)
+    WorkflowPrimaryAction PrimaryAction,
+    DateTime? NextDueAtUtc = null,
+    int? ActiveLearningSessionCompletedCards = null,
+    int? ActiveLearningSessionTotalCards = null,
+    DateTime? ActiveLearningDayEndUtc = null)
 {
     public bool CanLearn => !HasActiveReview
         && (HasActiveLearning || DueCardCount > 0 || PreparedNewItemCount > 0);

@@ -125,6 +125,23 @@ public sealed class Schema13CleanControlRuntimeEligibilityTests
     }
 
     [TestMethod]
+    public async Task WorkflowProjection_Schema13NextDueRequiresQueueableAnswerAssignment()
+    {
+        await using var fixture = await CreateFixtureAsync(senseCount: 2);
+        await SetDueAsync(fixture, senseIndex: 0);
+        await SetDueAsync(fixture, senseIndex: 1);
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "DELETE FROM SenseAnswerVariantAssignments WHERE SenseId = ?",
+            fixture.SenseIds[0]);
+        var database = new Schema8BackupFixtureBuilders.Schema8DatabaseAdapter(fixture.DatabaseFixture);
+
+        var snapshot = await new WorkflowStateService(database, new FakeClock(NowUtc)).GetSnapshotAsync();
+
+        Assert.AreEqual(1, snapshot.DueCardCount);
+        Assert.AreEqual(fixture.DueAtUtc[1]?.UtcDateTime, snapshot.NextDueAtUtc);
+    }
+
+    [TestMethod]
     public async Task AnswerVariants_DoNotBecomeIndependentControlOwners()
     {
         await using var fixture = await CreateFixtureAsync(senseCount: 1, variantsPerSense: 3);

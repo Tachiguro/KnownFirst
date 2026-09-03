@@ -38,7 +38,7 @@
                 }
             </p>
 
-            @if (_card.InteractionMode == LearningInteractionMode.Reading)
+            @if (_card.Direction == CardDirection.TermToMeaning)
             {
                 <p class="eyebrow">@Localizer["Learn_ReadingMode"]</p>
                 <h2 class="learning-term">@_card.Term</h2>
@@ -57,7 +57,7 @@
             }
             else
             {
-                <p class="eyebrow">@Localizer["Learn_TypingMode"]</p>
+                <p class="eyebrow">@Localizer[_card.InteractionMode == LearningInteractionMode.Reading ? "Learn_ReadingMode" : "Learn_TypingMode"]</p>
                 <section class="meaning-prompt">
                     @if (!string.IsNullOrWhiteSpace(_card.Translation))
                     {
@@ -82,48 +82,78 @@
                     </div>
                 }
 
-                @if (_spellingResult is null)
+                @if (_card.InteractionMode == LearningInteractionMode.Reading)
                 {
-                    <form class="spelling-form" id="spelling-form-main" @onsubmit="CheckSpellingAsync" @onsubmit:preventDefault>
-                        <label for="spelling-answer">@Localizer["Learn_YourAnswer"]</label>
-                        <input id="spelling-answer"
-                               class="text-input spelling-input"
-                               autocomplete="off"
-                               placeholder="@CreateSpellingPlaceholder(_card.Term)"
-                               disabled="@_isBusy"
-                               @bind="_spellingAnswer"
-                               @bind:event="oninput" />
-                    </form>
+                    @if (_card.AnswerRevealed)
+                    {
+                        <section class="learning-answer">
+                            <h2 class="learning-term">@_card.Term</h2>
+                            @if (!string.IsNullOrWhiteSpace(_card.EncounteredSurfaceForm) && !string.Equals(_card.EncounteredSurfaceForm, _card.Term, StringComparison.Ordinal))
+                            {
+                                <p class="encountered-form">@Localizer["Prepare_InText", _card.EncounteredSurfaceForm]</p>
+                            }
+                            @if (_card.AcceptedAliases.Count > 0)
+                            {
+                                <div><h3>@Localizer["Learn_AcceptedAlias"]</h3><p>@string.Join(", ", _card.AcceptedAliases)</p></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_card.DictionaryExample))
+                            {
+                                <div><h3>@Localizer["Learn_DictionaryExample"]</h3><p>@_card.DictionaryExample</p></div>
+                            }
+                            <SourceDetails ProviderName="@_card.ProviderName"
+                                           SourceProject="@_card.SourceProject"
+                                           PageTitle="@_card.SourcePageTitle"
+                                           RevisionId="@_card.SourceRevisionId"
+                                           Attribution="@_card.Attribution"
+                                           Compact="true" />
+                        </section>
+                    }
                 }
                 else
                 {
-                    <section class="spelling-result @(_spellingResult.IsCorrect ? "correct" : "incorrect")" role="status">
-                        <p>@Localizer[_spellingResult.IsCorrect ? "Learn_SpellingCorrect" : "Learn_SpellingIncorrect"]</p>
-                        <dl>
-                            <div>
-                                <dt>@Localizer["Learn_EnteredAnswer"]</dt>
-                                <dd class="entered-answer">
-                                    @if (_spellingResult.IsCorrect)
-                                    {
-                                        @_spellingResult.EnteredAnswer
-                                    }
-                                    else
-                                    {
-                                        @foreach (var character in CreateAnswerFeedback(_spellingResult))
+                    @if (_spellingResult is null)
+                    {
+                        <form class="spelling-form" id="spelling-form-main" @onsubmit="CheckSpellingAsync" @onsubmit:preventDefault>
+                            <label for="spelling-answer">@Localizer["Learn_YourAnswer"]</label>
+                            <input id="spelling-answer"
+                                   class="text-input spelling-input"
+                                   autocomplete="off"
+                                   placeholder="@CreateSpellingPlaceholder(_card.Term)"
+                                   disabled="@_isBusy"
+                                   @bind="_spellingAnswer"
+                                   @bind:event="oninput" />
+                        </form>
+                    }
+                    else
+                    {
+                        <section class="spelling-result @(_spellingResult.IsCorrect ? "correct" : "incorrect")" role="status">
+                            <p>@Localizer[_spellingResult.IsCorrect ? "Learn_SpellingCorrect" : "Learn_SpellingIncorrect"]</p>
+                            <dl>
+                                <div>
+                                    <dt>@Localizer["Learn_EnteredAnswer"]</dt>
+                                    <dd class="entered-answer">
+                                        @if (_spellingResult.IsCorrect)
                                         {
-                                            <span class="answer-character @character.CssClass"
-                                                  aria-label="@(character.IsMissing ? Localizer["Learn_MissingLetter"].Value : null)">@character.Display</span>
+                                            @_spellingResult.EnteredAnswer
                                         }
-                                    }
-                                </dd>
-                            </div>
-                            <div><dt>@Localizer["Learn_CorrectAnswer"]</dt><dd>@_spellingResult.CorrectAnswer</dd></div>
-                            @if (_spellingResult.MatchedAlias is not null)
-                            {
-                                <div><dt>@Localizer["Learn_AcceptedAlias"]</dt><dd>@_spellingResult.MatchedAlias</dd></div>
-                            }
-                        </dl>
-                    </section>
+                                        else
+                                        {
+                                            @foreach (var character in CreateAnswerFeedback(_spellingResult))
+                                            {
+                                                <span class="answer-character @character.CssClass"
+                                                      aria-label="@(character.IsMissing ? Localizer["Learn_MissingLetter"].Value : null)">@character.Display</span>
+                                            }
+                                        }
+                                    </dd>
+                                </div>
+                                <div><dt>@Localizer["Learn_CorrectAnswer"]</dt><dd>@_spellingResult.CorrectAnswer</dd></div>
+                                @if (_spellingResult.MatchedAlias is not null)
+                                {
+                                    <div><dt>@Localizer["Learn_AcceptedAlias"]</dt><dd>@_spellingResult.MatchedAlias</dd></div>
+                                }
+                            </dl>
+                        </section>
+                    }
                 }
             }
 
@@ -218,7 +248,7 @@
     {
         <div class="workflow-action-bar">
             <section class="learn-action-bar">
-                @if (_card.InteractionMode == LearningInteractionMode.Reading)
+                @if (IsEffectiveReadingMode)
                 {
                     @if (!_card.AnswerRevealed)
                     {
@@ -283,6 +313,9 @@
         ? "Learn_DirectionMeaningToTerm"
         : "Learn_DirectionTermToMeaning";
 
+    private bool IsEffectiveReadingMode => _card?.Direction == CardDirection.TermToMeaning
+        || _card?.InteractionMode == LearningInteractionMode.Reading;
+
     protected override Task OnInitializedAsync() => LoadAsync();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -341,7 +374,7 @@
 
     private async Task CheckSpellingAsync()
     {
-        if (_card is null || _isBusy || string.IsNullOrWhiteSpace(_spellingAnswer))
+        if (_card is null || _isBusy || IsEffectiveReadingMode || string.IsNullOrWhiteSpace(_spellingAnswer))
         {
             return;
         }
@@ -544,11 +577,11 @@
             && !_isBusy
             && _card is not null)
         {
-            if (_card.InteractionMode == LearningInteractionMode.Reading && !_card.AnswerRevealed)
+            if (IsEffectiveReadingMode && !_card.AnswerRevealed)
             {
                 return RevealAsync();
             }
-            if (_card.InteractionMode == LearningInteractionMode.Typing && _spellingResult is { IsCorrect: false, RatingWasPersisted: true } && string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal))
+            if (!IsEffectiveReadingMode && _spellingResult is { IsCorrect: false, RatingWasPersisted: true } && string.Equals(eventArgs.Key, "Enter", StringComparison.Ordinal))
             {
                 return ContinueAfterIncorrectAsync();
             }

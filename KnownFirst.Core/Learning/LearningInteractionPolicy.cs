@@ -29,27 +29,46 @@ public static class LearningInteractionPolicy
 
     public static LearningInteractionProgress RecordRecallAssessment(
         LearningInteractionProgress progress,
-        bool successful)
+        bool successful) =>
+        RecordRecallAssessment(
+            progress,
+            successful ? RecallProgressionAssessment.Advance : RecallProgressionAssessment.Reset);
+
+    public static LearningInteractionProgress RecordRecallAssessment(
+        LearningInteractionProgress progress,
+        ReviewRating rating) =>
+        RecordRecallAssessment(progress, AutomaticLearningPolicy.ToProgressionAssessment(rating));
+
+    public static LearningInteractionProgress RecordRecallAssessment(
+        LearningInteractionProgress progress,
+        RecallProgressionAssessment assessment)
     {
         ArgumentNullException.ThrowIfNull(progress);
 
-        if (!successful)
+        switch (assessment)
         {
-            return progress with { ConsecutiveRecallSuccesses = 0 };
+            case RecallProgressionAssessment.Advance:
+                var successes = Math.Min(
+                    RequiredConsecutiveAssessments,
+                    progress.ConsecutiveRecallSuccesses + 1);
+                return successes < RequiredConsecutiveAssessments
+                    ? progress with { ConsecutiveRecallSuccesses = successes }
+                    : progress with
+                    {
+                        InteractionMode = LearningInteractionMode.Typing,
+                        ConsecutiveRecallSuccesses = successes,
+                        ConsecutiveTypingFailures = 0
+                    };
+
+            case RecallProgressionAssessment.Hold:
+                return progress;
+
+            case RecallProgressionAssessment.Reset:
+                return progress with { ConsecutiveRecallSuccesses = 0 };
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(assessment), assessment, "Unknown recall progression assessment.");
         }
-
-        var successes = Math.Min(
-            RequiredConsecutiveAssessments,
-            progress.ConsecutiveRecallSuccesses + 1);
-
-        return successes < RequiredConsecutiveAssessments
-            ? progress with { ConsecutiveRecallSuccesses = successes }
-            : progress with
-            {
-                InteractionMode = LearningInteractionMode.Typing,
-                ConsecutiveRecallSuccesses = successes,
-                ConsecutiveTypingFailures = 0
-            };
     }
 
     public static LearningInteractionProgress RecordTypingAssessment(

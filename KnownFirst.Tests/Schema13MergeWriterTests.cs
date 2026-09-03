@@ -1005,7 +1005,7 @@ public sealed class Schema13MergeWriterTests
                 CardDirection.MeaningToTerm);
             var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, cardId);
             var progress = Schema8LearningRepository.LoadProgressForCard(connection, cardId);
-            return Schema13LearningReviewPolicy.Project(cardId, assignments, reviews, progress)
+            return Schema13LearningReviewPolicy.Project(cardId, assignments, reviews, progress, CardDirection.MeaningToTerm)
                 .FindOutcome(answerVariantId)!
                 .State;
         });

@@ -363,6 +363,7 @@ public sealed class LearningServiceSchema13FsrsTests
     public async Task RateAsync_ValidSchema13_PersistsOneFactualReviewAndExactFsrsState()
     {
         await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
         var clock = new CountingClock(ReviewTime);
         var fsrs = new CountingFsrsSchedulingService(new Fsrs6SchedulingService(clock));
         var service = CreateLearningService(fixture, clock, fsrs);
@@ -540,6 +541,7 @@ public sealed class LearningServiceSchema13FsrsTests
     public async Task RateAsync_Repeated365DayCompatibilityHistory_DoesNotSynthesizeLegacyMasteryOrExtension()
     {
         await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
         await SetRequiredSinceAsync(fixture, ReviewTime.AddDays(-500));
         var firstReview = ReviewTime.AddDays(-400);
         var masterySnapshot = LegacySnapshot(firstReview.AddDays(365), intervalDays: 365);
@@ -649,6 +651,7 @@ public sealed class LearningServiceSchema13FsrsTests
     public async Task RateAsync_RebuildsCompleteRequiredProgressAndPreservesAcceptedOnlyRows()
     {
         await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
         await SetRequiredSinceAsync(fixture, ReviewTime.AddDays(-500));
         var uncreditedRequiredVariantId = await AddAnswerVariantAsync(
             fixture, "schema13-uncredited-required", "uncredited", AnswerVariantRequirement.Required);
@@ -827,11 +830,11 @@ public sealed class LearningServiceSchema13FsrsTests
                 (int)CardDirection.MeaningToTerm,
                 fixture.CardId);
             connection.Execute(
-                "UPDATE SenseAnswerVariantAssignments SET CardDirection = ? WHERE AnswerVariantId = ?",
+                "UPDATE SenseAnswerVariantAssignments SET CardDirection = ? WHERE SenseId = ?",
                 (int)CardDirection.MeaningToTerm,
-                fixture.TargetAnswerVariantId);
+                fixture.SenseId);
             connection.Execute(
-                "UPDATE LearningSessionCards SET AnswerRevealed = 0 WHERE Id = ?",
+                "UPDATE LearningSessionCards SET AnswerRevealed = 1 WHERE Id = ?",
                 fixture.QueueItemId);
         });
 
@@ -1003,15 +1006,18 @@ public sealed class LearningServiceSchema13FsrsTests
             variantId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
             if (requirement.HasValue)
             {
+                var direction = connection.ExecuteScalar<int>(
+                    "SELECT Direction FROM LearningCards WHERE Id = ?", fixture.CardId);
                 connection.Execute(
                     """
                     INSERT INTO SenseAnswerVariantAssignments (
                         StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred,
                         RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
-                    VALUES (?, ?, 0, ?, ?, 0, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)
                     """,
                     $"{stableId}-assignment",
                     fixture.SenseId,
+                    direction,
                     variantId,
                     (int)requirement.Value,
                     requirement == AnswerVariantRequirement.Required ? fixture.LegacyDueAtUtc : null,

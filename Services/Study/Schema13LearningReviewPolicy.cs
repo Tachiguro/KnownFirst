@@ -12,13 +12,14 @@ namespace KnownFirst.Services.Study;
 /// </summary>
 internal static class Schema13LearningReviewPolicy
 {
-    public const int ReplayVersion = 1;
+    public const int ReplayVersion = 2;
 
     public static Schema13InteractionProjection Project(
         int cardId,
         IReadOnlyList<Schema8AttributionCandidateRow> assignments,
         IReadOnlyList<Schema8ReviewRow> reviews,
-        IReadOnlyList<AnswerVariantProgressRow> persistedProgress)
+        IReadOnlyList<AnswerVariantProgressRow> persistedProgress,
+        CardDirection direction)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cardId);
         ArgumentNullException.ThrowIfNull(assignments);
@@ -55,21 +56,41 @@ internal static class Schema13LearningReviewPolicy
             var state = AutomaticLearningState.Initial;
             DateTime? lastAssessedAtUtc = null;
             var consumed = 0;
-            foreach (var interactionEvent in events)
-            {
-                var attribution = Classify(interactionEvent, assignment.AnswerVariantId);
-                if (!attribution.HasValue
-                    || Schema8Utc.Normalize(interactionEvent.ReviewedAtUtc).Ticks < boundary.Ticks)
-                {
-                    continue;
-                }
 
-                state = interactionEvent.WasTypedAnswer
-                    ? AutomaticLearningPolicy.RecordTypingAssessment(state, attribution.Value)
-                    : AutomaticLearningPolicy.RecordRecallAssessment(
-                        state, interactionEvent.Rating != ReviewRating.Again);
-                lastAssessedAtUtc = Schema8Utc.Normalize(interactionEvent.ReviewedAtUtc);
-                consumed++;
+            if (direction == CardDirection.TermToMeaning)
+            {
+                // TermToMeaning remains strictly Reading and never gains Automatic Typing progression.
+                foreach (var interactionEvent in events)
+                {
+                    var attribution = Classify(interactionEvent, assignment.AnswerVariantId);
+                    if (!attribution.HasValue
+                        || Schema8Utc.Normalize(interactionEvent.ReviewedAtUtc).Ticks < boundary.Ticks)
+                    {
+                        continue;
+                    }
+
+                    lastAssessedAtUtc = Schema8Utc.Normalize(interactionEvent.ReviewedAtUtc);
+                    consumed++;
+                }
+            }
+            else
+            {
+                // MeaningToTerm: Rating-aware recall progression & typing progression
+                foreach (var interactionEvent in events)
+                {
+                    var attribution = Classify(interactionEvent, assignment.AnswerVariantId);
+                    if (!attribution.HasValue
+                        || Schema8Utc.Normalize(interactionEvent.ReviewedAtUtc).Ticks < boundary.Ticks)
+                    {
+                        continue;
+                    }
+
+                    state = interactionEvent.WasTypedAnswer
+                        ? AutomaticLearningPolicy.RecordTypingAssessment(state, attribution.Value)
+                        : AutomaticLearningPolicy.RecordRecallAssessment(state, interactionEvent.Rating);
+                    lastAssessedAtUtc = Schema8Utc.Normalize(interactionEvent.ReviewedAtUtc);
+                    consumed++;
+                }
             }
 
             outcomes.Add(new Schema13InteractionOutcome(

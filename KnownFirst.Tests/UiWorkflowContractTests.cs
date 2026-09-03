@@ -3032,6 +3032,92 @@ public sealed class UiWorkflowContractTests
             "OnAfterRenderAsync must focus _onlineLookupHeading with preventScroll: true.");
     }
 
+    [TestMethod]
+    public void Learn_ActionErrorFeedback_ClearsStaleStateOnNewActionAndLoadTransitions()
+    {
+        var markup = LoadUi("Learn.razor");
+
+        // 1. RevealAsync must clear stale _actionFailed at start (pre-try) and set _actionFailed on failure (catch)
+        var revealBody = ExtractMethodBody(markup, "private async Task RevealAsync()");
+        var revealTryIndex = revealBody.IndexOf("try", StringComparison.Ordinal);
+        var revealCatchIndex = revealBody.IndexOf("catch", StringComparison.Ordinal);
+        Assert.IsTrue(revealTryIndex >= 0, "RevealAsync must contain a try block.");
+        Assert.IsTrue(revealCatchIndex > revealTryIndex, "RevealAsync must contain a catch block.");
+        var revealPreTry = revealBody[..revealTryIndex];
+        var revealCatch = revealBody[revealCatchIndex..];
+        Assert.IsTrue(
+            revealPreTry.Contains("_actionFailed = false;", StringComparison.Ordinal),
+            "RevealAsync must clear stale action-error state (_actionFailed = false;) before attempting reveal.");
+        Assert.IsTrue(
+            revealCatch.Contains("_actionFailed = true;", StringComparison.Ordinal),
+            "RevealAsync catch block must set _actionFailed = true on failure.");
+
+        // 2. ConfirmPermanentKnownAsync must clear stale _actionFailed at start (pre-try) and set _actionFailed on failure (catch)
+        var confirmBody = ExtractMethodBody(markup, "private async Task ConfirmPermanentKnownAsync()");
+        var confirmTryIndex = confirmBody.IndexOf("try", StringComparison.Ordinal);
+        var confirmCatchIndex = confirmBody.IndexOf("catch", StringComparison.Ordinal);
+        Assert.IsTrue(confirmTryIndex >= 0, "ConfirmPermanentKnownAsync must contain a try block.");
+        Assert.IsTrue(confirmCatchIndex > confirmTryIndex, "ConfirmPermanentKnownAsync must contain a catch block.");
+        var confirmPreTry = confirmBody[..confirmTryIndex];
+        var confirmCatch = confirmBody[confirmCatchIndex..];
+        Assert.IsTrue(
+            confirmPreTry.Contains("_actionFailed = false;", StringComparison.Ordinal),
+            "ConfirmPermanentKnownAsync must clear stale action-error state (_actionFailed = false;) before attempting confirmation.");
+        Assert.IsTrue(
+            confirmCatch.Contains("_actionFailed = true;", StringComparison.Ordinal),
+            "ConfirmPermanentKnownAsync catch block must set _actionFailed = true on failure.");
+
+        // 3. ApplyLoadResult must explicitly clear stale _actionFailed on successful load application
+        var applyLoadBody = ExtractMethodBody(markup, "private void ApplyLoadResult(LearningLoadResult result)");
+        Assert.IsTrue(
+            applyLoadBody.Contains("_actionFailed = false;", StringComparison.Ordinal),
+            "ApplyLoadResult must clear stale action-error state (_actionFailed = false;) when applying a load result.");
+
+        // 4. Regression continuity: CheckSpellingAsync, RateAsync, ContinueAfterIncorrectAsync
+        var spellingBody = ExtractMethodBody(markup, "private async Task CheckSpellingAsync()");
+        var spellingTryIndex = spellingBody.IndexOf("try", StringComparison.Ordinal);
+        var spellingCatchIndex = spellingBody.IndexOf("catch", StringComparison.Ordinal);
+        Assert.IsTrue(spellingTryIndex >= 0 && spellingCatchIndex > spellingTryIndex);
+        Assert.IsTrue(
+            spellingBody[..spellingTryIndex].Contains("_actionFailed = false;", StringComparison.Ordinal),
+            "CheckSpellingAsync must preserve pre-try _actionFailed = false;");
+        Assert.IsTrue(
+            spellingBody[spellingCatchIndex..].Contains("_actionFailed = true;", StringComparison.Ordinal),
+            "CheckSpellingAsync must preserve catch _actionFailed = true;");
+
+        var rateBody = ExtractMethodBody(markup, "private async Task RateAsync(ReviewRating rating)");
+        var rateTryIndex = rateBody.IndexOf("try", StringComparison.Ordinal);
+        var rateCatchIndex = rateBody.IndexOf("catch", StringComparison.Ordinal);
+        Assert.IsTrue(rateTryIndex >= 0 && rateCatchIndex > rateTryIndex);
+        Assert.IsTrue(
+            rateBody[..rateTryIndex].Contains("_actionFailed = false;", StringComparison.Ordinal),
+            "RateAsync must preserve pre-try _actionFailed = false;");
+        Assert.IsTrue(
+            rateBody[rateCatchIndex..].Contains("_actionFailed = true;", StringComparison.Ordinal),
+            "RateAsync must preserve catch _actionFailed = true;");
+
+        var continueBody = ExtractMethodBody(markup, "private async Task ContinueAfterIncorrectAsync()");
+        var continueTryIndex = continueBody.IndexOf("try", StringComparison.Ordinal);
+        var continueCatchIndex = continueBody.IndexOf("catch", StringComparison.Ordinal);
+        Assert.IsTrue(continueTryIndex >= 0 && continueCatchIndex > continueTryIndex);
+        Assert.IsTrue(
+            continueBody[..continueTryIndex].Contains("_actionFailed = false;", StringComparison.Ordinal),
+            "ContinueAfterIncorrectAsync must preserve pre-try _actionFailed = false;");
+        Assert.IsTrue(
+            continueBody[continueCatchIndex..].Contains("_actionFailed = true;", StringComparison.Ordinal),
+            "ContinueAfterIncorrectAsync must preserve catch _actionFailed = true;");
+
+        // 5. Distinct markup rendering for action errors and load errors
+        Assert.IsTrue(
+            markup.Contains("@if (_actionFailed)", StringComparison.Ordinal)
+            && markup.Contains("Learn_ActionError", StringComparison.Ordinal),
+            "Learn.razor must render action errors with _actionFailed and Learn_ActionError.");
+        Assert.IsTrue(
+            markup.Contains("else if (_loadFailed)", StringComparison.Ordinal)
+            && markup.Contains("Learn_LoadError", StringComparison.Ordinal),
+            "Learn.razor must render load errors with _loadFailed and Learn_LoadError.");
+    }
+
     private static string ExtractSettingsSection(string markup, string sectionTitleId)
     {
         var titleIndex = markup.IndexOf(

@@ -356,6 +356,7 @@
         }
 
         _isBusy = true;
+        _actionFailed = false;
         try
         {
             await LearningService.RevealAnswerAsync(_card.QueueItemId);
@@ -458,6 +459,7 @@
         }
 
         _isBusy = true;
+        _actionFailed = false;
         try
         {
             await LearningService.MarkPermanentlyKnownAsync(_card.WordId, confirmed: true);
@@ -483,6 +485,7 @@
         _spellingResult = null;
         _spellingAnswer = string.Empty;
         _contextIndex = 0;
+        _actionFailed = false;
         _showPermanentKnownConfirmation = false;
 
         if (_card is null && _summary?.NextDueAtUtc is not null)

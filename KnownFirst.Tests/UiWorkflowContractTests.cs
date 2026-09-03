@@ -2564,6 +2564,46 @@ public sealed class UiWorkflowContractTests
     }
 
     [TestMethod]
+    public void Settings_LearningTimezone_DisplaysErrorFeedbackOnPersistenceFailure()
+    {
+        var markup = LoadUi("Settings.razor");
+        var section = ExtractSettingsSection(markup, "learning-timezone-title");
+
+        Assert.Contains("_learningTimezoneSaved", section);
+        Assert.Contains("Settings_LearningTimezoneSaved", section);
+        Assert.Contains("_learningTimezoneChangeFailed", section);
+        Assert.Contains("class=\"setting-feedback setting-feedback-error\"", section);
+        Assert.Contains("role=\"alert\"", section);
+        Assert.Contains("Settings_SaveError", section);
+
+        Assert.Contains("private bool _learningTimezoneChangeFailed;", markup);
+
+        var methodBody = ExtractMethodBody(markup, "private void SelectLearningTimezone()");
+
+        var tryIndex = methodBody.IndexOf("try", StringComparison.Ordinal);
+        var catchIndex = methodBody.IndexOf("catch (Exception", StringComparison.Ordinal);
+        var finallyIndex = methodBody.IndexOf("finally", StringComparison.Ordinal);
+
+        Assert.IsTrue(tryIndex >= 0, "SelectLearningTimezone must contain a try block.");
+        Assert.IsTrue(catchIndex > tryIndex, "SelectLearningTimezone must contain a catch block after try.");
+        Assert.IsTrue(finallyIndex > catchIndex, "SelectLearningTimezone must contain a finally block after catch.");
+
+        var preTryRegion = methodBody.Substring(0, tryIndex);
+        Assert.Contains("_learningTimezoneSaved = false;", preTryRegion);
+        Assert.Contains("_learningTimezoneChangeFailed = false;", preTryRegion);
+
+        var tryRegion = methodBody.Substring(tryIndex, catchIndex - tryIndex);
+        Assert.Contains("_learningTimezoneSaved = true;", tryRegion);
+
+        var catchRegion = methodBody.Substring(catchIndex, finallyIndex - catchIndex);
+        Assert.Contains("Logger.LogError", catchRegion);
+        Assert.Contains("_learningTimezoneChangeFailed = true;", catchRegion);
+
+        var finallyRegion = methodBody.Substring(finallyIndex);
+        Assert.Contains("_selectedLearningTimezoneValue = CurrentLearningTimezoneValue;", finallyRegion);
+    }
+
+    [TestMethod]
     public void Settings_OffersAMinutePrecisionLearningDayCutoffControl()
     {
         var markup = LoadUi("Settings.razor");

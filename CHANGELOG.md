@@ -34,6 +34,7 @@ and uses the application's prerelease version identifiers.
 
 ### Fixed
 
+- Fixed stale Learn action-error feedback: action-level error messages in the Learn view now clear immediately when a new answer reveal, permanent-known confirmation, spelling check, rating, or continuation action begins, as well as when a new card or session summary successfully loads, while errors belonging to a currently failing action remain visibly displayed (KF-LEARN-009).
 - Fixed context sentence target masking in learning mode: masked context targets in `ContextView` now match the encountered target's exact Unicode text-element (grapheme cluster) length instead of always displaying a fixed five-character placeholder (KF-LEARN-006).
 - Fixed learning card direction presentation and interaction semantics: `TermToMeaning` study cards now display the source term prompt on the front and reveal definition/translation meaning on the back as self-rated reading without incorrectly requiring typing long definitions or translations, while `MeaningToTerm` study cards prompt with meaning on the front and support source-term spelling production or reading recall (KF-LEARN-003).
 - Stabilized the unpackaged Windows app-data publisher identity as `Tachiguro` instead of template `User Name`, preserving application ID `com.tachiguro.knownfirst`. Existing pre-change local application-data directories are not automatically migrated. Verified through source/configuration contracts and toolchain analysis; post-change runtime directory creation has not been observed (KF-WINDOWS-001).

@@ -2939,6 +2939,59 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("var(--color-primary)", goodRule);
     }
 
+    [TestMethod]
+    public void Settings_OnlineLookupDeepLink_RevealsAndFocusesHeadingOnce()
+    {
+        var markup = LoadUi("Settings.razor");
+
+        // 1. NavigationManager is injected
+        Assert.IsTrue(
+            markup.Contains("@inject NavigationManager Navigation", StringComparison.Ordinal),
+            "Settings.razor must inject NavigationManager.");
+
+        // 2. Online Dictionary section heading is focusable via tabindex="-1" and has an ElementReference
+        var onlineSection = ExtractSettingsSection(markup, "online-lookup-title");
+        Assert.IsTrue(
+            onlineSection.Contains("id=\"online-lookup-title\"", StringComparison.Ordinal),
+            "Online Dictionary section must contain the 'online-lookup-title' id.");
+        Assert.IsTrue(
+            onlineSection.Contains("tabindex=\"-1\"", StringComparison.Ordinal),
+            "Online Dictionary heading must have tabindex=\"-1\" for programmatic focus without polluting tab order.");
+        Assert.IsTrue(
+            onlineSection.Contains("@ref=\"_onlineLookupHeading\"", StringComparison.Ordinal),
+            "Online Dictionary heading must bind to @ref=\"_onlineLookupHeading\".");
+
+        // 3. OnInitializedAsync checks Navigation URI fragment for #online-lookup-title
+        var initBody = ExtractMethodBody(markup, "protected override async Task OnInitializedAsync()");
+        Assert.IsTrue(
+            initBody.Contains("Navigation.ToAbsoluteUri(Navigation.Uri).Fragment", StringComparison.Ordinal)
+            || initBody.Contains("Navigation.Uri", StringComparison.Ordinal),
+            "OnInitializedAsync must inspect Navigation URI fragment.");
+        Assert.IsTrue(
+            initBody.Contains("\"#online-lookup-title\"", StringComparison.Ordinal),
+            "OnInitializedAsync must check for '#online-lookup-title' fragment.");
+        Assert.IsTrue(
+            initBody.Contains("_revealOnlineLookupSection = true", StringComparison.Ordinal),
+            "OnInitializedAsync must set the one-shot _revealOnlineLookupSection flag when the fragment matches.");
+
+        // 4. OnAfterRenderAsync handles one-shot reveal and focus
+        var afterRenderBody = ExtractMethodBody(markup, "protected override async Task OnAfterRenderAsync(bool firstRender)");
+        Assert.IsTrue(
+            afterRenderBody.Contains("if (_revealOnlineLookupSection)", StringComparison.Ordinal),
+            "OnAfterRenderAsync must check _revealOnlineLookupSection.");
+        Assert.IsTrue(
+            afterRenderBody.Contains("_revealOnlineLookupSection = false;", StringComparison.Ordinal),
+            "OnAfterRenderAsync must clear _revealOnlineLookupSection before executing to prevent repeated focus stealing.");
+        Assert.IsTrue(
+            afterRenderBody.Contains("\"knownFirst.revealElement\", _onlineLookupHeading", StringComparison.Ordinal)
+            || afterRenderBody.Contains("\"knownFirst.revealElement\",\n                _onlineLookupHeading", StringComparison.Ordinal)
+            || (afterRenderBody.Contains("knownFirst.revealElement") && afterRenderBody.Contains("_onlineLookupHeading")),
+            "OnAfterRenderAsync must call knownFirst.revealElement on _onlineLookupHeading.");
+        Assert.IsTrue(
+            afterRenderBody.Contains("_onlineLookupHeading.FocusAsync(preventScroll: true)", StringComparison.Ordinal),
+            "OnAfterRenderAsync must focus _onlineLookupHeading with preventScroll: true.");
+    }
+
     private static string ExtractSettingsSection(string markup, string sectionTitleId)
     {
         var titleIndex = markup.IndexOf(

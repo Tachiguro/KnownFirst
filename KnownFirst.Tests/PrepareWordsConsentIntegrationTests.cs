@@ -119,13 +119,32 @@ public sealed class PrepareWordsConsentIntegrationTests
             markup.Contains("Prepare_OnlineLookupDisabledMethodNotice", StringComparison.Ordinal),
             "PrepareWords.razor must display concise explanatory text when online lookup is disabled in method selector.");
 
-        // Explicit localized Settings action is present and targets the established settings route
+        // Explicit localized Settings action is present and targets the online lookup section
         Assert.IsTrue(
-            markup.Contains("href=\"settings\"", StringComparison.Ordinal),
-            "PrepareWords.razor must provide a Settings action targeting the established 'settings' route.");
+            markup.Contains("href=\"settings#online-lookup-title\"", StringComparison.Ordinal),
+            "PrepareWords.razor must provide a Settings action targeting 'settings#online-lookup-title'.");
         Assert.IsTrue(
             markup.Contains("Prepare_OpenSettings", StringComparison.Ordinal),
             "PrepareWords.razor must use Prepare_OpenSettings for the Settings action.");
+    }
+
+    [TestMethod]
+    public void PrepareWords_OnlineLookupDisabled_OpenSettingsTargetsOnlineLookupSection()
+    {
+        var markup = LoadPrepareWordsMarkup();
+
+        // Exactly two occurrences of the deep link to settings#online-lookup-title must be present
+        var deepLinkMatches = Regex.Matches(markup, @"href=""settings#online-lookup-title""");
+        Assert.AreEqual(2, deepLinkMatches.Count, "PrepareWords.razor must contain exactly two deep links to 'settings#online-lookup-title'.");
+
+        // Obsolete plain href="settings" must not be used for Prepare_OpenSettings actions
+        Assert.IsFalse(
+            Regex.IsMatch(markup, @"href=""settings""[^>]*>\s*@Localizer\[""Prepare_OpenSettings""\]"),
+            "PrepareWords.razor must not contain plain href=\"settings\" links for Prepare_OpenSettings actions.");
+
+        // Both links must use the Prepare_OpenSettings localization key
+        var openSettingsMatches = Regex.Matches(markup, @"@Localizer\[""Prepare_OpenSettings""\]");
+        Assert.AreEqual(2, openSettingsMatches.Count, "Both Settings links must use the Prepare_OpenSettings localization key.");
 
         // StartAutomaticAsync defends against absent consent
         var startAutoIndex = markup.IndexOf("private async Task StartAutomaticAsync()", StringComparison.Ordinal);

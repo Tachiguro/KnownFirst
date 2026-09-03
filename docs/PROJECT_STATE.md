@@ -280,6 +280,7 @@ This multi-slice package completes first-run onboarding and daily new-word budge
   2. Persists durable `OnboardingState.Completed`.
   3. Clears `onboarding_step` progress.
   4. Only after successful persistence raises `OnCompleted` callback to `Routes.razor` for same-process transition to the standard Router/MainLayout shell.
+  *(Candidate branch `fix/onboarding-completion-navigation-home-v1` [KF-NAV-001] adds explicit `Navigation.NavigateTo("/", replace: true)` upon completion, returning always to Home and replacing the pre-onboarding route history entry; verified by automated source/contract tests, not yet merged to master).*
 - **Optional Local Display Name:** Stored under `display_name` via `IDisplayNameStore` / `MauiDisplayNameStore`. Strictly device-local; not an account or profile; excluded from SQLite and portable archives. Blank or whitespace inputs map to absent (`null`). Editable and removable in Settings.
 - **Daily New-Word Budget Domain Policy:**
   - Technical valid range: contiguous `1..50` in `PreparationLimitPolicy`.

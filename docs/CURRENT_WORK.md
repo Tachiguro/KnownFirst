@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-03 (current `master` includes merged PR #191; Schema 13, Archive V3, and FSRS-6 runtime are current source truth).
+2026-09-03 (Candidate branch `fix/onboarding-completion-navigation-home-v1` at reviewed checkpoint `58698a9c7dee1ef876d62f465825ec0e8a47d9a4`; direct base `master` commit `57ffd5d233f18db352d14f9f2ac6d77a88163078`).
 
 ## Repository and Worktree Governance
 
@@ -17,28 +17,18 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-GOV-BACKLOG-002`
-- **Active branch:** `docs/product-backlog-reconciliation-v1`
-- **Active lifecycle:** `DOCUMENT_ONLY` reconciliation/repair
-- **Working state:** Uncommitted documentation reconciliation; no files are staged. This package is limited to reconciling durable documentation with the verified current source/runtime state. The prior `KF-FSRS-003` candidate narrative below is historical lifecycle evidence and is superseded by the merged cutover.
+- **Active package:** `KF-NAV-001`
+- **Active branch:** `fix/onboarding-completion-navigation-home-v1`
+- **Active lifecycle:** `DOCUMENT_ONLY` reconciliation (uncommitted)
+- **Implementation checkpoint:** `58698a9c7dee1ef876d62f465825ec0e8a47d9a4` (`fix(navigation): return home after onboarding completion`)
+- **Working state:** Source implementation complete (single slice). Automated focused RED/GREEN evidence verified (`Routes_NavigatesToHomeWithReplaceOnCompletion_AndReRenders`, `OnboardingStepContractTests` 32/32, `UiWorkflowContractTests` 136/136, all Onboarding tests 140/140). Independent review completed (`REVIEW_APPROVED`; RED evidence `RED_EVIDENCE_ACCEPTABLE`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT). Documentation reconciliation in progress under `DOCUMENT_ONLY` (uncommitted).
+- **Next governed lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
+- **Scope & Invariants:** In `Components/Routes.razor`, injected `NavigationManager` and updated `HandleOnboardingCompleted()` to call `Navigation.NavigateTo("/", replace: true);` before `StateHasChanged();`. This guarantees that onboarding completion always returns to KnownFirst Home (`/`), both on fresh first-run installs and after destructive "Reset all application data" from Settings (`/settings`), replacing the history entry so Back navigation does not restore the pre-reset Settings route. No persistence, database schema, recovery, journal, settings reset, or FSRS scheduling logic was modified.
+- **Evidence Boundary:** Automated source/markup contract tests verify component injection, callback ordering, and history replacement contracts. Rendered WebView/GUI appearance and native device navigation were not manually proven by this package and are not claimed.
 
-- **Historical work package:** `KF-FSRS-003` (`feature/fsrs6-schema13-cutover-v1`) was the prior cutover package. Its candidate-era lifecycle evidence is retained below for history only; its source/runtime result is merged to `master` via PR #191.
-- **Backlog and sequencing authority:** [docs/BACKLOG.md](BACKLOG.md) owns the authoritative registry of all accepted open work, product decisions, deferred follow-ups, and unprioritized initiatives. [docs/ROADMAP.md](ROADMAP.md) owns milestone sequencing.
-- **Persistence boundary:** `DatabaseSchema.CurrentVersion` is **13**. Fresh genuinely empty databases bootstrap directly to Schema 13 via `Schema13CleanBootstrap`. Existing Schema 1–12 databases are unsupported by the production startup path and fail closed with `DatabaseSchemaCompatibilityException` without automatic migration, reset, or mutation. Malformed or future-version databases also fail closed. Portable archive format for Schema-13 databases is V3; V1/V2 archives are accepted into Schema-13 targets only when their required causal interaction order is provable. `PRAGMA foreign_keys = ON` is enforced globally for every production database connection.
-- **Scheduling boundary:** `IFsrs6SchedulingService` / `Fsrs6SchedulingService` is the live production FSRS-6 scheduling authority wired into `LearningService` via `AddKnownFirstLearningRuntime()`. `SimpleSpacedRepetitionScheduler` is no longer the authoritative production scheduler for Schema-13 databases. Legacy physical columns (`IntervalDays`, `EaseFactor`) remain present but are not authoritative for Schema-13 scheduling.
-- **Downstream ownership:**
-  - `KF-CLEANUP-001`: Legacy scheduler column deprecation and removal (`IntervalDays`, `EaseFactor`). Not part of this package.
-  - `KF-VOCAB-005` / `KF-VOCAB-006`: Vocabulary area UI and service integration for clean learning controls.
-- **Live state precedence:** Live Git branch/HEAD, worktree status, open pull requests, and repository state override static document text.
-
-## Historical Production Schema-13 / FSRS-6 Cutover Candidate (KF-FSRS-003 — Now Merged)
-
-The prior candidate activated Schema 13, FSRS-6 runtime composition, global foreign-key enforcement, factual FSRS persistence, clean learning controls, and Archive V3 integrity; these capabilities are now merged. Repair-005 introduced `learning-review-causal-order-v1`; Repair-006 completed feature-marked populated-import handling. The detailed persistence and archive contracts belong in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [backup-format-v1.md](architecture/backup-format-v1.md), and [backup-merge-v1-design.md](architecture/backup-merge-v1-design.md).
-
-For a feature-marked populated V3 import, each affected card/equal-normalized-timestamp interaction group compares ordered source sequence `S` with target sequence `T`: `T == S` makes no change; a target prefix appends only the missing source tail; a source prefix preserves the target tail; any other divergence fails closed before mutation. Repeated equal-valued occurrences remain distinct.
-
-Legacy physical scheduling fields remain for compatibility and later `KF-CLEANUP-001` work. Vocabulary-management reversal and stop/resume UI work remains downstream in `KF-VOCAB-005` and `KF-VOCAB-006`.
 - **Previous merged packages:**
+  - PR #192 (`docs: reconcile product backlog and architecture state` / `KF-GOV-BACKLOG-002`): Reconciled durable backlog registry, roadmap, project state, and architecture contracts following the FSRS-6 Schema-13 cutover. Merged to `master` via merge commit `57ffd5d233f18db352d14f9f2ac6d77a88163078`. `POST_MERGE_SYNC_ONLY` completed.
+  - PR #191 (`feature/fsrs6-schema13-cutover-v1` / `KF-FSRS-003`): Merged Schema-13 production cutover, FSRS-6 runtime authority, factual review history persistence, Archive V3 transport, and causal interaction ordering. Merged to `master` via merge commit `686bf59828d578ebc9e18b827cb5fa57c83f6ce4`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #189 (`feat(persistence): add dormant schema 13 persistence foundation` / `KF-PERSIST-013-001`): Added dormant physical Schema-13 persistence in `KnownFirst.Data` (`FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, `SenseLearningControls`), repositories, shape validator, atomic persistence coordinator (`FsrsReviewPersistenceCoordinator`), and transactional `Schema13DormantMigration` from Schema 12 to 13 with `Schema13LearningBootstrap` oracle. Merged to `master` via merge commit `db8a355768167871362aba53c55e411290f8cfd0`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #187 (`docs: establish durable backlog governance` / `KF-GOV-BACKLOG-001`): Reconciled `BACKLOG.md` as the authoritative registry for accepted open work, added Follow-Up Closure Audit rule and Foundation Milestone Invariant to `AGENT_WORKFLOW.md`, updated `ROADMAP.md` initiatives, and linked bootstrap/routing governance. Merged to `master` via merge commit `838a968c3ab9fd596889aa269c2be43caa2f13c0`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #186 (`feat(clean-domain): clean domain learning-control and application boundary foundation` / `KF-CLEAN-DOMAIN-013-001`): Merged to `master` via merge commit `e7cb91aad8db49b5366dab96295c2e8aa20c92c7` (validated PR head `eae1ca38d157d13ddd830a635d6ce31dd2fe4336`). Added clean domain learning-control foundation in `KnownFirst.Core.Learning` and introduced `KnownFirst.Application` project defining deterministic, production-neutral FSRS-6 scheduling boundaries. Dormant from production runtime composition; Schema remains 12; Archive format remains V2; production scheduler remains `SimpleSpacedRepetitionScheduler`. Exact candidate `FULL_VALIDATION` passed (2896 passed / 0 failed / 0 skipped, Windows Debug/Release PASS, Android Debug/Release PASS, AOT/trimming/linker gate PASS, exit code 0). `POST_MERGE_SYNC_ONLY` completed.

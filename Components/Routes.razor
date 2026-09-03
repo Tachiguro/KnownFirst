@@ -1,4 +1,5 @@
 @implements IDisposable
+@inject NavigationManager Navigation
 @inject KnownFirst.Data.IKnownFirstDatabase Database
 @inject IThemeService ThemeService
 @inject IJSRuntime JsRuntime
@@ -46,6 +47,7 @@
 
     private void HandleOnboardingCompleted()
     {
+        Navigation.NavigateTo("/", replace: true);
         StateHasChanged();
     }
 

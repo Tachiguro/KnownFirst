@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-03 (KF-LEARN-006 package documentation reconciled on `fix/context-mask-grapheme-length-v1`; candidate HEAD before documentation `d67a55ed7140885230c215274f028b379f160f4f`; base `master` commit `1208442c43ada8fb43b69e6efdbd5c1747deec49`).
+2026-09-03 (KF-LEARN-009 package documentation reconciled on `fix/learn-stale-action-error-v1`; candidate HEAD before documentation `4d3279b2194ee882f3eec541483877a5a1f5056a`; base `master` commit `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9`).
 
 ## Repository and Worktree Governance
 
@@ -17,37 +17,38 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-LEARN-006`
-- **Active branch:** `fix/context-mask-grapheme-length-v1`
-- **Slice:** 1/1 context-mask-grapheme-length
+- **Active package:** `KF-LEARN-009`
+- **Active branch:** `fix/learn-stale-action-error-v1`
+- **Slice:** 1/1 clear-stale-learn-action-error
 - **Implementation checkpoints:**
-  1. `d67a55ed7140885230c215274f028b379f160f4f`, subject `fix(learn): mask context target using Unicode text element length`, trailer `KnownFirst-Checkpoint: KF-LEARN-006 1/1 context-mask-grapheme-length`.
-  - Sole base commit: `1208442c43ada8fb43b69e6efdbd5c1747deec49` (`master` / `origin/master`).
-- **Working state:** Implementation is complete and independently reviewed with final verdict `CHECKPOINT_APPROVED` (0 BLOCKER / 0 MAJOR / 0 MINOR / 1 NIT resolved process note; fresh exact-checkpoint test reruns: 15/15 focused passed, 207/207 regression passed; `git diff --check`: clean). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
+  1. `4d3279b2194ee882f3eec541483877a5a1f5056a`, subject `fix(learn): clear stale action error feedback on new actions and load transitions`, trailer `KnownFirst-Checkpoint: KF-LEARN-009 1/1 clear-stale-learn-action-error`.
+  - Sole base commit: `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9` (`master` / `origin/master`).
+- **Working state:** Implementation is complete and independently reviewed with final verdict `CHECKPOINT_APPROVED_WITH_PROCESS_FINDING` (0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; non-blocking process finding recorded for runner background task usage; fresh exact-checkpoint test reruns: 1/1 focused passed, 158/158 regression passed; `git diff --check`: clean). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
 - **Scope & implemented behavior:**
-  - `ContextView dynamic masking`: In `Components/Shared/ContextView.razor`, replaced hardcoded `_____` literal with `@ContextTargetMaskPolicy.CreateMask(Context.Target)` when `HideTarget` is true.
-  - `Unicode text-element policy`: Introduced `ContextTargetMaskPolicy` in `KnownFirst.Core.Text` using `System.Globalization.StringInfo.LengthInTextElements` to compute exact grapheme cluster count, emitting one underscore per text element.
-  - `Unicode edge cases`: Accented characters (composed NFC or decomposed NFD), surrogate pairs (e.g. emoji `\uD83D\uDE00`), and hyphenated words (e.g. `Wi-Fi`) are masked one-for-one without leaking visible characters; null or empty targets return `string.Empty`.
-  - `Unmasked rendering`: `HideTarget == false` remains unmasked and renders `Context.Target` unchanged.
+  - `Action error clearing on Reveal`: In `Components/Pages/Learn.razor`, added `_actionFailed = false;` in the pre-try region of `RevealAsync()`, ensuring stale error banners are dismissed when a new reveal action begins.
+  - `Action error clearing on Confirm Permanently Known`: In `Components/Pages/Learn.razor`, added `_actionFailed = false;` in the pre-try region of `ConfirmPermanentKnownAsync()`, clearing stale errors before attempting permanent-known marking.
+  - `Action error clearing on ApplyLoadResult`: In `Components/Pages/Learn.razor`, added `_actionFailed = false;` to `ApplyLoadResult()`, ensuring any successful new card or session load clears obsolete action errors.
+  - `Error feedback preservation`: Errors occurring during the current action continue to be caught and displayed via `_actionFailed = true;`. `_loadFailed` remains independent and drives the session load error banner.
 - **Preserved boundaries & invariants:**
   - Database schema remains 13 (`PRAGMA user_version = 13`).
   - Portable archive format remains V3.
   - No Schema 14 or Archive V4.
   - FSRS-6 scheduling, stability, difficulty, review persistence, and Again active-session repeat invariant are completely untouched.
   - CardDirection semantics and domain model identities remain unchanged.
-- **Verification evidence on approved source checkpoint (`d67a55e...`):**
-  - Genuine initial RED: `LearnCardDirectionContractTests.ContextView_HiddenTarget_UsesDynamicTargetMaskPolicyInsteadOfHardCodedUnderscores` failed against unmodified `ContextView.razor` on hardcoded `_____`.
-  - Identical GREEN on focused suite: 15 passed / 0 failed (`ContextTargetMaskPolicyTests` + `LearnCardDirectionContractTests`).
+- **Verification evidence on approved source checkpoint (`4d3279b...`):**
+  - Genuine initial RED: `UiWorkflowContractTests.Learn_ActionErrorFeedback_ClearsStaleStateOnNewActionAndLoadTransitions` failed against unmodified `Learn.razor` on missing pre-try reset in `RevealAsync`.
+  - Identical GREEN on focused suite: 1 passed / 0 failed (`Learn_ActionErrorFeedback_ClearsStaleStateOnNewActionAndLoadTransitions`).
   - Independent exact-checkpoint rerun suite:
-    - Focused suite (`ContextTargetMaskPolicyTests` + `LearnCardDirectionContractTests`): 15 passed / 0 failed.
-    - Focused regression suite (`UiWorkflowContractTests` + `TextAnalyzerTests`): 207 passed / 0 failed.
+    - Focused suite (`Learn_ActionErrorFeedback_ClearsStaleStateOnNewActionAndLoadTransitions`): 1 passed / 0 failed.
+    - Focused regression suite (`LearnCardDirectionContractTests` + `LearningSummaryDueMonitorTests` + `UiWorkflowContractTests`): 158 passed / 0 failed.
   - Whitespace / diff check (`git diff --check master...HEAD`): Clean (0 errors).
   - Evidence boundary: Automated source/unit/contract regression tests; no rendered WebView/GUI runtime or physical device evidence is claimed. Candidate has NOT yet passed exact-candidate-HEAD FULL_VALIDATION.
-- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-006` candidate state and `KF-LEARN-004` / `KF-WINDOWS-001` merged states in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
-- **Follow-Up Closure Audit:** Session summary phrasing remains under open `KF-LEARN-007`; Learn card edit entry point remains under open `KF-LEARN-008`; stale action-error banner clearing remains under open `KF-LEARN-009`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`; English multi-word recognition remains under `KF-LEX-003`. All exclusions remain durably tracked; no orphan follow-ups were created.
+- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-009` candidate state and `KF-LEARN-006` merged state in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
+- **Follow-Up Closure Audit:** Session summary phrasing remains under open `KF-LEARN-007`; Learn card edit entry point remains under open `KF-LEARN-008`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`; English multi-word recognition remains under `KF-LEX-003`. All exclusions remain durably tracked; no orphan follow-ups were created.
 - **Next governed lifecycle:** `COMMIT_ONLY` for the exact documentation changes. After a successful documentation commit with a clean candidate HEAD, the next required gate is exact-candidate-HEAD `FULL_VALIDATION` under [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md). DOCUMENT_ONLY performs no commit, FULL_VALIDATION, push, or PR.
 
 - **Previous merged packages:**
+  - PR #199 (`fix/context-mask-grapheme-length-v1` / `KF-LEARN-006`): Masked context sentence target in `ContextView.razor` using Unicode text element length (`ContextTargetMaskPolicy`) rather than hardcoded 5 underscores. Merged to `master` via merge commit `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9` (validated PR head `b0f4b0123f06569639e6a322cf399d7e7dd85ac7`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #198 (`feature/learning-automatic-progression-v1` / `KF-LEARN-004`): Implemented direction-aware Automatic interaction progression for `MeaningToTerm` (Good/Easy advance, Hard holds, Again resets; FSRS decoupled; ReplayVersion 2) while keeping `TermToMeaning` Reading-only. Merged to `master` via merge commit `1208442c43ada8fb43b69e6efdbd5c1747deec49` (validated PR head `2124312fd4d0598bff3c418d74e2230b2f19a18b`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #197 (`fix/learning-card-direction-semantics-v1` / `KF-LEARN-003`): Genuinely distinguished `TermToMeaning` (source term prompt, meaning answer, unconditional Reading mode across UI and backend, unmasked example sentence target) and `MeaningToTerm` (meaning prompt, source term answer, Reading or Typing mode, masked example sentence target). Merged to `master` via merge commit `c999eb64e99a2ee43fdb2c90417b5bbdf135c335` (validated PR head `d933462adeee70fe7435ecb5fbe22a7927e31204`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #196 (`KF-WINDOWS-001`): Stabilized the unpackaged Windows app-data publisher as `Tachiguro`, preserving application ID `com.tachiguro.knownfirst` and product name `KnownFirst`. Merged to `master` via merge commit `5bd173e484365219c8832a417187b7deb4a95b5e`. `POST_MERGE_SYNC_ONLY` completed.

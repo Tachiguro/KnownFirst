@@ -270,6 +270,9 @@
   <data name="Home_ReviewProgress" xml:space="preserve">
     <value>{0} von {1} Kandidaten überprüft</value>
   </data>
+  <data name="Home_LearningProgress" xml:space="preserve">
+    <value>Lernfortschritt: {0} von {1} Karten</value>
+  </data>
   <data name="Home_ContinueReviewAction" xml:space="preserve">
     <value>Überprüfung fortsetzen</value>
   </data>
@@ -968,6 +971,30 @@
   </data>
   <data name="Learn_NextDue" xml:space="preserve">
     <value>Nächste fällige Karte: {0}</value>
+  </data>
+  <data name="Learning_DueNowOne" xml:space="preserve">
+    <value>{0} Karte ist jetzt fällig.</value>
+  </data>
+  <data name="Learning_DueNowFew" xml:space="preserve">
+    <value>{0} Karten sind jetzt fällig.</value>
+  </data>
+  <data name="Learning_DueNowMany" xml:space="preserve">
+    <value>{0} Karten sind jetzt fällig.</value>
+  </data>
+  <data name="Learning_NextReviewToday" xml:space="preserve">
+    <value>Nächste Wiederholung heute um {0}</value>
+  </data>
+  <data name="Learning_NextReviewTomorrow" xml:space="preserve">
+    <value>Nächste Wiederholung morgen um {0}</value>
+  </data>
+  <data name="Learning_NextReviewDate" xml:space="preserve">
+    <value>Nächste Wiederholung am {0} um {1}</value>
+  </data>
+  <data name="Learning_NothingElseDueToday" xml:space="preserve">
+    <value>Für heute ist nichts mehr fällig.</value>
+  </data>
+  <data name="Learning_NoReviewsDueNow" xml:space="preserve">
+    <value>Aktuell ist keine Wiederholung fällig.</value>
   </data>
   <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
     <value>Alle aktuellen Wiederholungen sind abgeschlossen. {0} unbekannte Wörter warten auf die Vorbereitung.</value>

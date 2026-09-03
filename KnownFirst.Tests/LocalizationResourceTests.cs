@@ -692,6 +692,37 @@ public sealed class LocalizationResourceTests
     }
 
     [TestMethod]
+    public void Resources_LearningReviewStatusKeysMatchApprovedEnglishGermanAndRussianContract()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        var expected = new Dictionary<string, (string English, string German, string Russian)>
+        {
+            ["Learning_DueNowOne"] = ("{0} card is due now.", "{0} Karte ist jetzt fällig.", "Сейчас нужно повторить {0} карточку."),
+            ["Learning_DueNowFew"] = ("{0} cards are due now.", "{0} Karten sind jetzt fällig.", "Сейчас нужно повторить {0} карточки."),
+            ["Learning_DueNowMany"] = ("{0} cards are due now.", "{0} Karten sind jetzt fällig.", "Сейчас нужно повторить {0} карточек."),
+            ["Learning_NextReviewToday"] = ("Next review today at {0}", "Nächste Wiederholung heute um {0}", "Следующее повторение сегодня в {0}"),
+            ["Learning_NextReviewTomorrow"] = ("Next review tomorrow at {0}", "Nächste Wiederholung morgen um {0}", "Следующее повторение завтра в {0}"),
+            ["Learning_NextReviewDate"] = ("Next review on {0} at {1}", "Nächste Wiederholung am {0} um {1}", "Следующее повторение {0} в {1}"),
+            ["Learning_NothingElseDueToday"] = ("Nothing else is due today.", "Für heute ist nichts mehr fällig.", "На сегодня повторений больше нет."),
+            ["Learning_NoReviewsDueNow"] = ("No reviews are due now.", "Aktuell ist keine Wiederholung fällig.", "Сейчас нет карточек для повторения."),
+            ["Home_LearningProgress"] = ("Learning progress: {0} of {1} cards", "Lernfortschritt: {0} von {1} Karten", "Прогресс обучения: {0} из {1} карточек")
+        };
+
+        foreach (var (key, wording) in expected)
+        {
+            Assert.IsTrue(english.ContainsKey(key), "English resource is missing '" + key + "'.");
+            Assert.IsTrue(german.ContainsKey(key), "German resource is missing '" + key + "'.");
+            Assert.IsTrue(russian.ContainsKey(key), "Russian resource is missing '" + key + "'.");
+            Assert.AreEqual(wording.English, english[key]);
+            Assert.AreEqual(wording.German, german[key]);
+            Assert.AreEqual(wording.Russian, russian[key]);
+        }
+    }
+
+    [TestMethod]
     public void Resources_DailyLimitAndPostLearningRecommendationMatchSpecification()
     {
         var english = LoadResources("SharedResource.resx");

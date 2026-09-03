@@ -270,6 +270,9 @@
   <data name="Home_ReviewProgress" xml:space="preserve">
     <value>{0} of {1} candidates reviewed</value>
   </data>
+  <data name="Home_LearningProgress" xml:space="preserve">
+    <value>Learning progress: {0} of {1} cards</value>
+  </data>
   <data name="Home_ContinueReviewAction" xml:space="preserve">
     <value>Continue review</value>
   </data>
@@ -968,6 +971,30 @@
   </data>
   <data name="Learn_NextDue" xml:space="preserve">
     <value>Next card due: {0}</value>
+  </data>
+  <data name="Learning_DueNowOne" xml:space="preserve">
+    <value>{0} card is due now.</value>
+  </data>
+  <data name="Learning_DueNowFew" xml:space="preserve">
+    <value>{0} cards are due now.</value>
+  </data>
+  <data name="Learning_DueNowMany" xml:space="preserve">
+    <value>{0} cards are due now.</value>
+  </data>
+  <data name="Learning_NextReviewToday" xml:space="preserve">
+    <value>Next review today at {0}</value>
+  </data>
+  <data name="Learning_NextReviewTomorrow" xml:space="preserve">
+    <value>Next review tomorrow at {0}</value>
+  </data>
+  <data name="Learning_NextReviewDate" xml:space="preserve">
+    <value>Next review on {0} at {1}</value>
+  </data>
+  <data name="Learning_NothingElseDueToday" xml:space="preserve">
+    <value>Nothing else is due today.</value>
+  </data>
+  <data name="Learning_NoReviewsDueNow" xml:space="preserve">
+    <value>No reviews are due now.</value>
   </data>
   <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
     <value>All current reviews are complete. {0} unknown words are waiting for preparation.</value>

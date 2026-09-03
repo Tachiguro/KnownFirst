@@ -32,11 +32,11 @@ public sealed class LearningSummaryDueMonitorTests
     }
 
     [TestMethod]
-    public void Learning_Summary_DueAvailabilityRendersPrimaryLearnActionAndSuppressesNothingDue()
+    public void Learning_Summary_DueAvailabilityRendersPrimaryLearnActionAndSharedStatus()
     {
         var markup = UiWorkflowContractTests.LoadUi("Learn.razor");
 
-        // RED 2: When scheduled review is available, Navigation_Learn primary button is rendered and Learn_NothingDue is suppressed
+        // When a review is authoritatively due, the action is explicit while the shared status owns all no-due wording.
         Assert.Contains("@if (_isScheduledReviewAvailable)", markup,
             "Learn.razor must conditionally branch on _isScheduledReviewAvailable.");
         Assert.Contains("@onclick=\"StartDueReviewAsync\">@Localizer[\"Navigation_Learn\"]", markup,
@@ -46,13 +46,15 @@ public sealed class LearningSummaryDueMonitorTests
         Assert.IsGreaterThanOrEqualTo(0, summarySectionStart, "Summary section must exist.");
 
         var summarySection = markup[summarySectionStart..];
-        var nothingDueIndex = summarySection.IndexOf("@Localizer[\"Learn_NothingDue\"]", StringComparison.Ordinal);
+        var sharedStatusIndex = summarySection.IndexOf("<LearningReviewStatus", StringComparison.Ordinal);
         var availableIndex = summarySection.IndexOf("_isScheduledReviewAvailable", StringComparison.Ordinal);
 
-        Assert.IsGreaterThanOrEqualTo(0, nothingDueIndex, "Learn_NothingDue must exist in the fallback branch.");
+        Assert.IsGreaterThanOrEqualTo(0, sharedStatusIndex, "The shared localized status must exist in the summary.");
         Assert.IsGreaterThanOrEqualTo(0, availableIndex, "_isScheduledReviewAvailable must exist before fallback.");
-        Assert.IsGreaterThan(availableIndex, nothingDueIndex,
-            "The Learn_NothingDue fallback branch must come after the _isScheduledReviewAvailable branch.");
+        Assert.IsTrue(sharedStatusIndex < availableIndex,
+            "Review status must be rendered independently before action selection.");
+        Assert.DoesNotContain("@Localizer[\"Learn_NothingDue\"]", summarySection,
+            "Legacy no-due wording must not compete with the shared authoritative status.");
     }
 
     [TestMethod]
@@ -84,6 +86,33 @@ public sealed class LearningSummaryDueMonitorTests
         // Verify guarded re-entry: _isBusy || _isLoading check
         Assert.Contains("if (_isBusy || _isLoading)", markup,
             "StartDueReviewAsync must guard against re-entry while busy or loading.");
+    }
+
+    [TestMethod]
+    public void Learning_Summary_DueCallbackRefreshesAuthoritativeWorkflowWithoutStartingSession()
+    {
+        var markup = UiWorkflowContractTests.LoadUi("Learn.razor");
+
+        Assert.Contains("@inject IWorkflowStateService WorkflowState", markup);
+        Assert.Contains("private WorkflowSnapshot? _workflowSnapshot;", markup);
+
+        var monitorStart = markup.IndexOf("new LearningSummaryDueMonitor(", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, monitorStart, "Learn.razor must create the due monitor.");
+        var actionStart = markup.IndexOf(
+            "private async Task StartDueReviewAsync()",
+            monitorStart,
+            StringComparison.Ordinal);
+        Assert.IsGreaterThan(monitorStart, actionStart, "The review-start action must follow the monitor callback.");
+        var monitorCallback = markup[monitorStart..actionStart];
+
+        Assert.Contains("await WorkflowState.GetSnapshotAsync()", monitorCallback,
+            "The due callback must refresh the authoritative workflow snapshot.");
+        Assert.Contains("_workflowSnapshot.DueCardCount > 0", monitorCallback,
+            "Availability must be enabled only from the refreshed authoritative due count.");
+        Assert.DoesNotContain("LearningService.GetOrStartAsync", monitorCallback,
+            "The timer callback must not start a learning session automatically.");
+        Assert.DoesNotContain("StartDueReviewAsync", monitorCallback,
+            "The timer callback must not invoke the user-owned review-start action.");
     }
 
     [TestMethod]

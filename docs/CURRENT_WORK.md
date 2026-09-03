@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-03 (KF-LEARN-009 package documentation reconciled on `fix/learn-stale-action-error-v1`; candidate HEAD before documentation `4d3279b2194ee882f3eec541483877a5a1f5056a`; base `master` commit `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9`).
+2026-09-03 (KF-LEARN-007 package documentation reconciled on `feature/learn-next-review-phrasing-v1`; candidate HEAD before documentation `20cd8e32a587159766bbbc4114169cb04e3cb520`; base `master` commit `d3f48dc6d0cb08885524e1e55249bac1f83b4729`).
 
 ## Repository and Worktree Governance
 
@@ -17,37 +17,39 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-LEARN-009`
-- **Active branch:** `fix/learn-stale-action-error-v1`
-- **Slice:** 1/1 clear-stale-learn-action-error
-- **Implementation checkpoints:**
-  1. `4d3279b2194ee882f3eec541483877a5a1f5056a`, subject `fix(learn): clear stale action error feedback on new actions and load transitions`, trailer `KnownFirst-Checkpoint: KF-LEARN-009 1/1 clear-stale-learn-action-error`.
-  - Sole base commit: `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9` (`master` / `origin/master`).
-- **Working state:** Implementation is complete and independently reviewed with final verdict `CHECKPOINT_APPROVED_WITH_PROCESS_FINDING` (0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; non-blocking process finding recorded for runner background task usage; fresh exact-checkpoint test reruns: 1/1 focused passed, 158/158 regression passed; `git diff --check`: clean). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
+- **Active package:** `KF-LEARN-007`
+- **Active branch:** `feature/learn-next-review-phrasing-v1`
+- **Slices:**
+  1. `d978f9741cbe9c2f7384d9520421a82eb0347e84`, subject `feat(learn): add authoritative review availability presentation`, trailer `KnownFirst-Checkpoint: KF-LEARN-007 1/2 review-availability-presentation`.
+  2. `20cd8e32a587159766bbbc4114169cb04e3cb520`, subject `feat(learn): surface localized review progress on Learn and Home`, trailer `KnownFirst-Checkpoint: KF-LEARN-007 2/2 learn-home-review-status`.
+  - Sole base commit: `d3f48dc6d0cb08885524e1e55249bac1f83b4729` (`master` / `origin/master`).
+- **Working state:** Implementation is complete across two checkpoints and independently reviewed with final verdict `REVIEW_APPROVED` (0 BLOCKER / 0 MAJOR / 3 informational MINOR / 0 NIT; strictly read-only, test-free review). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
 - **Scope & implemented behavior:**
-  - `Action error clearing on Reveal`: In `Components/Pages/Learn.razor`, added `_actionFailed = false;` in the pre-try region of `RevealAsync()`, ensuring stale error banners are dismissed when a new reveal action begins.
-  - `Action error clearing on Confirm Permanently Known`: In `Components/Pages/Learn.razor`, added `_actionFailed = false;` in the pre-try region of `ConfirmPermanentKnownAsync()`, clearing stale errors before attempting permanent-known marking.
-  - `Action error clearing on ApplyLoadResult`: In `Components/Pages/Learn.razor`, added `_actionFailed = false;` to `ApplyLoadResult()`, ensuring any successful new card or session load clears obsolete action errors.
-  - `Error feedback preservation`: Errors occurring during the current action continue to be caught and displayed via `_actionFailed = true;`. `_loadFailed` remains independent and drives the session load error banner.
+  - `Review availability projection`: `Schema13LearningRepository.CountDueCards` and `SelectNextDueAtUtc` exclude cards lacking an active `Required` answer assignment for their Sense/direction, aligning due count and next-due projections with runtime queueability without mutating database records or FSRS states.
+  - `Workflow projection`: `WorkflowSnapshot` projects `NextDueAtUtc`, `ActiveLearningSessionCompletedCards`, `ActiveLearningSessionTotalCards`, and `ActiveLearningDayEndUtc` (when in `ActiveBudgetDay` phase).
+  - `Presentation & status-text policies`: Pure `LearningReviewPresentationPolicy` and `LearningReviewStatusTextPolicy` deliver deterministic calendar date classification (Today, Tomorrow, Date with/without year) in the effective learning timezone, pluralization (EN/DE/RU with Russian 11-14 teen rules), and logical learning-day completion ("Nothing else is due today." / "Für heute ist nichts mehr fällig.").
+  - `Shared review status component`: `LearningReviewStatus.razor` resolves the effective learning timezone via `ILearningTimezoneResolver` (`System` mode maps to device timezone; `Explicit` mode maps to configured ID) and renders localized status text.
+  - `Learn summary integration & due monitor`: Replaces generic `ToLocalTime().ToString("g")` with shared status component; summary due monitor refreshes workflow snapshot upon reaching the due instant without auto-starting a session, navigating, or rating.
+  - `Home active progress & review status`: Displays `Home_LearningProgress` for active sessions, or surfaces review status under the Learn action card; preserves the raw statistics grid; strictly bounds out KF-HOME-002 and KF-METRIC-001.
+  - `Localization resources`: Added 9 semantic resource keys across English, German, and Russian with exact placeholder compatibility.
 - **Preserved boundaries & invariants:**
   - Database schema remains 13 (`PRAGMA user_version = 13`).
   - Portable archive format remains V3.
   - No Schema 14 or Archive V4.
   - FSRS-6 scheduling, stability, difficulty, review persistence, and Again active-session repeat invariant are completely untouched.
   - CardDirection semantics and domain model identities remain unchanged.
-- **Verification evidence on approved source checkpoint (`4d3279b...`):**
-  - Genuine initial RED: `UiWorkflowContractTests.Learn_ActionErrorFeedback_ClearsStaleStateOnNewActionAndLoadTransitions` failed against unmodified `Learn.razor` on missing pre-try reset in `RevealAsync`.
-  - Identical GREEN on focused suite: 1 passed / 0 failed (`Learn_ActionErrorFeedback_ClearsStaleStateOnNewActionAndLoadTransitions`).
-  - Independent exact-checkpoint rerun suite:
-    - Focused suite (`Learn_ActionErrorFeedback_ClearsStaleStateOnNewActionAndLoadTransitions`): 1 passed / 0 failed.
-    - Focused regression suite (`LearnCardDirectionContractTests` + `LearningSummaryDueMonitorTests` + `UiWorkflowContractTests`): 158 passed / 0 failed.
+- **Verification evidence on approved candidate (`20cd8e3...`):**
+  - Slice 1 reported implementation evidence: genuine RED (`CountDueCards_DueCardWithoutRequiredAnswerAssignment_IsNotCounted`, 1 failed / 0 passed), unchanged RED later GREEN (1/1), focused suite 113/113 passed, targeted regression 31/31 passed. Independent checkpoint review: `CHECKPOINT_VERIFIED_FOR_SLICE_2`.
+  - Slice 2 reported implementation evidence: genuine pre-production Phase-A RED (4/4 failures), unchanged Phase-A later GREEN (4/4), focused suite 213/213 passed, targeted combined regression 327/327 passed.
+  - Final accepted package review: strictly read-only and test-free (`REVIEW_APPROVED`).
   - Whitespace / diff check (`git diff --check master...HEAD`): Clean (0 errors).
-  - Evidence boundary: Automated source/unit/contract regression tests; no rendered WebView/GUI runtime or physical device evidence is claimed. Candidate has NOT yet passed exact-candidate-HEAD FULL_VALIDATION.
-- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-009` candidate state and `KF-LEARN-006` merged state in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
-- **Follow-Up Closure Audit:** Session summary phrasing remains under open `KF-LEARN-007`; Learn card edit entry point remains under open `KF-LEARN-008`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`; English multi-word recognition remains under `KF-LEX-003`. All exclusions remain durably tracked; no orphan follow-ups were created.
+  - Evidence boundary: Automated source/unit/contract regression tests; no rendered WebView/GUI runtime, physical device, or release packaging evidence is claimed. Candidate has NOT yet passed exact-candidate-HEAD FULL_VALIDATION.
+- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-007` candidate state and `KF-LEARN-009` merged state in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
+- **Follow-Up Closure Audit:** Learn card edit entry point remains under open `KF-LEARN-008`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`; Home metric redesign remains under `KF-HOME-002` / `KF-METRIC-001`; English multi-word recognition remains under `KF-LEX-003`. All exclusions remain durably tracked; no orphan follow-ups were created.
 - **Next governed lifecycle:** `COMMIT_ONLY` for the exact documentation changes. After a successful documentation commit with a clean candidate HEAD, the next required gate is exact-candidate-HEAD `FULL_VALIDATION` under [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md). DOCUMENT_ONLY performs no commit, FULL_VALIDATION, push, or PR.
 
 - **Previous merged packages:**
+  - PR #200 (`fix/learn-stale-action-error-v1` / `KF-LEARN-009`): Cleared stale Learn action-error feedback (`_actionFailed`) before `try` in `RevealAsync` and `ConfirmPermanentKnownAsync`, and reset in `ApplyLoadResult` upon fresh load state. Merged to `master` via merge commit `d3f48dc6d0cb08885524e1e55249bac1f83b4729` (validated PR head `8ef8011c759556214ea638aa6fe7d8ba1bb0f59c`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #199 (`fix/context-mask-grapheme-length-v1` / `KF-LEARN-006`): Masked context sentence target in `ContextView.razor` using Unicode text element length (`ContextTargetMaskPolicy`) rather than hardcoded 5 underscores. Merged to `master` via merge commit `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9` (validated PR head `b0f4b0123f06569639e6a322cf399d7e7dd85ac7`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #198 (`feature/learning-automatic-progression-v1` / `KF-LEARN-004`): Implemented direction-aware Automatic interaction progression for `MeaningToTerm` (Good/Easy advance, Hard holds, Again resets; FSRS decoupled; ReplayVersion 2) while keeping `TermToMeaning` Reading-only. Merged to `master` via merge commit `1208442c43ada8fb43b69e6efdbd5c1747deec49` (validated PR head `2124312fd4d0598bff3c418d74e2230b2f19a18b`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #197 (`fix/learning-card-direction-semantics-v1` / `KF-LEARN-003`): Genuinely distinguished `TermToMeaning` (source term prompt, meaning answer, unconditional Reading mode across UI and backend, unmasked example sentence target) and `MeaningToTerm` (meaning prompt, source term answer, Reading or Typing mode, masked example sentence target). Merged to `master` via merge commit `c999eb64e99a2ee43fdb2c90417b5bbdf135c335` (validated PR head `d933462adeee70fe7435ecb5fbe22a7927e31204`). `POST_MERGE_SYNC_ONLY` completed.

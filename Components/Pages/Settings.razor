@@ -248,6 +248,10 @@
                 @Localizer["Settings_LearningTimezoneSaved"]
             </p>
         }
+        else if (_learningTimezoneChangeFailed)
+        {
+            <p class="setting-feedback setting-feedback-error" role="alert">@Localizer["Settings_SaveError"]</p>
+        }
     </section>
 
     <section class="settings-card" aria-labelledby="learning-day-cutoff-title">
@@ -772,6 +776,7 @@
     private bool _enhancedTermRecognitionSaved;
     private string _selectedLearningTimezoneValue = SystemLearningTimezoneValue;
     private bool _learningTimezoneSaved;
+    private bool _learningTimezoneChangeFailed;
     private string _selectedLearningDayCutoffHour = "00";
     private string _selectedLearningDayCutoffMinute = "00";
     private bool _learningDayCutoffSaved;
@@ -1160,6 +1165,7 @@
     private void SelectLearningTimezone()
     {
         _learningTimezoneSaved = false;
+        _learningTimezoneChangeFailed = false;
 
         try
         {
@@ -1179,6 +1185,7 @@
         catch (Exception exception)
         {
             Logger.LogError(exception, "The learning time zone could not be saved.");
+            _learningTimezoneChangeFailed = true;
         }
         finally
         {

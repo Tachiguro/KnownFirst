@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-03 (KF-LEARN-004 package documentation reconciled on `feature/learning-automatic-progression-v1`; candidate HEAD before documentation `881cea1aa8986514cfa10474f8f206732b261dc8`; base `master` commit `c999eb64e99a2ee43fdb2c90417b5bbdf135c335`).
+2026-09-03 (KF-LEARN-006 package documentation reconciled on `fix/context-mask-grapheme-length-v1`; candidate HEAD before documentation `d67a55ed7140885230c215274f028b379f160f4f`; base `master` commit `1208442c43ada8fb43b69e6efdbd5c1747deec49`).
 
 ## Repository and Worktree Governance
 
@@ -17,44 +17,38 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-LEARN-004`
-- **Active branch:** `feature/learning-automatic-progression-v1`
-- **Slice:** 1/1 direction-aware-automatic-progression
+- **Active package:** `KF-LEARN-006`
+- **Active branch:** `fix/context-mask-grapheme-length-v1`
+- **Slice:** 1/1 context-mask-grapheme-length
 - **Implementation checkpoints:**
-  1. `881cea1aa8986514cfa10474f8f206732b261dc8`, subject `feat(learn): implement direction-aware automatic progression`, trailer `KnownFirst-Checkpoint: KF-LEARN-004 1/1 direction-aware-automatic-progression`.
-  - Sole base commit: `c999eb64e99a2ee43fdb2c90417b5bbdf135c335` (`master` / `origin/master`).
-- **Working state:** Implementation is complete and independently reviewed with final verdict `CHECKPOINT_APPROVED` (0 BLOCKER / 0 MAJOR / 0 MINOR / 1 NIT process note; independent test reruns: 133 passed / 0 failed; `git diff --check`: clean). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
-- **Process Governance Note:** During the `IMPLEMENT_SLICE` execution, background task checking via `manage_task` occurred without explicit user authorization. The independent review classified this as `PROCESS_NONCOMPLIANCE_CONFIRMED_NO_REPOSITORY_CONTAMINATION`, verifying zero repository contamination, clean Git status, and zero technical defects.
+  1. `d67a55ed7140885230c215274f028b379f160f4f`, subject `fix(learn): mask context target using Unicode text element length`, trailer `KnownFirst-Checkpoint: KF-LEARN-006 1/1 context-mask-grapheme-length`.
+  - Sole base commit: `1208442c43ada8fb43b69e6efdbd5c1747deec49` (`master` / `origin/master`).
+- **Working state:** Implementation is complete and independently reviewed with final verdict `CHECKPOINT_APPROVED` (0 BLOCKER / 0 MAJOR / 0 MINOR / 1 NIT resolved process note; fresh exact-checkpoint test reruns: 15/15 focused passed, 207/207 regression passed; `git diff --check`: clean). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
 - **Scope & implemented behavior:**
-  - `TermToMeaning`: The source term prompt and meaning reveal remain strictly Reading interaction; no hidden Automatic Typing progression accumulates in Schema-13 replay/projection; projected state remains Reading with 0 recall, typing-success, and typing-failure counters; factual ratings reach FSRS normally.
-  - `MeaningToTerm Reading progression`: Initial interaction is Reading; `Good` = Advance (+1 up to 2); `Easy` = Advance (+1 up to 2); `Hard` = Hold (counter unchanged); `Again` = Reset (counter reset to 0); 2nd qualifying Good/Easy transitions Automatic interaction to Typing and resets typing failures.
-  - `MeaningToTerm Typing progression`: Correct typed answer increments typing successes (capped at 2) and resets typing failures; incorrect typed answer resets typing successes and increments typing failures; 2nd consecutive typing failure lapses back to Reading with all three interaction counters reset to 0; two typing successes remain in Typing without causing mastery, retirement, permanent-known status, or scheduler changes.
-  - `FSRS separation`: Interaction progression remains decoupled from FSRS-6; all four ratings persist factually in `FsrsReviewHistoryEntries` and `LearningReviews`; FSRS stability, difficulty, step index, and intervals calculate normally; active-session Again tail-repeat invariant is preserved; Hard remains a factual FSRS Hard while being progression-neutral.
-  - `ReplayVersion`: `Schema13LearningReviewPolicy.ReplayVersion = 2` reflecting the rating-aware progression algorithm; `Schema8LearningReviewReplayPolicy.ReplayVersion = 1` remains untouched for legacy replay. Stored version 1 rows in `AnswerVariantProgress` are treated as rebuildable projection state and updated to version 2 during `PersistRatingSchema13` rating transactions. Unsupported forward versions (> 2) fail closed.
-  - `Persisted progress lazy reconciliation`: `LoadSchema13RatingState` is strictly read-only and projects from factual `LearningReviews`; physical SQLite updates occur inside `PersistRatingSchema13` via `PlanProgressReplacement` and `ApplyProgressPlan`.
+  - `ContextView dynamic masking`: In `Components/Shared/ContextView.razor`, replaced hardcoded `_____` literal with `@ContextTargetMaskPolicy.CreateMask(Context.Target)` when `HideTarget` is true.
+  - `Unicode text-element policy`: Introduced `ContextTargetMaskPolicy` in `KnownFirst.Core.Text` using `System.Globalization.StringInfo.LengthInTextElements` to compute exact grapheme cluster count, emitting one underscore per text element.
+  - `Unicode edge cases`: Accented characters (composed NFC or decomposed NFD), surrogate pairs (e.g. emoji `\uD83D\uDE00`), and hyphenated words (e.g. `Wi-Fi`) are masked one-for-one without leaking visible characters; null or empty targets return `string.Empty`.
+  - `Unmasked rendering`: `HideTarget == false` remains unmasked and renders `Context.Target` unchanged.
 - **Preserved boundaries & invariants:**
-  - Database schema remains 13.
+  - Database schema remains 13 (`PRAGMA user_version = 13`).
   - Portable archive format remains V3.
   - No Schema 14 or Archive V4.
-  - Word, Sense, Meaning, AnswerVariant, and LearningCard domain identities remain unchanged.
-  - Progress remains per `(LearningCard, Required AnswerVariant)`.
-  - AcceptedOnly answer variants do not receive progression credit.
-- **Verification evidence on approved source checkpoint (`881cea1...`):**
-  - Genuine initial RED: 4 failed / 4 passed in `LearningServiceCardDirectionBehaviorTests` (Hard at 0 held, Hard at 1 held, TermToMeaning reading invariant, ReplayVersion 1 -> 2 replacement).
-  - Identical GREEN on focused suite: 8 passed / 0 failed (`LearningServiceCardDirectionBehaviorTests`).
-  - Independent rerun suite (133 passed / 0 failed across 5 scopes):
-    - `LearningServiceCardDirectionBehaviorTests`: 8 passed / 0 failed.
-    - `AutomaticLearningPolicyTests` + `LearningInteractionPolicyTests`: 20 passed / 0 failed.
-    - `LearningServiceSchema13FsrsTests`: 20 passed / 0 failed.
-    - `Schema13BackupRestoreTests` + `Schema13MergeWriterTests`: 51 passed / 0 failed.
-    - `Schema8LearningReviewReplayPolicyTests`: 34 passed / 0 failed.
+  - FSRS-6 scheduling, stability, difficulty, review persistence, and Again active-session repeat invariant are completely untouched.
+  - CardDirection semantics and domain model identities remain unchanged.
+- **Verification evidence on approved source checkpoint (`d67a55e...`):**
+  - Genuine initial RED: `LearnCardDirectionContractTests.ContextView_HiddenTarget_UsesDynamicTargetMaskPolicyInsteadOfHardCodedUnderscores` failed against unmodified `ContextView.razor` on hardcoded `_____`.
+  - Identical GREEN on focused suite: 15 passed / 0 failed (`ContextTargetMaskPolicyTests` + `LearnCardDirectionContractTests`).
+  - Independent exact-checkpoint rerun suite:
+    - Focused suite (`ContextTargetMaskPolicyTests` + `LearnCardDirectionContractTests`): 15 passed / 0 failed.
+    - Focused regression suite (`UiWorkflowContractTests` + `TextAnalyzerTests`): 207 passed / 0 failed.
   - Whitespace / diff check (`git diff --check master...HEAD`): Clean (0 errors).
-  - Evidence boundary: Automated source/service/replay evidence on temporary SQLite databases; no rendered WebView/GUI runtime or physical device evidence is claimed. Candidate has NOT yet passed exact-candidate-HEAD FULL_VALIDATION.
-- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-004` candidate state and `KF-LEARN-003` merged state in [BACKLOG.md](BACKLOG.md), recorded `KF-LEARN-005` implementation completion in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), updated progression contracts in [KNOWNFIRST_ARCHITECTURE.md](KNOWNFIRST_ARCHITECTURE.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
-- **Follow-Up Closure Audit:** Dynamic context target masking remains owned by open `KF-LEARN-006`; session summary phrasing remains under open `KF-LEARN-007`; Learn card edit entry point remains under open `KF-LEARN-008`; stale action-error banner clearing remains under open `KF-LEARN-009`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`.
+  - Evidence boundary: Automated source/unit/contract regression tests; no rendered WebView/GUI runtime or physical device evidence is claimed. Candidate has NOT yet passed exact-candidate-HEAD FULL_VALIDATION.
+- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-006` candidate state and `KF-LEARN-004` / `KF-WINDOWS-001` merged states in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
+- **Follow-Up Closure Audit:** Session summary phrasing remains under open `KF-LEARN-007`; Learn card edit entry point remains under open `KF-LEARN-008`; stale action-error banner clearing remains under open `KF-LEARN-009`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`; English multi-word recognition remains under `KF-LEX-003`. All exclusions remain durably tracked; no orphan follow-ups were created.
 - **Next governed lifecycle:** `COMMIT_ONLY` for the exact documentation changes. After a successful documentation commit with a clean candidate HEAD, the next required gate is exact-candidate-HEAD `FULL_VALIDATION` under [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md). DOCUMENT_ONLY performs no commit, FULL_VALIDATION, push, or PR.
 
 - **Previous merged packages:**
+  - PR #198 (`feature/learning-automatic-progression-v1` / `KF-LEARN-004`): Implemented direction-aware Automatic interaction progression for `MeaningToTerm` (Good/Easy advance, Hard holds, Again resets; FSRS decoupled; ReplayVersion 2) while keeping `TermToMeaning` Reading-only. Merged to `master` via merge commit `1208442c43ada8fb43b69e6efdbd5c1747deec49` (validated PR head `2124312fd4d0598bff3c418d74e2230b2f19a18b`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #197 (`fix/learning-card-direction-semantics-v1` / `KF-LEARN-003`): Genuinely distinguished `TermToMeaning` (source term prompt, meaning answer, unconditional Reading mode across UI and backend, unmasked example sentence target) and `MeaningToTerm` (meaning prompt, source term answer, Reading or Typing mode, masked example sentence target). Merged to `master` via merge commit `c999eb64e99a2ee43fdb2c90417b5bbdf135c335` (validated PR head `d933462adeee70fe7435ecb5fbe22a7927e31204`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #196 (`KF-WINDOWS-001`): Stabilized the unpackaged Windows app-data publisher as `Tachiguro`, preserving application ID `com.tachiguro.knownfirst` and product name `KnownFirst`. Merged to `master` via merge commit `5bd173e484365219c8832a417187b7deb4a95b5e`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #195 (`KF-SETTINGS-001`): Settings learning-timezone persistence failure feedback is merged on `master` at `8eb74759e4a781de81fbc8c79b5a1c440af99afe`. `POST_MERGE_SYNC_ONLY` completed. The former active candidate wording is superseded. Source/contract evidence does not establish real storage-failure or rendered GUI behavior.

@@ -83,9 +83,9 @@ The following initiatives represent accepted product directions whose individual
 - **Objective:** Align learning card presentation and progression with genuine direction semantics.
 - **Packages:**
   - `KF-LEARN-003`: Genuinely distinct presentation and interaction semantics for `CardDirection.TermToMeaning` (term front, meaning reveal; semantic Reading unconditionally; no typing required) and `CardDirection.MeaningToTerm` (meaning prompt, term answer; typing supported). *Status: Merged to `master` via PR #197.*
-  - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures). *Status: Implemented and independently reviewed on branch `feature/learning-automatic-progression-v1` (checkpoint `881cea1...`); candidate finalization pending (not merged on master).*
+  - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures). *Status: Merged to `master` via PR #198.*
   - `KF-LEARN-005`: Recall rating success threshold for MeaningToTerm 2+2 progression. *Status: Resolved product decision; implementation completed under `KF-LEARN-004` (Good/Easy advance, Hard holds, Again resets; FSRS separate).*
-  - `KF-LEARN-006`: Dynamic context target masking in `ContextView.razor` matching actual encountered target length. *Status: Open.*
+  - `KF-LEARN-006`: Dynamic context target masking in `ContextView.razor` matching actual encountered target length. *Status: Implemented and independently reviewed on branch `fix/context-mask-grapheme-length-v1` (checkpoint `d67a55e...`); candidate finalization pending (not merged on master).*
   - `KF-LEARN-007`: User-facing session summary and next-due phrasing improvements. *Status: Open.*
   - `KF-LEARN-008`: Learn card edit/correction entry point into Vocabulary detail flow. *Status: Open.*
   - `KF-LEARN-009`: Clearing stale `_actionFailed` error banners after successful actions in `Learn.razor`. *Status: Open.*

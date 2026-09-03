@@ -30,27 +30,56 @@ public static class AutomaticLearningPolicy
 
     public static AutomaticLearningState RecordRecallAssessment(
         AutomaticLearningState state,
-        bool successful)
+        bool successful) =>
+        RecordRecallAssessment(
+            state,
+            successful ? RecallProgressionAssessment.Advance : RecallProgressionAssessment.Reset);
+
+    public static AutomaticLearningState RecordRecallAssessment(
+        AutomaticLearningState state,
+        ReviewRating rating) =>
+        RecordRecallAssessment(state, ToProgressionAssessment(rating));
+
+    public static AutomaticLearningState RecordRecallAssessment(
+        AutomaticLearningState state,
+        RecallProgressionAssessment assessment)
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        if (!successful)
+        switch (assessment)
         {
-            return state with { ConsecutiveRecallSuccesses = 0 };
-        }
+            case RecallProgressionAssessment.Advance:
+                var successes = Math.Min(
+                    RequiredConsecutiveAssessments,
+                    state.ConsecutiveRecallSuccesses + 1);
+                return successes < RequiredConsecutiveAssessments
+                    ? state with { ConsecutiveRecallSuccesses = successes }
+                    : state with
+                    {
+                        InteractionMode = LearningInteractionMode.Typing,
+                        ConsecutiveRecallSuccesses = successes,
+                        ConsecutiveTypingFailures = 0
+                    };
 
-        var successes = Math.Min(
-            RequiredConsecutiveAssessments,
-            state.ConsecutiveRecallSuccesses + 1);
-        return successes < RequiredConsecutiveAssessments
-            ? state with { ConsecutiveRecallSuccesses = successes }
-            : state with
-            {
-                InteractionMode = LearningInteractionMode.Typing,
-                ConsecutiveRecallSuccesses = successes,
-                ConsecutiveTypingFailures = 0
-            };
+            case RecallProgressionAssessment.Hold:
+                return state;
+
+            case RecallProgressionAssessment.Reset:
+                return state with { ConsecutiveRecallSuccesses = 0 };
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(assessment), assessment, "Unknown recall progression assessment.");
+        }
     }
+
+    public static RecallProgressionAssessment ToProgressionAssessment(ReviewRating rating) =>
+        rating switch
+        {
+            ReviewRating.Good or ReviewRating.Easy => RecallProgressionAssessment.Advance,
+            ReviewRating.Hard => RecallProgressionAssessment.Hold,
+            ReviewRating.Again => RecallProgressionAssessment.Reset,
+            _ => throw new ArgumentOutOfRangeException(nameof(rating), rating, "Unknown review rating.")
+        };
 
     public static AutomaticLearningState RecordTypingAssessment(
         AutomaticLearningState state,

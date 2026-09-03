@@ -82,9 +82,9 @@ The following initiatives represent accepted product directions whose individual
 ### 3. Learning Interaction & Direction UX
 - **Objective:** Align learning card presentation and progression with genuine direction semantics.
 - **Packages:**
-  - `KF-LEARN-003`: Genuinely distinct presentation and interaction semantics for `CardDirection.TermToMeaning` (term front, meaning reveal; semantic Reading unconditionally; no typing required) and `CardDirection.MeaningToTerm` (meaning prompt, term answer; typing supported). *Status: Implemented and independently reviewed on branch `fix/learning-card-direction-semantics-v1`; candidate finalization pending.*
-  - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures). *Status: Open, accepted work; depends on the resolved `KF-LEARN-005` decision.*
-  - `KF-LEARN-005`: Recall rating success threshold for MeaningToTerm 2+2 progression. *Status: Resolved product decision (only Good/Easy qualify as recall success; Hard leaves counter unchanged; Again resets; implementation pending under `KF-LEARN-004`).*
+  - `KF-LEARN-003`: Genuinely distinct presentation and interaction semantics for `CardDirection.TermToMeaning` (term front, meaning reveal; semantic Reading unconditionally; no typing required) and `CardDirection.MeaningToTerm` (meaning prompt, term answer; typing supported). *Status: Merged to `master` via PR #197.*
+  - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures). *Status: Implemented and independently reviewed on branch `feature/learning-automatic-progression-v1` (checkpoint `881cea1...`); candidate finalization pending (not merged on master).*
+  - `KF-LEARN-005`: Recall rating success threshold for MeaningToTerm 2+2 progression. *Status: Resolved product decision; implementation completed under `KF-LEARN-004` (Good/Easy advance, Hard holds, Again resets; FSRS separate).*
   - `KF-LEARN-006`: Dynamic context target masking in `ContextView.razor` matching actual encountered target length. *Status: Open.*
   - `KF-LEARN-007`: User-facing session summary and next-due phrasing improvements. *Status: Open.*
   - `KF-LEARN-008`: Learn card edit/correction entry point into Vocabulary detail flow. *Status: Open.*

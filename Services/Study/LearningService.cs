@@ -1334,7 +1334,7 @@ public sealed class LearningService : ILearningService
         var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, graph.Card.Id);
         var persistedProgress = Schema8LearningRepository.LoadProgressForCard(connection, graph.Card.Id);
         var priorProjection = Schema13LearningReviewPolicy.Project(
-            graph.Card.Id, graph.Assignments, reviews, persistedProgress);
+            graph.Card.Id, graph.Assignments, reviews, persistedProgress, graph.Card.Direction);
         var targetOutcome = priorProjection.FindOutcome(graph.TargetAnswerVariantId)
             ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
                 $"No projected outcome exists for Required target variant {graph.TargetAnswerVariantId}.");
@@ -1521,7 +1521,7 @@ public sealed class LearningService : ILearningService
         // then replace every current Required projection in this same caller-owned factual transaction.
         var completeReviews = Schema8LearningRepository.LoadReviewsForCard(connection, graph.Card.Id);
         var completeProjection = Schema13LearningReviewPolicy.Project(
-            graph.Card.Id, graph.Assignments, completeReviews, persistedProgress);
+            graph.Card.Id, graph.Assignments, completeReviews, persistedProgress, graph.Card.Direction);
         var progressPlan = Schema13LearningReviewPolicy.PlanProgressReplacement(
             graph.Assignments, persistedProgress, completeProjection);
         Schema13LearningReviewPolicy.ApplyProgressPlan(connection, graph.Card.Id, progressPlan);
@@ -2681,7 +2681,7 @@ public sealed class LearningService : ILearningService
         var candidates = new List<(Schema8AttributionCandidateRow Assignment, DateTime RequiredSinceUtc)>();
         if (IsSchema13(LearningSchemaCapability.Resolve(connection)))
         {
-            var projection = Schema13LearningReviewPolicy.Project(card.Id, assignments, reviews, progress);
+            var projection = Schema13LearningReviewPolicy.Project(card.Id, assignments, reviews, progress, card.Direction);
             foreach (var assignment in assignments.Where(row => row.IsRequired))
             {
                 _ = projection.FindOutcome(assignment.AnswerVariantId)

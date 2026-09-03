@@ -968,13 +968,15 @@ public sealed class Schema13BackupRestoreTests
     {
         return await database.RunInTransactionAsync(connection =>
         {
+            var direction = (CardDirection)connection.ExecuteScalar<int>(
+                "SELECT Direction FROM LearningCards WHERE Id = ?", fixture.CardId);
             var assignments = Schema8LearningRepository.LoadAssignmentsForSenseDirection(
                 connection,
                 fixture.SenseId,
-                CardDirection.TermToMeaning);
+                direction);
             var reviews = Schema8LearningRepository.LoadReviewsForCard(connection, fixture.CardId);
             var progress = Schema8LearningRepository.LoadProgressForCard(connection, fixture.CardId);
-            return Schema13LearningReviewPolicy.Project(fixture.CardId, assignments, reviews, progress)
+            return Schema13LearningReviewPolicy.Project(fixture.CardId, assignments, reviews, progress, direction)
                 .FindOutcome(fixture.AnswerVariantId)!
                 .State;
         });

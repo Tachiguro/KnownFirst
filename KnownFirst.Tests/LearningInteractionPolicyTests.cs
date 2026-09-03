@@ -91,13 +91,43 @@ public sealed class LearningInteractionPolicyTests
     }
 
     [TestMethod]
-    public void AutomaticRecall_FailedRecall_ResetsRecallSuccessProgress()
+    public void AutomaticRecall_GoodAndEasy_AdvanceToTyping()
     {
-        var state1 = LearningInteractionPolicy.RecordRecallAssessment(
-            LearningInteractionProgress.Initial, successful: true);
+        var state0 = LearningInteractionProgress.Initial;
+        var state1 = LearningInteractionPolicy.RecordRecallAssessment(state0, ReviewRating.Good);
+        Assert.AreEqual(LearningInteractionMode.Reading, state1.InteractionMode);
         Assert.AreEqual(1, state1.ConsecutiveRecallSuccesses);
 
-        var stateFailed = LearningInteractionPolicy.RecordRecallAssessment(state1, successful: false);
+        var state2 = LearningInteractionPolicy.RecordRecallAssessment(state1, ReviewRating.Easy);
+        Assert.AreEqual(LearningInteractionMode.Typing, state2.InteractionMode);
+        Assert.AreEqual(2, state2.ConsecutiveRecallSuccesses);
+        Assert.AreEqual(0, state2.ConsecutiveTypingFailures);
+    }
+
+    [TestMethod]
+    public void AutomaticRecall_Hard_HoldsRecallSuccessCountAtZeroAndAtOne()
+    {
+        var state0 = LearningInteractionProgress.Initial;
+        var held0 = LearningInteractionPolicy.RecordRecallAssessment(state0, ReviewRating.Hard);
+        Assert.AreEqual(0, held0.ConsecutiveRecallSuccesses);
+        Assert.AreEqual(LearningInteractionMode.Reading, held0.InteractionMode);
+
+        var state1 = LearningInteractionPolicy.RecordRecallAssessment(state0, ReviewRating.Good);
+        Assert.AreEqual(1, state1.ConsecutiveRecallSuccesses);
+
+        var held1 = LearningInteractionPolicy.RecordRecallAssessment(state1, ReviewRating.Hard);
+        Assert.AreEqual(1, held1.ConsecutiveRecallSuccesses);
+        Assert.AreEqual(LearningInteractionMode.Reading, held1.InteractionMode);
+    }
+
+    [TestMethod]
+    public void AutomaticRecall_Again_ResetsRecallSuccessProgress()
+    {
+        var state1 = LearningInteractionPolicy.RecordRecallAssessment(
+            LearningInteractionProgress.Initial, ReviewRating.Good);
+        Assert.AreEqual(1, state1.ConsecutiveRecallSuccesses);
+
+        var stateFailed = LearningInteractionPolicy.RecordRecallAssessment(state1, ReviewRating.Again);
         Assert.AreEqual(0, stateFailed.ConsecutiveRecallSuccesses);
         Assert.AreEqual(LearningInteractionMode.Reading, stateFailed.InteractionMode);
     }

@@ -160,6 +160,138 @@ public sealed class LearningServiceCardDirectionBehaviorTests
         Assert.IsTrue(reviews[0].WasCorrect);
     }
 
+    [TestMethod]
+    public async Task MeaningToTerm_AutomaticReading_HardAtZero_HoldsCounterAtZero()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessionCards SET AnswerRevealed = 1 WHERE Id = ?",
+            fixture.QueueItemId);
+
+        var clock = new FixedClock(ReviewTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var service = CreateLearningService(fixture, clock, fsrs, LearningMode.Automatic);
+
+        var rated = await service.RateAsync(fixture.QueueItemId, ReviewRating.Hard);
+        Assert.IsNotNull(rated);
+
+        var progress = await fixture.DatabaseFixture.Connection.QueryAsync<AnswerVariantProgressRow>(
+            "SELECT * FROM AnswerVariantProgress WHERE CardId = ? AND AnswerVariantId = ?",
+            fixture.CardId, fixture.TargetAnswerVariantId);
+        Assert.HasCount(1, progress);
+        Assert.AreEqual(LearningInteractionMode.Reading, progress[0].InteractionMode);
+        Assert.AreEqual(0, progress[0].ConsecutiveReadingSuccessCount, "Hard at counter 0 must hold at 0.");
+        Assert.AreEqual(0, progress[0].ConsecutiveTypingSuccessCount);
+        Assert.AreEqual(0, progress[0].ConsecutiveTypingFailureCount);
+    }
+
+    [TestMethod]
+    public async Task MeaningToTerm_AutomaticReading_HardAtOne_HoldsCounterAtOneAndRemainsReading()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE SenseAnswerVariantAssignments SET RequiredSinceUtc = ? WHERE AnswerVariantId = ?",
+            ReviewTime.AddDays(-30), fixture.TargetAnswerVariantId);
+        await AddHistoricalInteractionAsync(
+            fixture, 1, ReviewTime.AddDays(-10), ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            fixture.TargetAnswerVariantId, null);
+
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessionCards SET AnswerRevealed = 1 WHERE Id = ?",
+            fixture.QueueItemId);
+
+        var clock = new FixedClock(ReviewTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var service = CreateLearningService(fixture, clock, fsrs, LearningMode.Automatic);
+
+        var rated = await service.RateAsync(fixture.QueueItemId, ReviewRating.Hard);
+        Assert.IsNotNull(rated);
+
+        var progress = await fixture.DatabaseFixture.Connection.QueryAsync<AnswerVariantProgressRow>(
+            "SELECT * FROM AnswerVariantProgress WHERE CardId = ? AND AnswerVariantId = ?",
+            fixture.CardId, fixture.TargetAnswerVariantId);
+        Assert.HasCount(1, progress);
+        Assert.AreEqual(LearningInteractionMode.Reading, progress[0].InteractionMode, "Hard review must not transition to Typing.");
+        Assert.AreEqual(1, progress[0].ConsecutiveReadingSuccessCount, "Hard at counter 1 must hold at 1.");
+    }
+
+    [TestMethod]
+    public async Task TermToMeaning_AutomaticProgression_RepeatedGoodReviews_DoesNotCreateHiddenTypingProgress()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE SenseAnswerVariantAssignments SET RequiredSinceUtc = ? WHERE AnswerVariantId = ?",
+            ReviewTime.AddDays(-30), fixture.TargetAnswerVariantId);
+        await AddHistoricalInteractionAsync(
+            fixture, 1, ReviewTime.AddDays(-20), ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            fixture.TargetAnswerVariantId, null);
+        await AddHistoricalInteractionAsync(
+            fixture, 2, ReviewTime.AddDays(-10), ReviewRating.Good, wasTypedAnswer: false, wasCorrect: true,
+            fixture.TargetAnswerVariantId, null);
+
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessionCards SET AnswerRevealed = 1 WHERE Id = ?",
+            fixture.QueueItemId);
+
+        var clock = new FixedClock(ReviewTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var service = CreateLearningService(fixture, clock, fsrs, LearningMode.Automatic);
+
+        var rated = await service.RateAsync(fixture.QueueItemId, ReviewRating.Good);
+        Assert.IsNotNull(rated);
+
+        var progress = await fixture.DatabaseFixture.Connection.QueryAsync<AnswerVariantProgressRow>(
+            "SELECT * FROM AnswerVariantProgress WHERE CardId = ? AND AnswerVariantId = ?",
+            fixture.CardId, fixture.TargetAnswerVariantId);
+        Assert.HasCount(1, progress);
+        Assert.AreEqual(LearningInteractionMode.Reading, progress[0].InteractionMode, "TermToMeaning progress must always remain Reading.");
+        Assert.AreEqual(0, progress[0].ConsecutiveReadingSuccessCount, "TermToMeaning must not accumulate recall successes.");
+        Assert.AreEqual(0, progress[0].ConsecutiveTypingSuccessCount);
+        Assert.AreEqual(0, progress[0].ConsecutiveTypingFailureCount);
+    }
+
+    [TestMethod]
+    public async Task Schema13_StaleReplayVersion1Progress_IsReplacedWithVersion2OnRatingTransaction()
+    {
+        await using var fixture = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(fixture);
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE SenseAnswerVariantAssignments SET RequiredSinceUtc = ? WHERE AnswerVariantId = ?",
+            ReviewTime.AddDays(-30), fixture.TargetAnswerVariantId);
+
+        // Seed stale version 1 progress row
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            """
+            INSERT INTO AnswerVariantProgress
+                (CardId, AnswerVariantId, InteractionMode, ConsecutiveReadingSuccessCount,
+                 ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount, LastAssessedAtUtc,
+                 MasteryReviewExtensionScheduled, IsMastered, ReplayVersion, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, 0, 0, 0, 0, ?, 0, 0, 1, ?, ?)
+            """,
+            fixture.CardId, fixture.TargetAnswerVariantId, ReviewTime.AddDays(-10),
+            ReviewTime.AddDays(-30), ReviewTime.AddDays(-10));
+
+        await fixture.DatabaseFixture.Connection.ExecuteAsync(
+            "UPDATE LearningSessionCards SET AnswerRevealed = 1 WHERE Id = ?",
+            fixture.QueueItemId);
+
+        var clock = new FixedClock(ReviewTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var service = CreateLearningService(fixture, clock, fsrs, LearningMode.Automatic);
+
+        var rated = await service.RateAsync(fixture.QueueItemId, ReviewRating.Good);
+        Assert.IsNotNull(rated);
+
+        var progress = await fixture.DatabaseFixture.Connection.QueryAsync<AnswerVariantProgressRow>(
+            "SELECT * FROM AnswerVariantProgress WHERE CardId = ? AND AnswerVariantId = ?",
+            fixture.CardId, fixture.TargetAnswerVariantId);
+        Assert.HasCount(1, progress);
+        Assert.AreEqual(2, progress[0].ReplayVersion, "Rating transaction must replace version 1 with ReplayVersion 2.");
+        Assert.AreEqual(1, progress[0].ConsecutiveReadingSuccessCount);
+    }
+
     private static Task ConfigureMeaningToTermAsync(Fixture fixture) =>
         fixture.DatabaseFixture.Connection.RunInTransactionAsync(connection =>
         {

@@ -270,3 +270,6 @@ Automatic scrolling is appropriate when newly revealed validation errors, manual
 Automated unit and contract tests verify deterministic behavior, state transitions, localization keys, CSS/Razor contracts, focus targets, scroll targets, and Release exclusion where practical. They do not prove visual perfection, platform safe areas, touch behavior, or native rendering.
 
 Final visual acceptance requires the repeatable manual matrix in `GUI_TEST_MATRIX.md`, Windows screenshots, and Android device validation. Any result not inspected visually must be reported as unverified rather than inferred from a successful build.
+# Unresolved Online Dictionary OFF presentation
+
+The implemented contract currently presents Automatic Online as visible but disabled when consent is OFF, with explanatory Settings navigation. A later product proposal would hide/not offer it until re-enabled. These alternatives are intentionally unresolved under `KF-PREP-003`; this document must not treat the proposal as implemented. New method selection, Settings affordance, already-created AutomaticOnline batches after revocation, re-enablement, and cached/local content require explicit product resolution. The fail-closed transport boundary remains binding.

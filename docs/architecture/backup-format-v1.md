@@ -8,7 +8,7 @@ This document defines the logical, versioned local backup/recovery format for Kn
 
 ## Current Archive V3 / Schema-13 extension
 
-The historical V1 and V2 sections below retain their compatibility contracts. On the KF-FSRS-003 candidate, the current Schema-13 export format is `formatVersion: 3`; no V4, portable `LearningReview` local-ID field, or source-generated JSON architecture change was introduced.
+The historical V1 and V2 sections below retain their compatibility contracts. The current Schema-13 export format is `formatVersion: 3`; no V4, portable `LearningReview` local-ID field, or source-generated JSON architecture change was introduced. This is merged Archive V3 capability, not candidate-only work.
 
 V3 carries Schema-13 `FsrsReviewHistoryEntries` and `FsrsCardStates` in addition to the established portable graph. Factual FSRS history and the exported state must agree exactly under replay. `Stability` and `Difficulty` use exact IEEE-754 binary64 equality; approximate replay-state tolerance is not an accepted validity definition. Invalid state or replay agreement fails closed. A native V3 restore into a genuinely empty target validates production-equivalent Schema-13 shape, foreign keys, runtime integrity, record counts, and exact state before its transaction succeeds. A populated target uses compatible authoritative validation before its transactional merge succeeds; neither path silently repairs or normalizes invalid archive state.
 
@@ -330,3 +330,6 @@ The following were part of the original v1 proposal but are **superseded histori
 - **Free-space estimation** before mutation (bounded input size, one safety backup, SQLite journal growth, plus margin), stopping before mutation if space cannot be established or is insufficient.
 - **Active/incomplete workflow transfer** across installations (currently deliberately excluded and rejected on import).
 - **Preference and consent transfer**, which would require either moving those settings into a transactional store or a durable recovery journal with tested compensation.
+# Current archive status
+
+The current `master` implementation supports Archive V3 and Schema-13 portable-data handling. Earlier V1/V2 descriptions in this document remain historical or compatibility contracts where explicitly scoped; Archive V3 is not candidate-only.

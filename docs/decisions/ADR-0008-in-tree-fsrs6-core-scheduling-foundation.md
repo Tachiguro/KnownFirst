@@ -20,7 +20,7 @@ Integrating an algorithm of this complexity into an offline-first, NativeAOT-com
 
 KnownFirst adopts an in-tree, deterministic, platform-neutral FSRS-6 scheduling and replay foundation in `KnownFirst.Core.Learning.Fsrs6`.
 
-The current package (`KF-FSRS6-CORE-001`) delivers this pure mathematical engine and test oracle without modifying existing production scheduler composition, `LearningService`, dependency injection, or persistence. `SimpleSpacedRepetitionScheduler` remains the active production scheduler for Schema 12 until a separate, governed persistence and integration package (`KF-CLEAN-PERSISTENCE-013-001`) executes the production cutover.
+At the time of this decision, the package (`KF-FSRS6-CORE-001`) delivered this pure mathematical engine and test oracle without modifying production scheduler composition, `LearningService`, dependency injection, or persistence. The then-current `SimpleSpacedRepetitionScheduler` remained the active Schema-12 scheduler pending a separate governed integration package. That historical boundary was later superseded by merged `KF-FSRS-003`; current production scheduling is owned by `IFsrs6SchedulingService` / `Fsrs6SchedulingService`.
 
 ### 1. Pinned Production Configuration
 
@@ -94,3 +94,6 @@ A static fixture of 38 precomputed oracle vector histories (`Fsrs6OracleVectors.
 - **Python Runtime Bridge / Sidecar:** Rejected due to startup overhead, packaging complexity on Android, and violation of the local-first NativeAOT architecture.
 - **FSRS-7 Target:** Rejected because FSRS-7 is not yet stabilized or standardized in the reference implementation ecosystem.
 - **Immediate Monolithic Cutover:** Rejected in favor of a layered, multi-package architecture: delivering the verified Core engine first, followed by clean persistence integration.
+# Current runtime note
+
+The FSRS-6 core foundation described here is now consumed by the production runtime through the merged `KF-FSRS-003` cutover. This note does not alter the ADR decision or authorize later cleanup; `KF-CLEANUP-001` remains deferred.

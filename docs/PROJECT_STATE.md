@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
 **Status date:** 2026-09-02
-**State source:** `master` baseline (through PR #189 / `KF-PERSIST-013-001`) plus the local, unpushed KF-FSRS-003 implementation candidate on `feature/fsrs6-schema13-cutover-v1` (HEAD `b7c979bf188e0c5526b9a7dfccf419ac387c2d9e`). The candidate is not merged; live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**State source:** merged Schema-13 persistence, Archive V3, and production FSRS-6 runtime cutover (`KF-PERSIST-013-001`, `KF-BACKUP-006`, `KF-FSRS-003`). Live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -11,7 +11,7 @@ This document records stable, verified architectural facts and current capabilit
 | :--- | :--- |
 | **Project** | KnownFirst |
 | **Source Version (`master`)** | `1.0.0-beta.13` (build 15) — prepared via release-identity package KF-RELEASE-002 |
-| **Active Database Schema** | SQLite `PRAGMA user_version` 13 (KF-FSRS-003 candidate; not yet merged to `master`) |
+| **Active Database Schema** | SQLite `PRAGMA user_version` 13 on current production `master`; fresh databases bootstrap directly to Schema 13; existing Schema 1–12 databases fail closed in the production startup path |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
 | **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Signed replacement bundle `KnownFirst-1.0.0-beta.13-code14.aab` (`48,002,097` bytes, SHA-256 `7a84da599ae7435614d95ff316707669d69e21b311fe252f5419ac9cb8ecbbcd`, `StrictVerified`) was created and verified locally from certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13. Active candidate build identity is Build 15, for which no AAB package has yet been created or distributed. |
@@ -67,13 +67,13 @@ This document records stable, verified architectural facts and current capabilit
 - authoritative post-onboarding online lookup consent enforcement and fail-closed privacy architecture (merged via PR #181 / KF-ONLINE-LOOKUP-CONSENT-001): `IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler` transport gate blocking unauthorized outbound lexical HTTP; authorization-epoch-bound orchestration and prefetch safety with immediate cancellation on consent revocation; contextual consent disclosure removed from Prepare Words so Settings is the sole post-onboarding authority; dedicated blocked-candidate state with Settings navigation and manual fallback without data loss; Automatic Online method disabled and lookup retry disabled while consent is absent;
 - transactional first-run onboarding settings and startup recovery (merged via PR #182 / KF-TRANSACTIONAL-ONBOARDING-001): versioned persisted `OnboardingDraft` accumulating setup choices across steps with persisted restart resume; Finish Setup as the sole atomic commit boundary; immediate non-persisting language and theme preview during setup; deterministic `OnboardingCompletionJournal` with SHA-256 fingerprint and pre-write durability barrier; idempotent startup recovery executing before database initialization; fail-closed handling of unsupported future journal versions; crash-safe legacy migration with consent reconfirmation; and strict preservation of Package A's fail-closed online-lookup transport authorization gate (draft consent true does not authorize transport until verified completion roll-forward).
 
-## Schema-13 / FSRS-6 Candidate State (KF-FSRS-003)
+## Schema-13 / FSRS-6 Merged Production State (KF-FSRS-003)
 
-The local candidate implements the clean Schema-13 production cutover, FSRS-6 authority, factual FSRS state/history persistence, Archive V3 integrity and causal interaction ordering, and Repairs 001–006. Consolidated technical review found no remaining correctness blocker. This is implementation state only: it does not record validation, publication, merge, release, or deployment evidence.
+Current `master` implements the clean Schema-13 production cutover, FSRS-6 authority, factual FSRS state/history persistence, Archive V3 integrity and causal interaction ordering, and Repairs 001–006. This records source/runtime truth only; it does not establish GUI, device, package, release, or distribution evidence.
 
 ## Transactional Onboarding Settings & Recovery — Merged Production State (KF-TRANSACTIONAL-ONBOARDING-001)
 
-**Lifecycle status:** Merged production `master` state via PR #182 (`feat(onboarding): make setup settings transactional` / KF-TRANSACTIONAL-ONBOARDING-001; merge commit `172587f4dc52bf3f5573bcfda53297de3216d3b6`; validated PR head `5d8cada0406c4243a9a4d2cea51c6c1491ab2c6d`). Exact candidate `FULL_VALIDATION` passed with 2753 / 2753 tests and all Windows/Android Debug/Release plus AOT/trimming/linker gates (exit code 0; log `artifacts/launcher-logs/ValidateAll-20260828-143720.log`). `POST_MERGE_SYNC_ONLY` completed. Package B is now a merged production source capability on `master`. `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** Merged production `master` state via PR #182 (`feat(onboarding): make setup settings transactional` / KF-TRANSACTIONAL-ONBOARDING-001; merge commit `172587f4dc52bf3f5573bcfda53297de3216d3b6`; validated PR head `5d8cada0406c4243a9a4d2cea51c6c1491ab2c6d`). Exact candidate `FULL_VALIDATION` passed with 2753 / 2753 tests and all Windows/Android Debug/Release plus AOT/trimming/linker gates (exit code 0; log `artifacts/launcher-logs/ValidateAll-20260828-143720.log`). `POST_MERGE_SYNC_ONLY` completed. Package B is now a merged production source capability on `master`. `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at this package's merge, before the Schema-13 / Archive V3 cutover.
 
 This package replaces the step-by-step direct-persistence onboarding model with a fully transactional draft-and-commit model. All onboarding choices are staged in a single versioned persisted draft and applied atomically only when Finish Setup is confirmed.
 
@@ -119,7 +119,7 @@ This package replaces the step-by-step direct-persistence onboarding model with 
 **7. Persistence boundary**
 
 - All draft and journal state is preference-backed only; no database schema change was introduced.
-- `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
+- At this package's merge, `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 (historical pre-cutover boundary).
 
 **8. Evidence boundary**
 
@@ -146,7 +146,7 @@ Merged to `master` via PR #162 (`fix: align onboarding with settings feedback`; 
   - Consolidated code review: 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; disposition `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
   - Exact-candidate `FULL_VALIDATION` (validated PR head `d2171872cdfdf366642afa685924a23507d7dacd`): 2570 passed / 0 failed / 0 skipped; Windows Debug PASS; Windows Release PASS; Android Debug PASS; Android Release PASS; strict warning/linking gate PASS; exit code 0; log `artifacts/launcher-logs/ValidateAll-20260825-124542.log`.
 - **Evidence Boundary:** Automated source/markup, state transition, and localization contract tests verify component binding, error handling, and DOM structure. Rendered WebView/GUI appearance, actual Windows focus behavior, Android touch behavior, and native select dialogs were not manually proven by this package and are not claimed.
-- **Persistence & Architecture Invariants:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2; Daily Pace presets, range (1..50), default (5), and warning (>15) unchanged; Learning Day minute precision (00..59) unchanged; zero network requests in onboarding or tests.
+- **Persistence & Architecture Invariants:** At this package's merge, `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 (historical pre-cutover boundary); Daily Pace presets, range (1..50), default (5), and warning (>15) unchanged; Learning Day minute precision (00..59) unchanged; zero network requests in onboarding or tests.
 
 ## Development, Tooling & Packaging Foundations
 
@@ -189,7 +189,7 @@ Package 5A corrects the post-review-completion lifecycle of a derived compound c
 
 Package 5A-2 is merged production `master` state via PR #137 (`feat: transport German derived evidence portably`; merge commit `5d1d3c05bae6ab9f1c56d8c5f9a227121f432f9a`; validated PR head `2ff447e9f874d49e72fee0a549820adc1bdc3b39`), on top of Package 5A above. This is binding current-`master` production state. Full operational/lifecycle history: [docs/CURRENT_WORK.md](CURRENT_WORK.md). Exact archive/schema/merge contract: [docs/DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) "Schema-11 Derived-Term Evidence Contract."
 
-Package 5A-2 implements the cross-installation transport that Package 5A intentionally left unserialized: the retained `DerivedTermEvidenceEntity` row(s) owned by a candidate that survives review completion while its word stays Unknown now travel through the ordinary portable/backup/merge pipeline, superseding Package 5A's temporary portable-export exclusion of that candidate. No database schema/version change (`DatabaseSchema.CurrentVersion` remains 11) and no archive-format change (archive stays V2, no new required/optional feature).
+Package 5A-2 implements the cross-installation transport that Package 5A intentionally left unserialized: the retained `DerivedTermEvidenceEntity` row(s) owned by a candidate that survives review completion while its word stays Unknown now travel through the ordinary portable/backup/merge pipeline, superseding Package 5A's temporary portable-export exclusion of that candidate. No database schema/version change (then-current `DatabaseSchema.CurrentVersion` was 11) and no archive-format change (then-current archive V2, no new required/optional feature).
 
 - **Portable representation:** the V2 payload gains a top-level `DerivedTermEvidence` collection (`BackupDerivedTermEvidenceV2`: owning archive review-item reference, `SourceIdentity`, `SourceSurfaceForm`, `SourceStartPosition`, `SourceLength`, `SourceSentenceOrder`, `ComponentForm`) and a corresponding `BackupRecordCountsV2.DerivedTermEvidence` count. The retained candidate now exports through the ordinary completed-review-item path with its existing history/state fields unchanged — no synthetic `ReviewCandidate`/history vessel is created.
 - **Coverage:** Schema-11 evidence is now captured consistently in ordinary portable export, full/internal backup, pre-merge safety copy, and the target-state capture used by populated-target preflight/writer re-evaluation — including the merge-safety-copy capture path, which previously never applied this enrichment at all.
@@ -205,7 +205,7 @@ Package 5A-2 implements the cross-installation transport that Package 5A intenti
 
 Package 5B is merged production `master` state via PR #140 (`feat: show German derivation source in review`; merge commit `bd67393f81cece98c3d8c58c5ea26ef3e8920079`; validated PR head `d1de7556bfd346f3aa1fdd19741c7d1a6d647ba6`), on top of Package 5A-2 above. This is binding current-`master` production state. Full operational/lifecycle history: [docs/CURRENT_WORK.md](CURRENT_WORK.md).
 
-Package 5B adds a minimal, always-visible Review Words derivation-source indication for genuine `CandidateProvenanceKind.DerivedFromCompound` candidates, and closes the remaining approved German derived-term regression-coverage gaps (native Exclude cleanup and Preparation→Learning continuity) via new characterization tests. No database schema/version change and no archive DTO/version change: `DatabaseSchema.CurrentVersion` remains 11 and archive remains V2.
+Package 5B adds a minimal, always-visible Review Words derivation-source indication for genuine `CandidateProvenanceKind.DerivedFromCompound` candidates, and closes the remaining approved German derived-term regression-coverage gaps (native Exclude cleanup and Preparation→Learning continuity) via new characterization tests. No database schema/version change and no archive DTO/version change: the then-current `DatabaseSchema.CurrentVersion` was 11 and archive format was V2.
 
 - **Data source:** Review Words now consumes the already-existing `ReviewCandidateDetails.Provenance`/`DerivationEvidence` projection, which `TextReviewService.GetCurrentCandidateAsync()` already populated from `DerivedTermEvidenceEntity` before this package. No new service method, query, or database boundary was introduced; the UI performs no database access of its own.
 - **Displayed source:** `DerivedTermEvidence.SourceSurfaceForm` is the only field rendered — deduplicated, blank-filtered, and deterministically joined when more than one distinct source compound exists. `SourceIdentity`, database/archive ids, positions, hashes, and `ComponentForm` are never rendered.
@@ -219,7 +219,7 @@ Package 5B adds a minimal, always-visible Review Words derivation-source indicat
 
 ## Daily New-Word Budget & Learning-Day Infrastructure — Slice 1 (Merged Production State)
 
-**Lifecycle status:** merged production `master` state via PR #142 (`feat: add daily new-word learning-day budget`; merge commit `34afed431711dd165b334d66b50b251a839faf02`; validated PR head `e7b6a0ad6a1159f94035b813bf747325bc314e8a`). Exact-head `FULL_VALIDATION` on the validated PR head: 2276 passed / 0 failed / 0 skipped, Windows Debug PASS, Windows Release PASS, Android Debug PASS, Android Release PASS, strict warning/linking gate PASS with 0 warnings / 0 errors, exit code 0 (log `artifacts/launcher-logs/ValidateAll-20260823-004831.log`). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion = 12` is active on `master`.
+**Lifecycle status:** merged production `master` state via PR #142 (`feat: add daily new-word learning-day budget`; merge commit `34afed431711dd165b334d66b50b251a839faf02`; validated PR head `e7b6a0ad6a1159f94035b813bf747325bc314e8a`). Exact-head `FULL_VALIDATION` on the validated PR head: 2276 passed / 0 failed / 0 skipped, Windows Debug PASS, Windows Release PASS, Android Debug PASS, Android Release PASS, strict warning/linking gate PASS with 0 warnings / 0 errors, exit code 0 (log `artifacts/launcher-logs/ValidateAll-20260823-004831.log`). `POST_MERGE_SYNC_ONLY` completed successfully; Schema-12 activation was this package's historical contribution; current production has since advanced to Schema 13.
 
 This merged slice establishes the non-visual daily new-word budget, durable `ActiveBudgetDay` and `Bridge` state, timezone/cutoff infrastructure, Schema-12 persistence, and active-session rollover reconciliation:
 
@@ -235,7 +235,7 @@ This merged slice establishes the non-visual daily new-word budget, durable `Act
 
 ## Settings GUI & Learning-Day Defaults — Slice 2A (Merged Production State)
 
-**Lifecycle status:** merged production `master` state via PR #144 (`feat: add settings GUI and learning-day defaults`; merge commit `3c3b976b25a8e90da8c6f41ab8b9d667dead99cb`; validated PR head `40deec3be3b9672130804b42b1967922a07c1815`). Exact-head `FULL_VALIDATION` on the validated PR head: 2339 passed / 0 failed / 0 skipped, Windows Debug PASS, Windows Release PASS, Android Debug PASS, Android Release strict PASS, strict warning/linking gate PASS, exit code 0 (log `artifacts/launcher-logs/ValidateAll-20260823-044728.log`). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** merged production `master` state via PR #144 (`feat: add settings GUI and learning-day defaults`; merge commit `3c3b976b25a8e90da8c6f41ab8b9d667dead99cb`; validated PR head `40deec3be3b9672130804b42b1967922a07c1815`). Exact-head `FULL_VALIDATION` on the validated PR head: 2339 passed / 0 failed / 0 skipped, Windows Debug PASS, Windows Release PASS, Android Debug PASS, Android Release strict PASS, strict warning/linking gate PASS, exit code 0 (log `artifacts/launcher-logs/ValidateAll-20260823-044728.log`). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at this package's merge, before the Schema-13 / Archive V3 cutover.
 
 This merged slice provides full user control over learning-day parameters and restores standard application defaults:
 
@@ -248,7 +248,7 @@ This merged slice provides full user control over learning-day parameters and re
 
 ## First-Run Onboarding & Daily-Budget UX — Slice 1 (Merged Production State)
 
-**Lifecycle status:** merged production `master` state via PR #153 (`feat: add onboarding install-origin foundation`; merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`; validated PR head `36534afa4664eea99fcb41b2554b72e64d7a35ec`). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** merged production `master` state via PR #153 (`feat: add onboarding install-origin foundation`; merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`; validated PR head `36534afa4664eea99fcb41b2554b72e64d7a35ec`). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at this package's merge, before the Schema-13 / Archive V3 cutover.
 
 This merged foundation slice establishes preference-backed onboarding state, startup install-origin classification, grandfathered budget pinning, and reset contracts:
 
@@ -256,11 +256,11 @@ This merged foundation slice establishes preference-backed onboarding state, sta
 - **Startup Install-Origin Classification:** `IInstallOriginClassifier` / `InstallOriginClassifier` runs as a singleton during application startup in `MauiProgram.cs` before language initialization. It distinguishes fresh installations (no onboarding marker + no legacy preference evidence => `Required`) from existing installations (no onboarding marker + legacy preference evidence => `Completed`). Already valid onboarding state is preserved without reclassification. Database-file existence is deliberately not used as evidence to avoid false positives on fresh installs where database files may be initialized before classification.
 - **Grandfathered Daily-Budget Pinning:** Grandfathered existing installations without an explicit `preparation_limit` preference have the legacy effective value `10` pinned to `preparation_limit` so future default changes will not alter their established study rhythm. Existing explicit values are preserved; fresh installations are not pinned. `PreparationLimitPolicy.DefaultLimit` remains 10 with existing presets ($N \in \{5, 10, 20, 30, 50\}$).
 - **Reset Contracts:** Destructive full reset sets `OnboardingState.Required` first before default restoration recreates legacy markers; online dictionary consent remains unconditionally revoked. Non-destructive "Restore default settings" leaves onboarding state untouched and preserves current online dictionary consent.
-- **Persistence Boundary:** Onboarding state and install-origin markers are Preferences/application-local state, not SQLite. `DatabaseSchema.CurrentVersion` remains 12 and archive format remains V2.
+- **Persistence Boundary:** Onboarding state and install-origin markers are Preferences/application-local state, not SQLite. At this package's merge, `DatabaseSchema.CurrentVersion` was 12 and archive format was V2; current production uses Schema 13 / Archive V3.
 
 ## First-Run Onboarding & Daily-Budget UX Core (Merged Production State)
 
-**Lifecycle status:** Merged production `master` state via PR #155 (`feat: add first-run onboarding and daily budget ux`) and PR #156 (`fix: unify settings and onboarding visual consistency`). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** Merged production `master` state via PR #155 (`feat: add first-run onboarding and daily budget ux`) and PR #156 (`fix: unify settings and onboarding visual consistency`). `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at this package's merge, before the Schema-13 / Archive V3 cutover.
 
 This multi-slice package completes first-run onboarding and daily new-word budget UX:
 
@@ -291,11 +291,11 @@ This multi-slice package completes first-run onboarding and daily new-word budge
 - **Reset Invariants:**
   - *Destructive Full Reset:* Sets `OnboardingState.Required`, clears progress, clears Display Name, revokes online lookup consent, and resets daily budget to `5`.
   - *Non-Destructive Restore Default Settings:* Preserves `OnboardingState` and `onboarding_step` progress, preserves Display Name, preserves online lookup consent, and resets daily budget to `5`.
-- **Persistence Boundary:** Database schema remains 12; portable archive format remains V2. All onboarding, progress, and Display Name states reside in application Preferences.
+- **Persistence Boundary:** At this package's merge, database schema was 12 and portable archive format was V2 (historical pre-cutover boundary). All onboarding, progress, and Display Name states reside in application Preferences.
 
 ## Home Personalization & Greeting (Merged Production State)
 
-**Lifecycle status:** Merged production `master` state via PR #158 (`feat: personalize home greeting`; merge commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`; validated PR head `ddc5663b5cc6b7b6b9494646d3977441ea9f1e66`). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** Merged production `master` state via PR #158 (`feat: personalize home greeting`; merge commit `955b27695eb0e1761b8c9f9604cbfbf1335e57b6`; validated PR head `ddc5663b5cc6b7b6b9494646d3977441ea9f1e66`). `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at this package's merge, before the Schema-13 / Archive V3 cutover.
 
 - **Scope & Consumption:** `Home.razor` consumes the synchronous `IDisplayNameStore` singleton.
 - **Localized Personalized Greeting:** When a normalized Display Name is present, renders a localized greeting (`Home_Greeting`) before the existing subtitle (`Home_Subtitle`) separated by a single whitespace:
@@ -304,12 +304,12 @@ This multi-slice package completes first-run onboarding and daily new-word budge
   - RU: `Добро пожаловать, {0}.`
 - **Subtitle-Only Fallback:** When no Display Name is configured (null / absent), Home preserves the existing subtitle-only rendering without an empty greeting, placeholder, or spurious separator whitespace.
 - **Home Heading:** The visible `KnownFirst` heading remains unchanged.
-- **Persistence & Reset Boundaries:** Display Name remains application/device-local Preferences state. `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2. Excluded from SQLite and portable archives; preserved on Restore Defaults; cleared on destructive full reset.
+- **Persistence & Reset Boundaries:** Display Name remains application/device-local Preferences state. At this package's merge, `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 (historical pre-cutover boundary). Excluded from SQLite and portable archives; preserved on Restore Defaults; cleared on destructive full reset.
 - **Non-Goals:** No account, profile, cloud identity, new persistence abstraction, time-of-day greeting, avatar, Home redesign, or unrelated personalization.
 
 ## Manual Preparation Reliability & UX (Merged Production State)
 
-**Lifecycle status:** Merged production `master` state via PR #160 (`fix: repair manual preparation entry`; merge commit `793bd9959b9e17c2c4579df4c22a928bf8a4222a`; validated PR head `351abcd643f046e11993b4af93a1fb92ba437ea9`). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** Merged production `master` state via PR #160 (`fix: repair manual preparation entry`; merge commit `793bd9959b9e17c2c4579df4c22a928bf8a4222a`; validated PR head `351abcd643f046e11993b4af93a1fb92ba437ea9`). `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at this package's merge, before the Schema-13 / Archive V3 cutover.
 
 This merged package resolves the manual preparation persistence defect, aligns Definition/Translation authority, establishes deterministic manual semantic identity reuse, streamlines the manual Preparation UI, and hardens save-versus-progression recovery:
 
@@ -324,9 +324,9 @@ This merged package resolves the manual preparation persistence defect, aligns D
 
 ## Clean Domain & Application Layer Architecture (Merged Production State)
 
-**Lifecycle status:** Merged production `master` state via PR #186 (`feat(clean-domain): clean domain learning-control and application boundary foundation` / `KF-CLEAN-DOMAIN-013-001`; merge commit `e7cb91aad8db49b5366dab96295c2e8aa20c92c7`; validated PR head `eae1ca38d157d13ddd830a635d6ce31dd2fe4336`). Exact-head `FULL_VALIDATION` passed (2896 passed / 0 failed / 0 skipped, all four Windows/Android Debug/Release build gates PASS, strict warning/linking gate PASS, exit code 0). `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+**Lifecycle status:** Merged production `master` state via PR #186 (`feat(clean-domain): clean domain learning-control and application boundary foundation` / `KF-CLEAN-DOMAIN-013-001`; merge commit `e7cb91aad8db49b5366dab96295c2e8aa20c92c7`; validated PR head `eae1ca38d157d13ddd830a635d6ce31dd2fe4336`). Exact-head `FULL_VALIDATION` passed (2896 passed / 0 failed / 0 skipped, all four Windows/Android Debug/Release build gates PASS, strict warning/linking gate PASS, exit code 0). `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at this package's merge, before the Schema-13 / Archive V3 cutover.
 
-This merged package establishes the clean domain model in `KnownFirst.Core` and introduces the separate `KnownFirst.Application` project to define deterministic, production-neutral learning control and FSRS-6 scheduling boundaries ahead of downstream Schema 13 persistence:
+The original clean-domain package established the model in `KnownFirst.Core` and the separate `KnownFirst.Application` project before persistence and runtime activation. Schema-13 persistence, Archive V3, and production runtime integration have since been completed. The following describes the retained domain boundaries and current composition:
 
 **1. Clean Core Domain Foundation (`KnownFirst.Core.Learning`, `KnownFirst.Core.Preparation`)**
 
@@ -340,7 +340,7 @@ This merged package establishes the clean domain model in `KnownFirst.Core` and 
 
 **2. Separate Application Boundary (`KnownFirst.Application.Learning`)**
 
-- **Layering & Project Isolation:** Real separate `KnownFirst.Application` class library (`net10.0`) depending strictly on `KnownFirst.Core`. `KnownFirst.Core` does not reference `KnownFirst.Application`. The production application project (`KnownFirst.csproj`) does not reference `KnownFirst.Application`.
+- **Layering & Project Isolation:** Real separate `KnownFirst.Application` class library (`net10.0`) depending strictly on `KnownFirst.Core`. `KnownFirst.Core` does not reference `KnownFirst.Application`. The production application project (`KnownFirst.csproj`) references `KnownFirst.Application`, and `MauiProgram` calls `AddKnownFirstLearningRuntime()`.
 - **FSRS-6 Application Boundary:** `IFsrs6SchedulingService` / `Fsrs6SchedulingService` provides deterministic scheduling and factual review replay over the in-tree Core FSRS-6 engine.
 - **Fail-Closed Immutability:** `Fsrs6ScheduleProjection` is a sealed record with get-only auto-properties validated at construction against Core invariants across all 4 FSRS states (`New`, `Learning`, `Review`, `Relearning`).
 - **Fail-Closed Review Facts:** `Fsrs6ReviewFact` is a `readonly record struct` with a private initialization guard; uninitialized/default facts fail closed with `LearningScheduleCorruptionException`.
@@ -348,16 +348,16 @@ This merged package establishes the clean domain model in `KnownFirst.Core` and 
 - **Deterministic Replay & Exception Safety:** Review fact materialization occurs outside Core try/catch boundaries so caller enumerable exceptions propagate natively, while Core invariant rejections are safely wrapped in `LearningScheduleCorruptionException`.
 - **Legacy Isolation:** Application projection contains no `IntervalDays`, `EaseFactor`, `Mastered`, `Retired`, `Suspended`, SQLite entity, or persistence ID.
 
-**3. Preserved Production Invariants**
+**3. Current Production Invariants (After Foundation and Runtime Cutover)**
 
-- **Active Schema & Archive:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2.
-- **Production Scheduler Wiring:** `SimpleSpacedRepetitionScheduler` remains the sole production-registered `ISpacedRepetitionScheduler`.
-- **Dormancy:** `KnownFirst.Application` and clean learning-control contracts are completely dormant from runtime execution.
-- **Downstream Initiatives:** Downstream Archive V3 format evolution (`KF-BACKUP-006`), runtime FSRS production cutover (`KF-FSRS-003`), and legacy cleanup (`KF-CLEANUP-001`) are tracked as open work in [docs/BACKLOG.md](BACKLOG.md).
+- **Active Schema & Archive:** `DatabaseSchema.CurrentVersion` is 13; current production exports use Archive V3. Fresh genuinely empty databases bootstrap directly to Schema 13; existing Schema 1–12 databases fail closed without automatic migration, reset, or mutation.
+- **Production Scheduler Wiring:** `IFsrs6SchedulingService` / `Fsrs6SchedulingService` is the production scheduling authority; `KnownFirst.Application` is part of current production composition.
+- **Schema-13 controls:** `WordLearningControls` and `SenseLearningControls` are persisted and consumed by runtime eligibility; Learn permanent-known saves the word-level control while preserving graph/history. User-facing reversal and sense stop/resume integration remain open under `KF-VOCAB-005` and `KF-VOCAB-006`.
+- **Downstream Initiatives:** Archive V3 infrastructure (`KF-BACKUP-006`) and FSRS runtime cutover (`KF-FSRS-003`) are complete. The parent initiative remains open for Vocabulary workflows (`KF-VOCAB-005`, `KF-VOCAB-006`); `KF-CLEANUP-001` remains separate later cleanup in [docs/BACKLOG.md](BACKLOG.md).
 
 ## Historical Dormant Schema-13 Persistence & Migration Foundation (KF-PERSIST-013-001)
 
-**Historical lifecycle status:** This records the pre-cutover foundation state. Its Schema-12, V2, dormant-runtime, and deferred-FK statements are superseded for the KF-FSRS-003 candidate by the Schema-13 / FSRS-6 candidate state above.
+**Historical lifecycle status:** This records the pre-cutover foundation state. Its Schema-12, V2, dormant-runtime, and deferred-FK statements are superseded by the [Schema-13 / FSRS-6 merged production state](#schema-13--fsrs-6-merged-production-state-kf-fsrs-003) above.
 
 This package establishes the physical SQLite Schema-13 storage structures, repositories, atomic persistence coordinator, and deterministic Schema 12 $\to$ 13 migration engine as a dormant foundation ahead of runtime FSRS activation and Archive V3:
 
@@ -391,14 +391,14 @@ This package establishes the physical SQLite Schema-13 storage structures, repos
 **4. Preserved Production Boundaries**
 
 - **Dormancy:** `DatabaseSchema.CurrentVersion` remains 12. Production `DatabaseSchema.InitializeAsync` does not invoke `Schema13DormantMigration`. Ordinary initialized production databases remain `user_version 12`.
-- **Production Scheduler:** `SimpleSpacedRepetitionScheduler` remains the active production scheduler.
+- **Production Scheduler:** This historical foundation section predates the cutover; current production scheduling is owned by `IFsrs6SchedulingService` / `Fsrs6SchedulingService`.
 - **Archive Format:** Portable archive format remains V2.
 - **Foreign-Key Activation:** Physical target foreign keys are verified under explicit connection enforcement, but global production `PRAGMA foreign_keys = ON` activation remains deferred to `KF-FSRS-003`.
-- **Downstream Ownership:** Archive V3 transport semantics (`KF-BACKUP-006`), production FSRS-6 cutover and DI composition (`KF-FSRS-003`), legacy cleanup (`KF-CLEANUP-001`), and Vocabulary UI workflows (`KF-VOCAB-005`, `KF-VOCAB-006`) remain tracked in [docs/BACKLOG.md](BACKLOG.md).
+- **Downstream Ownership Today:** Archive V3 (`KF-BACKUP-006`) and production FSRS-6 cutover/DI composition (`KF-FSRS-003`) are complete. Vocabulary UI/service workflows (`KF-VOCAB-005`, `KF-VOCAB-006`) remain open; legacy cleanup (`KF-CLEANUP-001`) remains separate later work in [docs/BACKLOG.md](BACKLOG.md).
 
 ## Historical Archive V3 Transport & Schema-13 Merge Candidate (KF-BACKUP-006)
 
-**Historical lifecycle status:** This records the pre-cutover V3 transport candidate. Its Schema-12, ordinary-V2, and legacy-scheduler statements are superseded for the KF-FSRS-003 candidate by the Schema-13 / FSRS-6 candidate state above.
+**Historical lifecycle status:** This records the pre-cutover V3 transport candidate; Archive V3 infrastructure is now merged and complete. Its Schema-12, ordinary-V2, and legacy-scheduler boundaries are superseded by the [Schema-13 / FSRS-6 merged production state](#schema-13--fsrs-6-merged-production-state-kf-fsrs-003) above.
 
 This package implements the Archive V3 portable archive format evolution, export, restore, preflight planning, and transactional populated-target merge for validated Schema-13 databases:
 
@@ -428,7 +428,7 @@ This package implements the Archive V3 portable archive format evolution, export
 
 **6. Backward Compatibility & Production Boundaries**
 - Schema 7–12 databases continue using existing V1/V2 restore and merge paths. V3 archives reject legacy targets with `Schema13ArchiveIncompatibleWithLegacyTarget`.
-- `DatabaseSchema.CurrentVersion` remains 12; normal production database initialization stops at Schema 12; ordinary production archives remain V2; production scheduler remains `SimpleSpacedRepetitionScheduler`. Production cutover is owned by `KF-FSRS-003`.
+- This historical candidate-era statement is superseded: current production is Schema 13 with Archive V3 and FSRS-6 runtime authority; `KF-FSRS-003` is merged.
 
 ## Evidence Boundaries & Release Limitations
 

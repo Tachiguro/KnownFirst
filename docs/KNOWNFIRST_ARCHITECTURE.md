@@ -30,7 +30,7 @@ KnownFirst follows these principles:
 10. **External dictionary requests transmit only the minimum required data.**
 11. **A text with no open learning vocabulary is not retained.**
 12. **A fully completed text is deleted together with its no-longer-required learning data.**
-13. **Only a minimal marker for permanently known vocabulary remains.**
+13. **Schema-13 Learn `AlreadyKnown` preserves semantic vocabulary, LearningCards, and factual learning state/history through a word-level clean control. Destructive minimal-marker semantics apply only to the explicitly scoped legacy or review/Preparation disposition contracts (sections 6.4 and 22–23).**
 14. **The user interface is workflow-driven, not a collection of unrelated pages.**
 15. **All long-running work must remain resumable and transactional.**
 
@@ -173,28 +173,20 @@ An Unknown vocabulary item may be:
 
 ### 6.3 Card scheduling state
 
-A learning card may be:
+A Schema-13 FSRS learning card may be:
 
 - `New`
 - `Learning`
 - `Review`
 - `Relearning`
-- `Suspended`
-- `Retired`
+
+`Suspended` and `Retired` are legacy physical card states, not current FSRS scheduling states. Current learning eligibility is controlled separately by word-level `AlreadyKnown` and sense-level `StopLearning`.
 
 ### 6.4 Permanently known
 
-`PermanentlyKnown` means:
+In the current Schema-13 Learn workflow, “Mark permanently known” is a confirmed word-level `AlreadyKnown` decision. It prevents normal learning eligibility for all cards of the word and removes incomplete queue work while preserving semantic vocabulary data, LearningCards, FSRS state, and factual history. Section 22 defines this preservation contract.
 
-- the vocabulary is never shown in normal review again
-- it has no future learning schedule
-- personal definition, translation, context, frequency, and learning-history data may be deleted
-- a minimal identity marker remains so future imports skip it confidently
-
-A vocabulary item becomes PermanentlyKnown in either of these ways:
-
-1. the user selects Known during the initial vocabulary review, or
-2. the user explicitly selects “Mark permanently known” later in learning and confirms the destructive cleanup
+Known decisions during initial vocabulary review or Preparation are separate disposition paths; their legacy marker and cleanup behavior must not be applied to the Learn action. The future Vocabulary reversal workflow remains open under `KF-VOCAB-005`.
 
 KnownFirst must not automatically claim that a word is permanently learned after a fixed number of days.
 
@@ -841,7 +833,7 @@ Resolution rules:
 - learning mode `Typing` resolves every card to the Typing interaction
 - learning mode `Automatic` resolves each card from that card's own stored interaction progress
 
-Automatic interaction progress is persisted per learning card and required answer variant, not as one vocabulary-wide state shared by both card directions. Each progress record holds the current interaction mode, a consecutive-recall-success counter, a consecutive-typing-success counter, a consecutive-typing-failure counter, and a mastery-review-extension marker.
+Schema-13 interaction progress is persisted per learning card and required answer variant, not as one vocabulary-wide state shared by both card directions. Each progress record holds the current interaction mode and interaction counters. Legacy mastery-review extension behavior is historical compatibility behavior, not current Schema-13 authority.
 
 Every persisted rating durably records the interaction that was actually presented: whether the answer was typed and whether it was correct. After each persisted rating, the card's progress is recomputed from that card's complete stored review history. This recomputation happens regardless of whether the current setting is `Reading`, `Typing`, or `Automatic`. A fixed mode overrides only which interaction is presented to the user; it does not freeze or isolate the replay-owned progress. Selecting `Automatic` later may therefore resolve from reviews recorded while a fixed mode was selected. Changing the setting never rewrites already recorded review events.
 
@@ -854,11 +846,11 @@ Automatic transition rules, as implemented, apply to one card's required answer 
 - after two consecutive incorrect typed answers the progress returns to the Reading interaction and all three counters are reset
 - all counters are bounded at two, so the state cannot grow without limit
 
-A review card whose interval has reached the 365-day maximum is a mastery review. When such a review is rated better than `Again` without achieving mastery, the next due date is extended once to the 365-day maximum and the extension is marked so it is not repeated. Mastery of one required answer variant is achieved only by a correct typed answer on a mastery review that brings that variant to two consecutive typing successes.
+The former 365-day mastery-review, automatic retirement, queue-pruning, and Sense mastery-rollup rules belong to the legacy scheduler model and are retained only as historical behavior. They are not binding Schema-13 outcomes; current scheduling and replay are governed by FSRS-6, while interaction progress remains separate. No replacement mastery semantics are inferred here.
 
-Retirement is decided per card, over that card's complete current set of required answer variants. When all required answer variants of a card meet the mastery rule, that card is retired. The other card direction is not retired automatically and continues under its own schedule and progress state. Retiring a card prunes only that card's incomplete queue rows; completed queue history is retained. The affected Sense status is then recomputed and becomes mastered only when every card of that Sense is retired.
+Historical retirement was decided per card and could prune incomplete queue rows; those rules are not current Schema-13 authority. Current FSRS scheduling and factual review replay do not revive `Mastered`/`Retired` as authoritative learning outcomes.
 
-Mastery is never claimed from elapsed time alone, and it does not replace the explicit permanent-known decision in section 22, which remains a separate user action with its own destructive cleanup.
+Neither elapsed time nor interaction progress creates permanent knowledge. The explicit Schema-13 Learn permanent-known decision in section 22 is a separate, non-destructive clean control; it preserves the graph and factual history.
 
 ### 20.3 Reading interaction
 
@@ -914,29 +906,29 @@ Long free-text definitions are never graded by AI in the MVP.
 
 KnownFirst maintains a strict separation between the active production scheduler composition and the available algorithm foundations:
 
-- **Current Active Production Scheduler:** The application runtime learning workflow (`LearningService`, `MauiProgram.cs`) uses `SimpleSpacedRepetitionScheduler` implementing `ISpacedRepetitionScheduler` over the current Schema-12 persistence path.
+- **Current Active Production Scheduler:** The application runtime learning workflow uses `IFsrs6SchedulingService` / `Fsrs6SchedulingService` over Schema-13 persistence; `MauiProgram` registers the learning runtime through `AddKnownFirstLearningRuntime()`.
 - **Available FSRS-6 Core Engine Foundation:** `KnownFirst.Core.Learning.Fsrs6` provides a pure, deterministic, platform-neutral FSRS-6 engine and replay foundation (`Fsrs6Scheduler`, `Fsrs6Replayer`, `Fsrs6Card`, `Fsrs6Parameters`, `Fsrs6ReviewEvent`, `Fsrs6CardState`), governed by [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md). The Core engine is completely independent of MAUI, SQLite, DI, JSON, network, and platform APIs.
-- **Planned Integration Boundary:** Full runtime activation, persistence mapping (card projections and append-only factual review logs), and data cutover belong to a separate, later persistence and learning integration package. Core value types and replay contracts do not contain database identity or persistence concepts.
+- **Completed Production Integration:** `KnownFirst` references `KnownFirst.Application`; `KF-FSRS-003` completed runtime composition over Schema-13 card projections and append-only factual review logs. Core value types and replay contracts remain free of database identity and persistence concepts. Fresh genuinely empty production databases bootstrap directly to Schema 13; existing Schema 1–12 databases fail closed without automatic migration, reset, or mutation.
 
-### 21.1 Initial deterministic scheduling rules (Current Production)
+### 21.1 Historical initial scheduler (superseded by FSRS-6)
 
-Use an abstraction:
+The pre-cutover runtime used this abstraction:
 
 ```csharp
 ISpacedRepetitionScheduler
 ```
 
-The initial production implementation is:
+Its production implementation was:
 
 ```csharp
 SimpleSpacedRepetitionScheduler
 ```
 
-It is isolated so the FSRS-6 Core implementation can replace it in a future integration package without changing page logic, learning history, or card models.
+That production authority has been replaced by `IFsrs6SchedulingService` / `Fsrs6SchedulingService`. The initial scheduler and interval/ease rules below are retained solely as historical architecture and compatibility context for later `KF-CLEANUP-001`; they do not govern Schema-13 scheduling.
 
-Use an injectable clock.
+It used an injectable clock.
 
-Store per card:
+Its per-card state included:
 
 - card ID
 - state
@@ -966,7 +958,7 @@ German:
 - Gut
 - Einfach
 
-### 21.1 Initial deterministic scheduling rules
+#### Historical interval/ease rules
 
 Default ease factor: 2.5  
 Minimum ease factor: 1.3
@@ -1000,8 +992,8 @@ Review intervals continue to grow. They do not end automatically after 7 or 14 d
 ### 21.2 In-session Again repeat and queue semantics
 
 1. **Scheduler contract:**
-   - Rating a card `Again` computes and persists the normal scheduler result: `DueAtUtc` is scheduled 10 minutes in the future, the card transitions to `Learning` (for New cards) or `Relearning` (for Review cards), and lapse counters/ease factors update normally.
-   - The scheduler-owned `DueAtUtc` is stored durably on the card and governs future session eligibility.
+   - Rating a card `Again` computes and persists the FSRS-6 transition, its resulting due time/state, and the factual review event. Legacy interval/ease formulas do not govern this transition.
+   - The scheduler-owned `DueAtUtc` is stored durably in `FsrsCardStates` and governs future session eligibility.
 
 2. **Deterministic tail-repeat queue behavior:**
    - Every successfully committed explicit user `Again` rating appends exactly one new repeat queue row at the deterministic tail of the active learning-session queue (`IsAgainRepeat = true`).
@@ -1026,7 +1018,7 @@ Review intervals continue to grow. They do not end automatically after 7 or 14 d
    - Pending repeat queue rows are persisted transactionally as active-session state in the database.
    - Unfinished repeat rows survive leaving and re-entering the learning workflow, application restarts, and service recreation.
 
-The FSRS-6 core scheduling foundation is established in `KnownFirst.Core` per [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md); future persistence integration and production scheduler activation will be delivered in a dedicated migration package.
+The FSRS-6 core in `KnownFirst.Core`, governed by [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md), is consumed by the live production runtime. Schema-13 persistence, Archive V3 infrastructure, and runtime cutover are complete; Vocabulary workflows and later legacy cleanup retain separate backlog ownership.
 
 ### 21.3 Daily new-word budget, learning-day boundaries, and Bridge state
 
@@ -1062,33 +1054,28 @@ The FSRS-6 core scheduling foundation is established in `KnownFirst.Core` per [A
 
 KnownFirst does not equate a fixed interval with permanent knowledge.
 
-A learning item remains scheduled until the user explicitly chooses:
+The current Schema-13 Learn action **Mark permanently known** requires explicit confirmation and persists a word-level `AlreadyKnown` decision. It is never inferred from an interval, interaction counter, or legacy mastery state.
 
-- Mark permanently known
+The transaction:
 
-This action requires confirmation and explains that:
+- saves `WordLearningControls` and preserves the original decision timestamp on repeated markings;
+- removes only incomplete `LearningSessionCards` for the word and normalizes affected session totals/status, removing an empty session only when it has neither queue rows nor reviews;
+- prevents normal learning eligibility for every card of the word through the clean-control contract;
+- preserves the semantic graph, definitions, translations, answer variants, contexts, and LearningCards;
+- preserves completed queue history, factual learning/review history, and FSRS state/history;
+- leaves legacy Word status and sense-level controls unchanged.
 
-- future reviews stop
-- prepared definitions, translations, contexts, card schedules, and learning history may be deleted
-- the minimal known-vocabulary marker remains
-
-The application may suggest this action after both card directions have reached long review intervals, but it must not activate it automatically.
+This behavior is implemented by `LearningService.MarkPermanentlyKnownSchema13` and covered by the existing Schema-13 preservation, rollback, and idempotency tests. No semantic-data, card, FSRS-state, or factual-history deletion is authorized by this action.
 
 When a learning session completes and Unknown/Unprepared vocabulary remains, the summary reports the exact remaining count and offers **Prepare next words**, **Later**, and **Change daily limit**. It never forces navigation to preparation.
 
-When one vocabulary identity becomes PermanentlyKnown:
-
-- delete all of its active learning cards
-- delete its personal prepared-learning content
-- delete its personal context snapshots
-- delete its occurrence and frequency data when no unresolved dependency remains
-- retain the minimal known marker
-- update all related documents
-- trigger document-cleanup eligibility checks
+The historical Learn path deleted cards, prepared content, contexts, and history while retaining a minimal known marker; that destructive contract is superseded for Schema 13. Initial-review and Preparation dispositions remain separate paths, including their existing legacy status/cleanup semantics. They must not be silently equated with the Learn control. `KF-VOCAB-005` owns the open future user-facing/service reversal workflow; this section does not design it.
 
 ---
 
 ## 23. Document lifecycle and deletion
+
+**Scope:** The cleanup rules below record the historical destructive document lifecycle and separate review/Preparation cleanup paths. They do not apply to the current Schema-13 Learn permanent-known action, which preserves the graph, cards, contexts, FSRS state, and factual history under section 22. In particular, the legacy permanent-known/retirement triggers below are superseded for Schema-13 Learn.
 
 A document remains only while it supports unresolved learning work.
 
@@ -1347,7 +1334,10 @@ Interfaces should allow future extension without speculative implementation now.
 12. Card directions have independent scheduling.
 13. No fixed 7-day or 14-day point automatically means permanently known.
 14. Permanent knowledge requires the user's explicit decision.
-15. Fully completed documents and no-longer-needed learning data are deleted.
-16. Minimal known-vocabulary markers remain.
+15. Document cleanup follows the scoped contract in section 23; Schema-13 Learn permanent-known does not delete semantic vocabulary or factual history.
+16. Schema-13 Learn persists the word-level AlreadyKnown control and preserves cards and FSRS state; legacy review/Preparation paths retain their separate marker semantics.
 17. Active review is resumable and is the only globally blocking workflow.
 18. Release builds do not expose developer diagnostics.
+# Current Schema and scheduling authority
+
+Current `master` production source uses Schema 13 and Archive V3, and production scheduling is owned by `IFsrs6SchedulingService` / `Fsrs6SchedulingService`. `MauiProgram` calls `AddKnownFirstLearningRuntime()`. Existing Schema 1–12 databases fail closed in the current production startup path; fresh databases bootstrap directly to Schema 13. Legacy scheduler code/columns may remain for later `KF-CLEANUP-001` work and do not make the legacy scheduler authoritative.

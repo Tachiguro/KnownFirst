@@ -81,14 +81,14 @@ The following initiatives represent accepted product directions whose individual
 
 ### 3. Learning Interaction & Direction UX
 - **Objective:** Align learning card presentation and progression with genuine direction semantics.
-- **Open Packages:**
-  - `KF-LEARN-003`: Genuinely distinct presentation semantics for `CardDirection.TermToMeaning` (term front, meaning reveal; no long typing) and `CardDirection.MeaningToTerm` (meaning prompt, term answer; typing supported).
-  - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures).
-  - `KF-LEARN-005`: Open product decision resolving recall rating threshold (Good/Easy only vs any non-Again rating).
-  - `KF-LEARN-006`: Dynamic context target masking in `ContextView.razor` matching actual encountered target length.
-  - `KF-LEARN-007`: User-facing session summary and next-due phrasing improvements.
-  - `KF-LEARN-008`: Learn card edit/correction entry point into Vocabulary detail flow.
-  - `KF-LEARN-009`: Clearing stale `_actionFailed` error banners after successful actions in `Learn.razor`.
+- **Packages:**
+  - `KF-LEARN-003`: Genuinely distinct presentation and interaction semantics for `CardDirection.TermToMeaning` (term front, meaning reveal; semantic Reading unconditionally; no typing required) and `CardDirection.MeaningToTerm` (meaning prompt, term answer; typing supported). *Status: Implemented and independently reviewed on branch `fix/learning-card-direction-semantics-v1`; candidate finalization pending.*
+  - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures). *Status: Open, accepted work; depends on the resolved `KF-LEARN-005` decision.*
+  - `KF-LEARN-005`: Recall rating success threshold for MeaningToTerm 2+2 progression. *Status: Resolved product decision (only Good/Easy qualify as recall success; Hard leaves counter unchanged; Again resets; implementation pending under `KF-LEARN-004`).*
+  - `KF-LEARN-006`: Dynamic context target masking in `ContextView.razor` matching actual encountered target length. *Status: Open.*
+  - `KF-LEARN-007`: User-facing session summary and next-due phrasing improvements. *Status: Open.*
+  - `KF-LEARN-008`: Learn card edit/correction entry point into Vocabulary detail flow. *Status: Open.*
+  - `KF-LEARN-009`: Clearing stale `_actionFailed` error banners after successful actions in `Learn.razor`. *Status: Open.*
 
 ### 4. Navigation, Settings & Feedback Corrections
 - **Status:** `KF-NAV-001` merged to `master` via PR #193; `KF-PREP-001` merged to `master` via PR #194; `KF-SETTINGS-001` is merged on `master` with visible learning-timezone save-error feedback verified by automated source/contract tests.
@@ -105,7 +105,7 @@ The following initiatives represent accepted product directions whose individual
 
 2. **Windows Distribution Packaging Validation:**
    - Source-controlled infrastructure merged via PR #107 (`publish-windows-portable.ps1`, `publish-windows-msix.ps1`).
-   - `KF-WINDOWS-001` Slice 1/1 is implemented and independently reviewed for stable unpackaged publisher `Tachiguro`; this source/configuration correction does not establish runtime AppData creation or advance Windows distribution/Store readiness. Operational state is in [CURRENT_WORK.md](CURRENT_WORK.md); broader distribution work remains open under `KF-RELEASE-002` in [BACKLOG.md](BACKLOG.md).
+   - `KF-WINDOWS-001` is merged on `master` via PR #196 for stable unpackaged publisher `Tachiguro`; this source/configuration correction does not establish runtime AppData creation or advance Windows distribution/Store readiness. Broader distribution work remains open under `KF-RELEASE-002` in [BACKLOG.md](BACKLOG.md).
    - Execution of real portable ZIP packaging, clean-PC portable validation, MSIX signing, and Store onboarding follow cleanup milestones.
 
 3. **Beta-13 Pre-AAB Release-Readiness Gate (Google Play Internal Testing Packaging Complete):**

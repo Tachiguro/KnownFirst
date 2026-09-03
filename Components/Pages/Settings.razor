@@ -20,6 +20,7 @@
 @inject KnownFirst.Services.Settings.IDisplayNameStore DisplayNameStore
 @inject KnownFirst.Services.Time.ILearningTimezoneResolver LearningTimezoneResolver
 @inject Microsoft.Maui.Storage.IPreferences Preferences
+@inject NavigationManager Navigation
 
 <PageTitle>@Localizer["Settings_Title"]</PageTitle>
 
@@ -378,7 +379,7 @@
     </section>
 
     <section class="settings-card" aria-labelledby="online-lookup-title">
-        <h2 id="online-lookup-title">@Localizer["Settings_OnlineDictionary"]</h2>
+        <h2 id="online-lookup-title" tabindex="-1" @ref="_onlineLookupHeading">@Localizer["Settings_OnlineDictionary"]</h2>
         <p>@Localizer[AppSettings.HasOnlineLookupConsent
             ? "Settings_OnlineConsentGranted"
             : "Settings_OnlineConsentNotGranted"]</p>
@@ -815,12 +816,20 @@
     private ElementReference _onlineConsentRevokeButton;
     private ElementReference _onlineConsentRevokeConfirmation;
     private ElementReference _cancelOnlineConsentRevokeButton;
+    private ElementReference _onlineLookupHeading;
+    private bool _revealOnlineLookupSection;
 
     protected override async Task OnInitializedAsync()
     {
         SyncSettingsStateFromServices();
         _languageConfirmation = SettingsFeedback.ConsumePendingLanguageConfirmation();
         _hasActiveReview = await TextReviewService.GetActiveReviewAsync() is not null;
+
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (string.Equals(uri.Fragment, "#online-lookup-title", StringComparison.OrdinalIgnoreCase))
+        {
+            _revealOnlineLookupSection = true;
+        }
     }
 
     /// <summary>
@@ -895,7 +904,13 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_revealOnlineConsentRevokeConfirmation)
+        if (_revealOnlineLookupSection)
+        {
+            _revealOnlineLookupSection = false;
+            await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _onlineLookupHeading);
+            await _onlineLookupHeading.FocusAsync(preventScroll: true);
+        }
+        else if (_revealOnlineConsentRevokeConfirmation)
         {
             _revealOnlineConsentRevokeConfirmation = false;
             await JsRuntime.InvokeVoidAsync("knownFirst.revealElement", _onlineConsentRevokeConfirmation);

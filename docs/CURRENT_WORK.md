@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-03 (Candidate branch `fix/onboarding-completion-navigation-home-v1` at reviewed checkpoint `58698a9c7dee1ef876d62f465825ec0e8a47d9a4`; direct base `master` commit `57ffd5d233f18db352d14f9f2ac6d77a88163078`).
+2026-09-03 (Candidate branch `fix/prepare-online-settings-deeplink-v1` at reviewed checkpoint `c105d9b36bfce441864846b598131d36e8371f4b`; direct base `master` commit `bea695d549d352b1e645f8e40c4771f43a620f5f`).
 
 ## Repository and Worktree Governance
 
@@ -17,16 +17,17 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-NAV-001`
-- **Active branch:** `fix/onboarding-completion-navigation-home-v1`
+- **Active package:** `KF-PREP-001`
+- **Active branch:** `fix/prepare-online-settings-deeplink-v1`
 - **Active lifecycle:** `DOCUMENT_ONLY` reconciliation (uncommitted)
-- **Implementation checkpoint:** `58698a9c7dee1ef876d62f465825ec0e8a47d9a4` (`fix(navigation): return home after onboarding completion`)
-- **Working state:** Source implementation complete (single slice). Automated focused RED/GREEN evidence verified (`Routes_NavigatesToHomeWithReplaceOnCompletion_AndReRenders`, `OnboardingStepContractTests` 32/32, `UiWorkflowContractTests` 136/136, all Onboarding tests 140/140). Independent review completed (`REVIEW_APPROVED`; RED evidence `RED_EVIDENCE_ACCEPTABLE`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT). Documentation reconciliation in progress under `DOCUMENT_ONLY` (uncommitted).
+- **Implementation checkpoint:** `c105d9b36bfce441864846b598131d36e8371f4b` (`fix(preparation): deep-link online dictionary settings`)
+- **Working state:** Source implementation complete (single slice). Automated focused RED/GREEN evidence verified (`PrepareWords_OnlineLookupDisabled_OpenSettingsTargetsOnlineLookupSection`, `Settings_OnlineLookupDeepLink_RevealsAndFocusesHeadingOnce`, `PrepareWordsConsentIntegrationTests` 9/9, `UiWorkflowContractTests` 137/137). Independent review completed (`REVIEW_APPROVED`; RED evidence `RED_EVIDENCE_ACCEPTABLE`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT). Documentation reconciliation in progress under `DOCUMENT_ONLY` (uncommitted).
 - **Next governed lifecycle:** `COMMIT_ONLY` (for documentation reconciliation) → candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`.
-- **Scope & Invariants:** In `Components/Routes.razor`, injected `NavigationManager` and updated `HandleOnboardingCompleted()` to call `Navigation.NavigateTo("/", replace: true);` before `StateHasChanged();`. This guarantees that onboarding completion always returns to KnownFirst Home (`/`), both on fresh first-run installs and after destructive "Reset all application data" from Settings (`/settings`), replacing the history entry so Back navigation does not restore the pre-reset Settings route. No persistence, database schema, recovery, journal, settings reset, or FSRS scheduling logic was modified.
-- **Evidence Boundary:** Automated source/markup contract tests verify component injection, callback ordering, and history replacement contracts. Rendered WebView/GUI appearance and native device navigation were not manually proven by this package and are not claimed.
+- **Scope & Invariants:** In `Components/Pages/PrepareWords.razor`, updated both in-scope `Prepare_OpenSettings` actions (method-selection disabled online notice and blocked AutomaticOnline candidate notice) to target `href="settings#online-lookup-title"`. In `Components/Pages/Settings.razor`, injected `NavigationManager`, added `tabindex="-1"` and `@ref="_onlineLookupHeading"` to `<h2 id="online-lookup-title">`, detected `#online-lookup-title` fragment during `OnInitializedAsync()` setting a private one-shot flag, and consumed that flag in `OnAfterRenderAsync(bool firstRender)` to call `knownFirst.revealElement` and `_onlineLookupHeading.FocusAsync(preventScroll: true)`. Ordinary `/settings` navigation without fragment does not scroll or steal focus. Standard browser/WebView history is preserved without replace-history semantics. No JavaScript files or localization keys modified. Consent transport authorization, activation/revocation semantics, and Automatic Online presentation policy (`KF-PREP-003`) remain untouched.
+- **Evidence Boundary:** Automated source/markup contract tests verify deep-link targets, component injection, and post-render focus wiring. Rendered MAUI WebView smooth scrolling, real keyboard focus, screen-reader announcements, and native platform behavior were not manually proven by this package and are not claimed.
 
 - **Previous merged packages:**
+  - PR #193 (`fix: return home after onboarding completion` / `KF-NAV-001`): In `Components/Routes.razor`, injected `NavigationManager` and updated `HandleOnboardingCompleted()` to call `Navigation.NavigateTo("/", replace: true);` before `StateHasChanged();`, ensuring onboarding completion always returns to KnownFirst Home (`/`), both on fresh installs and after destructive "Reset all application data" from Settings (`/settings`), replacing history so Back navigation does not restore the pre-reset Settings route. Merged to `master` via merge commit `bea695d549d352b1e645f8e40c4771f43a620f5f`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #192 (`docs: reconcile product backlog and architecture state` / `KF-GOV-BACKLOG-002`): Reconciled durable backlog registry, roadmap, project state, and architecture contracts following the FSRS-6 Schema-13 cutover. Merged to `master` via merge commit `57ffd5d233f18db352d14f9f2ac6d77a88163078`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #191 (`feature/fsrs6-schema13-cutover-v1` / `KF-FSRS-003`): Merged Schema-13 production cutover, FSRS-6 runtime authority, factual review history persistence, Archive V3 transport, and causal interaction ordering. Merged to `master` via merge commit `686bf59828d578ebc9e18b827cb5fa57c83f6ce4`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #189 (`feat(persistence): add dormant schema 13 persistence foundation` / `KF-PERSIST-013-001`): Added dormant physical Schema-13 persistence in `KnownFirst.Data` (`FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, `SenseLearningControls`), repositories, shape validator, atomic persistence coordinator (`FsrsReviewPersistenceCoordinator`), and transactional `Schema13DormantMigration` from Schema 12 to 13 with `Schema13LearningBootstrap` oracle. Merged to `master` via merge commit `db8a355768167871362aba53c55e411290f8cfd0`. `POST_MERGE_SYNC_ONLY` completed.

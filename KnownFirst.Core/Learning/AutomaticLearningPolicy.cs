@@ -9,9 +9,15 @@ public static class AutomaticLearningPolicy
 
     public static LearningInteractionMode ResolveInteraction(
         LearningMode learningMode,
-        AutomaticLearningState state)
+        AutomaticLearningState state,
+        CardDirection direction = CardDirection.MeaningToTerm)
     {
         ArgumentNullException.ThrowIfNull(state);
+
+        if (direction == CardDirection.TermToMeaning)
+        {
+            return LearningInteractionMode.Reading;
+        }
 
         return learningMode switch
         {

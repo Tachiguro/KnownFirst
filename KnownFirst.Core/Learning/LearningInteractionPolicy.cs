@@ -8,9 +8,15 @@ public static class LearningInteractionPolicy
 
     public static LearningInteractionMode ResolveInteraction(
         LearningMode learningMode,
-        LearningInteractionProgress progress)
+        LearningInteractionProgress progress,
+        CardDirection direction = CardDirection.MeaningToTerm)
     {
         ArgumentNullException.ThrowIfNull(progress);
+
+        if (direction == CardDirection.TermToMeaning)
+        {
+            return LearningInteractionMode.Reading;
+        }
 
         return learningMode switch
         {

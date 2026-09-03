@@ -1,6 +1,6 @@
 # Definition and Translation Learning-Target Semantics
 
-> **Proposed / unresolved. Product decision required. Not an implementation authorization. Not a schema decision. Not an accepted ADR.**
+> **Partially resolved product semantics; scheduling and persistent card identity remain open. Not an implementation authorization. Not a schema decision. Not an accepted ADR.**
 
 ## Problem
 
@@ -14,24 +14,44 @@ The current card identity based on Sense and direction does not settle whether d
 - **Sense:** one semantic interpretation of a Word; distinct real Senses must remain distinct.
 - **Meaning:** exact source/provider content or a user-authored content variant describing a Sense.
 - **AnswerVariant:** an answer wording associated with a Sense and language; wording alternatives for the same answer target are not automatically independent learning objects.
-- **Learning intention/target:** what the user intends to recall or recognize, potentially involving definition content, translation content, or both. Its semantics are unresolved here.
+- **Learning intention/target:** what the user intends to recall or recognize (e.g., German definition, English translation, French translation).
 - **Learning Card:** the review-facing object whose direction and scheduling/progress identity are distinct from content and wording.
 - **Scheduling/progress identity:** the identity used by the learning scheduler and persisted progress; no change is selected here.
 
 Existing meaning-centric architecture and preparation/vocabulary owners remain relevant: `KF-LEARN-003`, `KF-LEARN-004`, `KF-VOCAB-003`, `KF-VOCAB-004`, and `KF-PREP-002`. Existing Schema-13 persistence, archive handling, and FSRS runtime are current foundations, not a decision about this requirement.
 
-## Solution dimensions to decide later
+## Accepted Product Semantics (Resolved under KF-LEARN-010)
 
-Later product design may need to decide, independently:
+The following core domain and user-facing semantics are durably accepted:
 
-1. whether definition and translation are one combined target, independently selectable targets, or a user-configurable choice;
-2. whether target selection is per Sense, per direction, per Meaning/content variant, or another bounded scope;
-3. how multiple translations and wording alternatives relate to one target;
-4. how target visibility and answer acceptance work in Reading and Typing;
-5. how target intention maps to existing card and scheduling/progress identity;
-6. how preparation, Vocabulary editing, import, archive, and replay expose the distinction.
+1. **Word identity preservation:** A Word is not duplicated merely because the user requests another Definition or Translation learning intention.
+2. **Sense integrity:** One real semantic Sense remains one Sense when its definition and translations describe that same real Sense. Different real Senses must never silently merge.
+3. **No artificial Senses:** Definition versus Translation must never create artificial Senses merely to distinguish content form.
+4. **Target independence:** Definition and Translation are distinct explicitly requested learning intentions/targets under that Sense.
+5. **Language specificity:** Translation targets are target-language-specific.
+   - Example: German Word **Haus** $\to$ one real Sense ("building in which people live") $\to$ German Definition target: *"Gebäude, in dem Menschen wohnen"*; English Translation target: *"house"*; French Translation target: *"maison"* (only when French was explicitly requested).
+6. **No unrequested target generation:** KnownFirst must not automatically generate or store all possible target languages. Only the definition/translation target explicitly requested by the user's text/preparation workflow is created and retained for learning.
+7. **UI language independence:** The active UI language must never implicitly determine source lexical language, definition language, or translation target language.
+8. **Wording variants vs Targets:** Equivalent wording alternatives for the same requested target are AnswerVariants, not independent learning targets.
+9. **No spurious mastery transfer:** Learning one requested target must not make another requested target appear mastered merely because they share a Sense.
+10. **Unambiguous prompts:** Learning presentation must make target type and language unambiguous (e.g. definition request vs *"How do you say Haus in English?"*).
 
-These are materially different options, not recommendations. No option is accepted here, and no entity, schema version, card key, migration, archive revision, or scheduler design is prescribed.
+## Open Decision: Scheduling, Card Identity, and Persistence
+
+The following material design decision remains explicitly **OPEN** and is not decided:
+
+- **Independent vs Shared Scheduling:**
+  - Whether each Definition/Translation target must have a completely independent `LearningCard` / FSRS schedule and due date;
+  - or whether another scheduling relationship can safely preserve independently learnable target state without cross-target schedule interference.
+- **Concrete consequence:** With a shared Sense schedule, an `Easy` review on an English *"house"* target would postpone a difficult German definition target even though the definition is not yet mastered. Fully independent schedules avoid this issue, but may require new persistent card/target identities, database schema evolution, and archive transport changes.
+
+### Explicit Non-Decisions & Boundaries
+
+- No database schema version (e.g., Schema 14) is selected.
+- No archive format (e.g., Archive V4) is selected.
+- No storage layout (e.g., dedicated `LearningTargets` table or new card columns) is prescribed.
+- No acronym expansion as an independent learning target kind is created.
+- `KF-LEARN-011` remains blocked until this remaining scheduling/identity decision is resolved.
 
 ## Data-integrity risks
 
@@ -44,14 +64,6 @@ These are materially different options, not recommendations. No option is accept
 - changing `ExplanationLanguage` matching semantics unintentionally;
 - making a target appear learned when only another target was learned.
 
-## Questions requiring explicit product decision
-
-- Should a user be able to learn both the Haus definition and the English translation independently?
-- What is the minimum user-visible distinction between a semantic Sense, its content, and its learning target?
-- Which target choices are available in preparation and later Vocabulary editing?
-- How should existing cards and progress behave when content contains both forms?
-- What answer variants count as equivalent wording for one target?
-
 ## Later PLAN_ONLY impact
 
-After `KF-LEARN-010` is explicitly resolved, a separate PLAN_ONLY package (`KF-LEARN-011`) must define bounded implementation work across preparation, Vocabulary, learning interaction/progression, persistence/archive contracts if needed, and scheduling/progress mapping. That plan must preserve data integrity and fail-closed behavior and must not assume that a product decision implicitly authorizes schema or migration work.
+After the remaining scheduling and persistent identity decision of `KF-LEARN-010` is explicitly resolved, a separate PLAN_ONLY package (`KF-LEARN-011`) must define bounded implementation work across preparation, Vocabulary, learning interaction/progression, persistence/archive contracts if needed, and scheduling/progress mapping. That plan must preserve data integrity and fail-closed behavior and must not assume that a product decision implicitly authorizes schema or migration work.

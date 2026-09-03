@@ -799,7 +799,7 @@ Normal preparation and learning cards show source metadata through a collapsed *
 
 ## 20. Learning-card directions and interaction modes
 
-Card direction and interaction mode are two independent axes. Direction decides *which* card exists and how it is scheduled. Interaction mode decides *how* the user answers the card that is presented.
+Card direction and interaction mode work together to govern card presentation, interaction flow, and progression. Direction determines *which* card exists, what serves as prompt versus answer, and how it is scheduled. Interaction mode decides *how* the user answers the card that is presented.
 
 ### 20.1 Card direction
 
@@ -816,7 +816,10 @@ One vocabulary identity counts as one new vocabulary item even when it generates
 
 Each direction has independent scheduling state.
 
-A direction does not by itself determine the interaction mode. `MeaningToTerm` is not intrinsically a typed-answer card, and `TermToMeaning` is not intrinsically a reveal-and-rate card.
+Direction-specific presentation and interaction semantics (KF-LEARN-003):
+
+- `TermToMeaning`: The source term is presented on the front as the prompt, and the requested meaning content (definition, translation, example) is revealed on the back as the answer. `TermToMeaning` is always semantically a `Reading` (reveal-and-rate) interaction across both UI and backend; typing of definitions/translations is never required, even when configured `LearningMode` is `Typing` or Automatic progression is in the typing stage. Example sentence context targets remain unmasked (`HideTarget="false"`). Factual review history records `WasTypedAnswer = false`.
+- `MeaningToTerm`: Meaning content is presented on the front as the prompt, and the source term is the answer. `MeaningToTerm` supports both `Reading` (reveal-and-rate, `WasTypedAnswer = false`) and `Typing` (spelling production of the source term, `WasTypedAnswer = true`). Example sentence context targets are masked (`HideTarget="true"`).
 
 Context navigation belongs directly below the displayed context sentence for both directions; it is not placed after the complete answer and rating area.
 
@@ -829,18 +832,21 @@ The resolved interaction mode is one of:
 
 Resolution rules:
 
-- learning mode `Reading` resolves every card to the Reading interaction
-- learning mode `Typing` resolves every card to the Typing interaction
-- learning mode `Automatic` resolves each card from that card's own stored interaction progress
+- for `TermToMeaning` cards, the interaction mode is always `Reading`, unconditionally overriding user or automatic typing modes to prevent requiring typing long definitions or translations
+- for `MeaningToTerm` cards:
+  - learning mode `Reading` resolves to the Reading interaction
+  - learning mode `Typing` resolves to the Typing interaction
+  - learning mode `Automatic` resolves from the card's own stored interaction progress
 
 Schema-13 interaction progress is persisted per learning card and required answer variant, not as one vocabulary-wide state shared by both card directions. Each progress record holds the current interaction mode and interaction counters. Legacy mastery-review extension behavior is historical compatibility behavior, not current Schema-13 authority.
 
 Every persisted rating durably records the interaction that was actually presented: whether the answer was typed and whether it was correct. After each persisted rating, the card's progress is recomputed from that card's complete stored review history. This recomputation happens regardless of whether the current setting is `Reading`, `Typing`, or `Automatic`. A fixed mode overrides only which interaction is presented to the user; it does not freeze or isolate the replay-owned progress. Selecting `Automatic` later may therefore resolve from reviews recorded while a fixed mode was selected. Changing the setting never rewrites already recorded review events.
 
-Automatic transition rules, as implemented, apply to one card's required answer variant:
+Automatic transition rules apply to a `MeaningToTerm` card's required answer variant:
 
 - progress starts in the Reading interaction
-- in a resolved Reading interaction, any rating other than `Again` counts as one successful recall; `Again` resets the recall counter to zero
+- in a resolved Reading interaction, under the accepted `KF-LEARN-005` product decision, only `Good` and `Easy` count as successful recall to advance the progression counter toward Typing (two consecutive Good/Easy reviews advance to Typing); `Hard` indicates effortful recall and leaves the counter unchanged; `Again` resets the recall counter to zero. (Note: code implementation of the Good/Easy threshold is tracked under open `KF-LEARN-004`).
+- FSRS scheduling receives and persists all four ratings normally, completely distinct from interaction progression counters.
 - after two consecutive successful recalls the progress switches to the Typing interaction and its typing-failure counter is reset
 - in a resolved Typing interaction, a correct typed answer increases the typing-success counter and resets the typing-failure counter; an incorrect typed answer resets the typing-success counter and increases the typing-failure counter
 - after two consecutive incorrect typed answers the progress returns to the Reading interaction and all three counters are reset
@@ -856,21 +862,17 @@ Neither elapsed time nor interaction progress creates permanent knowledge. The e
 
 Front:
 
-- term
-- original highlighted context
-- occurrence count where useful
+- for `TermToMeaning`: source term, unmasked context sentence, and occurrence count where useful
+- for `MeaningToTerm`: meaning prompt (translation/definition), masked context sentence
 
 Back after reveal:
 
-- acronym expansion when applicable
-- translation
-- definition
-- optional example
-- source
+- for `TermToMeaning`: acronym expansion when applicable, translation, definition, optional example, source
+- for `MeaningToTerm`: source term, full unmasked context, and pronunciation/details
 
 The user self-rates the recall. An answer must be revealed before a rating is accepted.
 
-### 20.4 Typing interaction
+### 20.4 Typing interaction (MeaningToTerm only)
 
 Front:
 

@@ -820,6 +820,11 @@ public sealed class LearningService : ILearningService
 
     private LearningInteractionMode ResolveInteraction(WordEntity word, CardDirection direction)
     {
+        if (direction == CardDirection.TermToMeaning)
+        {
+            return LearningInteractionMode.Reading;
+        }
+
         if (appSettings is null)
         {
             return direction == CardDirection.MeaningToTerm
@@ -829,7 +834,8 @@ public sealed class LearningService : ILearningService
 
         return AutomaticLearningPolicy.ResolveInteraction(
             appSettings.LearningMode,
-            ReadAutomaticState(word));
+            ReadAutomaticState(word),
+            direction);
     }
 
     private static AutomaticLearningState ReadAutomaticState(WordEntity word) => new(
@@ -1305,7 +1311,7 @@ public sealed class LearningService : ILearningService
                 $"No replayed outcome exists for Required target variant {graph.TargetAnswerVariantId}.");
 
         var interaction = Schema8LearningReviewReplayPolicy.ResolveInteraction(
-            appSettings?.LearningMode, targetOutcome);
+            appSettings?.LearningMode, targetOutcome, graph.Card.Direction);
 
         return (graph, priorReplay, interaction, persistedProgress);
     }
@@ -1333,7 +1339,7 @@ public sealed class LearningService : ILearningService
             ?? throw Reject(Schema8LearningDataErrorCode.ProgressRowInvalid,
                 $"No projected outcome exists for Required target variant {graph.TargetAnswerVariantId}.");
         var interaction = Schema13LearningReviewPolicy.ResolveInteraction(
-            appSettings?.LearningMode, targetOutcome);
+            appSettings?.LearningMode, targetOutcome, graph.Card.Direction);
         return (graph, priorProjection, interaction, persistedProgress);
     }
 

@@ -609,6 +609,8 @@ public sealed class LearningServiceSchema13FsrsTests
     {
         await using var identicalSchedules = await CreateFixtureAsync();
         await using var differentSchedules = await CreateFixtureAsync();
+        await ConfigureMeaningToTermAsync(identicalSchedules);
+        await ConfigureMeaningToTermAsync(differentSchedules);
         await SetRequiredSinceAsync(identicalSchedules, ReviewTime.AddDays(-500));
         await SetRequiredSinceAsync(differentSchedules, ReviewTime.AddDays(-500));
         var reviewedAtUtc = ReviewTime.AddDays(-400);

@@ -47,6 +47,33 @@ public sealed class LearningInteractionPolicyTests
     }
 
     [TestMethod]
+    public void ResolveInteraction_TermToMeaning_AlwaysReturnsReading_RegardlessOfModeOrProgress()
+    {
+        var typing = new LearningInteractionProgress(
+            InteractionMode: LearningInteractionMode.Typing,
+            ConsecutiveRecallSuccesses: 2,
+            ConsecutiveTypingFailures: 0);
+
+        Assert.AreEqual(
+            LearningInteractionMode.Reading,
+            LearningInteractionPolicy.ResolveInteraction(LearningMode.Typing, typing, CardDirection.TermToMeaning));
+        Assert.AreEqual(
+            LearningInteractionMode.Reading,
+            LearningInteractionPolicy.ResolveInteraction(LearningMode.Automatic, typing, CardDirection.TermToMeaning));
+        Assert.AreEqual(
+            LearningInteractionMode.Reading,
+            LearningInteractionPolicy.ResolveInteraction(LearningMode.Reading, typing, CardDirection.TermToMeaning));
+
+        var automaticTyping = new AutomaticLearningState(LearningInteractionMode.Typing, 2, 2, 0, false);
+        Assert.AreEqual(
+            LearningInteractionMode.Reading,
+            AutomaticLearningPolicy.ResolveInteraction(LearningMode.Typing, automaticTyping, CardDirection.TermToMeaning));
+        Assert.AreEqual(
+            LearningInteractionMode.Reading,
+            AutomaticLearningPolicy.ResolveInteraction(LearningMode.Automatic, automaticTyping, CardDirection.TermToMeaning));
+    }
+
+    [TestMethod]
     public void AutomaticRecall_RequiredConsecutiveSuccesses_AdvancesToTyping()
     {
         var state0 = LearningInteractionProgress.Initial;

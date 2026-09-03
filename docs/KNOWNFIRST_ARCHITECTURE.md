@@ -845,7 +845,7 @@ Every persisted rating durably records the interaction that was actually present
 Automatic transition rules apply to a `MeaningToTerm` card's required answer variant:
 
 - progress starts in the Reading interaction
-- in a resolved Reading interaction, under the accepted `KF-LEARN-005` product decision, only `Good` and `Easy` count as successful recall to advance the progression counter toward Typing (two consecutive Good/Easy reviews advance to Typing); `Hard` indicates effortful recall and leaves the counter unchanged; `Again` resets the recall counter to zero. (Note: code implementation of the Good/Easy threshold is tracked under open `KF-LEARN-004`).
+- in a resolved Reading interaction (KF-LEARN-004 / KF-LEARN-005), only `Good` and `Easy` count as successful recall to advance the progression counter toward Typing (two consecutive Good/Easy reviews advance to Typing); `Hard` indicates effortful recall and leaves the counter unchanged; `Again` resets the recall counter to zero.
 - FSRS scheduling receives and persists all four ratings normally, completely distinct from interaction progression counters.
 - after two consecutive successful recalls the progress switches to the Typing interaction and its typing-failure counter is reset
 - in a resolved Typing interaction, a correct typed answer increases the typing-success counter and resets the typing-failure counter; an incorrect typed answer resets the typing-success counter and increases the typing-failure counter

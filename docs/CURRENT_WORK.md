@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-03 (KF-LEARN-003 package documentation reconciled on `fix/learning-card-direction-semantics-v1`; candidate HEAD before documentation `fab0c0575cce00fd658ccb2a59638a7b8e1f7d84`; base `master` commit `5bd173e484365219c8832a417187b7deb4a95b5e`).
+2026-09-03 (KF-LEARN-004 package documentation reconciled on `feature/learning-automatic-progression-v1`; candidate HEAD before documentation `881cea1aa8986514cfa10474f8f206732b261dc8`; base `master` commit `c999eb64e99a2ee43fdb2c90417b5bbdf135c335`).
 
 ## Repository and Worktree Governance
 
@@ -17,37 +17,45 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-LEARN-003`
-- **Active branch:** `fix/learning-card-direction-semantics-v1`
-- **Slice:** Complete combined package across two local checkpoints.
+- **Active package:** `KF-LEARN-004`
+- **Active branch:** `feature/learning-automatic-progression-v1`
+- **Slice:** 1/1 direction-aware-automatic-progression
 - **Implementation checkpoints:**
-  1. `27db227b0742b07b36327742f85ace75b8a17e73`, subject `fix(learn): distinguish TermToMeaning and MeaningToTerm card presentation`, trailer `KnownFirst-Checkpoint: KF-LEARN-003 1/1 distinct-card-direction-semantics`.
-  2. `fab0c0575cce00fd658ccb2a59638a7b8e1f7d84`, subject `fix(learn): enforce semantic reading mode for TermToMeaning cards across backend`, trailer `KnownFirst-Checkpoint: KF-LEARN-003 2/2 term-to-meaning-semantic-reading`.
-  - Sole base commit: `5bd173e484365219c8832a417187b7deb4a95b5e` (`master` / `origin/master`).
-- **Working state:** Implementation is complete and independently reviewed with final verdict `CHECKPOINT_APPROVED` (0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; authoritative interaction resolution `CONSISTENT`; persistence/history `CONSISTENT`; progression `PROGRESSION_UNCHANGED`). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
+  1. `881cea1aa8986514cfa10474f8f206732b261dc8`, subject `feat(learn): implement direction-aware automatic progression`, trailer `KnownFirst-Checkpoint: KF-LEARN-004 1/1 direction-aware-automatic-progression`.
+  - Sole base commit: `c999eb64e99a2ee43fdb2c90417b5bbdf135c335` (`master` / `origin/master`).
+- **Working state:** Implementation is complete and independently reviewed with final verdict `CHECKPOINT_APPROVED` (0 BLOCKER / 0 MAJOR / 0 MINOR / 1 NIT process note; independent test reruns: 133 passed / 0 failed; `git diff --check`: clean). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
+- **Process Governance Note:** During the `IMPLEMENT_SLICE` execution, background task checking via `manage_task` occurred without explicit user authorization. The independent review classified this as `PROCESS_NONCOMPLIANCE_CONFIRMED_NO_REPOSITORY_CONTAMINATION`, verifying zero repository contamination, clean Git status, and zero technical defects.
 - **Scope & implemented behavior:**
-  - `TermToMeaning`: The source term is the front/prompt; requested meaning content (translations/definitions) is the answer; semantic interaction is always Reading/self-rating across UI markup and backend policies (`AutomaticLearningPolicy`, `LearningInteractionPolicy`, `Schema13LearningReviewPolicy`, `Schema8LearningReviewReplayPolicy`, `LearningService`); no production typing of definitions/translations is ever rendered or required, even if configured `LearningMode` is `Typing` or Automatic state reached the typing threshold; `RevealAnswerAsync` succeeds directly without throwing `InvalidQueueState`; persisted review rows record `WasTypedAnswer = false`; example sentence target remains visible (`HideTarget="false"`).
-  - `MeaningToTerm`: Meaning content is the front/prompt; source term is the answer; Reading mode presents reveal and self-rating with `WasTypedAnswer = false`; Typing mode presents source-term spelling production evaluated via `CheckSpellingAsync` and persists `WasTypedAnswer = true`; example sentence target is masked (`HideTarget="true"`).
+  - `TermToMeaning`: The source term prompt and meaning reveal remain strictly Reading interaction; no hidden Automatic Typing progression accumulates in Schema-13 replay/projection; projected state remains Reading with 0 recall, typing-success, and typing-failure counters; factual ratings reach FSRS normally.
+  - `MeaningToTerm Reading progression`: Initial interaction is Reading; `Good` = Advance (+1 up to 2); `Easy` = Advance (+1 up to 2); `Hard` = Hold (counter unchanged); `Again` = Reset (counter reset to 0); 2nd qualifying Good/Easy transitions Automatic interaction to Typing and resets typing failures.
+  - `MeaningToTerm Typing progression`: Correct typed answer increments typing successes (capped at 2) and resets typing failures; incorrect typed answer resets typing successes and increments typing failures; 2nd consecutive typing failure lapses back to Reading with all three interaction counters reset to 0; two typing successes remain in Typing without causing mastery, retirement, permanent-known status, or scheduler changes.
+  - `FSRS separation`: Interaction progression remains decoupled from FSRS-6; all four ratings persist factually in `FsrsReviewHistoryEntries` and `LearningReviews`; FSRS stability, difficulty, step index, and intervals calculate normally; active-session Again tail-repeat invariant is preserved; Hard remains a factual FSRS Hard while being progression-neutral.
+  - `ReplayVersion`: `Schema13LearningReviewPolicy.ReplayVersion = 2` reflecting the rating-aware progression algorithm; `Schema8LearningReviewReplayPolicy.ReplayVersion = 1` remains untouched for legacy replay. Stored version 1 rows in `AnswerVariantProgress` are treated as rebuildable projection state and updated to version 2 during `PersistRatingSchema13` rating transactions. Unsupported forward versions (> 2) fail closed.
+  - `Persisted progress lazy reconciliation`: `LoadSchema13RatingState` is strictly read-only and projects from factual `LearningReviews`; physical SQLite updates occur inside `PersistRatingSchema13` via `PlanProgressReplacement` and `ApplyProgressPlan`.
 - **Preserved boundaries & invariants:**
   - Database schema remains 13.
   - Portable archive format remains V3.
-  - FSRS-6 scheduling formulas, rating values, and interval calculations are unchanged.
-  - `ReplayVersion` remains unchanged at `1`.
-  - Word, Sense, Meaning, AnswerVariant, and LearningCard identities remain unchanged.
-  - Progression implementation for `KF-LEARN-004` / `KF-LEARN-005` is not included.
-  - `KF-LEARN-006` (dynamic target masking), `KF-LEARN-009` (error banner clearing), and `KF-LEARN-010`/`011` (multi-target persistence) are not included.
-- **Verification evidence on approved source checkpoint (`fab0c057...`):**
-  - Full automated test suite (`dotnet test KnownFirst.Tests\KnownFirst.Tests.csproj --no-build`): 3178 passed / 0 failed / 0 skipped.
-  - Targeted UI contract, policy unit tests, and behavioral integration tests: 159 passed / 0 failed / 0 skipped.
-  - FSRS Schema-13 suite: 20 passed / 0 failed / 0 skipped.
-  - Broad Learning suite: 445 passed / 0 failed / 0 skipped.
+  - No Schema 14 or Archive V4.
+  - Word, Sense, Meaning, AnswerVariant, and LearningCard domain identities remain unchanged.
+  - Progress remains per `(LearningCard, Required AnswerVariant)`.
+  - AcceptedOnly answer variants do not receive progression credit.
+- **Verification evidence on approved source checkpoint (`881cea1...`):**
+  - Genuine initial RED: 4 failed / 4 passed in `LearningServiceCardDirectionBehaviorTests` (Hard at 0 held, Hard at 1 held, TermToMeaning reading invariant, ReplayVersion 1 -> 2 replacement).
+  - Identical GREEN on focused suite: 8 passed / 0 failed (`LearningServiceCardDirectionBehaviorTests`).
+  - Independent rerun suite (133 passed / 0 failed across 5 scopes):
+    - `LearningServiceCardDirectionBehaviorTests`: 8 passed / 0 failed.
+    - `AutomaticLearningPolicyTests` + `LearningInteractionPolicyTests`: 20 passed / 0 failed.
+    - `LearningServiceSchema13FsrsTests`: 20 passed / 0 failed.
+    - `Schema13BackupRestoreTests` + `Schema13MergeWriterTests`: 51 passed / 0 failed.
+    - `Schema8LearningReviewReplayPolicyTests`: 34 passed / 0 failed.
   - Whitespace / diff check (`git diff --check master...HEAD`): Clean (0 errors).
-  - Evidence boundary: These results establish automated source/service/test evidence on temporary SQLite databases; no rendered WebView/GUI runtime or physical device evidence is claimed.
-- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-003` completion state in [BACKLOG.md](BACKLOG.md), recorded the resolved Good/Easy-only decision for `KF-LEARN-005` and accepted `KF-LEARN-010` Definition/Translation semantics in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), updated card-direction and progression contracts in [KNOWNFIRST_ARCHITECTURE.md](KNOWNFIRST_ARCHITECTURE.md), updated [learning-target-semantics.md](architecture/learning-target-semantics.md), and added the user-facing fix to [CHANGELOG.md](../CHANGELOG.md).
-- **Follow-Up Closure Audit:** Direction-aware Automatic interaction progression remains owned by open `KF-LEARN-004`; dynamic context target masking remains under open `KF-LEARN-006`; stale action-error clearing remains under open `KF-LEARN-009`; Definition/Translation learning-target persistence and scheduling identity remain owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`.
+  - Evidence boundary: Automated source/service/replay evidence on temporary SQLite databases; no rendered WebView/GUI runtime or physical device evidence is claimed. Candidate has NOT yet passed exact-candidate-HEAD FULL_VALIDATION.
+- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-004` candidate state and `KF-LEARN-003` merged state in [BACKLOG.md](BACKLOG.md), recorded `KF-LEARN-005` implementation completion in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), updated progression contracts in [KNOWNFIRST_ARCHITECTURE.md](KNOWNFIRST_ARCHITECTURE.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
+- **Follow-Up Closure Audit:** Dynamic context target masking remains owned by open `KF-LEARN-006`; session summary phrasing remains under open `KF-LEARN-007`; Learn card edit entry point remains under open `KF-LEARN-008`; stale action-error banner clearing remains under open `KF-LEARN-009`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`.
 - **Next governed lifecycle:** `COMMIT_ONLY` for the exact documentation changes. After a successful documentation commit with a clean candidate HEAD, the next required gate is exact-candidate-HEAD `FULL_VALIDATION` under [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md). DOCUMENT_ONLY performs no commit, FULL_VALIDATION, push, or PR.
 
 - **Previous merged packages:**
+  - PR #197 (`fix/learning-card-direction-semantics-v1` / `KF-LEARN-003`): Genuinely distinguished `TermToMeaning` (source term prompt, meaning answer, unconditional Reading mode across UI and backend, unmasked example sentence target) and `MeaningToTerm` (meaning prompt, source term answer, Reading or Typing mode, masked example sentence target). Merged to `master` via merge commit `c999eb64e99a2ee43fdb2c90417b5bbdf135c335` (validated PR head `d933462adeee70fe7435ecb5fbe22a7927e31204`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #196 (`KF-WINDOWS-001`): Stabilized the unpackaged Windows app-data publisher as `Tachiguro`, preserving application ID `com.tachiguro.knownfirst` and product name `KnownFirst`. Merged to `master` via merge commit `5bd173e484365219c8832a417187b7deb4a95b5e`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #195 (`KF-SETTINGS-001`): Settings learning-timezone persistence failure feedback is merged on `master` at `8eb74759e4a781de81fbc8c79b5a1c440af99afe`. `POST_MERGE_SYNC_ONLY` completed. The former active candidate wording is superseded. Source/contract evidence does not establish real storage-failure or rendered GUI behavior.
   - PR #194 (`fix: deep-link online dictionary settings` / `KF-PREP-001`): Deep-linked Prepare Words disabled Online Dictionary "Open Settings" actions directly to `settings#online-lookup-title`, revealed and focused the section heading once using `knownFirst.revealElement` and `FocusAsync(preventScroll: true)` without altering normal `/settings` navigation, and reconciled documentation. Merged to `master` via merge commit `b8c3dad629a6f35f36664e2e248c413bd8247a3e`. `POST_MERGE_SYNC_ONLY` completed.

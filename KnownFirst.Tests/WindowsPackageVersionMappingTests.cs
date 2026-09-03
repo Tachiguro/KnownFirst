@@ -47,6 +47,10 @@ public sealed class WindowsPackageVersionMappingTests
 
     private static readonly string[] QueriedProperties =
     [
+        "ApplicationId",
+        "ApplicationIdGuid",
+        "ApplicationTitle",
+        "KnownFirstProductName",
         "ApplicationDisplayVersion",
         "ApplicationVersion",
         "KnownFirstProductVersion",
@@ -59,6 +63,65 @@ public sealed class WindowsPackageVersionMappingTests
     ];
 
     // --- Package version mapping ---------------------------------------------------------
+
+    [TestMethod]
+    public void OrdinaryWindowsConfigurations_PreserveApplicationIdentityAndRemainUnpackaged()
+    {
+        foreach (var configuration in new[] { "Debug", "Release", "BetaDiagnostic" })
+        {
+            var properties = EvaluateProperties(WindowsTargetFramework, configuration);
+
+            Assert.AreEqual("com.tachiguro.knownfirst", properties["ApplicationId"], configuration);
+            Assert.AreEqual(string.Empty, properties["ApplicationIdGuid"],
+                "An ApplicationIdGuid override must not replace the Windows package name.");
+            Assert.AreEqual("KnownFirst", properties["ApplicationTitle"], configuration);
+            Assert.AreEqual("KnownFirst", properties["KnownFirstProductName"], configuration);
+            Assert.AreEqual("None", properties["WindowsPackageType"], configuration);
+        }
+    }
+
+    [TestMethod]
+    public void WindowsDistributionConfigurations_PreserveIdentityAndExplicitPackageTypeBoundary()
+    {
+        foreach (var (packagingProperty, packageType) in new[]
+        {
+            (PortablePackagingProperty, "None"),
+            (MsixPackagingProperty, "MSIX"),
+        })
+        {
+            // The publishing scripts explicitly supply WindowsPackageType; the variant flag
+            // alone must not be mistaken for an MSIX packaging request.
+            var properties = EvaluateWindowsRelease(
+                (packagingProperty, "true"), ("WindowsPackageType", packageType));
+
+            Assert.AreEqual("com.tachiguro.knownfirst", properties["ApplicationId"], packagingProperty);
+            Assert.AreEqual(string.Empty, properties["ApplicationIdGuid"], packagingProperty);
+            Assert.AreEqual("KnownFirst", properties["ApplicationTitle"], packagingProperty);
+            Assert.AreEqual("KnownFirst", properties["KnownFirstProductName"], packagingProperty);
+            Assert.AreEqual(packageType, properties["WindowsPackageType"], packagingProperty);
+        }
+
+        Assert.AreEqual("None", EvaluateWindowsRelease((MsixPackagingProperty, "true"))["WindowsPackageType"],
+            "MSIX packaging remains an explicit script/command-line opt-in.");
+    }
+
+    [TestMethod]
+    public void AndroidConfigurations_PreserveExistingApplicationIdsAndTitles()
+    {
+        foreach (var (configuration, applicationId, title) in new[]
+        {
+            ("Debug", "com.tachiguro.knownfirst.debug", "KnownFirst Debug"),
+            ("Release", "com.tachiguro.knownfirst", "KnownFirst"),
+            ("BetaDiagnostic", "com.tachiguro.knownfirst.diagnostic", "KnownFirst Diagnostic"),
+        })
+        {
+            var properties = EvaluateProperties(AndroidTargetFramework, configuration);
+
+            Assert.AreEqual(applicationId, properties["ApplicationId"], configuration);
+            Assert.AreEqual(title, properties["ApplicationTitle"], configuration);
+            Assert.AreEqual("KnownFirst", properties["KnownFirstProductName"], configuration);
+        }
+    }
 
     [TestMethod]
     public void MsixVariant_MapsPackageVersionToStoreValidFourPartVersion()

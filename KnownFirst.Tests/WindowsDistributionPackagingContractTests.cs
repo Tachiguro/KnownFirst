@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace KnownFirst.Tests;
 
@@ -918,8 +919,12 @@ public sealed class WindowsDistributionPackagingContractTests
 
         foreach (var (identityName, publisher, publisherDisplayName, expected, description) in new[]
         {
-            // 1. the manifest exactly as it exists on master today
-            ("maui-package-name-placeholder", "CN=User Name", "User Name", "devidentity", "all current placeholders"),
+            // Historical template identity remains a supported classifier fixture.
+            ("maui-package-name-placeholder", "CN=User Name", "User Name", "devidentity", "historical template placeholders"),
+            // A stable runtime publisher does not supply a Partner Center signing identity.
+            ("maui-package-name-placeholder", "CN=User Name", "Tachiguro", "devidentity", "stable publisher in source manifest"),
+            // Synthetic generated-manifest identity after MAUI substitutes ApplicationId.
+            ("com.tachiguro.knownfirst", "CN=User Name", "Tachiguro", "devidentity", "stable publisher with generated package name"),
             // 2. real Publisher but the Identity Name is still the MAUI placeholder
             ("maui-package-name-placeholder", realPublisher, realDisplayName, "devidentity", "placeholder Identity Name"),
             // 3. real Identity Name but the Publisher is still the template placeholder
@@ -970,15 +975,21 @@ public sealed class WindowsDistributionPackagingContractTests
     }
 
     [TestMethod]
-    public void CurrentRepositoryManifest_StillCarriesThePlaceholderIdentity()
+    public void CurrentRepositoryManifest_UsesStableRuntimePublisherAndPreservesDevelopmentPackageIdentity()
     {
-        // Guards the assumption the artifact naming depends on: until real Partner Center values
-        // exist, every produced MSIX must be marked as a development-identity artifact. When this
-        // test starts failing, real Store identity has arrived and the docs must be reconciled.
-        var manifest = LoadRepositoryFile("Platforms/Windows/Package.appxmanifest");
+        // MAUI derives unpackaged PublisherName metadata from PublisherDisplayName. This source
+        // contract does not prove the generated assembly metadata or the actual runtime path.
+        var manifest = XDocument.Parse(LoadRepositoryFile("Platforms/Windows/Package.appxmanifest"));
+        XNamespace ns = "http://schemas.microsoft.com/appx/manifest/foundation/windows10";
+        var package = manifest.Root!;
+        var identity = package.Element(ns + "Identity")!;
 
-        Assert.Contains("CN=User Name", manifest);
-        Assert.Contains("<PublisherDisplayName>User Name</PublisherDisplayName>", manifest);
+        Assert.AreEqual("Tachiguro", (string?)package.Element(ns + "Properties")?.Element(ns + "PublisherDisplayName"));
+        Assert.AreEqual("CN=User Name", (string?)identity.Attribute("Publisher"),
+            "The development MSIX signing identity is separate from the unpackaged runtime publisher.");
+        Assert.AreEqual("maui-package-name-placeholder", (string?)identity.Attribute("Name"),
+            "MAUI must continue substituting ApplicationId into the generated manifest.");
+        Assert.AreEqual("0.0.0.0", (string?)identity.Attribute("Version"));
     }
 
     // === H. Windows PowerShell 5.1 HEAD-resolution exit-code contract ========================

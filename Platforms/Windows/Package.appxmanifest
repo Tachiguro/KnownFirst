@@ -12,7 +12,8 @@
 
   <Properties>
     <DisplayName>$placeholder$</DisplayName>
-    <PublisherDisplayName>User Name</PublisherDisplayName>
+    <!-- Stable unpackaged Windows app-data publisher; separate from the MSIX signing/Partner Center identity. -->
+    <PublisherDisplayName>Tachiguro</PublisherDisplayName>
     <Logo>$placeholder$.png</Logo>
   </Properties>
 

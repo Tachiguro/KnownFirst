@@ -91,9 +91,8 @@ The following initiatives represent accepted product directions whose individual
   - `KF-LEARN-009`: Clearing stale `_actionFailed` error banners after successful actions in `Learn.razor`.
 
 ### 4. Navigation, Settings & Feedback Corrections
-- **Status:** `KF-NAV-001` merged to `master` via PR #193; `KF-PREP-001` merged to `master` via PR #194.
+- **Status:** `KF-NAV-001` merged to `master` via PR #193; `KF-PREP-001` merged to `master` via PR #194; `KF-SETTINGS-001` is merged on `master` with visible learning-timezone save-error feedback verified by automated source/contract tests.
 - **Open Packages:**
-  - `KF-SETTINGS-001`: Visible failure feedback when saving learning timezone in `Settings.razor` (candidate implemented on `fix/settings-learning-timezone-error-feedback-v1`).
   - `KF-HOME-002`: User-centric learning progress metrics on Home (depending on product decision `KF-METRIC-001`).
 
 ## Cleanup & Release Sequence
@@ -106,6 +105,7 @@ The following initiatives represent accepted product directions whose individual
 
 2. **Windows Distribution Packaging Validation:**
    - Source-controlled infrastructure merged via PR #107 (`publish-windows-portable.ps1`, `publish-windows-msix.ps1`).
+   - `KF-WINDOWS-001` Slice 1/1 is implemented and independently reviewed for stable unpackaged publisher `Tachiguro`; this source/configuration correction does not establish runtime AppData creation or advance Windows distribution/Store readiness. Operational state is in [CURRENT_WORK.md](CURRENT_WORK.md); broader distribution work remains open under `KF-RELEASE-002` in [BACKLOG.md](BACKLOG.md).
    - Execution of real portable ZIP packaging, clean-PC portable validation, MSIX signing, and Store onboarding follow cleanup milestones.
 
 3. **Beta-13 Pre-AAB Release-Readiness Gate (Google Play Internal Testing Packaging Complete):**

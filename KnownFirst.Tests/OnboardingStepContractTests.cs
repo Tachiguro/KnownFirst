@@ -557,6 +557,22 @@ public sealed class OnboardingStepContractTests
     }
 
     [TestMethod]
+    public void Routes_NavigatesToHomeWithReplaceOnCompletion_AndReRenders()
+    {
+        var markup = LoadUi("Routes.razor");
+
+        Assert.Contains("@inject NavigationManager Navigation", markup);
+        Assert.Contains("HandleOnboardingCompleted()", markup);
+        Assert.Contains("Navigation.NavigateTo(\"/\", replace: true);", markup);
+        Assert.Contains("StateHasChanged();", markup);
+
+        var navigationIndex = markup.IndexOf("Navigation.NavigateTo(\"/\", replace: true);", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, navigationIndex, "Navigation to '/' with replace: true must be present in Routes.razor.");
+        var stateChangedIndex = markup.IndexOf("StateHasChanged();", navigationIndex, StringComparison.Ordinal);
+        Assert.IsGreaterThan(navigationIndex, stateChangedIndex, "StateHasChanged() must be invoked after Navigation.NavigateTo in HandleOnboardingCompleted.");
+    }
+
+    [TestMethod]
     public void OnboardingComponents_ContainNoForbiddenCommittedSettingWrites()
     {
         var forbiddenKeywords = new[]

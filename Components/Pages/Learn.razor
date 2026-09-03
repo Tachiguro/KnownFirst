@@ -1,6 +1,7 @@
 @page "/learn"
 @implements IAsyncDisposable
 @inject ILearningService LearningService
+@inject IWorkflowStateService WorkflowState
 @inject IClock Clock
 @inject ILogger<Learn> Logger
 @inject IJSRuntime JsRuntime
@@ -196,9 +197,9 @@
                 <div><dt>@Localizer["Learn_Good"]</dt><dd>@_summary.GoodCount</dd></div>
                 <div><dt>@Localizer["Learn_Easy"]</dt><dd>@_summary.EasyCount</dd></div>
             </dl>
-            @if (_summary.NextDueAtUtc is not null)
+            @if (_workflowSnapshot is not null)
             {
-                <p>@Localizer["Learn_NextDue", _summary.NextDueAtUtc.Value.ToLocalTime().ToString("g") ]</p>
+                <p><LearningReviewStatus Snapshot="_workflowSnapshot" /></p>
             }
             @if (_summary.RemainingUnpreparedCount > 0)
             {
@@ -226,7 +227,6 @@
             }
             else
             {
-                <p>@Localizer["Learn_NothingDue"]</p>
                 <div class="button-row">
                     <a class="button button-primary" href="">@Localizer["Navigation_BackToHome"]</a>
                     <a class="button button-secondary" href="import-text">@Localizer["Navigation_ImportText"]</a>
@@ -289,6 +289,7 @@
 @code {
     private LearningCardView? _card;
     private LearningSessionSummary? _summary;
+    private WorkflowSnapshot? _workflowSnapshot;
     private LearningSummaryDueMonitor? _dueMonitor;
     private bool _isScheduledReviewAvailable;
     private SpellingSubmissionResult? _spellingResult;
@@ -335,7 +336,7 @@
         _loadFailed = false;
         try
         {
-            ApplyLoadResult(await LearningService.GetOrStartAsync());
+            await ApplyLoadResultAsync(await LearningService.GetOrStartAsync());
         }
         catch (Exception exception)
         {
@@ -412,7 +413,7 @@
         _actionFailed = false;
         try
         {
-            ApplyLoadResult(await LearningService.RateAsync(_card.QueueItemId, rating));
+            await ApplyLoadResultAsync(await LearningService.RateAsync(_card.QueueItemId, rating));
         }
         catch (Exception exception)
         {
@@ -438,7 +439,7 @@
         _actionFailed = false;
         try
         {
-            ApplyLoadResult(await LearningService.GetOrStartAsync());
+            await ApplyLoadResultAsync(await LearningService.GetOrStartAsync());
         }
         catch (Exception exception)
         {
@@ -464,7 +465,7 @@
         {
             await LearningService.MarkPermanentlyKnownAsync(_card.WordId, confirmed: true);
             _showPermanentKnownConfirmation = false;
-            ApplyLoadResult(await LearningService.GetOrStartAsync());
+            await ApplyLoadResultAsync(await LearningService.GetOrStartAsync());
         }
         catch (Exception exception)
         {
@@ -482,35 +483,57 @@
         CancelDueMonitor();
         _card = result.Card;
         _summary = result.CompletedSummary;
+        _workflowSnapshot = null;
         _spellingResult = null;
         _spellingAnswer = string.Empty;
         _contextIndex = 0;
         _actionFailed = false;
         _showPermanentKnownConfirmation = false;
 
-        if (_card is null && _summary?.NextDueAtUtc is not null)
+        _isScheduledReviewAvailable = false;
+    }
+
+    private async Task ApplyLoadResultAsync(LearningLoadResult result)
+    {
+        ApplyLoadResult(result);
+        if (_card is null && _summary is not null)
         {
-            if (LearningSummaryDueMonitor.IsDue(Clock, _summary.NextDueAtUtc.Value))
+            _workflowSnapshot = await WorkflowState.GetSnapshotAsync();
+            ConfigureSummaryAvailability();
+        }
+    }
+
+    private void ConfigureSummaryAvailability()
+    {
+        CancelDueMonitor();
+        _isScheduledReviewAvailable = _workflowSnapshot?.DueCardCount > 0;
+        if (_isScheduledReviewAvailable
+            || _workflowSnapshot?.NextDueAtUtc is not { } nextDueAtUtc
+            || LearningSummaryDueMonitor.IsDue(Clock, nextDueAtUtc))
+        {
+            return;
+        }
+
+        _dueMonitor = new LearningSummaryDueMonitor(
+            Clock,
+            nextDueAtUtc,
+            async () =>
             {
-                _isScheduledReviewAvailable = true;
-            }
-            else
-            {
-                _isScheduledReviewAvailable = false;
-                _dueMonitor = new LearningSummaryDueMonitor(
-                    Clock,
-                    _summary.NextDueAtUtc.Value,
-                    async () =>
+                try
+                {
+                    await InvokeAsync(async () =>
                     {
-                        _isScheduledReviewAvailable = true;
-                        await InvokeAsync(StateHasChanged);
+                        _workflowSnapshot = await WorkflowState.GetSnapshotAsync();
+                        _isScheduledReviewAvailable = _workflowSnapshot.DueCardCount > 0;
+                        ConfigureSummaryAvailability();
+                        StateHasChanged();
                     });
-            }
-        }
-        else
-        {
-            _isScheduledReviewAvailable = false;
-        }
+                }
+                catch (Exception exception)
+                {
+                    Logger.LogError(exception, "The scheduled review status could not be refreshed.");
+                }
+            });
     }
 
     private async Task StartDueReviewAsync()

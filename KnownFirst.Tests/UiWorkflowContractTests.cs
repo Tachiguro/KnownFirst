@@ -3118,6 +3118,58 @@ public sealed class UiWorkflowContractTests
             "Learn.razor must render load errors with _loadFailed and Learn_LoadError.");
     }
 
+    [TestMethod]
+    public void Learning_CompletedSummaryUsesSharedReviewStatusAndEffectiveLearningTimezone()
+    {
+        var learning = LoadUi("Learn.razor");
+
+        Assert.DoesNotContain(
+            "ToLocalTime().ToString(\"g\")",
+            learning,
+            "Learn must not present scheduler timestamps through the operating-system local timezone and a generic format.");
+        Assert.Contains("@inject IWorkflowStateService WorkflowState", learning);
+        Assert.Contains("<LearningReviewStatus", learning);
+        Assert.Contains("Snapshot=\"_workflowSnapshot\"", learning);
+
+        var sharedStatus = LoadUi("LearningReviewStatus.razor");
+        Assert.Contains("LearningReviewPresentationPolicy.Create", sharedStatus);
+        Assert.Contains("IAppSettingsService AppSettings", sharedStatus);
+        Assert.Contains("ILearningTimezoneResolver LearningTimezoneResolver", sharedStatus);
+        Assert.Contains("ResolveEffectiveTimeZone", sharedStatus);
+        Assert.DoesNotContain("ToLocalTime()", sharedStatus, StringComparison.Ordinal);
+        foreach (var hardcodedSentence in new[]
+                 {
+                     "Nothing else is due today.",
+                     "Für heute ist nichts mehr fällig.",
+                     "На сегодня повторений больше нет."
+                 })
+        {
+            Assert.DoesNotContain(hardcodedSentence, learning, StringComparison.Ordinal);
+            Assert.DoesNotContain(hardcodedSentence, sharedStatus, StringComparison.Ordinal);
+        }
+    }
+
+    [TestMethod]
+    public void Home_LearnActionUsesWorkflowSnapshotProgressAndSharedReviewStatus()
+    {
+        var home = LoadUi("Home.razor");
+
+        Assert.Contains("_workflow.ActiveLearningSessionCompletedCards", home);
+        Assert.Contains("_workflow.ActiveLearningSessionTotalCards", home);
+        Assert.Contains("Home_LearningProgress", home);
+        Assert.Contains("<LearningReviewStatus", home);
+        Assert.Contains("Snapshot=\"_workflow\"", home);
+
+        var statisticsStart = home.IndexOf("<section class=\"statistics-grid\">", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, statisticsStart);
+        var statistics = home[statisticsStart..];
+        Assert.Contains("@_statistics.DocumentCount", statistics);
+        Assert.Contains("@_statistics.UnreviewedWordCount", statistics);
+        Assert.Contains("@_statistics.KnownWordCount", statistics);
+        Assert.Contains("@_statistics.UnknownBacklogWordCount", statistics);
+        Assert.Contains("@_statistics.PreparedAndLearningWordCount", statistics);
+    }
+
     private static string ExtractSettingsSection(string markup, string sectionTitleId)
     {
         var titleIndex = markup.IndexOf(

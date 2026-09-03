@@ -51,7 +51,8 @@ public static class Schema13LearningRepository
                     or Fsrs6CardState.Review
                     or Fsrs6CardState.Relearning
                 && candidate.Card.DueAtUtc.HasValue
-                && candidate.Card.DueAtUtc.Value <= now);
+                && candidate.Card.DueAtUtc.Value <= now
+                && HasRequiredAnswerVariant(connection, candidate.Card));
     }
 
     public static int CountNewWords(SQLiteConnection connection)

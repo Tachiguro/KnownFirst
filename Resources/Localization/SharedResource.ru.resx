@@ -270,6 +270,9 @@
   <data name="Home_ReviewProgress" xml:space="preserve">
     <value>Проверено {0} из {1} кандидатов</value>
   </data>
+  <data name="Home_LearningProgress" xml:space="preserve">
+    <value>Прогресс обучения: {0} из {1} карточек</value>
+  </data>
   <data name="Home_ContinueReviewAction" xml:space="preserve">
     <value>Продолжить проверку</value>
   </data>
@@ -968,6 +971,30 @@
   </data>
   <data name="Learn_NextDue" xml:space="preserve">
     <value>Следующая карточка: {0}</value>
+  </data>
+  <data name="Learning_DueNowOne" xml:space="preserve">
+    <value>Сейчас нужно повторить {0} карточку.</value>
+  </data>
+  <data name="Learning_DueNowFew" xml:space="preserve">
+    <value>Сейчас нужно повторить {0} карточки.</value>
+  </data>
+  <data name="Learning_DueNowMany" xml:space="preserve">
+    <value>Сейчас нужно повторить {0} карточек.</value>
+  </data>
+  <data name="Learning_NextReviewToday" xml:space="preserve">
+    <value>Следующее повторение сегодня в {0}</value>
+  </data>
+  <data name="Learning_NextReviewTomorrow" xml:space="preserve">
+    <value>Следующее повторение завтра в {0}</value>
+  </data>
+  <data name="Learning_NextReviewDate" xml:space="preserve">
+    <value>Следующее повторение {0} в {1}</value>
+  </data>
+  <data name="Learning_NothingElseDueToday" xml:space="preserve">
+    <value>На сегодня повторений больше нет.</value>
+  </data>
+  <data name="Learning_NoReviewsDueNow" xml:space="preserve">
+    <value>Сейчас нет карточек для повторения.</value>
   </data>
   <data name="Learn_MoreUnknownWaiting" xml:space="preserve">
     <value>Все текущие проверки завершены. {0} неизвестных слов ожидают подготовки.</value>

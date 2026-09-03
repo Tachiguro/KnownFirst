@@ -74,13 +74,18 @@
 <section class="action-grid">
     @if (_workflow.CanLearn)
     {
-        <a class="action-card" href="learn">@Localizer["Navigation_Learn"]<span aria-hidden="true">→</span></a>
+        <a class="action-card" href="learn">
+            <span class="action-card-label">@Localizer["Navigation_Learn"]</span>
+            @LearningActionDetails
+            <span aria-hidden="true">→</span>
+        </a>
     }
     else
     {
         <div class="action-card blocked" aria-disabled="true" title="@(Localizer["Navigation_LearnUnavailable"])">
             <span class="action-card-label">@Localizer["Navigation_Learn"]</span>
             <small>@Localizer["Navigation_LearnUnavailable"]</small>
+            @LearningActionDetails
         </div>
     }
     @if (_workflow.CanPrepare)
@@ -173,6 +178,19 @@ else
     private ElementReference _discardCancelButtonRef;
 
     private bool IsReviewBlocked => _activeReview is not null;
+
+    private RenderFragment LearningActionDetails => @<text>
+        @if (_workflow.HasActiveLearning
+            && _workflow.ActiveLearningSessionCompletedCards is { } completedCards
+            && _workflow.ActiveLearningSessionTotalCards is { } totalCards)
+        {
+            <small>@Localizer["Home_LearningProgress", completedCards, totalCards]</small>
+        }
+        else
+        {
+            <small><LearningReviewStatus Snapshot="_workflow" /></small>
+        }
+    </text>;
 
     protected override Task OnInitializedAsync()
     {

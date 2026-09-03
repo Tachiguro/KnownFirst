@@ -1,0 +1,29 @@
+@using System.Globalization
+@using KnownFirst.Services.Time
+@inject IClock Clock
+@inject IAppSettingsService AppSettings
+@inject ILearningTimezoneResolver LearningTimezoneResolver
+
+@Localizer[Status.ResourceKey, Status.Arguments]
+
+@code {
+    [Parameter, EditorRequired]
+    public WorkflowSnapshot Snapshot { get; set; } = null!;
+
+    private LearningReviewStatusText Status => LearningReviewStatusTextPolicy.Create(
+        LearningReviewPresentationPolicy.Create(
+            ToUtc(Clock.UtcNow),
+            Snapshot.DueCardCount,
+            ToUtc(Snapshot.NextDueAtUtc),
+            LearningTimezoneResolver.ResolveEffectiveTimeZone(
+                AppSettings.LearningTimezoneMode,
+                AppSettings.ExplicitLearningTimezoneId),
+            CultureInfo.CurrentCulture,
+            ToUtc(Snapshot.ActiveLearningDayEndUtc)));
+
+    private static DateTimeOffset ToUtc(DateTime value) =>
+        new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+    private static DateTimeOffset? ToUtc(DateTime? value) =>
+        value.HasValue ? ToUtc(value.Value) : null;
+}

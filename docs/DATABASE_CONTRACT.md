@@ -5,7 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version **13** on the `KF-FSRS-003` candidate branch (not yet merged to `master`). `master` remains at Schema 12. Schema 10 is documented in the [Schema-10 contract](#schema-10-stable-learning-workflow-identity-contract) section below; Schema 11 (German Enhanced Term Recognition derivation-evidence persistence) is documented in the [Schema-11 contract](#schema-11-derived-term-evidence-contract) section below; Schema 12 (Learning-Day and Daily New-Word Budget persistence) is documented in the [Schema-12 contract](#schema-12-learning-day-and-daily-new-word-budget-contract-merged-production-state) section below; the Schema-13 persistence and FSRS-6 production activation (KF-FSRS-003) is documented in the [Schema-13 Production Contract](#schema-13-production-contract-kf-fsrs-003) section below. Merged KF-BACKUP-005B changes portable Active learning-workflow behavior without changing the physical schema version or archive format; its binding current-master contract is recorded explicitly below.
+It describes the current SQLite model at schema version **13** on merged `master` (`KF-FSRS-003`). Schema 10, 11, and 12 sections below remain historical/compatibility contracts where explicitly scoped; Schema-13 persistence and FSRS-6 production activation are documented in the [Schema-13 Production Contract](#schema-13-production-contract-kf-fsrs-003) section below. Merged KF-BACKUP-005B changes portable Active learning-workflow behavior without changing the physical schema version or archive format; its binding current-master contract is recorded explicitly below.
 
 ## Storage boundary
 
@@ -19,8 +19,8 @@ It describes the current SQLite model at schema version **13** on the `KF-FSRS-0
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **13** on the `KF-FSRS-003` candidate branch. `master` remains at 12.
-A healthy initialized current database on the candidate branch reports `PRAGMA user_version = 13`. `PRAGMA foreign_keys = ON` is enforced globally for every production connection before any other operation.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **13** in merged production source after `KF-FSRS-003`.
+A healthy initialized current production database reports `PRAGMA user_version = 13`. `PRAGMA foreign_keys = ON` is enforced globally for every production connection before any other operation.
 
 | Table | Responsibility |
 | --- | --- |
@@ -44,7 +44,7 @@ A healthy initialized current database on the candidate branch reports `PRAGMA u
 | `Senses` | Meaning-centric Sense identity, provenance, and status per vocabulary identity |
 | `AnswerVariants` | Distinct accepted answer expressions per Sense and answer language |
 | `SenseAnswerVariantAssignments` | Direction-specific Required/AcceptedOnly assignment, preferred flag, and Required-epoch boundary |
-| `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` mastery progress |
+| `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` interaction progress; legacy mastery fields are not Schema-13 learning outcomes |
 | `DerivedTermEvidenceEntries` | German Enhanced Term Recognition (Schema 11): per-occurrence provenance for a derived compound component, always pointing at the complete whole-compound source span (never a synthetic component occurrence) |
 | `LearningDayState` | Learning-Day Infrastructure (Schema 12): singleton record (`Id = 1`) tracking active budget day / Bridge phase, current day ordinal, frozen day boundaries, effective timezone/cutoff, and Bridge target state |
 | `LearningDayGrants` | Daily New-Word Budget (Schema 12): durable record of admitted genuinely-new `WordId`s per logical learning day ordinal with immutable `SlotOrdinal` assignments; independent of learning-graph deletions |
@@ -65,7 +65,7 @@ At schema 11, the new `DerivedTermEvidenceEntries` table records provenance for 
 
 At schema 12, `LearningDayState` and `LearningDayGrants` track durable logical learning days, timezone/cutoff freeze, Bridge intervals, and daily new-word grant ordinals. These tables are strictly installation-local and excluded from portable export/merge. Full binding contract: [Schema-12 contract](#schema-12-learning-day-and-daily-new-word-budget-contract-merged-production-state) below.
 
-At schema 13 (KF-FSRS-003 candidate), `FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, and `SenseLearningControls` are added. `FsrsCardStates` holds the factual FSRS-6 card state per `LearningCard`. `FsrsReviewHistoryEntries` is the append-only factual review log with gapless 1-based `SequenceNumber` per card and a unique `StableId` per event. `WordLearningControls` and `SenseLearningControls` are reversible clean learning-control decisions with separate semantic ownership. Full binding contract: [Schema-13 Production Contract](#schema-13-production-contract-kf-fsrs-003) below.
+At current Schema 13 (merged `KF-FSRS-003`), `FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, and `SenseLearningControls` are present. `FsrsCardStates` holds the factual FSRS-6 card state per `LearningCard`. `FsrsReviewHistoryEntries` is the append-only factual review log with gapless 1-based `SequenceNumber` per card and a unique `StableId` per event. `WordLearningControls` and `SenseLearningControls` are reversible clean learning-control decisions with separate semantic ownership. Full binding contract: [Schema-13 Production Contract](#schema-13-production-contract-kf-fsrs-003) below.
 
 Relationships are represented by entity IDs and enforced by transactional
 service operations and tests. Do not introduce a competing representation of
@@ -78,8 +78,13 @@ the same document, vocabulary, meaning, sense, context, card, or session.
 3. One vocabulary identity may have many occurrences and surface forms.
 4. Frequency equals accepted occurrences; context deduplication does not lower
    it.
-5. Permanently known vocabulary retains only the minimum marker needed to skip
-   future review.
+5. Schema-13 Learn represents `AlreadyKnown` with the word-level clean control,
+   preserving the semantic vocabulary graph, accepted content, contexts,
+   LearningCards, factual review history, and FSRS state/history. It may remove
+   incomplete queue work and normalize affected sessions under the
+   [Data deletion](#data-deletion) contract. Historical destructive minimal-marker
+   semantics apply only to the explicitly scoped legacy or review/Preparation
+   disposition contracts; they are not a global AlreadyKnown invariant.
 6. Prepared meanings and lexical-cache reference data remain distinct from
    personal knowledge and scheduling state.
 7. Each enabled card direction has independent scheduling state.
@@ -185,8 +190,11 @@ Release/AOT paths must not fall back to reflection-dependent serialization.
 ## Data deletion
 
 - Reset is an explicit user-confirmed product operation, not a migration.
-- Permanent-known and completed-document cleanup follow the binding lifecycle
-  rules in [KNOWNFIRST_ARCHITECTURE.md](KNOWNFIRST_ARCHITECTURE.md).
+- Schema-13 Learn permanent-known persists the word-level AlreadyKnown control
+  and removes incomplete queue work while preserving the semantic graph,
+  LearningCards, FSRS state/history, and factual reviews. Separate review/Preparation
+  dispositions and historical document cleanup follow the scoped lifecycle rules
+  in [KNOWNFIRST_ARCHITECTURE.md](KNOWNFIRST_ARCHITECTURE.md).
 - Cache invalidation must not delete personal meanings, review decisions,
   schedules, or history.
 - Maintenance must be idempotent and must not block initial UI rendering.
@@ -457,7 +465,7 @@ Package 5A lifecycle behavior for this evidence:
 
 ## Schema-12 Learning-Day and Daily New-Word Budget Contract (Merged Production State)
 
-**Lifecycle status:** merged production `master` state via PR #142 (`feat: add daily new-word learning-day budget`; merge commit `34afed431711dd165b334d66b50b251a839faf02`). `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are 12 on `master`.
+**Historical activation status:** merged production `master` state via PR #142 (`feat: add daily new-word learning-day budget`; merge commit `34afed431711dd165b334d66b50b251a839faf02`). `DatabaseSchema.CurrentVersion` and `PRAGMA user_version` were 12 at that package's merge. The Schema-12 activation and V2 boundaries below describe that historical stage; current startup and transport follow the Schema-13 production contract. The retained learning-day tables and installation-local isolation remain applicable.
 
 Schema 12 introduces durable logical learning-day state, frozen timezone and cutoff tracking, Bridge intervals, and daily new-word grant tracking.
 
@@ -525,7 +533,7 @@ Records each genuinely-new `WordId` admitted to a logical learning day.
 
 ## Schema-13 Production Contract (KF-FSRS-003)
 
-Schema 13 is the clean production target on the KF-FSRS-003 candidate. A genuinely empty database bootstraps directly to Schema 13. Normal startup does not migrate Schema 1–12 databases: those databases, malformed current databases, future databases, and non-empty unversioned databases fail closed without reset, deletion, repair, or mutation. Startup enables `PRAGMA foreign_keys = ON` before inspecting the version and validates an already-current database before exposing services.
+Schema 13 is the clean production target on current `master`, delivered by merged `KF-FSRS-003`. A genuinely empty database bootstraps directly to Schema 13. Normal startup does not migrate Schema 1–12 databases: those databases, malformed current databases, future databases, and non-empty unversioned databases fail closed without reset, deletion, repair, or mutation. Startup enables `PRAGMA foreign_keys = ON` before inspecting the version and validates an already-current database before exposing services.
 
 ### FSRS factual state and replay
 
@@ -547,7 +555,7 @@ Archive format version remains 3. Schema-13 FSRS history and state must meet exa
 
 ## Historical Schema-13 Persistence and Migration Foundation (KF-PERSIST-013-001)
 
-This section records the pre-cutover foundation. Its statements about dormant production activation apply to that historical package and are superseded for the current candidate by the Schema-13 production contract above.
+This section records the pre-cutover foundation. Its statements about dormant production activation apply only to that historical package and are superseded for current `master` by the Schema-13 production contract above.
 
 ### 1. Activation and Dormancy Boundary
 
@@ -713,3 +721,6 @@ CREATE TABLE SenseLearningControls (
 - **Archive Format Remains V2:** Portable `.kfarchive` export and import remain format V2.
 - **Archive V3 Prerequisite:** Schema-13 structures (`FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, `SenseLearningControls`) are not exported to V2 archives. Export and cross-installation transport of Schema-13 state belong to `KF-BACKUP-006` (Archive V3).
 - **No Incompatible Transport:** Schema-13 data is never coerced or truncated into Schema-12/V2 archives.
+# Current Schema-13 status
+
+Schema 13 is current production source/runtime truth on `master`. Fresh empty production databases bootstrap directly to Schema 13. Existing Schema 1–12 databases fail closed in the current production startup path; this document does not authorize or describe an automatic production migration. `WordLearningControls` and `SenseLearningControls` are persisted Schema-13 data with repository, backup/restore, integrity-validation, and test coverage; user-facing workflows remain backlog work.

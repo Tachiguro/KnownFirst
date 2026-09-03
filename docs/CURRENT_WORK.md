@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-02 (KF-FSRS-003 is locally complete through Repair-006 and approved for documentation; Schema 13 and FSRS-6 are active in the local candidate; the candidate remains unpushed).
+2026-09-03 (current `master` includes merged PR #191; Schema 13, Archive V3, and FSRS-6 runtime are current source truth).
 
 ## Repository and Worktree Governance
 
@@ -17,7 +17,12 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active work package selection:** `KF-FSRS-003` (`feature/fsrs6-schema13-cutover-v1`): Production Schema-13 / FSRS-6 cutover, complete locally through Repair-006 across 14 checkpoint commits. Consolidated `REVIEW_ONLY` approved (`REVIEW_APPROVED_FOR_DOCUMENTATION`). Mandatory package-level `DOCUMENT_ONLY` is active on candidate HEAD `b7c979bf188e0c5526b9a7dfccf419ac387c2d9e`; post-documentation candidate `FULL_VALIDATION` has not run, the branch is unpushed, no PR exists, and source is not merged to `master`.
+- **Active package:** `KF-GOV-BACKLOG-002`
+- **Active branch:** `docs/product-backlog-reconciliation-v1`
+- **Active lifecycle:** `DOCUMENT_ONLY` reconciliation/repair
+- **Working state:** Uncommitted documentation reconciliation; no files are staged. This package is limited to reconciling durable documentation with the verified current source/runtime state. The prior `KF-FSRS-003` candidate narrative below is historical lifecycle evidence and is superseded by the merged cutover.
+
+- **Historical work package:** `KF-FSRS-003` (`feature/fsrs6-schema13-cutover-v1`) was the prior cutover package. Its candidate-era lifecycle evidence is retained below for history only; its source/runtime result is merged to `master` via PR #191.
 - **Backlog and sequencing authority:** [docs/BACKLOG.md](BACKLOG.md) owns the authoritative registry of all accepted open work, product decisions, deferred follow-ups, and unprioritized initiatives. [docs/ROADMAP.md](ROADMAP.md) owns milestone sequencing.
 - **Persistence boundary:** `DatabaseSchema.CurrentVersion` is **13**. Fresh genuinely empty databases bootstrap directly to Schema 13 via `Schema13CleanBootstrap`. Existing Schema 1–12 databases are unsupported by the production startup path and fail closed with `DatabaseSchemaCompatibilityException` without automatic migration, reset, or mutation. Malformed or future-version databases also fail closed. Portable archive format for Schema-13 databases is V3; V1/V2 archives are accepted into Schema-13 targets only when their required causal interaction order is provable. `PRAGMA foreign_keys = ON` is enforced globally for every production database connection.
 - **Scheduling boundary:** `IFsrs6SchedulingService` / `Fsrs6SchedulingService` is the live production FSRS-6 scheduling authority wired into `LearningService` via `AddKnownFirstLearningRuntime()`. `SimpleSpacedRepetitionScheduler` is no longer the authoritative production scheduler for Schema-13 databases. Legacy physical columns (`IntervalDays`, `EaseFactor`) remain present but are not authoritative for Schema-13 scheduling.
@@ -26,9 +31,9 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - `KF-VOCAB-005` / `KF-VOCAB-006`: Vocabulary area UI and service integration for clean learning controls.
 - **Live state precedence:** Live Git branch/HEAD, worktree status, open pull requests, and repository state override static document text.
 
-## Production Schema-13 / FSRS-6 Cutover (KF-FSRS-003 — Local Candidate)
+## Historical Production Schema-13 / FSRS-6 Cutover Candidate (KF-FSRS-003 — Now Merged)
 
-The candidate activates Schema 13, FSRS-6 runtime composition, global foreign-key enforcement, factual FSRS persistence, clean learning controls, and Archive V3 integrity. Repair-005 introduced `learning-review-causal-order-v1`; Repair-006 completes feature-marked populated-import handling. The detailed persistence and archive contracts belong in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [backup-format-v1.md](architecture/backup-format-v1.md), and [backup-merge-v1-design.md](architecture/backup-merge-v1-design.md).
+The prior candidate activated Schema 13, FSRS-6 runtime composition, global foreign-key enforcement, factual FSRS persistence, clean learning controls, and Archive V3 integrity; these capabilities are now merged. Repair-005 introduced `learning-review-causal-order-v1`; Repair-006 completed feature-marked populated-import handling. The detailed persistence and archive contracts belong in [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md), [backup-format-v1.md](architecture/backup-format-v1.md), and [backup-merge-v1-design.md](architecture/backup-merge-v1-design.md).
 
 For a feature-marked populated V3 import, each affected card/equal-normalized-timestamp interaction group compares ordered source sequence `S` with target sequence `T`: `T == S` makes no change; a target prefix appends only the missing source tail; a source prefix preserves the target tail; any other divergence fails closed before mutation. Repeated equal-valued occurrences remain distinct.
 
@@ -113,7 +118,7 @@ Merged to `master` via PR #160 (`fix: repair manual preparation entry`; merge co
   - Validation & error handling: mode-specific localized validation errors for empty Definition (Definition mode) or empty Translation (Translation mode) with automatic reveal and focus. Unexpected errors remain safely logged without exposing raw exception details.
   - Save-versus-progression recovery: successful acceptance is committed to SQLite before attempting next-item loading; if next-item retrieval fails, the UI reports that the item was saved but the next item could not be loaded, and Retry executes progression/loading only without repeating acceptance.
   - Preparation action semantics: neutral/secondary bottom-area "End preparation" action with inline confirmation; competing disposition actions are suppressed during confirmation; accepted learning content and lasting Known/Ignored decisions are preserved; unresolved and skipped items return to backlog.
-  - Persistence invariants: `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2. No schema migration, column additions, or archive format changes.
+  - Persistence invariants: `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at that package's merge. No schema migration, column additions, or archive format changes.
 - **Verification Evidence:**
   - Initial genuine RED: manual Definition without lexical result failed with `InvalidOperationException: The preparation candidate has no lexical result to accept.`
   - Initial package-focused suite: 200 passed / 0 failed / 0 skipped.
@@ -142,9 +147,9 @@ Merged to `master` via PR #160 (`fix: repair manual preparation entry`; merge co
   - **Initial attempt on `eb4a2302...` (2026-08-16):** Canonical `GooglePlayBundle` execution failed (`GooglePlayBundle-20260816-195953.log`, exit code 1) because the publisher's `-warnaserror` promoted 8 XML documentation compiler warnings to errors. Resolved in PR #121.
   - **Second attempt on `38814434...` (2026-08-17):** Following Gate-17 certification on `38814434...`, canonical `GooglePlayBundle` execution failed (`GooglePlayBundle-20260817-021326.log`, exit code 1) before `dotnet publish` because stale `*-Signed.aab` output survived internal `dotnet clean` under `publish/`. Classified as `CANONICAL_PACKAGING_WORKFLOW_DEFECT` and resolved in PR #124.
 - **Pre-AAB Gate Status:** On 2026-08-24, fresh exact-master technical validation (`ValidateAll-20260824-042536.log`), Gate 12 manual visual check ('visual test ok'), Gate 16 blocker evaluation, and Gate 17 Pre-AAB release-readiness certification were **COMPLETED AND CERTIFIED FOR GOOGLE PLAY INTERNAL TESTING** on synchronized `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`.
-- **Source identity:** `1.0.0-beta.13` (build 14) merged on `master` via PR #149. Merging is not a packaging, signing, or distribution event.
+- **Historical packaged source identity:** `1.0.0-beta.13` (build 14) merged on `master` via PR #149. Merging is not a packaging, signing, or distribution event.
 - **Confirmed external distribution:** `1.0.0-beta.12` / build 12 (Google Play Internal Testing, confirmed 2026-07-30). No newer Android external distribution has occurred.
-- **Database schema:** SQLite `PRAGMA user_version` 12 on `master` (Daily New-Word Limit & Learning-Day Infrastructure, merged via PR #142).
+- **Database schema:** Current production uses SQLite `PRAGMA user_version` 13; the earlier Schema-12 learning-day foundation is historical base state.
 - **Supported platforms:** Android (Google Play Internal Testing) and Windows development/verification. iOS and Mac Catalyst remain removed.
 - **Windows distribution packaging:** A real self-contained Windows Portable Release ZIP (`KnownFirst-1.0.0-beta.13-build13-win-x64-9e455d0.zip`) and matching SHA-256 sidecar were produced and verified on `master` at source commit `9e455d0e03494cac8e713cd4d16c66946124f852` on 2026-08-16. Clean-PC runtime execution, MSIX packaging, and external distribution remain separate unexecuted milestones.
 - **Android Release APK:** A signed Android Release APK (`KnownFirst-1.0.0-beta.13-android-release.apk`, SHA-256 `53bbcb18b62927dae0af0a63d0e6a3cda6a8420c1c9517d354c638504b9ac6b6`) was produced and verified on physical hardware for manual Android validation.
@@ -162,7 +167,7 @@ Merged to `master` via PR #158 (`feat: personalize home greeting`; merge commit 
   - RU: `Добро пожаловать, {0}.`
 - **Subtitle-Only Fallback:** When no Display Name is configured (null / absent), Home preserves the existing subtitle-only rendering without an empty greeting, placeholder, or spurious separator whitespace.
 - **Home Heading:** The visible `KnownFirst` heading remains unchanged.
-- **Persistence & Boundaries:** Display Name remains application/device-local Preferences state. `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2. Excluded from SQLite and portable archives; preserved across Restore Defaults; cleared on destructive full reset.
+- **Persistence & Boundaries:** Display Name remains application/device-local Preferences state. At that package's merge, `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2. Excluded from SQLite and portable archives; preserved across Restore Defaults; cleared on destructive full reset.
 - **Non-Goals:** No account, profile, cloud identity, new persistence abstraction, time-of-day greeting, avatar, Home redesign, or unrelated personalization.
 - **Focused Evidence:** Genuine RED (155 passed / 3 failed / 0 skipped) → identical GREEN (158 passed / 0 failed / 0 skipped across `LocalizationResourceTests`, `UiWorkflowContractTests`), with clean `git diff --check`.
 - **Consolidated Review:** 0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; decision `REVIEW_APPROVED_FOR_DOCUMENT_ONLY`.
@@ -192,7 +197,7 @@ Slice 2A is merged production `master` state via PR #144 (`feat: add settings GU
   - **Restore default settings** is non-destructive: it restores the target defaults above (settings, theme preference, language preference) and **preserves the user's current online-dictionary lookup consent exactly as it is** — granted stays granted, not granted stays not granted. It does not call `Database.ResetAsync()`, does not call `Preferences.Clear()`, and does not touch vocabulary, learning cards, review/learning history, imported documents, other database content, Display Name, onboarding state, What's-New/version state, or any other unrelated persisted product state.
   - **Reset all application data** remains the separate destructive action, remains last in the Settings product order, and retains its existing destructive confirmation, `Database.ResetAsync()` call, and `Preferences.Clear()` call. After a full reset, online-dictionary lookup consent is always false/not granted (unconditionally revoked, independent of whatever the in-memory consent value was immediately before `Preferences.Clear()`), and ordinary settings defaults are restored afterward via the same shared default-restoration policy (`Services.Settings.SettingsDefaultsService`, exposing `RestoreDefaults()` for the non-destructive path and `RestoreDefaultsForFullReset()` for the destructive path, so both flows cannot drift apart on the target defaults while keeping the consent contracts distinct).
 - **Enhanced Term Recognition default transition:** the authoritative default for a missing `enhanced_term_recognition_enabled` preference is now ON (`KnownFirst.Core.Settings.EnhancedTermRecognitionPolicy.DefaultEnabled = true`, the single source of truth). An explicitly persisted `false` remains OFF. Both "Restore default settings" and "Reset all application data" restore ETR to ON. Existing German ETR runtime behavior (`TextReviewService`, `ConservativeGermanCompoundDecomposer`, Schema-11 `DerivedTermEvidence` persistence) is otherwise unchanged. **Upgrade implication (explicitly accepted for this candidate, not a defect):** an existing installation that has no persisted `enhanced_term_recognition_enabled` key — including an installation that has never touched the toggle — will resolve to ON after upgrading to a build containing this change, since the physical preference store makes no distinction between "fresh install" and "pre-existing install that never set the key." No install-origin migration infrastructure was added or is planned for this package.
-- **Schema/archive:** `DatabaseSchema.CurrentVersion` remains 12; portable archive format remains V2. No schema, migration, or archive contract changed.
+- **Schema/archive:** At that package's merge, `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2. No schema, migration, or archive contract changed.
 - **Lifecycle evidence:**
   - Initial Slice-2A candidate committed as `0d0d5b9f52a7823cb793dea94ca319f48fae9ec7` passed an earlier `FULL_VALIDATION` (`artifacts/launcher-logs/ValidateAll-20260823-014311.log`), which became stale once pre-PR UI corrections and catalog expansion modified repository files afterward.
   - Pre-PR UI corrections & deterministic 24-hour cutoff / 50-zone catalog:
@@ -256,7 +261,7 @@ Package 5B is merged production `master` state via PR #140 (`feat: show German d
 
 ## First-Run Onboarding + Daily New-Word Budget UX — Slice 1 (Merged Production State)
 
-Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding install-origin foundation`; merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`; validated PR head `36534afa4664eea99fcb41b2554b72e64d7a35ec`), on top of Settings GUI Slice 2A (PR #144). Exact-head `FULL_VALIDATION` passed with 2364 passed / 0 failed / 0 skipped across `KnownFirst.Tests`, Windows Debug/Release PASS, Android Debug/Release PASS (0 warnings / 0 errors). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion` remains 12 and portable archive format remains V2.
+Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding install-origin foundation`; merge commit `aef5662cf4c4ad07ad937a35cdd15b3a793e4e59`; validated PR head `36534afa4664eea99fcb41b2554b72e64d7a35ec`), on top of Settings GUI Slice 2A (PR #144). Exact-head `FULL_VALIDATION` passed with 2364 passed / 0 failed / 0 skipped across `KnownFirst.Tests`, Windows Debug/Release PASS, Android Debug/Release PASS (0 warnings / 0 errors). `POST_MERGE_SYNC_ONLY` completed successfully; `DatabaseSchema.CurrentVersion` was 12 and portable archive format was V2 at that package's merge.
 
 - **Scope & Foundation:**
   - Implements application-local preference-backed onboarding state (`Required = 1`, `InProgress = 2`, `Completed = 3`) via `KnownFirst.Core.Settings.OnboardingState` and `OnboardingStatePolicy`.
@@ -264,7 +269,7 @@ Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding i
   - Distinguishes fresh installations (no onboarding marker + no legacy preference evidence => `Required`) from existing installations (no onboarding marker + legacy preference evidence => `Completed`). Database-file existence is deliberately not used as install-origin evidence. Already valid onboarding state is respected without reclassification.
   - Grandfathers existing installations with no persisted `preparation_limit` by pinning the legacy effective value `10` to `preparation_limit`. Existing explicit values are preserved; genuine fresh installs are not pinned. `PreparationLimitPolicy.DefaultLimit` remains 10 with existing presets ($N \in \{5, 10, 20, 30, 50\}$).
   - Reset contracts: Destructive full reset sets `OnboardingState.Required` first before default restoration recreates legacy markers; online dictionary consent remains unconditionally revoked. Non-destructive Restore Defaults leaves onboarding state untouched and preserves current online dictionary consent.
-  - Persistence boundary: onboarding state is Preferences/application-local state, not SQLite. `DatabaseSchema.CurrentVersion` remains 12 and archive format remains V2. No SQLite tables, columns, migrations, or archive DTO changes.
+  - Persistence boundary: onboarding state is Preferences/application-local state, not SQLite. `DatabaseSchema.CurrentVersion` was 12 and archive format was V2 at that package's merge. No SQLite tables, columns, migrations, or archive DTO changes.
 - **Explicit Non-Goals / Later Slices:**
   - Visible first-run onboarding UI, `Routes.razor` routing/gating, resume-step UI, Display Name, Home personalization, new daily-budget presets `1 / 5 Recommended / 10 / Custom`, default change from 10 to 5, >15 custom-budget warning, onboarding localization, GUI-test-profile onboarding suppression, and What's New install-origin integration are not implemented in Slice 1 and remain planned for later slices.
 - **Remaining lifecycle:** none. `DOCUMENT_ONLY`, `COMMIT_ONLY`, exact-candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY` are all complete for Slice 1.
@@ -299,3 +304,8 @@ Slice 1 is merged production `master` state via PR #153 (`feat: add onboarding i
 ### Completed Historical Packaging — Beta-13 Build-14 AAB
 
 Pre-AAB Gate certification and local signed bundle creation for `KnownFirst-1.0.0-beta.13-code14.aab` passed on `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`; packaging evidence was recorded and merged via PR #152. Google Play Console upload and Internal Testing distribution remain separately deferred until explicitly authorized.
+## Current source-state reconciliation
+
+The current checkout is `docs/product-backlog-reconciliation-v1`, based on local `master` with the merged `KF-FSRS-003` cutover. `KF-GOV-BACKLOG-002` remains in `DOCUMENT_ONLY` with uncommitted, unstaged documentation changes. Schema 13, Archive V3, `KnownFirst.Application` production composition, and `IFsrs6SchedulingService` / `Fsrs6SchedulingService` are current source/runtime truth. Existing Schema 1–12 databases fail closed in the production startup path; no automatic production migration is documented.
+
+Downstream user-facing Vocabulary workflows remain open under `KF-VOCAB-005` and `KF-VOCAB-006`. Product decisions remain unresolved under `KF-LEARN-005`, `KF-METRIC-001`, `KF-LEARN-010`, and `KF-PREP-003`. Later cleanup remains `KF-CLEANUP-001`; the separate consolidated review package is `KF-ARCH-001`. Release, package, GUI, device, and distribution evidence is not inferred from source state.

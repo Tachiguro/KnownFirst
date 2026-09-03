@@ -680,7 +680,7 @@ Automatic transition behavior, as implemented for one card:
 - in a Typing interaction, a correct typed answer increases its typing-success counter and clears its failure counter; an incorrect typed answer clears the success counter and increases the failure counter
 - after two consecutive incorrect typed answers, that card's progress returns to the Reading interaction and its counters are reset
 
-A review card that has reached the 365-day maximum interval is a mastery review. Rated better than Again without achieving mastery, its next due date is extended once to that maximum. Mastery requires a correct typed answer on a mastery review that brings that answer to two consecutive typing successes. When all required answers of the current card satisfy the mastery rule, that card is retired. The other card direction remains independent and is not retired automatically. KnownFirst never claims mastery from elapsed time alone, and mastery does not replace the explicit permanent-known decision in section 18.
+**Historical legacy mastery behavior (superseded):** The initial scheduler treated a 365-day review as a mastery review, allowed a one-time interval extension, and retired a card after all required answers met its typed-success mastery rule; sibling directions remained independent. Those mastery, retirement, mastery-driven queue-pruning, and Sense-rollup rules are not current Schema-13 behavior. Current FSRS scheduling is separate from interaction progress, and Schema-13 replay does not synthesize legacy `Mastered`/`Retired` or mastery extensions. Clean controls in section 18 are explicit user decisions, not inferred learning outcomes. No replacement mastery concept or resolution of `KF-LEARN-004`, `KF-LEARN-005`, or `KF-METRIC-001` is introduced here.
 
 ---
 
@@ -850,6 +850,8 @@ Intervals continue to grow. They do not end automatically after 7 or 14 days.
 
 Schema 13 separates word-level AlreadyKnown from sense-level StopLearning. AlreadyKnown affects eligibility for all cards of its word; StopLearning affects only the controlled sense, leaving sibling senses and their card directions independent. These clean controls preserve factual learning history and FSRS state. They are not inferred from stale legacy status fields, and they are never applied automatically. User-interface reversal and stop/resume workflows are outside this package.
 
+The confirmed Learn **Mark permanently known** action persists `WordLearningControls`, removes the word's incomplete queue entries, and normalizes affected sessions. It preserves the semantic graph, LearningCards, contexts, completed queue history, factual reviews, and FSRS state/history. Review and Preparation dispositions (including section 13's Mark as known cleanup) are separate paths; their legacy behavior is not this Learn contract. `KF-VOCAB-005` owns the open reversal workflow and `KF-VOCAB-006` owns the open sense stop/resume workflow.
+
 ---
 
 ## 19. Learning-session completion
@@ -926,6 +928,8 @@ A document is complete only when:
 ---
 
 ## 21. Fully completed text
+
+**Historical cleanup scope:** The destructive rules below describe the earlier document lifecycle and separate review/Preparation cleanup. They are superseded for the current Schema-13 Learn permanent-known path: marking a learned word AlreadyKnown does not delete its graph, cards, contexts, FSRS state, or factual history (section 18).
 
 When the document is complete:
 
@@ -1186,16 +1190,16 @@ Verify:
 4. reopen
 5. continue at the correct card without duplicating ratings
 
-### Scenario H: Permanently known and document deletion
+### Scenario H: Schema-13 Learn permanent-known preservation
 
-1. retain a document with one active learning word
-2. mark that word permanently known
-3. confirm cleanup
-4. verify no future card remains
-5. verify the completed document and context snapshots are deleted
-6. verify the minimal known marker remains
-7. reimport a text containing that word
-8. verify KnownFirst does not ask again
+1. retain a prepared word with learning cards, contexts, and factual review history
+2. choose Mark permanently known in Learn and confirm the decision
+3. verify the word-level AlreadyKnown control is persisted
+4. verify the word's incomplete queue work is removed and normal learning eligibility is blocked
+5. verify the semantic graph, LearningCards, contexts, completed queue history, factual reviews, and FSRS state/history are preserved
+6. repeat the action and verify the original decision timestamp remains unchanged
+
+This replaces the legacy Learn deletion scenario; it does not redefine review/Preparation dispositions or implement the future Vocabulary reversal workflow.
 
 ---
 
@@ -1218,3 +1222,6 @@ The MVP does not require:
 - full offline dictionary packages
 
 FSRS-6 (`IFsrs6SchedulingService`) is the production scheduling authority as of `KF-FSRS-003`; the initial simple scheduler has been superseded.
+# Current consent-presentation note
+
+Current repository behavior remains: when Online Dictionary consent is OFF, Automatic Online is visible but disabled and the user is directed to Settings. A later proposal would hide or stop offering that method after explicit decline/revocation; this is unresolved under `KF-PREP-003` and is not accepted behavior. Transport authorization, revocation cancellation, and fail-closed enforcement are unchanged by this presentation question.

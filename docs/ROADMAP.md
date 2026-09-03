@@ -6,7 +6,7 @@ This roadmap records intended sequence and priority. Verified current implementa
 
 ## Active Priority
 
-The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and merged to `master` (PRs #153, #155, #156, #158, #181, #182). Following onboarding completion, two foundational architecture packages were merged to `master`: the in-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008) and the clean domain learning-control foundation with a separate, dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186).
+The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and merged to `master` (PRs #153, #155, #156, #158, #181, #182). Schema-13 persistence, Archive V3, and the FSRS-6 runtime cutover are also merged. Current direction is product-first: reconcile and record decisions, complete intended product behavior, then perform a consolidated architecture/code review and bounded refactoring, and only afterward return to GUI/release/package/distribution work.
 
 Durable backlog tracking and repository governance are established through [docs/BACKLOG.md](BACKLOG.md), which serves as the authoritative single source of truth for all accepted open work, product decisions, deferred follow-ups, and multi-package initiatives outside active implementation branches. Active operational task state is discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) and tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -63,12 +63,11 @@ Beta-13 Build-14 AAB creation and packaging evidence are recorded as completed i
 The following initiatives represent accepted product directions whose individual packages, acceptance criteria, and dependencies are durably tracked in [docs/BACKLOG.md](BACKLOG.md). Their global sequence and priority ordering are subject to explicit user confirmation rather than assumed numeric priority:
 
 ### 1. FSRS-6 Production Cutover & Clean Domain Persistence
-- **Foundation State:** In-tree deterministic FSRS-6 core scheduling engine (`KF-FSRS6-CORE-001`, PR #184, ADR-0008), clean domain learning controls with dormant `KnownFirst.Application` project (`KF-CLEAN-DOMAIN-013-001`, PR #186), and dormant Schema 13 physical persistence and migration foundation (`KF-PERSIST-013-001`, PR #189) are committed to `master`. Archive V3 transport foundation (`KF-BACKUP-006`) is merged to `master` via PR #190 (feature head `03a6eff513b50377adfdee8dbb340f439e7dd0ce`, exact-HEAD `FULL_VALIDATION` passed, `POST_MERGE_SYNC_ONLY` complete).
-- **Current:**
-  - `KF-FSRS-003`: The Schema-13 / FSRS-6 cutover implementation candidate is locally complete and review-approved. Documentation reconciliation, candidate finalization, `FULL_VALIDATION`, push, and PR lifecycle remain before source integration is complete.
+- **Foundation and cutover state:** In-tree FSRS-6 core, clean domain controls, Schema-13 persistence, Archive V3 transport, and production runtime cutover are merged to `master` (`KF-FSRS6-CORE-001`, `KF-CLEAN-DOMAIN-013-001`, `KF-PERSIST-013-001`, `KF-BACKUP-006`, `KF-FSRS-003`).
+- **Current:** Downstream Vocabulary workflows (`KF-VOCAB-005`, `KF-VOCAB-006`) and product decisions remain open. `KF-CLEANUP-001` is deferred later cleanup, not current cutover work.
 - **Open Downstream Packages:**
   - `KF-CLEANUP-001`: Legacy scheduler deprecation, column removal (`IntervalDays`, `EaseFactor`), and replay policy cleanup.
-- **Dependency Sequence:** Completed Core, Domain, Persistence & Transport Foundations (`KF-FSRS6-CORE-001`, `KF-CLEAN-DOMAIN-013-001`, `KF-PERSIST-013-001`, `KF-BACKUP-006`) $\to$ Production Cutover (`KF-FSRS-003`) $\to$ release-oriented blocker triage for functioning Web and Android/AAB paths after merge. `KF-CLEANUP-001` is downstream and begins only when it is an appropriate, genuine blocker.
+- **Dependency Sequence:** Documentation/backlog reconciliation → explicit product decisions (`KF-LEARN-005`, `KF-METRIC-001`, `KF-LEARN-010`, `KF-PREP-003`) → intended product implementation → consolidated review/refactoring (`KF-ARCH-001`) → later GUI/release/package/distribution work.
 
 ### 2. Vocabulary Management Area
 - **Objective:** Replace the `/dictionary` placeholder card (`KF-VOCAB-001`) with a real, production-grade Vocabulary area.
@@ -77,8 +76,8 @@ The following initiatives represent accepted product directions whose individual
   - `KF-VOCAB-003`: Vocabulary detail view for senses, definitions, contexts, and learning history.
   - `KF-VOCAB-004`: Post-acceptance correction/editing of definitions, translations, and answer variants.
   - `KF-PREP-002`: Re-preparation / fresh lexical lookup for existing vocabulary.
-  - `KF-VOCAB-005`: AlreadyKnown reversal UI and persistence ("learn this after all"). Consumes Schema 13 persistence (`KF-PERSIST-013-001`).
-  - `KF-VOCAB-006`: Sense-level Stop Learning / Resume Learning UI and persistence. Consumes Schema 13 persistence (`KF-PERSIST-013-001`).
+  - `KF-VOCAB-005`: AlreadyKnown reversal user-facing/service workflow; Schema-13 persistence foundation already exists ("learn this after all").
+  - `KF-VOCAB-006`: Sense-level Stop Learning / Resume Learning user-facing/service workflow; Schema-13 persistence foundation already exists.
 
 ### 3. Learning Interaction & Direction UX
 - **Objective:** Align learning card presentation and progression with genuine direction semantics.

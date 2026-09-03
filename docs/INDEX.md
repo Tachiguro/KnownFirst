@@ -14,6 +14,7 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 - **Read [docs/BETA_TESTING.md](BETA_TESTING.md) for:** manual Android device testing procedures.
 - **Read [docs/GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md) for:** manual cross-platform GUI testing.
 - **Read [docs/BACKLOG.md](BACKLOG.md) for:** internal bugs, small UX improvements, and deferred observations tracked outside GitHub Issues.
+- **Learning-target semantics:** [architecture/learning-target-semantics.md](architecture/learning-target-semantics.md) records the unresolved Definition/Translation learning-target product decision owned by `KF-LEARN-010`.
 - **Do NOT read routine status or historical docs** ([PROJECT_STATE.md](PROJECT_STATE.md), [ROADMAP.md](ROADMAP.md), [CHANGELOG.md](../CHANGELOG.md), audits, handoffs, backup plans) unless directly required by the task category below.
 
 ## Task-Based Reading Matrix
@@ -31,7 +32,7 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 - **Normally NOT required:** Backup plans, database audit, build/release guides.
 
 ### 3. Learning and Scheduling
-- **Required reading:** Relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md) (when FSRS-6 algorithm behavior, scheduling transitions, replay, or future FSRS persistence integration is affected), [REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md) (when its historical checkpoint is relevant), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if persistence changes), affected code and tests.
+- **Required reading:** Relevant sections of [MVP_WORKFLOW.md](MVP_WORKFLOW.md), [ADR-0008](decisions/ADR-0008-in-tree-fsrs6-core-scheduling-foundation.md) (when FSRS-6 algorithm behavior, scheduling transitions, replay, or FSRS persistence/runtime integration is affected), [REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md](REQUIREMENTS_DELTA_LEARNING_AND_NORMALIZATION.md) (when its historical checkpoint is relevant), [DATABASE_CONTRACT.md](DATABASE_CONTRACT.md) (only if persistence changes), affected code and tests.
 - **Normally NOT required:** Text analysis internals, backup plans, build/release guides.
 
 ### 4. UI and Localization

@@ -433,10 +433,19 @@ public static class Schema8LearningReviewReplayPolicy
     /// replayed state itself decides (a fresh epoch therefore starts in Reading).
     /// </summary>
     public static LearningInteractionMode ResolveInteraction(
-        LearningMode? learningMode, Schema8ReplayVariantOutcome targetOutcome)
+        LearningMode? learningMode,
+        Schema8ReplayVariantOutcome targetOutcome,
+        CardDirection direction = CardDirection.MeaningToTerm)
     {
         ArgumentNullException.ThrowIfNull(targetOutcome);
+        if (direction == CardDirection.TermToMeaning)
+        {
+            return LearningInteractionMode.Reading;
+        }
+
         return AutomaticLearningPolicy.ResolveInteraction(
-            learningMode ?? LearningMode.Automatic, targetOutcome.State);
+            learningMode ?? LearningMode.Automatic,
+            targetOutcome.State,
+            direction);
     }
 }

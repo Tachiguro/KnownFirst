@@ -153,12 +153,19 @@ internal static class Schema13LearningReviewPolicy
 
     public static LearningInteractionMode ResolveInteraction(
         LearningMode? learningMode,
-        Schema13InteractionOutcome targetOutcome)
+        Schema13InteractionOutcome targetOutcome,
+        CardDirection direction = CardDirection.MeaningToTerm)
     {
         ArgumentNullException.ThrowIfNull(targetOutcome);
+        if (direction == CardDirection.TermToMeaning)
+        {
+            return LearningInteractionMode.Reading;
+        }
+
         return AutomaticLearningPolicy.ResolveInteraction(
             learningMode ?? LearningMode.Automatic,
-            targetOutcome.State);
+            targetOutcome.State,
+            direction);
     }
 
     private static Schema13InteractionEvent ToInteractionEvent(Schema8ReviewRow row)

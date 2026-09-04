@@ -2843,7 +2843,8 @@ public sealed class LearningService : ILearningService
             EmptyToNull(meaning.EncounteredSurfaceForm),
             EmptyToNull(meaning.GrammaticalRelationship),
             meaning.SourceRevisionId,
-            graph.Queue.IsAgainRepeat);
+            graph.Queue.IsAgainRepeat,
+            graph.SenseId);
     }
 
     private static LearningSessionSummary BuildSchema8Summary(

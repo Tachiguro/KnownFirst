@@ -104,7 +104,10 @@ public sealed partial class PreparationService(
             lastCompletedPreparedItems);
     });
 
-    public async Task<int> StartAsync(PreparationMethod method, int requestedLimit)
+    public async Task<int> StartAsync(
+        PreparationMethod method,
+        int requestedLimit,
+        PreparationTargetAdditionRequest? targetAddition = null)
     {
         await _operationGate.WaitAsync();
         try
@@ -135,7 +138,7 @@ public sealed partial class PreparationService(
                 var capability = PreparationSchemaCapability.Resolve(connection);
                 if (AsSchema8CompatibleCapability(capability) is { } schema8StartCapability)
                 {
-                    return StartSchema8(connection, method, requestedLimit, schema8StartCapability);
+                    return StartSchema8(connection, method, requestedLimit, schema8StartCapability, targetAddition);
                 }
 
                 var preparedWordIds = connection.Table<MeaningEntity>()
@@ -420,7 +423,9 @@ public sealed partial class PreparationService(
                     // right away — never requiring an explicit accept first — and the candidate
                     // auto-completes immediately if that resolves every index.
                     var merged = MergeResultIntoEnvelope(candidate.ResultJson, result);
-                    var (autoResolved, nextIndex, isFullyResolved) = AutoResolveExactVariantsAfterLookup(connection, word, merged);
+                    var (autoResolved, nextIndex, isFullyResolved) = merged.TargetAddition is null
+                        ? AutoResolveExactVariantsAfterLookup(connection, word, merged)
+                        : (merged, 0, false);
                     candidate.ResultJson = PreparationCandidatePayloadCodec.Write(autoResolved);
                     candidate.SelectedMeaningIndex = nextIndex;
                     candidate.LastErrorCode = string.Empty;
@@ -561,6 +566,7 @@ public sealed partial class PreparationService(
                 // pre-Slice-3 behavior; the Schema-8 branch lives entirely in PreparationServiceSchema8.cs.
                 var capability = PreparationSchemaCapability.Resolve(connection);
                 var createSchema13State = capability is PreparationSchema13CapabilityResult or PreparationSchema14CapabilityResult;
+                var createSchema14State = capability is PreparationSchema14CapabilityResult;
                 if (createSchema13State
                     && !Schema13RuntimeIntegrityValidator.Validate(connection, out var failureDetail))
                 {
@@ -574,7 +580,8 @@ public sealed partial class PreparationService(
                         input,
                         cardDirectionPreference,
                         schema8AcceptCapability,
-                        createSchema13State)
+                        createSchema13State,
+                        createSchema14State)
                     : AcceptSchema7(connection, candidateId, input, cardDirectionPreference);
             });
             RecordTiming(
@@ -1284,6 +1291,35 @@ public sealed partial class PreparationService(
             ? await ResolveFrozenContextsAsync(connection, word, read.Envelope!.FrozenEvidence)
             : await ResolveLiveContextsAsync(connection, word);
 
+        if (read.Envelope?.TargetAddition is { } targetAddition)
+        {
+            lookupMode = targetAddition.TargetKind == KnownFirst.Core.Learning.LearningTargetKind.Definition
+                ? LexicalLookupMode.Definition
+                : LexicalLookupMode.Translation;
+            targetLanguage = targetAddition.TargetLanguage.Trim().ToLowerInvariant();
+            explanationLanguage = targetLanguage;
+        }
+
+        bool? existingTargetTypingOptOut = null;
+        if (read.Envelope?.TargetAddition is { } existingTargetAddition)
+        {
+            var rows = await connection.QueryAsync<TargetTypingPreferenceRow>(
+                """
+                SELECT lt.TypingOptOut
+                FROM LearningTargets lt
+                JOIN Senses s ON s.Id = lt.SenseId
+                WHERE lt.SenseId = ? AND s.WordId = ? AND lt.TargetKind = ? AND lt.SourceLanguage = ? AND lt.TargetLanguage = ?
+                ORDER BY lt.Id
+                LIMIT 1
+                """,
+                existingTargetAddition.SenseId,
+                word.Id,
+                (int)existingTargetAddition.TargetKind,
+                word.Language.Trim().ToLowerInvariant(),
+                existingTargetAddition.TargetLanguage.Trim().ToLowerInvariant());
+            existingTargetTypingOptOut = rows.Count == 0 ? null : rows[0].TypingOptOut != 0;
+        }
+
         return new PreparationItem(
             session.Id,
             candidate.Id,
@@ -1302,7 +1338,8 @@ public sealed partial class PreparationService(
             candidate.SelectedMeaningIndex,
             string.IsNullOrWhiteSpace(candidate.LastErrorCode) ? null : candidate.LastErrorCode,
             lookupMode,
-            targetLanguage);
+            targetLanguage,
+            existingTargetTypingOptOut);
     }
 
     /// <summary>The exact pre-Slice-3 Schema-7 context-loading algorithm: first three valid occurrences,
@@ -1712,6 +1749,11 @@ public sealed partial class PreparationService(
         return read.Kind == PreparationCandidatePayloadKind.EnvelopeV1
             ? read.Envelope! with { Result = result }
             : PreparationCandidatePayloadV1.Create(result);
+    }
+
+    private sealed class TargetTypingPreferenceRow
+    {
+        public int TypingOptOut { get; set; }
     }
 
     private static async Task<PreparationCandidateEntity?> FindCurrentCandidateAsync(

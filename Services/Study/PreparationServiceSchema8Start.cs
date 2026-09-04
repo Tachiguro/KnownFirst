@@ -1,4 +1,5 @@
 using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Learning;
 using KnownFirst.Data.Entities;
 using KnownFirst.Models;
 using SQLite;
@@ -19,39 +20,60 @@ public sealed partial class PreparationService
         SQLiteConnection connection,
         PreparationMethod method,
         int requestedLimit,
-        ValidatedPreparationSchema8Capability capability)
+        ValidatedPreparationSchema8Capability capability,
+        PreparationTargetAdditionRequest? targetAddition = null)
     {
         ArgumentNullException.ThrowIfNull(capability);
 
         var now = clock.UtcNow;
-        var words = connection.Table<WordEntity>().ToList();
         var selectionCandidates = new List<Schema8SelectionCandidate>();
 
-        foreach (var word in words)
+        if (targetAddition is not null)
         {
-            if (!ReviewIsResolved(connection, word.Id))
+            ValidateTargetAddition(targetAddition);
+            var targetWord = connection.Find<WordEntity>(targetAddition.WordId);
+            var targetSenseWordId = connection.ExecuteScalar<int>(
+                "SELECT COALESCE((SELECT WordId FROM Senses WHERE Id = ?), 0)",
+                targetAddition.SenseId);
+            if (targetWord is not null
+                && targetSenseWordId == targetWord.Id
+                && ReviewIsResolved(connection, targetWord.Id)
+                && targetWord.PreparationState == PreparationState.Prepared
+                && targetWord.Status is WordStatus.UnknownBacklog or WordStatus.Prepared or WordStatus.Learning or WordStatus.Mastered
+                && WordHasSenses(connection, targetWord.Id))
             {
-                continue;
+                selectionCandidates.Add(new Schema8SelectionCandidate(targetWord, Math.Max(1, targetWord.TotalOccurrenceCount), targetWord.CreatedAt));
             }
-
-            if (word.Status == WordStatus.UnknownBacklog && word.PreparationState == PreparationState.Unprepared)
+        }
+        else
+        {
+            var words = connection.Table<WordEntity>().ToList();
+            foreach (var word in words)
             {
-                if (WordHasSenses(connection, word.Id))
+                if (!ReviewIsResolved(connection, word.Id))
                 {
-                    // Defensive: an Unprepared word should never already own a Sense in normal operation.
                     continue;
                 }
 
-                selectionCandidates.Add(new Schema8SelectionCandidate(word, word.TotalOccurrenceCount, word.CreatedAt));
-            }
-            else if (word.PreparationState == PreparationState.Prepared && WordHasSenses(connection, word.Id))
-            {
-                // §5: throws PreparationCandidateStateException before any mutation when this Word's own
-                // candidate history cannot be classified.
-                var effectiveProcessedKeys = Schema8EvidenceLedger.ComputeEffectiveProcessedKeys(connection, word.Id);
-                if (Schema8EvidenceScanner.HasGenuinelyNewEvidence(connection, word.Id, effectiveProcessedKeys))
+                if (word.Status == WordStatus.UnknownBacklog && word.PreparationState == PreparationState.Unprepared)
                 {
+                    if (WordHasSenses(connection, word.Id))
+                    {
+                        // Defensive: an Unprepared word should never already own a Sense in normal operation.
+                        continue;
+                    }
+
                     selectionCandidates.Add(new Schema8SelectionCandidate(word, word.TotalOccurrenceCount, word.CreatedAt));
+                }
+                else if (word.PreparationState == PreparationState.Prepared && WordHasSenses(connection, word.Id))
+                {
+                    // §5: throws PreparationCandidateStateException before any mutation when this Word's own
+                    // candidate history cannot be classified.
+                    var effectiveProcessedKeys = Schema8EvidenceLedger.ComputeEffectiveProcessedKeys(connection, word.Id);
+                    if (Schema8EvidenceScanner.HasGenuinelyNewEvidence(connection, word.Id, effectiveProcessedKeys))
+                    {
+                        selectionCandidates.Add(new Schema8SelectionCandidate(word, word.TotalOccurrenceCount, word.CreatedAt));
+                    }
                 }
             }
         }
@@ -95,7 +117,18 @@ public sealed partial class PreparationService
             // §2: evidence snapshots are selected only now — after this Word has survived both priority
             // ordering and the requested-limit cut — and frozen while the candidate is still Pending.
             var frozen = Schema8EvidenceScanner.SelectFrozenEvidence(connection, word.Id, MaximumContextSnapshots);
-            candidate.ResultJson = PreparationCandidatePayloadCodec.Write(PreparationCandidatePayloadV1.CreatePending(frozen));
+            if (frozen.Count == 0 && targetAddition is not null)
+            {
+                var recognizedSurfaceForms = LoadRecognizedSurfaceForms(connection, word.Id);
+                var allContexts = Schema8EvidenceScanner.EnumerateOccurrenceContexts(connection, word.Id);
+                var validContexts = allContexts.Where(c => IsAttributableToCandidate(word.Id, c.Text, c.TargetStart, c.TargetLength, recognizedSurfaceForms));
+                frozen = validContexts
+                    .Take(MaximumContextSnapshots)
+                    .Select(c => new PreparationCandidateEvidence(c.DocumentId, PreparationContextEvidencePolicy.Fingerprint(c.Text), c.TargetStart, c.TargetLength))
+                    .ToList();
+            }
+            candidate.ResultJson = PreparationCandidatePayloadCodec.Write(
+                PreparationCandidatePayloadV1.CreatePending(frozen, targetAddition));
             connection.Update(candidate);
 
             word.PreparationState = PreparationState.Preparing;
@@ -108,6 +141,26 @@ public sealed partial class PreparationService
 
     private static bool WordHasSenses(SQLiteConnection connection, int wordId) =>
         connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Senses WHERE WordId = ?", wordId) > 0;
+
+    private static void ValidateTargetAddition(PreparationTargetAdditionRequest request)
+    {
+        if (request.WordId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "An existing positive WordId is required.");
+        }
+
+        if (request.SenseId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "An existing positive SenseId is required.");
+        }
+
+        if (!Enum.IsDefined(request.TargetKind))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "A supported learning-target kind is required.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetLanguage);
+    }
 
     private sealed record Schema8SelectionCandidate(WordEntity Word, int OccurrenceCount, DateTime FirstSeenAtUtc);
 }

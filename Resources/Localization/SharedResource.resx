@@ -807,6 +807,16 @@
   <data name="Prepare_AdvancedOptions" xml:space="preserve">
     <value>Advanced options</value>
   </data>
+  <data name="Prepare_UseTypingCheck" xml:space="preserve">
+    <value>Use typing check</value>
+  </data>
+  <data name="Prepare_AddTargetTitle" xml:space="preserve"><value>Add another learning target</value></data>
+  <data name="Prepare_AddTargetDescription" xml:space="preserve"><value>Choose the exact target you want to add for this prepared word.</value></data>
+  <data name="Prepare_TargetKind" xml:space="preserve"><value>Target kind</value></data>
+  <data name="Prepare_TargetKindDefinition" xml:space="preserve"><value>Definition</value></data>
+  <data name="Prepare_TargetKindTranslation" xml:space="preserve"><value>Translation</value></data>
+  <data name="Prepare_TargetLanguage" xml:space="preserve"><value>Target language code</value></data>
+  <data name="Learn_AddLearningTarget" xml:space="preserve"><value>Add another learning target</value></data>
   <data name="Prepare_DefinitionRequired" xml:space="preserve">
     <value>Enter a definition before continuing.</value>
   </data>

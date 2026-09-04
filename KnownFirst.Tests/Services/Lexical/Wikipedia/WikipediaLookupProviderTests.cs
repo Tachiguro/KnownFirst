@@ -95,6 +95,8 @@ public class WikipediaLookupProviderTests
         var meaning = result.Meanings[0];
         Assert.AreEqual("This is a test definition.", meaning.Definition);
         Assert.IsNull(meaning.Translation);
+        Assert.IsNull(meaning.PartOfSpeech);
+        Assert.IsEmpty(meaning.UsageLabels);
         Assert.AreEqual(0, result.RedirectDepth);
         Assert.IsFalse(result.IsFromCache);
         Assert.AreEqual(_clock.UtcNow, result.LookupAtUtc);

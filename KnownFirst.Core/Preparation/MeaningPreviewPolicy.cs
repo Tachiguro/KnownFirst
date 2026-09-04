@@ -43,7 +43,9 @@ public static class MeaningPreviewPolicy
 
     public static IReadOnlyList<SelectableMeaning> GetSelectableMeanings(
         IReadOnlyList<LexicalMeaning> meanings,
-        LexicalLookupMode? lookupMode = null)
+        LexicalLookupMode? lookupMode = null,
+        string? grammaticalRelationship = null,
+        string? topicOrDomain = null)
     {
         ArgumentNullException.ThrowIfNull(meanings);
 
@@ -99,6 +101,16 @@ public static class MeaningPreviewPolicy
             if (!string.IsNullOrWhiteSpace(meaning.PartOfSpeech))
             {
                 secondaryParts.Add(meaning.PartOfSpeech.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(topicOrDomain))
+            {
+                secondaryParts.Add(topicOrDomain.Trim());
+            }
+
+            if (!string.IsNullOrWhiteSpace(grammaticalRelationship))
+            {
+                secondaryParts.Add(grammaticalRelationship.Trim());
             }
 
             if (meaning.UsageLabels != null)

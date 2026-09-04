@@ -807,6 +807,16 @@
   <data name="Prepare_AdvancedOptions" xml:space="preserve">
     <value>Erweiterte Optionen</value>
   </data>
+  <data name="Prepare_UseTypingCheck" xml:space="preserve">
+    <value>Tippabfrage verwenden</value>
+  </data>
+  <data name="Prepare_AddTargetTitle" xml:space="preserve"><value>Weiteres Lernziel hinzufügen</value></data>
+  <data name="Prepare_AddTargetDescription" xml:space="preserve"><value>Wähle das genaue Lernziel, das du für dieses vorbereitete Wort hinzufügen möchtest.</value></data>
+  <data name="Prepare_TargetKind" xml:space="preserve"><value>Art des Lernziels</value></data>
+  <data name="Prepare_TargetKindDefinition" xml:space="preserve"><value>Definition</value></data>
+  <data name="Prepare_TargetKindTranslation" xml:space="preserve"><value>Übersetzung</value></data>
+  <data name="Prepare_TargetLanguage" xml:space="preserve"><value>Code der Zielsprache</value></data>
+  <data name="Learn_AddLearningTarget" xml:space="preserve"><value>Weiteres Lernziel hinzufügen</value></data>
   <data name="Prepare_DefinitionRequired" xml:space="preserve">
     <value>Gib eine Definition ein, bevor du fortfährst.</value>
   </data>

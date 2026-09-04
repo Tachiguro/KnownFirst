@@ -1103,6 +1103,23 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public async Task Lookup_GermanToEnglishPreservesProviderPartOfSpeechForTranslations()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-haus.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "Haus",
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Count > 0);
+        Assert.IsTrue(result.Meanings.All(meaning => meaning.PartOfSpeech == "Substantiv, Neutrum"),
+            "Translation meanings must retain the nearest provider-supplied part-of-speech heading.");
+    }
+
+    [TestMethod]
     public async Task Lookup_GermanToRussianReturnsTargetTranslations()
     {
         var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-haus-russian.json")));

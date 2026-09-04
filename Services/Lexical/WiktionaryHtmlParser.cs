@@ -196,7 +196,7 @@ public sealed partial class WiktionaryHtmlParser
 
     private static IReadOnlyList<LexicalMeaning> MergeDefinitionsAndTranslations(
         IReadOnlyList<LexicalMeaning> definitions,
-        IReadOnlyList<string> translations,
+        IReadOnlyList<(string Translation, string? PartOfSpeech)> translations,
         LexicalLookupMode lookupMode)
     {
         if (lookupMode == LexicalLookupMode.Definition)
@@ -209,20 +209,20 @@ public sealed partial class WiktionaryHtmlParser
         var effectiveTranslations = translations.Count > 0
             ? translations
             : definitions
-                .Select(meaning => meaning.Translation)
-                .Where(translation => !string.IsNullOrWhiteSpace(translation))
-                .Cast<string>()
-                .Distinct(StringComparer.Ordinal)
+                .Select(meaning => (Translation: meaning.Translation, PartOfSpeech: meaning.PartOfSpeech))
+                .Where(t => !string.IsNullOrWhiteSpace(t.Translation))
+                .DistinctBy(t => t.Translation, StringComparer.Ordinal)
+                .Select(t => (Translation: t.Translation!, t.PartOfSpeech))
                 .ToArray();
 
         if (lookupMode == LexicalLookupMode.Translation)
         {
             return effectiveTranslations
-                .Select((translation, index) => new LexicalMeaning(
+                .Select((item, index) => new LexicalMeaning(
                     $"wiktionary-translation-{index + 1}",
-                    null,
+                    item.PartOfSpeech,
                     string.Empty,
-                    translation,
+                    item.Translation,
                     null,
                     []))
                 .ToArray();
@@ -233,39 +233,52 @@ public sealed partial class WiktionaryHtmlParser
         for (var index = 0; index < count; index++)
         {
             var definition = index < definitions.Count ? definitions[index] : null;
-            var translation = index < effectiveTranslations.Count ? effectiveTranslations[index] : null;
+            var translation = index < effectiveTranslations.Count ? effectiveTranslations[index] : default;
             result.Add(definition is null
                 ? new LexicalMeaning(
                     $"wiktionary-translation-{index + 1}",
-                    null,
+                    translation.PartOfSpeech,
                     string.Empty,
-                    translation,
+                    translation.Translation,
                     null,
                     [])
-                : definition with { Translation = translation });
+                : definition with { Translation = translation.Translation });
         }
 
         return result;
     }
 
-    private static IReadOnlyList<string> ParseTargetTranslations(
+    private static IReadOnlyList<(string Translation, string? PartOfSpeech)> ParseTargetTranslations(
         IReadOnlyList<AngleElement> sectionElements,
         string targetLanguage)
     {
-        var translations = new List<string>();
+        var translations = new List<(string Translation, string? PartOfSpeech)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var inTranslationRegion = false;
         var translationHeadingLevel = int.MaxValue;
+        string? currentPartOfSpeech = null;
 
-        foreach (var element in sectionElements)
+        for (var index = 0; index < sectionElements.Count; index++)
         {
+            var element = sectionElements[index];
+            var heading = GetHeadingElement(element);
+            if (heading is not null)
+            {
+                var headingText = Clean(heading.TextContent);
+                if (IsPartOfSpeechHeading(headingText))
+                {
+                    currentPartOfSpeech = headingText;
+                }
+            }
+
             if (IsTranslationLabel(element))
             {
                 inTranslationRegion = true;
                 translationHeadingLevel = GetHeadingElement(element) is null
                     ? int.MaxValue
                     : GetHeadingLevel(element);
-                AddTargetTranslations(element, targetLanguage, translations, seen);
+                var pos = currentPartOfSpeech ?? FindPreviousPartOfSpeech(sectionElements, index);
+                AddTargetTranslations(element, targetLanguage, translations, seen, pos);
                 continue;
             }
 
@@ -281,7 +294,8 @@ public sealed partial class WiktionaryHtmlParser
                 continue;
             }
 
-            AddTargetTranslations(element, targetLanguage, translations, seen);
+            var effectivePos = currentPartOfSpeech ?? FindPreviousPartOfSpeech(sectionElements, index);
+            AddTargetTranslations(element, targetLanguage, translations, seen, effectivePos);
         }
 
         return translations.Take(20).ToArray();
@@ -290,8 +304,9 @@ public sealed partial class WiktionaryHtmlParser
     private static void AddTargetTranslations(
         AngleElement element,
         string targetLanguage,
-        ICollection<string> translations,
-        ISet<string> seen)
+        ICollection<(string Translation, string? PartOfSpeech)> translations,
+        ISet<string> seen,
+        string? partOfSpeech)
     {
         var languageNodes = new[] { element }
             .Concat(element.QuerySelectorAll(LanguageNodeSelector))
@@ -301,7 +316,7 @@ public sealed partial class WiktionaryHtmlParser
             .ToArray();
         foreach (var node in languageNodes)
         {
-            AddTranslation(node.TextContent, translations, seen);
+            AddTranslation(node.TextContent, translations, seen, partOfSpeech);
         }
 
         foreach (var item in element.QuerySelectorAll("li"))
@@ -321,7 +336,7 @@ public sealed partial class WiktionaryHtmlParser
             {
                 foreach (var linkedTerm in linkedTerms)
                 {
-                    AddTranslation(linkedTerm, translations, seen);
+                    AddTranslation(linkedTerm, translations, seen, partOfSpeech);
                 }
 
                 continue;
@@ -338,20 +353,21 @@ public sealed partial class WiktionaryHtmlParser
                 [',', ';'],
                 StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                AddTranslation(value, translations, seen);
+                AddTranslation(value, translations, seen, partOfSpeech);
             }
         }
     }
 
     private static void AddTranslation(
         string value,
-        ICollection<string> translations,
-        ISet<string> seen)
+        ICollection<(string Translation, string? PartOfSpeech)> translations,
+        ISet<string> seen,
+        string? partOfSpeech)
     {
         var cleaned = RemoveSenseMarker(Clean(value)).Trim(' ', ',', ';', '/');
         if (cleaned.Length > 0 && seen.Add(cleaned))
         {
-            translations.Add(cleaned);
+            translations.Add((cleaned, partOfSpeech));
         }
     }
 
@@ -545,7 +561,10 @@ public sealed partial class WiktionaryHtmlParser
             }
 
             var text = Clean(heading.TextContent);
-            return IsPartOfSpeechHeading(text) ? text : null;
+            if (IsPartOfSpeechHeading(text))
+            {
+                return text;
+            }
         }
 
         return null;

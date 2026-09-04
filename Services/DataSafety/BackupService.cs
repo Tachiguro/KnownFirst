@@ -167,6 +167,7 @@ public sealed class BackupService(
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema13CapabilityResult => Schema13BackupImportRepository.HasDurableUserData(connection),
+                    Schema14CapabilityResult s14 => Schema13BackupImportRepository.HasDurableUserData(connection) || s14.Capability.HasTargetData,
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
@@ -195,7 +196,7 @@ public sealed class BackupService(
                 return PortableImportPreview.ForRestoreIntoEmpty(archiveSummary);
             }
 
-            if (capability is Schema13CapabilityResult)
+            if (capability is Schema13CapabilityResult or Schema14CapabilityResult)
             {
                 if (!targetHasDurableData)
                 {
@@ -203,7 +204,7 @@ public sealed class BackupService(
                 }
             }
 
-            if (validated.V3 is not null && capability is not Schema13CapabilityResult)
+            if (validated.V3 is not null && capability is not (Schema13CapabilityResult or Schema14CapabilityResult))
             {
                 return PortableImportPreview.ForBlocked(
                     PortableImportPreviewDisposition.ValidationFailed,
@@ -296,19 +297,20 @@ public sealed class BackupService(
                     Schema11CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema12CapabilityResult => Schema8BackupImportRepository.HasDurableUserData(connection),
                     Schema13CapabilityResult => Schema13BackupImportRepository.HasDurableUserData(connection),
+                    Schema14CapabilityResult s14 => Schema13BackupImportRepository.HasDurableUserData(connection) || s14.Capability.HasTargetData,
                     _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
                 };
                 return (resolvedCapability, hasDurableData);
             });
 
-            if (validated.V3 is not null && capability is not Schema13CapabilityResult)
+            if (validated.V3 is not null && capability is not (Schema13CapabilityResult or Schema14CapabilityResult))
             {
                 return new PortableImportResult(
                     PortableImportStatus.ValidationFailed,
                     BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget);
             }
 
-            if (capability is Schema13CapabilityResult && targetHasDurableData)
+            if (capability is (Schema13CapabilityResult or Schema14CapabilityResult) && targetHasDurableData)
             {
                 return await ImportIntoPopulatedSchema13Async(validated, cancellationToken);
             }
@@ -406,6 +408,40 @@ public sealed class BackupService(
                             Schema13BackupImportRepository.AdaptLegacyIntoEmptyDatabase(
                                 connection,
                                 schema13.Capability,
+                                legacyPayload,
+                                cancellationToken,
+                                failureInjector);
+                        }
+
+                        return new PortableImportResult(
+                            PortableImportStatus.Success,
+                            null,
+                            new PortableImportSummary(PortableImportDisposition.RestoredIntoEmpty, false, 0, 0, 0, 0));
+
+                    case Schema14CapabilityResult schema14:
+                        schema14.Capability.EnsureV3TransportCompatible();
+                        if (Schema13BackupImportRepository.HasDurableUserData(connection) || schema14.Capability.HasTargetData)
+                        {
+                            return new PortableImportResult(PortableImportStatus.TargetNotEmpty, BackupErrorCodes.TargetNotEmpty);
+                        }
+
+                        if (validated.V3 is { } nativeV3For14)
+                        {
+                            Schema13BackupImportRepository.ImportNativeV3IntoEmptyDatabase(
+                                connection,
+                                schema14.Capability.TransitionalSchema13Capability,
+                                nativeV3For14.Payload,
+                                cancellationToken,
+                                failureInjector);
+                        }
+                        else
+                        {
+                            var legacyPayload = validated.V2 is not null
+                                ? validated.V2.Payload
+                                : BackupArchiveV1UpgradePolicy.Upgrade(validated.V1!.Payload);
+                            Schema13BackupImportRepository.AdaptLegacyIntoEmptyDatabase(
+                                connection,
+                                schema14.Capability.TransitionalSchema13Capability,
                                 legacyPayload,
                                 cancellationToken,
                                 failureInjector);

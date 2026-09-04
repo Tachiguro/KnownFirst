@@ -392,7 +392,7 @@ public sealed class TextReviewService(
                 ORDER BY Id
                 """)
                 .ToArray(),
-            Schema13CapabilityResult => Schema13LearningRepository.LoadAllCards(connection)
+            Schema13CapabilityResult or Schema14CapabilityResult => Schema13LearningRepository.LoadAllCards(connection)
                 .Select(DiagnosticLearningCardRow.FromSchema13)
                 .ToArray(),
             _ => throw new InvalidOperationException("Unsupported schema capability result.")

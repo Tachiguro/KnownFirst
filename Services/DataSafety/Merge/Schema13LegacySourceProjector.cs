@@ -30,11 +30,16 @@ internal static class Schema13LegacySourceProjector
             await connection.RunInTransactionAsync(sqliteConnection =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var capability = BackupSchemaCapability.Resolve(sqliteConnection) as Schema13CapabilityResult
-                    ?? throw new BackupSchemaCapabilityException(13, shapeMismatch: true);
+                var resolved = BackupSchemaCapability.Resolve(sqliteConnection);
+                var schema13Capability = resolved switch
+                {
+                    Schema13CapabilityResult s13 => s13.Capability,
+                    Schema14CapabilityResult s14 => s14.Capability.TransitionalSchema13Capability,
+                    _ => throw new BackupSchemaCapabilityException(13, shapeMismatch: true)
+                };
                 Schema13BackupImportRepository.AdaptLegacyIntoEmptyDatabase(
                     sqliteConnection,
-                    capability.Capability,
+                    schema13Capability,
                     payload,
                     cancellationToken);
                 snapshot = Schema13BackupSnapshotRepository.CapturePortableSnapshot(sqliteConnection);

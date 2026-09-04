@@ -80,8 +80,19 @@ public static class BackupSnapshotCapture
             Schema13CapabilityResult schema13 => new CapturedSchema13SnapshotEnvelope(
                 Schema13BackupSnapshotRepository.CapturePortableSnapshot(connection),
                 schema13.Capability),
+            Schema14CapabilityResult schema14 => CaptureSchema14ForExport(connection, schema14.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
+    }
+
+    private static CapturedBackupSnapshotEnvelope CaptureSchema14ForExport(
+        SQLiteConnection connection,
+        ValidatedSchema14Capability capability)
+    {
+        capability.EnsureV3TransportCompatible();
+        return new CapturedSchema13SnapshotEnvelope(
+            Schema13BackupSnapshotRepository.CapturePortableSnapshot(connection),
+            capability.TransitionalSchema13Capability);
     }
 
     /// <summary>Full/internal backup capture (unfiltered, includes active workflows), dispatched by
@@ -116,8 +127,19 @@ public static class BackupSnapshotCapture
             Schema13CapabilityResult schema13 => new CapturedSchema13SnapshotEnvelope(
                 Schema13BackupSnapshotRepository.CaptureSnapshot(connection),
                 schema13.Capability),
+            Schema14CapabilityResult schema14 => CaptureSchema14FullForBackup(connection, schema14.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
+    }
+
+    private static CapturedBackupSnapshotEnvelope CaptureSchema14FullForBackup(
+        SQLiteConnection connection,
+        ValidatedSchema14Capability capability)
+    {
+        capability.EnsureV3TransportCompatible();
+        return new CapturedSchema13SnapshotEnvelope(
+            Schema13BackupSnapshotRepository.CaptureSnapshot(connection),
+            capability.TransitionalSchema13Capability);
     }
 }
 
@@ -222,6 +244,13 @@ public static class BackupMergeSafetyCopySnapshotCapture
                 return v3ResultForSchema13.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
                     ? new MergeSafetyCopyCaptureBlocked()
                     : new MergeSafetyCopySchema13Captured(v3ResultForSchema13.Snapshot!, schema13.Capability);
+
+            case Schema14CapabilityResult schema14:
+                schema14.Capability.EnsureV3TransportCompatible();
+                var v3ResultForSchema14 = Schema13BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
+                return v3ResultForSchema14.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
+                    ? new MergeSafetyCopyCaptureBlocked()
+                    : new MergeSafetyCopySchema13Captured(v3ResultForSchema14.Snapshot!, schema14.Capability.TransitionalSchema13Capability);
 
             default:
                 throw new InvalidOperationException("Unrecognized backup schema capability result.");

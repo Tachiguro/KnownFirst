@@ -4,6 +4,7 @@ using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Data.Migrations.Schema11;
 using KnownFirst.Data.Migrations.Schema12;
 using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Targets;
 using SQLite;
 
 namespace KnownFirst.Services.Study;
@@ -88,6 +89,18 @@ public sealed class ValidatedPreparationSchema13Capability
     public const int SchemaVersion = 13;
 }
 
+/// <summary>The transitional Schema-14 preparation capability (KF-LEARN-011 Slice 2).</summary>
+public sealed class ValidatedPreparationSchema14Capability
+{
+    internal ValidatedPreparationSchema14Capability()
+    {
+    }
+
+    public const int SchemaVersion = 14;
+
+    public ValidatedPreparationSchema13Capability TransitionalSchema13Capability { get; } = new();
+}
+
 public abstract record PreparationSchemaCapabilityResult;
 
 public sealed record PreparationSchema7CapabilityResult(ValidatedPreparationSchema7Capability Capability)
@@ -109,6 +122,9 @@ public sealed record PreparationSchema12CapabilityResult(ValidatedPreparationSch
     : PreparationSchemaCapabilityResult;
 
 public sealed record PreparationSchema13CapabilityResult(ValidatedPreparationSchema13Capability Capability)
+    : PreparationSchemaCapabilityResult;
+
+public sealed record PreparationSchema14CapabilityResult(ValidatedPreparationSchema14Capability Capability)
     : PreparationSchemaCapabilityResult;
 
 /// <summary>
@@ -136,12 +152,12 @@ public sealed class PreparationSchemaCapabilityException : Exception
 
     private static string BuildMessage(int foundVersion, bool shapeMismatch) => shapeMismatch
         ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
-        : $"PRAGMA user_version {foundVersion} is not a supported preparation source/target version; only 7 through 13 are accepted.";
+        : $"PRAGMA user_version {foundVersion} is not a supported preparation source/target version; only 7 through 14 are accepted.";
 }
 
 /// <summary>
 /// Trusted, single-source schema-capability check for the preparation subsystem (KF-MEANING-001 Slice 3).
-/// Reads <c>PRAGMA user_version</c>, accepts exactly versions 7 through 13, validates the expected physical shape for
+/// Reads <c>PRAGMA user_version</c>, accepts exactly versions 7 through 14, validates the expected physical shape for
 /// whichever version was reported via the same shape validators the backup subsystem
 /// already uses, and fails closed (throws <see cref="PreparationSchemaCapabilityException"/>) if the
 /// version and the physical shape disagree, or if any other version is reported. Never infers capability
@@ -213,6 +229,15 @@ public static class PreparationSchemaCapability
                 }
 
                 return new PreparationSchema13CapabilityResult(new ValidatedPreparationSchema13Capability());
+
+            case ValidatedPreparationSchema14Capability.SchemaVersion:
+                if (!Schema13ShapeValidator.IsValidDatabase(connection, out _)
+                    || !TargetPersistenceShapeValidator.Validate(connection, out _))
+                {
+                    throw new PreparationSchemaCapabilityException(userVersion, shapeMismatch: true);
+                }
+
+                return new PreparationSchema14CapabilityResult(new ValidatedPreparationSchema14Capability());
 
             default:
                 throw new PreparationSchemaCapabilityException(userVersion, shapeMismatch: false);

@@ -104,7 +104,15 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
         BackupSchemaCapabilityResult targetCapability;
         try
         {
-            targetCapability = await database.ExecuteSnapshotAsync(BackupSchemaCapability.Resolve);
+            targetCapability = await database.ExecuteSnapshotAsync(connection =>
+            {
+                var capability = BackupSchemaCapability.Resolve(connection);
+                if (capability is Schema14CapabilityResult schema14)
+                {
+                    schema14.Capability.EnsureV3TransportCompatible();
+                }
+                return capability;
+            });
         }
         catch (OperationCanceledException)
         {
@@ -119,7 +127,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
         }
 
-        if (targetCapability is Schema13CapabilityResult)
+        if (targetCapability is Schema13CapabilityResult or Schema14CapabilityResult)
         {
             var sourceBasePayload = validated.V2?.Payload
                 ?? (validated.V1 is { } legacyV1 ? BackupArchiveV1UpgradePolicy.Upgrade(legacyV1.Payload) : null);

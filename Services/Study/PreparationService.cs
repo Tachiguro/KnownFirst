@@ -50,7 +50,7 @@ public sealed partial class PreparationService(
             PreparationSchema10CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema11CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema12CapabilityResult => new ValidatedPreparationSchema8Capability(),
-            PreparationSchema13CapabilityResult => new ValidatedPreparationSchema8Capability(),
+            PreparationSchema13CapabilityResult or PreparationSchema14CapabilityResult => new ValidatedPreparationSchema8Capability(),
             _ => null
         };
 #if DEBUG
@@ -76,7 +76,7 @@ public sealed partial class PreparationService(
                 .Count(candidate => candidate.SessionId == latestCompleted.Id
                     && candidate.Status == PreparationCandidateStatus.Prepared);
         var capability = PreparationSchemaCapability.Resolve(connection);
-        var isSchema13 = capability is PreparationSchema13CapabilityResult;
+        var isSchema13 = capability is PreparationSchema13CapabilityResult or PreparationSchema14CapabilityResult;
         var dueCardCount = isSchema13
             ? Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(now))
             : connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
@@ -560,7 +560,7 @@ public sealed partial class PreparationService(
                 // BackupSchemaCapability. The Schema-7 branch below is otherwise byte-for-byte the
                 // pre-Slice-3 behavior; the Schema-8 branch lives entirely in PreparationServiceSchema8.cs.
                 var capability = PreparationSchemaCapability.Resolve(connection);
-                var createSchema13State = capability is PreparationSchema13CapabilityResult;
+                var createSchema13State = capability is PreparationSchema13CapabilityResult or PreparationSchema14CapabilityResult;
                 if (createSchema13State
                     && !Schema13RuntimeIntegrityValidator.Validate(connection, out var failureDetail))
                 {

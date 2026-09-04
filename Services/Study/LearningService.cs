@@ -93,10 +93,11 @@ public sealed class LearningService : ILearningService
             or LearningSchema10CapabilityResult
             or LearningSchema11CapabilityResult
             or LearningSchema12CapabilityResult
-            or LearningSchema13CapabilityResult;
+            or LearningSchema13CapabilityResult
+            or LearningSchema14CapabilityResult;
 
     private static bool IsSchema13(LearningSchemaCapabilityResult capability) =>
-        capability is LearningSchema13CapabilityResult;
+        capability is LearningSchema13CapabilityResult or LearningSchema14CapabilityResult;
 
     public async Task<LearningLoadResult> GetOrStartAsync()
     {
@@ -130,7 +131,7 @@ public sealed class LearningService : ILearningService
         {
             return await database.RunInTransactionAsync(connection =>
             {
-                if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult))
+                if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult or LearningSchema14CapabilityResult))
                 {
                     return new LearningPreparationReadiness(false, null, 0, 0);
                 }
@@ -2067,7 +2068,7 @@ public sealed class LearningService : ILearningService
 
     private Schema12LearningDayStateRow? EnsureDayStateSchema12(SQLiteConnection connection, DateTime nowUtc)
     {
-        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult))
+        if (LearningSchemaCapability.Resolve(connection) is not (LearningSchema12CapabilityResult or LearningSchema13CapabilityResult or LearningSchema14CapabilityResult))
         {
             return null;
         }
@@ -2869,7 +2870,7 @@ public sealed class LearningService : ILearningService
 
     private static IReadOnlyList<Schema8CardRow> LoadSchedulingCards(SQLiteConnection connection)
     {
-        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        if (!IsSchema13(LearningSchemaCapability.Resolve(connection)))
         {
             return Schema8LearningRepository.LoadAllCards(connection);
         }
@@ -2881,7 +2882,7 @@ public sealed class LearningService : ILearningService
 
     private static Schema8CardRow? LoadSchedulingCard(SQLiteConnection connection, int cardId)
     {
-        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        if (!IsSchema13(LearningSchemaCapability.Resolve(connection)))
         {
             return Schema8LearningRepository.LoadCard(connection, cardId);
         }
@@ -2907,7 +2908,7 @@ public sealed class LearningService : ILearningService
 
     private static DateTime? SelectNextSchedulingDueAtUtc(SQLiteConnection connection)
     {
-        if (LearningSchemaCapability.Resolve(connection) is not LearningSchema13CapabilityResult)
+        if (!IsSchema13(LearningSchemaCapability.Resolve(connection)))
         {
             return Schema8LearningRepository.SelectNextDueAtUtc(connection);
         }

@@ -146,9 +146,15 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (BackupSchemaCapability.Resolve(connection) is not Schema13CapabilityResult)
+                var resolvedCapability = BackupSchemaCapability.Resolve(connection);
+                if (resolvedCapability is not (Schema13CapabilityResult or Schema14CapabilityResult))
                 {
                     return new MergeWriteResult(MergeWriteStatus.Failed, MergeWriterErrorCodes.TargetNotSchema8);
+                }
+
+                if (resolvedCapability is Schema14CapabilityResult schema14)
+                {
+                    schema14.Capability.EnsureV3TransportCompatible();
                 }
 
                 // This complete capture occurs inside the write transaction and before the first merge

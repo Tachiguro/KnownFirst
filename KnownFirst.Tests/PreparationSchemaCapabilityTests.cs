@@ -1,3 +1,4 @@
+using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Services.Study;
 using SQLite;
@@ -80,6 +81,65 @@ public sealed class PreparationSchemaCapabilityTests
             fixture.Connection.RunInTransactionAsync(connection => PreparationSchemaCapability.Resolve(connection)));
 
         Assert.AreEqual(99, exception.FoundVersion);
+        Assert.IsFalse(exception.ShapeMismatch);
+        Assert.AreEqual("preparation-schema-capability-unsupported-version", exception.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task Resolve_ValidSchema14Shape_ReturnsSchema14Capability()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"kf-prep-cap-{Guid.NewGuid():N}.db");
+        var connection = new SQLiteAsyncConnection(path);
+        try
+        {
+            await DatabaseSchema.InitializeAsync(connection);
+
+            PreparationSchemaCapabilityResult? result = null;
+            await connection.RunInTransactionAsync(conn => result = PreparationSchemaCapability.Resolve(conn));
+
+            Assert.IsInstanceOfType<PreparationSchema14CapabilityResult>(result);
+        }
+        finally
+        {
+            await connection.CloseAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    public async Task Resolve_Schema14VersionButMissingTargetTables_ThrowsShapeMismatch()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"kf-prep-cap-{Guid.NewGuid():N}.db");
+        var connection = new SQLiteAsyncConnection(path);
+        try
+        {
+            await DatabaseSchema.InitializeAsync(connection);
+            await connection.ExecuteAsync("DROP TABLE LearningTargets");
+
+            var exception = await Assert.ThrowsExactlyAsync<PreparationSchemaCapabilityException>(() =>
+                connection.RunInTransactionAsync(conn => PreparationSchemaCapability.Resolve(conn)));
+
+            Assert.AreEqual(14, exception.FoundVersion);
+            Assert.IsTrue(exception.ShapeMismatch);
+            Assert.AreEqual("preparation-schema-capability-shape-mismatch", exception.ErrorCode);
+        }
+        finally
+        {
+            await connection.CloseAsync();
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    public async Task Resolve_UnsupportedVersion15_ThrowsUnsupportedVersion()
+    {
+        await using var fixture = await Schema7Fixture.CreateAsync();
+        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 15");
+
+        var exception = await Assert.ThrowsExactlyAsync<PreparationSchemaCapabilityException>(() =>
+            fixture.Connection.RunInTransactionAsync(connection => PreparationSchemaCapability.Resolve(connection)));
+
+        Assert.AreEqual(15, exception.FoundVersion);
         Assert.IsFalse(exception.ShapeMismatch);
         Assert.AreEqual("preparation-schema-capability-unsupported-version", exception.ErrorCode);
     }

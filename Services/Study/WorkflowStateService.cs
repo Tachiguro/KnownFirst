@@ -25,7 +25,7 @@ public sealed class WorkflowStateService(
             .FirstOrDefault();
         var hasLearning = activeLearningSession is not null;
         var capability = LearningSchemaCapability.Resolve(connection);
-        var dueCards = capability is LearningSchema13CapabilityResult
+        var dueCards = capability is LearningSchema13CapabilityResult or LearningSchema14CapabilityResult
             ? Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(nowUtc))
             : connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
                 && card.State != CardState.Suspended
@@ -33,7 +33,7 @@ public sealed class WorkflowStateService(
                 && card.DueAtUtc <= nowUtc);
         var nextDueAtUtc = capability switch
         {
-            LearningSchema13CapabilityResult =>
+            LearningSchema13CapabilityResult or LearningSchema14CapabilityResult =>
                 Schema13LearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime,
             LearningSchema8CapabilityResult
                 or LearningSchema9CapabilityResult
@@ -45,12 +45,13 @@ public sealed class WorkflowStateService(
         };
         DateTime? activeLearningDayEndUtc = capability is LearningSchema12CapabilityResult
                 or LearningSchema13CapabilityResult
+                or LearningSchema14CapabilityResult
             ? Schema8LearningRepository.LoadLearningDayState(connection) is
                 { Phase: LearningDayPhase.ActiveBudgetDay } dayState
                 ? DateTime.SpecifyKind(dayState.ActiveDayEndUtc, DateTimeKind.Utc)
                 : null
             : null;
-        var preparedItems = capability is LearningSchema13CapabilityResult
+        var preparedItems = capability is LearningSchema13CapabilityResult or LearningSchema14CapabilityResult
             ? Schema13LearningRepository.CountNewWords(connection)
             : connection.Table<LearningCardEntity>()
                 .Where(card => card.State == CardState.New)

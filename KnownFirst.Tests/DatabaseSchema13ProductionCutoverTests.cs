@@ -411,6 +411,23 @@ public sealed class DatabaseSchema13ProductionCutoverTests
     }
 
     [TestMethod]
+    public async Task CreatePortableArchiveAsync_FreshProductionDatabase_UsesArchiveV3Dispatch()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+        var service = new BackupService(database, new FakePlatformInfo());
+        using var archive = new MemoryStream();
+
+        await service.CreatePortableArchiveAsync(archive, CancellationToken.None);
+
+        archive.Position = 0;
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(archive, CancellationToken.None);
+        Assert.AreEqual(3, validated.FormatVersion);
+        Assert.IsNotNull(validated.V3);
+        Assert.AreEqual(13, validated.V3.Manifest.SourceDatabaseSchemaVersion);
+    }
+
+    [TestMethod]
     public async Task CreatePortableArchiveAsync_Schema13Database_UsesArchiveV3Dispatch()
     {
         var fixture = await CreateSchema13FixtureAsync();

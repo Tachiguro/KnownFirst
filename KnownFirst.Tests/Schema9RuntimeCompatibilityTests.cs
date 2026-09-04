@@ -392,7 +392,7 @@ public sealed class Schema9RuntimeCompatibilityTests
         }
 
         Assert.IsNotNull(result.ValidatedManifest);
-        Assert.AreEqual(DatabaseSchema.CurrentVersion, result.ValidatedManifest!.SourceDatabaseSchemaVersion);
+        Assert.AreEqual(BackupModelContractV3.Schema13Version, result.ValidatedManifest!.SourceDatabaseSchemaVersion);
         Assert.IsNotNull(result.RecordCounts);
         Assert.AreEqual(documentCountBefore, result.RecordCounts!.SourceMaterials);
         Assert.AreEqual(wordCountBefore, result.RecordCounts.VocabularyItems);

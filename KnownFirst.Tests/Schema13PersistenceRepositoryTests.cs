@@ -831,13 +831,13 @@ public sealed class Schema13PersistenceRepositoryTests
     [TestMethod]
     public async Task DatabaseSchema_CurrentVersion13_ProductionInitializeCreatesSchema13Repositories()
     {
-        Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
+        Assert.AreEqual(14, DatabaseSchema.CurrentVersion);
         await using var database = new DatabaseSchema13ProductionCutoverTests.ProductionInitializedDatabase();
         await database.InitializeAsync();
 
         var version = await database.ReadAsync(connection =>
             connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
-        Assert.AreEqual(13, version);
+        Assert.AreEqual(14, version);
 
         foreach (var table in new[] { Schema13Ddl.FsrsCardStatesTableName, Schema13Ddl.FsrsReviewHistoryEntriesTableName, Schema13Ddl.WordLearningControlsTableName, Schema13Ddl.SenseLearningControlsTableName })
         {

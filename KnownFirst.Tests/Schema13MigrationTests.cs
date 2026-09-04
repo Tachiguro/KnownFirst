@@ -540,11 +540,11 @@ public sealed class Schema13MigrationTests
     [TestMethod]
     public async Task Schema13DormantMigration_ProductionInitializationCreatesSchema13WithoutDormantUpgrade()
     {
-        Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
+        Assert.AreEqual(14, DatabaseSchema.CurrentVersion);
         await using var database = new DatabaseSchema13ProductionCutoverTests.ProductionInitializedDatabase();
         await database.InitializeAsync();
 
-        Assert.AreEqual(13, await database.ReadAsync(connection =>
+        Assert.AreEqual(14, await database.ReadAsync(connection =>
             connection.ExecuteScalarAsync<int>("PRAGMA user_version")));
         Assert.AreEqual(8, await database.ExecuteSnapshotAsync(CountTargetArtifacts));
     }

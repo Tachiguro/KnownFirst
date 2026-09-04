@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-03 (KF-LEARN-007 package documentation reconciled on `feature/learn-next-review-phrasing-v1`; candidate HEAD before documentation `20cd8e32a587159766bbbc4114169cb04e3cb520`; base `master` commit `d3f48dc6d0cb08885524e1e55249bac1f83b4729`).
+2026-09-04 (KF-LEARN-011 Slice 1/6 checkpoint on `feature/learning-targets-definition-translation-v1`; base `master` commit `f6364057de2a961f39155226adb8426365fa26c5`).
 
 ## Repository and Worktree Governance
 
@@ -17,38 +17,48 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-LEARN-007`
-- **Active branch:** `feature/learn-next-review-phrasing-v1`
-- **Slices:**
-  1. `d978f9741cbe9c2f7384d9520421a82eb0347e84`, subject `feat(learn): add authoritative review availability presentation`, trailer `KnownFirst-Checkpoint: KF-LEARN-007 1/2 review-availability-presentation`.
-  2. `20cd8e32a587159766bbbc4114169cb04e3cb520`, subject `feat(learn): surface localized review progress on Learn and Home`, trailer `KnownFirst-Checkpoint: KF-LEARN-007 2/2 learn-home-review-status`.
-  - Sole base commit: `d3f48dc6d0cb08885524e1e55249bac1f83b4729` (`master` / `origin/master`).
-- **Working state:** Implementation is complete across two checkpoints and independently reviewed with final verdict `REVIEW_APPROVED` (0 BLOCKER / 0 MAJOR / 3 informational MINOR / 0 NIT; strictly read-only, test-free review). Package-level `DOCUMENT_ONLY` reconciliation is in progress; documentation changes remain unstaged and uncommitted for subsequent `COMMIT_ONLY`. The package is NOT pushed, NOT in a pull request, and NOT merged on `master`.
-- **Scope & implemented behavior:**
-  - `Review availability projection`: `Schema13LearningRepository.CountDueCards` and `SelectNextDueAtUtc` exclude cards lacking an active `Required` answer assignment for their Sense/direction, aligning due count and next-due projections with runtime queueability without mutating database records or FSRS states.
-  - `Workflow projection`: `WorkflowSnapshot` projects `NextDueAtUtc`, `ActiveLearningSessionCompletedCards`, `ActiveLearningSessionTotalCards`, and `ActiveLearningDayEndUtc` (when in `ActiveBudgetDay` phase).
-  - `Presentation & status-text policies`: Pure `LearningReviewPresentationPolicy` and `LearningReviewStatusTextPolicy` deliver deterministic calendar date classification (Today, Tomorrow, Date with/without year) in the effective learning timezone, pluralization (EN/DE/RU with Russian 11-14 teen rules), and logical learning-day completion ("Nothing else is due today." / "Für heute ist nichts mehr fällig.").
-  - `Shared review status component`: `LearningReviewStatus.razor` resolves the effective learning timezone via `ILearningTimezoneResolver` (`System` mode maps to device timezone; `Explicit` mode maps to configured ID) and renders localized status text.
-  - `Learn summary integration & due monitor`: Replaces generic `ToLocalTime().ToString("g")` with shared status component; summary due monitor refreshes workflow snapshot upon reaching the due instant without auto-starting a session, navigating, or rating.
-  - `Home active progress & review status`: Displays `Home_LearningProgress` for active sessions, or surfaces review status under the Learn action card; preserves the raw statistics grid; strictly bounds out KF-HOME-002 and KF-METRIC-001.
-  - `Localization resources`: Added 9 semantic resource keys across English, German, and Russian with exact placeholder compatibility.
+- **Active package:** `KF-LEARN-011`
+- **Active branch:** `feature/learning-targets-definition-translation-v1`
+- **Base commit:** `f6364057de2a961f39155226adb8426365fa26c5` (`master` / `origin/master`).
+- **Approved ordered package slices:**
+  1. `1/6 core-targets-and-governance`: Durable P1 LearningTarget product contract and pure Core foundation for target identity and replay-safe Automatic typing qualification.
+  2. `2/6 target-persistence-foundation`: Clean physical target/card persistence entities, schema foundation, and repositories.
+  3. `3/6 preparation-target-cutover`: Preparation pipeline creating clean target identities and cards.
+  4. `4/6 learning-runtime-cutover`: LearningService, active session queue, and review runtime cutover to target-centric authority.
+  5. `5/6 backup-current-format-cutover`: Portable backup export, restore, and merge cutover for the new current format.
+  6. `6/6 integration-and-legacy-decommissioning`: Full integration, legacy column/entity decommissioning, and final verification.
+- **Working state:** Slice 1/6 is completed at checkpoint commit time. Pure Core domain types and replay policy implemented and verified by focused tests. Durable package contract established in `docs/architecture/learning-target-semantics.md` and registered in `docs/BACKLOG.md`. Later slices (2–6), package-level review, full validation, push, PR, and merge are NOT yet performed.
+- **Scope & implemented behavior (Slice 1):**
+  - `Core domain concepts`: Added `LearningTargetKind` (Definition, Translation), `LearningTargetIdentity` (Kind, SourceLanguage, TargetLanguage with validation and invariant normalization), `LearningTarget` (identity plus per-target typing opt-out), `TargetInteractionEvent` (pure factual event representation with UTC enforcement, rating, typing modality, correctness, and session-repeat classification).
+  - `Target-centric Automatic progression`: Pure `TargetAutomaticProgressionPolicy` and `TargetAutomaticProgressionState` implementing the 14-point Automatic typing qualification lifecycle: low-friction Reading first $\to$ 2 qualifying scheduled recall successes $\to$ Typing qualification $\to$ 2 distinct scheduled typing checks $\to$ low-friction Reading maintenance; genuine scheduled lapse re-arms exactly one typing re-check; successful re-check restores qualified maintenance; failed re-check lapses out of qualified maintenance back to recall qualification; same-session Again tail repeats isolated from qualification review counting; per-target typing opt-out prevents typing qualification without altering FSRS identity; timestamp ordering validation.
+  - `Production policy correction`: Corrected `AutomaticLearningPolicy.RecordTypingAssessment` so that reaching typing qualification (2 consecutive typing successes) transitions interaction mode to low-friction `Reading` maintenance rather than remaining permanently in `Typing`.
+  - `Durable documentation`: Transitioned `docs/architecture/learning-target-semantics.md` from open decision to authoritative resolved contract; marked `KF-LEARN-010` as resolved product decision and registered `KF-LEARN-011` as active P1 implementation package in `docs/BACKLOG.md`.
 - **Preserved boundaries & invariants:**
-  - Database schema remains 13 (`PRAGMA user_version = 13`).
-  - Portable archive format remains V3.
-  - No Schema 14 or Archive V4.
-  - FSRS-6 scheduling, stability, difficulty, review persistence, and Again active-session repeat invariant are completely untouched.
-  - CardDirection semantics and domain model identities remain unchanged.
-- **Verification evidence on approved candidate (`20cd8e3...`):**
-  - Slice 1 reported implementation evidence: genuine RED (`CountDueCards_DueCardWithoutRequiredAnswerAssignment_IsNotCounted`, 1 failed / 0 passed), unchanged RED later GREEN (1/1), focused suite 113/113 passed, targeted regression 31/31 passed. Independent checkpoint review: `CHECKPOINT_VERIFIED_FOR_SLICE_2`.
-  - Slice 2 reported implementation evidence: genuine pre-production Phase-A RED (4/4 failures), unchanged Phase-A later GREEN (4/4), focused suite 213/213 passed, targeted combined regression 327/327 passed.
-  - Final accepted package review: strictly read-only and test-free (`REVIEW_APPROVED`).
-  - Whitespace / diff check (`git diff --check master...HEAD`): Clean (0 errors).
-  - Evidence boundary: Automated source/unit/contract regression tests; no rendered WebView/GUI runtime, physical device, or release packaging evidence is claimed. Candidate has NOT yet passed exact-candidate-HEAD FULL_VALIDATION.
-- **Documentation reconciliation:** Reconciled active operational state in [CURRENT_WORK.md](CURRENT_WORK.md), registered `KF-LEARN-007` candidate state and `KF-LEARN-009` merged state in [BACKLOG.md](BACKLOG.md), updated [ROADMAP.md](ROADMAP.md), and added the user-facing entry to [CHANGELOG.md](../CHANGELOG.md).
-- **Follow-Up Closure Audit:** Learn card edit entry point remains under open `KF-LEARN-008`; Definition/Translation scheduling identity remains owned by partially resolved `KF-LEARN-010` and downstream `KF-LEARN-011`; Home metric redesign remains under `KF-HOME-002` / `KF-METRIC-001`; English multi-word recognition remains under `KF-LEX-003`. All exclusions remain durably tracked; no orphan follow-ups were created.
-- **Next governed lifecycle:** `COMMIT_ONLY` for the exact documentation changes. After a successful documentation commit with a clean candidate HEAD, the next required gate is exact-candidate-HEAD `FULL_VALIDATION` under [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md). DOCUMENT_ONLY performs no commit, FULL_VALIDATION, push, or PR.
+  - One real semantic Sense remains one Sense; a Word is not duplicated for additional targets.
+  - Exactly: `LearningTarget -> one LearningCard -> one FSRS-6 schedule`.
+  - Reviewing another target under the same Sense must never mutate or postpone this target.
+  - Interaction is not scheduling identity (`CardDirection` remains temporarily in current code during cutover, but is no longer part of future scheduling identity).
+  - Explicit semantic language identity (source language, target/definition language; UI locale is never semantic truth).
+  - Existing active-session Again tail-repeat invariant preserved (every committed Again appends one repeat to tail, incomplete work ahead, unbound chaining, distinct from DueAtUtc).
+  - Pre-release no-migration policy: no production user dataset must be migrated; no Schema-13 $\to$ future-schema migration; old dev databases fail closed.
+  - Factual replay-safe progression: Automatic progression is derivable from factual committed events.
+- **Verification evidence (Slice 1):**
+  - Genuine behavioral RED: `AutomaticLearningPolicyTests.RecordTypingAssessment_TwoConsecutiveTypingSuccesses_TransitionsToLowFrictionReadingMaintenance` failed as expected with `Assert.AreEqual failed. Expected:<Reading>. Actual:<Typing>.`
+  - Identical test GREEN: 1 passed / 0 failed upon implementing minimum low-friction transition.
+  - Policy regression suites: `AutomaticLearningPolicyTests` (9 passed / 0 failed), `LearningInteractionPolicyTests` (12 passed / 0 failed).
+  - Target replay suite: `TargetAutomaticProgressionPolicyTests` (16 passed / 0 failed) covering all 11 required contract behaviors, opt-out, ordering, and validation.
+- **Strict non-goals (this slice):**
+  - No database schema version change or Schema 14 implementation.
+  - No persistence entities, SQLite tables, columns, or repositories.
+  - No preparation service or UI changes.
+  - No LearningService or review runtime cutover.
+  - No backup/archive V4 or export/import changes.
+  - No deletion of legacy types, SimpleSpacedRepetitionScheduler, or Schema 8/13 code.
+  - No broad test execution, FULL_VALIDATION, push, PR, or merge.
+- **Next governed lifecycle:** Checkpoint commit for Slice 1 (`KnownFirst-Checkpoint: KF-LEARN-011 1/6 core-targets-and-governance`), followed by hard stop and final report.
 
 - **Previous merged packages:**
+  - PR #201 (`feature/learn-next-review-phrasing-v1` / `KF-LEARN-007`): Improved user-facing learning/session progress and next-due phrasing across Learn session summary and dashboard with learning-timezone-aware availability projection, pluralization, and logical day completion. Merged to `master` via merge commit `f6364057de2a961f39155226adb8426365fa26c5`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #200 (`fix/learn-stale-action-error-v1` / `KF-LEARN-009`): Cleared stale Learn action-error feedback (`_actionFailed`) before `try` in `RevealAsync` and `ConfirmPermanentKnownAsync`, and reset in `ApplyLoadResult` upon fresh load state. Merged to `master` via merge commit `d3f48dc6d0cb08885524e1e55249bac1f83b4729` (validated PR head `8ef8011c759556214ea638aa6fe7d8ba1bb0f59c`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #199 (`fix/context-mask-grapheme-length-v1` / `KF-LEARN-006`): Masked context sentence target in `ContextView.razor` using Unicode text element length (`ContextTargetMaskPolicy`) rather than hardcoded 5 underscores. Merged to `master` via merge commit `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9` (validated PR head `b0f4b0123f06569639e6a322cf399d7e7dd85ac7`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #198 (`feature/learning-automatic-progression-v1` / `KF-LEARN-004`): Implemented direction-aware Automatic interaction progression for `MeaningToTerm` (Good/Easy advance, Hard holds, Again resets; FSRS decoupled; ReplayVersion 2) while keeping `TermToMeaning` Reading-only. Merged to `master` via merge commit `1208442c43ada8fb43b69e6efdbd5c1747deec49` (validated PR head `2124312fd4d0598bff3c418d74e2230b2f19a18b`). `POST_MERGE_SYNC_ONLY` completed.

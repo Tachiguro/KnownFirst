@@ -246,11 +246,12 @@ public sealed class TargetAutomaticProgressionPolicyTests
 
         Assert.AreEqual(
             LearningInteractionMode.Reading,
-            TargetAutomaticProgressionPolicy.ResolveInteraction(LearningMode.Automatic, state));
+            TargetAutomaticProgressionPolicy.ResolveInteraction(LearningMode.Automatic, state),
+            "Automatic mode keeps opted-out target in Reading.");
         Assert.AreEqual(
-            LearningInteractionMode.Reading,
+            LearningInteractionMode.Typing,
             TargetAutomaticProgressionPolicy.ResolveInteraction(LearningMode.Typing, state),
-            "Explicit typing mode respects per-target opt-out.");
+            "Explicit global Typing mode remains authoritative regardless of per-target opt-out.");
     }
 
     [TestMethod]

@@ -32,7 +32,7 @@ public static class TargetAutomaticProgressionPolicy
         return learningMode switch
         {
             LearningMode.Reading => LearningInteractionMode.Reading,
-            LearningMode.Typing => state.TypingOptOut ? LearningInteractionMode.Reading : LearningInteractionMode.Typing,
+            LearningMode.Typing => LearningInteractionMode.Typing,
             LearningMode.Automatic => state.InteractionMode,
             _ => LearningInteractionMode.Reading
         };

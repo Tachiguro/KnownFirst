@@ -4,6 +4,7 @@ using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Data.Migrations.Schema11;
 using KnownFirst.Data.Migrations.Schema12;
+using KnownFirst.Data.Targets;
 using SQLite;
 
 namespace KnownFirst.Data.Migrations.Schema13;
@@ -36,6 +37,7 @@ public static class Schema13CleanBootstrap
         CreateSchema11Shape(connection);
         CreateSchema12Shape(connection);
         Schema13TargetShapeBuilder.Create(connection);
+        TargetPersistenceShapeBuilder.Create(connection);
 
         if (!Schema13ShapeValidator.IsValidDatabase(connection, out var shapeFailureDetail))
         {
@@ -47,6 +49,12 @@ public static class Schema13CleanBootstrap
         {
             throw new InvalidOperationException(
                 $"Clean Schema-13 bootstrap produced invalid runtime integrity: {runtimeFailureDetail}");
+        }
+
+        if (!TargetPersistenceShapeValidator.Validate(connection, out var targetShapeFailureDetail))
+        {
+            throw new InvalidOperationException(
+                $"Clean bootstrap produced an invalid target shape: {targetShapeFailureDetail}");
         }
 
         var foreignKeyViolations = connection.ExecuteScalar<int>(

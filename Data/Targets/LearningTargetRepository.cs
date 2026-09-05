@@ -107,6 +107,12 @@ public sealed class LearningTargetRepository
             nowFormatted);
 
         var id = (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+
+        if (TargetPersistenceShapeValidator.TableExists(connection, TargetPersistenceDdl.TargetFsrsStatesTableName))
+        {
+            TargetFsrsStateRepository.InsertCleanNewState(connection, id);
+        }
+
         return new PersistedLearningTarget(
             id,
             sid,

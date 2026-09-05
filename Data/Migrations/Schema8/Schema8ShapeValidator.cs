@@ -81,9 +81,28 @@ internal static class Schema8ShapeValidator
             return false;
         }
 
+        var targetsTableExists = TableExists(connection, "LearningTargets");
         foreach (var (sql, detail) in LogicalInvariantQueries)
         {
-            if (connection.ExecuteScalar<int>(sql) != 0)
+            var activeSql = sql;
+            if (targetsTableExists && string.Equals(detail, "A learning queue target is not assigned to its card.", StringComparison.Ordinal))
+            {
+                activeSql = """
+                    SELECT COUNT(*)
+                    FROM LearningSessionCards q
+                    LEFT JOIN LearningCards c ON c.Id = q.CardId
+                    LEFT JOIN SenseAnswerVariantAssignments a ON a.SenseId = c.SenseId AND a.CardDirection = c.Direction AND a.AnswerVariantId = q.TargetAnswerVariantId
+                    LEFT JOIN LearningTargets t ON t.Id = q.CardId
+                    LEFT JOIN TargetAnswerVariants v ON v.TargetId = t.Id AND v.Id = q.TargetAnswerVariantId
+                    WHERE NOT (
+                        (c.Id IS NOT NULL AND (q.TargetAnswerVariantId IS NULL OR a.Id IS NOT NULL))
+                        OR
+                        (t.Id IS NOT NULL AND (q.TargetAnswerVariantId IS NULL OR v.Id IS NOT NULL))
+                    )
+                    """;
+            }
+
+            if (connection.ExecuteScalar<int>(activeSql) != 0)
             {
                 failureDetail = detail;
                 return false;

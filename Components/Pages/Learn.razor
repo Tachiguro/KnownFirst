@@ -32,7 +32,7 @@
                 <progress value="@_card.CompletedCards" max="@_card.TotalCards"></progress>
             </div>
             <p class="learning-meta">
-                <span class="learning-direction-label">@Localizer[DirectionLabelKey]</span>
+                <span class="learning-direction-label">@(!string.IsNullOrWhiteSpace(_card.TargetMetadataLabel) ? _card.TargetMetadataLabel : Localizer[DirectionLabelKey])</span>
                 @if (_card.IsAgainRepeat)
                 {
                     <span class="learning-repeat-badge">@Localizer["Learn_AgainRepeatBadge"]</span>

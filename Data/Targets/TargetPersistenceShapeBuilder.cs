@@ -18,5 +18,19 @@ internal static class TargetPersistenceShapeBuilder
         connection.Execute(TargetPersistenceDdl.CreateTargetAnswerVariantsTargetIdIndex);
         connection.Execute(TargetPersistenceDdl.CreateTargetAnswerVariantsNormalizedTextIndex);
         connection.Execute(TargetPersistenceDdl.CreateTargetAnswerVariantsPreferredIndex);
+
+        connection.Execute(TargetPersistenceDdl.CreateTargetFsrsStatesTable);
+        connection.Execute(TargetPersistenceDdl.CreateTargetFsrsStatesDueIndex);
+
+        connection.Execute(TargetPersistenceDdl.CreateTargetFsrsReviewHistoryEntriesTable);
+        connection.Execute(TargetPersistenceDdl.CreateTargetFsrsReviewHistoryEntriesStableIdIndex);
+        connection.Execute(TargetPersistenceDdl.CreateTargetFsrsReviewHistoryEntriesTargetSequenceIndex);
+        connection.Execute(TargetPersistenceDdl.CreateTargetFsrsReviewHistoryEntriesReplayIndex);
+
+        connection.Execute(TargetPersistenceDdl.CreateTargetReviewsTable);
+        connection.Execute(TargetPersistenceDdl.CreateTargetReviewsStableIdIndex);
+        connection.Execute(TargetPersistenceDdl.CreateTargetReviewsTargetIdIndex);
+        connection.Execute(TargetPersistenceDdl.CreateTargetReviewsSessionIdIndex);
+        connection.Execute(TargetPersistenceDdl.CreateTargetReviewsTargetReviewedAtIndex);
     }
 }

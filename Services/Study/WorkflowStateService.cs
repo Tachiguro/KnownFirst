@@ -4,6 +4,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 
 namespace KnownFirst.Services.Study;
@@ -25,14 +26,21 @@ public sealed class WorkflowStateService(
             .FirstOrDefault();
         var hasLearning = activeLearningSession is not null;
         var capability = LearningSchemaCapability.Resolve(connection);
-        var dueCards = capability is LearningSchema13CapabilityResult or LearningSchema14CapabilityResult
-            ? Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(nowUtc))
-            : connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
+        var dueCards = capability switch
+        {
+            LearningSchema14CapabilityResult when TargetLearningRepository.CountTargets(connection) > 0 =>
+                TargetLearningRepository.CountDueTargets(connection, new DateTimeOffset(nowUtc)),
+            LearningSchema13CapabilityResult or LearningSchema14CapabilityResult =>
+                Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(nowUtc)),
+            _ => connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
                 && card.State != CardState.Suspended
                 && card.State != CardState.Retired
-                && card.DueAtUtc <= nowUtc);
+                && card.DueAtUtc <= nowUtc)
+        };
         var nextDueAtUtc = capability switch
         {
+            LearningSchema14CapabilityResult when TargetLearningRepository.CountTargets(connection) > 0 =>
+                TargetLearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime,
             LearningSchema13CapabilityResult or LearningSchema14CapabilityResult =>
                 Schema13LearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime,
             LearningSchema8CapabilityResult
@@ -51,14 +59,19 @@ public sealed class WorkflowStateService(
                 ? DateTime.SpecifyKind(dayState.ActiveDayEndUtc, DateTimeKind.Utc)
                 : null
             : null;
-        var preparedItems = capability is LearningSchema13CapabilityResult or LearningSchema14CapabilityResult
-            ? Schema13LearningRepository.CountNewWords(connection)
-            : connection.Table<LearningCardEntity>()
+        var preparedItems = capability switch
+        {
+            LearningSchema14CapabilityResult when TargetLearningRepository.CountTargets(connection) > 0 =>
+                TargetLearningRepository.CountNewWords(connection),
+            LearningSchema13CapabilityResult or LearningSchema14CapabilityResult =>
+                Schema13LearningRepository.CountNewWords(connection),
+            _ => connection.Table<LearningCardEntity>()
                 .Where(card => card.State == CardState.New)
                 .ToList()
                 .Select(card => card.WordId)
                 .Distinct()
-                .Count();
+                .Count()
+        };
         var unprepared = connection.Table<WordEntity>()
             .Count(word => word.Status == WordStatus.UnknownBacklog
                 && word.PreparationState != PreparationState.Prepared);

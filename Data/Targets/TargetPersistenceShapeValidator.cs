@@ -20,8 +20,29 @@ internal static class TargetPersistenceShapeValidator
             return false;
         }
 
+        if (!TableExists(connection, TargetPersistenceDdl.TargetFsrsStatesTableName))
+        {
+            failureDetail = $"Table '{TargetPersistenceDdl.TargetFsrsStatesTableName}' is missing.";
+            return false;
+        }
+
+        if (!TableExists(connection, TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName))
+        {
+            failureDetail = $"Table '{TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName}' is missing.";
+            return false;
+        }
+
+        if (!TableExists(connection, TargetPersistenceDdl.TargetReviewsTableName))
+        {
+            failureDetail = $"Table '{TargetPersistenceDdl.TargetReviewsTableName}' is missing.";
+            return false;
+        }
+
         if (!HasLearningTargetsColumns(connection, out failureDetail)
-            || !HasTargetAnswerVariantsColumns(connection, out failureDetail))
+            || !HasTargetAnswerVariantsColumns(connection, out failureDetail)
+            || !HasTargetFsrsStatesColumns(connection, out failureDetail)
+            || !HasTargetFsrsReviewHistoryEntriesColumns(connection, out failureDetail)
+            || !HasTargetReviewsColumns(connection, out failureDetail))
         {
             return false;
         }
@@ -88,6 +109,58 @@ internal static class TargetPersistenceShapeValidator
         return ValidateColumns(connection, TargetPersistenceDdl.TargetAnswerVariantsTableName, expected, out failureDetail);
     }
 
+    private static bool HasTargetFsrsStatesColumns(SQLiteConnection connection, out string? failureDetail)
+    {
+        var expected = new (string Name, string Type, bool NotNull, bool IsPk)[]
+        {
+            ("TargetId", "INTEGER", false, true),
+            ("State", "INTEGER", true, false),
+            ("Stability", "REAL", false, false),
+            ("Difficulty", "REAL", false, false),
+            ("LastReviewedAtUtc", "TEXT", false, false),
+            ("StepIndex", "INTEGER", false, false),
+            ("DueAtUtc", "TEXT", false, false)
+        };
+
+        return ValidateColumns(connection, TargetPersistenceDdl.TargetFsrsStatesTableName, expected, out failureDetail);
+    }
+
+    private static bool HasTargetFsrsReviewHistoryEntriesColumns(SQLiteConnection connection, out string? failureDetail)
+    {
+        var expected = new (string Name, string Type, bool NotNull, bool IsPk)[]
+        {
+            ("Id", "INTEGER", false, true),
+            ("StableId", "TEXT", true, false),
+            ("TargetId", "INTEGER", true, false),
+            ("SequenceNumber", "INTEGER", true, false),
+            ("Rating", "INTEGER", true, false),
+            ("ReviewedAtUtc", "TEXT", true, false)
+        };
+
+        return ValidateColumns(connection, TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName, expected, out failureDetail);
+    }
+
+    private static bool HasTargetReviewsColumns(SQLiteConnection connection, out string? failureDetail)
+    {
+        var expected = new (string Name, string Type, bool NotNull, bool IsPk)[]
+        {
+            ("Id", "INTEGER", false, true),
+            ("StableId", "TEXT", true, false),
+            ("TargetId", "INTEGER", true, false),
+            ("SessionId", "INTEGER", true, false),
+            ("Rating", "INTEGER", true, false),
+            ("WasTypedAnswer", "INTEGER", true, false),
+            ("WasCorrect", "INTEGER", true, false),
+            ("IsSessionRepeat", "INTEGER", true, false),
+            ("TargetAnswerVariantId", "INTEGER", false, false),
+            ("MatchedAnswerVariantId", "INTEGER", false, false),
+            ("ReviewedAtUtc", "TEXT", true, false),
+            ("DueAtUtc", "TEXT", true, false)
+        };
+
+        return ValidateColumns(connection, TargetPersistenceDdl.TargetReviewsTableName, expected, out failureDetail);
+    }
+
     private static bool ValidateColumns(
         SQLiteConnection connection,
         string tableName,
@@ -135,7 +208,13 @@ internal static class TargetPersistenceShapeValidator
         {
             (TargetPersistenceDdl.LearningTargetsTableName, "Senses", "SenseId", "Id", "CASCADE"),
             (TargetPersistenceDdl.TargetAnswerVariantsTableName, TargetPersistenceDdl.LearningTargetsTableName, "TargetId", "Id", "CASCADE"),
-            (TargetPersistenceDdl.TargetAnswerVariantsTableName, "Meanings", "SourceMeaningId", "Id", "SET NULL")
+            (TargetPersistenceDdl.TargetAnswerVariantsTableName, "Meanings", "SourceMeaningId", "Id", "SET NULL"),
+            (TargetPersistenceDdl.TargetFsrsStatesTableName, TargetPersistenceDdl.LearningTargetsTableName, "TargetId", "Id", "CASCADE"),
+            (TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName, TargetPersistenceDdl.LearningTargetsTableName, "TargetId", "Id", "CASCADE"),
+            (TargetPersistenceDdl.TargetReviewsTableName, TargetPersistenceDdl.LearningTargetsTableName, "TargetId", "Id", "CASCADE"),
+            (TargetPersistenceDdl.TargetReviewsTableName, "LearningSessions", "SessionId", "Id", "CASCADE"),
+            (TargetPersistenceDdl.TargetReviewsTableName, TargetPersistenceDdl.TargetAnswerVariantsTableName, "TargetAnswerVariantId", "Id", "SET NULL"),
+            (TargetPersistenceDdl.TargetReviewsTableName, TargetPersistenceDdl.TargetAnswerVariantsTableName, "MatchedAnswerVariantId", "Id", "SET NULL")
         };
 
         foreach (var (table, parent, from, to, onDelete) in checks)
@@ -173,7 +252,15 @@ internal static class TargetPersistenceShapeValidator
             (TargetPersistenceDdl.TargetAnswerVariantsTableName, TargetPersistenceDdl.TargetAnswerVariantsStableIdIndexName, true, ["StableId"]),
             (TargetPersistenceDdl.TargetAnswerVariantsTableName, TargetPersistenceDdl.TargetAnswerVariantsTargetIdIndexName, false, ["TargetId"]),
             (TargetPersistenceDdl.TargetAnswerVariantsTableName, TargetPersistenceDdl.TargetAnswerVariantsNormalizedTextIndexName, true, ["TargetId", "NormalizedText"]),
-            (TargetPersistenceDdl.TargetAnswerVariantsTableName, TargetPersistenceDdl.TargetAnswerVariantsPreferredIndexName, true, ["TargetId"])
+            (TargetPersistenceDdl.TargetAnswerVariantsTableName, TargetPersistenceDdl.TargetAnswerVariantsPreferredIndexName, true, ["TargetId"]),
+            (TargetPersistenceDdl.TargetFsrsStatesTableName, TargetPersistenceDdl.TargetFsrsStatesDueIndexName, false, ["State", "DueAtUtc"]),
+            (TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName, TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesStableIdIndexName, true, ["StableId"]),
+            (TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName, TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTargetSequenceIndexName, true, ["TargetId", "SequenceNumber"]),
+            (TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName, TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesReplayIndexName, false, ["TargetId", "ReviewedAtUtc", "SequenceNumber"]),
+            (TargetPersistenceDdl.TargetReviewsTableName, TargetPersistenceDdl.TargetReviewsStableIdIndexName, true, ["StableId"]),
+            (TargetPersistenceDdl.TargetReviewsTableName, TargetPersistenceDdl.TargetReviewsTargetIdIndexName, false, ["TargetId"]),
+            (TargetPersistenceDdl.TargetReviewsTableName, TargetPersistenceDdl.TargetReviewsSessionIdIndexName, false, ["SessionId"]),
+            (TargetPersistenceDdl.TargetReviewsTableName, TargetPersistenceDdl.TargetReviewsTargetReviewedAtIndexName, false, ["TargetId", "ReviewedAtUtc"])
         };
 
         foreach (var (table, indexName, unique, columns) in requiredIndexes)
@@ -223,7 +310,10 @@ internal static class TargetPersistenceShapeValidator
         var tables = new[]
         {
             TargetPersistenceDdl.LearningTargetsTableName,
-            TargetPersistenceDdl.TargetAnswerVariantsTableName
+            TargetPersistenceDdl.TargetAnswerVariantsTableName,
+            TargetPersistenceDdl.TargetFsrsStatesTableName,
+            TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName,
+            TargetPersistenceDdl.TargetReviewsTableName
         };
 
         var ddlByTable = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -284,6 +374,68 @@ internal static class TargetPersistenceShapeValidator
             if (!variantsSql.Contains(fragment, StringComparison.OrdinalIgnoreCase))
             {
                 failureDetail = $"Table '{TargetPersistenceDdl.TargetAnswerVariantsTableName}' is missing required CHECK constraint: {desc}.";
+                return false;
+            }
+        }
+
+        // TargetFsrsStates checks
+        var statesSql = ddlByTable[TargetPersistenceDdl.TargetFsrsStatesTableName];
+        var statesChecks = new (string Fragment, string Description)[]
+        {
+            ("STATEIN(0,1,2,3)", "State in (0, 1, 2, 3)"),
+            ("STABILITYISNULLORSTABILITY>=0.001", "Stability validity"),
+            ("DIFFICULTY>=1.0ANDDIFFICULTY<=10.0", "Difficulty validity"),
+            ("STATE=0ANDSTABILITYISNULLANDDIFFICULTYISNULLANDLASTREVIEWEDATUTCISNULLANDSTEPINDEXISNULL", "State 0 invariants"),
+            ("STATE=1ANDSTABILITYISNOTNULLANDDIFFICULTYISNOTNULLANDLASTREVIEWEDATUTCISNOTNULLANDSTEPINDEX=0", "State 1 invariants"),
+            ("STATE=2ANDSTABILITYISNOTNULLANDDIFFICULTYISNOTNULLANDLASTREVIEWEDATUTCISNOTNULLANDSTEPINDEXISNULL", "State 2 invariants"),
+            ("STATE=3ANDSTABILITYISNOTNULLANDDIFFICULTYISNOTNULLANDLASTREVIEWEDATUTCISNOTNULLANDSTEPINDEX=0", "State 3 invariants")
+        };
+
+        foreach (var (fragment, desc) in statesChecks)
+        {
+            if (!statesSql.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+            {
+                failureDetail = $"Table '{TargetPersistenceDdl.TargetFsrsStatesTableName}' is missing required CHECK constraint: {desc}.";
+                return false;
+            }
+        }
+
+        // TargetFsrsReviewHistoryEntries checks
+        var historySql = ddlByTable[TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName];
+        var historyChecks = new (string Fragment, string Description)[]
+        {
+            ("LENGTH(TRIM(STABLEID))>0", "non-empty StableId"),
+            ("SEQUENCENUMBER>0", "SequenceNumber > 0"),
+            ("RATINGIN(0,1,2,3)", "Rating in (0, 1, 2, 3)")
+        };
+
+        foreach (var (fragment, desc) in historyChecks)
+        {
+            if (!historySql.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+            {
+                failureDetail = $"Table '{TargetPersistenceDdl.TargetFsrsReviewHistoryEntriesTableName}' is missing required CHECK constraint: {desc}.";
+                return false;
+            }
+        }
+
+        // TargetReviews checks
+        var reviewsSql = ddlByTable[TargetPersistenceDdl.TargetReviewsTableName];
+        var reviewsChecks = new (string Fragment, string Description)[]
+        {
+            ("LENGTH(TRIM(STABLEID))>0", "non-empty StableId"),
+            ("RATINGIN(0,1,2,3)", "Rating in (0, 1, 2, 3)"),
+            ("WASTYPEDANSWERIN(0,1)", "WasTypedAnswer in (0, 1)"),
+            ("WASCORRECTIN(0,1)", "WasCorrect in (0, 1)"),
+            ("ISSESSIONREPEATIN(0,1)", "IsSessionRepeat in (0, 1)"),
+            ("LENGTH(TRIM(REVIEWEDATUTC))>0", "non-empty ReviewedAtUtc"),
+            ("LENGTH(TRIM(DUEATUTC))>0", "non-empty DueAtUtc")
+        };
+
+        foreach (var (fragment, desc) in reviewsChecks)
+        {
+            if (!reviewsSql.Contains(fragment, StringComparison.OrdinalIgnoreCase))
+            {
+                failureDetail = $"Table '{TargetPersistenceDdl.TargetReviewsTableName}' is missing required CHECK constraint: {desc}.";
                 return false;
             }
         }

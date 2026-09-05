@@ -210,10 +210,10 @@ public sealed class LearningTargetRepository
 
         var sid = string.IsNullOrWhiteSpace(stableId) ? Guid.NewGuid().ToString("N") : stableId.Trim();
         var answerLang = draft.AnswerLanguage.Trim().ToLowerInvariant();
-        var displayText = draft.DisplayText.Trim();
+        var displayText = draft.DisplayText.Normalize(System.Text.NormalizationForm.FormC).Trim();
         var normalizedText = string.IsNullOrWhiteSpace(draft.NormalizedText)
-            ? displayText
-            : draft.NormalizedText.Trim();
+            ? NormalizeAnswerText(displayText)
+            : NormalizeAnswerText(draft.NormalizedText);
 
         var nowFormatted = Schema13TimestampCodec.FormatUtc(nowUtc);
         string? requiredSinceUtc = draft.Requirement == AnswerVariantRequirement.Required
@@ -453,4 +453,7 @@ public sealed class LearningTargetRepository
         public string CreatedAtUtc { get; set; } = string.Empty;
         public string UpdatedAtUtc { get; set; } = string.Empty;
     }
+
+    public static string NormalizeAnswerText(string? text) =>
+        text is null ? string.Empty : text.Trim().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
 }

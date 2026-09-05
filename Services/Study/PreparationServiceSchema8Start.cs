@@ -131,9 +131,12 @@ public sealed partial class PreparationService
                 PreparationCandidatePayloadV1.CreatePending(frozen, targetAddition));
             connection.Update(candidate);
 
-            word.PreparationState = PreparationState.Preparing;
-            word.UpdatedAt = now;
-            connection.Update(word);
+            if (targetAddition is null)
+            {
+                word.PreparationState = PreparationState.Preparing;
+                word.UpdatedAt = now;
+                connection.Update(word);
+            }
         }
 
         return session.Id;

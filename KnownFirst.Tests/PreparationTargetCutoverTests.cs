@@ -7,6 +7,7 @@ using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
@@ -264,7 +265,7 @@ public sealed class PreparationTargetCutoverTests
     }
 
     [TestMethod]
-    public async Task ProviderSense_DifferentReliableProviderSenseId_RemainsDistinct()
+    public async Task AddTarget_ExplicitSenseId_IsAuthoritativeAndDoesNotCreateNewSense()
     {
         await using var database = new ProductionInitializedDatabase();
         await database.InitializeAsync();
@@ -288,7 +289,11 @@ public sealed class PreparationTargetCutoverTests
 
         var senseCount = await database.RunInTransactionAsync(conn =>
             conn.ExecuteScalar<int>("SELECT COUNT(*) FROM Senses WHERE WordId = ?", wordId));
-        Assert.AreEqual(2, senseCount);
+        Assert.AreEqual(1, senseCount, "Under Option A, explicit TargetAddition.SenseId is authoritative and attaches to the existing sense.");
+
+        var targetRepo = new LearningTargetRepository(database);
+        var targets = await targetRepo.GetTargetsForSenseAsync(originalSenseId);
+        Assert.AreEqual(2, targets.Count);
     }
 
     [TestMethod]
@@ -343,6 +348,466 @@ public sealed class PreparationTargetCutoverTests
         Assert.AreEqual(
             LearningInteractionMode.Typing,
             TargetAutomaticProgressionPolicy.ResolveInteraction(LearningMode.Typing, state));
+    }
+
+    [TestMethod]
+    public async Task AddTarget_Skip_PreservesExistingPreparedState()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Haus ist gross.", "Haus", "de", LexicalLookupMode.Definition, null);
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        Assert.IsTrue(firstSessionId > 0);
+        var firstItem = await preparation.GetCurrentAsync();
+        Assert.IsNotNull(firstItem);
+
+        await preparation.AcceptAsync(
+            firstItem.CandidateId,
+            CreateManualDefinitionInput("Gebäude zum Wohnen", typingOptOut: null),
+            CardDirectionPreference.Both);
+
+        var preState = await database.RunInTransactionAsync(conn =>
+        {
+            var word = conn.Find<WordEntity>(wordId)!;
+            var sense = conn.Query<SenseIdRow>("SELECT Id FROM Senses WHERE WordId = ?", wordId).Single();
+            return (word.PreparationState, word.Status, sense.Id);
+        });
+
+        Assert.AreEqual(PreparationState.Prepared, preState.PreparationState);
+        Assert.AreEqual(WordStatus.UnknownBacklog, preState.Status);
+
+        var targetAddition = new PreparationTargetAdditionRequest(
+            wordId, preState.Id, LearningTargetKind.Translation, "en");
+
+        var addSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1, targetAddition);
+        Assert.IsTrue(addSessionId > 0);
+
+        var addItem = await preparation.GetCurrentAsync();
+        Assert.IsNotNull(addItem);
+
+        await preparation.SkipAsync(addItem.CandidateId);
+
+        var postWord = await database.RunInTransactionAsync(conn => conn.Find<WordEntity>(wordId)!);
+        Assert.AreEqual(PreparationState.Prepared, postWord.PreparationState);
+        Assert.AreEqual(preState.Status, postWord.Status);
+    }
+
+    [TestMethod]
+    public async Task AddTarget_Cancel_PreservesExistingPreparedState()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Haus ist gross.", "Haus", "de", LexicalLookupMode.Definition, null);
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        Assert.IsTrue(firstSessionId > 0);
+        var firstItem = await preparation.GetCurrentAsync();
+        Assert.IsNotNull(firstItem);
+
+        await preparation.AcceptAsync(
+            firstItem.CandidateId,
+            CreateManualDefinitionInput("Gebäude zum Wohnen", typingOptOut: null),
+            CardDirectionPreference.Both);
+
+        var preState = await database.RunInTransactionAsync(conn =>
+        {
+            var word = conn.Find<WordEntity>(wordId)!;
+            var sense = conn.Query<SenseIdRow>("SELECT Id FROM Senses WHERE WordId = ?", wordId).Single();
+            return (word.PreparationState, word.Status, sense.Id);
+        });
+
+        Assert.AreEqual(PreparationState.Prepared, preState.PreparationState);
+
+        var targetAddition = new PreparationTargetAdditionRequest(
+            wordId, preState.Id, LearningTargetKind.Translation, "en");
+
+        var addSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1, targetAddition);
+        Assert.IsTrue(addSessionId > 0);
+
+        await preparation.CancelActiveSessionAsync();
+
+        var postWord = await database.RunInTransactionAsync(conn => conn.Find<WordEntity>(wordId)!);
+        Assert.AreEqual(PreparationState.Prepared, postWord.PreparationState);
+        Assert.AreEqual(preState.Status, postWord.Status);
+    }
+
+    [TestMethod]
+    public async Task AddTarget_LookupFailure_PreservesExistingPreparedState()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Haus ist gross.", "Haus", "de", LexicalLookupMode.Definition, null);
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        var firstItem = await preparation.GetCurrentAsync();
+        await preparation.AcceptAsync(
+            firstItem!.CandidateId,
+            CreateManualDefinitionInput("Gebäude zum Wohnen", typingOptOut: null),
+            CardDirectionPreference.Both);
+
+        var preState = await database.RunInTransactionAsync(conn =>
+        {
+            var word = conn.Find<WordEntity>(wordId)!;
+            var sense = conn.Query<SenseIdRow>("SELECT Id FROM Senses WHERE WordId = ?", wordId).Single();
+            return (word.PreparationState, word.Status, sense.Id);
+        });
+
+        provider.MeaningsFactory = _ => throw new InvalidOperationException("Simulated provider crash.");
+
+        var targetAddition = new PreparationTargetAdditionRequest(
+            wordId, preState.Id, LearningTargetKind.Translation, "en");
+
+        var addSessionId = await preparation.StartAsync(PreparationMethod.AutomaticOnline, 1, targetAddition);
+        Assert.IsTrue(addSessionId > 0);
+
+        var candidate = await preparation.LookupCurrentAsync();
+        Assert.IsNotNull(candidate);
+        Assert.AreEqual(PreparationCandidateStatus.Failed, candidate.Status);
+
+        var postWord = await database.RunInTransactionAsync(conn => conn.Find<WordEntity>(wordId)!);
+        Assert.AreEqual(PreparationState.Prepared, postWord.PreparationState);
+        Assert.AreEqual(preState.Status, postWord.Status);
+    }
+
+    [TestMethod]
+    public async Task AddTarget_ActiveSessionConflict_ThrowsInvalidOperationException()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Haus ist gross.", "Haus", "de", LexicalLookupMode.Definition, null);
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        var firstItem = await preparation.GetCurrentAsync();
+        await preparation.AcceptAsync(
+            firstItem!.CandidateId,
+            CreateManualDefinitionInput("Gebäude zum Wohnen", typingOptOut: null),
+            CardDirectionPreference.Both);
+
+        var senseId = await database.RunInTransactionAsync(conn =>
+            conn.ExecuteScalar<int>("SELECT Id FROM Senses WHERE WordId = ?", wordId));
+
+        var targetAddition1 = new PreparationTargetAdditionRequest(
+            wordId, senseId, LearningTargetKind.Translation, "en");
+
+        var session1 = await preparation.StartAsync(PreparationMethod.Manual, 1, targetAddition1);
+        Assert.IsTrue(session1 > 0);
+
+        // Conflict: Start ordinary session while add-target session is active
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            preparation.StartAsync(PreparationMethod.Manual, 1));
+
+        // Conflict: Start different add-target session (different target language) while active
+        var targetAddition2 = new PreparationTargetAdditionRequest(
+            wordId, senseId, LearningTargetKind.Translation, "fr");
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            preparation.StartAsync(PreparationMethod.Manual, 1, targetAddition2));
+    }
+
+    [TestMethod]
+    public async Task AddTarget_ActiveSessionSameContext_ResumesSession()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Haus ist gross.", "Haus", "de", LexicalLookupMode.Definition, null);
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        var firstItem = await preparation.GetCurrentAsync();
+        await preparation.AcceptAsync(
+            firstItem!.CandidateId,
+            CreateManualDefinitionInput("Gebäude zum Wohnen", typingOptOut: null),
+            CardDirectionPreference.Both);
+
+        var senseId = await database.RunInTransactionAsync(conn =>
+            conn.ExecuteScalar<int>("SELECT Id FROM Senses WHERE WordId = ?", wordId));
+
+        var targetAddition = new PreparationTargetAdditionRequest(
+            wordId, senseId, LearningTargetKind.Translation, "en");
+
+        var session1 = await preparation.StartAsync(PreparationMethod.Manual, 1, targetAddition);
+        Assert.IsTrue(session1 > 0);
+
+        // Resume: same exact targetAddition context
+        var session2 = await preparation.StartAsync(PreparationMethod.Manual, 1, targetAddition);
+        Assert.AreEqual(session1, session2);
+    }
+
+    [TestMethod]
+    public async Task AddTarget_VariantNormalization_DeduplicatesDuplicatesAndUnicodeVariants()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+        var targetRepo = new LearningTargetRepository(database);
+
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Café ist schön.", "Café", "de", LexicalLookupMode.Definition, null);
+
+        var nfdVariant = "Cafe\u0301";
+        var nfcVariant = "Caf\u00e9";
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        var firstItem = await preparation.GetCurrentAsync();
+        await preparation.AcceptAsync(
+            firstItem!.CandidateId,
+            new PreparedMeaningInput(
+                SelectedMeaningId: null,
+                AcronymExpansion: null,
+                Translation: null,
+                Definition: nfdVariant,
+                DictionaryExample: null,
+                AdditionalNote: null,
+                AcceptedAliases: [nfcVariant, "  " + nfdVariant + "  ", "CAFÉ"],
+                ProviderName: string.Empty,
+                SourceProject: string.Empty,
+                SourcePageTitle: string.Empty,
+                SourceRevisionId: null,
+                Attribution: string.Empty,
+                ManualInputMode: LexicalLookupMode.Definition),
+            CardDirectionPreference.Both);
+
+        var senseId = await database.RunInTransactionAsync(conn =>
+            conn.ExecuteScalar<int>("SELECT Id FROM Senses WHERE WordId = ?", wordId));
+        var targets = await targetRepo.GetTargetsForSenseAsync(senseId);
+        Assert.AreEqual(1, targets.Count);
+
+        var variants = await targetRepo.GetAnswerVariantsAsync(targets[0].Id);
+        Assert.AreEqual(1, variants.Count);
+        Assert.IsTrue(variants[0].IsPreferred);
+        Assert.AreEqual(nfdVariant.Normalize(System.Text.NormalizationForm.FormC), variants[0].DisplayText);
+    }
+
+    [TestMethod]
+    public async Task AddTarget_MismatchedWordId_ThrowsInvalidOperationException()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+
+        var wordId1 = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Haus ist gross.", "Haus", "de", LexicalLookupMode.Definition, null);
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        var firstItem = await preparation.GetCurrentAsync();
+        await preparation.AcceptAsync(
+            firstItem!.CandidateId,
+            CreateManualDefinitionInput("Gebäude zum Wohnen", typingOptOut: null),
+            CardDirectionPreference.Both);
+
+        var senseId1 = await database.RunInTransactionAsync(conn =>
+            conn.ExecuteScalar<int>("SELECT Id FROM Senses WHERE WordId = ?", wordId1));
+
+        var wordId2 = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Baum ist grün.", "Baum", "de", LexicalLookupMode.Definition, null);
+
+        var invalidAddition = new PreparationTargetAdditionRequest(
+            wordId2, senseId1, LearningTargetKind.Translation, "en");
+
+        var sessionId = await preparation.StartAsync(PreparationMethod.Manual, 1, invalidAddition);
+        Assert.AreEqual(0, sessionId, "Starting target addition with mismatched sense ownership must fail to start session.");
+    }
+
+    [TestMethod]
+    public async Task AddTarget_GenuinelyReviewedCard_PreservesAllFsrsStateAndHistory()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(Now);
+        var analyzer = new TextAnalyzer();
+        var review = new TextReviewService(
+            database,
+            analyzer,
+            new DisabledEnhancedRecognitionSettings(),
+            new FixtureGermanLexicon());
+
+        var provider = new MutableProvider(clock);
+        var preparation = CreatePreparationService(database, provider, clock);
+        var targetRepo = new LearningTargetRepository(database);
+
+        var wordId = await ImportWithOnlyThisWordUnknownAsync(
+            review, "Ein Haus ist gross.", "Haus", "de", LexicalLookupMode.Definition, null);
+
+        var firstSessionId = await preparation.StartAsync(PreparationMethod.Manual, 1);
+        var firstItem = await preparation.GetCurrentAsync();
+        await preparation.AcceptAsync(
+            firstItem!.CandidateId,
+            CreateManualDefinitionInput("Gebäude zum Wohnen", typingOptOut: null),
+            CardDirectionPreference.Both);
+
+        var senseId = await database.RunInTransactionAsync(conn =>
+            conn.ExecuteScalar<int>("SELECT Id FROM Senses WHERE WordId = ?", wordId));
+
+        var cardIds = await database.RunInTransactionAsync(conn =>
+            conn.Query<SenseIdRow>("SELECT Id FROM LearningCards WHERE WordId = ?", wordId).Select(r => r.Id).ToArray());
+        Assert.IsTrue(cardIds.Length > 0);
+
+        var reviewTime = Now.AddDays(-1);
+        var fsrsScheduler = new KnownFirst.Application.Learning.Fsrs6SchedulingService(clock);
+        var projection = fsrsScheduler.Schedule(
+            KnownFirst.Application.Learning.Fsrs6ScheduleProjection.New(),
+            ReviewRating.Good,
+            new DateTimeOffset(reviewTime, TimeSpan.Zero));
+
+        await database.RunInTransactionAsync(conn =>
+        {
+            foreach (var cardId in cardIds)
+            {
+                var lastReviewedStr = Schema13TimestampCodec.FormatUtc(reviewTime);
+                var dueStr = Schema13TimestampCodec.FormatUtc(projection.DueAtUtc!.Value.UtcDateTime);
+
+                conn.Execute(
+                    """
+                    UPDATE FsrsCardStates
+                    SET State = ?, Stability = ?, Difficulty = ?, LastReviewedAtUtc = ?, StepIndex = ?, DueAtUtc = ?
+                    WHERE CardId = ?
+                    """,
+                    (int)projection.State,
+                    projection.Stability,
+                    projection.Difficulty,
+                    lastReviewedStr,
+                    projection.StepIndex,
+                    dueStr,
+                    cardId);
+
+                conn.Execute(
+                    """
+                    UPDATE LearningCards
+                    SET State = ?, DueAtUtc = ?
+                    WHERE Id = ?
+                    """,
+                    (int)projection.State,
+                    dueStr,
+                    cardId);
+
+                conn.Execute(
+                    """
+                    INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc)
+                    VALUES (?, ?, 1, ?, ?)
+                    """,
+                    Guid.NewGuid().ToString("N"),
+                    cardId,
+                    (int)ReviewRating.Good,
+                    lastReviewedStr);
+            }
+
+            return true;
+        });
+
+        var preCards = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>("SELECT Id || '|' || SenseId || '|' || PreferredMeaningId || '|' || Direction || '|' || State || '|' || DueAtUtc AS Value FROM LearningCards WHERE WordId = ? ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+        var preFsrs = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>("SELECT CardId || '|' || State || '|' || quote(Stability) || '|' || quote(Difficulty) || '|' || quote(LastReviewedAtUtc) || '|' || quote(DueAtUtc) AS Value FROM FsrsCardStates WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY CardId", wordId).Select(r => r.Value).ToArray());
+        var preLogs = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>("SELECT CardId || '|' || SequenceNumber || '|' || Rating || '|' || ReviewedAtUtc AS Value FROM FsrsReviewHistoryEntries WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+
+        Assert.IsTrue(preFsrs.Length > 0);
+        Assert.IsTrue(preLogs.Length > 0);
+
+        var targetAddition = new PreparationTargetAdditionRequest(
+            wordId, senseId, LearningTargetKind.Translation, "en");
+
+        provider.MeaningsFactory = _ => [new LexicalMeaning("meaning-trans", "Substantiv", string.Empty, "house", null, [])];
+        await PrepareProviderTargetAsync(preparation, targetAddition, typingOptOut: null, aliases: ["home"]);
+
+        var postCards = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>("SELECT Id || '|' || SenseId || '|' || PreferredMeaningId || '|' || Direction || '|' || State || '|' || DueAtUtc AS Value FROM LearningCards WHERE WordId = ? ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+        var postFsrs = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>("SELECT CardId || '|' || State || '|' || quote(Stability) || '|' || quote(Difficulty) || '|' || quote(LastReviewedAtUtc) || '|' || quote(DueAtUtc) AS Value FROM FsrsCardStates WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY CardId", wordId).Select(r => r.Value).ToArray());
+        var postLogs = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>("SELECT CardId || '|' || SequenceNumber || '|' || Rating || '|' || ReviewedAtUtc AS Value FROM FsrsReviewHistoryEntries WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+
+        CollectionAssert.AreEqual(preCards, postCards, "LearningCards records must be unchanged.");
+        CollectionAssert.AreEqual(preFsrs, postFsrs, "FsrsCardStates records must be unchanged.");
+        CollectionAssert.AreEqual(preLogs, postLogs, "FsrsReviewHistoryEntries records must be unchanged.");
+
+        var targets = await targetRepo.GetTargetsForSenseAsync(senseId);
+        Assert.AreEqual(2, targets.Count, "The new translation target must be created alongside definition target.");
     }
 
     private static PreparedMeaningInput CreateManualDefinitionInput(string definition, bool? typingOptOut) => new(
@@ -504,6 +969,11 @@ public sealed class PreparationTargetCutoverTests
     private sealed class SenseIdRow
     {
         public int Id { get; set; }
+    }
+
+    private sealed class StringRow
+    {
+        public string Value { get; set; } = string.Empty;
     }
 
     private sealed class LegacyScheduleRow

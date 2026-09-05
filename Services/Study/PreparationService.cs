@@ -124,7 +124,42 @@ public sealed partial class PreparationService(
                     .FirstOrDefault(session => session.Status == PreparationSessionStatus.Active);
                 if (active is not null)
                 {
-                    return active.Id;
+                    if (targetAddition is not null)
+                    {
+                        var candidates = connection.Table<PreparationCandidateEntity>()
+                            .Where(c => c.SessionId == active.Id)
+                            .ToList();
+                        var matchesTargetAddition = candidates.Any(c =>
+                        {
+                            var env = PreparationCandidatePayloadCodec.Read(c.ResultJson).Envelope;
+                            return env?.TargetAddition is { } existingAddition
+                                && existingAddition.WordId == targetAddition.WordId
+                                && existingAddition.SenseId == targetAddition.SenseId
+                                && existingAddition.TargetKind == targetAddition.TargetKind
+                                && string.Equals(existingAddition.TargetLanguage.Trim(), targetAddition.TargetLanguage.Trim(), StringComparison.OrdinalIgnoreCase);
+                        });
+
+                        if (matchesTargetAddition)
+                        {
+                            return active.Id;
+                        }
+
+                        throw new InvalidOperationException("An unrelated preparation session is already active.");
+                    }
+                    else
+                    {
+                        var candidates = connection.Table<PreparationCandidateEntity>()
+                            .Where(c => c.SessionId == active.Id)
+                            .ToList();
+                        var hasTargetAddition = candidates.Any(c =>
+                            PreparationCandidatePayloadCodec.Read(c.ResultJson).Envelope?.TargetAddition is not null);
+                        if (hasTargetAddition)
+                        {
+                            throw new InvalidOperationException("An active add-target preparation session already exists.");
+                        }
+
+                        return active.Id;
+                    }
                 }
 
                 if (method == PreparationMethod.AutomaticOnline)
@@ -377,8 +412,12 @@ public sealed partial class PreparationService(
                 candidate.UpdatedAtUtc = clock.UtcNow;
                 connection.Update(candidate);
                 var word = connection.Find<WordEntity>(candidate.WordId)!;
-                word.PreparationState = PreparationState.Preparing;
-                connection.Update(word);
+                var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
+                if (envelope?.TargetAddition is null && word.Status == WordStatus.UnknownBacklog)
+                {
+                    word.PreparationState = PreparationState.Preparing;
+                    connection.Update(word);
+                }
                 return true;
             });
 
@@ -443,9 +482,12 @@ public sealed partial class PreparationService(
                     }
 
                     candidate.Status = PreparationCandidateStatus.ResultReady;
-                    word.PreparationState = PreparationState.Preparing;
-                    word.UpdatedAt = now;
-                    connection.Update(word);
+                    if (merged.TargetAddition is null && word.Status == WordStatus.UnknownBacklog)
+                    {
+                        word.PreparationState = PreparationState.Preparing;
+                        word.UpdatedAt = now;
+                        connection.Update(word);
+                    }
                 }
                 else
                 {
@@ -457,11 +499,18 @@ public sealed partial class PreparationService(
                         ? PreparationCandidateStatus.ResultReady
                         : PreparationCandidateStatus.Failed;
                     candidate.LastErrorCode = result.ErrorCode ?? string.Empty;
-                    word.PreparationState = result.HasUsableData
-                        ? PreparationState.Preparing
-                        : PreparationState.PreparationFailed;
-                    word.UpdatedAt = now;
-                    connection.Update(word);
+                    if (isSchema8Compatible && PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope?.TargetAddition is not null)
+                    {
+                        // Add-target candidate never mutates word.PreparationState on failure or ready
+                    }
+                    else
+                    {
+                        word.PreparationState = result.HasUsableData
+                            ? PreparationState.Preparing
+                            : PreparationState.PreparationFailed;
+                        word.UpdatedAt = now;
+                        connection.Update(word);
+                    }
                 }
 
                 _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.complete"));
@@ -780,9 +829,13 @@ public sealed partial class PreparationService(
                 EnsureCurrentCandidate(connection, candidate);
                 var session = connection.Find<PreparationSessionEntity>(candidate.SessionId)!;
                 var word = connection.Find<WordEntity>(candidate.WordId)!;
-                word.PreparationState = PreparationState.Unprepared;
-                word.UpdatedAt = clock.UtcNow;
-                connection.Update(word);
+                var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
+                if (envelope?.TargetAddition is null && word.Status == WordStatus.UnknownBacklog)
+                {
+                    word.PreparationState = PreparationState.Unprepared;
+                    word.UpdatedAt = clock.UtcNow;
+                    connection.Update(word);
+                }
                 CompleteCandidate(
                     connection,
                     session,
@@ -829,7 +882,8 @@ public sealed partial class PreparationService(
                     }
 
                     var word = connection.Find<WordEntity>(candidate.WordId);
-                    if (word?.Status == WordStatus.UnknownBacklog)
+                    var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
+                    if (word?.Status == WordStatus.UnknownBacklog && envelope?.TargetAddition is null)
                     {
                         word.PreparationState = PreparationState.Unprepared;
                         word.UpdatedAt = now;
@@ -1293,6 +1347,11 @@ public sealed partial class PreparationService(
 
         if (read.Envelope?.TargetAddition is { } targetAddition)
         {
+            if (targetAddition.WordId != word.Id)
+            {
+                throw new InvalidOperationException("TargetAddition WordId does not match the candidate WordId.");
+            }
+
             lookupMode = targetAddition.TargetKind == KnownFirst.Core.Learning.LearningTargetKind.Definition
                 ? LexicalLookupMode.Definition
                 : LexicalLookupMode.Translation;

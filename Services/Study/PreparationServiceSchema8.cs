@@ -198,8 +198,10 @@ public sealed partial class PreparationService
             targetFacts.TopicOrDomain);
 
         var explicitTargetSense = envelope.TargetAddition is { } targetAddition
-            ? existingSenses.SingleOrDefault(sense => sense.Id == targetAddition.SenseId)
-                ?? throw new InvalidOperationException("The explicit target-addition Sense no longer belongs to this Word.")
+            ? (targetAddition.WordId != candidate.WordId
+                ? throw new InvalidOperationException("TargetAddition WordId does not match the candidate WordId.")
+                : existingSenses.SingleOrDefault(sense => sense.Id == targetAddition.SenseId)
+                    ?? throw new InvalidOperationException("The explicit target-addition Sense no longer belongs to this Word."))
             : null;
         var exactManualMatch = isManualInput && explicitTargetSense is null
             ? TryFindExactManualMeaning(
@@ -219,14 +221,7 @@ public sealed partial class PreparationService
         }
         else
         {
-            var matchedSense = isManualInput
-                ? explicitTargetSense
-                : TryFindSenseByProviderProvenance(
-                    connection,
-                    existingSenses,
-                    acceptedInput.SelectedMeaningId ?? targetMeaning!.MeaningId,
-                    acceptedInput.ProviderName,
-                    acceptedInput.SourceProject);
+            var matchedSense = explicitTargetSense;
             if (matchedSense is null)
             {
                 (matchedSense, _) = PreparationSenseClassifier.ClassifyAgainstExisting(
@@ -382,7 +377,7 @@ public sealed partial class PreparationService
         string explanationLanguage) => new(
         word.Language,
         explanationLanguage,
-        !string.IsNullOrWhiteSpace(input.SelectedMeaningId) ? input.SelectedMeaningId!.Trim() : meaning.MeaningId ?? string.Empty,
+        FilterPositionalProviderSenseId(!string.IsNullOrWhiteSpace(input.SelectedMeaningId) ? input.SelectedMeaningId!.Trim() : meaning.MeaningId ?? string.Empty),
         normalizedTopicOrDomain,
         !string.IsNullOrWhiteSpace(input.GrammaticalRelationship)
             ? input.GrammaticalRelationship!.Trim()
@@ -522,46 +517,31 @@ public sealed partial class PreparationService
         && meaning.SourceRevisionId is null
         && string.IsNullOrWhiteSpace(meaning.Attribution);
 
-    private static SenseRow? TryFindSenseByProviderProvenance(
-        SQLiteConnection connection,
-        IReadOnlyList<SenseRow> existingSenses,
-        string? providerSenseId,
-        string? providerName,
-        string? sourceProject)
-    {
-        if (string.IsNullOrWhiteSpace(providerSenseId) || string.IsNullOrWhiteSpace(providerName))
-        {
-            return null;
-        }
-
-        var normalizedSenseId = providerSenseId.Trim();
-        var normalizedProviderName = providerName.Trim();
-        var normalizedProject = sourceProject?.Trim() ?? string.Empty;
-        foreach (var sense in existingSenses)
-        {
-            var meanings = connection.Query<LegacyMeaningRow>(
-                "SELECT * FROM Meanings WHERE SenseId = ? ORDER BY Id", sense.Id);
-            if (meanings.Any(meaning =>
-                    string.Equals(meaning.SelectedMeaningId, normalizedSenseId, StringComparison.Ordinal)
-                    && string.Equals(meaning.Source, normalizedProviderName, StringComparison.OrdinalIgnoreCase)
-                    && (normalizedProject.Length == 0
-                        || string.Equals(meaning.SourceProject, normalizedProject, StringComparison.OrdinalIgnoreCase))))
-            {
-                return sense;
-            }
-        }
-
-        return null;
-    }
-
     private static SenseDiscriminatorFacts ProviderOnlyDiscriminatorFacts(
         WordEntity word, LexicalResult result, LexicalMeaning meaning, string explanationLanguage) => new(
         word.Language,
         explanationLanguage,
-        meaning.MeaningId ?? string.Empty,
+        FilterPositionalProviderSenseId(meaning.MeaningId ?? string.Empty),
         string.Empty,
         result.GrammaticalRelationship ?? string.Empty,
         result.AcronymExpansion ?? string.Empty);
+
+    private static string FilterPositionalProviderSenseId(string providerSenseId)
+    {
+        if (string.IsNullOrWhiteSpace(providerSenseId))
+        {
+            return string.Empty;
+        }
+
+        var normalized = providerSenseId.Trim();
+        if (normalized.StartsWith("wiktionary-", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("wiktionary", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return normalized;
+    }
 
     private static int InsertSense(
         SQLiteConnection connection, int wordId, SenseDiscriminatorFacts facts, string partOfSpeech, DateTime now)
@@ -1096,13 +1076,18 @@ public sealed partial class PreparationService
     {
         var existingVariants = LearningTargetRepository.GetAnswerVariants(connection, targetId);
         var hasPreferred = existingVariants.Any(v => v.IsPreferred);
+        var seenNormalized = new HashSet<string>(
+            existingVariants.Select(v => LearningTargetRepository.NormalizeAnswerText(v.NormalizedText)),
+            StringComparer.Ordinal);
 
-        if (!existingVariants.Any(v => string.Equals(v.NormalizedText, primaryText, StringComparison.OrdinalIgnoreCase)))
+        var normalizedPrimary = LearningTargetRepository.NormalizeAnswerText(primaryText);
+        if (normalizedPrimary.Length > 0 && seenNormalized.Add(normalizedPrimary))
         {
             var isPreferred = !hasPreferred;
             var draft = new TargetAnswerVariantDraft(
                 AnswerLanguage: targetLanguage,
-                DisplayText: primaryText,
+                DisplayText: primaryText.Trim(),
+                NormalizedText: normalizedPrimary,
                 Requirement: AnswerVariantRequirement.Required,
                 IsPreferred: isPreferred,
                 SourceMeaningId: meaningId);
@@ -1115,7 +1100,6 @@ public sealed partial class PreparationService
 
         if (aliases is { Count: > 0 })
         {
-            existingVariants = LearningTargetRepository.GetAnswerVariants(connection, targetId);
             foreach (var alias in aliases)
             {
                 var trimmed = alias.Trim();
@@ -1124,7 +1108,8 @@ public sealed partial class PreparationService
                     continue;
                 }
 
-                if (existingVariants.Any(v => string.Equals(v.NormalizedText, trimmed, StringComparison.OrdinalIgnoreCase)))
+                var normalizedAlias = LearningTargetRepository.NormalizeAnswerText(trimmed);
+                if (normalizedAlias.Length == 0 || !seenNormalized.Add(normalizedAlias))
                 {
                     continue;
                 }
@@ -1132,6 +1117,7 @@ public sealed partial class PreparationService
                 var draft = new TargetAnswerVariantDraft(
                     AnswerLanguage: targetLanguage,
                     DisplayText: trimmed,
+                    NormalizedText: normalizedAlias,
                     Requirement: AnswerVariantRequirement.AcceptedOnly,
                     IsPreferred: false,
                     SourceMeaningId: meaningId);

@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using KnownFirst.Application.Learning;
 using KnownFirst.Core.Learning;
+using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Core.Preparation;
 using KnownFirst.Core.Review;
 using KnownFirst.Core.Settings;
@@ -725,86 +727,118 @@ public sealed class PreparationTargetCutoverTests
 
         var cardIds = await database.RunInTransactionAsync(conn =>
             conn.Query<SenseIdRow>("SELECT Id FROM LearningCards WHERE WordId = ?", wordId).Select(r => r.Id).ToArray());
-        Assert.IsTrue(cardIds.Length > 0);
+        Assert.AreEqual(2, cardIds.Length, "Expected 2 learning cards for CardDirectionPreference.Both.");
 
-        var reviewTime = Now.AddDays(-1);
-        var fsrsScheduler = new KnownFirst.Application.Learning.Fsrs6SchedulingService(clock);
-        var projection = fsrsScheduler.Schedule(
-            KnownFirst.Application.Learning.Fsrs6ScheduleProjection.New(),
-            ReviewRating.Good,
-            new DateTimeOffset(reviewTime, TimeSpan.Zero));
+        // Genuinely review the card via the supported LearningService runtime review path
+        var fsrsScheduler = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            database,
+            new SpellingAnswerComparer(),
+            clock,
+            fsrsScheduler);
 
-        await database.RunInTransactionAsync(conn =>
-        {
-            foreach (var cardId in cardIds)
-            {
-                var lastReviewedStr = Schema13TimestampCodec.FormatUtc(reviewTime);
-                var dueStr = Schema13TimestampCodec.FormatUtc(projection.DueAtUtc!.Value.UtcDateTime);
+        // Initial review (Day 0)
+        var sessionResult = await learningService.GetOrStartAsync();
+        Assert.IsNotNull(sessionResult.Card);
+        var firstQueueItemId = sessionResult.Card.QueueItemId;
+        var reviewedCardId = sessionResult.Card.CardId;
+        await learningService.RevealAnswerAsync(firstQueueItemId);
+        var firstCompletion = await learningService.RateAsync(firstQueueItemId, ReviewRating.Good);
+        Assert.IsNull(firstCompletion.Card, "Initial single-card session should be complete after review.");
 
-                conn.Execute(
-                    """
-                    UPDATE FsrsCardStates
-                    SET State = ?, Stability = ?, Difficulty = ?, LastReviewedAtUtc = ?, StepIndex = ?, DueAtUtc = ?
-                    WHERE CardId = ?
-                    """,
-                    (int)projection.State,
-                    projection.Stability,
-                    projection.Difficulty,
-                    lastReviewedStr,
-                    projection.StepIndex,
-                    dueStr,
-                    cardId);
+        // Follow-up review after advancing time past due date
+        clock.Advance(TimeSpan.FromDays(2));
+        var dueSessionResult = await learningService.GetOrStartAsync();
+        Assert.IsNotNull(dueSessionResult.Card, "The card should be due after 2 days.");
+        Assert.AreEqual(reviewedCardId, dueSessionResult.Card.CardId);
+        var dueQueueItemId = dueSessionResult.Card.QueueItemId;
+        await learningService.RevealAnswerAsync(dueQueueItemId);
+        var secondCompletion = await learningService.RateAsync(dueQueueItemId, ReviewRating.Good);
+        Assert.IsNull(secondCompletion.Card, "Due session should be complete after review.");
 
-                conn.Execute(
-                    """
-                    UPDATE LearningCards
-                    SET State = ?, DueAtUtc = ?
-                    WHERE Id = ?
-                    """,
-                    (int)projection.State,
-                    dueStr,
-                    cardId);
+        // Verify that genuine reviews occurred and populated runtime FSRS and review history
+        var reviewHistoryCount = await database.RunInTransactionAsync(conn =>
+            conn.ExecuteScalar<int>("SELECT COUNT(*) FROM FsrsReviewHistoryEntries WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)", wordId));
+        Assert.AreEqual(2, reviewHistoryCount, "The card must have 2 genuine FSRS review history entries.");
 
-                conn.Execute(
-                    """
-                    INSERT INTO FsrsReviewHistoryEntries (StableId, CardId, SequenceNumber, Rating, ReviewedAtUtc)
-                    VALUES (?, ?, 1, ?, ?)
-                    """,
-                    Guid.NewGuid().ToString("N"),
-                    cardId,
-                    (int)ReviewRating.Good,
-                    lastReviewedStr);
-            }
+        var learningReviewsCount = await database.RunInTransactionAsync(conn =>
+            conn.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningReviews WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?)", wordId));
+        Assert.AreEqual(2, learningReviewsCount, "The card must have 2 genuine LearningReviews records.");
 
-            return true;
-        });
+        var reviewedFsrsStates = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>(
+                "SELECT CardId || '|' || State || '|' || (Stability > 0) || '|' || (Difficulty > 0) || '|' || (LastReviewedAtUtc IS NOT NULL) AS Value FROM FsrsCardStates WHERE CardId = ?",
+                reviewedCardId).Select(r => r.Value).Single());
+        StringAssert.StartsWith(reviewedFsrsStates, $"{reviewedCardId}|{(int)Fsrs6CardState.Review}|1|1|1",
+            "Card must be in active FSRS Review state with valid stability, difficulty, and last review time.");
 
+        // Snapshot all scheduling, FSRS card state, review history, and review log records
         var preCards = await database.RunInTransactionAsync(conn =>
-            conn.Query<StringRow>("SELECT Id || '|' || SenseId || '|' || PreferredMeaningId || '|' || Direction || '|' || State || '|' || DueAtUtc AS Value FROM LearningCards WHERE WordId = ? ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+            conn.Query<StringRow>(
+                """
+                SELECT Id || '|' || WordId || '|' || SenseId || '|' || PreferredMeaningId || '|' || Direction || '|' || State || '|' || DueAtUtc || '|' || IntervalDays || '|' || EaseFactor || '|' || SuccessfulReviewCount || '|' || LapseCount || '|' || quote(LastReviewedAtUtc) || '|' || LastRating AS Value
+                FROM LearningCards WHERE WordId = ? ORDER BY Id
+                """, wordId).Select(r => r.Value).ToArray());
         var preFsrs = await database.RunInTransactionAsync(conn =>
-            conn.Query<StringRow>("SELECT CardId || '|' || State || '|' || quote(Stability) || '|' || quote(Difficulty) || '|' || quote(LastReviewedAtUtc) || '|' || quote(DueAtUtc) AS Value FROM FsrsCardStates WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY CardId", wordId).Select(r => r.Value).ToArray());
+            conn.Query<StringRow>(
+                """
+                SELECT CardId || '|' || State || '|' || quote(Stability) || '|' || quote(Difficulty) || '|' || quote(LastReviewedAtUtc) || '|' || StepIndex || '|' || quote(DueAtUtc) AS Value
+                FROM FsrsCardStates WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY CardId
+                """, wordId).Select(r => r.Value).ToArray());
         var preLogs = await database.RunInTransactionAsync(conn =>
-            conn.Query<StringRow>("SELECT CardId || '|' || SequenceNumber || '|' || Rating || '|' || ReviewedAtUtc AS Value FROM FsrsReviewHistoryEntries WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+            conn.Query<StringRow>(
+                """
+                SELECT CardId || '|' || SequenceNumber || '|' || Rating || '|' || ReviewedAtUtc AS Value
+                FROM FsrsReviewHistoryEntries WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id
+                """, wordId).Select(r => r.Value).ToArray());
+        var preReviews = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>(
+                """
+                SELECT CardId || '|' || Rating || '|' || WasTypedAnswer || '|' || WasCorrect || '|' || ReviewedAtUtc || '|' || DueAtUtc || '|' || IntervalDays || '|' || EaseFactor || '|' || quote(TargetAnswerVariantId) || '|' || quote(MatchedAnswerVariantId) AS Value
+                FROM LearningReviews WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id
+                """, wordId).Select(r => r.Value).ToArray());
 
-        Assert.IsTrue(preFsrs.Length > 0);
-        Assert.IsTrue(preLogs.Length > 0);
+        Assert.AreEqual(2, preFsrs.Length);
+        Assert.AreEqual(2, preLogs.Length);
+        Assert.AreEqual(2, preReviews.Length);
 
+        // Execute add-target workflow for a new translation target
         var targetAddition = new PreparationTargetAdditionRequest(
             wordId, senseId, LearningTargetKind.Translation, "en");
 
         provider.MeaningsFactory = _ => [new LexicalMeaning("meaning-trans", "Substantiv", string.Empty, "house", null, [])];
         await PrepareProviderTargetAsync(preparation, targetAddition, typingOptOut: null, aliases: ["home"]);
 
+        // Snapshot all tables post-operation
         var postCards = await database.RunInTransactionAsync(conn =>
-            conn.Query<StringRow>("SELECT Id || '|' || SenseId || '|' || PreferredMeaningId || '|' || Direction || '|' || State || '|' || DueAtUtc AS Value FROM LearningCards WHERE WordId = ? ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+            conn.Query<StringRow>(
+                """
+                SELECT Id || '|' || WordId || '|' || SenseId || '|' || PreferredMeaningId || '|' || Direction || '|' || State || '|' || DueAtUtc || '|' || IntervalDays || '|' || EaseFactor || '|' || SuccessfulReviewCount || '|' || LapseCount || '|' || quote(LastReviewedAtUtc) || '|' || LastRating AS Value
+                FROM LearningCards WHERE WordId = ? ORDER BY Id
+                """, wordId).Select(r => r.Value).ToArray());
         var postFsrs = await database.RunInTransactionAsync(conn =>
-            conn.Query<StringRow>("SELECT CardId || '|' || State || '|' || quote(Stability) || '|' || quote(Difficulty) || '|' || quote(LastReviewedAtUtc) || '|' || quote(DueAtUtc) AS Value FROM FsrsCardStates WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY CardId", wordId).Select(r => r.Value).ToArray());
+            conn.Query<StringRow>(
+                """
+                SELECT CardId || '|' || State || '|' || quote(Stability) || '|' || quote(Difficulty) || '|' || quote(LastReviewedAtUtc) || '|' || StepIndex || '|' || quote(DueAtUtc) AS Value
+                FROM FsrsCardStates WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY CardId
+                """, wordId).Select(r => r.Value).ToArray());
         var postLogs = await database.RunInTransactionAsync(conn =>
-            conn.Query<StringRow>("SELECT CardId || '|' || SequenceNumber || '|' || Rating || '|' || ReviewedAtUtc AS Value FROM FsrsReviewHistoryEntries WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id", wordId).Select(r => r.Value).ToArray());
+            conn.Query<StringRow>(
+                """
+                SELECT CardId || '|' || SequenceNumber || '|' || Rating || '|' || ReviewedAtUtc AS Value
+                FROM FsrsReviewHistoryEntries WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id
+                """, wordId).Select(r => r.Value).ToArray());
+        var postReviews = await database.RunInTransactionAsync(conn =>
+            conn.Query<StringRow>(
+                """
+                SELECT CardId || '|' || Rating || '|' || WasTypedAnswer || '|' || WasCorrect || '|' || ReviewedAtUtc || '|' || DueAtUtc || '|' || IntervalDays || '|' || EaseFactor || '|' || quote(TargetAnswerVariantId) || '|' || quote(MatchedAnswerVariantId) AS Value
+                FROM LearningReviews WHERE CardId IN (SELECT Id FROM LearningCards WHERE WordId = ?) ORDER BY Id
+                """, wordId).Select(r => r.Value).ToArray());
 
         CollectionAssert.AreEqual(preCards, postCards, "LearningCards records must be unchanged.");
         CollectionAssert.AreEqual(preFsrs, postFsrs, "FsrsCardStates records must be unchanged.");
         CollectionAssert.AreEqual(preLogs, postLogs, "FsrsReviewHistoryEntries records must be unchanged.");
+        CollectionAssert.AreEqual(preReviews, postReviews, "LearningReviews records must be unchanged.");
 
         var targets = await targetRepo.GetTargetsForSenseAsync(senseId);
         Assert.AreEqual(2, targets.Count, "The new translation target must be created alongside definition target.");

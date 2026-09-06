@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Learning;
 
 namespace KnownFirst.Services.Study;
 
@@ -213,6 +214,12 @@ public static class PreparationCandidatePayloadCodec
             return $"EnvelopeV1 PayloadVersion {envelope.PayloadVersion} does not match the expected value {PreparationCandidatePayloadV1.CurrentVersion}.";
         }
 
+        var targetAdditionFailure = ValidateTargetAddition(envelope.TargetAddition);
+        if (targetAdditionFailure is not null)
+        {
+            return targetAdditionFailure;
+        }
+
         if (envelope.Result is null)
         {
             return envelope.ResolvedProviderMeaningIndexes.Count > 0
@@ -254,6 +261,12 @@ public static class PreparationCandidatePayloadCodec
             throw new PreparationPayloadException(
                 "invalid-payload-version",
                 $"PayloadVersion {payload.PayloadVersion} does not match the expected value {PreparationCandidatePayloadV1.CurrentVersion}.");
+        }
+
+        var targetAdditionFailure = ValidateTargetAddition(payload.TargetAddition);
+        if (targetAdditionFailure is not null)
+        {
+            throw new PreparationPayloadException("invalid-target-addition", targetAdditionFailure);
         }
 
         var evidenceFailure = ValidateEvidence(payload.FrozenEvidence);
@@ -304,6 +317,24 @@ public static class PreparationCandidatePayloadCodec
             {
                 return $"FrozenEvidence contains an invalid entry (SourceDocumentId={entry.SourceDocumentId}, TargetStart={entry.TargetStart}, TargetLength={entry.TargetLength}).";
             }
+        }
+
+        return null;
+    }
+
+    private static string? ValidateTargetAddition(KnownFirst.Models.PreparationTargetAdditionRequest? request)
+    {
+        if (request is null)
+        {
+            return null;
+        }
+
+        if (request.WordId <= 0
+            || request.SenseId <= 0
+            || !Enum.IsDefined(request.TargetKind)
+            || string.IsNullOrWhiteSpace(request.TargetLanguage))
+        {
+            return "EnvelopeV1 contains an invalid explicit target-addition request.";
         }
 
         return null;

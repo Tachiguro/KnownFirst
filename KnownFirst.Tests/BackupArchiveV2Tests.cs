@@ -108,9 +108,10 @@ public sealed class BackupArchiveV2Tests
     }
 
     [TestMethod]
-    public async Task Core3_Reader_RejectsFormatFour()
+    public async Task Core3_Reader_RejectsUnsupportedFutureFormat()
     {
-        using var stream = await BuildArchiveWithMutatedFormatVersionAsync("4");
+        var unsupportedFormat = (BackupFormatLimits.CurrentArchiveFormatVersion + 1).ToString();
+        using var stream = await BuildArchiveWithMutatedFormatVersionAsync(unsupportedFormat);
         var exception = await Assert.ThrowsExactlyAsync<BackupFormatException>(
             () => BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.UnsupportedFormat, exception.Code);

@@ -108,6 +108,65 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public async Task Lookup_GermanHausWithRussianTargetLanguage_ReturnsRussianTranslationWithoutEnglishLeak()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-haus-russian.json")));
+
+        var result = await provider.LookupAsync(Request("Haus", "de", LexicalLookupMode.Translation, "ru"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Any(m => m.Translation == "дом" || m.Translation == "жилище"), "Must extract Russian translation.");
+        Assert.IsFalse(result.Meanings.Any(m => m.Translation == "house" || m.Translation == "building" || m.Translation == "home"), "Must not leak English translations into Russian target language request.");
+    }
+
+    [TestMethod]
+    public void Parser_GermanHausWithFrenchTargetLanguage_ReturnsFrenchTranslationWithoutEnglishLeak()
+    {
+        var fixture = LoadFixture("german-haus.json");
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(fixture);
+        var html = jsonDoc.RootElement.GetProperty("parse").GetProperty("text").GetString()!;
+
+        var parser = new WiktionaryHtmlParser();
+        var result = parser.ParseEntry(html, "de", "fr", "-", LexicalLookupMode.Translation, "fr");
+
+        Assert.IsTrue(result.DirectMeanings.Any(m => m.Translation == "maison"), "Must extract French translation 'maison'.");
+        Assert.IsFalse(result.DirectMeanings.Any(m => m.Translation == "house" || m.Translation == "building" || m.Translation == "home"), "Must not leak English translations into French target language request.");
+    }
+
+    [TestMethod]
+    public void Parser_GermanHausWithUnsupportedTargetLanguage_ReturnsZeroTranslationsAndDoesNotFallBackToEnglish()
+    {
+        var fixture = LoadFixture("german-haus.json");
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(fixture);
+        var html = jsonDoc.RootElement.GetProperty("parse").GetProperty("text").GetString()!;
+
+        var parser = new WiktionaryHtmlParser();
+        var result = parser.ParseEntry(html, "de", "xx", "-", LexicalLookupMode.Translation, "xx");
+
+        Assert.IsTrue(result.DirectMeanings.All(m => string.IsNullOrEmpty(m.Translation)), "Unsupported target language must return 0 translations and not fall back to English.");
+    }
+
+    [TestMethod]
+    public void Parser_HeadingBoundary_ResetsPartOfSpeechWhenNonPosHeadingEncountered()
+    {
+        var html = """
+            <div class="mw-heading mw-heading2"><h2 id="Haus_(Deutsch)">Haus (Deutsch)</h2></div>
+            <div class="mw-heading mw-heading3"><h3>Substantiv, Neutrum</h3></div>
+            <p><span id="Bedeutungen">Bedeutungen</span>:</p>
+            <dl><dd>[1] Gebäude zum Wohnen.</dd></dl>
+            <div class="mw-heading mw-heading3"><h3>Herkunft</h3></div>
+            <p><span id="Bedeutungen">Bedeutungen</span>:</p>
+            <dl><dd>[1] Herkunftsangabe.</dd></dl>
+            """;
+        var parser = new WiktionaryHtmlParser();
+        var result = parser.ParseEntry(html, "de", "de", "-", LexicalLookupMode.Definition);
+
+        Assert.IsTrue(result.DirectMeanings.Count >= 2);
+        Assert.AreEqual("Substantiv, Neutrum", result.DirectMeanings[0].PartOfSpeech);
+        Assert.IsNull(result.DirectMeanings[1].PartOfSpeech, "Meaning under non-POS heading 'Herkunft' must not inherit preceding POS.");
+    }
+
+    [TestMethod]
     public async Task Lookup_MissingPageReturnsNotFound()
     {
         var provider = CreateProvider(_ => JsonResponse(LoadFixture("missing-page.json")));
@@ -1100,6 +1159,23 @@ public sealed class WiktionaryProviderTests
             new[] { "house", "building", "home" },
             result.Meanings.Select(meaning => meaning.Translation).ToArray());
         Assert.IsFalse(result.Meanings.Any(meaning => meaning.Translation == "maison"));
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanToEnglishPreservesProviderPartOfSpeechForTranslations()
+    {
+        var provider = CreateProvider(_ => JsonResponse(LoadFixture("german-haus.json")));
+
+        var result = await provider.LookupAsync(Request(
+            "Haus",
+            "de",
+            LexicalLookupMode.Translation,
+            "en"));
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.IsTrue(result.Meanings.Count > 0);
+        Assert.IsTrue(result.Meanings.All(meaning => meaning.PartOfSpeech == "Substantiv, Neutrum"),
+            "Translation meanings must retain the nearest provider-supplied part-of-speech heading.");
     }
 
     [TestMethod]

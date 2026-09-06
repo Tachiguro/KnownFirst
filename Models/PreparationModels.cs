@@ -1,4 +1,5 @@
 using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Learning;
 using KnownFirst.Core.Text;
 
 namespace KnownFirst.Models;
@@ -28,7 +29,8 @@ public sealed record PreparationItem(
     int SelectedMeaningIndex,
     string? LastErrorCode,
     LexicalLookupMode LookupMode = LexicalLookupMode.Definition,
-    string? TargetLanguage = null)
+    string? TargetLanguage = null,
+    bool? ExistingTargetTypingOptOut = null)
 {
     public string LearningTerm => string.IsNullOrWhiteSpace(Result?.DisplayTerm)
         ? Term
@@ -66,6 +68,12 @@ public sealed record PreparationOverview(
     PreparationMethod? ActiveMethod,
     int LastCompletedPreparedItems);
 
+public sealed record PreparationTargetAdditionRequest(
+    int WordId,
+    int SenseId,
+    LearningTargetKind TargetKind,
+    string TargetLanguage);
+
 public sealed record PreparedMeaningInput(
     string? SelectedMeaningId,
     string? AcronymExpansion,
@@ -84,7 +92,8 @@ public sealed record PreparedMeaningInput(
     string? CanonicalLearningTerm = null,
     string? TopicOrDomain = null,
     string? PartOfSpeech = null,
-    LexicalLookupMode? ManualInputMode = null);
+    LexicalLookupMode? ManualInputMode = null,
+    bool? TypingOptOut = null);
 
 internal sealed class PreparationProgressionCoordinator
 {

@@ -310,7 +310,7 @@ public static class BackupModelMapperV2
             derivedTermEvidenceOut,
             new BackupExtensions(new Dictionary<string, BackupExtensionPayload>(StringComparer.Ordinal)));
 
-        return new BackupModelMapperContext(payload, vocabIdMap, senseIdMap, cardIdMap, mappedReviews);
+        return new BackupModelMapperContext(payload, vocabIdMap, senseIdMap, cardIdMap, mappedReviews, meaningIdMap, learningSessionIdMap);
     }
 
 internal sealed record BackupModelMapperContext(
@@ -318,7 +318,9 @@ internal sealed record BackupModelMapperContext(
     IReadOnlyDictionary<int, string> VocabIdMap,
     IReadOnlyDictionary<int, string> SenseIdMap,
     IReadOnlyDictionary<int, string> CardIdMap,
-    IReadOnlyList<MappedLearningReviewV2> LearningReviews);
+    IReadOnlyList<MappedLearningReviewV2> LearningReviews,
+    IReadOnlyDictionary<int, string> MeaningIdMap,
+    IReadOnlyDictionary<int, string> LearningSessionIdMap);
 
 internal sealed record MappedLearningReviewV2(
     int SourceLocalId,
@@ -564,7 +566,7 @@ internal sealed record MappedLearningReviewV2(
             return;
         }
 
-        BackupLookupDraft draft;
+        BackupLookupDraft? draft;
         try
         {
             draft = BackupModelMapper.ParseLookupDraft(resultJson);
@@ -572,6 +574,12 @@ internal sealed record MappedLearningReviewV2(
         catch (BackupFormatException)
         {
             builder.WriteString("raw").WriteString(resultJson);
+            return;
+        }
+
+        if (draft is null)
+        {
+            builder.WriteNullableString(null);
             return;
         }
 
@@ -1067,7 +1075,7 @@ internal sealed record MappedLearningReviewV2(
             string.IsNullOrEmpty(meaning.AdditionalNote) ? null : meaning.AdditionalNote,
             string.IsNullOrEmpty(meaning.TranslationOrDefinition) ? null : meaning.TranslationOrDefinition,
             aliases, meaning.ConfirmedByUser,
-            new BackupSourceReference(meaning.Source, meaning.SourceProject, meaning.SourcePageTitle, meaning.SourceRevisionId, meaning.Attribution),
+            new BackupSourceReference(string.IsNullOrWhiteSpace(meaning.Source) ? "manual" : meaning.Source, meaning.SourceProject, meaning.SourcePageTitle, meaning.SourceRevisionId, meaning.Attribution),
             EnsureUtc(meaning.CreatedAt), EnsureUtc(meaning.UpdatedAt), EnsureUtc(meaning.PreparedAt), contexts);
     }
 

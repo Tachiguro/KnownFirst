@@ -1,6 +1,7 @@
 using KnownFirst.Data;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Schema14;
 using SQLite;
 
 namespace KnownFirst.Services.DataSafety;
@@ -46,6 +47,11 @@ public sealed record CapturedSchema13SnapshotEnvelope(
     Schema13BackupSnapshot Snapshot,
     ValidatedSchema13Capability Capability) : CapturedBackupSnapshotEnvelope;
 
+/// <summary>The Schema-14 counterpart of <see cref="CapturedBackupSnapshotEnvelope"/> (KF-LEARN-011 Slice 5).</summary>
+public sealed record CapturedSchema14SnapshotEnvelope(
+    Schema14BackupSnapshot Snapshot,
+    ValidatedSchema14Capability Capability) : CapturedBackupSnapshotEnvelope;
+
 public static class BackupSnapshotCapture
 {
     /// <summary>Portable/user-export capture (workflow-filtered), dispatched by validated schema
@@ -80,6 +86,9 @@ public static class BackupSnapshotCapture
             Schema13CapabilityResult schema13 => new CapturedSchema13SnapshotEnvelope(
                 Schema13BackupSnapshotRepository.CapturePortableSnapshot(connection),
                 schema13.Capability),
+            Schema14CapabilityResult schema14 => new CapturedSchema14SnapshotEnvelope(
+                Schema14BackupSnapshotRepository.CapturePortableSnapshot(connection),
+                schema14.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
     }
@@ -116,6 +125,9 @@ public static class BackupSnapshotCapture
             Schema13CapabilityResult schema13 => new CapturedSchema13SnapshotEnvelope(
                 Schema13BackupSnapshotRepository.CaptureSnapshot(connection),
                 schema13.Capability),
+            Schema14CapabilityResult schema14 => new CapturedSchema14SnapshotEnvelope(
+                Schema14BackupSnapshotRepository.CaptureSnapshot(connection),
+                schema14.Capability),
             _ => throw new InvalidOperationException("Unrecognized backup schema capability result.")
         };
     }
@@ -163,6 +175,10 @@ public sealed record MergeSafetyCopySchema12Captured(
 public sealed record MergeSafetyCopySchema13Captured(
     Schema13BackupSnapshot Snapshot,
     ValidatedSchema13Capability Capability) : MergeSafetyCopyCaptureEnvelope;
+
+public sealed record MergeSafetyCopySchema14Captured(
+    Schema14BackupSnapshot Snapshot,
+    ValidatedSchema14Capability Capability) : MergeSafetyCopyCaptureEnvelope;
 
 public static class BackupMergeSafetyCopySnapshotCapture
 {
@@ -222,6 +238,12 @@ public static class BackupMergeSafetyCopySnapshotCapture
                 return v3ResultForSchema13.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
                     ? new MergeSafetyCopyCaptureBlocked()
                     : new MergeSafetyCopySchema13Captured(v3ResultForSchema13.Snapshot!, schema13.Capability);
+
+            case Schema14CapabilityResult schema14:
+                var v4ResultForSchema14 = Schema14BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
+                return v4ResultForSchema14.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow
+                    ? new MergeSafetyCopyCaptureBlocked()
+                    : new MergeSafetyCopySchema14Captured(v4ResultForSchema14.Snapshot!, schema14.Capability);
 
             default:
                 throw new InvalidOperationException("Unrecognized backup schema capability result.");

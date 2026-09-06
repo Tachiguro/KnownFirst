@@ -675,6 +675,36 @@ public static class BackupEnumMappings
         _ => throw UnknownEnum()
     };
 
+    // ---- Archive format v4 additions (KF-LEARN-011 Slice 5) — purely additive ----
+
+    public static string ToExternalString(BackupLearningTargetKind value) => value switch
+    {
+        BackupLearningTargetKind.Definition => "definition",
+        BackupLearningTargetKind.Translation => "translation",
+        _ => throw UnknownEnum()
+    };
+
+    public static BackupLearningTargetKind ParseLearningTargetKind(string value) => value switch
+    {
+        "definition" => BackupLearningTargetKind.Definition,
+        "translation" => BackupLearningTargetKind.Translation,
+        _ => throw UnknownEnum()
+    };
+
+    public static KnownFirst.Core.Learning.LearningTargetKind ToCore(BackupLearningTargetKind value) => value switch
+    {
+        BackupLearningTargetKind.Definition => KnownFirst.Core.Learning.LearningTargetKind.Definition,
+        BackupLearningTargetKind.Translation => KnownFirst.Core.Learning.LearningTargetKind.Translation,
+        _ => throw UnknownEnum()
+    };
+
+    public static BackupLearningTargetKind ToBackup(KnownFirst.Core.Learning.LearningTargetKind value) => value switch
+    {
+        KnownFirst.Core.Learning.LearningTargetKind.Definition => BackupLearningTargetKind.Definition,
+        KnownFirst.Core.Learning.LearningTargetKind.Translation => BackupLearningTargetKind.Translation,
+        _ => throw UnknownEnum()
+    };
+
     private static BackupFormatException UnknownEnum() =>
         new(BackupErrorCodes.UnknownEnum);
 }

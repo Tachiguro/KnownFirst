@@ -32,7 +32,7 @@
                 <progress value="@_card.CompletedCards" max="@_card.TotalCards"></progress>
             </div>
             <p class="learning-meta">
-                <span class="learning-direction-label">@Localizer[DirectionLabelKey]</span>
+                <span class="learning-direction-label">@(!string.IsNullOrWhiteSpace(_card.TargetMetadataLabel) ? _card.TargetMetadataLabel : Localizer[DirectionLabelKey])</span>
                 @if (_card.IsAgainRepeat)
                 {
                     <span class="learning-repeat-badge">@Localizer["Learn_AgainRepeatBadge"]</span>
@@ -159,6 +159,11 @@
             }
 
             <section class="permanent-known-section">
+                @if (_card.SenseId is > 0)
+                {
+                    <a class="button button-secondary add-learning-target"
+                        href="prepare-words?wordId=@_card.WordId&amp;senseId=@_card.SenseId&amp;addTarget=true">@Localizer["Learn_AddLearningTarget"]</a>
+                }
                 @if (!_showPermanentKnownConfirmation)
                 {
                     <button type="button" class="button button-danger permanent-known" disabled="@_isBusy" @ref="_permanentKnownButtonRef" @onclick="ShowPermanentKnownConfirmationAsync">@Localizer["Learn_MarkPermanentlyKnown"]</button>

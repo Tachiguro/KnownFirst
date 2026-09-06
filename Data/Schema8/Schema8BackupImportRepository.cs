@@ -10,7 +10,9 @@ namespace KnownFirst.Data.Schema8;
 internal sealed record Schema8BackupImportMaps(
     IReadOnlyDictionary<string, int> WordIds,
     IReadOnlyDictionary<string, int> SenseIds,
-    IReadOnlyDictionary<string, int> CardIds);
+    IReadOnlyDictionary<string, int> CardIds,
+    IReadOnlyDictionary<string, int>? MeaningIds = null,
+    IReadOnlyDictionary<string, int>? LearningSessionIds = null);
 
 /// <summary>
 /// Schema-8 counterpart of <see cref="BackupImportRepository"/> (KF-MEANING-001 Slice 2). Requires a
@@ -538,7 +540,7 @@ public static class Schema8BackupImportRepository
             throw new BackupFormatException(BackupErrorCodes.MissingReference);
         }
 
-        return new Schema8BackupImportMaps(wordIds, senseIds, cardIds);
+        return new Schema8BackupImportMaps(wordIds, senseIds, cardIds, meaningIds, learningSessionIds);
     }
 
     /// <summary>Internal (not private) so the Slice 8 populated-target merge writer can reuse the exact

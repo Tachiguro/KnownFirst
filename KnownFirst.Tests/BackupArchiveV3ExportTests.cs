@@ -8,6 +8,7 @@ using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
+using KnownFirst.Data.Targets;
 using KnownFirst.Services.DataSafety;
 using KnownFirst.Services.DataSafety.Merge;
 using SQLite;
@@ -83,6 +84,18 @@ public sealed class BackupArchiveV3ExportTests
         return new TemporaryDatabaseAdapter(fixture, enableForeignKeys);
     }
 
+    private static async Task<TemporaryDatabaseAdapter> CreateValidSchema14DatabaseAsync(bool enableForeignKeys = false)
+    {
+        var db = await CreateValidSchema13DatabaseAsync(enableForeignKeys);
+        await db.RunInTransactionAsync(conn =>
+        {
+            TargetPersistenceShapeBuilder.Create(conn);
+            conn.Execute("PRAGMA user_version = 14;");
+            return true;
+        });
+        return db;
+    }
+
     private static int InsertWord(SQLiteConnection conn, string term, string timestamp)
     {
         conn.Execute(
@@ -98,6 +111,18 @@ public sealed class BackupArchiveV3ExportTests
         return conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
     }
 
+    private static int InsertSense(SQLiteConnection conn, int wordId, string timestamp)
+    {
+        conn.Execute(
+            """
+            INSERT INTO Senses
+                (StableId, WordId, SourceLanguage, ExplanationLanguage, Status, CreatedAtUtc, UpdatedAtUtc)
+            VALUES (?, ?, 'de', 'en', 0, ?, ?)
+            """,
+            $"sense-{wordId}", wordId, timestamp, timestamp);
+        return conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+    }
+
     [TestMethod]
     public async Task SchemaCapability_Schema13_IsRecognizedAndFutureVersionFailsClosed()
     {
@@ -107,17 +132,142 @@ public sealed class BackupArchiveV3ExportTests
         Assert.IsNotNull(result);
         Assert.AreEqual("Schema13CapabilityResult", result.GetType().Name);
 
-        // Verify future version 14 fails closed
+        // Verify future version 15 fails closed
         await db.RunInTransactionAsync(conn =>
         {
-            conn.Execute("PRAGMA user_version = 14;");
+            conn.Execute("PRAGMA user_version = 15;");
             return true;
         });
 
         var ex = await Assert.ThrowsExactlyAsync<BackupSchemaCapabilityException>(() =>
             db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn)));
-        Assert.AreEqual(14, ex.FoundVersion);
+        Assert.AreEqual(15, ex.FoundVersion);
         Assert.IsFalse(ex.ShapeMismatch);
+    }
+
+    [TestMethod]
+    public async Task SchemaCapability_Schema14_IsRecognizedAndFutureVersionFailsClosed()
+    {
+        await using var db = await CreateValidSchema14DatabaseAsync();
+        var result = await db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));
+
+        Assert.IsNotNull(result);
+        Assert.IsInstanceOfType<Schema14CapabilityResult>(result);
+
+        // Verify future version 15 fails closed
+        await db.RunInTransactionAsync(conn =>
+        {
+            conn.Execute("PRAGMA user_version = 15;");
+            return true;
+        });
+
+        var ex = await Assert.ThrowsExactlyAsync<BackupSchemaCapabilityException>(() =>
+            db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn)));
+        Assert.AreEqual(15, ex.FoundVersion);
+        Assert.IsFalse(ex.ShapeMismatch);
+    }
+
+    [TestMethod]
+    public async Task CreatePortableArchiveAsync_FromEmptySchema14Database_ProducesValidArchiveV4()
+    {
+        await using var db = await CreateValidSchema14DatabaseAsync();
+        var service = new BackupService(db, new FakePlatformInfo());
+
+        using var ms = new MemoryStream();
+        await service.CreatePortableArchiveAsync(ms, CancellationToken.None);
+
+        ms.Position = 0;
+        var envelope = await BackupArchiveReader.ValidateVersionedAsync(ms, CancellationToken.None);
+
+        Assert.AreEqual(4, envelope.FormatVersion);
+        Assert.IsNotNull(envelope.V4);
+        Assert.AreEqual(4, envelope.V4.Manifest.FormatVersion);
+        Assert.AreEqual(14, envelope.V4.Manifest.SourceDatabaseSchemaVersion);
+    }
+
+    [TestMethod]
+    public async Task EnsureV3TransportCompatible_Schema14WithLearningTargets_FailsClosed()
+    {
+        await using var db = await CreateValidSchema14DatabaseAsync();
+        await db.RunInTransactionAsync(conn =>
+        {
+            var wordId = InsertWord(conn, "Haus", "2026-09-04T00:00:00Z");
+            var senseId = InsertSense(conn, wordId, "2026-09-04T00:00:00Z");
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('lt-test-1', ?, 0, 'de', 'en', 0, '2026-09-04T00:00:00Z', '2026-09-04T00:00:00Z');
+            """, senseId);
+            return true;
+        });
+
+        var capability = await db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));
+        var schema14 = Assert.IsInstanceOfType<Schema14CapabilityResult>(capability);
+        Assert.IsTrue(schema14.Capability.HasTargetData);
+
+        var ex = Assert.ThrowsExactly<BackupSchemaCapabilityException>(() =>
+            schema14.Capability.EnsureV3TransportCompatible());
+
+        Assert.AreEqual(14, ex.FoundVersion);
+        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, ex.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task EnsureV3TransportCompatible_Schema14WithTargetAnswerVariants_FailsClosed()
+    {
+        await using var db = await CreateValidSchema14DatabaseAsync();
+        await db.RunInTransactionAsync(conn =>
+        {
+            var wordId = InsertWord(conn, "Haus", "2026-09-04T00:00:00Z");
+            var senseId = InsertSense(conn, wordId, "2026-09-04T00:00:00Z");
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('lt-test-2', ?, 0, 'de', 'en', 0, '2026-09-04T00:00:00Z', '2026-09-04T00:00:00Z');
+            """, senseId);
+            var targetId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('tav-test-1', ?, 'en', 'House', 'house', 1, 1, NULL, '2026-09-04T00:00:00Z', '2026-09-04T00:00:00Z');
+            """, targetId);
+            return true;
+        });
+
+        var capability = await db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));
+        var schema14 = Assert.IsInstanceOfType<Schema14CapabilityResult>(capability);
+        Assert.IsTrue(schema14.Capability.HasTargetData);
+
+        var ex = Assert.ThrowsExactly<BackupSchemaCapabilityException>(() =>
+            schema14.Capability.EnsureV3TransportCompatible());
+
+        Assert.AreEqual(14, ex.FoundVersion);
+        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, ex.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task MergePreflight_V3ArchiveIntoSchema14WithTargetData_FailsClosed()
+    {
+        await using var db = await CreateValidSchema14DatabaseAsync();
+        await db.RunInTransactionAsync(conn =>
+        {
+            var wordId = InsertWord(conn, "Haus", "2026-09-04T00:00:00Z");
+            var senseId = InsertSense(conn, wordId, "2026-09-04T00:00:00Z");
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('lt-test-safety', ?, 0, 'de', 'en', 0, '2026-09-04T00:00:00Z', '2026-09-04T00:00:00Z');
+            """, senseId);
+            return true;
+        });
+
+        using var v3ArchiveStream = BackupArchiveV3Tests.BuildArchiveV3();
+        var preflight = new MergePreflightService(db);
+        var plan = await preflight.CreatePreflightPlanAsync(v3ArchiveStream, CancellationToken.None);
+
+        Assert.AreEqual(MergePreflightStatus.Failed, plan.Status);
+        Assert.IsFalse(plan.IsExecutable);
+        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, plan.ErrorCode);
     }
 
     [TestMethod]

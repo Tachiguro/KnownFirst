@@ -8,7 +8,10 @@ public interface IPreparationService
 {
     Task<PreparationOverview> GetOverviewAsync();
 
-    Task<int> StartAsync(PreparationMethod method, int requestedLimit);
+    Task<int> StartAsync(
+        PreparationMethod method,
+        int requestedLimit,
+        PreparationTargetAdditionRequest? targetAddition = null);
 
     Task<PreparationItem?> GetCurrentAsync();
 

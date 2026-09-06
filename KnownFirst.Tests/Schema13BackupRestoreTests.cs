@@ -453,7 +453,7 @@ public sealed class Schema13BackupRestoreTests
 
         Assert.AreEqual(PortableImportStatus.ValidationFailed, result.Status);
         Assert.AreEqual(BackupErrorCodes.Schema13ArchiveIncompatibleWithLegacyTarget, result.ErrorCode);
-        Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
+        Assert.AreEqual(14, DatabaseSchema.CurrentVersion);
         await target.RunInTransactionAsync(connection =>
         {
             Assert.AreEqual(12, connection.ExecuteScalar<int>("PRAGMA user_version"));

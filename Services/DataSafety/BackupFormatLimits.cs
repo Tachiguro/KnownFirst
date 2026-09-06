@@ -5,12 +5,13 @@ public static class BackupFormatLimits
     public const int FormatVersion = 1;
     public const int FormatVersionV2 = 2;
     public const int FormatVersionV3 = 3;
+    public const int FormatVersionV4 = 4;
 
     /// <summary>Lowest archive format the reader still accepts (v1, never removed).</summary>
     public const int MinimumSupportedFormatVersion = 1;
 
-    /// <summary>Highest archive format this build understands (v3 — Schema-13 transport support).</summary>
-    public const int CurrentArchiveFormatVersion = 3;
+    /// <summary>Highest archive format this build understands (v4 — Schema-14 LearningTarget transport support).</summary>
+    public const int CurrentArchiveFormatVersion = 4;
 
     public const int RequiredZipEntryCount = 2;
     public const long MaxArchiveBytes = 128L * 1024 * 1024;

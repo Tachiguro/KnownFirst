@@ -57,7 +57,7 @@ public static class Schema13CleanBootstrap
                 $"Clean Schema-13 bootstrap produced {foreignKeyViolations} foreign-key violation(s).");
         }
 
-        connection.Execute($"PRAGMA user_version = {DatabaseSchema.CurrentVersion}");
+        connection.Execute("PRAGMA user_version = 13");
     }
 
     private static void RequireGenuinelyFresh(SQLiteConnection connection)

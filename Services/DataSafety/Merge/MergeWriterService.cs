@@ -1,5 +1,6 @@
 using KnownFirst.Data;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Schema14;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Models.Backup;
 
@@ -18,6 +19,12 @@ public interface IMergeWriterService
     /// <summary>Applies a combined inherited-graph + Schema-13 plan to a populated Schema-13 target.</summary>
     Task<MergeWriteResult> ApplySchema13Async(
         BackupPayloadV3 archive,
+        MergePreflightPlan plan,
+        CancellationToken cancellationToken);
+
+    /// <summary>Applies a combined inherited-graph + Schema-14 plan to a populated Schema-14 target.</summary>
+    Task<MergeWriteResult> ApplySchema14Async(
+        BackupPayloadV4 archive,
         MergePreflightPlan plan,
         CancellationToken cancellationToken);
 }
@@ -146,9 +153,15 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (BackupSchemaCapability.Resolve(connection) is not Schema13CapabilityResult)
+                var resolvedCapability = BackupSchemaCapability.Resolve(connection);
+                if (resolvedCapability is not (Schema13CapabilityResult or Schema14CapabilityResult))
                 {
                     return new MergeWriteResult(MergeWriteStatus.Failed, MergeWriterErrorCodes.TargetNotSchema8);
+                }
+
+                if (resolvedCapability is Schema14CapabilityResult schema14)
+                {
+                    schema14.Capability.EnsureV3TransportCompatible();
                 }
 
                 // This complete capture occurs inside the write transaction and before the first merge
@@ -181,6 +194,88 @@ public sealed class MergeWriterService(IKnownFirstDatabase database, IBackupImpo
                     failureInjector);
 
                 Schema13MergeWriterExecutor.Execute(
+                    connection,
+                    targetIndex,
+                    mappings,
+                    archive,
+                    recomputedPlan,
+                    cancellationToken,
+                    failureInjector);
+
+                return MergeWriteResult.SuccessResult;
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            return new MergeWriteResult(MergeWriteStatus.Cancelled, BackupErrorCodes.OperationCancelled);
+        }
+        catch (BackupFormatException exception)
+        {
+            return new MergeWriteResult(MergeWriteStatus.Failed, exception.Code);
+        }
+        catch (BackupSchemaCapabilityException exception)
+        {
+            return new MergeWriteResult(MergeWriteStatus.Failed, exception.ErrorCode);
+        }
+        catch (Exception)
+        {
+            return new MergeWriteResult(MergeWriteStatus.Failed, MergeWriterErrorCodes.UnexpectedFailure);
+        }
+    }
+
+    public async Task<MergeWriteResult> ApplySchema14Async(
+        BackupPayloadV4 archive,
+        MergePreflightPlan plan,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(archive);
+        ArgumentNullException.ThrowIfNull(plan);
+
+        if (!plan.IsExecutable || plan.Schema14Plan is null)
+        {
+            return new MergeWriteResult(MergeWriteStatus.NotExecutable, MergeWriterErrorCodes.PlanNotExecutable);
+        }
+
+        try
+        {
+            return await database.RunInTransactionAsync(connection =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var resolvedCapability = BackupSchemaCapability.Resolve(connection);
+                if (resolvedCapability is not Schema14CapabilityResult)
+                {
+                    return new MergeWriteResult(MergeWriteStatus.Failed, MergeWriterErrorCodes.TargetNotSchema8);
+                }
+
+                // Authoritative stale-plan check inside write transaction
+                var captureResult = Schema14BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy(connection);
+                if (captureResult.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow)
+                {
+                    return new MergeWriteResult(MergeWriteStatus.BlockedByActiveWorkflow, BackupErrorCodes.ActiveWorkflowUnsupported);
+                }
+
+                var targetSnapshot = captureResult.Snapshot
+                    ?? throw new InvalidOperationException("Schema-14 snapshot capture reported success without a snapshot.");
+                var targetPayload = BackupModelMapperV4.MapToExternal(targetSnapshot);
+                var recomputedPlan = Schema14MergePreflightPlanner.CreateCombinedPlan(targetPayload, archive, plan.Manifest!);
+                if (!MergeWritePlanComparer.Matches(plan, recomputedPlan))
+                {
+                    return new MergeWriteResult(MergeWriteStatus.StalePlan, MergeWriterErrorCodes.StalePlan);
+                }
+
+                var targetIndex = MergeWriterTargetIndex.Build(targetSnapshot.BaseSnapshot);
+                var sourceBase = Schema14MergePreflightPlanner.ToV2(archive);
+                var mappings = MergeWriterExecutor.ExecuteWithMappings(
+                    connection,
+                    targetSnapshot.BaseSnapshot,
+                    targetIndex,
+                    sourceBase,
+                    recomputedPlan,
+                    cancellationToken,
+                    failureInjector);
+
+                Schema14MergeWriterExecutor.Execute(
                     connection,
                     targetIndex,
                     mappings,

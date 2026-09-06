@@ -1,8 +1,11 @@
 using System.Reflection;
 using KnownFirst.Application.Learning;
 using KnownFirst.Core.Learning;
+using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data;
+using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Targets;
 using KnownFirst.Services.Study;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -51,7 +54,7 @@ public sealed class LearningRuntimeCompositionTests
         Assert.AreEqual(
             1,
             await database.ReadAsync(connection => connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM FsrsReviewHistoryEntries WHERE CardId = ?",
+                "SELECT COUNT(*) FROM TargetFsrsReviewHistoryEntries WHERE TargetId = ?",
                 cardId)));
     }
 
@@ -126,47 +129,22 @@ public sealed class LearningRuntimeCompositionTests
             var meaningId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
             connection.Execute("UPDATE Senses SET DefaultMeaningId = ? WHERE Id = ?", meaningId, senseId);
 
-            connection.Execute(
-                """
-                INSERT INTO LearningCards (
-                    WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays,
-                    EaseFactor, SuccessfulReviewCount, LapseCount, CreatedAtUtc, UpdatedAtUtc)
-                VALUES (?, ?, ?, 0, 0, ?, 0, 2.5, 0, 0, ?, ?)
-                """,
-                wordId,
+            var target = LearningTargetRepository.CreateTarget(
+                connection,
                 senseId,
-                meaningId,
+                LearningTarget.CreateTranslation("en", "de"),
                 Now,
-                Now,
-                Now);
-            var cardId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+                "cutover-target");
 
-            connection.Execute(
-                """
-                INSERT INTO AnswerVariants (
-                    StableId, SenseId, AnswerLanguage, DisplayText, NormalizedText, SourceMeaningId,
-                    CreatedAtUtc, UpdatedAtUtc)
-                VALUES ('cutover-answer', ?, 'de', 'Schnitt', 'schnitt', ?, ?, ?)
-                """,
-                senseId,
-                meaningId,
+            LearningTargetRepository.AddAnswerVariant(
+                connection,
+                target.Id,
+                new TargetAnswerVariantDraft("de", "Schnitt", AnswerVariantRequirement.Required, IsPreferred: true, SourceMeaningId: meaningId),
                 Now,
-                Now);
-            var variantId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
-            connection.Execute(
-                """
-                INSERT INTO SenseAnswerVariantAssignments (
-                    StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred,
-                    RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
-                VALUES ('cutover-assignment', ?, 0, ?, 0, 1, ?, ?, ?)
-                """,
-                senseId,
-                variantId,
-                Now,
-                Now,
-                Now);
-            Schema13LearningRepository.InsertCleanNewState(connection, cardId);
-            return cardId;
+                "cutover-answer");
+
+            TargetFsrsStateRepository.Save(connection, target.Id, Fsrs6Card.New());
+            return target.Id;
         });
     }
 

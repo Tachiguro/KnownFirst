@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Models;
 
 namespace KnownFirst.Services.Study;
 
@@ -27,20 +28,23 @@ public sealed record PreparationCandidatePayloadV1(
     [property: JsonPropertyName("payloadVersion")] int PayloadVersion,
     LexicalResult? Result,
     IReadOnlyList<int> ResolvedProviderMeaningIndexes,
-    IReadOnlyList<PreparationCandidateEvidence> FrozenEvidence)
+    IReadOnlyList<PreparationCandidateEvidence> FrozenEvidence,
+    PreparationTargetAdditionRequest? TargetAddition = null)
 {
     public const int CurrentVersion = 1;
 
     public static PreparationCandidatePayloadV1 Create(
         LexicalResult? result,
         IReadOnlyList<int>? resolvedProviderMeaningIndexes = null,
-        IReadOnlyList<PreparationCandidateEvidence>? frozenEvidence = null) =>
-        new(CurrentVersion, result, resolvedProviderMeaningIndexes ?? [], frozenEvidence ?? []);
+        IReadOnlyList<PreparationCandidateEvidence>? frozenEvidence = null,
+        PreparationTargetAdditionRequest? targetAddition = null) =>
+        new(CurrentVersion, result, resolvedProviderMeaningIndexes ?? [], frozenEvidence ?? [], targetAddition);
 
     /// <summary>A Pending candidate with genuinely new evidence already frozen but no provider lookup yet.</summary>
     public static PreparationCandidatePayloadV1 CreatePending(
-        IReadOnlyList<PreparationCandidateEvidence> frozenEvidence) =>
-        new(CurrentVersion, null, [], frozenEvidence);
+        IReadOnlyList<PreparationCandidateEvidence> frozenEvidence,
+        PreparationTargetAdditionRequest? targetAddition = null) =>
+        new(CurrentVersion, null, [], frozenEvidence, targetAddition);
 }
 
 /// <summary>
@@ -65,6 +69,8 @@ public sealed class PreparationPayloadException : Exception
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(PreparationCandidatePayloadV1))]
 [JsonSerializable(typeof(PreparationCandidateEvidence))]
+[JsonSerializable(typeof(PreparationTargetAdditionRequest))]
+[JsonSerializable(typeof(KnownFirst.Core.Learning.LearningTargetKind))]
 [JsonSerializable(typeof(LexicalResult))]
 internal sealed partial class PreparationCandidatePayloadJsonSerializerContext : JsonSerializerContext
 {

@@ -144,7 +144,11 @@ public sealed class UiWorkflowContractTests
         var markup = LoadUi("PrepareWords.razor");
         var styles = LoadUi("PrepareWords.razor.css");
 
-        Assert.DoesNotContain("<select", markup, StringComparison.OrdinalIgnoreCase);
+        var pickerStart = markup.IndexOf("<section id=\"meaning-picker-dialog\"", StringComparison.Ordinal);
+        var pickerEnd = markup.IndexOf("</section>", pickerStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, pickerStart);
+        Assert.IsGreaterThan(pickerStart, pickerEnd);
+        Assert.DoesNotContain("<select", markup[pickerStart..pickerEnd], StringComparison.OrdinalIgnoreCase);
         Assert.Contains("role=\"dialog\"", markup);
         Assert.Contains("role=\"listbox\"", markup);
         Assert.Contains("MeaningPreviewPolicy.CreateClosedPreview", markup);
@@ -158,6 +162,34 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("overflow-wrap: break-word;", styles);
         Assert.Contains("-webkit-line-clamp: 2", styles);
         Assert.Contains("env(safe-area-inset-bottom)", styles);
+    }
+
+    [TestMethod]
+    public void Preparation_TargetAdditionTypingAndMetadataContractsAreWired()
+    {
+        var markup = LoadUi("PrepareWords.razor");
+        var styles = LoadUi("PrepareWords.razor.css");
+        var learning = LoadUi("Learn.razor");
+
+        Assert.Contains("@onclick=\"ToggleTypingCheck\"", markup);
+        Assert.Contains("private void ToggleTypingCheck()", markup);
+        Assert.Contains("AppSettings.LearningMode == LearningMode.Automatic", markup);
+        Assert.Contains("private bool? _typingPreferenceOverride", markup);
+        Assert.Contains("class=\"choice-button preparation-typing-toggle", markup);
+        Assert.Contains(".preparation-typing-toggle", styles);
+        Assert.DoesNotContain(".preparation-typing-option", styles);
+
+        Assert.Contains("Localizer[\"Prepare_TargetKindDefinition\"]", markup);
+        Assert.Contains("Localizer[\"Prepare_TargetKindTranslation\"]", markup);
+        Assert.Contains("System.Globalization.CultureInfo.GetCultureInfo(normalized).DisplayName", markup);
+        Assert.Contains("return normalized.ToLowerInvariant();", markup);
+        Assert.Contains("@GetTargetMetadata(result)", markup);
+        Assert.Contains("topicOrDomain: result.TopicOrDomain", markup);
+        Assert.Contains("PartOfSpeech: isManualInput ? null : selectedMeaning?.PartOfSpeech", markup);
+
+        Assert.Contains("senseId=@_card.SenseId", learning);
+        Assert.Contains("addTarget=true", learning);
+        Assert.Contains("if (_card.SenseId is > 0)", learning);
     }
 
     [TestMethod]

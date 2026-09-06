@@ -807,6 +807,16 @@
   <data name="Prepare_AdvancedOptions" xml:space="preserve">
     <value>Расширенные параметры</value>
   </data>
+  <data name="Prepare_UseTypingCheck" xml:space="preserve">
+    <value>Использовать проверку ввода</value>
+  </data>
+  <data name="Prepare_AddTargetTitle" xml:space="preserve"><value>Добавить ещё одну цель обучения</value></data>
+  <data name="Prepare_AddTargetDescription" xml:space="preserve"><value>Выберите точную цель, которую нужно добавить для этого подготовленного слова.</value></data>
+  <data name="Prepare_TargetKind" xml:space="preserve"><value>Тип цели</value></data>
+  <data name="Prepare_TargetKindDefinition" xml:space="preserve"><value>Определение</value></data>
+  <data name="Prepare_TargetKindTranslation" xml:space="preserve"><value>Перевод</value></data>
+  <data name="Prepare_TargetLanguage" xml:space="preserve"><value>Код целевого языка</value></data>
+  <data name="Learn_AddLearningTarget" xml:space="preserve"><value>Добавить ещё одну цель обучения</value></data>
   <data name="Prepare_DefinitionRequired" xml:space="preserve">
     <value>Введи определение перед продолжением.</value>
   </data>

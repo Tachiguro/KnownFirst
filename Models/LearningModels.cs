@@ -38,7 +38,12 @@ public sealed record LearningCardView(
     string? EncounteredSurfaceForm = null,
     string? GrammaticalRelationship = null,
     long? SourceRevisionId = null,
-    bool IsAgainRepeat = false);
+    bool IsAgainRepeat = false,
+    int? SenseId = null,
+    int? TargetId = null,
+    LearningTargetKind? TargetKind = null,
+    string? TargetLanguage = null,
+    string? TargetMetadataLabel = null);
 
 public sealed record LearningSessionSummary(
     int SessionId,

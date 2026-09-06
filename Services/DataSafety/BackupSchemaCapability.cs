@@ -4,6 +4,7 @@ using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Data.Migrations.Schema11;
 using KnownFirst.Data.Migrations.Schema12;
 using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Targets;
 using SQLite;
 
 namespace KnownFirst.Services.DataSafety;
@@ -96,6 +97,39 @@ public sealed class ValidatedSchema13Capability
     public const int SchemaVersion = 13;
 }
 
+/// <summary>
+/// A validated Schema-14 database for backup purposes (KF-LEARN-011 Slice 2).
+/// While <see cref="HasTargetData"/> is false (0 LearningTargets and 0 TargetAnswerVariants),
+/// the database is representable by the retained Schema-13 transport model (Archive V3).
+/// When <see cref="HasTargetData"/> is true, legacy V3 backup must fail closed.
+/// </summary>
+public sealed class ValidatedSchema14Capability
+{
+    internal ValidatedSchema14Capability(bool hasTargetData)
+    {
+        HasTargetData = hasTargetData;
+    }
+
+    public const int SchemaVersion = 14;
+
+    public bool HasTargetData { get; }
+
+    public bool IsV3TransportCompatible => !HasTargetData;
+
+    public ValidatedSchema13Capability TransitionalSchema13Capability { get; } = new();
+
+    public void EnsureV3TransportCompatible()
+    {
+        if (HasTargetData)
+        {
+            throw new BackupSchemaCapabilityException(
+                SchemaVersion,
+                shapeMismatch: false,
+                targetDataIncompatible: true);
+        }
+    }
+}
+
 public abstract record BackupSchemaCapabilityResult;
 
 public sealed record Schema7CapabilityResult(ValidatedSchema7Capability Capability) : BackupSchemaCapabilityResult;
@@ -112,6 +146,8 @@ public sealed record Schema12CapabilityResult(ValidatedSchema12Capability Capabi
 
 public sealed record Schema13CapabilityResult(ValidatedSchema13Capability Capability) : BackupSchemaCapabilityResult;
 
+public sealed record Schema14CapabilityResult(ValidatedSchema14Capability Capability) : BackupSchemaCapabilityResult;
+
 /// <summary>
 /// Thrown by <see cref="BackupSchemaCapability.Resolve"/> for every rejection case: an unsupported
 /// <c>PRAGMA user_version</c> value, or a version whose physical shape disagrees with what that
@@ -119,29 +155,42 @@ public sealed record Schema13CapabilityResult(ValidatedSchema13Capability Capabi
 /// </summary>
 public sealed class BackupSchemaCapabilityException : Exception
 {
-    public BackupSchemaCapabilityException(int foundVersion, bool shapeMismatch)
-        : base(BuildMessage(foundVersion, shapeMismatch))
+    public BackupSchemaCapabilityException(int foundVersion, bool shapeMismatch, bool targetDataIncompatible = false)
+        : base(BuildMessage(foundVersion, shapeMismatch, targetDataIncompatible))
     {
         FoundVersion = foundVersion;
         ShapeMismatch = shapeMismatch;
+        TargetDataIncompatible = targetDataIncompatible;
     }
 
     public int FoundVersion { get; }
 
     public bool ShapeMismatch { get; }
 
-    public string ErrorCode => ShapeMismatch
-        ? "backup-schema-capability-shape-mismatch"
-        : "backup-schema-capability-unsupported-version";
+    public bool TargetDataIncompatible { get; }
 
-    private static string BuildMessage(int foundVersion, bool shapeMismatch) => shapeMismatch
-        ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
-        : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7, 8, 9, 10, 11, 12, and 13 are accepted.";
+    public string ErrorCode => TargetDataIncompatible
+        ? BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport
+        : ShapeMismatch
+            ? "backup-schema-capability-shape-mismatch"
+            : "backup-schema-capability-unsupported-version";
+
+    private static string BuildMessage(int foundVersion, bool shapeMismatch, bool targetDataIncompatible)
+    {
+        if (targetDataIncompatible)
+        {
+            return $"Database reports PRAGMA user_version {foundVersion} with target-centric persistence data that cannot be represented by Archive Format V3 transport.";
+        }
+
+        return shapeMismatch
+            ? $"Database reports PRAGMA user_version {foundVersion} but its physical shape does not match that version."
+            : $"PRAGMA user_version {foundVersion} is not a supported backup source/target version; only 7, 8, 9, 10, 11, 12, 13, and 14 are accepted.";
+    }
 }
 
 /// <summary>
 /// Trusted, single-source schema-capability check for the backup/restore subsystem (KF-MEANING-001
-/// Slice 2, architecture doc §4.8.2). Reads <c>PRAGMA user_version</c>, accepts exactly 7, 8, 9, 10, 11, 12, or 13,
+/// Slice 2, architecture doc §4.8.2). Reads <c>PRAGMA user_version</c>, accepts exactly 7, 8, 9, 10, 11, 12, 13, or 14,
 /// validates the expected physical shape for whichever version was reported, and fails closed
 /// (throws <see cref="BackupSchemaCapabilityException"/>) if the version and the physical shape
 /// disagree, or if any other version is reported. Never infers capability from optional table or
@@ -212,6 +261,19 @@ public static class BackupSchemaCapability
                 }
 
                 return new Schema13CapabilityResult(new ValidatedSchema13Capability());
+
+            case ValidatedSchema14Capability.SchemaVersion:
+                if (!Schema13ShapeValidator.IsValidDatabase(connection, out _)
+                    || !TargetPersistenceShapeValidator.Validate(connection, out _))
+                {
+                    throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: true);
+                }
+
+                var targetsCount = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningTargets");
+                var variantsCount = connection.ExecuteScalar<int>("SELECT COUNT(*) FROM TargetAnswerVariants");
+                var hasTargetData = targetsCount > 0 || variantsCount > 0;
+
+                return new Schema14CapabilityResult(new ValidatedSchema14Capability(hasTargetData));
 
             default:
                 throw new BackupSchemaCapabilityException(userVersion, shapeMismatch: false);

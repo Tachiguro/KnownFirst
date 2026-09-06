@@ -4,6 +4,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Targets;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
 using SQLite;
@@ -15,7 +16,7 @@ namespace KnownFirst.Tests;
 public sealed class DatabaseSchema13ProductionCutoverTests
 {
     [TestMethod]
-    public async Task InitializeAsync_GenuinelyFreshDatabase_CreatesValidCleanSchema13Directly()
+    public async Task InitializeAsync_GenuinelyFreshDatabase_CreatesValidCleanSchema14Directly()
     {
         var path = CreateTemporaryPath();
         SQLiteAsyncConnection? connection = null;
@@ -25,9 +26,30 @@ public sealed class DatabaseSchema13ProductionCutoverTests
 
             await DatabaseSchema.InitializeAsync(connection);
 
-            Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
-            Assert.AreEqual(13, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(14, DatabaseSchema.CurrentVersion);
+            Assert.AreEqual(14, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual(1, await connection.ExecuteScalarAsync<int>("PRAGMA foreign_keys"));
+            Assert.AreEqual(
+                1,
+                await connection.ExecuteScalarAsync<int>(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'LearningTargets'"));
+            Assert.AreEqual(
+                1,
+                await connection.ExecuteScalarAsync<int>(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'TargetAnswerVariants'"));
+            Assert.AreEqual(
+                1,
+                await connection.ExecuteScalarAsync<int>(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'Words'"));
+            Assert.AreEqual(
+                1,
+                await connection.ExecuteScalarAsync<int>(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'Senses'"));
+            Assert.AreEqual(
+                1,
+                await connection.ExecuteScalarAsync<int>(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'FsrsCardStates'"));
+
             await connection.RunInTransactionAsync(sqliteConnection =>
             {
                 Assert.IsTrue(
@@ -36,6 +58,9 @@ public sealed class DatabaseSchema13ProductionCutoverTests
                 Assert.IsTrue(
                     Schema13RuntimeIntegrityValidator.Validate(sqliteConnection, out var runtimeFailure),
                     runtimeFailure);
+                Assert.IsTrue(
+                    TargetPersistenceShapeValidator.Validate(sqliteConnection, out var targetFailure),
+                    targetFailure);
                 Assert.AreEqual(0, sqliteConnection.ExecuteScalar<int>("PRAGMA foreign_key_check"));
             });
         }
@@ -87,12 +112,28 @@ public sealed class DatabaseSchema13ProductionCutoverTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_ValidExistingSchema13_SucceedsWithoutReconstructionOrPersistentCleanup()
+    public async Task InitializeAsync_ExistingValidSchema13_FailsClosedAsUnsupportedOlderVersionWithoutMutation()
     {
         await using var fixture = await CreateSchema13FixtureAsync();
+        var before = await fixture.CapturePersistentStateAsync();
+
+        var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
+            () => DatabaseSchema.InitializeAsync(fixture.Connection));
+
+        AssertReason(exception, "UnsupportedOlderVersion");
+        Assert.AreEqual(13, exception.FoundVersion);
+        Assert.AreEqual(14, exception.SupportedVersion);
+        CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
+        Assert.AreEqual(13, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_ValidExistingSchema14_SucceedsWithoutReconstructionOrPersistentCleanup()
+    {
+        await using var fixture = await CreateSchema14FixtureAsync();
         await fixture.Connection.InsertAsync(new LexicalCacheEntity
         {
-            CacheKey = "legacy|schema13-preserve",
+            CacheKey = "legacy|schema14-preserve",
             SourceLanguage = "en",
             ExplanationLanguage = "de",
             NormalizedLemma = "preserve",
@@ -113,18 +154,58 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
         CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
-        Assert.AreEqual(13, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(14, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(
             1,
             await fixture.Connection.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM LexicalCache WHERE CacheKey = 'legacy|schema13-preserve'"));
+                "SELECT COUNT(*) FROM LexicalCache WHERE CacheKey = 'legacy|schema14-preserve'"));
         await fixture.Connection.RunInTransactionAsync(sqliteConnection =>
         {
             Assert.IsTrue(
                 Schema13RuntimeIntegrityValidator.Validate(sqliteConnection, out var failure),
                 failure);
+            Assert.IsTrue(
+                TargetPersistenceShapeValidator.Validate(sqliteConnection, out var targetFailure),
+                targetFailure);
             Assert.AreEqual(0, sqliteConnection.ExecuteScalar<int>("PRAGMA foreign_key_check"));
         });
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_ExistingSchema14_MissingTargetPersistenceShape_FailsClosedAsInvalidCurrentSchema()
+    {
+        await using var fixture = await CreateSchema13FixtureAsync();
+        await fixture.Connection.ExecuteAsync($"PRAGMA user_version = {DatabaseSchema.CurrentVersion}");
+        var before = await fixture.CapturePersistentStateAsync();
+
+        var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
+            () => DatabaseSchema.InitializeAsync(fixture.Connection));
+
+        AssertReason(exception, "InvalidCurrentSchema");
+        Assert.AreEqual(14, exception.FoundVersion);
+        Assert.AreEqual(14, exception.SupportedVersion);
+        StringAssert.Contains(exception.DiagnosticDetail, "LearningTargets");
+        CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
+        Assert.AreEqual(14, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_ExistingSchema14_MalformedTargetShape_FailsClosedAsInvalidCurrentSchema()
+    {
+        await using var fixture = await CreateSchema14FixtureAsync();
+        await fixture.Connection.ExecuteAsync(
+            $"DROP INDEX {TargetPersistenceDdl.LearningTargetsStableIdIndexName}");
+        var before = await fixture.CapturePersistentStateAsync();
+
+        var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
+            () => DatabaseSchema.InitializeAsync(fixture.Connection));
+
+        AssertReason(exception, "InvalidCurrentSchema");
+        Assert.AreEqual(14, exception.FoundVersion);
+        Assert.AreEqual(14, exception.SupportedVersion);
+        StringAssert.Contains(exception.DiagnosticDetail, TargetPersistenceDdl.LearningTargetsStableIdIndexName);
+        CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
+        Assert.AreEqual(14, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
     }
 
     [TestMethod]
@@ -135,7 +216,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         Assert.ThrowsExactly<FormatException>(
             () => Schema13TimestampCodec.ParseUtcDateTime(malformedTimestamp));
 
-        await using var fixture = await CreateSchema13FixtureAsync();
+        await using var fixture = await CreateSchema14FixtureAsync();
         var wordId = await fixture.InsertWordAsync(
             privateContent,
             status: KnownFirst.Models.WordStatus.Unreviewed);
@@ -162,7 +243,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         Assert.ThrowsExactly<FormatException>(
             () => Schema13TimestampCodec.ParseUtcDateTime(malformedTimestamp));
 
-        await using var fixture = await CreateSchema13FixtureAsync();
+        await using var fixture = await CreateSchema14FixtureAsync();
         var wordId = await fixture.InsertWordAsync(
             "sense-control-owner",
             status: KnownFirst.Models.WordStatus.Unreviewed);
@@ -190,7 +271,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         Assert.ThrowsExactly<FormatException>(
             () => Schema13TimestampCodec.ParseUtcDateTime(offsetTimestamp));
 
-        await using var fixture = await CreateSchema13FixtureAsync();
+        await using var fixture = await CreateSchema14FixtureAsync();
         var wordId = await fixture.InsertWordAsync(
             "private-offset-control-content",
             status: KnownFirst.Models.WordStatus.Unreviewed);
@@ -217,7 +298,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         Assert.AreEqual(DateTimeKind.Utc, Schema13TimestampCodec.ParseUtcDateTime(wordTimestamp).Kind);
         Assert.AreEqual(DateTimeKind.Utc, Schema13TimestampCodec.ParseUtcDateTime(senseTimestamp).Kind);
 
-        await using var fixture = await CreateSchema13FixtureAsync();
+        await using var fixture = await CreateSchema14FixtureAsync();
         var wordId = await fixture.InsertWordAsync(
             "valid-strict-control-owner",
             status: KnownFirst.Models.WordStatus.Unreviewed);
@@ -235,7 +316,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         await DatabaseSchema.InitializeAsync(fixture.Connection);
 
         CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
-        Assert.AreEqual(13, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(14, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(
             wordTimestamp,
             await fixture.Connection.ExecuteScalarAsync<string>(
@@ -252,7 +333,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
     [TestMethod]
     public async Task InitializeAsync_MalformedSchema13_RejectsAsInvalidCurrentSchemaWithoutRepair()
     {
-        await using var fixture = await CreateSchema13FixtureAsync();
+        await using var fixture = await CreateSchema14FixtureAsync();
         await fixture.Connection.ExecuteAsync($"DROP INDEX {Schema13Ddl.FsrsCardStatesDueIndexName}");
         var before = await fixture.CapturePersistentStateAsync();
 
@@ -261,7 +342,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
 
         AssertReason(exception, "InvalidCurrentSchema");
         CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
-        Assert.AreEqual(13, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(14, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(
             0,
             await fixture.Connection.ExecuteScalarAsync<int>(
@@ -310,15 +391,15 @@ public sealed class DatabaseSchema13ProductionCutoverTests
             connection = new SQLiteAsyncConnection(path);
             await connection.ExecuteAsync("CREATE TABLE FutureSentinel (Id INTEGER PRIMARY KEY, Value TEXT NOT NULL)");
             await connection.ExecuteAsync("INSERT INTO FutureSentinel (Id, Value) VALUES (1, 'preserve-me')");
-            await connection.ExecuteAsync("PRAGMA user_version = 14");
+            await connection.ExecuteAsync("PRAGMA user_version = 15");
             var before = await PersistentDatabaseSnapshot.CaptureCompleteAsync(path);
 
             var exception = await Assert.ThrowsExactlyAsync<DatabaseSchemaCompatibilityException>(
                 () => DatabaseSchema.InitializeAsync(connection));
 
-            Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
-            Assert.AreEqual(14, exception.FoundVersion);
-            Assert.AreEqual(13, exception.SupportedVersion);
+            Assert.AreEqual(14, DatabaseSchema.CurrentVersion);
+            Assert.AreEqual(15, exception.FoundVersion);
+            Assert.AreEqual(14, exception.SupportedVersion);
             AssertReason(exception, "UnsupportedFutureVersion");
             CollectionAssert.AreEqual(before, await PersistentDatabaseSnapshot.CaptureCompleteAsync(path));
             Assert.IsTrue(File.Exists(path));
@@ -330,10 +411,27 @@ public sealed class DatabaseSchema13ProductionCutoverTests
     }
 
     [TestMethod]
-    public async Task CreatePortableArchiveAsync_FreshProductionDatabase_UsesArchiveV3Dispatch()
+    public async Task CreatePortableArchiveAsync_FreshProductionDatabase_UsesArchiveV4Dispatch()
     {
         await using var database = new ProductionInitializedDatabase();
         await database.InitializeAsync();
+        var service = new BackupService(database, new FakePlatformInfo());
+        using var archive = new MemoryStream();
+
+        await service.CreatePortableArchiveAsync(archive, CancellationToken.None);
+
+        archive.Position = 0;
+        var validated = await BackupArchiveReader.ValidateVersionedAsync(archive, CancellationToken.None);
+        Assert.AreEqual(4, validated.FormatVersion);
+        Assert.IsNotNull(validated.V4);
+        Assert.AreEqual(14, validated.V4.Manifest.SourceDatabaseSchemaVersion);
+    }
+
+    [TestMethod]
+    public async Task CreatePortableArchiveAsync_Schema13Database_UsesArchiveV3Dispatch()
+    {
+        var fixture = await CreateSchema13FixtureAsync();
+        await using var database = new Schema13InitializedDatabase(fixture);
         var service = new BackupService(database, new FakePlatformInfo());
         using var archive = new MemoryStream();
 
@@ -386,7 +484,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         Assert.DoesNotContain(persistedTimestamp, exception.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(privateContent, exception.Message, StringComparison.Ordinal);
         CollectionAssert.AreEqual(before, await fixture.CapturePersistentStateAsync());
-        Assert.AreEqual(13, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+        Assert.AreEqual(DatabaseSchema.CurrentVersion, await fixture.Connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
         Assert.AreEqual(
             persistedTimestamp,
             await fixture.Connection.ExecuteScalarAsync<string>(
@@ -409,6 +507,17 @@ public sealed class DatabaseSchema13ProductionCutoverTests
         return fixture;
     }
 
+    private static async Task<Schema7Fixture> CreateSchema14FixtureAsync()
+    {
+        var fixture = await CreateSchema13FixtureAsync();
+        await fixture.Connection.RunInTransactionAsync(conn =>
+        {
+            TargetPersistenceShapeBuilder.Create(conn);
+            conn.Execute($"PRAGMA user_version = {DatabaseSchema.CurrentVersion}");
+        });
+        return fixture;
+    }
+
     private static string CreateTemporaryPath() =>
         Path.Combine(Path.GetTempPath(), $"knownfirst-schema13-cutover-{Guid.NewGuid():N}.db3");
 
@@ -428,6 +537,39 @@ public sealed class DatabaseSchema13ProductionCutoverTests
     {
         public BackupSourcePlatform SourcePlatform => BackupSourcePlatform.Windows;
         public string SourceAppVersion => "1.0.0-cutover-test";
+    }
+
+    private sealed class Schema13InitializedDatabase : IKnownFirstDatabase, IAsyncDisposable
+    {
+        private readonly Schema7Fixture _fixture;
+
+        public Schema13InitializedDatabase(Schema7Fixture fixture)
+        {
+            _fixture = fixture;
+        }
+
+        public string DatabasePath => _fixture.DatabasePath;
+
+        public Task InitializeAsync() => Task.CompletedTask;
+
+        public Task<T> ReadAsync<T>(Func<SQLiteAsyncConnection, Task<T>> operation) => operation(_fixture.Connection);
+
+        public async Task<T> RunInTransactionAsync<T>(Func<SQLiteConnection, T> operation)
+        {
+            T? result = default;
+            await _fixture.Connection.RunInTransactionAsync(connection => result = operation(connection));
+            return result!;
+        }
+
+        public Task<T> ExecuteSnapshotAsync<T>(Func<SQLiteConnection, T> operation) =>
+            RunInTransactionAsync(operation);
+
+        public Task ResetAsync() => throw new AssertFailedException("Cutover tests must never reset the database.");
+
+        public async ValueTask DisposeAsync()
+        {
+            await _fixture.DisposeAsync();
+        }
     }
 
     internal sealed class ProductionInitializedDatabase : IKnownFirstDatabase, IAsyncDisposable

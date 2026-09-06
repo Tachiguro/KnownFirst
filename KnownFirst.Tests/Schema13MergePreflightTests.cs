@@ -686,5 +686,14 @@ public sealed class Schema13MergePreflightTests
             CallCount++;
             return Task.FromResult(MergeWriteResult.SuccessResult);
         }
+
+        public Task<MergeWriteResult> ApplySchema14Async(
+            BackupPayloadV4 archive,
+            MergePreflightPlan plan,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(MergeWriteResult.SuccessResult);
+        }
     }
 }

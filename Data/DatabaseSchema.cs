@@ -1,11 +1,13 @@
 using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Schema14;
+using KnownFirst.Data.Targets;
 using SQLite;
 
 namespace KnownFirst.Data;
 
 public static class DatabaseSchema
 {
-    public const int CurrentVersion = 13;
+    public const int CurrentVersion = 14;
 
     public static async Task InitializeAsync(SQLiteAsyncConnection connection)
     {
@@ -38,7 +40,7 @@ public static class DatabaseSchema
                     DatabaseSchemaCompatibilityReason.UnknownNonEmptyUnversionedDatabase);
             }
 
-            await Schema13CleanBootstrap.ApplyAsync(connection);
+            await Schema14CleanBootstrap.ApplyAsync(connection);
             return;
         }
 
@@ -67,6 +69,15 @@ public static class DatabaseSchema
                     CurrentVersion,
                     DatabaseSchemaCompatibilityReason.InvalidCurrentSchema,
                     failureDetail);
+            }
+
+            if (!TargetPersistenceShapeValidator.Validate(sqliteConnection, out var targetFailureDetail))
+            {
+                throw new DatabaseSchemaCompatibilityException(
+                    existingVersion,
+                    CurrentVersion,
+                    DatabaseSchemaCompatibilityReason.InvalidCurrentSchema,
+                    targetFailureDetail);
             }
         });
     }

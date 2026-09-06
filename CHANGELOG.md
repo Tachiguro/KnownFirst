@@ -8,6 +8,9 @@ and uses the application's prerelease version identifiers.
 
 ### Added
 
+- Schema-14 LearningTarget architecture supporting distinct Definition and Translation learning intentions under a single semantic Sense (e.g. German definition vs English/French translation of the same Sense without artificial Sense duplication or unintended collapse) with independent 1-to-1 FSRS-6 scheduling identity per target (KF-LEARN-011).
+- Portable archive format V4 (`.kfarchive`) transporting LearningTargets, TargetAnswerVariants, TargetFsrsStates, TargetFsrsReviewHistoryEntries, TargetReviews, WordLearningControls, and SenseLearningControls with ordered-prefix causal merge and conflict detection (KF-LEARN-011).
+- Preparation pipeline and staging cutover to create and stage distinct Definition and Translation LearningTargets with accepted and preferred TargetAnswerVariants, including adding later targets under existing Senses (KF-LEARN-011).
 - Dedicated first-run onboarding experience guiding new installations through initial application language selection, optional local display name, core learning concepts, online dictionary lookup consent, term recognition, study practice directions, daily learning pace, and learning day timing.
 - Resumable onboarding: setup progress is persisted locally across application restarts, automatically resuming at the current step and completing into the main application.
 - Optional local Display Name configurable during onboarding or in Settings, stored strictly locally on the device.
@@ -20,6 +23,10 @@ and uses the application's prerelease version identifiers.
 - Incomplete or interrupted setup recovers safely on the next launch, replaying any committed Finish Setup action to completion before proceeding.
 
 ### Changed
+
+- Cut over learning runtime, session queue, and review persistence from legacy LearningCards to 1-to-1 LearningTarget FSRS-6 scheduling identity and target-centric reviews (`TargetReviews`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`) (KF-LEARN-011).
+- 14-point Automatic typing qualification lifecycle: fresh cards begin in Reading mode; two qualifying scheduled recall successes (Good/Easy; Hard holds; Again resets) enter Typing qualification; two distinct scheduled typed checks (`WasTypedAnswer == true`, `WasCorrect == true`, Rating != Again) achieve qualified low-friction Reading maintenance; genuine lapse (Again) arms a single typed re-check; failed re-check lapses to initial recall qualification; same-session Again tail repeats are isolated; per-target `TypingOptOut` forces low-friction Reading without modifying FSRS identity (KF-LEARN-011).
+- Non-destructive `AlreadyKnown` learning control: marking a word permanently known records an explicit `WordLearningControls` entry and clears incomplete active session queue items while fully preserving semantic graph entities, targets, variants, FSRS scheduling states, and factual review history without mutating `Words.Status` (KF-LEARN-011).
 
 - Direction-aware Automatic interaction progression: `MeaningToTerm` cards in Automatic learning mode now advance from Reading to Typing only after two qualifying Good or Easy recall ratings; Hard ratings maintain the current progression count without advancing; and Again resets the recall count to zero. `TermToMeaning` cards remain strictly Reading and do not accumulate hidden typing progression. Interaction progression remains strictly decoupled from FSRS scheduling (KF-LEARN-004).
 - User-facing learning review progress and availability phrasing across Learn and Home: next scheduled reviews are presented with precise time and calendar date in the effective learning timezone ("Next review today at 9:30 PM", "Next review tomorrow at 9:30 AM", or localized date and time, without relative duration phrasing or "übermorgen"), completed session summaries indicate when no further cards remain in the logical learning day ("Nothing else is due today." / "Für heute ist nichts mehr fällig."), and active learning session progress is surfaced directly on Home ("Learning progress: 3 of 5 cards") (KF-LEARN-007).
@@ -53,8 +60,10 @@ and uses the application's prerelease version identifiers.
 
 ### Internal
 
+- Clean Schema-14 database bootstrap (`Schema14CleanBootstrap`, `PRAGMA user_version = 14`, `PRAGMA foreign_keys = ON`) with fail-closed protection against legacy Schema 1–13 or malformed databases (`UnsupportedOlderVersion`), and decommissioning of legacy `LearningCards` scheduler and interaction paths (KF-LEARN-011).
 - Added dormant Schema-13 persistence and migration foundation for clean learning controls and FSRS factual review state/history (KF-PERSIST-013-001), including deterministic transactional 12 -> 13 migration, separate FSRS card state and append-only review history tables, clean word and sense learning control tables, and an atomic state-plus-history persistence coordinator, while production remains Schema 12 and runtime behavior is unchanged.
 - Advanced release-preparation candidate build number from `14` to `15` for the upcoming Beta 13 Google Play package and reconciled durable release records (KF-RELEASE-002).
+
 
 ## [1.0.0-beta.13] - 2026-08-23 (merged source — next Internal Testing candidate, not yet gated or distributed)
 

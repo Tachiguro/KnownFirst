@@ -34,6 +34,14 @@ public static class BackupErrorCodes
     /// <summary>A native Schema-13/archive-v3 payload cannot be restored into a Schema-7 through
     /// Schema-12 target. Import never upgrades the target implicitly and rejects before mutation.</summary>
     public const string Schema13ArchiveIncompatibleWithLegacyTarget = "schema13-archive-incompatible-with-legacy-target";
+
+    /// <summary>A Schema-14 database contains LearningTarget persistence data that cannot be faithfully
+    /// represented by the legacy Schema-13 / Archive V3 transport contract.</summary>
+    public const string Schema14TargetDataIncompatibleWithV3Transport = "schema14-target-data-incompatible-with-v3-transport";
+
+    /// <summary>A native Schema-14/archive-v4 payload cannot be restored into a Schema-7 through
+    /// Schema-13 target. Import never upgrades the target implicitly and rejects before mutation.</summary>
+    public const string Schema14ArchiveIncompatibleWithLegacyTarget = "schema14-archive-incompatible-with-legacy-target";
 }
 
 public sealed class BackupFormatException : Exception

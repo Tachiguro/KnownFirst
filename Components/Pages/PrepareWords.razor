@@ -39,7 +39,7 @@
     else if (_item is null && !_batchCompleted)
     {
         <section class="preparation-card">
-            @if (_overview.UnpreparedCount == 0)
+            @if (_overview.UnpreparedCount == 0 && !IsTargetAddition)
             {
                 <h2>@Localizer["Prepare_NoWordsTitle"]</h2>
                 <p>@Localizer["Prepare_NoWords"]</p>
@@ -47,12 +47,33 @@
             }
             else
             {
-                <h2>@Localizer["Prepare_MethodQuestion"]</h2>
-                <p>@Localizer["Prepare_BatchDescription", Math.Min(_overview.UnpreparedCount, AppSettings.PreparationLimit)]</p>
+                @if (IsTargetAddition)
+                {
+                    <h2>@Localizer["Prepare_AddTargetTitle"]</h2>
+                    <p>@Localizer["Prepare_AddTargetDescription"]</p>
+                    <div class="editor-grid preparation-target-intent">
+                        <label>
+                            @Localizer["Prepare_TargetKind"]
+                            <select class="text-input" @bind="_targetKind">
+                                <option value="@LearningTargetKind.Definition">@Localizer["Prepare_TargetKindDefinition"]</option>
+                                <option value="@LearningTargetKind.Translation">@Localizer["Prepare_TargetKindTranslation"]</option>
+                            </select>
+                        </label>
+                        <label>
+                            @Localizer["Prepare_TargetLanguage"]
+                            <input class="text-input" maxlength="32" placeholder="en" @bind="_targetLanguage" @bind:event="oninput" />
+                        </label>
+                    </div>
+                }
+                else
+                {
+                    <h2>@Localizer["Prepare_MethodQuestion"]</h2>
+                    <p>@Localizer["Prepare_BatchDescription", Math.Min(_overview.UnpreparedCount, AppSettings.PreparationLimit)]</p>
+                }
                 <div class="method-grid">
                     <button type="button"
                             class="method-card recommended @(!AppSettings.HasOnlineLookupConsent ? "disabled" : null)"
-                            disabled="@(!AppSettings.HasOnlineLookupConsent || _isBusy)"
+                            disabled="@(!AppSettings.HasOnlineLookupConsent || _isBusy || !CanStartTargetAddition)"
                             aria-describedby="@(!AppSettings.HasOnlineLookupConsent ? "automatic-online-consent-explanation" : null)"
                             @onclick="StartAutomaticAsync">
                         @if (_startingAutomatic)
@@ -68,7 +89,7 @@
                             <span>@Localizer["Prepare_AutomaticRecommended"]</span>
                         }
                     </button>
-                    <button type="button" class="method-card" disabled="@_isBusy" @onclick="StartManualAsync">
+                    <button type="button" class="method-card" disabled="@(_isBusy || !CanStartTargetAddition)" @onclick="StartManualAsync">
                         <strong>@Localizer["Prepare_MethodManual"]</strong>
                         <span>@Localizer["Prepare_ManualDescription"]</span>
                     </button>
@@ -214,6 +235,17 @@
                                 <input class="text-input" @bind:event="oninput" @onkeydown="HandleInputKeyDown" @bind="_aliases" aria-describedby="prepare-accepted-aliases-help" />
                                 <small id="prepare-accepted-aliases-help">@Localizer["Prepare_AcceptedAliasesHelp"]</small>
                             </label>
+                            @if (AppSettings.LearningMode == LearningMode.Automatic)
+                            {
+                                <button type="button"
+                                        id="prepare-editor-use-typing-check"
+                                        class="choice-button preparation-typing-toggle @(_useTypingCheck ? "active" : null)"
+                                        role="switch"
+                                        aria-checked="@_useTypingCheck"
+                                        @onclick="ToggleTypingCheck">
+                                    @Localizer["Prepare_UseTypingCheck"]
+                                </button>
+                            }
                         </div>
                     </details>
                 </div>
@@ -248,6 +280,17 @@
                             <span>@MeaningPreviewPolicy.CreateClosedPreview(MeaningPreviewPolicy.GetPrimaryTextForMode(_definition, _translation, _item.Result.LookupMode))</span>
                         </button>
                         <small class="meaning-selection-explanation">@Localizer["Prepare_ChooseOneMeaningExplanation"]</small>
+                    }
+                    @if (AppSettings.LearningMode == LearningMode.Automatic)
+                    {
+                        <button type="button"
+                                id="prepare-use-typing-check"
+                                class="choice-button preparation-typing-toggle @(_useTypingCheck ? "active" : null)"
+                                role="switch"
+                                aria-checked="@_useTypingCheck"
+                                @onclick="ToggleTypingCheck">
+                            @Localizer["Prepare_UseTypingCheck"]
+                        </button>
                     }
                     <SourceDetails ProviderName="@_item.Result.ProviderName"
                                    SourceProject="@_item.Result.SourceProject"
@@ -416,7 +459,11 @@
                 <button type="button" class="button button-secondary" @onclick="CloseMeaningPickerAsync">@Localizer["Common_Close"]</button>
             </header>
             <ul class="meaning-options" role="listbox" aria-labelledby="meaning-picker-title">
-                @foreach (var selectableMeaning in MeaningPreviewPolicy.GetSelectableMeanings(result.Meanings, result.LookupMode))
+                @foreach (var selectableMeaning in MeaningPreviewPolicy.GetSelectableMeanings(
+                    result.Meanings,
+                    result.LookupMode,
+                    grammaticalRelationship: result.GrammaticalRelationship,
+                    topicOrDomain: result.TopicOrDomain))
                 {
                     var meaningIndex = selectableMeaning.OriginalIndex;
                     <li role="none" class="meaning-option @(_selectedMeaningIndex == meaningIndex ? "selected" : null)">
@@ -429,6 +476,7 @@
                             {
                                 <small class="meaning-secondary">@selectableMeaning.SecondaryText</small>
                             }
+                            <small class="meaning-secondary meaning-target-metadata">@GetTargetMetadata(result)</small>
                             <span class="meaning-primary">@selectableMeaning.PrimaryText</span>
                         </button>
                         @if (selectableMeaning.IsTruncated)
@@ -499,6 +547,24 @@
     private PreparationCompletionAction? _confirmationAction;
     private PreparationInputValidationReason? _inputValidationReason;
     private readonly PreparationProgressionCoordinator _progressionCoordinator = new();
+
+    [SupplyParameterFromQuery(Name = "wordId")]
+    public int? WordId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "addTarget")]
+    public bool AddTarget { get; set; }
+
+    [SupplyParameterFromQuery(Name = "senseId")]
+    public int? SenseId { get; set; }
+
+    private bool _useTypingCheck = true;
+    private bool? _typingPreferenceOverride;
+    private LearningTargetKind _targetKind = LearningTargetKind.Translation;
+    private string _targetLanguage = string.Empty;
+
+    private bool IsTargetAddition => AddTarget && WordId is > 0 && SenseId is > 0;
+
+    private bool CanStartTargetAddition => !IsTargetAddition || !string.IsNullOrWhiteSpace(_targetLanguage);
 
     private LexicalLookupMode PrimaryAnswerMode => _item?.LookupMode ?? LexicalLookupMode.Definition;
 
@@ -667,7 +733,10 @@
         _progressionAfterSaveFailed = false;
         try
         {
-            await PreparationService.StartAsync(method, AppSettings.PreparationLimit);
+            var targetAddition = IsTargetAddition
+                ? new PreparationTargetAdditionRequest(WordId!.Value, SenseId!.Value, _targetKind, _targetLanguage.Trim())
+                : null;
+            await PreparationService.StartAsync(method, AppSettings.PreparationLimit, targetAddition);
             _overview = await PreparationService.GetOverviewAsync();
             _item = await PreparationService.GetCurrentAsync();
             _contextIndex = 0;
@@ -865,7 +934,12 @@
                 currentItem.EncounteredSurfaceForm,
                 isManualInput ? null : result?.GrammaticalRelationship,
                 isManualInput ? currentItem.Term : result?.DisplayTerm ?? currentItem.Term,
-                ManualInputMode: isManualInput ? PrimaryAnswerMode : null);
+                TopicOrDomain: isManualInput ? null : result?.TopicOrDomain,
+                PartOfSpeech: isManualInput ? null : selectedMeaning?.PartOfSpeech,
+                ManualInputMode: isManualInput ? PrimaryAnswerMode : null,
+                TypingOptOut: AppSettings.LearningMode == LearningMode.Automatic
+                    ? _typingPreferenceOverride
+                    : null);
             var progressed = await _progressionCoordinator.CommitAcceptAndProgressAsync(
                 method,
                 async () =>
@@ -1075,10 +1149,48 @@
         _translation = string.Empty;
         _definition = string.Empty;
         _aliases = string.Empty;
+        _useTypingCheck = !(_item?.ExistingTargetTypingOptOut ?? false);
+        _typingPreferenceOverride = null;
         if (_item?.Result is { Meanings.Count: > 0 } result)
         {
             _selectedMeaningIndex = Math.Clamp(_selectedMeaningIndex, 0, result.Meanings.Count - 1);
             ApplyMeaning(result.Meanings[_selectedMeaningIndex]);
+        }
+    }
+
+    private void ToggleTypingCheck()
+    {
+        _useTypingCheck = !_useTypingCheck;
+        _typingPreferenceOverride = !_useTypingCheck;
+    }
+
+    private string GetTargetMetadata(LexicalResult result)
+    {
+        var kind = result.LookupMode == LexicalLookupMode.Translation
+            ? Localizer["Prepare_TargetKindTranslation"].Value
+            : Localizer["Prepare_TargetKindDefinition"].Value;
+        var sourceLanguage = GetLanguageDisplayName(_item?.SourceLanguage);
+        var targetLanguage = GetLanguageDisplayName(_item?.TargetLanguage ?? _item?.ExplanationLanguage);
+        return result.LookupMode == LexicalLookupMode.Translation
+            ? $"{kind} · {sourceLanguage} → {targetLanguage}"
+            : $"{kind} · {targetLanguage}";
+    }
+
+    private static string GetLanguageDisplayName(string? languageCode)
+    {
+        if (string.IsNullOrWhiteSpace(languageCode))
+        {
+            return "-";
+        }
+
+        var normalized = languageCode.Trim().Replace('_', '-');
+        try
+        {
+            return System.Globalization.CultureInfo.GetCultureInfo(normalized).DisplayName;
+        }
+        catch (System.Globalization.CultureNotFoundException)
+        {
+            return normalized.ToLowerInvariant();
         }
     }
 

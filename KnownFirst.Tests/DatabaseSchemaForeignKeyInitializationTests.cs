@@ -17,8 +17,8 @@ public sealed class DatabaseSchemaForeignKeyInitializationTests
 
             await DatabaseSchema.InitializeAsync(connection);
 
-            Assert.AreEqual(13, DatabaseSchema.CurrentVersion);
-            Assert.AreEqual(13, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
+            Assert.AreEqual(14, DatabaseSchema.CurrentVersion);
+            Assert.AreEqual(14, await connection.ExecuteScalarAsync<int>("PRAGMA user_version"));
             Assert.AreEqual(1, await connection.ExecuteScalarAsync<int>("PRAGMA foreign_keys"));
         }
         finally

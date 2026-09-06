@@ -308,7 +308,12 @@ public sealed record BackupPortableArchiveCounts(
     int? WordLearningControls = null,
     int? SenseLearningControls = null,
     int? FsrsReviewHistoryEntries = null,
-    int? FsrsCardStates = null);
+    int? FsrsCardStates = null,
+    int? LearningTargets = null,
+    int? TargetAnswerVariants = null,
+    int? TargetFsrsStates = null,
+    int? TargetFsrsReviewHistoryEntries = null,
+    int? TargetReviews = null);
 
 /// <summary>Version-aware replacement for the old bare <c>BackupManifest</c> return value of
 /// <c>IBackupService.ValidatePortableArchiveAsync</c> — succeeds for both a v1 and a v2 archive.</summary>

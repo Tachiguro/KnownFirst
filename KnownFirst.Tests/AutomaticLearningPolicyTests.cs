@@ -97,6 +97,19 @@ public sealed class AutomaticLearningPolicyTests
     }
 
     [TestMethod]
+    public void RecordTypingAssessment_TwoConsecutiveTypingSuccesses_TransitionsToLowFrictionReadingMaintenance()
+    {
+        var typingState = new AutomaticLearningState(LearningInteractionMode.Typing, 2, 0, 0, false);
+        var success1 = AutomaticLearningPolicy.RecordTypingAssessment(typingState, correct: true);
+        Assert.AreEqual(LearningInteractionMode.Typing, success1.InteractionMode);
+        Assert.AreEqual(1, success1.ConsecutiveTypingSuccesses);
+
+        var success2 = AutomaticLearningPolicy.RecordTypingAssessment(success1, correct: true);
+        Assert.AreEqual(2, success2.ConsecutiveTypingSuccesses);
+        Assert.AreEqual(LearningInteractionMode.Reading, success2.InteractionMode);
+    }
+
+    [TestMethod]
     public void RecordTypingAssessment_TwoFailures_LapsesToReadingAndResetsAllCounters()
     {
         var typingState = new AutomaticLearningState(LearningInteractionMode.Typing, 2, 1, 0, false);

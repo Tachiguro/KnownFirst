@@ -5,6 +5,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 using KnownFirst.Services.Lexical;
 using SQLite;
@@ -50,7 +51,7 @@ public sealed partial class PreparationService(
             PreparationSchema10CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema11CapabilityResult => new ValidatedPreparationSchema8Capability(),
             PreparationSchema12CapabilityResult => new ValidatedPreparationSchema8Capability(),
-            PreparationSchema13CapabilityResult => new ValidatedPreparationSchema8Capability(),
+            PreparationSchema13CapabilityResult or PreparationSchema14CapabilityResult => new ValidatedPreparationSchema8Capability(),
             _ => null
         };
 #if DEBUG
@@ -76,21 +77,30 @@ public sealed partial class PreparationService(
                 .Count(candidate => candidate.SessionId == latestCompleted.Id
                     && candidate.Status == PreparationCandidateStatus.Prepared);
         var capability = PreparationSchemaCapability.Resolve(connection);
-        var isSchema13 = capability is PreparationSchema13CapabilityResult;
-        var dueCardCount = isSchema13
-            ? Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(now))
-            : connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
+        var dueCardCount = capability switch
+        {
+            PreparationSchema14CapabilityResult =>
+                TargetLearningRepository.CountDueTargets(connection, new DateTimeOffset(now)),
+            PreparationSchema13CapabilityResult =>
+                Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(now)),
+            _ => connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
                 && card.State != CardState.Suspended
                 && card.State != CardState.Retired
-                && card.DueAtUtc <= now);
-        var preparedNewWordIds = isSchema13
-            ? Schema13LearningRepository.CountNewWords(connection)
-            : connection.Table<LearningCardEntity>()
+                && card.DueAtUtc <= now)
+        };
+        var preparedNewWordIds = capability switch
+        {
+            PreparationSchema14CapabilityResult =>
+                TargetLearningRepository.CountNewWords(connection),
+            PreparationSchema13CapabilityResult =>
+                Schema13LearningRepository.CountNewWords(connection),
+            _ => connection.Table<LearningCardEntity>()
                 .Where(card => card.State == CardState.New)
                 .ToList()
                 .Select(card => card.WordId)
                 .Distinct()
-                .Count();
+                .Count()
+        };
         var unprepared = words.Count(word => word.Status == WordStatus.UnknownBacklog
             && word.PreparationState != PreparationState.Prepared);
         return new PreparationOverview(
@@ -104,7 +114,10 @@ public sealed partial class PreparationService(
             lastCompletedPreparedItems);
     });
 
-    public async Task<int> StartAsync(PreparationMethod method, int requestedLimit)
+    public async Task<int> StartAsync(
+        PreparationMethod method,
+        int requestedLimit,
+        PreparationTargetAdditionRequest? targetAddition = null)
     {
         await _operationGate.WaitAsync();
         try
@@ -121,7 +134,42 @@ public sealed partial class PreparationService(
                     .FirstOrDefault(session => session.Status == PreparationSessionStatus.Active);
                 if (active is not null)
                 {
-                    return active.Id;
+                    if (targetAddition is not null)
+                    {
+                        var candidates = connection.Table<PreparationCandidateEntity>()
+                            .Where(c => c.SessionId == active.Id)
+                            .ToList();
+                        var matchesTargetAddition = candidates.Any(c =>
+                        {
+                            var env = PreparationCandidatePayloadCodec.Read(c.ResultJson).Envelope;
+                            return env?.TargetAddition is { } existingAddition
+                                && existingAddition.WordId == targetAddition.WordId
+                                && existingAddition.SenseId == targetAddition.SenseId
+                                && existingAddition.TargetKind == targetAddition.TargetKind
+                                && string.Equals(existingAddition.TargetLanguage.Trim(), targetAddition.TargetLanguage.Trim(), StringComparison.OrdinalIgnoreCase);
+                        });
+
+                        if (matchesTargetAddition)
+                        {
+                            return active.Id;
+                        }
+
+                        throw new InvalidOperationException("An unrelated preparation session is already active.");
+                    }
+                    else
+                    {
+                        var candidates = connection.Table<PreparationCandidateEntity>()
+                            .Where(c => c.SessionId == active.Id)
+                            .ToList();
+                        var hasTargetAddition = candidates.Any(c =>
+                            PreparationCandidatePayloadCodec.Read(c.ResultJson).Envelope?.TargetAddition is not null);
+                        if (hasTargetAddition)
+                        {
+                            throw new InvalidOperationException("An active add-target preparation session already exists.");
+                        }
+
+                        return active.Id;
+                    }
                 }
 
                 if (method == PreparationMethod.AutomaticOnline)
@@ -135,7 +183,7 @@ public sealed partial class PreparationService(
                 var capability = PreparationSchemaCapability.Resolve(connection);
                 if (AsSchema8CompatibleCapability(capability) is { } schema8StartCapability)
                 {
-                    return StartSchema8(connection, method, requestedLimit, schema8StartCapability);
+                    return StartSchema8(connection, method, requestedLimit, schema8StartCapability, targetAddition);
                 }
 
                 var preparedWordIds = connection.Table<MeaningEntity>()
@@ -374,8 +422,12 @@ public sealed partial class PreparationService(
                 candidate.UpdatedAtUtc = clock.UtcNow;
                 connection.Update(candidate);
                 var word = connection.Find<WordEntity>(candidate.WordId)!;
-                word.PreparationState = PreparationState.Preparing;
-                connection.Update(word);
+                var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
+                if (envelope?.TargetAddition is null && word.Status == WordStatus.UnknownBacklog)
+                {
+                    word.PreparationState = PreparationState.Preparing;
+                    connection.Update(word);
+                }
                 return true;
             });
 
@@ -420,7 +472,9 @@ public sealed partial class PreparationService(
                     // right away — never requiring an explicit accept first — and the candidate
                     // auto-completes immediately if that resolves every index.
                     var merged = MergeResultIntoEnvelope(candidate.ResultJson, result);
-                    var (autoResolved, nextIndex, isFullyResolved) = AutoResolveExactVariantsAfterLookup(connection, word, merged);
+                    var (autoResolved, nextIndex, isFullyResolved) = merged.TargetAddition is null
+                        ? AutoResolveExactVariantsAfterLookup(connection, word, merged)
+                        : (merged, 0, false);
                     candidate.ResultJson = PreparationCandidatePayloadCodec.Write(autoResolved);
                     candidate.SelectedMeaningIndex = nextIndex;
                     candidate.LastErrorCode = string.Empty;
@@ -438,9 +492,12 @@ public sealed partial class PreparationService(
                     }
 
                     candidate.Status = PreparationCandidateStatus.ResultReady;
-                    word.PreparationState = PreparationState.Preparing;
-                    word.UpdatedAt = now;
-                    connection.Update(word);
+                    if (merged.TargetAddition is null && word.Status == WordStatus.UnknownBacklog)
+                    {
+                        word.PreparationState = PreparationState.Preparing;
+                        word.UpdatedAt = now;
+                        connection.Update(word);
+                    }
                 }
                 else
                 {
@@ -452,11 +509,18 @@ public sealed partial class PreparationService(
                         ? PreparationCandidateStatus.ResultReady
                         : PreparationCandidateStatus.Failed;
                     candidate.LastErrorCode = result.ErrorCode ?? string.Empty;
-                    word.PreparationState = result.HasUsableData
-                        ? PreparationState.Preparing
-                        : PreparationState.PreparationFailed;
-                    word.UpdatedAt = now;
-                    connection.Update(word);
+                    if (isSchema8Compatible && PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope?.TargetAddition is not null)
+                    {
+                        // Add-target candidate never mutates word.PreparationState on failure or ready
+                    }
+                    else
+                    {
+                        word.PreparationState = result.HasUsableData
+                            ? PreparationState.Preparing
+                            : PreparationState.PreparationFailed;
+                        word.UpdatedAt = now;
+                        connection.Update(word);
+                    }
                 }
 
                 _diagnosticLog.Write(DiagnosticEvent(item, "preparation.result-serialize.complete"));
@@ -560,7 +624,8 @@ public sealed partial class PreparationService(
                 // BackupSchemaCapability. The Schema-7 branch below is otherwise byte-for-byte the
                 // pre-Slice-3 behavior; the Schema-8 branch lives entirely in PreparationServiceSchema8.cs.
                 var capability = PreparationSchemaCapability.Resolve(connection);
-                var createSchema13State = capability is PreparationSchema13CapabilityResult;
+                var createSchema13State = capability is PreparationSchema13CapabilityResult or PreparationSchema14CapabilityResult;
+                var createSchema14State = capability is PreparationSchema14CapabilityResult;
                 if (createSchema13State
                     && !Schema13RuntimeIntegrityValidator.Validate(connection, out var failureDetail))
                 {
@@ -574,7 +639,8 @@ public sealed partial class PreparationService(
                         input,
                         cardDirectionPreference,
                         schema8AcceptCapability,
-                        createSchema13State)
+                        createSchema13State,
+                        createSchema14State)
                     : AcceptSchema7(connection, candidateId, input, cardDirectionPreference);
             });
             RecordTiming(
@@ -773,9 +839,13 @@ public sealed partial class PreparationService(
                 EnsureCurrentCandidate(connection, candidate);
                 var session = connection.Find<PreparationSessionEntity>(candidate.SessionId)!;
                 var word = connection.Find<WordEntity>(candidate.WordId)!;
-                word.PreparationState = PreparationState.Unprepared;
-                word.UpdatedAt = clock.UtcNow;
-                connection.Update(word);
+                var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
+                if (envelope?.TargetAddition is null && word.Status == WordStatus.UnknownBacklog)
+                {
+                    word.PreparationState = PreparationState.Unprepared;
+                    word.UpdatedAt = clock.UtcNow;
+                    connection.Update(word);
+                }
                 CompleteCandidate(
                     connection,
                     session,
@@ -822,7 +892,8 @@ public sealed partial class PreparationService(
                     }
 
                     var word = connection.Find<WordEntity>(candidate.WordId);
-                    if (word?.Status == WordStatus.UnknownBacklog)
+                    var envelope = PreparationCandidatePayloadCodec.Read(candidate.ResultJson).Envelope;
+                    if (word?.Status == WordStatus.UnknownBacklog && envelope?.TargetAddition is null)
                     {
                         word.PreparationState = PreparationState.Unprepared;
                         word.UpdatedAt = now;
@@ -1284,6 +1355,40 @@ public sealed partial class PreparationService(
             ? await ResolveFrozenContextsAsync(connection, word, read.Envelope!.FrozenEvidence)
             : await ResolveLiveContextsAsync(connection, word);
 
+        if (read.Envelope?.TargetAddition is { } targetAddition)
+        {
+            if (targetAddition.WordId != word.Id)
+            {
+                throw new InvalidOperationException("TargetAddition WordId does not match the candidate WordId.");
+            }
+
+            lookupMode = targetAddition.TargetKind == KnownFirst.Core.Learning.LearningTargetKind.Definition
+                ? LexicalLookupMode.Definition
+                : LexicalLookupMode.Translation;
+            targetLanguage = targetAddition.TargetLanguage.Trim().ToLowerInvariant();
+            explanationLanguage = targetLanguage;
+        }
+
+        bool? existingTargetTypingOptOut = null;
+        if (read.Envelope?.TargetAddition is { } existingTargetAddition)
+        {
+            var rows = await connection.QueryAsync<TargetTypingPreferenceRow>(
+                """
+                SELECT lt.TypingOptOut
+                FROM LearningTargets lt
+                JOIN Senses s ON s.Id = lt.SenseId
+                WHERE lt.SenseId = ? AND s.WordId = ? AND lt.TargetKind = ? AND lt.SourceLanguage = ? AND lt.TargetLanguage = ?
+                ORDER BY lt.Id
+                LIMIT 1
+                """,
+                existingTargetAddition.SenseId,
+                word.Id,
+                (int)existingTargetAddition.TargetKind,
+                word.Language.Trim().ToLowerInvariant(),
+                existingTargetAddition.TargetLanguage.Trim().ToLowerInvariant());
+            existingTargetTypingOptOut = rows.Count == 0 ? null : rows[0].TypingOptOut != 0;
+        }
+
         return new PreparationItem(
             session.Id,
             candidate.Id,
@@ -1302,7 +1407,8 @@ public sealed partial class PreparationService(
             candidate.SelectedMeaningIndex,
             string.IsNullOrWhiteSpace(candidate.LastErrorCode) ? null : candidate.LastErrorCode,
             lookupMode,
-            targetLanguage);
+            targetLanguage,
+            existingTargetTypingOptOut);
     }
 
     /// <summary>The exact pre-Slice-3 Schema-7 context-loading algorithm: first three valid occurrences,
@@ -1712,6 +1818,11 @@ public sealed partial class PreparationService(
         return read.Kind == PreparationCandidatePayloadKind.EnvelopeV1
             ? read.Envelope! with { Result = result }
             : PreparationCandidatePayloadV1.Create(result);
+    }
+
+    private sealed class TargetTypingPreferenceRow
+    {
+        public int TypingOptOut { get; set; }
     }
 
     private static async Task<PreparationCandidateEntity?> FindCurrentCandidateAsync(

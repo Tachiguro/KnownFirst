@@ -89,11 +89,16 @@ public static class AutomaticLearningPolicy
 
         if (correct)
         {
+            var successes = Math.Min(
+                RequiredConsecutiveAssessments,
+                state.ConsecutiveTypingSuccesses + 1);
+
             return state with
             {
-                ConsecutiveTypingSuccesses = Math.Min(
-                    RequiredConsecutiveAssessments,
-                    state.ConsecutiveTypingSuccesses + 1),
+                InteractionMode = successes >= RequiredConsecutiveAssessments
+                    ? LearningInteractionMode.Reading
+                    : state.InteractionMode,
+                ConsecutiveTypingSuccesses = successes,
                 ConsecutiveTypingFailures = 0
             };
         }

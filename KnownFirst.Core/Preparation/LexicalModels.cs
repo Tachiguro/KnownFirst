@@ -245,7 +245,8 @@ public sealed record LexicalResult(
     IReadOnlyList<ProviderFormRelation>? FormRelations = null,
     LexicalLookupDiagnostics? Diagnostics = null,
     LexicalLookupMode? LookupMode = null,
-    string? TargetLanguage = null)
+    string? TargetLanguage = null,
+    string? TopicOrDomain = null)
 {
     public bool HasUsableData => LexicalResultInvariantPolicy.HasUsableData(this, LookupMode);
 

@@ -209,6 +209,15 @@
     word-break: normal; overflow-wrap: break-word; hyphens: auto;
 }
 
+.preparation-typing-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
 .meaning-picker-trigger {
     display: block;
     width: 100%;

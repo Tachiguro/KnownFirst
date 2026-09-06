@@ -4,6 +4,7 @@ using KnownFirst.Core.Settings;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
 using KnownFirst.Services.DataSafety;
@@ -89,7 +90,8 @@ public sealed partial class PreparationService
         PreparedMeaningInput input,
         CardDirectionPreference cardDirectionPreference,
         ValidatedPreparationSchema8Capability capability,
-        bool createSchema13State)
+        bool createSchema13State,
+        bool createSchema14State = false)
     {
         ArgumentNullException.ThrowIfNull(capability);
 
@@ -117,7 +119,8 @@ public sealed partial class PreparationService
         // same persisted document contract used by CreateItemAsync to expose PreparationItem.LookupMode
         // and TargetLanguage; a payload value can request manual handling but can never redirect it.
         var contextData = ResolveContextDataFromFrozenEvidence(connection, word.Id, envelope.FrozenEvidence);
-        var candidateContext = ResolveCandidateLookupContext(connection, word, contextData);
+        var candidateContext = ResolveCandidateLookupContext(
+            connection, word, contextData, envelope.TargetAddition);
         var acceptedInput = isManualInput
             ? NormalizeManualInput(input, candidateContext.LookupMode)
             : input;
@@ -194,7 +197,13 @@ public sealed partial class PreparationService
             vocabularyIdentity,
             targetFacts.TopicOrDomain);
 
-        var exactManualMatch = isManualInput
+        var explicitTargetSense = envelope.TargetAddition is { } targetAddition
+            ? (targetAddition.WordId != candidate.WordId
+                ? throw new InvalidOperationException("TargetAddition WordId does not match the candidate WordId.")
+                : existingSenses.SingleOrDefault(sense => sense.Id == targetAddition.SenseId)
+                    ?? throw new InvalidOperationException("The explicit target-addition Sense no longer belongs to this Word."))
+            : null;
+        var exactManualMatch = isManualInput && explicitTargetSense is null
             ? TryFindExactManualMeaning(
                 connection,
                 existingSenses,
@@ -212,8 +221,12 @@ public sealed partial class PreparationService
         }
         else
         {
-            var (matchedSense, _) = PreparationSenseClassifier.ClassifyAgainstExisting(
-                word.Language, vocabularyIdentityKey, targetFacts, existingSenses);
+            var matchedSense = explicitTargetSense;
+            if (matchedSense is null)
+            {
+                (matchedSense, _) = PreparationSenseClassifier.ClassifyAgainstExisting(
+                    word.Language, vocabularyIdentityKey, targetFacts, existingSenses);
+            }
 
             // §8 PartOfSpeech precedence: explicit input (already normalized/validated above), else the
             // selected provider Meaning, else empty.
@@ -247,6 +260,12 @@ public sealed partial class PreparationService
         // directions this acceptance just created. Runs inside the same transaction and adds no checkpoint, so
         // every existing preparation checkpoint keeps its documented meaning and ordering.
         EnsureAnswerAssignmentsForNewDirections(connection, senseId, newDirections, now);
+
+        if (createSchema14State)
+        {
+            EnsureLearningTargets(
+                connection, word, senseId, meaningId, candidateContext, acceptedInput, now);
+        }
 
         if (!isManualInput)
         {
@@ -358,7 +377,7 @@ public sealed partial class PreparationService
         string explanationLanguage) => new(
         word.Language,
         explanationLanguage,
-        !string.IsNullOrWhiteSpace(input.SelectedMeaningId) ? input.SelectedMeaningId!.Trim() : meaning.MeaningId ?? string.Empty,
+        FilterPositionalProviderSenseId(!string.IsNullOrWhiteSpace(input.SelectedMeaningId) ? input.SelectedMeaningId!.Trim() : meaning.MeaningId ?? string.Empty),
         normalizedTopicOrDomain,
         !string.IsNullOrWhiteSpace(input.GrammaticalRelationship)
             ? input.GrammaticalRelationship!.Trim()
@@ -382,8 +401,18 @@ public sealed partial class PreparationService
     private static CandidateLookupContext ResolveCandidateLookupContext(
         SQLiteConnection connection,
         WordEntity word,
-        IReadOnlyList<ContextData> contextData)
+        IReadOnlyList<ContextData> contextData,
+        PreparationTargetAdditionRequest? targetAddition = null)
     {
+        if (targetAddition is not null)
+        {
+            var additionTargetLanguage = targetAddition.TargetLanguage.Trim().ToLowerInvariant();
+            var additionLookupMode = targetAddition.TargetKind == LearningTargetKind.Definition
+                ? LexicalLookupMode.Definition
+                : LexicalLookupMode.Translation;
+            return new CandidateLookupContext(additionLookupMode, additionTargetLanguage, additionTargetLanguage);
+        }
+
         var firstContext = contextData.FirstOrDefault();
         var document = firstContext is null
             ? null
@@ -492,10 +521,27 @@ public sealed partial class PreparationService
         WordEntity word, LexicalResult result, LexicalMeaning meaning, string explanationLanguage) => new(
         word.Language,
         explanationLanguage,
-        meaning.MeaningId ?? string.Empty,
+        FilterPositionalProviderSenseId(meaning.MeaningId ?? string.Empty),
         string.Empty,
         result.GrammaticalRelationship ?? string.Empty,
         result.AcronymExpansion ?? string.Empty);
+
+    private static string FilterPositionalProviderSenseId(string providerSenseId)
+    {
+        if (string.IsNullOrWhiteSpace(providerSenseId))
+        {
+            return string.Empty;
+        }
+
+        var normalized = providerSenseId.Trim();
+        if (normalized.StartsWith("wiktionary-", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("wiktionary", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return normalized;
+    }
 
     private static int InsertSense(
         SQLiteConnection connection, int wordId, SenseDiscriminatorFacts facts, string partOfSpeech, DateTime now)
@@ -929,6 +975,156 @@ public sealed partial class PreparationService
         LexicalLookupMode LookupMode,
         string? TargetLanguage,
         string ExplanationLanguage);
+
+    private static void EnsureLearningTargets(
+        SQLiteConnection connection,
+        WordEntity word,
+        int senseId,
+        int meaningId,
+        CandidateLookupContext candidateContext,
+        PreparedMeaningInput acceptedInput,
+        DateTime now)
+    {
+        var effectiveMode = acceptedInput.ManualInputMode ?? candidateContext.LookupMode;
+
+        var hasDefinition = !string.IsNullOrWhiteSpace(acceptedInput.Definition)
+            && effectiveMode != LexicalLookupMode.Translation;
+
+        var hasTranslation = !string.IsNullOrWhiteSpace(acceptedInput.Translation)
+            && effectiveMode != LexicalLookupMode.Definition;
+
+        if (!hasDefinition && !hasTranslation)
+        {
+            if (!string.IsNullOrWhiteSpace(acceptedInput.Definition))
+            {
+                hasDefinition = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(acceptedInput.Translation))
+            {
+                hasTranslation = true;
+            }
+        }
+
+        if (hasDefinition)
+        {
+            var sourceLang = word.Language;
+            var targetLang = !string.IsNullOrWhiteSpace(candidateContext.ExplanationLanguage)
+                ? candidateContext.ExplanationLanguage
+                : word.Language;
+
+            var identity = LearningTargetIdentity.Definition(sourceLang, targetLang);
+            var target = ResolveLearningTarget(
+                connection, senseId, identity, acceptedInput.TypingOptOut, now);
+
+            SyncTargetAnswerVariants(
+                connection, target.Id, targetLang, acceptedInput.Definition.Trim(), acceptedInput.AcceptedAliases, meaningId, now);
+        }
+
+        if (hasTranslation)
+        {
+            var sourceLang = word.Language;
+            var targetLang = candidateContext.TargetLanguage ?? candidateContext.ExplanationLanguage;
+            if (string.IsNullOrWhiteSpace(targetLang))
+            {
+                targetLang = word.Language;
+            }
+
+            var identity = LearningTargetIdentity.Translation(sourceLang, targetLang);
+            var target = ResolveLearningTarget(
+                connection, senseId, identity, acceptedInput.TypingOptOut, now);
+
+            SyncTargetAnswerVariants(
+                connection, target.Id, targetLang, acceptedInput.Translation!.Trim(), acceptedInput.AcceptedAliases, meaningId, now);
+        }
+    }
+
+    private static PersistedLearningTarget ResolveLearningTarget(
+        SQLiteConnection connection,
+        int senseId,
+        LearningTargetIdentity identity,
+        bool? typingOptOutOverride,
+        DateTime now)
+    {
+        var existing = LearningTargetRepository.FindTargetByIdentity(connection, senseId, identity);
+        if (existing is null)
+        {
+            return LearningTargetRepository.GetOrCreateTarget(
+                connection,
+                senseId,
+                new LearningTarget(identity, typingOptOutOverride ?? false),
+                now);
+        }
+
+        if (typingOptOutOverride.HasValue && existing.TypingOptOut != typingOptOutOverride.Value)
+        {
+            LearningTargetRepository.SetTypingOptOut(
+                connection, existing.Id, typingOptOutOverride.Value, now);
+            return existing with { TypingOptOut = typingOptOutOverride.Value, UpdatedAtUtc = now };
+        }
+
+        return existing;
+    }
+
+    private static void SyncTargetAnswerVariants(
+        SQLiteConnection connection,
+        int targetId,
+        string targetLanguage,
+        string primaryText,
+        IReadOnlyList<string> aliases,
+        int meaningId,
+        DateTime now)
+    {
+        var existingVariants = LearningTargetRepository.GetAnswerVariants(connection, targetId);
+        var hasPreferred = existingVariants.Any(v => v.IsPreferred);
+        var seenNormalized = new HashSet<string>(
+            existingVariants.Select(v => LearningTargetRepository.NormalizeAnswerText(v.NormalizedText)),
+            StringComparer.Ordinal);
+
+        var normalizedPrimary = LearningTargetRepository.NormalizeAnswerText(primaryText);
+        if (normalizedPrimary.Length > 0 && seenNormalized.Add(normalizedPrimary))
+        {
+            var isPreferred = !hasPreferred;
+            var draft = new TargetAnswerVariantDraft(
+                AnswerLanguage: targetLanguage,
+                DisplayText: primaryText.Trim(),
+                NormalizedText: normalizedPrimary,
+                Requirement: AnswerVariantRequirement.Required,
+                IsPreferred: isPreferred,
+                SourceMeaningId: meaningId);
+            LearningTargetRepository.AddAnswerVariant(connection, targetId, draft, now);
+            if (isPreferred)
+            {
+                hasPreferred = true;
+            }
+        }
+
+        if (aliases is { Count: > 0 })
+        {
+            foreach (var alias in aliases)
+            {
+                var trimmed = alias.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    continue;
+                }
+
+                var normalizedAlias = LearningTargetRepository.NormalizeAnswerText(trimmed);
+                if (normalizedAlias.Length == 0 || !seenNormalized.Add(normalizedAlias))
+                {
+                    continue;
+                }
+
+                var draft = new TargetAnswerVariantDraft(
+                    AnswerLanguage: targetLanguage,
+                    DisplayText: trimmed,
+                    NormalizedText: normalizedAlias,
+                    Requirement: AnswerVariantRequirement.AcceptedOnly,
+                    IsPreferred: false,
+                    SourceMeaningId: meaningId);
+                LearningTargetRepository.AddAnswerVariant(connection, targetId, draft, now);
+            }
+        }
+    }
 
     private sealed record ManualMeaningMatch(int SenseId, int MeaningId);
 

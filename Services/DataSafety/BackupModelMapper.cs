@@ -425,7 +425,7 @@ public static class BackupModelMapper
             aliases,
             meaning.ConfirmedByUser,
             new BackupSourceReference(
-                meaning.Source,
+                string.IsNullOrWhiteSpace(meaning.Source) ? "manual" : meaning.Source,
                 meaning.SourceProject,
                 meaning.SourcePageTitle,
                 meaning.SourceRevisionId,
@@ -603,11 +603,18 @@ public static class BackupModelMapper
     private static DateTime EnsureUtc(DateTime dt) => dt.Kind == DateTimeKind.Utc ? dt : DateTime.SpecifyKind(dt, DateTimeKind.Utc);
     private static DateTime? EnsureUtc(DateTime? dt) => dt.HasValue ? EnsureUtc(dt.Value) : null;
 
-    internal static BackupLookupDraft ParseLookupDraft(string resultJson)
+    internal static BackupLookupDraft? ParseLookupDraft(string resultJson)
     {
         try
         {
-            var internalResult = PreparationCandidatePayloadCodec.Read(resultJson).AnyResult
+            var read = PreparationCandidatePayloadCodec.Read(resultJson);
+            if (read.Kind == PreparationCandidatePayloadKind.Empty
+                || (read.Kind == PreparationCandidatePayloadKind.EnvelopeV1 && read.Envelope?.Result is null))
+            {
+                return null;
+            }
+
+            var internalResult = read.AnyResult
                 ?? throw new BackupFormatException(BackupErrorCodes.DataJsonInvalid);
 
             var meanings = internalResult.Meanings.Select(m => new BackupLookupMeaning(

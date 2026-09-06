@@ -468,7 +468,7 @@ public sealed class BackupArchiveV3Tests
             Extensions: new BackupExtensions(new Dictionary<string, BackupExtensionPayload>()));
     }
 
-    private static MemoryStream BuildArchiveV3(
+    internal static MemoryStream BuildArchiveV3(
         Func<BackupPayloadV3, BackupPayloadV3>? payloadMutator = null,
         Func<string, string>? dataMutator = null,
         Func<string, string>? manifestMutator = null,

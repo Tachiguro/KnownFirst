@@ -34,7 +34,7 @@ public sealed class Schema8ActivationTests
 
             BackupSchemaCapabilityResult? capability = null;
             await connection.RunInTransactionAsync(sqlite => capability = BackupSchemaCapability.Resolve(sqlite));
-            Assert.IsInstanceOfType<Schema13CapabilityResult>(capability);
+            Assert.IsInstanceOfType<Schema14CapabilityResult>(capability);
         }
         finally
         {

@@ -156,12 +156,12 @@ public sealed class PortableRecoveryTests
     [TestMethod]
     public async Task PortableArchive_UnsupportedFormatIsRefusedBeforeMutation()
     {
-        // KF-MEANING-001 Slice 2: format 2 is now a real, supported archive version (with its own
-        // distinct v2 shape) — so a mutation that merely relabels a v1 archive's declared formatVersion
-        // as "2" now exercises "impossible payload/manifest version mixing" (manifest-invalid), not
-        // "unsupported format" (see BackupArchiveReaderV2Tests for that case). This test keeps its
-        // original intent — a genuinely unrecognized format number is rejected before any mutation —
-        // by using "4", which is outside the supported {1,2,3} range.
+        // KF-MEANING-001 Slice 2 / KF-LEARN-011: format 4 is now a real, supported archive version (with its own
+        // distinct v4 shape) — so a mutation that merely relabels a v1 archive's declared formatVersion
+        // as "4" exercises "impossible payload/manifest version mixing" (manifest-invalid), not
+        // "unsupported format". This test keeps its original intent — a genuinely unrecognized format number
+        // is rejected before any mutation — by using a format version strictly above BackupFormatLimits.CurrentArchiveFormatVersion.
+        var unsupportedFormat = BackupFormatLimits.CurrentArchiveFormatVersion + 1;
         await using var source = new TemporaryKnownFirstDatabase("portable-version-source");
         await using var destination = new TemporaryKnownFirstDatabase("portable-version-target");
         await SeedDurableGraphAsync(source);
@@ -174,7 +174,7 @@ public sealed class PortableRecoveryTests
             {
                 var json = Encoding.UTF8.GetString(manifest);
                 return Encoding.UTF8.GetBytes(
-                    json.Replace("\"formatVersion\":1", "\"formatVersion\":4", StringComparison.Ordinal));
+                    json.Replace("\"formatVersion\":1", $"\"formatVersion\":{unsupportedFormat}", StringComparison.Ordinal));
             });
 
         var result = await CreateService(destination).ImportPortableArchiveAsync(

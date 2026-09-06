@@ -152,28 +152,29 @@ public sealed class Schema11CapabilityActivationTests
     }
 
     [TestMethod]
-    public async Task Schema11Database_PRAGMA14_ThrowsUnsupportedVersion()
+    public async Task Schema11Database_UnsupportedFutureVersion_ThrowsUnsupportedVersion()
     {
+        var unsupportedVersion = DatabaseSchema.CurrentVersion + 1;
         await using var fixture = await Schema10LegacyLearningFixtures.CreateCompletedSessionSchema9FixtureAsync();
         await MigrateToSchema11Async(fixture);
-        await fixture.Connection.ExecuteAsync("PRAGMA user_version = 14");
+        await fixture.Connection.ExecuteAsync($"PRAGMA user_version = {unsupportedVersion}");
 
         await fixture.Connection.RunInTransactionAsync(connection =>
         {
             var backupEx = Assert.ThrowsExactly<BackupSchemaCapabilityException>(
                 () => BackupSchemaCapability.Resolve(connection));
             Assert.IsFalse(backupEx.ShapeMismatch);
-            Assert.AreEqual(14, backupEx.FoundVersion);
+            Assert.AreEqual(unsupportedVersion, backupEx.FoundVersion);
 
             var prepEx = Assert.ThrowsExactly<PreparationSchemaCapabilityException>(
                 () => PreparationSchemaCapability.Resolve(connection));
             Assert.IsFalse(prepEx.ShapeMismatch);
-            Assert.AreEqual(14, prepEx.FoundVersion);
+            Assert.AreEqual(unsupportedVersion, prepEx.FoundVersion);
 
             var learnEx = Assert.ThrowsExactly<LearningSchemaCapabilityException>(
                 () => LearningSchemaCapability.Resolve(connection));
             Assert.IsFalse(learnEx.ShapeMismatch);
-            Assert.AreEqual(14, learnEx.FoundVersion);
+            Assert.AreEqual(unsupportedVersion, learnEx.FoundVersion);
         });
     }
 

@@ -294,15 +294,15 @@ public sealed class Schema9RuntimeCompatibilityTests
         await using (var safetyCopyStream = new FileStream(safetyCopyFiles[0], FileMode.Open, FileAccess.Read))
         {
             var validatedSafetyCopy = await BackupArchiveReader.ValidateVersionedAsync(safetyCopyStream, CancellationToken.None);
-            Assert.AreEqual(3, validatedSafetyCopy.FormatVersion);
-            Assert.IsNotNull(validatedSafetyCopy.V3);
-            Assert.AreEqual(13, validatedSafetyCopy.V3!.Manifest.SourceDatabaseSchemaVersion);
-            Assert.AreEqual(1, validatedSafetyCopy.V3.Payload.Vocabulary.Count);
-            Assert.AreEqual("targetonlyword", validatedSafetyCopy.V3.Payload.Vocabulary[0].CanonicalTerm);
-            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.FsrsCardStates);
-            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.FsrsReviewHistoryEntries);
-            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.WordLearningControls);
-            Assert.IsEmpty(validatedSafetyCopy.V3.Payload.SenseLearningControls);
+            Assert.AreEqual(4, validatedSafetyCopy.FormatVersion);
+            Assert.IsNotNull(validatedSafetyCopy.V4);
+            Assert.AreEqual(14, validatedSafetyCopy.V4!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(1, validatedSafetyCopy.V4.Payload.Vocabulary.Count);
+            Assert.AreEqual("targetonlyword", validatedSafetyCopy.V4.Payload.Vocabulary[0].CanonicalTerm);
+            Assert.IsEmpty(validatedSafetyCopy.V4.Payload.TargetFsrsStates);
+            Assert.IsEmpty(validatedSafetyCopy.V4.Payload.TargetFsrsReviewHistoryEntries);
+            Assert.IsEmpty(validatedSafetyCopy.V4.Payload.WordLearningControls);
+            Assert.IsEmpty(validatedSafetyCopy.V4.Payload.SenseLearningControls);
         }
 
         // The final target database remains structurally sound after the merge writer's transaction commits.
@@ -380,19 +380,19 @@ public sealed class Schema9RuntimeCompatibilityTests
         await using (var readStream = new FileStream(result.ArchivePath!, FileMode.Open, FileAccess.Read))
         {
             var validated = await BackupArchiveReader.ValidateVersionedAsync(readStream, CancellationToken.None);
-            Assert.AreEqual(3, validated.FormatVersion);
-            Assert.IsNotNull(validated.V3);
-            Assert.AreEqual(13, validated.V3!.Manifest.SourceDatabaseSchemaVersion);
-            Assert.AreEqual(1, validated.V3.Payload.SourceMaterials.Count);
-            Assert.AreEqual(1, validated.V3.Payload.Vocabulary.Count);
-            Assert.IsEmpty(validated.V3.Payload.FsrsCardStates);
-            Assert.IsEmpty(validated.V3.Payload.FsrsReviewHistoryEntries);
-            Assert.IsEmpty(validated.V3.Payload.WordLearningControls);
-            Assert.IsEmpty(validated.V3.Payload.SenseLearningControls);
+            Assert.AreEqual(4, validated.FormatVersion);
+            Assert.IsNotNull(validated.V4);
+            Assert.AreEqual(14, validated.V4!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(1, validated.V4.Payload.SourceMaterials.Count);
+            Assert.AreEqual(1, validated.V4.Payload.Vocabulary.Count);
+            Assert.IsEmpty(validated.V4.Payload.TargetFsrsStates);
+            Assert.IsEmpty(validated.V4.Payload.TargetFsrsReviewHistoryEntries);
+            Assert.IsEmpty(validated.V4.Payload.WordLearningControls);
+            Assert.IsEmpty(validated.V4.Payload.SenseLearningControls);
         }
 
         Assert.IsNotNull(result.ValidatedManifest);
-        Assert.AreEqual(BackupModelContractV3.Schema13Version, result.ValidatedManifest!.SourceDatabaseSchemaVersion);
+        Assert.AreEqual(BackupModelContractV4.Schema14Version, result.ValidatedManifest!.SourceDatabaseSchemaVersion);
         Assert.IsNotNull(result.RecordCounts);
         Assert.AreEqual(documentCountBefore, result.RecordCounts!.SourceMaterials);
         Assert.AreEqual(wordCountBefore, result.RecordCounts.VocabularyItems);

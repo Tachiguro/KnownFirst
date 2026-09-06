@@ -411,7 +411,7 @@ public sealed class DatabaseSchema13ProductionCutoverTests
     }
 
     [TestMethod]
-    public async Task CreatePortableArchiveAsync_FreshProductionDatabase_UsesArchiveV3Dispatch()
+    public async Task CreatePortableArchiveAsync_FreshProductionDatabase_UsesArchiveV4Dispatch()
     {
         await using var database = new ProductionInitializedDatabase();
         await database.InitializeAsync();
@@ -422,9 +422,9 @@ public sealed class DatabaseSchema13ProductionCutoverTests
 
         archive.Position = 0;
         var validated = await BackupArchiveReader.ValidateVersionedAsync(archive, CancellationToken.None);
-        Assert.AreEqual(3, validated.FormatVersion);
-        Assert.IsNotNull(validated.V3);
-        Assert.AreEqual(13, validated.V3.Manifest.SourceDatabaseSchemaVersion);
+        Assert.AreEqual(4, validated.FormatVersion);
+        Assert.IsNotNull(validated.V4);
+        Assert.AreEqual(14, validated.V4.Manifest.SourceDatabaseSchemaVersion);
     }
 
     [TestMethod]

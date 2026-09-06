@@ -8,6 +8,7 @@ using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema13;
 using KnownFirst.Data.Targets;
 using KnownFirst.Models;
@@ -249,13 +250,32 @@ public sealed class LearningTargetRuntimeCutoverTests
     }
 
     [TestMethod]
+    public async Task Slice4_WorkflowStateService_ReportsTargetDueAndNewCountsOnSchema14()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var targetDueAtUtc = new DateTimeOffset(TestStartTime.AddMinutes(-30), TimeSpan.Zero);
+        await SeedWorkflowTargetAndLegacyStateAsync(database, targetDueAtUtc);
+
+        var snapshot = await new WorkflowStateService(database, new FakeClock(TestStartTime)).GetSnapshotAsync();
+
+        Assert.AreEqual(1, snapshot.DueCardCount,
+            "Exactly the due target must be counted; the two legacy card directions must not be counted.");
+        Assert.AreEqual(1, snapshot.PreparedNewItemCount,
+            "The new sibling target must contribute its word exactly once.");
+        Assert.AreEqual(targetDueAtUtc.UtcDateTime, snapshot.NextDueAtUtc,
+            "NextDueAtUtc must come from the target FSRS state rather than either legacy card direction.");
+    }
+
+    [TestMethod]
     public async Task Schema14_ZeroTargets_DoesNotInvokeLegacyScheduler()
     {
         await using var database = new ProductionInitializedDatabase();
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
-        var cardId = await SeedLegacyReadingCardAsync(database, TestStartTime);
+        await SeedLegacyCardAsync(database, TestStartTime, CardDirection.TermToMeaning);
 
         var observableScheduler = new ObservableLegacyScheduler();
         var fsrs = new Fsrs6SchedulingService(clock);
@@ -285,17 +305,22 @@ public sealed class LearningTargetRuntimeCutoverTests
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
+        await SeedLegacyCardAsync(database, TestStartTime, CardDirection.TermToMeaning);
+        var observableScheduler = new ObservableLegacyScheduler();
         var fsrs = new Fsrs6SchedulingService(clock);
         var learningService = new LearningService(
             database,
+            observableScheduler,
             new SpellingAnswerComparer(),
             clock,
-            fsrs,
-            new TestAppSettings(LearningMode.Automatic));
+            new TestAppSettings(LearningMode.Automatic),
+            fsrs6SchedulingService: fsrs);
 
         var result = await learningService.GetOrStartAsync();
-        Assert.IsNull(result.Card, "On Schema 14 with zero targets, GetOrStartAsync must return null card.");
-        Assert.IsNull(result.CompletedSummary, "On Schema 14 with zero targets, completed summary must be null when no sessions exist.");
+        Assert.IsNull(result.Card,
+            "Schema-14 target authority must not return the valid legacy-only active queue item.");
+        Assert.AreEqual(0, observableScheduler.InvocationCount,
+            "The zero-target GetOrStart boundary must not reach the legacy runtime.");
     }
 
     [TestMethod]
@@ -305,6 +330,7 @@ public sealed class LearningTargetRuntimeCutoverTests
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
+        var seeded = await SeedLegacyCardAsync(database, TestStartTime, CardDirection.TermToMeaning);
         var fsrs = new Fsrs6SchedulingService(clock);
         var learningService = new LearningService(
             database,
@@ -313,8 +339,16 @@ public sealed class LearningTargetRuntimeCutoverTests
             fsrs,
             new TestAppSettings(LearningMode.Automatic));
 
-        var ex = await Assert.ThrowsAsync<Schema8LearningDataException>(() => learningService.RevealAnswerAsync(99999));
-        Assert.AreEqual(Schema8LearningDataErrorCode.QueueItemNotFound, ex.Code);
+        var ex = await CaptureSchema8LearningDataExceptionAsync(
+            () => learningService.RevealAnswerAsync(seeded.QueueItemId));
+        var answerRevealed = await database.ReadAsync(connection =>
+            connection.ExecuteScalarAsync<int>(
+                "SELECT AnswerRevealed FROM LearningSessionCards WHERE Id = ?", seeded.QueueItemId));
+
+        Assert.AreEqual(0, answerRevealed,
+            "Target dispatch must not let the legacy reveal path mutate the queue row.");
+        Assert.IsNotNull(ex, "The legacy-only queue item must be rejected by target authority.");
+        Assert.AreEqual(Schema8LearningDataErrorCode.CardNotFound, ex.Code);
     }
 
     [TestMethod]
@@ -324,6 +358,7 @@ public sealed class LearningTargetRuntimeCutoverTests
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
+        var seeded = await SeedLegacyCardAsync(database, TestStartTime, CardDirection.MeaningToTerm);
         var fsrs = new Fsrs6SchedulingService(clock);
         var learningService = new LearningService(
             database,
@@ -332,8 +367,24 @@ public sealed class LearningTargetRuntimeCutoverTests
             fsrs,
             new TestAppSettings(LearningMode.Typing));
 
-        var ex = await Assert.ThrowsAsync<Schema8LearningDataException>(() => learningService.CheckSpellingAsync(99999, "answer"));
-        Assert.AreEqual(Schema8LearningDataErrorCode.QueueItemNotFound, ex.Code);
+        var ex = await CaptureSchema8LearningDataExceptionAsync(
+            () => learningService.CheckSpellingAsync(seeded.QueueItemId, "Schnitt"));
+        var state = await database.ReadAsync(async connection => new
+        {
+            SpellingChecked = await connection.ExecuteScalarAsync<int>(
+                "SELECT SpellingChecked FROM LearningSessionCards WHERE Id = ?", seeded.QueueItemId),
+            AnswerRevealed = await connection.ExecuteScalarAsync<int>(
+                "SELECT AnswerRevealed FROM LearningSessionCards WHERE Id = ?", seeded.QueueItemId),
+            ReviewCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews")
+        });
+
+        Assert.AreEqual(0, state.SpellingChecked,
+            "Target dispatch must not let the legacy spelling path consume the queue row.");
+        Assert.AreEqual(0, state.AnswerRevealed,
+            "Target dispatch must not let the legacy spelling path reveal the answer.");
+        Assert.AreEqual(0, state.ReviewCount);
+        Assert.IsNotNull(ex, "The legacy-only queue item must be rejected by target authority.");
+        Assert.AreEqual(Schema8LearningDataErrorCode.CardNotFound, ex.Code);
     }
 
     [TestMethod]
@@ -343,16 +394,42 @@ public sealed class LearningTargetRuntimeCutoverTests
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
+        var seeded = await SeedLegacyCardAsync(
+            database,
+            TestStartTime,
+            CardDirection.TermToMeaning,
+            answerRevealed: true);
+        var observableScheduler = new ObservableLegacyScheduler();
         var fsrs = new Fsrs6SchedulingService(clock);
         var learningService = new LearningService(
             database,
+            observableScheduler,
             new SpellingAnswerComparer(),
             clock,
-            fsrs,
-            new TestAppSettings(LearningMode.Automatic));
+            new TestAppSettings(LearningMode.Automatic),
+            fsrs6SchedulingService: fsrs);
 
-        var ex = await Assert.ThrowsAsync<Schema8LearningDataException>(() => learningService.RateAsync(99999, ReviewRating.Good));
-        Assert.AreEqual(Schema8LearningDataErrorCode.QueueItemNotFound, ex.Code);
+        var ex = await CaptureSchema8LearningDataExceptionAsync(
+            () => learningService.RateAsync(seeded.QueueItemId, ReviewRating.Good));
+        var state = await database.ReadAsync(async connection => new
+        {
+            CardState = await connection.ExecuteScalarAsync<int>(
+                "SELECT State FROM LearningCards WHERE Id = ?", seeded.CardId),
+            QueueCompleted = await connection.ExecuteScalarAsync<int>(
+                "SELECT IsCompleted FROM LearningSessionCards WHERE Id = ?", seeded.QueueItemId),
+            ReviewCount = await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningReviews")
+        });
+
+        Assert.AreEqual(0, observableScheduler.InvocationCount,
+            "Target dispatch must not invoke the legacy scheduler.");
+        Assert.AreEqual((int)CardState.New, state.CardState,
+            "Target dispatch must leave legacy scheduling state unchanged.");
+        Assert.AreEqual(0, state.QueueCompleted,
+            "Target dispatch must not complete the legacy queue row.");
+        Assert.AreEqual(0, state.ReviewCount,
+            "Target dispatch must not append legacy review history.");
+        Assert.IsNotNull(ex, "The legacy-only queue item must be rejected by target authority.");
+        Assert.AreEqual(Schema8LearningDataErrorCode.CardNotFound, ex.Code);
     }
 
     [TestMethod]
@@ -362,6 +439,7 @@ public sealed class LearningTargetRuntimeCutoverTests
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
+        var seeded = await SeedLegacyCardAsync(database, TestStartTime, CardDirection.TermToMeaning);
         var fsrs = new Fsrs6SchedulingService(clock);
         var learningService = new LearningService(
             database,
@@ -370,8 +448,28 @@ public sealed class LearningTargetRuntimeCutoverTests
             fsrs,
             new TestAppSettings(LearningMode.Automatic));
 
-        var notFoundResult = await learningService.MarkPermanentlyKnownAsync(99999, confirmed: true);
-        Assert.IsFalse(notFoundResult, "Nonexistent word must return false.");
+        var marked = await learningService.MarkPermanentlyKnownAsync(seeded.WordId, confirmed: true);
+        var state = await database.ReadAsync(async connection => new
+        {
+            WordStatus = await connection.ExecuteScalarAsync<int>(
+                "SELECT Status FROM Words WHERE Id = ?", seeded.WordId),
+            LegacyCardCount = await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM LearningCards WHERE Id = ?", seeded.CardId),
+            LegacyQueueCount = await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM LearningSessionCards WHERE Id = ?", seeded.QueueItemId),
+            LegacyVariantCount = await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM AnswerVariants WHERE Id = ?", seeded.AnswerVariantId)
+        });
+
+        Assert.IsTrue(marked);
+        Assert.AreEqual((int)WordStatus.Known, state.WordStatus,
+            "Target authority still applies the accepted Word-level permanent-known state.");
+        Assert.AreEqual(1, state.LegacyCardCount,
+            "Target authority must not delete the non-authoritative legacy card graph.");
+        Assert.AreEqual(1, state.LegacyQueueCount,
+            "Target authority must not consume or delete a legacy-only queue row.");
+        Assert.AreEqual(1, state.LegacyVariantCount,
+            "Target authority must not delete legacy answer variants.");
     }
 
     private sealed class ObservableLegacyScheduler : ISpacedRepetitionScheduler
@@ -400,7 +498,33 @@ public sealed class LearningTargetRuntimeCutoverTests
         public int? MatchedAnswerVariantId { get; set; }
     }
 
-    private static async Task<int> SeedLegacyReadingCardAsync(IKnownFirstDatabase database, DateTime now)
+    private sealed record LegacyQueueSeed(
+        int WordId,
+        int SenseId,
+        int MeaningId,
+        int CardId,
+        int AnswerVariantId,
+        int SessionId,
+        int QueueItemId);
+
+    private static async Task<Schema8LearningDataException?> CaptureSchema8LearningDataExceptionAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            return null;
+        }
+        catch (Schema8LearningDataException ex)
+        {
+            return ex;
+        }
+    }
+
+    private static async Task<LegacyQueueSeed> SeedLegacyCardAsync(
+        IKnownFirstDatabase database,
+        DateTime now,
+        CardDirection direction,
+        bool answerRevealed = false)
     {
         return await database.RunInTransactionAsync(connection =>
         {
@@ -451,11 +575,12 @@ public sealed class LearningTargetRuntimeCutoverTests
                 INSERT INTO LearningCards (
                     WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays,
                     EaseFactor, SuccessfulReviewCount, LapseCount, CreatedAtUtc, UpdatedAtUtc)
-                VALUES (?, ?, ?, 0, 0, ?, 0, 2.5, 0, 0, ?, ?)
+                VALUES (?, ?, ?, ?, 0, ?, 0, 2.5, 0, 0, ?, ?)
                 """,
                 wordId,
                 senseId,
                 meaningId,
+                (int)direction,
                 now,
                 now,
                 now);
@@ -478,15 +603,148 @@ public sealed class LearningTargetRuntimeCutoverTests
                 INSERT INTO SenseAnswerVariantAssignments (
                     StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred,
                     RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
-                VALUES ('cutover-assignment', ?, 0, ?, 0, 1, ?, ?, ?)
+                VALUES ('cutover-assignment', ?, ?, ?, 0, 1, ?, ?, ?)
                 """,
                 senseId,
+                (int)direction,
                 variantId,
                 now,
                 now,
                 now);
             Schema13LearningRepository.InsertCleanNewState(connection, cardId);
-            return cardId;
+
+            connection.Execute(
+                """
+                INSERT INTO LearningSessions (
+                    Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount,
+                    StartedAtUtc, UpdatedAtUtc, CompletedAtUtc, StableId)
+                VALUES (?, 1, 0, 0, 0, 0, 0, ?, ?, NULL, ?)
+                """,
+                (int)LearningSessionStatus.Active,
+                now,
+                now,
+                Guid.NewGuid().ToString("N"));
+            var sessionId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            connection.Execute(
+                """
+                INSERT INTO LearningSessionCards (
+                    SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed,
+                    SpellingChecked, SpellingCorrect, IsCompleted, Rating, CompletedAtUtc,
+                    TargetAnswerVariantId, StableId)
+                VALUES (?, ?, 0, 0, 0, ?, 0, 0, 0, NULL, NULL, ?, ?)
+                """,
+                sessionId,
+                cardId,
+                answerRevealed ? 1 : 0,
+                variantId,
+                Guid.NewGuid().ToString("N"));
+            var queueItemId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            return new LegacyQueueSeed(
+                wordId,
+                senseId,
+                meaningId,
+                cardId,
+                variantId,
+                sessionId,
+                queueItemId);
+        });
+    }
+
+    private static async Task SeedWorkflowTargetAndLegacyStateAsync(
+        IKnownFirstDatabase database,
+        DateTimeOffset targetDueAtUtc)
+    {
+        var legacy = await SeedLegacyCardAsync(
+            database,
+            TestStartTime,
+            CardDirection.TermToMeaning);
+
+        await database.RunInTransactionAsync(connection =>
+        {
+            connection.Execute("DELETE FROM LearningSessionCards WHERE SessionId = ?", legacy.SessionId);
+            connection.Execute("DELETE FROM LearningSessions WHERE Id = ?", legacy.SessionId);
+
+            connection.Execute(
+                """
+                INSERT INTO LearningCards (
+                    WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays,
+                    EaseFactor, SuccessfulReviewCount, LapseCount, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, 0, 2.5, 0, 0, ?, ?)
+                """,
+                legacy.WordId,
+                legacy.SenseId,
+                legacy.MeaningId,
+                (int)CardDirection.MeaningToTerm,
+                (int)CardState.New,
+                TestStartTime,
+                TestStartTime,
+                TestStartTime);
+            var siblingLegacyCardId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            connection.Execute(
+                """
+                INSERT INTO SenseAnswerVariantAssignments (
+                    StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred,
+                    RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
+                """,
+                Guid.NewGuid().ToString("N"),
+                legacy.SenseId,
+                (int)CardDirection.MeaningToTerm,
+                legacy.AnswerVariantId,
+                (int)AnswerVariantRequirement.Required,
+                TestStartTime,
+                TestStartTime,
+                TestStartTime);
+            Schema13LearningRepository.InsertCleanNewState(connection, siblingLegacyCardId);
+
+            var dueTarget = LearningTargetRepository.CreateTarget(
+                connection,
+                legacy.SenseId,
+                LearningTarget.CreateTranslation("en", "de"),
+                TestStartTime,
+                Guid.NewGuid().ToString("N"));
+            LearningTargetRepository.AddAnswerVariant(
+                connection,
+                dueTarget.Id,
+                new TargetAnswerVariantDraft(
+                    "de",
+                    "Schnitt",
+                    AnswerVariantRequirement.Required,
+                    IsPreferred: true,
+                    SourceMeaningId: legacy.MeaningId),
+                TestStartTime,
+                Guid.NewGuid().ToString("N"));
+            TargetFsrsStateRepository.Save(
+                connection,
+                dueTarget.Id,
+                Fsrs6Card.Review(
+                    stability: 4,
+                    difficulty: 5,
+                    lastReviewedAtUtc: targetDueAtUtc.AddDays(-4),
+                    dueAtUtc: targetDueAtUtc));
+
+            var newSiblingTarget = LearningTargetRepository.CreateTarget(
+                connection,
+                legacy.SenseId,
+                LearningTarget.CreateDefinition("en", "en"),
+                TestStartTime,
+                Guid.NewGuid().ToString("N"));
+            LearningTargetRepository.AddAnswerVariant(
+                connection,
+                newSiblingTarget.Id,
+                new TargetAnswerVariantDraft(
+                    "en",
+                    "a production cutover",
+                    AnswerVariantRequirement.Required,
+                    IsPreferred: true,
+                    SourceMeaningId: legacy.MeaningId),
+                TestStartTime,
+                Guid.NewGuid().ToString("N"));
+            TargetFsrsStateRepository.Save(connection, newSiblingTarget.Id, Fsrs6Card.New());
+
+            return true;
         });
     }
 

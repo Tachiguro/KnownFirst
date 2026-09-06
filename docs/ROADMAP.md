@@ -1,12 +1,14 @@
 # KnownFirst Roadmap
 
-**Prioritization date:** 2026-08-29
+**Prioritization date:** 2026-09-06
 
 This roadmap records intended sequence and priority. Verified current implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md); durable accepted open work and initiative dependencies belong in [BACKLOG.md](BACKLOG.md).
 
 ## Active Priority
 
-The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and merged to `master` (PRs #153, #155, #156, #158, #181, #182). Schema-13 persistence, Archive V3, and the FSRS-6 runtime cutover are also merged. Current direction is product-first: reconcile and record decisions, complete intended product behavior, then perform a consolidated architecture/code review and bounded refactoring, and only afterward return to GUI/release/package/distribution work.
+The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and merged to `master` (PRs #153, #155, #156, #158, #181, #182). Learning UX improvements `KF-LEARN-003`, `KF-LEARN-004`, `KF-LEARN-006`, `KF-LEARN-007` (PR #201), and `KF-LEARN-009` (PR #200) are merged on `master`.
+
+The **LearningTarget Definition/Translation Architecture (KF-LEARN-011)** is technically implemented and review-approved on the active feature branch (`feature/learning-targets-definition-translation-v1`), establishing independent target scheduling, Schema 14, Archive V4, and replay-safe Automatic typing qualification. Current direction remains product-first: finalize documentation, run candidate validation, merge, complete remaining product behaviors, then perform a consolidated architecture/code review and bounded refactoring, and only afterward return to GUI/release/package/distribution work.
 
 Durable backlog tracking and repository governance are established through [docs/BACKLOG.md](BACKLOG.md), which serves as the authoritative single source of truth for all accepted open work, product decisions, deferred follow-ups, and multi-package initiatives outside active implementation branches. Active operational task state is discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) and tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -80,15 +82,17 @@ The following initiatives represent accepted product directions whose individual
   - `KF-VOCAB-006`: Sense-level Stop Learning / Resume Learning user-facing/service workflow; Schema-13 persistence foundation already exists.
 
 ### 3. Learning Interaction & Direction UX
-- **Objective:** Align learning card presentation and progression with genuine direction semantics.
+- **Objective:** Align learning card presentation, targets, and progression with genuine direction and target semantics.
 - **Packages:**
   - `KF-LEARN-003`: Genuinely distinct presentation and interaction semantics for `CardDirection.TermToMeaning` (term front, meaning reveal; semantic Reading unconditionally; no typing required) and `CardDirection.MeaningToTerm` (meaning prompt, term answer; typing supported). *Status: Merged to `master` via PR #197.*
   - `KF-LEARN-004`: Direction-aware Automatic 2+2 interaction progression for MeaningToTerm (Reading first $\to$ 2 recall successes $\to$ Typing $\to$ 2 typing successes $\to$ lapse on 2 failures). *Status: Merged to `master` via PR #198.*
   - `KF-LEARN-005`: Recall rating success threshold for MeaningToTerm 2+2 progression. *Status: Resolved product decision; implementation completed under `KF-LEARN-004` (Good/Easy advance, Hard holds, Again resets; FSRS separate).*
   - `KF-LEARN-006`: Dynamic context target masking in `ContextView.razor` matching actual encountered target length. *Status: Merged to `master` via PR #199 (merge commit `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9`).*
-  - `KF-LEARN-007`: User-facing session summary and next-due phrasing improvements. *Status: Implemented and independently reviewed on branch `feature/learn-next-review-phrasing-v1` (candidate `20cd8e3...`); package finalization pending (not merged on master).*
+  - `KF-LEARN-007`: User-facing session summary and next-due phrasing improvements. *Status: Merged to `master` via PR #201 (merge commit `f6364057de2a961f39155226adb8426365fa26c5`).*
   - `KF-LEARN-008`: Learn card edit/correction entry point into Vocabulary detail flow. *Status: Open.*
   - `KF-LEARN-009`: Clearing stale `_actionFailed` error banners after successful actions and load transitions in `Learn.razor`. *Status: Merged to `master` via PR #200 (merge commit `d3f48dc6d0cb08885524e1e55249bac1f83b4729`).*
+  - `KF-LEARN-010`: Definition/Translation learning-target semantics and scheduling identity for one semantic Sense. *Status: Resolved contract in `docs/architecture/learning-target-semantics.md`.*
+  - `KF-LEARN-011`: Implement decided Definition/Translation learning-target behavior, Schema 14 persistence, Archive V4, and independent FSRS-6 scheduling identity across 6 slices. *Status: Technically implemented and consolidated review approved on active feature branch `feature/learning-targets-definition-translation-v1` (candidate `b65e7c7e337cd36073c59982bd1ff3ca9df22d73`); pre-PR candidate validation pending (not merged on master).*
 
 ### 4. Navigation, Settings & Feedback Corrections
 - **Status:** `KF-NAV-001` merged to `master` via PR #193; `KF-PREP-001` merged to `master` via PR #194; `KF-SETTINGS-001` is merged on `master` with visible learning-timezone save-error feedback verified by automated source/contract tests.

@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
-**Status date:** 2026-09-03
-**State source:** merged Schema-13 persistence, Archive V3, and production FSRS-6 runtime cutover (`KF-PERSIST-013-001`, `KF-BACKUP-006`, `KF-FSRS-003`). Live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Status date:** 2026-09-06
+**State source:** technically accepted Schema-14 LearningTarget architecture, Archive V4, and target-centric runtime candidate (`KF-LEARN-011` candidate HEAD `b65e7c7e337cd36073c59982bd1ff3ca9df22d73` on `feature/learning-targets-definition-translation-v1`; base `master` commit `f6364057de2a961f39155226adb8426365fa26c5`). Live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -11,7 +11,8 @@ This document records stable, verified architectural facts and current capabilit
 | :--- | :--- |
 | **Project** | KnownFirst |
 | **Source Version (`master`)** | `1.0.0-beta.13` (build 15) — prepared via release-identity package KF-RELEASE-002 |
-| **Active Database Schema** | SQLite `PRAGMA user_version` 13 on current production `master`; fresh databases bootstrap directly to Schema 13; existing Schema 1–12 databases fail closed in the production startup path |
+| **Active Database Schema** | SQLite `PRAGMA user_version` 14 in active feature candidate (`KF-LEARN-011`); fresh databases bootstrap directly to canonical Schema 14; existing Schema 1–13 databases fail closed in the production startup path; merged `master` baseline remains Schema 13 pending candidate validation and PR merge |
+| **Active Archive Format** | Portable `.kfarchive` format V4 (target-aware, Schema 14 payload) |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
 | **Distributed Status** | `1.0.0-beta.12` distributed and user-tested (confirmed 2026-07-30; see [docs/releases/1.0.0-beta.12.md](releases/1.0.0-beta.12.md)). Signed replacement bundle `KnownFirst-1.0.0-beta.13-code14.aab` (`48,002,097` bytes, SHA-256 `7a84da599ae7435614d95ff316707669d69e21b311fe252f5419ac9cb8ecbbcd`, `StrictVerified`) was created and verified locally from certified `master` commit `8cd98d27ff81d8134b4e3b9d4b32b9b85abe3cb2`. Historical `KnownFirst-1.0.0-beta.13-code13.aab` was verified locally but rejected on Google Play Console upload due to duplicate version code 13. Active candidate build identity is Build 15, for which no AAB package has yet been created or distributed. |
@@ -27,9 +28,9 @@ This document records stable, verified architectural facts and current capabilit
 
 The reviewed KF-WINDOWS-001 source sets `Platforms/Windows/Package.appxmanifest` `PublisherDisplayName` to the stable publisher `Tachiguro`. Ordinary Windows application ID `com.tachiguro.knownfirst` and product name `KnownFirst` remain unchanged. MAUI 10.0.20 reads the generated manifest's `PublisherDisplayName` into `Microsoft.Maui.ApplicationModel.AppInfo.PublisherName` assembly metadata; unpackaged `FileSystem.AppDataDirectory` combines that publisher with the package name and `Data`. The expected logical path is `%LOCALAPPDATA%\Tachiguro\com.tachiguro.knownfirst\Data`. This is a source/toolchain-derived expectation, not an observed post-change directory. Active branch and merge state belong in [CURRENT_WORK.md](CURRENT_WORK.md).
 
-Schema 13 is the persistence baseline. Pre-baseline local app-data paths/databases are disposable and unsupported; this package adds no historical path migration, fallback lookup, directory deletion, or Schema 7-12 compatibility. Any removal of historical `%LOCALAPPDATA%\User Name\...` data is a separate user action, not repository behavior. Future forward database migration compatibility beginning from Schema 13 is separate deferred work under `KF-PERSIST-002` in [BACKLOG.md](BACKLOG.md).
+Schema 13 is the persistence baseline on `master`, advancing to Schema 14 under `KF-LEARN-011`. Pre-baseline local app-data paths/databases are disposable and unsupported; this package adds no historical path migration, fallback lookup, directory deletion, or older schema compatibility. Any removal of historical `%LOCALAPPDATA%\User Name\...` data is a separate user action, not repository behavior. Future forward database migration compatibility is separate deferred work under `KF-PERSIST-002` in [BACKLOG.md](BACKLOG.md).
 
-The development MSIX `Identity/@Publisher="CN=User Name"` and package-name/version placeholders remain intentional; future Partner Center/Store identity and Windows distribution readiness remain separate under `KF-RELEASE-002`. Focused source/XML, classifier, and MSBuild configuration contracts plus toolchain analysis establish the identity boundaries. This package establishes no fresh generated-assembly verification, runtime AppData creation, fresh Schema-13 database startup, real import/export, application launch, GUI/device, packaging, signing, or Store-readiness evidence. Runtime scenario evidence remains under `KF-GUI-002`. See [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for the development MSIX boundary and [TESTING.md](TESTING.md#layered-confidence-model) for evidence levels.
+The development MSIX `Identity/@Publisher="CN=User Name"` and package-name/version placeholders remain intentional; future Partner Center/Store identity and Windows distribution readiness remain separate under `KF-RELEASE-002`. Focused source/XML, classifier, and MSBuild configuration contracts plus toolchain analysis establish the identity boundaries. This package establishes no fresh generated-assembly verification, runtime AppData creation, fresh Schema-14 database startup, real import/export, application launch, GUI/device, packaging, signing, or Store-readiness evidence. Runtime scenario evidence remains under `KF-GUI-002`. See [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for the development MSIX boundary and [TESTING.md](TESTING.md#layered-confidence-model) for evidence levels.
 
 ## Production Capabilities
 
@@ -42,20 +43,22 @@ The development MSIX `Identity/@Publisher="CN=User Name"` and package-name/versi
 - frequency-prioritized automatic or manual preparation;
 - explicit online-lookup consent (governed post-onboarding by Settings with fail-closed transport authorization gating, authorization epochs, and revocation cancellation), read-only Wiktionary lookup with automatic Wikipedia definition fallback, local SQLite lexical cache, and disabled/blocked Prepare Words state when consent is absent;
 - source attribution, alternative-meaning selection, manual correction, and context snapshots;
-- recognition and spelling card directions with independent deterministic schedules;
-- Learn screen card direction indicators and visual "Repeat" badges for `IsAgainRepeat` cards;
-- resumable learning sessions and permanent-known cleanup;
-- portable `.kfarchive` (v3) data export with Schema-13 FSRS state/history transport and native Save dialog on Windows and Android; V3 archives carry `requiredFeatures: ["learning-review-causal-order-v1"]` declaring normative causal interaction order; V1/V2 archives remain importable only where Schema-13 causal interaction order is provable;
-- recovery import of `.kfarchive` into empty installations with native Open dialog;
-- transactional populated-target import with validated pre-merge safety copies, preflight preview, collision-free action keys, and atomic commit-or-rollback (stale plans rejected; re-import converges to `NoChanges`);
-- portable Active learning-workflow preservation and resume into empty Schema-10 targets (KF-BACKUP-005B) and populated-target Active-workflow convergence/conflict safety (KF-BACKUP-005C);
-- FSRS-6 production scheduling (`IFsrs6SchedulingService` / `Fsrs6SchedulingService`) with card-state replay from append-only `FsrsReviewHistoryEntries` in deterministic `SequenceNumber` order; factual review history and FSRS card state are persisted atomically, exactly replay-consistent, and separate from compatibility `LearningReviews` and legacy scheduling columns;
-- distinct Schema-13 AlreadyKnown word controls and StopLearning sense controls, preserving factual history while governing runtime eligibility;
+- target-centric learning architecture with explicit Definition and Translation `LearningTargets` under unified Senses;
+- one-target = one `TargetFsrsState` = one independent FSRS-6 scheduling identity;
+- Automatic interaction qualification with low-friction Reading maintenance, 2-recall-success qualification, 2-distinct-scheduled-typing check qualification (`WasTypedAnswer == true`, `WasCorrect == true`), 1-check re-arm on genuine scheduled lapse, and per-target `TypingOptOut`;
+- Learn screen target presentation with visual "Repeat" badges for `IsAgainRepeat` cards and direction-specific prompts;
+- resumable learning sessions and non-destructive permanent-known preservation using `WordLearningControls` without deleting the lexical graph or target review histories;
+- portable `.kfarchive` (V4) target-aware data export with Schema-14 target state/history transport and native Save dialog on Windows and Android;
+- recovery import of `.kfarchive` into empty installations with native Open dialog and transactional Schema 14 clean bootstrap;
+- transactional populated-target import with validated pre-merge Archive V4 safety copies, preflight preview, causal history conflict validation (`CausalHistoryConflict`), and atomic commit-or-rollback (stale plans rejected; re-import converges to `NoChanges`);
+- portable Active learning-workflow preservation and resume into empty Schema-14 targets and populated-target Active-workflow convergence/conflict safety;
+- FSRS-6 scheduling (`IFsrs6SchedulingService` / `Fsrs6SchedulingService`) with target state replay from append-only `TargetFsrsReviewHistoryEntries` in deterministic `SequenceNumber` order; factual review history and FSRS target state are persisted atomically, exactly replay-consistent;
+- distinct `WordLearningControls` AlreadyKnown word controls and `SenseLearningControls` StopLearning sense controls, preserving factual history while governing runtime eligibility;
 - coherent `ReviewDiagnosticsSnapshot` capture from one database snapshot;
 - reopenable release-note history (`/release-notes`) and Help & Support entry point;
 - functional "Report a bug" email composer action launching with structured template prompts and clipboard copy fallback;
 - one-time localized What's New notice shown once per version;
-- transactional local persistence (Schema 13), global `PRAGMA foreign_keys = ON` enforcement, startup maintenance, and bounded structured diagnostics;
+- transactional local persistence (Schema 14), global `PRAGMA foreign_keys = ON` enforcement, startup maintenance, and bounded structured diagnostics;
 - production offline German Enhanced Term Recognition (missing-preference default ON on `master` via PR #144, `EnhancedTermRecognitionEnabled` in Settings): conservative German compound decomposition against the production `GeneratedGermanLexicon`, wired into `TextReviewService` analysis, with Schema-11 `DerivedTermEvidence` persistence;
 - full Settings GUI exposing learning timezone (System or 50 curated IANA zones spanning inhabited UTC-11 through UTC+14, with dynamic DST-aware labels), deterministic 24-hour learning-day cutoff (`00..23` hour, `00..59` minute selectors), default-first card direction and learning mode choices, non-destructive Restore Defaults preserving online dictionary consent, and destructive Full Reset revoking consent (merged via PR #144);
 - preference-backed onboarding state foundation (`Required`, `InProgress`, `Completed`), startup install-origin classification distinguishing fresh from grandfathered existing installations, grandfathered 10-word daily budget pinning, and reset contracts (merged via PR #153);
@@ -74,6 +77,60 @@ The development MSIX `Identity/@Publisher="CN=User Name"` and package-name/versi
 - unified Review Words workflow action bar: Known, Unknown, and Undo organized into a compact content-sized left action group and Discard import positioned as a separately aligned destructive end action on wide layouts, with flexible separation between primary decisions and full-import discard; common standard button geometry and minimum height across all four actions; safe responsive stacking across narrow and extra-narrow viewports; standard secondary button styling and disabled-state binding for Undo; preserved destructive styling and irreversible confirmation for Discard import; and concise localized Undo button labels across English, German, and Russian;
 - authoritative post-onboarding online lookup consent enforcement and fail-closed privacy architecture (merged via PR #181 / KF-ONLINE-LOOKUP-CONSENT-001): `IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler` transport gate blocking unauthorized outbound lexical HTTP; authorization-epoch-bound orchestration and prefetch safety with immediate cancellation on consent revocation; contextual consent disclosure removed from Prepare Words so Settings is the sole post-onboarding authority; dedicated blocked-candidate state with Settings navigation and manual fallback without data loss; Automatic Online method disabled and lookup retry disabled while consent is absent; *(merged via PR #194 / KF-PREP-001: Prepare Words disabled Online Dictionary "Open Settings" actions deep-link to `#online-lookup-title` and reveal/focus the section heading once; verified by automated source/contract tests on master; KF-SETTINGS-001 is also merged on master and provides visible standard error feedback upon learning-timezone persistence failure, verified by automated source/contract tests without claiming real storage-failure or rendered GUI evidence);*
 - transactional first-run onboarding settings and startup recovery (merged via PR #182 / KF-TRANSACTIONAL-ONBOARDING-001): versioned persisted `OnboardingDraft` accumulating setup choices across steps with persisted restart resume; Finish Setup as the sole atomic commit boundary; immediate non-persisting language and theme preview during setup; deterministic `OnboardingCompletionJournal` with SHA-256 fingerprint and pre-write durability barrier; idempotent startup recovery executing before database initialization; fail-closed handling of unsupported future journal versions; crash-safe legacy migration with consent reconfirmation; and strict preservation of Package A's fail-closed online-lookup transport authorization gate (draft consent true does not authorize transport until verified completion roll-forward).
+
+## LearningTarget Architecture, Schema 14 & Archive V4 (KF-LEARN-011 Candidate State)
+
+**Lifecycle status:** Technically implemented and consolidated technical review approved (`REVIEW_APPROVED`) on feature branch `feature/learning-targets-definition-translation-v1` at candidate HEAD `b65e7c7e337cd36073c59982bd1ff3ca9df22d73`. Pre-PR exact candidate-HEAD `FULL_VALIDATION` gate remains pending on the final candidate commit following documentation finalization. Merged `master` baseline remains Schema 13 / Archive V3 pending candidate validation, push, PR creation, and manual merge.
+
+This package establishes the target-centric architecture, Schema 14 persistence, Archive V4 portable transport, and replay-safe Automatic typing qualification:
+
+**1. Target Identity & Multi-Target Architecture**
+- **Word / Sense / Meaning / Target Separation:** One `Word` represents lexical identity; one `Sense` represents one real semantic sense; `Meanings` and `AnswerVariants` are answer/content facts under semantic context; `LearningTarget` represents one explicit thing the user intends to learn. Different real Senses never silently collapse.
+- **Definition & Translation Targets:** Explicit language-specific Definition targets (lexical language and definition language) and Translation targets (source language $\to$ target language). Translation directions and target languages are distinct targets (e.g. German "Haus" $\to$ German Definition, English Translation "house", French Translation "maison" are distinct targets under one Sense). Only explicitly requested targets exist.
+- **Add-Later Target Flow:** A Word/Sense already prepared for one target may later receive another explicitly requested target without corrupting existing learning history. Broader fresh re-lookup/re-enrichment remains deferred under `KF-PREP-002`.
+
+**2. One Target = One Scheduler Identity**
+- Exactly: $\text{LearningTarget} \longrightarrow \text{one TargetFsrsState} \longrightarrow \text{one FSRS-6 schedule}$.
+- Scheduling identity is independent per target (Stability, Difficulty, DueAtUtc, factual review history). Reviewing or mastering one target under a Sense never mutates or postpones another target under that Sense.
+- Interaction modes (`Reading`, `Typing`, `Automatic`) are presentation/qualification policies, not separate FSRS cards. One scheduled rating updates FSRS once.
+
+**3. Automatic Interaction & Typing Qualification Lifecycle**
+- Pure `TargetAutomaticProgressionPolicy` and `TargetAutomaticProgressionState` implement the 14-point qualification lifecycle:
+  1. Low-friction recall/Reading starts first;
+  2. Qualifying scheduled reviews with Good or Easy advance recall qualification (requires 2 distinct scheduled successes);
+  3. Hard holds recall qualification;
+  4. Again resets relevant recall qualification;
+  5. Entering Typing qualification after 2 qualifying scheduled recall successes;
+  6. Two successful typing checks on distinct scheduled review events qualify typing (`WasTypedAnswer == true`, `WasCorrect == true`, rating $\ne$ Again);
+  7. Once qualified, routine Automatic interaction returns to low-friction non-typing maintenance (Reading);
+  8. FSRS scheduled reviews continue indefinitely in low-friction maintenance;
+  9. A genuine scheduled recall lapse (Again) re-arms exactly one typing re-check;
+  10. One successful typed re-check restores qualified low-friction maintenance; failed re-check lapses out of qualified maintenance back to initial recall qualification;
+  11. Same-session Again tail repeats are isolated from qualification review counting;
+  12. Per-target `TypingOptOut` prevents Automatic typing qualification without altering FSRS identity;
+  13. Non-typed recall cannot satisfy typing qualification;
+  14. No periodic success-count-based re-checks.
+
+**4. Target Factual Histories & Replay**
+- **TargetFsrsReviewHistoryEntries:** Append-only FSRS scheduler-history facts (`StableId`, `TargetId`, gapless `SequenceNumber`, `Rating`, `ReviewedAtUtc`).
+- **TargetReviews:** Factual interaction/review events (`StableId`, `TargetId`, `SessionId`, `Rating`, `WasTypedAnswer`, `WasCorrect`, `IsSessionRepeat`, answer variant links, `ReviewedAtUtc`, `DueAtUtc`); authoritative replay input for Automatic progression.
+
+**5. Non-Destructive AlreadyKnown Behavior**
+- In Schema 14, `MarkPermanentlyKnownAsync` uses `WordLearningControls` as the authoritative reversible Word-level control.
+- Suppresses active learning for that Word and clears incomplete active session queue items only (`DELETE FROM LearningSessionCards WHERE IsCompleted = 0 AND CardId IN (...)`).
+- Fully preserves the semantic graph (`Words`, `Senses`, `Meanings`, `ContextSnapshots`), `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, completed queue items, and completed sessions.
+- Does not destructively rewrite `Words.Status` as a competing authority. User-facing reversal workflow remains open under `KF-VOCAB-005`.
+
+**6. Physical Schema 14 Persistence & Canonical Bootstrap**
+- Physical tables: `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, `WordLearningControls`, `SenseLearningControls`.
+- Canonical bootstrap: Fresh empty databases bootstrap directly to canonical Schema 14 (`PRAGMA user_version = 14`).
+- Pre-release no-migration policy: Schema 1–13 databases fail closed in production startup with `UnsupportedOlderVersion`. No Schema 13 $\to$ Schema 14 user data migration or conversion.
+
+**7. Archive V4 Portable Backup & Causal Merge**
+- Archive V4 (`BackupPayloadV4`): Dedicated target-aware DTOs for `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, and learning controls.
+- Restore: Empty-target restore is transactional with reference remapping.
+- Merge: Transactional populated-target merge with validated pre-merge Archive V4 safety copy. Causal history prefix check enforces that equal timestamps resolve by causal insertion order; divergent non-prefix histories fail closed with `CausalHistoryConflict`.
+- Cross-database target identity is based on resolved semantic Sense + `TargetKind` + `SourceLanguage` + `TargetLanguage`. Local SQLite IDs are never cross-database identities.
 
 ## Schema-13 / FSRS-6 Merged Production State (KF-FSRS-003)
 

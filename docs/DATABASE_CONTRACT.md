@@ -5,7 +5,7 @@
 This document is the binding contract for KnownFirst persisted application
 data, schema compatibility, migrations, and database-test safety.
 
-It describes the current SQLite model at schema version **13** on merged `master` (`KF-FSRS-003`). Schema 10, 11, and 12 sections below remain historical/compatibility contracts where explicitly scoped; Schema-13 persistence and FSRS-6 production activation are documented in the [Schema-13 Production Contract](#schema-13-production-contract-kf-fsrs-003) section below. Merged KF-BACKUP-005B changes portable Active learning-workflow behavior without changing the physical schema version or archive format; its binding current-master contract is recorded explicitly below.
+It describes the current SQLite model at schema version **14** implemented under the `KF-LEARN-011` LearningTarget package. Schema 10, 11, 12, and 13 sections below remain historical/compatibility contracts where explicitly scoped; Schema-14 persistence and target-centric runtime activation are documented in the [Schema-14 Production Contract](#schema-14-production-contract-kf-learn-011) section below.
 
 ## Storage boundary
 
@@ -19,8 +19,8 @@ It describes the current SQLite model at schema version **13** on merged `master
 
 ## Current schema
 
-`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **13** in merged production source after `KF-FSRS-003`.
-A healthy initialized current production database reports `PRAGMA user_version = 13`. `PRAGMA foreign_keys = ON` is enforced globally for every production connection before any other operation.
+`DatabaseSchema.CurrentVersion` and `PRAGMA user_version` are both **14** in current source after `KF-LEARN-011`.
+A healthy initialized current database reports `PRAGMA user_version = 14`. `PRAGMA foreign_keys = ON` is enforced globally for every database connection before any other operation.
 
 | Table | Responsibility |
 | --- | --- |
@@ -37,21 +37,24 @@ A healthy initialized current production database reports `PRAGMA user_version =
 | `PreparationSessions` | Resumable preparation batches |
 | `PreparationCandidates` | Ordered lookup results and preparation outcomes |
 | `ContextSnapshots` | Deduplicated learning contexts with exact target coordinates |
-| `LearningCards` | Independent Sense-addressed card-direction scheduling state |
-| `LearningReviews` | Persisted rating history including target and matched answer variant |
-| `LearningSessions` | Resumable learning-session summary state; on Schema 10 also carries an immutable `StableId` |
-| `LearningSessionCards` | Ordered persisted session queue, frozen answer target, and reveal/check state; on Schema 10 also carries an immutable `StableId` |
+| `LearningCards` | Legacy Sense-addressed card-direction scheduling state (retained for explicit technical compatibility) |
+| `LearningReviews` | Legacy persisted rating history (retained for explicit technical compatibility) |
+| `LearningSessions` | Resumable learning-session summary state; on Schema 10+ carries an immutable `StableId` |
+| `LearningSessionCards` | Ordered persisted session queue, frozen answer target, and reveal/check state; on Schema 10+ carries an immutable `StableId`; in Schema 14 `CardId` references `LearningTargets.Id` |
 | `Senses` | Meaning-centric Sense identity, provenance, and status per vocabulary identity |
-| `AnswerVariants` | Distinct accepted answer expressions per Sense and answer language |
-| `SenseAnswerVariantAssignments` | Direction-specific Required/AcceptedOnly assignment, preferred flag, and Required-epoch boundary |
-| `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` interaction progress; legacy mastery fields are not Schema-13 learning outcomes |
-| `DerivedTermEvidenceEntries` | German Enhanced Term Recognition (Schema 11): per-occurrence provenance for a derived compound component, always pointing at the complete whole-compound source span (never a synthetic component occurrence) |
+| `AnswerVariants` | Distinct accepted answer expressions per Sense and answer language (legacy Sense-level variants) |
+| `SenseAnswerVariantAssignments` | Legacy direction-specific Required/AcceptedOnly assignment and preferred flag |
+| `AnswerVariantProgress` | Replayable per `(CardId, AnswerVariantId)` interaction progress |
+| `DerivedTermEvidenceEntries` | German Enhanced Term Recognition (Schema 11): per-occurrence provenance for a derived compound component |
 | `LearningDayState` | Learning-Day Infrastructure (Schema 12): singleton record (`Id = 1`) tracking active budget day / Bridge phase, current day ordinal, frozen day boundaries, effective timezone/cutoff, and Bridge target state |
-| `LearningDayGrants` | Daily New-Word Budget (Schema 12): durable record of admitted genuinely-new `WordId`s per logical learning day ordinal with immutable `SlotOrdinal` assignments; independent of learning-graph deletions |
-| `FsrsCardStates` | Schema 13: one-to-one FSRS-6 scheduling state for each `LearningCard`; state, stability, difficulty, last-reviewed timestamp, step index, and due timestamp |
-| `FsrsReviewHistoryEntries` | Schema 13: append-only factual review log; unique `StableId`, card-scoped gapless 1-based `SequenceNumber`, `ReviewedAtUtc`, and `Rating` per event |
-| `WordLearningControls` | Schema 13: reversible word-level AlreadyKnown decisions; absence = Default |
-| `SenseLearningControls` | Schema 13: reversible sense-level StopLearning decisions; absence = Default |
+| `LearningDayGrants` | Daily New-Word Budget (Schema 12): durable record of admitted genuinely-new `WordId`s per logical learning day ordinal with immutable `SlotOrdinal` assignments |
+| `WordLearningControls` | Schema 13+: reversible word-level AlreadyKnown decisions (`WordId` PK, `DecidedAtUtc`); absence = Default |
+| `SenseLearningControls` | Schema 13+: reversible sense-level StopLearning decisions (`SenseId` PK, `DecidedAtUtc`); absence = Default |
+| `LearningTargets` | Schema 14: explicit language-specific Definition and Translation learning targets under a Sense (`Id` PK, `StableId`, `SenseId`, `TargetKind`, `SourceLanguage`, `TargetLanguage`, `TypingOptOut`, `CreatedAtUtc`, `UpdatedAtUtc`) |
+| `TargetAnswerVariants` | Schema 14: distinct accepted answer expressions per LearningTarget (`Id` PK, `StableId`, `TargetId`, `AnswerLanguage`, `DisplayText`, `NormalizedText`, `Requirement`, `IsPreferred`, `RequiredSinceUtc`, `SourceMeaningId`, timestamps) |
+| `TargetFsrsStates` | Schema 14: one-to-one FSRS-6 scheduling state for each `LearningTarget` (`TargetId` PK/FK to `LearningTargets.Id`, `State`, `Stability`, `Difficulty`, `LastReviewedAtUtc`, `StepIndex`, `DueAtUtc`) |
+| `TargetFsrsReviewHistoryEntries` | Schema 14: append-only factual FSRS review log for each target (`Id` PK, `StableId`, `TargetId`, `SequenceNumber`, `Rating`, `ReviewedAtUtc`) |
+| `TargetReviews` | Schema 14: factual interaction and review events per target (`Id` PK, `StableId`, `TargetId`, `SessionId`, `Rating`, `WasTypedAnswer`, `WasCorrect`, `IsSessionRepeat`, `TargetAnswerVariantId`, `MatchedAnswerVariantId`, `ReviewedAtUtc`, `DueAtUtc`) |
 
 At schema 8 `LearningCards.MeaningId` no longer exists; the card's own preferred
 meaning is `LearningCards.PreferredMeaningId`, and the card is addressed by
@@ -61,37 +64,29 @@ At schema 9, `ReviewSessions` index constraints change to support multiple Compl
 
 At schema 10, `LearningSessions` and `LearningSessionCards` carry immutable `StableId` columns and are constrained by unique indexes `IX_LearningSessions_StableId` and `IX_LearningSessionCards_StableId`.
 
-At schema 11, the new `DerivedTermEvidenceEntries` table records provenance for German derived-compound review candidates (`CandidateProvenanceKind.DerivedFromCompound`). A derived candidate never receives a synthetic `WordOccurrenceEntity`; instead its evidence row carries the source compound's identity, exact surface form, whole-compound `SourceStartPosition`/`SourceLength`, sentence order, and component form, always pointing at the real complete source-compound occurrence. Full binding contract: [Schema-11 contract](#schema-11-derived-term-evidence-contract) below and [docs/WORD_ANALYSIS.md](WORD_ANALYSIS.md) "Conservative German derived compound candidates."
+At schema 11, the `DerivedTermEvidenceEntries` table records provenance for German derived-compound review candidates (`CandidateProvenanceKind.DerivedFromCompound`).
 
-At schema 12, `LearningDayState` and `LearningDayGrants` track durable logical learning days, timezone/cutoff freeze, Bridge intervals, and daily new-word grant ordinals. These tables are strictly installation-local and excluded from portable export/merge. Full binding contract: [Schema-12 contract](#schema-12-learning-day-and-daily-new-word-budget-contract-merged-production-state) below.
+At schema 12, `LearningDayState` and `LearningDayGrants` track durable logical learning days, timezone/cutoff freeze, Bridge intervals, and daily new-word grant ordinals.
 
-At current Schema 13 (merged `KF-FSRS-003`), `FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, and `SenseLearningControls` are present. `FsrsCardStates` holds the factual FSRS-6 card state per `LearningCard`. `FsrsReviewHistoryEntries` is the append-only factual review log with gapless 1-based `SequenceNumber` per card and a unique `StableId` per event. `WordLearningControls` and `SenseLearningControls` are reversible clean learning-control decisions with separate semantic ownership. Full binding contract: [Schema-13 Production Contract](#schema-13-production-contract-kf-fsrs-003) below.
+At schema 13, `WordLearningControls` and `SenseLearningControls` were introduced for clean learning controls.
+
+At current Schema 14 (`KF-LEARN-011`), `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, and `TargetReviews` establish the target-centric learning and FSRS scheduling architecture. Each `LearningTarget` owns an independent `TargetFsrsState` and append-only `TargetFsrsReviewHistoryEntries`. `TargetReviews` records durable interaction events for Automatic progression replay. Active session queues (`LearningSessionCards`) reference `LearningTargets.Id`.
 
 Relationships are represented by entity IDs and enforced by transactional
 service operations and tests. Do not introduce a competing representation of
-the same document, vocabulary, meaning, sense, context, card, or session.
+the same document, vocabulary, meaning, sense, context, target, or session.
 
 ## Required invariants
 
 1. Original accepted document content is unchanged.
 2. Sentence and occurrence ranges resolve to the exact original substrings.
 3. One vocabulary identity may have many occurrences and surface forms.
-4. Frequency equals accepted occurrences; context deduplication does not lower
-   it.
-5. Schema-13 Learn represents `AlreadyKnown` with the word-level clean control,
-   preserving the semantic vocabulary graph, accepted content, contexts,
-   LearningCards, factual review history, and FSRS state/history. It may remove
-   incomplete queue work and normalize affected sessions under the
-   [Data deletion](#data-deletion) contract. Historical destructive minimal-marker
-   semantics apply only to the explicitly scoped legacy or review/Preparation
-   disposition contracts; they are not a global AlreadyKnown invariant.
-6. Prepared meanings and lexical-cache reference data remain distinct from
-   personal knowledge and scheduling state.
-7. Each enabled card direction has independent scheduling state.
-8. Completed-document cleanup removes content only when no unresolved workflow
-   or active learning dependency remains.
-9. Retry and resume operations do not duplicate documents, occurrences,
-   meanings, contexts, cards, cache rows, or ratings.
+4. Frequency equals accepted occurrences; context deduplication does not lower it.
+5. Schema-14 Learn represents `AlreadyKnown` with the word-level clean control (`WordLearningControls`), suppressing active learning for that Word, clearing incomplete session queue items only, and preserving the semantic vocabulary graph, accepted content, contexts, `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, completed queue rows, and completed session history. It does not destructively rewrite `Words.Status` as a competing authority.
+6. Prepared meanings and lexical-cache reference data remain distinct from personal knowledge and scheduling state.
+7. Each LearningTarget has independent FSRS scheduling state (`TargetFsrsStates`) and independent factual review history (`TargetFsrsReviewHistoryEntries`).
+8. Completed-document cleanup removes content only when no unresolved workflow or active learning dependency remains.
+9. Retry and resume operations do not duplicate documents, occurrences, meanings, contexts, targets, cache rows, or ratings.
 
 ## Transactions
 
@@ -109,14 +104,10 @@ not report success before the transaction commits.
 - Never delete or recreate a user database merely because the schema changed.
 - Every schema change increments the schema version when appropriate and
   documents old-to-new behavior here.
-- New columns need deterministic defaults for existing rows.
-- Destructive transformation requires explicit rationale, rollback/recovery
-  behavior, and compatibility tests.
+- Pre-release no-migration policy: Schema 14 does not migrate or backfill disposable Schema 1–13 development databases. Older development databases fail closed in production startup.
 - Migrations must be transactional where the SQLite operation permits it.
-- Tests must cover at least the oldest explicitly supported source shape and
-  the immediately preceding production schema.
 
-### Schema-13 production activation behavior (KF-FSRS-003)
+### Schema-14 production activation behavior (KF-LEARN-011)
 
 `DatabaseSchema.InitializeAsync` reads `PRAGMA user_version` before touching any table and then
 follows exactly one path. **`PRAGMA foreign_keys = ON` is set first, before version inspection.** Startup
@@ -124,12 +115,12 @@ fails immediately if the pragma value does not confirm `1`.
 
 | Source version | Behavior |
 | --- | --- |
-| Fresh / empty database (version = 0, no user objects) | `Schema13CleanBootstrap.ApplyAsync` initializes directly to a validated Schema 13. |
+| Fresh / empty database (version = 0, no user objects) | `Schema14CleanBootstrap.ApplyAsync` initializes directly to a validated Schema 14 (`PRAGMA user_version = 14`). |
 | 0 with user objects (unknown non-empty unversioned) | Rejected with `DatabaseSchemaCompatibilityException` (reason `UnknownNonEmptyUnversionedDatabase`). Nothing is read, repaired, or written. |
-| 1–12 | Rejected with `DatabaseSchemaCompatibilityException` (reason `UnsupportedOlderVersion`). No automatic migration from Schema 1–12 occurs in normal production startup. `Schema13DormantMigration.ApplyAsync` remains available as an explicit callable for Schema 12 → 13 migration, but is not invoked by `InitializeAsync`. |
-| 13 (valid) | `Schema13RuntimeIntegrityValidator.Validate` runs. If valid, startup completes normally without any mutation. |
-| 13 (malformed) | Rejected with `DatabaseSchemaCompatibilityException` (reason `InvalidCurrentSchema`). Nothing is repaired or written. |
-| Greater than 13 | Rejected with `DatabaseSchemaCompatibilityException` (reason `UnsupportedFutureVersion`). Nothing is read, repaired, or written. |
+| 1–13 | Rejected with `DatabaseSchemaCompatibilityException` (reason `UnsupportedOlderVersion`). No automatic migration or data conversion from Schema 1–13 occurs in production startup. |
+| 14 (valid) | `Schema13RuntimeIntegrityValidator.Validate` and `TargetPersistenceShapeValidator.Validate` run. If valid, startup completes normally without any mutation. |
+| 14 (malformed) | Rejected with `DatabaseSchemaCompatibilityException` (reason `InvalidCurrentSchema`). Nothing is repaired or written. |
+| Greater than 14 | Rejected with `DatabaseSchemaCompatibilityException` (reason `UnsupportedFutureVersion`). Nothing is read, repaired, or written. |
 
 
 The following legacy backfill and migration descriptions are historical Schema-12 behavior; they are not normal Schema-13 production startup paths.
@@ -721,6 +712,208 @@ CREATE TABLE SenseLearningControls (
 - **Archive Format Remains V2:** Portable `.kfarchive` export and import remain format V2.
 - **Archive V3 Prerequisite:** Schema-13 structures (`FsrsCardStates`, `FsrsReviewHistoryEntries`, `WordLearningControls`, `SenseLearningControls`) are not exported to V2 archives. Export and cross-installation transport of Schema-13 state belong to `KF-BACKUP-006` (Archive V3).
 - **No Incompatible Transport:** Schema-13 data is never coerced or truncated into Schema-12/V2 archives.
-# Current Schema-13 status
+---
 
-Schema 13 is current production source/runtime truth on `master`. Fresh empty production databases bootstrap directly to Schema 13. Existing Schema 1–12 databases fail closed in the current production startup path; this document does not authorize or describe an automatic production migration. `WordLearningControls` and `SenseLearningControls` are persisted Schema-13 data with repository, backup/restore, integrity-validation, and test coverage; user-facing workflows remain backlog work.
+## Schema-14 Production Contract (KF-LEARN-011)
+
+Schema 14 is the authoritative clean production schema delivered by `KF-LEARN-011`. A genuinely empty database bootstraps directly to Schema 14 (`Schema14CleanBootstrap`) with `PRAGMA user_version = 14`. Normal startup does not migrate Schema 1–13 databases: those databases, malformed current databases, future databases, and non-empty unversioned databases fail closed with `UnsupportedOlderVersion` or `DatabaseSchemaCompatibilityException` without reset, deletion, repair, or mutation. Startup enables `PRAGMA foreign_keys = ON` before inspecting the version and validates an already-current database before exposing services.
+
+### 1. Physical Target Tables, Indexes, and Constraints
+
+Schema 14 introduces target-centric learning tables defined in `KnownFirst.Data.Targets.TargetPersistenceDdl`:
+
+#### A. `LearningTargets`
+
+The primary learning entity representing a distinct learning target (Definition or Translation) under a parent Sense:
+
+```sql
+CREATE TABLE LearningTargets (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    StableId TEXT NOT NULL,
+    SenseId INTEGER NOT NULL,
+    TargetKind INTEGER NOT NULL,
+    SourceLanguage TEXT NOT NULL,
+    TargetLanguage TEXT NOT NULL,
+    TypingOptOut INTEGER NOT NULL DEFAULT 0,
+    CreatedAtUtc TEXT NOT NULL,
+    UpdatedAtUtc TEXT NOT NULL,
+    FOREIGN KEY (SenseId) REFERENCES Senses(Id) ON DELETE CASCADE,
+    CHECK (LENGTH(TRIM(StableId)) > 0),
+    CHECK (TargetKind IN (0, 1)),
+    CHECK (LENGTH(TRIM(SourceLanguage)) > 0),
+    CHECK (LENGTH(TRIM(TargetLanguage)) > 0),
+    CHECK (TypingOptOut IN (0, 1)),
+    CHECK (LENGTH(TRIM(CreatedAtUtc)) > 0),
+    CHECK (LENGTH(TRIM(UpdatedAtUtc)) > 0)
+);
+```
+
+- **Indexes:**
+  - `IX_LearningTargets_StableId` (UNIQUE ON `StableId`)
+  - `IX_LearningTargets_Sense_Kind_Languages` (UNIQUE ON `SenseId, TargetKind, SourceLanguage, TargetLanguage`)
+  - `IX_LearningTargets_SenseId` (INDEX ON `SenseId`)
+
+#### B. `TargetAnswerVariants`
+
+Accepted and required answer variants for typed verification and display under a LearningTarget:
+
+```sql
+CREATE TABLE TargetAnswerVariants (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    StableId TEXT NOT NULL,
+    TargetId INTEGER NOT NULL,
+    AnswerLanguage TEXT NOT NULL,
+    DisplayText TEXT NOT NULL,
+    NormalizedText TEXT NOT NULL,
+    Requirement INTEGER NOT NULL,
+    IsPreferred INTEGER NOT NULL,
+    RequiredSinceUtc TEXT NOT NULL,
+    SourceMeaningId INTEGER,
+    CreatedAtUtc TEXT NOT NULL,
+    UpdatedAtUtc TEXT NOT NULL,
+    FOREIGN KEY (TargetId) REFERENCES LearningTargets(Id) ON DELETE CASCADE,
+    FOREIGN KEY (SourceMeaningId) REFERENCES Meanings(Id) ON DELETE SET NULL,
+    CHECK (LENGTH(TRIM(StableId)) > 0),
+    CHECK (LENGTH(TRIM(AnswerLanguage)) > 0),
+    CHECK (LENGTH(TRIM(DisplayText)) > 0),
+    CHECK (LENGTH(TRIM(NormalizedText)) > 0),
+    CHECK (Requirement IN (0, 1)),
+    CHECK (IsPreferred IN (0, 1)),
+    CHECK (LENGTH(TRIM(RequiredSinceUtc)) > 0),
+    CHECK (LENGTH(TRIM(CreatedAtUtc)) > 0),
+    CHECK (LENGTH(TRIM(UpdatedAtUtc)) > 0)
+);
+```
+
+- **Indexes:**
+  - `IX_TargetAnswerVariants_StableId` (UNIQUE ON `StableId`)
+  - `IX_TargetAnswerVariants_Target_Normalized` (UNIQUE ON `TargetId, NormalizedText`)
+  - `IX_TargetAnswerVariants_Target_Preferred` (UNIQUE ON `TargetId` WHERE `IsPreferred = 1`)
+  - `IX_TargetAnswerVariants_TargetId` (INDEX ON `TargetId`)
+  - `IX_TargetAnswerVariants_SourceMeaningId` (INDEX ON `SourceMeaningId`)
+
+#### C. `TargetFsrsStates`
+
+One-to-one authoritative FSRS-6 scheduling state for each `LearningTarget`:
+
+```sql
+CREATE TABLE TargetFsrsStates (
+    TargetId INTEGER PRIMARY KEY,
+    State INTEGER NOT NULL,
+    Stability REAL,
+    Difficulty REAL,
+    LastReviewedAtUtc TEXT,
+    StepIndex INTEGER,
+    DueAtUtc TEXT,
+    FOREIGN KEY (TargetId) REFERENCES LearningTargets(Id) ON DELETE CASCADE,
+    CHECK (State IN (0, 1, 2, 3)),
+    CHECK (
+        (Stability IS NULL OR Stability >= 0.001)
+        AND (Difficulty IS NULL OR (Difficulty >= 1.0 AND Difficulty <= 10.0))
+    ),
+    CHECK (
+        (State = 0 AND Stability IS NULL AND Difficulty IS NULL AND LastReviewedAtUtc IS NULL AND StepIndex IS NULL)
+        OR (State = 1 AND Stability IS NOT NULL AND Difficulty IS NOT NULL AND LastReviewedAtUtc IS NOT NULL AND StepIndex = 0)
+        OR (State = 2 AND Stability IS NOT NULL AND Difficulty IS NOT NULL AND LastReviewedAtUtc IS NOT NULL AND StepIndex IS NULL)
+        OR (State = 3 AND Stability IS NOT NULL AND Difficulty IS NOT NULL AND LastReviewedAtUtc IS NOT NULL AND StepIndex = 0)
+    )
+);
+```
+
+- **Index:** `IX_TargetFsrsStates_State_DueAtUtc` ON `TargetFsrsStates (State, DueAtUtc)`
+
+#### D. `TargetFsrsReviewHistoryEntries`
+
+Authoritative append-only factual FSRS review log per `LearningTarget`:
+
+```sql
+CREATE TABLE TargetFsrsReviewHistoryEntries (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    StableId TEXT NOT NULL,
+    TargetId INTEGER NOT NULL,
+    SequenceNumber INTEGER NOT NULL,
+    Rating INTEGER NOT NULL,
+    ReviewedAtUtc TEXT NOT NULL,
+    FOREIGN KEY (TargetId) REFERENCES LearningTargets(Id) ON DELETE CASCADE,
+    CHECK (LENGTH(TRIM(StableId)) > 0),
+    CHECK (SequenceNumber > 0),
+    CHECK (Rating IN (0, 1, 2, 3)),
+    CHECK (LENGTH(TRIM(ReviewedAtUtc)) > 0)
+);
+```
+
+- **Indexes:**
+  - `IX_TargetFsrsReviewHistoryEntries_StableId` (UNIQUE ON `StableId`)
+  - `IX_TargetFsrsReviewHistoryEntries_Target_Sequence` (UNIQUE ON `TargetId, SequenceNumber`)
+  - `IX_TargetFsrsReviewHistoryEntries_Target_Replay` (INDEX ON `TargetId, ReviewedAtUtc, SequenceNumber`)
+
+#### E. `TargetReviews`
+
+Append-only detailed interaction review log recording typing attribution, correctness, and session linkage:
+
+```sql
+CREATE TABLE TargetReviews (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    StableId TEXT NOT NULL,
+    TargetId INTEGER NOT NULL,
+    SessionId INTEGER NOT NULL,
+    Rating INTEGER NOT NULL,
+    WasTypedAnswer INTEGER NOT NULL,
+    WasCorrect INTEGER NOT NULL,
+    IsSessionRepeat INTEGER NOT NULL,
+    TargetAnswerVariantId INTEGER,
+    MatchedAnswerVariantId INTEGER,
+    ReviewedAtUtc TEXT NOT NULL,
+    DueAtUtc TEXT NOT NULL,
+    FOREIGN KEY (TargetId) REFERENCES LearningTargets(Id) ON DELETE CASCADE,
+    FOREIGN KEY (SessionId) REFERENCES LearningSessions(Id) ON DELETE CASCADE,
+    FOREIGN KEY (TargetAnswerVariantId) REFERENCES TargetAnswerVariants(Id) ON DELETE SET NULL,
+    FOREIGN KEY (MatchedAnswerVariantId) REFERENCES TargetAnswerVariants(Id) ON DELETE SET NULL,
+    CHECK (LENGTH(TRIM(StableId)) > 0),
+    CHECK (Rating IN (0, 1, 2, 3)),
+    CHECK (WasTypedAnswer IN (0, 1)),
+    CHECK (WasCorrect IN (0, 1)),
+    CHECK (IsSessionRepeat IN (0, 1)),
+    CHECK (LENGTH(TRIM(ReviewedAtUtc)) > 0),
+    CHECK (LENGTH(TRIM(DueAtUtc)) > 0)
+);
+```
+
+- **Indexes:**
+  - `IX_TargetReviews_StableId` (UNIQUE ON `StableId`)
+  - `IX_TargetReviews_TargetId` (INDEX ON `TargetId`)
+  - `IX_TargetReviews_SessionId` (INDEX ON `SessionId`)
+
+### 2. Learning Controls and Non-Destructive AlreadyKnown
+
+- `WordLearningControls` persists word-level `AlreadyKnown` user decisions (`(WordId PK, DecidedAtUtc)`).
+- `SenseLearningControls` persists sense-level `StopLearning` decisions (`(SenseId PK, DecidedAtUtc)`).
+- **Non-Destructive AlreadyKnown Contract:**
+  - Persisting `AlreadyKnown` through `MarkPermanentlyKnownAsync` records a row in `WordLearningControls`.
+  - Removes incomplete queue work only:
+    ```sql
+    DELETE FROM LearningSessionCards
+    WHERE IsCompleted = 0
+      AND CardId IN (
+          SELECT t.Id
+          FROM LearningTargets t
+          JOIN Senses s ON s.Id = t.SenseId
+          WHERE s.WordId = @WordId
+      );
+    ```
+  - Preserves all semantic graph entities (`Words`, `Senses`, `Meanings`), `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, completed `LearningSessionCards`, and completed `LearningSessions`.
+  - Does not mutate `Words.Status`.
+
+### 3. Archive V4 Transport & Causal Merge
+
+- **Archive Version:** V4 (`.kfarchive`).
+- **Payload Schema:** `BackupPayloadV4` carrying collections for `SourceMaterials`, `Vocabulary`, `Senses`, `PreparedLearning`, `Workflows`, `DerivedTermEvidence`, `WordLearningControls`, `SenseLearningControls`, `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, and `Extensions`.
+- **Target Identity:** Cross-installation target matching is resolved via the parent Sense's semantic identity (`Word.Language`, `Word.Text`, `Sense.Disambiguation`, `Sense.OrderIndex`) + `TargetKind` + `SourceLanguage` + `TargetLanguage`.
+- **Causal History Merge:** Target review histories merge via ordered-prefix causal merge. Ties on equal `ReviewedAtUtc` timestamps resolve deterministically by physical insertion order (`SequenceNumber`). Divergent non-prefix histories fail closed with `CausalHistoryConflict` before any database mutation.
+- **Safety Copies:** Merge safety copies are captured in Archive V4 format before mutation.
+
+---
+
+# Current Schema-14 status
+
+Schema 14 is current production source/runtime truth on `feature/learning-targets-definition-translation-v1` (technically accepted for `KF-LEARN-011`). Fresh empty production databases bootstrap directly to Schema 14 (`PRAGMA user_version = 14`). Existing Schema 1–13 databases fail closed in the current production startup path (`UnsupportedOlderVersion`); this document does not authorize or describe an automatic production migration. All runtime learning operations, FSRS scheduling, reviews, learning controls, and backup/restore operate on Schema 14 and Archive V4.

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-04 (KF-LEARN-011 Slice 1/6 checkpoint on `feature/learning-targets-definition-translation-v1`; base `master` commit `f6364057de2a961f39155226adb8426365fa26c5`).
+2026-09-06 (KF-LEARN-011 technically accepted candidate at HEAD `b65e7c7e337cd36073c59982bd1ff3ca9df22d73` on `feature/learning-targets-definition-translation-v1`; base `master` commit `f6364057de2a961f39155226adb8426365fa26c5`).
 
 ## Repository and Worktree Governance
 
@@ -27,35 +27,29 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   4. `4/6 learning-runtime-cutover`: LearningService, active session queue, and review runtime cutover to target-centric authority.
   5. `5/6 backup-current-format-cutover`: Portable backup export, restore, and merge cutover for the new current format.
   6. `6/6 integration-and-legacy-decommissioning`: Full integration, legacy column/entity decommissioning, and final verification.
-- **Working state:** Slice 1/6 is completed at checkpoint commit time. Pure Core domain types and replay policy implemented and verified by focused tests. Durable package contract established in `docs/architecture/learning-target-semantics.md` and registered in `docs/BACKLOG.md`. Later slices (2–6), package-level review, full validation, push, PR, and merge are NOT yet performed.
-- **Scope & implemented behavior (Slice 1):**
-  - `Core domain concepts`: Added `LearningTargetKind` (Definition, Translation), `LearningTargetIdentity` (Kind, SourceLanguage, TargetLanguage with validation and invariant normalization), `LearningTarget` (identity plus per-target typing opt-out), `TargetInteractionEvent` (pure factual event representation with UTC enforcement, rating, typing modality, correctness, and session-repeat classification).
+- **Working state:** Technical implementation is complete across all 6 approved slices; consolidated technical review and review repair are complete; package is technically accepted (`REVIEW_APPROVED` at candidate commit `b65e7c7e337cd36073c59982bd1ff3ca9df22d73`). Current lifecycle is `DOCUMENT_ONLY`. Final candidate-HEAD `FULL_VALIDATION`, push, PR creation, manual merge, and release have NOT yet occurred.
+- **Scope & implemented behavior (Package KF-LEARN-011):**
+  - `Core domain concepts`: Pure `LearningTargetKind` (Definition, Translation), `LearningTargetIdentity` (Kind, SourceLanguage, TargetLanguage with validation and invariant normalization), `LearningTarget` (identity plus per-target typing opt-out), `TargetInteractionEvent` (pure factual event representation with UTC enforcement, rating, typing modality, correctness, and session-repeat classification).
   - `Target-centric Automatic progression`: Pure `TargetAutomaticProgressionPolicy` and `TargetAutomaticProgressionState` implementing the 14-point Automatic typing qualification lifecycle: low-friction Reading first $\to$ 2 qualifying scheduled recall successes $\to$ Typing qualification $\to$ 2 distinct scheduled typing checks $\to$ low-friction Reading maintenance; genuine scheduled lapse re-arms exactly one typing re-check; successful re-check restores qualified maintenance; failed re-check lapses out of qualified maintenance back to recall qualification; same-session Again tail repeats isolated from qualification review counting; per-target typing opt-out prevents typing qualification without altering FSRS identity; timestamp ordering validation.
-  - `Production policy correction`: Corrected `AutomaticLearningPolicy.RecordTypingAssessment` so that reaching typing qualification (2 consecutive typing successes) transitions interaction mode to low-friction `Reading` maintenance rather than remaining permanently in `Typing`.
-  - `Durable documentation`: Transitioned `docs/architecture/learning-target-semantics.md` from open decision to authoritative resolved contract; marked `KF-LEARN-010` as resolved product decision and registered `KF-LEARN-011` as active P1 implementation package in `docs/BACKLOG.md`.
+  - `Schema-14 target persistence`: Introduced clean Schema 14 physical tables (`LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`), shape builder and validator, and repositories. Canonical bootstrap creates validated Schema 14 directly for fresh databases (`user_version = 14`).
+  - `Preparation target cutover`: Preparation pipeline generates explicit language-specific Definition and Translation targets under one unified Sense. Supports multi-target learning under one Sense and adding later targets to previously prepared words without corrupting existing target histories.
+  - `Learning runtime cutover`: `LearningService`, active session queues, and `WorkflowState` are target-authoritative in Schema 14. One LearningTarget = one TargetFsrsState = one FSRS scheduling identity. Session queue items reference target IDs. Reviews record factual `TargetReviews` and append-only `TargetFsrsReviewHistoryEntries`.
+  - `AlreadyKnown non-destructive preservation`: `MarkPermanentlyKnownAsync` in Schema 14 records the word-level `WordLearningControl` decision, suppresses active learning for that Word, clears incomplete session queue items only, and preserves the semantic graph, `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, completed queue items, and completed sessions without mutating `Words.Status` as a competing authority.
+  - `Archive V4 portable backup & merge`: Dedicated target-aware Archive V4 payload (`BackupPayloadV4`), deterministic export, transactional restore into empty databases, preflight planning with Archive V4 pre-merge safety copies, and transactional populated-target merge writer with causal history prefix verification and fail-closed conflict handling (`CausalHistoryConflict`).
 - **Preserved boundaries & invariants:**
   - One real semantic Sense remains one Sense; a Word is not duplicated for additional targets.
-  - Exactly: `LearningTarget -> one LearningCard -> one FSRS-6 schedule`.
+  - Exactly: `LearningTarget -> one TargetFsrsState -> one FSRS-6 schedule`.
   - Reviewing another target under the same Sense must never mutate or postpone this target.
-  - Interaction is not scheduling identity (`CardDirection` remains temporarily in current code during cutover, but is no longer part of future scheduling identity).
+  - Interaction is not scheduling identity (`Reading`, `Typing`, `Automatic` are presentation/qualification policies, not separate FSRS cards).
   - Explicit semantic language identity (source language, target/definition language; UI locale is never semantic truth).
   - Existing active-session Again tail-repeat invariant preserved (every committed Again appends one repeat to tail, incomplete work ahead, unbound chaining, distinct from DueAtUtc).
-  - Pre-release no-migration policy: no production user dataset must be migrated; no Schema-13 $\to$ future-schema migration; old dev databases fail closed.
+  - Pre-release no-migration policy: no production user dataset must be migrated; no Schema-13 $\to$ Schema-14 user data migration or conversion; old dev databases fail closed.
   - Factual replay-safe progression: Automatic progression is derivable from factual committed events.
-- **Verification evidence (Slice 1):**
-  - Genuine behavioral RED: `AutomaticLearningPolicyTests.RecordTypingAssessment_TwoConsecutiveTypingSuccesses_TransitionsToLowFrictionReadingMaintenance` failed as expected with `Assert.AreEqual failed. Expected:<Reading>. Actual:<Typing>.`
-  - Identical test GREEN: 1 passed / 0 failed upon implementing minimum low-friction transition.
-  - Policy regression suites: `AutomaticLearningPolicyTests` (9 passed / 0 failed), `LearningInteractionPolicyTests` (12 passed / 0 failed).
-  - Target replay suite: `TargetAutomaticProgressionPolicyTests` (16 passed / 0 failed) covering all 11 required contract behaviors, opt-out, ordering, and validation.
-- **Strict non-goals (this slice):**
-  - No database schema version change or Schema 14 implementation.
-  - No persistence entities, SQLite tables, columns, or repositories.
-  - No preparation service or UI changes.
-  - No LearningService or review runtime cutover.
-  - No backup/archive V4 or export/import changes.
-  - No deletion of legacy types, SimpleSpacedRepetitionScheduler, or Schema 8/13 code.
-  - No broad test execution, FULL_VALIDATION, push, PR, or merge.
-- **Next governed lifecycle:** Checkpoint commit for Slice 1 (`KnownFirst-Checkpoint: KF-LEARN-011 1/6 core-targets-and-governance`), followed by hard stop and final report.
+- **Verification evidence:**
+  - Consolidated code review completed: `REVIEW_APPROVED` at candidate `b65e7c7e337cd36073c59982bd1ff3ca9df22d73`.
+  - Focused automated test suites for Core progression, preparation target generation, runtime dispatch, Schema-14 persistence, and Archive V4 backup/merge passed during implementation and repair slices.
+  - Pre-PR Candidate-HEAD `FULL_VALIDATION` gate remains strictly pending on the final candidate HEAD after documentation commit.
+- **Next governed lifecycle:** Candidate finalization / `COMMIT_ONLY` (if documentation files are modified), followed by exact-candidate-HEAD `FULL_VALIDATION`, then `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY`.
 
 - **Previous merged packages:**
   - PR #201 (`feature/learn-next-review-phrasing-v1` / `KF-LEARN-007`): Improved user-facing learning/session progress and next-due phrasing across Learn session summary and dashboard with learning-timezone-aware availability projection, pluralization, and logical day completion. Merged to `master` via merge commit `f6364057de2a961f39155226adb8426365fa26c5`. `POST_MERGE_SYNC_ONLY` completed.

@@ -98,12 +98,12 @@ Accepted progression semantics:
 - Historical archive compatibility is not required solely for development data.
 - Data integrity for the new current format remains mandatory.
 
-## Implementation Boundaries & Package Progression (KF-LEARN-011)
+## Implementation Boundaries & Package Status (KF-LEARN-011)
 
-The accepted product contract is implemented across six ordered slices under KF-LEARN-011:
-1. 1/6 core-targets-and-governance: Pure Core domain types (LearningTargetKind, LearningTargetIdentity, LearningTarget, TargetInteractionEvent, TargetAutomaticProgressionState, TargetAutomaticProgressionPolicy) and durable contract governance.
-2. 2/6 target-persistence-foundation: Clean physical target/card persistence entities, schema foundation, and repositories.
-3. 3/6 preparation-target-cutover: Preparation pipeline creating clean target identities and cards.
-4. 4/6 learning-runtime-cutover: LearningService, active session queue, and review runtime cutover to target-centric authority.
-5. 5/6 backup-current-format-cutover: Portable backup export, restore, and merge cutover for the new current format.
-6. 6/6 integration-and-legacy-decommissioning: Full integration, legacy column/entity decommissioning, and final verification.
+The accepted product contract is fully implemented and technically accepted across all six ordered slices under `KF-LEARN-011` on branch `feature/learning-targets-definition-translation-v1`:
+1. **Slice 1 (1/6): Core Targets & Governance** (`feat(core): implement pure domain LearningTarget and Automatic progression policy`): Pure Core domain types (`LearningTargetKind`, `LearningTargetIdentity`, `LearningTarget`, `TargetAnswerVariant`, `TargetAnswerRequirement`, `TargetInteractionEvent`, `TargetAutomaticProgressionState`, `TargetAutomaticProgressionPolicy`) and durable contract governance.
+2. **Slice 2 (2/6): Persistence Foundation** (`feat(data): implement Schema 14 target persistence, bootstrap, and repositories`): Schema 14 target/answer-variant/FSRS persistence DDL, shape validator, `Schema14CleanBootstrap`, repositories (`LearningTargetRepository`, `TargetAnswerVariantRepository`, `TargetFsrsStateRepository`, `TargetFsrsReviewHistoryRepository`, `TargetReviewRepository`), and unit/integration test coverage.
+3. **Slice 3 (3/6): Preparation Target Cutover** (`feat(preparation): cut over preparation pipeline and staging to LearningTargets`): Preparation pipeline and interactive staging cut over to produce clean `LearningTarget` and `TargetAnswerVariant` entities (with add-later target flow under existing Senses).
+4. **Slice 4 (4/6): Learning Runtime Cutover** (`feat(learning): cut over LearningService, session queue, and review runtime to LearningTargets`): `LearningService`, active session queue, and review persistence cut over to target-centric authority with 14-point Automatic typing qualification and non-destructive `AlreadyKnown` controls.
+5. **Slice 5 (5/6): Backup Current Format Cutover** (`feat(backup): cut over portable backup export, restore, and merge to Archive V4`): `.kfarchive` format V4 (`BackupPayloadV4`), clean restore-into-empty, target-aware causal prefix merge (`CausalHistoryConflict`), and V4 merge safety copies.
+6. **Slice 6 (6/6): Integration & Legacy Decommissioning** (`feat(data): complete Schema 14 integration and legacy decommissioning`): Decommissioned legacy `LearningCards` scheduler and interaction paths, clean Schema 14 database lifecycle (`PRAGMA user_version = 14`, `PRAGMA foreign_keys = ON`), fail-closed legacy database protection (`UnsupportedOlderVersion`), and consolidated end-to-end verification.

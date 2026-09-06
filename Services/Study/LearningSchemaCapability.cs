@@ -91,7 +91,7 @@ public sealed class ValidatedLearningSchema13Capability
     public const int SchemaVersion = 13;
 }
 
-/// <summary>The transitional Schema-14 learning capability (KF-LEARN-011 Slice 2).</summary>
+/// <summary>The canonical Schema-14 learning capability (KF-LEARN-011).</summary>
 public sealed class ValidatedLearningSchema14Capability
 {
     internal ValidatedLearningSchema14Capability()
@@ -99,8 +99,6 @@ public sealed class ValidatedLearningSchema14Capability
     }
 
     public const int SchemaVersion = 14;
-
-    public ValidatedLearningSchema13Capability TransitionalSchema13Capability { get; } = new();
 }
 
 public abstract record LearningSchemaCapabilityResult;

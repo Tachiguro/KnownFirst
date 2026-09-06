@@ -89,7 +89,7 @@ public sealed class ValidatedPreparationSchema13Capability
     public const int SchemaVersion = 13;
 }
 
-/// <summary>The transitional Schema-14 preparation capability (KF-LEARN-011 Slice 2).</summary>
+/// <summary>The canonical Schema-14 preparation capability (KF-LEARN-011).</summary>
 public sealed class ValidatedPreparationSchema14Capability
 {
     internal ValidatedPreparationSchema14Capability()
@@ -97,8 +97,6 @@ public sealed class ValidatedPreparationSchema14Capability
     }
 
     public const int SchemaVersion = 14;
-
-    public ValidatedPreparationSchema13Capability TransitionalSchema13Capability { get; } = new();
 }
 
 public abstract record PreparationSchemaCapabilityResult;

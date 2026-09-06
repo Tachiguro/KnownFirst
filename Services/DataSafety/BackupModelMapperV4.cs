@@ -268,12 +268,69 @@ public static class BackupModelMapperV4
                 DueAtUtc: item.Raw.DueAtUtc));
         }
 
+        var workflows = context.Payload.Workflows;
+        if (workflows.LearningSessions.Count > 0)
+        {
+            var localSessionIdByArchiveId = context.LearningSessionIdMap
+                .ToDictionary(kvp => kvp.Value, kvp => kvp.Key, StringComparer.Ordinal);
+            var cardsBySession = snapshot.BaseSnapshot.LearningSessionCards
+                .GroupBy(c => c.SessionId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(c => c.QueueOrder, c => (TargetId: c.CardId, VariantId: c.TargetAnswerVariantId)));
+
+            var remappedSessions = new List<BackupLearningWorkflowV2>(workflows.LearningSessions.Count);
+            foreach (var session in workflows.LearningSessions)
+            {
+                if (localSessionIdByArchiveId.TryGetValue(session.Id, out var localSessionId)
+                    && cardsBySession.TryGetValue(localSessionId, out var cardsByOrder))
+                {
+                    var remappedItems = new List<BackupLearningQueueItemV2>(session.QueueItems.Count);
+                    foreach (var item in session.QueueItems)
+                    {
+                        if (!cardsByOrder.TryGetValue(item.QueueOrder, out var cardInfo))
+                        {
+                            throw new BackupFormatException(BackupErrorCodes.MissingReference);
+                        }
+
+                        if (!targetIdMap.TryGetValue(cardInfo.TargetId, out var remappedTargetId))
+                        {
+                            throw new BackupFormatException(BackupErrorCodes.MissingReference);
+                        }
+
+                        string? remappedVariantId = null;
+                        if (cardInfo.VariantId.HasValue)
+                        {
+                            if (!targetVariantIdMap.TryGetValue(cardInfo.VariantId.Value, out remappedVariantId))
+                            {
+                                throw new BackupFormatException(BackupErrorCodes.MissingReference);
+                            }
+                        }
+
+                        remappedItems.Add(item with
+                        {
+                            CardId = remappedTargetId,
+                            TargetAnswerVariantId = remappedVariantId
+                        });
+                    }
+
+                    remappedSessions.Add(session with { QueueItems = remappedItems });
+                }
+                else
+                {
+                    remappedSessions.Add(session);
+                }
+            }
+
+            workflows = workflows with { LearningSessions = remappedSessions };
+        }
+
         return new BackupPayloadV4(
             SourceMaterials: context.Payload.SourceMaterials,
             Vocabulary: context.Payload.Vocabulary,
             Senses: context.Payload.Senses,
             PreparedLearning: context.Payload.PreparedLearning,
-            Workflows: context.Payload.Workflows,
+            Workflows: workflows,
             DerivedTermEvidence: context.Payload.DerivedTermEvidence,
             WordLearningControls: wordControls,
             SenseLearningControls: senseControls,

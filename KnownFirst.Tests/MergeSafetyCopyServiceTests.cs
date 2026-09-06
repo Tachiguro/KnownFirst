@@ -1271,7 +1271,7 @@ public sealed class MergeSafetyCopyServiceTests
 
     [TestMethod]
     [DoNotParallelize]
-    public async Task CreateSafetyCopy_FromNormallyInitializedCurrentSchemaDatabase_ProducesValidV2Archive()
+    public async Task CreateSafetyCopy_FromNormallyInitializedCurrentSchemaDatabase_ProducesCurrentV4Archive()
     {
         await using var database = new IsolatedDatabase(initializeCurrentSchema: true);
         await database.InitializeAsync();
@@ -1302,17 +1302,19 @@ public sealed class MergeSafetyCopyServiceTests
 
             await using var readStream = new FileStream(result.ArchivePath!, FileMode.Open, FileAccess.Read);
             var versioned = await BackupArchiveReader.ValidateVersionedAsync(readStream, CancellationToken.None);
-            Assert.AreEqual(3, versioned.FormatVersion);
-            Assert.IsNotNull(versioned.V3);
-            Assert.AreEqual(13, versioned.V3!.Manifest.SourceDatabaseSchemaVersion);
-            Assert.AreEqual(1, versioned.V3.Payload.Vocabulary.Count);
-            Assert.AreEqual("safety-copy", versioned.V3.Payload.Vocabulary[0].CanonicalTerm);
-            Assert.IsEmpty(versioned.V3.Payload.FsrsCardStates);
-            Assert.IsEmpty(versioned.V3.Payload.FsrsReviewHistoryEntries);
-            Assert.IsEmpty(versioned.V3.Payload.WordLearningControls);
-            Assert.IsEmpty(versioned.V3.Payload.SenseLearningControls);
+            Assert.AreEqual(4, versioned.FormatVersion);
+            Assert.IsNotNull(versioned.V4);
+            Assert.AreEqual(14, versioned.V4!.Manifest.SourceDatabaseSchemaVersion);
+            Assert.AreEqual(1, versioned.V4.Payload.Vocabulary.Count);
+            Assert.AreEqual("safety-copy", versioned.V4.Payload.Vocabulary[0].CanonicalTerm);
+            Assert.IsEmpty(versioned.V4.Payload.LearningTargets);
+            Assert.IsEmpty(versioned.V4.Payload.TargetAnswerVariants);
+            Assert.IsEmpty(versioned.V4.Payload.TargetFsrsStates);
+            Assert.IsEmpty(versioned.V4.Payload.TargetFsrsReviewHistoryEntries);
+            Assert.IsEmpty(versioned.V4.Payload.WordLearningControls);
+            Assert.IsEmpty(versioned.V4.Payload.SenseLearningControls);
 
-            Assert.AreEqual(3, result.ValidatedManifest!.FormatVersion);
+            Assert.AreEqual(4, result.ValidatedManifest!.FormatVersion);
             Assert.AreEqual(1, result.RecordCounts!.VocabularyItems);
             CollectionAssert.AreEqual(before, await PersistentDatabaseSnapshot.CaptureCompleteAsync(database.DatabasePath));
         }

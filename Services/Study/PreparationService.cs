@@ -5,6 +5,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 using KnownFirst.Services.Lexical;
 using SQLite;
@@ -76,21 +77,30 @@ public sealed partial class PreparationService(
                 .Count(candidate => candidate.SessionId == latestCompleted.Id
                     && candidate.Status == PreparationCandidateStatus.Prepared);
         var capability = PreparationSchemaCapability.Resolve(connection);
-        var isSchema13 = capability is PreparationSchema13CapabilityResult or PreparationSchema14CapabilityResult;
-        var dueCardCount = isSchema13
-            ? Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(now))
-            : connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
+        var dueCardCount = capability switch
+        {
+            PreparationSchema14CapabilityResult =>
+                TargetLearningRepository.CountDueTargets(connection, new DateTimeOffset(now)),
+            PreparationSchema13CapabilityResult =>
+                Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(now)),
+            _ => connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
                 && card.State != CardState.Suspended
                 && card.State != CardState.Retired
-                && card.DueAtUtc <= now);
-        var preparedNewWordIds = isSchema13
-            ? Schema13LearningRepository.CountNewWords(connection)
-            : connection.Table<LearningCardEntity>()
+                && card.DueAtUtc <= now)
+        };
+        var preparedNewWordIds = capability switch
+        {
+            PreparationSchema14CapabilityResult =>
+                TargetLearningRepository.CountNewWords(connection),
+            PreparationSchema13CapabilityResult =>
+                Schema13LearningRepository.CountNewWords(connection),
+            _ => connection.Table<LearningCardEntity>()
                 .Where(card => card.State == CardState.New)
                 .ToList()
                 .Select(card => card.WordId)
                 .Distinct()
-                .Count();
+                .Count()
+        };
         var unprepared = words.Count(word => word.Status == WordStatus.UnknownBacklog
             && word.PreparationState != PreparationState.Prepared);
         return new PreparationOverview(

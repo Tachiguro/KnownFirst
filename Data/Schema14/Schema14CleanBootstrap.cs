@@ -4,15 +4,17 @@ using KnownFirst.Data.Migrations.Schema9;
 using KnownFirst.Data.Migrations.Schema10;
 using KnownFirst.Data.Migrations.Schema11;
 using KnownFirst.Data.Migrations.Schema12;
+using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Targets;
 using SQLite;
 
-namespace KnownFirst.Data.Migrations.Schema13;
+namespace KnownFirst.Data.Schema14;
 
 /// <summary>
-/// Constructs the final Schema-13 shape only for a genuinely empty, unversioned database. It does not
-/// run a historical migration, backfill a legacy row, or assign an intermediate schema version.
+/// Constructs the canonical Schema-14 shape directly in one step for a genuinely empty, unversioned database.
+/// It does not run historical migrations or assign intermediate schema versions.
 /// </summary>
-public static class Schema13CleanBootstrap
+public static class Schema14CleanBootstrap
 {
     public static async Task ApplyAsync(SQLiteAsyncConnection connection)
     {
@@ -26,7 +28,7 @@ public static class Schema13CleanBootstrap
         if (connection.ExecuteScalar<int>("PRAGMA foreign_keys") != 1)
         {
             throw new InvalidOperationException(
-                "SQLite foreign-key enforcement must be enabled before clean Schema-13 bootstrap.");
+                "SQLite foreign-key enforcement must be enabled before clean Schema-14 bootstrap.");
         }
 
         CreateBaselineTables(connection);
@@ -36,17 +38,24 @@ public static class Schema13CleanBootstrap
         CreateSchema11Shape(connection);
         CreateSchema12Shape(connection);
         Schema13TargetShapeBuilder.Create(connection);
+        TargetPersistenceShapeBuilder.Create(connection);
 
         if (!Schema13ShapeValidator.IsValidDatabase(connection, out var shapeFailureDetail))
         {
             throw new InvalidOperationException(
-                $"Clean Schema-13 bootstrap produced an invalid shape: {shapeFailureDetail}");
+                $"Clean Schema-14 bootstrap produced an invalid shape: {shapeFailureDetail}");
         }
 
         if (!Schema13RuntimeIntegrityValidator.Validate(connection, out var runtimeFailureDetail))
         {
             throw new InvalidOperationException(
-                $"Clean Schema-13 bootstrap produced invalid runtime integrity: {runtimeFailureDetail}");
+                $"Clean Schema-14 bootstrap produced invalid runtime integrity: {runtimeFailureDetail}");
+        }
+
+        if (!TargetPersistenceShapeValidator.Validate(connection, out var targetShapeFailureDetail))
+        {
+            throw new InvalidOperationException(
+                $"Clean bootstrap produced an invalid target shape: {targetShapeFailureDetail}");
         }
 
         var foreignKeyViolations = connection.ExecuteScalar<int>(
@@ -54,10 +63,10 @@ public static class Schema13CleanBootstrap
         if (foreignKeyViolations != 0)
         {
             throw new InvalidOperationException(
-                $"Clean Schema-13 bootstrap produced {foreignKeyViolations} foreign-key violation(s).");
+                $"Clean Schema-14 bootstrap produced {foreignKeyViolations} foreign-key violation(s).");
         }
 
-        connection.Execute("PRAGMA user_version = 13");
+        connection.Execute($"PRAGMA user_version = {DatabaseSchema.CurrentVersion}");
     }
 
     private static void RequireGenuinelyFresh(SQLiteConnection connection)
@@ -73,7 +82,7 @@ public static class Schema13CleanBootstrap
         if (version != 0 || userObjectCount != 0)
         {
             throw new InvalidOperationException(
-                "Clean Schema-13 bootstrap requires user_version 0 and no non-internal SQLite objects.");
+                "Clean Schema-14 bootstrap requires user_version 0 and no non-internal SQLite objects.");
         }
     }
 
@@ -134,7 +143,7 @@ public static class Schema13CleanBootstrap
         if (legacyIndexes.Length != 1)
         {
             throw new InvalidOperationException(
-                $"Clean Schema-13 bootstrap expected one baseline ReviewSessions(DocumentId) index, found {legacyIndexes.Length}.");
+                $"Clean Schema-14 bootstrap expected one baseline ReviewSessions(DocumentId) index, found {legacyIndexes.Length}.");
         }
 
         connection.Execute($"DROP INDEX \"{EscapeIdentifier(legacyIndexes[0])}\"");

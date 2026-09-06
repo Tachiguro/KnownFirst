@@ -1,4 +1,5 @@
 using KnownFirst.Data.Migrations.Schema13;
+using KnownFirst.Data.Schema14;
 using KnownFirst.Data.Targets;
 using SQLite;
 
@@ -39,7 +40,7 @@ public static class DatabaseSchema
                     DatabaseSchemaCompatibilityReason.UnknownNonEmptyUnversionedDatabase);
             }
 
-            await Schema13CleanBootstrap.ApplyAsync(connection);
+            await Schema14CleanBootstrap.ApplyAsync(connection);
             return;
         }
 

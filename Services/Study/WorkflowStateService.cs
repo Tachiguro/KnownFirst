@@ -28,9 +28,9 @@ public sealed class WorkflowStateService(
         var capability = LearningSchemaCapability.Resolve(connection);
         var dueCards = capability switch
         {
-            LearningSchema14CapabilityResult when TargetLearningRepository.CountTargets(connection) > 0 =>
+            LearningSchema14CapabilityResult =>
                 TargetLearningRepository.CountDueTargets(connection, new DateTimeOffset(nowUtc)),
-            LearningSchema13CapabilityResult or LearningSchema14CapabilityResult =>
+            LearningSchema13CapabilityResult =>
                 Schema13LearningRepository.CountDueCards(connection, new DateTimeOffset(nowUtc)),
             _ => connection.Table<LearningCardEntity>().Count(card => card.State != CardState.New
                 && card.State != CardState.Suspended
@@ -39,9 +39,9 @@ public sealed class WorkflowStateService(
         };
         var nextDueAtUtc = capability switch
         {
-            LearningSchema14CapabilityResult when TargetLearningRepository.CountTargets(connection) > 0 =>
+            LearningSchema14CapabilityResult =>
                 TargetLearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime,
-            LearningSchema13CapabilityResult or LearningSchema14CapabilityResult =>
+            LearningSchema13CapabilityResult =>
                 Schema13LearningRepository.SelectNextDueAtUtc(connection)?.UtcDateTime,
             LearningSchema8CapabilityResult
                 or LearningSchema9CapabilityResult
@@ -61,9 +61,9 @@ public sealed class WorkflowStateService(
             : null;
         var preparedItems = capability switch
         {
-            LearningSchema14CapabilityResult when TargetLearningRepository.CountTargets(connection) > 0 =>
+            LearningSchema14CapabilityResult =>
                 TargetLearningRepository.CountNewWords(connection),
-            LearningSchema13CapabilityResult or LearningSchema14CapabilityResult =>
+            LearningSchema13CapabilityResult =>
                 Schema13LearningRepository.CountNewWords(connection),
             _ => connection.Table<LearningCardEntity>()
                 .Where(card => card.State == CardState.New)

@@ -1,5 +1,6 @@
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Migrations.Schema8;
+using KnownFirst.Data.Schema10;
 using KnownFirst.Data.Schema13;
 using KnownFirst.Data.Schema8;
 using KnownFirst.Data.Targets;
@@ -22,6 +23,7 @@ public static class Schema14BackupImportRepository
         public const string DuringTargetAnswerVariantInsertion = "Schema14DuringTargetAnswerVariantInsertion";
         public const string DuringTargetFsrsStateInsertion = "Schema14DuringTargetFsrsStateInsertion";
         public const string DuringTargetFsrsReviewHistoryInsertion = "Schema14DuringTargetFsrsReviewHistoryInsertion";
+        public const string DuringLearningSessionInsertion = "Schema14DuringLearningSessionInsertion";
         public const string DuringTargetReviewInsertion = "Schema14DuringTargetReviewInsertion";
         public const string BeforeFinalIntegrityValidation = "Schema14BeforeFinalIntegrityValidation";
     }
@@ -53,6 +55,11 @@ public static class Schema14BackupImportRepository
         BackupArchiveWriterV4.ValidatePayloadGraphV4(payload);
         ValidateEmptyTarget(connection);
 
+        var baseWorkflows = new BackupWorkflowDataV2(
+            payload.Workflows.VocabularyReviews,
+            payload.Workflows.PreparationBatches,
+            LearningSessions: []);
+
         var basePayload = new BackupPayloadV2(
             payload.SourceMaterials,
             payload.Vocabulary,
@@ -62,7 +69,7 @@ public static class Schema14BackupImportRepository
             [],
             [],
             new BackupLearningDataV2([], []),
-            payload.Workflows,
+            baseWorkflows,
             payload.DerivedTermEvidence,
             payload.Extensions);
 
@@ -203,7 +210,76 @@ public static class Schema14BackupImportRepository
             failureInjector?.AtCheckpoint(Checkpoints.DuringTargetFsrsReviewHistoryInsertion);
         }
 
-        var learningSessionIds = maps.LearningSessionIds ?? throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+        var learningSessionIds = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var session in payload.Workflows.LearningSessions)
+        {
+            var sessionStableId = LearningWorkflowStableId.IsValid(session.StableId)
+                ? session.StableId!
+                : LearningWorkflowStableId.NewGuidForm();
+
+            var sessionInsert = Schema10LearningIdentityWriter.BuildSessionInsert(
+                connection,
+                (int)BackupEnumMappings.ToPersistence(session.Status),
+                session.TotalCards,
+                session.CompletedCards,
+                session.AgainCount,
+                session.HardCount,
+                session.GoodCount,
+                session.EasyCount,
+                session.StartedAtUtc,
+                session.UpdatedAtUtc,
+                session.CompletedAtUtc,
+                sessionStableId);
+
+            ExecuteMutation(
+                connection,
+                sessionInsert.Sql,
+                cancellationToken,
+                failureInjector,
+                ref mutationCount,
+                sessionInsert.Arguments);
+
+            var sessionId = (int)connection.ExecuteScalar<long>("SELECT last_insert_rowid()");
+            learningSessionIds.Add(session.Id, sessionId);
+
+            foreach (var item in session.QueueItems.OrderBy(item => item.QueueOrder))
+            {
+                var targetLocalId = RequireId(targetIds, item.CardId);
+                int? variantLocalId = item.TargetAnswerVariantId is not null
+                    ? RequireId(variantIds, item.TargetAnswerVariantId)
+                    : null;
+                var queueStableId = LearningWorkflowStableId.IsValid(item.StableId)
+                    ? item.StableId!
+                    : LearningWorkflowStableId.NewGuidForm();
+
+                var queueInsert = Schema10LearningIdentityWriter.BuildQueueInsert(
+                    connection,
+                    sessionId,
+                    targetLocalId,
+                    item.QueueOrder,
+                    item.IsDueCard,
+                    item.IsAgainRepeat,
+                    item.AnswerRevealed,
+                    item.SpellingChecked,
+                    item.SpellingCorrect,
+                    item.IsCompleted,
+                    item.Rating is null ? null : (int?)BackupEnumMappings.ToPersistence(item.Rating.Value),
+                    item.CompletedAtUtc,
+                    variantLocalId,
+                    queueStableId);
+
+                ExecuteMutation(
+                    connection,
+                    queueInsert.Sql,
+                    cancellationToken,
+                    failureInjector,
+                    ref mutationCount,
+                    queueInsert.Arguments);
+            }
+
+            failureInjector?.AtCheckpoint(Checkpoints.DuringLearningSessionInsertion);
+        }
+
         foreach (var review in payload.TargetReviews)
         {
             int? targetVariantId = review.TargetAnswerVariantId is not null
@@ -238,7 +314,7 @@ public static class Schema14BackupImportRepository
         }
 
         failureInjector?.AtCheckpoint(Checkpoints.BeforeFinalIntegrityValidation);
-        ValidateNativeV4PostWrite(connection, payload, maps, targetIds, variantIds);
+        ValidateNativeV4PostWrite(connection, payload, maps, targetIds, variantIds, learningSessionIds);
     }
 
     private static void ValidateEmptyTarget(SQLiteConnection connection)
@@ -260,7 +336,8 @@ public static class Schema14BackupImportRepository
         BackupPayloadV4 payload,
         Schema8BackupImportMaps maps,
         IReadOnlyDictionary<string, int> targetIds,
-        IReadOnlyDictionary<string, int> variantIds)
+        IReadOnlyDictionary<string, int> variantIds,
+        IReadOnlyDictionary<string, int> learningSessionIds)
     {
         string? shapeFailure = null;
         string? targetShapeFailure = null;
@@ -284,6 +361,8 @@ public static class Schema14BackupImportRepository
         RequireCount(connection, "TargetFsrsStates", payload.TargetFsrsStates.Count);
         RequireCount(connection, "TargetFsrsReviewHistoryEntries", payload.TargetFsrsReviewHistoryEntries.Count);
         RequireCount(connection, "TargetReviews", payload.TargetReviews.Count);
+        RequireCount(connection, "LearningSessions", payload.Workflows.LearningSessions.Count);
+        RequireCount(connection, "LearningSessionCards", payload.Workflows.LearningSessions.Sum(s => s.QueueItems.Count));
 
         foreach (var control in payload.WordLearningControls)
         {
@@ -390,6 +469,92 @@ public static class Schema14BackupImportRepository
 
             RequireEqual(Schema13TimestampCodec.FormatUtc(expected.ReviewedAtUtc), actual.ReviewedAtUtc);
         }
+
+        foreach (var session in payload.Workflows.LearningSessions)
+        {
+            var localSessionId = RequireId(learningSessionIds, session.Id);
+            var actual = connection.Query<NativeLearningSessionCheckRow>(
+                "SELECT Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StableId FROM LearningSessions WHERE Id = ?",
+                localSessionId).SingleOrDefault()
+                ?? throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+
+            if (actual.Status != (int)BackupEnumMappings.ToPersistence(session.Status)
+                || actual.TotalCards != session.TotalCards
+                || actual.CompletedCards != session.CompletedCards
+                || actual.AgainCount != session.AgainCount
+                || actual.HardCount != session.HardCount
+                || actual.GoodCount != session.GoodCount
+                || actual.EasyCount != session.EasyCount)
+            {
+                throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+            }
+
+            if (session.StableId is not null && actual.StableId != session.StableId)
+            {
+                throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+            }
+
+            foreach (var item in session.QueueItems)
+            {
+                var targetLocalId = RequireId(targetIds, item.CardId);
+                int? variantLocalId = item.TargetAnswerVariantId is not null
+                    ? RequireId(variantIds, item.TargetAnswerVariantId)
+                    : null;
+
+                var actualQueue = connection.Query<NativeQueueItemCheckRow>(
+                    "SELECT SessionId, CardId, QueueOrder, IsDueCard, IsAgainRepeat, AnswerRevealed, SpellingChecked, SpellingCorrect, IsCompleted, Rating, TargetAnswerVariantId, StableId FROM LearningSessionCards WHERE SessionId = ? AND QueueOrder = ?",
+                    localSessionId, item.QueueOrder).SingleOrDefault()
+                    ?? throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+
+                if (actualQueue.CardId != targetLocalId
+                    || actualQueue.TargetAnswerVariantId != variantLocalId
+                    || (actualQueue.IsDueCard == 1) != item.IsDueCard
+                    || (actualQueue.IsAgainRepeat == 1) != item.IsAgainRepeat
+                    || (actualQueue.AnswerRevealed == 1) != item.AnswerRevealed
+                    || (actualQueue.SpellingChecked == 1) != item.SpellingChecked
+                    || (actualQueue.SpellingCorrect == 1) != item.SpellingCorrect
+                    || (actualQueue.IsCompleted == 1) != item.IsCompleted
+                    || actualQueue.Rating != (item.Rating is null ? null : (int?)BackupEnumMappings.ToPersistence(item.Rating.Value)))
+                {
+                    throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+                }
+
+                if (item.StableId is not null && actualQueue.StableId != item.StableId)
+                {
+                    throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+                }
+            }
+        }
+
+        foreach (var review in payload.TargetReviews)
+        {
+            var actual = connection.Query<NativeTargetReviewCheckRow>(
+                "SELECT StableId, TargetId, SessionId, Rating, WasTypedAnswer, WasCorrect, IsSessionRepeat, TargetAnswerVariantId, MatchedAnswerVariantId, ReviewedAtUtc, DueAtUtc FROM TargetReviews WHERE StableId = ?",
+                review.StableId).SingleOrDefault()
+                ?? throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+
+            int? targetVariantId = review.TargetAnswerVariantId is not null
+                ? RequireId(variantIds, review.TargetAnswerVariantId)
+                : null;
+            int? matchedVariantId = review.MatchedAnswerVariantId is not null
+                ? RequireId(variantIds, review.MatchedAnswerVariantId)
+                : null;
+
+            if (actual.TargetId != RequireId(targetIds, review.TargetId)
+                || actual.SessionId != RequireId(learningSessionIds, review.SessionId)
+                || actual.Rating != (int)BackupEnumMappings.ToPersistence(review.Rating)
+                || (actual.WasTypedAnswer == 1) != review.WasTypedAnswer
+                || (actual.WasCorrect == 1) != review.WasCorrect
+                || (actual.IsSessionRepeat == 1) != review.IsSessionRepeat
+                || actual.TargetAnswerVariantId != targetVariantId
+                || actual.MatchedAnswerVariantId != matchedVariantId)
+            {
+                throw new BackupFormatException(BackupErrorCodes.InvariantViolation);
+            }
+
+            RequireEqual(Schema13TimestampCodec.FormatUtc(review.ReviewedAtUtc), actual.ReviewedAtUtc);
+            RequireEqual(Schema13TimestampCodec.FormatUtc(review.DueAtUtc), actual.DueAtUtc);
+        }
     }
 
     private static void RequireCount(SQLiteConnection connection, string table, int expected)
@@ -486,5 +651,48 @@ public static class Schema14BackupImportRepository
         public int SequenceNumber { get; set; }
         public int Rating { get; set; }
         public string ReviewedAtUtc { get; set; } = string.Empty;
+    }
+
+    private sealed class NativeLearningSessionCheckRow
+    {
+        public int Status { get; set; }
+        public int TotalCards { get; set; }
+        public int CompletedCards { get; set; }
+        public int AgainCount { get; set; }
+        public int HardCount { get; set; }
+        public int GoodCount { get; set; }
+        public int EasyCount { get; set; }
+        public string? StableId { get; set; }
+    }
+
+    private sealed class NativeQueueItemCheckRow
+    {
+        public int SessionId { get; set; }
+        public int CardId { get; set; }
+        public int QueueOrder { get; set; }
+        public int IsDueCard { get; set; }
+        public int IsAgainRepeat { get; set; }
+        public int AnswerRevealed { get; set; }
+        public int SpellingChecked { get; set; }
+        public int SpellingCorrect { get; set; }
+        public int IsCompleted { get; set; }
+        public int? Rating { get; set; }
+        public int? TargetAnswerVariantId { get; set; }
+        public string? StableId { get; set; }
+    }
+
+    private sealed class NativeTargetReviewCheckRow
+    {
+        public string StableId { get; set; } = string.Empty;
+        public int TargetId { get; set; }
+        public int SessionId { get; set; }
+        public int Rating { get; set; }
+        public int WasTypedAnswer { get; set; }
+        public int WasCorrect { get; set; }
+        public int IsSessionRepeat { get; set; }
+        public int? TargetAnswerVariantId { get; set; }
+        public int? MatchedAnswerVariantId { get; set; }
+        public string ReviewedAtUtc { get; set; } = string.Empty;
+        public string DueAtUtc { get; set; } = string.Empty;
     }
 }

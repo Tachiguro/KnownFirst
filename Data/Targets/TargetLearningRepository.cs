@@ -43,56 +43,27 @@ public static class TargetLearningRepository
 
     public static int CountDueTargets(SQLiteConnection connection, DateTimeOffset nowUtc)
     {
-        var nowStr = Schema13TimestampCodec.FormatUtc(nowUtc);
-        return connection.ExecuteScalar<int>(
-            """
-            SELECT COUNT(DISTINCT t.Id)
-            FROM LearningTargets t
-            JOIN TargetFsrsStates f ON f.TargetId = t.Id
-            WHERE f.State IN (1, 2, 3)
-              AND f.DueAtUtc IS NOT NULL
-              AND f.DueAtUtc <= ?
-              AND EXISTS (
-                  SELECT 1 FROM TargetAnswerVariants v
-                  WHERE v.TargetId = t.Id AND v.Requirement = 0
-              )
-            """,
-            nowStr);
+        var now = Schema8Utc.Normalize(nowUtc.UtcDateTime);
+        return LoadActiveLearningTargets(connection)
+            .Count(target => target.State is Fsrs6CardState.Learning or Fsrs6CardState.Review or Fsrs6CardState.Relearning
+                && target.DueAtUtc.HasValue
+                && Schema8Utc.Normalize(target.DueAtUtc.Value.UtcDateTime) <= now);
     }
 
     public static int CountNewWords(SQLiteConnection connection) =>
-        connection.ExecuteScalar<int>(
-            """
-            SELECT COUNT(DISTINCT s.WordId)
-            FROM LearningTargets t
-            JOIN Senses s ON s.Id = t.SenseId
-            JOIN TargetFsrsStates f ON f.TargetId = t.Id
-            WHERE f.State = 0
-              AND EXISTS (
-                  SELECT 1 FROM TargetAnswerVariants v
-                  WHERE v.TargetId = t.Id AND v.Requirement = 0
-              )
-            """);
+        LoadActiveLearningTargets(connection)
+            .Where(target => target.State == Fsrs6CardState.New)
+            .Select(target => target.WordId)
+            .Distinct()
+            .Count();
 
-    public static DateTimeOffset? SelectNextDueAtUtc(SQLiteConnection connection)
-    {
-        var minDueStr = connection.ExecuteScalar<string?>(
-            """
-            SELECT MIN(f.DueAtUtc)
-            FROM LearningTargets t
-            JOIN TargetFsrsStates f ON f.TargetId = t.Id
-            WHERE f.State IN (1, 2, 3)
-              AND f.DueAtUtc IS NOT NULL
-              AND EXISTS (
-                  SELECT 1 FROM TargetAnswerVariants v
-                  WHERE v.TargetId = t.Id AND v.Requirement = 0
-              )
-            """);
-
-        return string.IsNullOrWhiteSpace(minDueStr)
-            ? null
-            : Schema13TimestampCodec.ParseUtcDateTimeOffset(minDueStr);
-    }
+    public static DateTimeOffset? SelectNextDueAtUtc(SQLiteConnection connection) =>
+        LoadActiveLearningTargets(connection)
+            .Where(target => target.State is Fsrs6CardState.Learning or Fsrs6CardState.Review or Fsrs6CardState.Relearning
+                && target.DueAtUtc.HasValue)
+            .Select(target => target.DueAtUtc)
+            .OrderBy(due => due)
+            .FirstOrDefault();
 
     public static IReadOnlyList<TargetLearningRow> LoadActiveLearningTargets(SQLiteConnection connection)
     {

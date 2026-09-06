@@ -66,8 +66,8 @@ public static class TargetAutomaticProgressionPolicy
         {
             if (state.IsRecheckArmed)
             {
-                // Invariant 10: one successful re-check restores the qualified low-friction state
-                if (reviewEvent.WasCorrect && reviewEvent.Rating != ReviewRating.Again)
+                // Invariant 10: one successful typed re-check restores the qualified low-friction state
+                if (reviewEvent.WasTypedAnswer && reviewEvent.WasCorrect && reviewEvent.Rating != ReviewRating.Again)
                 {
                     return state with
                     {
@@ -76,15 +76,21 @@ public static class TargetAutomaticProgressionPolicy
                     };
                 }
 
-                // Failed re-check: lapse out of qualified maintenance back to initial recall qualification
-                return state with
+                if (reviewEvent.Rating == ReviewRating.Again || (reviewEvent.WasTypedAnswer && !reviewEvent.WasCorrect))
                 {
-                    IsTypingQualified = false,
-                    IsRecheckArmed = false,
-                    ConsecutiveRecallSuccesses = 0,
-                    ConsecutiveTypingSuccesses = 0,
-                    InteractionMode = LearningInteractionMode.Reading
-                };
+                    // Failed re-check: lapse out of qualified maintenance back to initial recall qualification
+                    return state with
+                    {
+                        IsTypingQualified = false,
+                        IsRecheckArmed = false,
+                        ConsecutiveRecallSuccesses = 0,
+                        ConsecutiveTypingSuccesses = 0,
+                        InteractionMode = LearningInteractionMode.Reading
+                    };
+                }
+
+                // Non-typed successful recall: does not disarm re-check or lapse qualified status
+                return state;
             }
 
             // Routine qualified maintenance:
@@ -107,7 +113,7 @@ public static class TargetAutomaticProgressionPolicy
         if (state.InteractionMode == LearningInteractionMode.Typing)
         {
             // Invariant 6: two successful typing checks on distinct scheduled review events qualify typing
-            if (reviewEvent.WasCorrect && reviewEvent.Rating != ReviewRating.Again)
+            if (reviewEvent.WasTypedAnswer && reviewEvent.WasCorrect && reviewEvent.Rating != ReviewRating.Again)
             {
                 var successes = Math.Min(
                     RequiredConsecutiveTypingSuccesses,
@@ -127,13 +133,19 @@ public static class TargetAutomaticProgressionPolicy
                 return state with { ConsecutiveTypingSuccesses = successes };
             }
 
-            // Failed typing check or lapse during typing qualification resets recall qualification
-            return state with
+            if (reviewEvent.Rating == ReviewRating.Again || (reviewEvent.WasTypedAnswer && !reviewEvent.WasCorrect))
             {
-                InteractionMode = LearningInteractionMode.Reading,
-                ConsecutiveRecallSuccesses = 0,
-                ConsecutiveTypingSuccesses = 0
-            };
+                // Failed typing check or lapse during typing qualification resets recall qualification
+                return state with
+                {
+                    InteractionMode = LearningInteractionMode.Reading,
+                    ConsecutiveRecallSuccesses = 0,
+                    ConsecutiveTypingSuccesses = 0
+                };
+            }
+
+            // Non-typed successful recall: does not increment typing successes or reset qualification
+            return state;
         }
 
         // Branch 3: Target is in initial Recall qualification (Reading mode)

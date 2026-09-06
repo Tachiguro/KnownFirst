@@ -158,13 +158,14 @@ public sealed class LearningTargetRuntimeCutoverTests
     }
 
     [TestMethod]
-    public async Task Slice4_MarkPermanentlyKnown_CascadesAcrossTargetTables()
+    public async Task Slice4_MarkPermanentlyKnown_PreservesTargetFactsAndGraph()
     {
         await using var database = new ProductionInitializedDatabase();
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
-        await SeedPreparedWordWithTranslationAsync(database, clock);
+        var targetDueAtUtc = new DateTimeOffset(TestStartTime.AddMinutes(-30), TimeSpan.Zero);
+        await SeedWorkflowTargetAndLegacyStateAsync(database, targetDueAtUtc);
 
         var appSettings = new TestAppSettings(LearningMode.Automatic);
         var fsrs = new Fsrs6SchedulingService(clock);
@@ -175,33 +176,74 @@ public sealed class LearningTargetRuntimeCutoverTests
             fsrs,
             appSettings);
 
+        // Session start creates active session with due target
         var loadResult = await learningService.GetOrStartAsync();
         Assert.IsNotNull(loadResult.Card);
+        var wordId = loadResult.Card.WordId;
+
         await learningService.RevealAnswerAsync(loadResult.Card.QueueItemId);
         await learningService.RateAsync(loadResult.Card.QueueItemId, ReviewRating.Good);
 
+        // Verify pre-conditions: 1 review event, 1 history entry, 2 targets, 2 FSRS states
+        await database.ReadAsync(async conn =>
+        {
+            Assert.AreEqual(2, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningTargets"));
+            Assert.AreEqual(2, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetAnswerVariants"));
+            Assert.AreEqual(2, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetFsrsStates"));
+            Assert.AreEqual(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetFsrsReviewHistoryEntries"));
+            Assert.AreEqual(1, await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetReviews"));
+            return true;
+        });
+
         // Mark permanently known
-        var marked = await learningService.MarkPermanentlyKnownAsync(loadResult.Card.WordId, confirmed: true);
+        var marked = await learningService.MarkPermanentlyKnownAsync(wordId, confirmed: true);
         Assert.IsTrue(marked, "MarkPermanentlyKnownAsync must return true.");
 
         await database.ReadAsync(async conn =>
         {
+            var wordControlCount = await conn.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM WordLearningControls WHERE WordId = ?", wordId);
+            Assert.AreEqual(1, wordControlCount, "WordLearningControls must record 1 row for the known word.");
+
             var targetCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM LearningTargets");
-            Assert.AreEqual(0, targetCount, "LearningTargets must be empty after permanently known.");
+            Assert.AreEqual(2, targetCount, "LearningTargets must be preserved after permanently known.");
 
             var variantCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetAnswerVariants");
-            Assert.AreEqual(0, variantCount, "TargetAnswerVariants must be empty after permanently known.");
+            Assert.AreEqual(2, variantCount, "TargetAnswerVariants must be preserved after permanently known.");
 
             var fsrsCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetFsrsStates");
-            Assert.AreEqual(0, fsrsCount, "TargetFsrsStates must be empty after permanently known.");
+            Assert.AreEqual(2, fsrsCount, "TargetFsrsStates must be preserved after permanently known.");
 
             var historyCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetFsrsReviewHistoryEntries");
-            Assert.AreEqual(0, historyCount, "TargetFsrsReviewHistoryEntries must be empty after permanently known.");
+            Assert.AreEqual(1, historyCount, "TargetFsrsReviewHistoryEntries must be preserved after permanently known.");
 
             var reviewCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM TargetReviews");
-            Assert.AreEqual(0, reviewCount, "TargetReviews must be empty after permanently known.");
+            Assert.AreEqual(1, reviewCount, "TargetReviews must be preserved after permanently known.");
+
+            var incompleteQueueCount = await conn.ExecuteScalarAsync<int>(
+                """
+                SELECT COUNT(*)
+                FROM LearningSessionCards q
+                JOIN LearningTargets t ON t.Id = q.CardId
+                JOIN Senses s ON s.Id = t.SenseId
+                WHERE s.WordId = ? AND q.IsCompleted = 0
+                """, wordId);
+            Assert.AreEqual(0, incompleteQueueCount, "Incomplete queue items must be cleared.");
+
+            var fkErrors = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM pragma_foreign_key_check");
+            Assert.AreEqual(0, fkErrors, "Foreign key integrity must remain valid.");
+
             return true;
         });
+
+        // LearningService must not return the word for active learning
+        var nextLoad = await learningService.GetOrStartAsync();
+        Assert.IsNull(nextLoad.Card, "Word must not yield active target learning work while AlreadyKnown is set.");
+
+        // WorkflowState must report 0 due and 0 new items for the word
+        var workflowState = await new WorkflowStateService(database, clock).GetSnapshotAsync();
+        Assert.AreEqual(0, workflowState.DueCardCount, "Workflow state must count 0 due targets.");
+        Assert.AreEqual(0, workflowState.PreparedNewItemCount, "Workflow state must count 0 new targets.");
     }
 
     [TestMethod]
@@ -451,8 +493,8 @@ public sealed class LearningTargetRuntimeCutoverTests
         var marked = await learningService.MarkPermanentlyKnownAsync(seeded.WordId, confirmed: true);
         var state = await database.ReadAsync(async connection => new
         {
-            WordStatus = await connection.ExecuteScalarAsync<int>(
-                "SELECT Status FROM Words WHERE Id = ?", seeded.WordId),
+            WordControlCount = await connection.ExecuteScalarAsync<int>(
+                "SELECT COUNT(*) FROM WordLearningControls WHERE WordId = ?", seeded.WordId),
             LegacyCardCount = await connection.ExecuteScalarAsync<int>(
                 "SELECT COUNT(*) FROM LearningCards WHERE Id = ?", seeded.CardId),
             LegacyQueueCount = await connection.ExecuteScalarAsync<int>(
@@ -462,8 +504,8 @@ public sealed class LearningTargetRuntimeCutoverTests
         });
 
         Assert.IsTrue(marked);
-        Assert.AreEqual((int)WordStatus.Known, state.WordStatus,
-            "Target authority still applies the accepted Word-level permanent-known state.");
+        Assert.AreEqual(1, state.WordControlCount,
+            "Target authority records the clean WordLearningControls row.");
         Assert.AreEqual(1, state.LegacyCardCount,
             "Target authority must not delete the non-authoritative legacy card graph.");
         Assert.AreEqual(1, state.LegacyQueueCount,

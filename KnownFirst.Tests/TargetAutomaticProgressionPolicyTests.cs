@@ -316,4 +316,75 @@ public sealed class TargetAutomaticProgressionPolicyTests
         Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             new TargetInteractionEvent(T0, (ReviewRating)99, false, true));
     }
+
+    [TestMethod]
+    public void TypingQualification_NonTypedSuccessfulRecall_DoesNotAdvanceTypingQualificationOrQualify()
+    {
+        var state0 = TargetAutomaticProgressionState.Initial;
+        var inTypingQualification = TargetAutomaticProgressionPolicy.Replay(state0, new[]
+        {
+            TargetInteractionEvent.ScheduledRecall(T0, ReviewRating.Good),
+            TargetInteractionEvent.ScheduledRecall(T1, ReviewRating.Good)
+        });
+
+        Assert.AreEqual(2, inTypingQualification.ConsecutiveRecallSuccesses);
+        Assert.AreEqual(0, inTypingQualification.ConsecutiveTypingSuccesses);
+        Assert.AreEqual(LearningInteractionMode.Typing, inTypingQualification.InteractionMode);
+        Assert.IsFalse(inTypingQualification.IsTypingQualified);
+
+        var nonTypedEvent = TargetInteractionEvent.ScheduledRecall(T2, ReviewRating.Good);
+        Assert.IsFalse(nonTypedEvent.WasTypedAnswer);
+        Assert.IsTrue(nonTypedEvent.WasCorrect);
+        Assert.AreNotEqual(ReviewRating.Again, nonTypedEvent.Rating);
+
+        var stateAfter = TargetAutomaticProgressionPolicy.ApplyEvent(inTypingQualification, nonTypedEvent);
+
+        Assert.AreEqual(0, stateAfter.ConsecutiveTypingSuccesses,
+            "Non-typed recall must not increment typing qualification success counter.");
+        Assert.IsFalse(stateAfter.IsTypingQualified,
+            "Non-typed recall must not qualify typing.");
+        Assert.AreEqual(LearningInteractionMode.Typing, stateAfter.InteractionMode,
+            "Target remains in Typing qualification interaction mode.");
+    }
+
+    [TestMethod]
+    public void ArmedRecheck_NonTypedSuccessfulRecall_DoesNotDisarmRecheck()
+    {
+        var target = LearningTarget.CreateDefinition("de", "de");
+        var events = new[]
+        {
+            TargetInteractionEvent.ScheduledRecall(T0, ReviewRating.Good),
+            TargetInteractionEvent.ScheduledRecall(T1, ReviewRating.Good),
+            TargetInteractionEvent.ScheduledTyping(T2, ReviewRating.Good, wasCorrect: true),
+            TargetInteractionEvent.ScheduledTyping(T3, ReviewRating.Good, wasCorrect: true),
+            TargetInteractionEvent.ScheduledRecall(T4, ReviewRating.Again)
+        };
+
+        var armedState = TargetAutomaticProgressionPolicy.Replay(target, events);
+        Assert.IsTrue(armedState.IsTypingQualified);
+        Assert.IsTrue(armedState.IsRecheckArmed);
+        Assert.AreEqual(LearningInteractionMode.Typing, armedState.InteractionMode);
+
+        var nonTypedEvent = TargetInteractionEvent.ScheduledRecall(T5, ReviewRating.Good);
+        Assert.IsFalse(nonTypedEvent.WasTypedAnswer);
+        Assert.IsTrue(nonTypedEvent.WasCorrect);
+        Assert.AreNotEqual(ReviewRating.Again, nonTypedEvent.Rating);
+
+        var stateAfterNonTyped = TargetAutomaticProgressionPolicy.ApplyEvent(armedState, nonTypedEvent);
+
+        Assert.IsTrue(stateAfterNonTyped.IsTypingQualified);
+        Assert.IsTrue(stateAfterNonTyped.IsRecheckArmed,
+            "Non-typed successful recall must not disarm or satisfy typing re-check.");
+        Assert.AreEqual(LearningInteractionMode.Typing, stateAfterNonTyped.InteractionMode,
+            "Re-check remains armed requiring Typing.");
+
+        var typedSuccess = TargetInteractionEvent.ScheduledTyping(T5.AddDays(1), ReviewRating.Good, wasCorrect: true);
+        var stateAfterTyped = TargetAutomaticProgressionPolicy.ApplyEvent(stateAfterNonTyped, typedSuccess);
+
+        Assert.IsTrue(stateAfterTyped.IsTypingQualified);
+        Assert.IsFalse(stateAfterTyped.IsRecheckArmed,
+            "Genuine typed success satisfies and disarms the single re-check.");
+        Assert.AreEqual(LearningInteractionMode.Reading, stateAfterTyped.InteractionMode,
+            "Target returns to low-friction Reading maintenance.");
+    }
 }

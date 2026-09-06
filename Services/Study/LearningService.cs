@@ -3791,51 +3791,90 @@ public sealed class LearningService : ILearningService
 
     private bool MarkPermanentlyKnownSchema14(SQLiteConnection connection, int wordId)
     {
-        var word = connection.Find<WordEntity>(wordId);
-        if (word is null)
+        if (connection.Find<WordEntity>(wordId) is null)
         {
             return false;
         }
 
-        var senses = Schema8LearningRepository.LoadSensesForWord(connection, wordId);
-        var affectedLearningSessionIds = new HashSet<int>();
+        var current = WordLearningControlRepository.Load(connection, wordId);
+        var next = current.IsAlreadyKnown
+            ? current
+            : current.MarkAlreadyKnown(clock.UtcNow);
 
-        foreach (var sense in senses)
-        {
-            var targets = LearningTargetRepository.GetTargetsForSense(connection, sense.Id);
-            foreach (var target in targets)
-            {
-                var queueRows = connection.Query<Schema8QueueTargetRow>(
-                    "SELECT Id, SessionId FROM LearningSessionCards WHERE CardId = ?", target.Id);
-                foreach (var q in queueRows)
-                {
-                    affectedLearningSessionIds.Add(q.SessionId);
-                }
+        var affectedSessionIds = connection.Query<LearningSessionIdRow>(
+                """
+                SELECT DISTINCT q.SessionId AS Id
+                FROM LearningSessionCards q
+                JOIN LearningTargets t ON t.Id = q.CardId
+                JOIN Senses s ON s.Id = t.SenseId
+                WHERE s.WordId = ? AND q.IsCompleted = 0
+                ORDER BY q.SessionId
+                """,
+                wordId)
+            .Select(row => row.Id)
+            .ToHashSet();
 
-                connection.Execute("DELETE FROM LearningSessionCards WHERE CardId = ?", target.Id);
-                connection.Execute("DELETE FROM TargetReviews WHERE TargetId = ?", target.Id);
-                connection.Execute("DELETE FROM TargetFsrsReviewHistoryEntries WHERE TargetId = ?", target.Id);
-                connection.Execute("DELETE FROM TargetFsrsStates WHERE TargetId = ?", target.Id);
-                connection.Execute("DELETE FROM TargetAnswerVariants WHERE TargetId = ?", target.Id);
-                connection.Execute("DELETE FROM LearningTargets WHERE Id = ?", target.Id);
-            }
-        }
-
-        word.Status = WordStatus.Known;
-        word.PreparationState = PreparationState.Unprepared;
-        word.TotalOccurrenceCount = 0;
-        word.DocumentCount = 0;
-        word.AutomaticInteractionMode = LearningInteractionMode.Reading;
-        word.ConsecutiveRecallSuccessCount = 0;
-        word.ConsecutiveTypingSuccessCount = 0;
-        word.ConsecutiveTypingFailureCount = 0;
-        word.MasteryReviewExtensionScheduled = false;
-        word.UpdatedAt = clock.UtcNow;
-        connection.Update(word);
-
-        NormalizeLearningSessions(connection, affectedLearningSessionIds, clock.UtcNow);
-        DocumentCleanupOperations.CleanupEligibleDocuments(connection);
+        WordLearningControlRepository.Save(connection, wordId, next);
+        connection.Execute(
+            """
+            DELETE FROM LearningSessionCards
+            WHERE IsCompleted = 0
+              AND CardId IN (
+                  SELECT t.Id
+                  FROM LearningTargets t
+                  JOIN Senses s ON s.Id = t.SenseId
+                  WHERE s.WordId = ?
+              )
+            """,
+            wordId);
+        NormalizeSchema14LearningSessions(connection, affectedSessionIds, next.AlreadyKnown!.DecidedAtUtc);
         return true;
+    }
+
+    private static void NormalizeSchema14LearningSessions(
+        SQLiteConnection connection,
+        IReadOnlySet<int> sessionIds,
+        DateTime nowUtc)
+    {
+        foreach (var sessionId in sessionIds)
+        {
+            var session = connection.Find<LearningSessionEntity>(sessionId);
+            if (session is null)
+            {
+                continue;
+            }
+
+            var rows = connection.Table<LearningSessionCardEntity>()
+                .Where(item => item.SessionId == sessionId)
+                .ToList();
+            var reviews = connection.Table<TargetReviewEntity>()
+                .Where(item => item.SessionId == sessionId)
+                .ToList();
+            if (rows.Count == 0 && reviews.Count == 0)
+            {
+                connection.Delete(session);
+                continue;
+            }
+
+            session.TotalCards = rows.Count;
+            session.CompletedCards = rows.Count(row => row.IsCompleted);
+            session.AgainCount = reviews.Count(review => review.Rating == ReviewRating.Again);
+            session.HardCount = reviews.Count(review => review.Rating == ReviewRating.Hard);
+            session.GoodCount = reviews.Count(review => review.Rating == ReviewRating.Good);
+            session.EasyCount = reviews.Count(review => review.Rating == ReviewRating.Easy);
+            session.UpdatedAtUtc = nowUtc;
+            if (rows.Any(row => !row.IsCompleted))
+            {
+                session.Status = LearningSessionStatus.Active;
+                session.CompletedAtUtc = null;
+            }
+            else
+            {
+                session.Status = LearningSessionStatus.Completed;
+                session.CompletedAtUtc ??= nowUtc;
+            }
+            connection.Update(session);
+        }
     }
 
     private sealed class LearningSessionIdRow

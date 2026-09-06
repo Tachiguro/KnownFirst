@@ -246,12 +246,7 @@ public static class BackupModelMapperV4
             })
             .OrderBy(r => r.TargetId, StringComparer.Ordinal)
             .ThenBy(r => Schema8Utc.Normalize(r.Raw.ReviewedAtUtc).Ticks)
-            .ThenBy(r => (int)r.Rating)
-            .ThenBy(r => r.Raw.WasTypedAnswer)
-            .ThenBy(r => r.Raw.WasCorrect)
-            .ThenBy(r => r.Raw.IsSessionRepeat)
-            .ThenBy(r => r.SessionId, StringComparer.Ordinal)
-            .ThenBy(r => r.Raw.StableId, StringComparer.Ordinal)
+            .ThenBy(r => r.Raw.Id)
             .ToList();
 
         var targetReviews = new List<BackupTargetReview>(sortedReviews.Count);

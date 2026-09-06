@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
+using KnownFirst.Application.Learning;
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Learning.Fsrs6;
 using KnownFirst.Data;
@@ -12,8 +13,12 @@ using KnownFirst.Data.Schema14;
 using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 using KnownFirst.Models.Backup;
+using KnownFirst.Core.Settings;
+using KnownFirst.Core.Text;
+using KnownFirst.Services;
 using KnownFirst.Services.DataSafety;
 using KnownFirst.Services.DataSafety.Merge;
+using KnownFirst.Services.Study;
 using SQLite;
 
 namespace KnownFirst.Tests;
@@ -21,10 +26,52 @@ namespace KnownFirst.Tests;
 [TestClass]
 public sealed class BackupArchiveV4Tests
 {
+    private sealed class TestAppSettings(LearningMode mode) : IAppSettingsService
+    {
+        public int PreparationLimit => PreparationLimitPolicy.DefaultLimit;
+        public IReadOnlyList<int> SupportedPreparationLimits => [PreparationLimitPolicy.DefaultLimit];
+        public CardDirectionPreference CardDirection => CardDirectionPreference.Both;
+        public LearningMode LearningMode => mode;
+        public bool HasOnlineLookupConsent => false;
+        public bool EnhancedTermRecognitionEnabled => false;
+        public LearningTimezoneMode LearningTimezoneMode => LearningTimezoneMode.System;
+        public string? ExplicitLearningTimezoneId => null;
+        public int LearningDayCutoffMinutes => LearningDayConfiguration.DefaultCutoffMinutes;
+        public void SetPreparationLimit(int preparationLimit) => throw new NotSupportedException();
+        public void SetCardDirection(CardDirectionPreference preference) => throw new NotSupportedException();
+        public void SetLearningMode(LearningMode m) => throw new NotSupportedException();
+        public void GrantOnlineLookupConsent() => throw new NotSupportedException();
+        public void RevokeOnlineLookupConsent() => throw new NotSupportedException();
+        public void SetEnhancedTermRecognitionEnabled(bool enabled) => throw new NotSupportedException();
+        public void SetLearningTimezoneMode(LearningTimezoneMode m) => throw new NotSupportedException();
+        public void SetExplicitLearningTimezoneId(string? timezoneId) => throw new NotSupportedException();
+        public void SetLearningDayCutoffMinutes(int minutes) => throw new NotSupportedException();
+        public void Reset() => throw new NotSupportedException();
+    }
+
     private sealed class FakePlatformInfo : IBackupPlatformInfo
     {
         public BackupSourcePlatform SourcePlatform => BackupSourcePlatform.Windows;
         public string SourceAppVersion => "1.0.0-test";
+    }
+
+    private sealed class ObservableLegacyScheduler : ISpacedRepetitionScheduler
+    {
+        public int InvocationCount { get; private set; }
+
+        public CardSchedule Schedule(CardSchedule current, ReviewRating rating, DateTime reviewedAtUtc)
+        {
+            InvocationCount++;
+            return new CardSchedule(
+                current.State,
+                reviewedAtUtc.AddDays(1),
+                1,
+                2.5,
+                current.SuccessfulReviewCount + 1,
+                current.LapseCount,
+                reviewedAtUtc,
+                rating);
+        }
     }
 
     private sealed class TemporaryDatabaseAdapter(string rootDirectory, string path, SQLiteAsyncConnection connection, bool enableForeignKeys = false) : IKnownFirstDatabase, IAsyncDisposable
@@ -1458,18 +1505,45 @@ public sealed class BackupArchiveV4Tests
     public async Task Schema14Merge_CompatibleLongerTargetReviewStream_PostMergeAutomaticReplayMatchesLongerStream()
     {
         await using var db = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
-        var time1 = new DateTime(2026, 9, 4, 10, 0, 0, DateTimeKind.Utc);
+        var time1 = new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc);
+        var time1Repeat = new DateTime(2026, 9, 1, 10, 5, 0, DateTimeKind.Utc);
         var time1Str = Schema13TimestampCodec.FormatUtc(time1);
+        var time1RepeatStr = Schema13TimestampCodec.FormatUtc(time1Repeat);
+
         var replayed1 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
             new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good)
         ]);
-        var time2 = replayed1.DueAtUtc!.Value.UtcDateTime;
+        var dueTime1 = replayed1.DueAtUtc!.Value.UtcDateTime;
+        var dueTime1Str = Schema13TimestampCodec.FormatUtc(dueTime1);
+
+        var time2 = dueTime1;
         var time2Str = Schema13TimestampCodec.FormatUtc(time2);
         var replayed2 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
             new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good),
             new(new DateTimeOffset(time2, TimeSpan.Zero), ReviewRating.Good)
         ]);
         var dueTime2 = replayed2.DueAtUtc!.Value.UtcDateTime;
+        var dueTime2Str = Schema13TimestampCodec.FormatUtc(dueTime2);
+
+        var time3 = dueTime2;
+        var time3Str = Schema13TimestampCodec.FormatUtc(time3);
+        var replayed3 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time2, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time3, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var dueTime3 = replayed3.DueAtUtc!.Value.UtcDateTime;
+        var dueTime3Str = Schema13TimestampCodec.FormatUtc(dueTime3);
+
+        var time4 = dueTime3;
+        var time4Str = Schema13TimestampCodec.FormatUtc(time4);
+        var replayedFull = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time2, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time3, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time4, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var dueTimeFull = replayedFull.DueAtUtc!.Value.UtcDateTime;
 
         await db.RunInTransactionAsync(conn =>
         {
@@ -1491,7 +1565,7 @@ public sealed class BackupArchiveV4Tests
             conn.Execute("""
                 INSERT INTO TargetFsrsStates (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
                 VALUES (?, ?, ?, ?, ?, ?, ?);
-            """, targetId, (int)replayed1.State, replayed1.Stability, replayed1.Difficulty, time1Str, replayed1.StepIndex, time2Str);
+            """, targetId, (int)replayed1.State, replayed1.Stability, replayed1.Difficulty, time1Str, replayed1.StepIndex, dueTime1Str);
 
             conn.Execute("""
                 INSERT INTO TargetFsrsReviewHistoryEntries (StableId, TargetId, SequenceNumber, Rating, ReviewedAtUtc)
@@ -1500,53 +1574,77 @@ public sealed class BackupArchiveV4Tests
 
             conn.Execute("""
                 INSERT INTO LearningSessions (StableId, Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StartedAtUtc, UpdatedAtUtc, CompletedAtUtc)
-                VALUES ('11112222333344445555666677778888', 1, 1, 1, 0, 0, 1, 0, ?, ?, ?);
-            """, time1Str, time1Str, time1Str);
+                VALUES ('11112222333344445555666677778888', 1, 2, 2, 0, 0, 2, 0, ?, ?, ?);
+            """, time1Str, time1RepeatStr, time1RepeatStr);
             var sessionId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
 
             conn.Execute("""
                 INSERT INTO TargetReviews
                     (StableId, TargetId, SessionId, Rating, WasTypedAnswer, WasCorrect, IsSessionRepeat,
                      TargetAnswerVariantId, MatchedAnswerVariantId, ReviewedAtUtc, DueAtUtc)
-                VALUES ('trv-dest-1', ?, ?, 2, 0, 1, 0, ?, ?, ?, ?);
-            """, targetId, sessionId, variantId, variantId, time1Str, time2Str);
+                VALUES ('trv-dest-1', ?, ?, 2, 0, 1, 0, ?, ?, ?, ?),
+                       ('trv-dest-2', ?, ?, 2, 0, 1, 1, ?, ?, ?, ?);
+            """, targetId, sessionId, variantId, variantId, time1Str, dueTime1Str,
+                 targetId, sessionId, variantId, variantId, time1RepeatStr, dueTime1Str);
 
             return true;
         });
 
-        // Source archive has 2 reviews and 2 history entries
+        // Source archive has 5 reviews spanning recall -> typing qualification -> qualified reading maintenance,
+        // including a session repeat.
+        List<BackupTargetReview>? sourceArchiveReviews = null;
         using var archiveStream = BuildArchiveV4(payloadMutator: payload =>
         {
             var history = new List<BackupTargetFsrsReviewHistoryEntry>
             {
                 new("trh-remote-1", "trh-dest-1", "lt-1", 1, BackupReviewRating.Good, time1),
-                new("trh-remote-2", "trh-src-2", "lt-1", 2, BackupReviewRating.Good, time2)
+                new("trh-remote-2", "trh-src-2", "lt-1", 2, BackupReviewRating.Good, time2),
+                new("trh-remote-3", "trh-src-3", "lt-1", 3, BackupReviewRating.Good, time3),
+                new("trh-remote-4", "trh-src-4", "lt-1", 4, BackupReviewRating.Good, time4)
             };
             var states = new List<BackupTargetFsrsState>
             {
-                new("lt-1", BackupFsrsCardStateKind.Review, replayed2.Stability, replayed2.Difficulty, time2, replayed2.StepIndex, dueTime2)
+                new("lt-1", BackupFsrsCardStateKind.Review, replayedFull.Stability, replayedFull.Difficulty, time4, replayedFull.StepIndex, dueTimeFull)
             };
-            var reviews = new List<BackupTargetReview>
+            sourceArchiveReviews = new List<BackupTargetReview>
             {
+                // Review 1: Scheduled recall (success 1)
                 new("trv-remote-1", "trv-dest-1", "lt-1", "ls-000001", BackupReviewRating.Good,
                     WasTypedAnswer: false, WasCorrect: true, IsSessionRepeat: false,
                     TargetAnswerVariantId: "tav-1", MatchedAnswerVariantId: "tav-1",
-                    ReviewedAtUtc: time1, DueAtUtc: time2),
-                new("trv-remote-2", "trv-src-2", "lt-1", "ls-000001", BackupReviewRating.Good,
+                    ReviewedAtUtc: time1, DueAtUtc: dueTime1),
+                // Review 2: Session repeat (does not advance progression)
+                new("trv-remote-2", "trv-dest-2", "lt-1", "ls-000001", BackupReviewRating.Good,
+                    WasTypedAnswer: false, WasCorrect: true, IsSessionRepeat: true,
+                    TargetAnswerVariantId: "tav-1", MatchedAnswerVariantId: "tav-1",
+                    ReviewedAtUtc: time1Repeat, DueAtUtc: dueTime1),
+                // Review 3: Scheduled recall (success 2 -> transitions to Typing)
+                new("trv-remote-3", "trv-src-3", "lt-1", "ls-000002", BackupReviewRating.Good,
                     WasTypedAnswer: false, WasCorrect: true, IsSessionRepeat: false,
                     TargetAnswerVariantId: "tav-1", MatchedAnswerVariantId: "tav-1",
-                    ReviewedAtUtc: time2, DueAtUtc: dueTime2)
+                    ReviewedAtUtc: time2, DueAtUtc: dueTime2),
+                // Review 4: Scheduled typing (typing success 1)
+                new("trv-remote-4", "trv-src-4", "lt-1", "ls-000002", BackupReviewRating.Good,
+                    WasTypedAnswer: true, WasCorrect: true, IsSessionRepeat: false,
+                    TargetAnswerVariantId: "tav-1", MatchedAnswerVariantId: "tav-1",
+                    ReviewedAtUtc: time3, DueAtUtc: dueTime3),
+                // Review 5: Scheduled typing (typing success 2 -> qualifies -> Reading maintenance)
+                new("trv-remote-5", "trv-src-5", "lt-1", "ls-000002", BackupReviewRating.Good,
+                    WasTypedAnswer: true, WasCorrect: true, IsSessionRepeat: false,
+                    TargetAnswerVariantId: "tav-1", MatchedAnswerVariantId: "tav-1",
+                    ReviewedAtUtc: time4, DueAtUtc: dueTimeFull)
             };
             var sessions = new List<BackupLearningWorkflowV2>
             {
-                new("ls-000001", BackupLearningSessionStatus.Completed, 2, 2, 0, 0, 2, 0, time1, time2, time2, [], "22223333444455556666777788889999")
+                new("ls-000001", BackupLearningSessionStatus.Completed, 2, 2, 0, 0, 2, 0, time1, time1Repeat, time1Repeat, [], "11112222333344445555666677778888"),
+                new("ls-000002", BackupLearningSessionStatus.Completed, 3, 3, 0, 0, 3, 0, time2, time4, time4, [], "22223333444455556666777788889999")
             };
             var workflows = payload.Workflows with { LearningSessions = sessions };
             return payload with
             {
                 TargetFsrsReviewHistoryEntries = history,
                 TargetFsrsStates = states,
-                TargetReviews = reviews,
+                TargetReviews = sourceArchiveReviews,
                 Workflows = workflows
             };
         });
@@ -1558,19 +1656,432 @@ public sealed class BackupArchiveV4Tests
         await db.RunInTransactionAsync(conn =>
         {
             var reviews = conn.Table<TargetReviewEntity>().OrderBy(r => r.ReviewedAtUtc).ToList();
-            Assert.AreEqual(2, reviews.Count);
+            Assert.AreEqual(5, reviews.Count);
             Assert.AreEqual("trv-dest-1", reviews[0].StableId);
-            Assert.AreEqual("trv-src-2", reviews[1].StableId);
+            Assert.AreEqual("trv-dest-2", reviews[1].StableId);
+            Assert.AreEqual("trv-src-3", reviews[2].StableId);
+            Assert.AreEqual("trv-src-4", reviews[3].StableId);
+            Assert.AreEqual("trv-src-5", reviews[4].StableId);
 
             var history = conn.Table<TargetFsrsReviewHistoryEntryEntity>().OrderBy(h => h.SequenceNumber).ToList();
-            Assert.AreEqual(2, history.Count);
+            Assert.AreEqual(4, history.Count);
             Assert.AreEqual(1, history[0].SequenceNumber);
             Assert.AreEqual(2, history[1].SequenceNumber);
+            Assert.AreEqual(3, history[2].SequenceNumber);
+            Assert.AreEqual(4, history[3].SequenceNumber);
 
             var state = conn.Table<TargetFsrsStateEntity>().Single();
-            Assert.AreEqual(replayed2.State, state.State);
-            Assert.AreEqual(replayed2.Stability!.Value, state.Stability!.Value, 0.0001);
-            Assert.AreEqual(replayed2.Difficulty!.Value, state.Difficulty!.Value, 0.0001);
+            Assert.AreEqual(replayedFull.State, state.State);
+            Assert.AreEqual(replayedFull.Stability!.Value, state.Stability!.Value, 0.0001);
+            Assert.AreEqual(replayedFull.Difficulty!.Value, state.Difficulty!.Value, 0.0001);
+
+            // Verify TargetAutomaticProgressionPolicy replay on merged destination reviews matches source replay
+            var destEvents = reviews.Select(r => new TargetInteractionEvent(
+                Schema13TimestampCodec.ParseUtcDateTimeOffset(r.ReviewedAtUtc),
+                (ReviewRating)r.Rating,
+                r.WasTypedAnswer,
+                r.WasCorrect,
+                r.IsSessionRepeat)).ToList();
+
+            var sourceEvents = sourceArchiveReviews!.Select(r => new TargetInteractionEvent(
+                new DateTimeOffset(DateTime.SpecifyKind(r.ReviewedAtUtc, DateTimeKind.Utc), TimeSpan.Zero),
+                (ReviewRating)(int)r.Rating,
+                r.WasTypedAnswer,
+                r.WasCorrect,
+                r.IsSessionRepeat)).ToList();
+
+            var destProgression = TargetAutomaticProgressionPolicy.Replay(TargetAutomaticProgressionState.Initial, destEvents);
+            var sourceProgression = TargetAutomaticProgressionPolicy.Replay(TargetAutomaticProgressionState.Initial, sourceEvents);
+
+            Assert.AreEqual(sourceProgression.ConsecutiveRecallSuccesses, destProgression.ConsecutiveRecallSuccesses);
+            Assert.AreEqual(sourceProgression.ConsecutiveTypingSuccesses, destProgression.ConsecutiveTypingSuccesses);
+            Assert.AreEqual(sourceProgression.IsTypingQualified, destProgression.IsTypingQualified);
+            Assert.AreEqual(sourceProgression.IsRecheckArmed, destProgression.IsRecheckArmed);
+            Assert.AreEqual(sourceProgression.InteractionMode, destProgression.InteractionMode);
+            Assert.AreEqual(sourceProgression.TypingOptOut, destProgression.TypingOptOut);
+
+            Assert.IsTrue(destProgression.IsTypingQualified);
+            Assert.AreEqual(2, destProgression.ConsecutiveRecallSuccesses);
+            Assert.AreEqual(2, destProgression.ConsecutiveTypingSuccesses);
+            Assert.AreEqual(LearningInteractionMode.Reading, destProgression.InteractionMode);
+            Assert.IsFalse(destProgression.IsRecheckArmed);
+
+            return true;
+        });
+    }
+
+    [TestMethod]
+    public async Task CurrentBackup_Schema14_TargetReviews_PreBackupReplayMatchesPostRestoreReplay_IncludingSessionRepeat()
+    {
+        await using var sourceDb = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var time1 = new DateTime(2026, 9, 1, 10, 0, 0, DateTimeKind.Utc);
+        var time1Repeat = new DateTime(2026, 9, 1, 10, 5, 0, DateTimeKind.Utc);
+        var time1Str = Schema13TimestampCodec.FormatUtc(time1);
+        var time1RepeatStr = Schema13TimestampCodec.FormatUtc(time1Repeat);
+
+        var replayed1 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var dueTime1 = replayed1.DueAtUtc!.Value.UtcDateTime;
+        var dueTime1Str = Schema13TimestampCodec.FormatUtc(dueTime1);
+
+        var time2 = dueTime1;
+        var time2Str = Schema13TimestampCodec.FormatUtc(time2);
+        var replayed2 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time2, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var dueTime2 = replayed2.DueAtUtc!.Value.UtcDateTime;
+        var dueTime2Str = Schema13TimestampCodec.FormatUtc(dueTime2);
+
+        var time3 = dueTime2;
+        var time3Str = Schema13TimestampCodec.FormatUtc(time3);
+        var replayed3 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time2, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time3, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var dueTime3 = replayed3.DueAtUtc!.Value.UtcDateTime;
+        var dueTime3Str = Schema13TimestampCodec.FormatUtc(dueTime3);
+
+        var time4 = dueTime3;
+        var time4Str = Schema13TimestampCodec.FormatUtc(time4);
+        var replayedFull = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(time1, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time2, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time3, TimeSpan.Zero), ReviewRating.Good),
+            new(new DateTimeOffset(time4, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var dueTimeFull = replayedFull.DueAtUtc!.Value.UtcDateTime;
+        var dueTimeFullStr = Schema13TimestampCodec.FormatUtc(dueTimeFull);
+
+        await sourceDb.RunInTransactionAsync(conn =>
+        {
+            var wordId = InsertWord(conn, "network", time1Str);
+            var senseId = InsertSense(conn, wordId, time1Str);
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('st-lt-1', ?, 0, 'en', 'de', 0, ?, ?);
+            """, senseId, time1Str, time1Str);
+            var targetId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('st-tav-1', ?, 'de', 'Netzwerk', 'netzwerk', 0, 1, ?, ?, ?);
+            """, targetId, time1Str, time1Str, time1Str);
+            var variantId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsStates (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+            """, targetId, (int)replayedFull.State, replayedFull.Stability, replayedFull.Difficulty, time4Str, replayedFull.StepIndex, dueTimeFullStr);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsReviewHistoryEntries (StableId, TargetId, SequenceNumber, Rating, ReviewedAtUtc)
+                VALUES ('trh-1', ?, 1, 2, ?),
+                       ('trh-2', ?, 2, 2, ?),
+                       ('trh-3', ?, 3, 2, ?),
+                       ('trh-4', ?, 4, 2, ?);
+            """, targetId, time1Str, targetId, time2Str, targetId, time3Str, targetId, time4Str);
+
+            conn.Execute("""
+                INSERT INTO LearningSessions (StableId, Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StartedAtUtc, UpdatedAtUtc, CompletedAtUtc)
+                VALUES ('11112222333344445555666677778888', 1, 2, 2, 0, 0, 2, 0, ?, ?, ?),
+                       ('22223333444455556666777788889999', 1, 3, 3, 0, 0, 3, 0, ?, ?, ?);
+            """, time1Str, time1RepeatStr, time1RepeatStr, time2Str, time4Str, time4Str);
+            var session1Id = conn.ExecuteScalar<int>("SELECT Id FROM LearningSessions WHERE StableId = '11112222333344445555666677778888'");
+            var session2Id = conn.ExecuteScalar<int>("SELECT Id FROM LearningSessions WHERE StableId = '22223333444455556666777788889999'");
+
+            conn.Execute("""
+                INSERT INTO TargetReviews
+                    (StableId, TargetId, SessionId, Rating, WasTypedAnswer, WasCorrect, IsSessionRepeat,
+                     TargetAnswerVariantId, MatchedAnswerVariantId, ReviewedAtUtc, DueAtUtc)
+                VALUES ('trv-1', ?, ?, 2, 0, 1, 0, ?, ?, ?, ?),
+                       ('trv-2', ?, ?, 2, 0, 1, 1, ?, ?, ?, ?),
+                       ('trv-3', ?, ?, 2, 0, 1, 0, ?, ?, ?, ?),
+                       ('trv-4', ?, ?, 2, 1, 1, 0, ?, ?, ?, ?),
+                       ('trv-5', ?, ?, 2, 1, 1, 0, ?, ?, ?, ?);
+            """, targetId, session1Id, variantId, variantId, time1Str, dueTime1Str,
+                 targetId, session1Id, variantId, variantId, time1RepeatStr, dueTime1Str,
+                 targetId, session2Id, variantId, variantId, time2Str, dueTime2Str,
+                 targetId, session2Id, variantId, variantId, time3Str, dueTime3Str,
+                 targetId, session2Id, variantId, variantId, time4Str, dueTimeFullStr);
+
+            return true;
+        });
+
+        // 1. Replay pre-backup
+        TargetAutomaticProgressionState preBackupReplay = null!;
+        await sourceDb.RunInTransactionAsync(conn =>
+        {
+            var preReviews = conn.Table<TargetReviewEntity>().OrderBy(r => r.ReviewedAtUtc).ToList();
+            var events = preReviews.Select(r => new TargetInteractionEvent(
+                Schema13TimestampCodec.ParseUtcDateTimeOffset(r.ReviewedAtUtc),
+                (ReviewRating)r.Rating,
+                r.WasTypedAnswer,
+                r.WasCorrect,
+                r.IsSessionRepeat)).ToList();
+            preBackupReplay = TargetAutomaticProgressionPolicy.Replay(TargetAutomaticProgressionState.Initial, events);
+            return true;
+        });
+
+        Assert.IsTrue(preBackupReplay.IsTypingQualified);
+        Assert.AreEqual(2, preBackupReplay.ConsecutiveRecallSuccesses);
+        Assert.AreEqual(2, preBackupReplay.ConsecutiveTypingSuccesses);
+        Assert.AreEqual(LearningInteractionMode.Reading, preBackupReplay.InteractionMode);
+
+        // 2. Export V4 archive
+        var sourceService = new BackupService(sourceDb, new FakePlatformInfo());
+        using var archiveStream = new MemoryStream();
+        await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
+
+        // 3. Clean restore into fresh empty Schema 14 database
+        archiveStream.Position = 0;
+        await using var targetDb = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var targetService = new BackupService(targetDb, new FakePlatformInfo());
+        var restoreResult = await targetService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, restoreResult.Status);
+        Assert.AreEqual(PortableImportDisposition.RestoredIntoEmpty, restoreResult.Summary!.Disposition);
+
+        // 4. Replay post-restore and assert 100% field equality
+        await targetDb.RunInTransactionAsync(conn =>
+        {
+            var postReviews = conn.Table<TargetReviewEntity>().OrderBy(r => r.ReviewedAtUtc).ToList();
+            Assert.AreEqual(5, postReviews.Count);
+            var events = postReviews.Select(r => new TargetInteractionEvent(
+                Schema13TimestampCodec.ParseUtcDateTimeOffset(r.ReviewedAtUtc),
+                (ReviewRating)r.Rating,
+                r.WasTypedAnswer,
+                r.WasCorrect,
+                r.IsSessionRepeat)).ToList();
+            var postRestoreReplay = TargetAutomaticProgressionPolicy.Replay(TargetAutomaticProgressionState.Initial, events);
+
+            Assert.AreEqual(preBackupReplay.ConsecutiveRecallSuccesses, postRestoreReplay.ConsecutiveRecallSuccesses);
+            Assert.AreEqual(preBackupReplay.ConsecutiveTypingSuccesses, postRestoreReplay.ConsecutiveTypingSuccesses);
+            Assert.AreEqual(preBackupReplay.IsTypingQualified, postRestoreReplay.IsTypingQualified);
+            Assert.AreEqual(preBackupReplay.IsRecheckArmed, postRestoreReplay.IsRecheckArmed);
+            Assert.AreEqual(preBackupReplay.InteractionMode, postRestoreReplay.InteractionMode);
+            Assert.AreEqual(preBackupReplay.TypingOptOut, postRestoreReplay.TypingOptOut);
+
+            Assert.IsTrue(postRestoreReplay.IsTypingQualified);
+            Assert.AreEqual(2, postRestoreReplay.ConsecutiveRecallSuccesses);
+            Assert.AreEqual(2, postRestoreReplay.ConsecutiveTypingSuccesses);
+            Assert.AreEqual(LearningInteractionMode.Reading, postRestoreReplay.InteractionMode);
+            Assert.IsFalse(postRestoreReplay.IsRecheckArmed);
+
+            return true;
+        });
+    }
+
+    [TestMethod]
+    public async Task CurrentBackup_Schema14_PostRestore_WorkflowStateService_ReportsCorrectTargetCountsAndNextDue()
+    {
+        await using var sourceDb = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var baseTime = new DateTime(2026, 9, 6, 12, 0, 0, DateTimeKind.Utc);
+        var baseTimeStr = Schema13TimestampCodec.FormatUtc(baseTime);
+        var reviewTime = baseTime.AddDays(-10);
+        var reviewTimeStr = Schema13TimestampCodec.FormatUtc(reviewTime);
+
+        var replayedDue = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(reviewTime, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var targetDueAtUtc = replayedDue.DueAtUtc!.Value.UtcDateTime;
+        var targetDueAtUtcStr = Schema13TimestampCodec.FormatUtc(targetDueAtUtc);
+
+        await sourceDb.RunInTransactionAsync(conn =>
+        {
+            // Target 1: Due review target
+            var w1 = InsertWord(conn, "dueWord", baseTimeStr);
+            var s1 = InsertSense(conn, w1, baseTimeStr, "sense-due-1");
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('lt-due-1', ?, 0, 'en', 'de', 0, ?, ?);
+            """, s1, baseTimeStr, baseTimeStr);
+            var t1 = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('tav-due-1', ?, 'de', 'dueAnswer', 'dueanswer', 0, 1, ?, ?, ?);
+            """, t1, baseTimeStr, baseTimeStr, baseTimeStr);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsStates (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+            """, t1, (int)replayedDue.State, replayedDue.Stability, replayedDue.Difficulty, reviewTimeStr, replayedDue.StepIndex, targetDueAtUtcStr);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsReviewHistoryEntries (StableId, TargetId, SequenceNumber, Rating, ReviewedAtUtc)
+                VALUES ('trh-due-1', ?, 1, 2, ?);
+            """, t1, reviewTimeStr);
+
+            // Target 2: New target (state 0 / New)
+            var w2 = InsertWord(conn, "newWord", baseTimeStr);
+            var s2 = InsertSense(conn, w2, baseTimeStr, "sense-new-2");
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('lt-new-2', ?, 0, 'en', 'de', 0, ?, ?);
+            """, s2, baseTimeStr, baseTimeStr);
+            var t2 = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('tav-new-2', ?, 'de', 'newAnswer', 'newanswer', 0, 1, ?, ?, ?);
+            """, t2, baseTimeStr, baseTimeStr, baseTimeStr);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsStates (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
+                VALUES (?, 0, NULL, NULL, NULL, NULL, NULL);
+            """, t2);
+
+            return true;
+        });
+
+        // Export V4 archive
+        var sourceService = new BackupService(sourceDb, new FakePlatformInfo());
+        using var archiveStream = new MemoryStream();
+        await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
+
+        // Restore into fresh empty Schema 14 target database
+        archiveStream.Position = 0;
+        await using var targetDb = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var targetService = new BackupService(targetDb, new FakePlatformInfo());
+        var restoreResult = await targetService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, restoreResult.Status);
+
+        // Verify that restored LearningCards table is empty
+        await targetDb.RunInTransactionAsync(conn =>
+        {
+            var legacyCount = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningCards");
+            Assert.AreEqual(0, legacyCount, "Restored database must have empty LearningCards table.");
+            return true;
+        });
+
+        // Run WorkflowStateService on restored database
+        var workflowService = new WorkflowStateService(targetDb, new FakeClock(baseTime));
+        var snapshot = await workflowService.GetSnapshotAsync();
+
+        Assert.AreEqual(1, snapshot.DueCardCount, "DueCardCount must reflect exactly the 1 due LearningTarget.");
+        Assert.AreEqual(1, snapshot.PreparedNewItemCount, "PreparedNewItemCount must reflect exactly the 1 new LearningTarget word.");
+        Assert.AreEqual(targetDueAtUtc, snapshot.NextDueAtUtc, "NextDueAtUtc must come from the TargetFsrsState DueAtUtc.");
+    }
+
+    [TestMethod]
+    public async Task CurrentBackup_Schema14_PostRestore_LearningService_CompletesTargetReviewInteractionWithoutLegacyScheduler()
+    {
+        await using var sourceDb = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var baseTime = new DateTime(2026, 9, 6, 12, 0, 0, DateTimeKind.Utc);
+        var baseTimeStr = Schema13TimestampCodec.FormatUtc(baseTime);
+        var reviewTime = baseTime.AddDays(-10);
+        var reviewTimeStr = Schema13TimestampCodec.FormatUtc(reviewTime);
+
+        var replayedDue = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(reviewTime, TimeSpan.Zero), ReviewRating.Good)
+        ]);
+        var targetDueAtUtc = replayedDue.DueAtUtc!.Value.UtcDateTime;
+        var targetDueAtUtcStr = Schema13TimestampCodec.FormatUtc(targetDueAtUtc);
+
+        await sourceDb.RunInTransactionAsync(conn =>
+        {
+            var wordId = InsertWord(conn, "learningWord", baseTimeStr);
+            conn.Execute("UPDATE Words SET Status = 0, PreparationState = 2 WHERE Id = ?", wordId);
+
+            var senseId = InsertSense(conn, wordId, baseTimeStr, "sense-learn-1");
+            conn.Execute("""
+                INSERT INTO Meanings
+                    (WordId, SenseId, ExplanationLanguage, SourceLanguage, DisplayTerm, EncounteredSurfaceForm,
+                     GrammaticalRelationship, TokenKind, Translation, Definition, DictionaryExample, AdditionalNote,
+                     AcceptedAliasesJson, TranslationOrDefinition, Source, SourceProject, SourcePageTitle,
+                     Attribution, ConfirmedByUser, CreatedAt, UpdatedAt, PreparedAt, StableId)
+                VALUES (?, ?, 'de', 'en', 'learningWord', 'learningWord', '', 0, 'Antwort', 'Definition', '', '',
+                        '[]', 'Antwort', 'manual', '', '', '', 1, ?, ?, ?, 'meaning-learn-1');
+            """, wordId, senseId, baseTimeStr, baseTimeStr, baseTimeStr);
+
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('lt-learn-1', ?, 0, 'en', 'de', 0, ?, ?);
+            """, senseId, baseTimeStr, baseTimeStr);
+            var targetId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('tav-learn-1', ?, 'de', 'Antwort', 'antwort', 0, 1, ?, ?, ?);
+            """, targetId, baseTimeStr, baseTimeStr, baseTimeStr);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsStates (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+            """, targetId, (int)replayedDue.State, replayedDue.Stability, replayedDue.Difficulty, reviewTimeStr, replayedDue.StepIndex, targetDueAtUtcStr);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsReviewHistoryEntries (StableId, TargetId, SequenceNumber, Rating, ReviewedAtUtc)
+                VALUES ('trh-learn-1', ?, 1, 2, ?);
+            """, targetId, reviewTimeStr);
+
+            return true;
+        });
+
+        // Export V4 archive
+        var sourceService = new BackupService(sourceDb, new FakePlatformInfo());
+        using var archiveStream = new MemoryStream();
+        await sourceService.CreatePortableArchiveAsync(archiveStream, CancellationToken.None);
+
+        // Restore into fresh empty Schema 14 target database
+        archiveStream.Position = 0;
+        await using var targetDb = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var targetService = new BackupService(targetDb, new FakePlatformInfo());
+        var restoreResult = await targetService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, restoreResult.Status);
+
+        // Set up LearningService with spy ObservableLegacyScheduler on the restored database
+        var clock = new FakeClock(baseTime);
+        var observableScheduler = new ObservableLegacyScheduler();
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            targetDb,
+            observableScheduler,
+            new SpellingAnswerComparer(),
+            clock,
+            new TestAppSettings(LearningMode.Reading),
+            fsrs6SchedulingService: fsrs);
+
+        // Retrieve restored target work
+        var loadResult = await learningService.GetOrStartAsync();
+        Assert.IsNotNull(loadResult.Card, "Restored due target must be served by LearningService.");
+        Assert.AreEqual("learningWord", loadResult.Card.Term);
+        Assert.AreEqual(0, observableScheduler.InvocationCount, "Legacy scheduler must not be called during GetOrStart.");
+
+        // Execute reveal and rating
+        await learningService.RevealAnswerAsync(loadResult.Card.QueueItemId);
+        var rateResult = await learningService.RateAsync(loadResult.Card.QueueItemId, ReviewRating.Good);
+
+        Assert.AreEqual(0, observableScheduler.InvocationCount, "Legacy scheduler must not be called during target rating.");
+
+        // Verify target tables received the review and legacy tables remained untouched
+        await targetDb.RunInTransactionAsync(conn =>
+        {
+            var reviews = conn.Table<TargetReviewEntity>().ToList();
+            Assert.AreEqual(1, reviews.Count, "Exactly 1 target review must be persisted in TargetReviews.");
+            Assert.AreEqual(ReviewRating.Good, reviews[0].Rating);
+            Assert.AreEqual(baseTimeStr, reviews[0].ReviewedAtUtc);
+
+            var history = conn.Table<TargetFsrsReviewHistoryEntryEntity>().OrderBy(h => h.SequenceNumber).ToList();
+            Assert.AreEqual(2, history.Count, "TargetFsrsReviewHistoryEntries must now have 2 entries.");
+            Assert.AreEqual(2, history[1].SequenceNumber);
+            Assert.AreEqual(ReviewRating.Good, history[1].Rating);
+
+            var fsrsState = conn.Table<TargetFsrsStateEntity>().Single();
+            Assert.AreEqual(baseTimeStr, fsrsState.LastReviewedAtUtc);
+            Assert.IsTrue(fsrsState.Stability > replayedDue.Stability, "Target FSRS stability must increase after Good rating.");
+
+            var legacyReviewCount = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningReviews");
+            var legacyCardCount = conn.ExecuteScalar<int>("SELECT COUNT(*) FROM LearningCards");
+            Assert.AreEqual(0, legacyReviewCount, "Legacy LearningReviews table must remain untouched (0 rows).");
+            Assert.AreEqual(0, legacyCardCount, "Legacy LearningCards table must remain untouched (0 rows).");
 
             return true;
         });
@@ -1581,11 +2092,9 @@ public sealed class BackupArchiveV4Tests
     {
         await using var sourceDb = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
         var time = new DateTime(2026, 9, 4, 10, 0, 0, DateTimeKind.Utc);
+        var timeRepeat = time.AddMinutes(5);
         var timeStr = Schema13TimestampCodec.FormatUtc(time);
-
-        int wordId = 0, sense1Id = 0, sense2Id = 0, meaning1Id = 0;
-        int target1Id = 0, target2Id = 0, variant1Id = 0, variant2Id = 0;
-        int sessionId = 0;
+        var timeRepeatStr = Schema13TimestampCodec.FormatUtc(timeRepeat);
 
         var replayed1 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
             new(new DateTimeOffset(time, TimeSpan.Zero), ReviewRating.Good)
@@ -1594,16 +2103,29 @@ public sealed class BackupArchiveV4Tests
         var dueTime1Str = Schema13TimestampCodec.FormatUtc(dueTime1);
 
         var replayed2 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
-            new(new DateTimeOffset(time, TimeSpan.Zero), ReviewRating.Hard)
+            new(new DateTimeOffset(time, TimeSpan.Zero), ReviewRating.Again)
         ]);
         var dueTime2 = replayed2.DueAtUtc!.Value.UtcDateTime;
         var dueTime2Str = Schema13TimestampCodec.FormatUtc(dueTime2);
 
+        var replayed3 = new Fsrs6Replayer().Replay(Fsrs6Card.New(), [
+            new(new DateTimeOffset(time, TimeSpan.Zero), ReviewRating.Hard)
+        ]);
+        var dueTime3 = replayed3.DueAtUtc!.Value.UtcDateTime;
+        var dueTime3Str = Schema13TimestampCodec.FormatUtc(dueTime3);
+
+        int wordId = 0, sense1Id = 0, sense2Id = 0, meaning1Id = 0;
+        int target1Id = 0, target2Id = 0, target3Id = 0;
+        int variant1Id = 0, variant2aId = 0, variant2bId = 0, variant3Id = 0;
+        int sessionId = 0;
+
         await sourceDb.RunInTransactionAsync(conn =>
         {
-            wordId = InsertWord(conn, "network", timeStr);
-            sense1Id = InsertSense(conn, wordId, timeStr, "st-sense-1", "en", "de");
-            sense2Id = InsertSense(conn, wordId, timeStr, "st-sense-2", "en", "fr");
+            wordId = InsertWord(conn, "Netzwerk", timeStr);
+            conn.Execute("UPDATE Words SET Language = 'de' WHERE Id = ?", wordId);
+
+            sense1Id = InsertSense(conn, wordId, timeStr, "st-sense-1", "de", "de");
+            sense2Id = InsertSense(conn, wordId, timeStr, "st-sense-2", "de", "fr");
 
             conn.Execute("""
                 INSERT INTO Meanings
@@ -1611,23 +2133,24 @@ public sealed class BackupArchiveV4Tests
                      GrammaticalRelationship, TokenKind, Translation, Definition, DictionaryExample, AdditionalNote,
                      AcceptedAliasesJson, TranslationOrDefinition, Source, SourceProject, SourcePageTitle,
                      Attribution, ConfirmedByUser, CreatedAt, UpdatedAt, PreparedAt, StableId)
-                VALUES (?, ?, 'de', 'en', 'network', 'network', '', 0, 'Netzwerk', 'connected system', '', '',
-                        '[]', 'Netzwerk', 'manual', '', '', '', 1, ?, ?, ?, 'meaning-st-1');
+                VALUES (?, ?, 'de', 'de', 'Netzwerk', 'Netzwerk', '', 0, '', 'Zusammenschluss von Systemen', '', '',
+                        '[]', 'Zusammenschluss', 'manual', '', '', '', 1, ?, ?, ?, 'meaning-st-1');
             """, wordId, sense1Id, timeStr, timeStr, timeStr);
             meaning1Id = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
 
-            // Target 1: Definition, TypingOptOut: false, Variant SourceMeaningId: non-null
+            // Target 1: Definition (de -> de), TypingOptOut: false
             conn.Execute("""
                 INSERT INTO LearningTargets
                     (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
-                VALUES ('lt-multi-1', ?, 0, 'en', 'de', 0, ?, ?);
+                VALUES ('lt-multi-1', ?, 0, 'de', 'de', 0, ?, ?);
             """, sense1Id, timeStr, timeStr);
             target1Id = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
 
+            // Variant 1: Preferred required definition with SourceMeaningId
             conn.Execute("""
                 INSERT INTO TargetAnswerVariants
                     (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, SourceMeaningId, CreatedAtUtc, UpdatedAtUtc)
-                VALUES ('tav-multi-1', ?, 'de', 'Netzwerk', 'netzwerk', 0, 1, ?, ?, ?, ?);
+                VALUES ('tav-multi-1', ?, 'de', 'Zusammenschluss', 'zusammenschluss', 0, 1, ?, ?, ?, ?);
             """, target1Id, timeStr, meaning1Id, timeStr, timeStr);
             variant1Id = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
 
@@ -1643,20 +2166,23 @@ public sealed class BackupArchiveV4Tests
                 VALUES ('trh-multi-1', ?, 1, 2, ?);
             """, target1Id, timeStr);
 
-            // Target 2: Translation, TypingOptOut: true, Variant SourceMeaningId: null
+            // Target 2: Translation (de -> en), TypingOptOut: false, multiple variants (preferred + alternative)
             conn.Execute("""
                 INSERT INTO LearningTargets
                     (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
-                VALUES ('lt-multi-2', ?, 1, 'en', 'fr', 1, ?, ?);
-            """, sense2Id, timeStr, timeStr);
+                VALUES ('lt-multi-2', ?, 1, 'de', 'en', 0, ?, ?);
+            """, sense1Id, timeStr, timeStr);
             target2Id = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
 
             conn.Execute("""
                 INSERT INTO TargetAnswerVariants
                     (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, SourceMeaningId, CreatedAtUtc, UpdatedAtUtc)
-                VALUES ('tav-multi-2', ?, 'fr', 'Réseau', 'reseau', 0, 1, ?, NULL, ?, ?);
-            """, target2Id, timeStr, timeStr, timeStr);
-            variant2Id = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+                VALUES ('tav-multi-2a', ?, 'en', 'network', 'network', 0, 1, ?, NULL, ?, ?),
+                       ('tav-multi-2b', ?, 'en', 'mesh', 'mesh', 1, 0, NULL, NULL, ?, ?);
+            """, target2Id, timeStr, timeStr, timeStr,
+                 target2Id, timeStr, timeStr);
+            variant2aId = conn.ExecuteScalar<int>("SELECT Id FROM TargetAnswerVariants WHERE StableId = 'tav-multi-2a'");
+            variant2bId = conn.ExecuteScalar<int>("SELECT Id FROM TargetAnswerVariants WHERE StableId = 'tav-multi-2b'");
 
             conn.Execute("""
                 INSERT INTO TargetFsrsStates
@@ -1667,24 +2193,57 @@ public sealed class BackupArchiveV4Tests
             conn.Execute("""
                 INSERT INTO TargetFsrsReviewHistoryEntries
                     (StableId, TargetId, SequenceNumber, Rating, ReviewedAtUtc)
-                VALUES ('trh-multi-2', ?, 1, 1, ?);
+                VALUES ('trh-multi-2', ?, 1, 0, ?);
             """, target2Id, timeStr);
 
+            // Target 3: Translation (de -> fr), TypingOptOut: true
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('lt-multi-3', ?, 1, 'de', 'fr', 1, ?, ?);
+            """, sense2Id, timeStr, timeStr);
+            target3Id = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, SourceMeaningId, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('tav-multi-3', ?, 'fr', 'réseau', 'reseau', 0, 1, ?, NULL, ?, ?);
+            """, target3Id, timeStr, timeStr, timeStr);
+            variant3Id = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsStates
+                    (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
+                VALUES (?, ?, ?, ?, ?, ?, ?);
+            """, target3Id, (int)replayed3.State, replayed3.Stability, replayed3.Difficulty, timeStr, replayed3.StepIndex, dueTime3Str);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsReviewHistoryEntries
+                    (StableId, TargetId, SequenceNumber, Rating, ReviewedAtUtc)
+                VALUES ('trh-multi-3', ?, 1, 1, ?);
+            """, target3Id, timeStr);
+
+            // Session with 4 reviews
             conn.Execute("""
                 INSERT INTO LearningSessions
                     (StableId, Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StartedAtUtc, UpdatedAtUtc, CompletedAtUtc)
-                VALUES ('11112222333344445555666677778888', 1, 2, 2, 0, 1, 1, 0, ?, ?, ?);
-            """, timeStr, timeStr, timeStr);
+                VALUES ('11112222333344445555666677778888', 1, 4, 4, 1, 1, 2, 0, ?, ?, ?);
+            """, timeStr, timeRepeatStr, timeRepeatStr);
             sessionId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
 
+            // Reviews with nullable and non-null variant references, and session repeat
             conn.Execute("""
                 INSERT INTO TargetReviews
                     (StableId, TargetId, SessionId, Rating, WasTypedAnswer, WasCorrect, IsSessionRepeat,
                      TargetAnswerVariantId, MatchedAnswerVariantId, ReviewedAtUtc, DueAtUtc)
-                VALUES ('trv-multi-1', ?, ?, 2, 1, 1, 0, ?, ?, ?, ?),
-                       ('trv-multi-2', ?, ?, 1, 0, 0, 0, ?, ?, ?, ?);
+                VALUES ('trv-multi-1', ?, ?, 2, 0, 1, 0, ?, ?, ?, ?),
+                       ('trv-multi-2', ?, ?, 2, 0, 1, 1, ?, ?, ?, ?),
+                       ('trv-multi-3', ?, ?, 0, 1, 0, 0, ?, NULL, ?, ?),
+                       ('trv-multi-4', ?, ?, 1, 0, 1, 0, ?, ?, ?, ?);
             """, target1Id, sessionId, variant1Id, variant1Id, timeStr, dueTime1Str,
-                 target2Id, sessionId, variant2Id, variant2Id, timeStr, dueTime2Str);
+                 target1Id, sessionId, variant1Id, variant1Id, timeRepeatStr, dueTime1Str,
+                 target2Id, sessionId, variant2aId, timeStr, dueTime2Str,
+                 target3Id, sessionId, variant3Id, variant3Id, timeStr, dueTime3Str);
 
             conn.Execute("INSERT INTO WordLearningControls (WordId, DecidedAtUtc) VALUES (?, ?);", wordId, timeStr);
             conn.Execute("INSERT INTO SenseLearningControls (SenseId, DecidedAtUtc) VALUES (?, ?), (?, ?);", sense1Id, timeStr, sense2Id, timeStr);
@@ -1712,58 +2271,108 @@ public sealed class BackupArchiveV4Tests
         var restoreResult = await targetService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
         Assert.AreEqual(PortableImportDisposition.RestoredIntoEmpty, restoreResult.Summary!.Disposition);
 
-        // 3. Verify target database has exact records
+        // 3. Verify target database has exact distinct records
         await targetDb.RunInTransactionAsync(conn =>
         {
             Assert.IsTrue(Schema13ShapeValidator.IsValidDatabase(conn, out var s13Fail), $"Restored Schema13ShapeValidator: {s13Fail}");
             Assert.IsTrue(TargetPersistenceShapeValidator.Validate(conn, out var targetFail), $"Restored TargetPersistenceShapeValidator: {targetFail}");
 
             var targets = conn.Table<LearningTargetEntity>().OrderBy(t => t.StableId).ToList();
-            Assert.AreEqual(2, targets.Count);
+            Assert.AreEqual(3, targets.Count, "All 3 learning targets must remain distinct.");
+
             Assert.AreEqual("lt-multi-1", targets[0].StableId);
             Assert.AreEqual(LearningTargetKind.Definition, targets[0].TargetKind);
-            Assert.AreEqual("en", targets[0].SourceLanguage);
+            Assert.AreEqual("de", targets[0].SourceLanguage);
             Assert.AreEqual("de", targets[0].TargetLanguage);
             Assert.IsFalse(targets[0].TypingOptOut);
 
             Assert.AreEqual("lt-multi-2", targets[1].StableId);
             Assert.AreEqual(LearningTargetKind.Translation, targets[1].TargetKind);
-            Assert.AreEqual("en", targets[1].SourceLanguage);
-            Assert.AreEqual("fr", targets[1].TargetLanguage);
-            Assert.IsTrue(targets[1].TypingOptOut);
+            Assert.AreEqual("de", targets[1].SourceLanguage);
+            Assert.AreEqual("en", targets[1].TargetLanguage);
+            Assert.IsFalse(targets[1].TypingOptOut);
+
+            Assert.AreEqual("lt-multi-3", targets[2].StableId);
+            Assert.AreEqual(LearningTargetKind.Translation, targets[2].TargetKind);
+            Assert.AreEqual("de", targets[2].SourceLanguage);
+            Assert.AreEqual("fr", targets[2].TargetLanguage);
+            Assert.IsTrue(targets[2].TypingOptOut);
 
             var variants = conn.Table<TargetAnswerVariantEntity>().OrderBy(v => v.StableId).ToList();
-            Assert.AreEqual(2, variants.Count);
+            Assert.AreEqual(4, variants.Count, "All 4 answer variants must be restored.");
+
             Assert.AreEqual("tav-multi-1", variants[0].StableId);
             Assert.AreEqual(targets[0].Id, variants[0].TargetId);
-            Assert.AreEqual("Netzwerk", variants[0].DisplayText);
-            Assert.AreEqual("netzwerk", variants[0].NormalizedText);
+            Assert.AreEqual("Zusammenschluss", variants[0].DisplayText);
+            Assert.AreEqual("zusammenschluss", variants[0].NormalizedText);
+            Assert.IsTrue(variants[0].IsPreferred);
+            Assert.AreEqual(AnswerVariantRequirement.Required, variants[0].Requirement);
             Assert.IsNotNull(variants[0].SourceMeaningId, "Target 1 variant must have non-null SourceMeaningId.");
 
-            Assert.AreEqual("tav-multi-2", variants[1].StableId);
+            Assert.AreEqual("tav-multi-2a", variants[1].StableId);
             Assert.AreEqual(targets[1].Id, variants[1].TargetId);
-            Assert.AreEqual("Réseau", variants[1].DisplayText);
-            Assert.AreEqual("reseau", variants[1].NormalizedText);
-            Assert.IsNull(variants[1].SourceMeaningId, "Target 2 variant must have null SourceMeaningId.");
+            Assert.AreEqual("network", variants[1].DisplayText);
+            Assert.IsTrue(variants[1].IsPreferred);
+            Assert.AreEqual(AnswerVariantRequirement.Required, variants[1].Requirement);
+            Assert.IsNull(variants[1].SourceMeaningId);
+
+            Assert.AreEqual("tav-multi-2b", variants[2].StableId);
+            Assert.AreEqual(targets[1].Id, variants[2].TargetId);
+            Assert.AreEqual("mesh", variants[2].DisplayText);
+            Assert.IsFalse(variants[2].IsPreferred);
+            Assert.AreEqual(AnswerVariantRequirement.AcceptedOnly, variants[2].Requirement);
+            Assert.IsNull(variants[2].SourceMeaningId);
+
+            Assert.AreEqual("tav-multi-3", variants[3].StableId);
+            Assert.AreEqual(targets[2].Id, variants[3].TargetId);
+            Assert.AreEqual("réseau", variants[3].DisplayText);
+            Assert.IsTrue(variants[3].IsPreferred);
+            Assert.AreEqual(AnswerVariantRequirement.Required, variants[3].Requirement);
+            Assert.IsNull(variants[3].SourceMeaningId);
 
             var states = conn.Table<TargetFsrsStateEntity>().OrderBy(s => s.TargetId).ToList();
-            Assert.AreEqual(2, states.Count);
+            Assert.AreEqual(3, states.Count);
             Assert.AreEqual(replayed1.State, states[0].State);
             Assert.AreEqual(replayed1.Stability!.Value, states[0].Stability!.Value, 0.0001);
             Assert.AreEqual(replayed2.State, states[1].State);
             Assert.AreEqual(replayed2.Stability!.Value, states[1].Stability!.Value, 0.0001);
+            Assert.AreEqual(replayed3.State, states[2].State);
+            Assert.AreEqual(replayed3.Stability!.Value, states[2].Stability!.Value, 0.0001);
 
             var reviews = conn.Table<TargetReviewEntity>().OrderBy(r => r.StableId).ToList();
-            Assert.AreEqual(2, reviews.Count);
+            Assert.AreEqual(4, reviews.Count);
+
             Assert.AreEqual("trv-multi-1", reviews[0].StableId);
             Assert.AreEqual(ReviewRating.Good, reviews[0].Rating);
-            Assert.IsTrue(reviews[0].WasTypedAnswer);
+            Assert.IsFalse(reviews[0].WasTypedAnswer);
             Assert.IsTrue(reviews[0].WasCorrect);
+            Assert.IsFalse(reviews[0].IsSessionRepeat);
+            Assert.AreEqual(variants[0].Id, reviews[0].TargetAnswerVariantId);
+            Assert.AreEqual(variants[0].Id, reviews[0].MatchedAnswerVariantId);
 
             Assert.AreEqual("trv-multi-2", reviews[1].StableId);
-            Assert.AreEqual(ReviewRating.Hard, reviews[1].Rating);
+            Assert.AreEqual(ReviewRating.Good, reviews[1].Rating);
             Assert.IsFalse(reviews[1].WasTypedAnswer);
-            Assert.IsFalse(reviews[1].WasCorrect);
+            Assert.IsTrue(reviews[1].WasCorrect);
+            Assert.IsTrue(reviews[1].IsSessionRepeat);
+            Assert.AreEqual(variants[0].Id, reviews[1].TargetAnswerVariantId);
+            Assert.AreEqual(variants[0].Id, reviews[1].MatchedAnswerVariantId);
+
+            Assert.AreEqual("trv-multi-3", reviews[2].StableId);
+            Assert.AreEqual(ReviewRating.Again, reviews[2].Rating);
+            Assert.IsTrue(reviews[2].WasTypedAnswer);
+            Assert.IsFalse(reviews[2].WasCorrect);
+            Assert.IsFalse(reviews[2].IsSessionRepeat);
+            Assert.AreEqual(variants[1].Id, reviews[2].TargetAnswerVariantId);
+            Assert.IsNull(reviews[2].MatchedAnswerVariantId, "MatchedAnswerVariantId must be null for incorrect typed answer.");
+
+            Assert.AreEqual("trv-multi-4", reviews[3].StableId);
+            Assert.AreEqual(ReviewRating.Hard, reviews[3].Rating);
+            Assert.IsFalse(reviews[3].WasTypedAnswer);
+            Assert.IsTrue(reviews[3].WasCorrect);
+            Assert.IsFalse(reviews[3].IsSessionRepeat);
+            Assert.AreEqual(variants[3].Id, reviews[3].TargetAnswerVariantId);
+            Assert.AreEqual(variants[3].Id, reviews[3].MatchedAnswerVariantId);
 
             return true;
         });
@@ -2103,5 +2712,181 @@ public sealed class BackupArchiveV4Tests
         var ex = await Assert.ThrowsExactlyAsync<BackupFormatException>(() =>
             BackupArchiveReader.ValidateVersionedAsync(stream, CancellationToken.None));
         Assert.AreEqual(BackupErrorCodes.UnsupportedFormat, ex.Code);
+    }
+
+    [TestMethod]
+    public async Task Schema14Merge_CrossDatabaseEquivalentSenseWithDifferentStableIds_ReusesExistingTargetWithoutUniqueConstraintViolation()
+    {
+        await using var db = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var time = new DateTime(2026, 9, 4, 10, 0, 0, DateTimeKind.Utc);
+        var timeStr = Schema13TimestampCodec.FormatUtc(time);
+
+        int wordId = 0, senseId = 0, targetId = 0;
+        await db.RunInTransactionAsync(conn =>
+        {
+            wordId = InsertWord(conn, "network", timeStr);
+            senseId = InsertSense(conn, wordId, timeStr, stableId: "st-sense-dest-1");
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('st-lt-dest-1', ?, 0, 'en', 'de', 0, ?, ?);
+            """, senseId, timeStr, timeStr);
+            targetId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('st-tav-dest-1', ?, 'de', 'Netzwerk', 'netzwerk', 0, 1, ?, ?, ?);
+            """, targetId, timeStr, timeStr, timeStr);
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsStates (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
+                VALUES (?, 0, NULL, NULL, NULL, NULL, NULL);
+            """, targetId);
+
+            return true;
+        });
+
+        // Source archive has the semantically identical Sense but with different StableId "st-sense-source-1",
+        // and identical target (Definition en -> de) with different StableId "st-lt-source-1".
+        using var archiveStream = BuildArchiveV4(payloadMutator: payload =>
+        {
+            var senses = new List<BackupSense>
+            {
+                payload.Senses[0] with { StableId = "st-sense-source-1" }
+            };
+            var targets = new List<BackupLearningTarget>
+            {
+                payload.LearningTargets[0] with { StableId = "st-lt-source-1" }
+            };
+            return payload with
+            {
+                Senses = senses,
+                LearningTargets = targets
+            };
+        });
+
+        var preflight = new MergePreflightService(db);
+        var plan = await preflight.CreatePreflightPlanAsync(archiveStream, CancellationToken.None);
+
+        // Preflight must recognize existing destination target and NOT plan AddLearningTarget
+        Assert.IsNotNull(plan.Schema14Plan);
+        Assert.IsFalse(
+            plan.Schema14Plan.Actions.Any(a => a.Classification == Schema14MergeActionClassification.AddLearningTarget),
+            "Preflight must not plan AddLearningTarget when target semantically exists under equivalent Sense.");
+
+        // Import must execute successfully without UNIQUE constraint failure
+        archiveStream.Position = 0;
+        var backupService = new BackupService(db, new FakePlatformInfo());
+        var result = await backupService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, $"Merge failed with: {result.ErrorCode}");
+
+        // Existing target is reused, no duplicate target inserted
+        await db.ReadAsync(async conn =>
+        {
+            var targets = await conn.Table<LearningTargetEntity>().ToListAsync();
+            Assert.AreEqual(1, targets.Count, "Existing destination target must be reused without duplicate insertion.");
+            Assert.AreEqual("st-lt-dest-1", targets[0].StableId, "Destination target StableId must be preserved.");
+            return true;
+        });
+    }
+
+    [TestMethod]
+    public async Task Schema14Merge_EqualTimestampTargetReviews_PreservesArchiveCausalOrder_CompatiblePrefixSucceeds()
+    {
+        await using var db = await CreateValidSchema14DatabaseAsync(enableForeignKeys: true);
+        var time1 = new DateTime(2026, 9, 4, 10, 0, 0, DateTimeKind.Utc);
+        var time1Str = Schema13TimestampCodec.FormatUtc(time1);
+        var dueTime = time1.AddDays(1);
+        var dueTimeStr = Schema13TimestampCodec.FormatUtc(dueTime);
+
+        int targetId = 0, variantId = 0, sessionId = 0;
+        await db.RunInTransactionAsync(conn =>
+        {
+            var wordId = InsertWord(conn, "network", time1Str);
+            var senseId = InsertSense(conn, wordId, time1Str);
+            conn.Execute("""
+                INSERT INTO LearningTargets
+                    (StableId, SenseId, TargetKind, SourceLanguage, TargetLanguage, TypingOptOut, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('st-lt-1', ?, 0, 'en', 'de', 0, ?, ?);
+            """, senseId, time1Str, time1Str);
+            targetId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            conn.Execute("""
+                INSERT INTO TargetAnswerVariants
+                    (StableId, TargetId, AnswerLanguage, DisplayText, NormalizedText, Requirement, IsPreferred, RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('st-tav-1', ?, 'de', 'Netzwerk', 'netzwerk', 0, 1, ?, ?, ?);
+            """, targetId, time1Str, time1Str, time1Str);
+            variantId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            conn.Execute("""
+                INSERT INTO TargetFsrsStates (TargetId, State, Stability, Difficulty, LastReviewedAtUtc, StepIndex, DueAtUtc)
+                VALUES (?, 0, NULL, NULL, NULL, NULL, NULL);
+            """, targetId);
+
+            conn.Execute("""
+                INSERT INTO LearningSessions (StableId, Status, TotalCards, CompletedCards, AgainCount, HardCount, GoodCount, EasyCount, StartedAtUtc, UpdatedAtUtc, CompletedAtUtc)
+                VALUES ('11112222333344445555666677778888', 1, 1, 1, 0, 0, 1, 0, ?, ?, ?);
+            """, time1Str, time1Str, time1Str);
+            sessionId = conn.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            // Destination has Review 1 at time1 (Rating.Good, IsSessionRepeat: false)
+            conn.Execute("""
+                INSERT INTO TargetReviews
+                    (StableId, TargetId, SessionId, Rating, WasTypedAnswer, WasCorrect, IsSessionRepeat,
+                     TargetAnswerVariantId, MatchedAnswerVariantId, ReviewedAtUtc, DueAtUtc)
+                VALUES ('trv-dest-1', ?, ?, 2, 0, 1, 0, ?, ?, ?, ?);
+            """, targetId, sessionId, variantId, variantId, time1Str, dueTimeStr);
+
+            return true;
+        });
+
+        // Source archive has Review 1 (Good, IsSessionRepeat: false) followed causally by Review 2 (Again, IsSessionRepeat: true) at identical ReviewedAtUtc
+        using var archiveStream = BuildArchiveV4(payloadMutator: payload =>
+        {
+            var reviews = new List<BackupTargetReview>
+            {
+                new("trv-src-1", "trv-dest-1", "lt-1", "ls-000001", BackupReviewRating.Good,
+                    WasTypedAnswer: false, WasCorrect: true, IsSessionRepeat: false,
+                    TargetAnswerVariantId: "tav-1", MatchedAnswerVariantId: "tav-1",
+                    ReviewedAtUtc: time1, DueAtUtc: dueTime),
+                new("trv-src-2", "trv-remote-2", "lt-1", "ls-000001", BackupReviewRating.Again,
+                    WasTypedAnswer: false, WasCorrect: false, IsSessionRepeat: true,
+                    TargetAnswerVariantId: "tav-1", MatchedAnswerVariantId: "tav-1",
+                    ReviewedAtUtc: time1, DueAtUtc: dueTime)
+            };
+            var sessions = new List<BackupLearningWorkflowV2>
+            {
+                new("ls-000001", BackupLearningSessionStatus.Completed, 1, 1, 1, 0, 1, 0, time1, time1, time1, [], "22223333444455556666777788889999")
+            };
+            return payload with
+            {
+                TargetReviews = reviews,
+                Workflows = payload.Workflows with { LearningSessions = sessions }
+            };
+        });
+
+        var preflight = new MergePreflightService(db);
+        var plan = await preflight.CreatePreflightPlanAsync(archiveStream, CancellationToken.None);
+
+        // Destination is a strict causal prefix under V3 policy: plan must be executable and ready
+        Assert.IsTrue(plan.IsExecutable, $"Compatible equal-timestamp causal review prefix must be executable. Error: {plan.ErrorCode}");
+        Assert.AreEqual(MergePreflightStatus.Ready, plan.Status);
+        Assert.IsNotNull(plan.Schema14Plan);
+        Assert.IsTrue(
+            plan.Schema14Plan.Actions.Any(a => a.Classification == Schema14MergeActionClassification.AddTargetReview),
+            "AddTargetReview action must be planned for second equal-timestamp review.");
+
+        archiveStream.Position = 0;
+        var backupService = new BackupService(db, new FakePlatformInfo());
+        var result = await backupService.ImportPortableArchiveAsync(archiveStream, CancellationToken.None);
+        Assert.AreEqual(PortableImportStatus.Success, result.Status, $"Merge failed with: {result.ErrorCode}");
+
+        await db.ReadAsync(async conn =>
+        {
+            var count = await conn.Table<TargetReviewEntity>().CountAsync();
+            Assert.AreEqual(2, count, "Both equal-timestamp review occurrences must be preserved.");
+            return true;
+        });
     }
 }

@@ -365,7 +365,7 @@ internal static class Schema14MergeWriterExecutor
             var localSenseId = RequireId(sourceMappings.SenseIds, item.Id);
             AddConsistent(senses, identity.Value, localSenseId);
             AddConsistent(senses, item.StableId, localSenseId);
-            senseIdentityById[localSenseId] = item.StableId;
+            senseIdentityById[localSenseId] = identity.Value;
         }
 
         // Source meaning identities

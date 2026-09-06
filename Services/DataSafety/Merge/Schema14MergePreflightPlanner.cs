@@ -476,13 +476,13 @@ public static class Schema14MergePreflightPlanner
                 sr));
         }
 
-        foreach (var list in targetOccurrencesBySemId.Values)
+        foreach (var (semId, list) in targetOccurrencesBySemId)
         {
-            list.Sort(CompareOccurrences);
+            targetOccurrencesBySemId[semId] = list.OrderBy(o => o.NormalizedReviewedAtUtc.Ticks).ToList();
         }
-        foreach (var list in sourceOccurrencesBySemId.Values)
+        foreach (var (semId, list) in sourceOccurrencesBySemId)
         {
-            list.Sort(CompareOccurrences);
+            sourceOccurrencesBySemId[semId] = list.OrderBy(o => o.NormalizedReviewedAtUtc.Ticks).ToList();
         }
 
         string? ResolveVariantStableId(string? sourceVariantId, BackupLearningTarget sourceTarget)
@@ -619,8 +619,8 @@ public static class Schema14MergePreflightPlanner
 
     private static string ComputeTargetSemanticIdentity(BackupLearningTarget target, Schema14Identities identities)
     {
-        var senseStableId = identities.SenseByLocalId[target.SenseId];
-        return $"{senseStableId}:{(int)target.TargetKind}:{target.SourceLanguage.ToLowerInvariant()}->{target.TargetLanguage.ToLowerInvariant()}";
+        var senseSemanticIdentity = identities.SenseByLocalId[target.SenseId];
+        return $"{senseSemanticIdentity}:{(int)target.TargetKind}:{target.SourceLanguage.ToLowerInvariant()}->{target.TargetLanguage.ToLowerInvariant()}";
     }
 
     private static string MakeActionKey(Schema14MergeActionClassification classification, string semanticIdentity, string? discriminator) =>
@@ -632,7 +632,10 @@ public static class Schema14MergePreflightPlanner
             w => w.Id,
             w => VocabularyMergeIdentityPolicy.Compute(w).Value,
             StringComparer.Ordinal);
-        var senseByLocalId = payload.Senses.ToDictionary(s => s.Id, s => s.StableId, StringComparer.Ordinal);
+        var senseByLocalId = payload.Senses.ToDictionary(
+            s => s.Id,
+            s => SemanticMeaningIdentityPolicy.Compute(s, new VocabularyIdentity(wordByLocalId[s.VocabularyId])).Value,
+            StringComparer.Ordinal);
         var meaningByLocalId = payload.PreparedLearning.ToDictionary(m => m.Id, m => m.StableId, StringComparer.Ordinal);
 
         return new Schema14Identities(
@@ -662,31 +665,15 @@ public static class Schema14MergePreflightPlanner
         string? MatchedVariantKey,
         BackupTargetReview Review);
 
-    private static int CompareOccurrences(TargetReviewOccurrence a, TargetReviewOccurrence b)
-    {
-        var cmp = a.NormalizedReviewedAtUtc.Ticks.CompareTo(b.NormalizedReviewedAtUtc.Ticks);
-        if (cmp != 0) return cmp;
-
-        cmp = ((int)a.Rating).CompareTo((int)b.Rating);
-        if (cmp != 0) return cmp;
-
-        cmp = a.WasTypedAnswer.CompareTo(b.WasTypedAnswer);
-        if (cmp != 0) return cmp;
-
-        cmp = a.WasCorrect.CompareTo(b.WasCorrect);
-        if (cmp != 0) return cmp;
-
-        cmp = a.IsSessionRepeat.CompareTo(b.IsSessionRepeat);
-        if (cmp != 0) return cmp;
-
-        cmp = a.NormalizedDueAtUtc.Ticks.CompareTo(b.NormalizedDueAtUtc.Ticks);
-        if (cmp != 0) return cmp;
-
-        cmp = string.CompareOrdinal(a.TargetVariantKey ?? string.Empty, b.TargetVariantKey ?? string.Empty);
-        if (cmp != 0) return cmp;
-
-        return string.CompareOrdinal(a.MatchedVariantKey ?? string.Empty, b.MatchedVariantKey ?? string.Empty);
-    }
+    private static bool OccurrencesMatch(TargetReviewOccurrence a, TargetReviewOccurrence b) =>
+        a.NormalizedReviewedAtUtc.Ticks == b.NormalizedReviewedAtUtc.Ticks
+        && a.Rating == b.Rating
+        && a.WasTypedAnswer == b.WasTypedAnswer
+        && a.WasCorrect == b.WasCorrect
+        && a.IsSessionRepeat == b.IsSessionRepeat
+        && a.NormalizedDueAtUtc.Ticks == b.NormalizedDueAtUtc.Ticks
+        && string.Equals(a.TargetVariantKey ?? string.Empty, b.TargetVariantKey ?? string.Empty, StringComparison.Ordinal)
+        && string.Equals(a.MatchedVariantKey ?? string.Empty, b.MatchedVariantKey ?? string.Empty, StringComparison.Ordinal);
 
     private static bool IsExactOccurrencePrefix(
         IReadOnlyList<TargetReviewOccurrence> prefix,
@@ -695,7 +682,7 @@ public static class Schema14MergePreflightPlanner
         if (prefix.Count > full.Count) return false;
         for (var i = 0; i < prefix.Count; i++)
         {
-            if (CompareOccurrences(prefix[i], full[i]) != 0) return false;
+            if (!OccurrencesMatch(prefix[i], full[i])) return false;
         }
         return true;
     }

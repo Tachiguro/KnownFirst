@@ -117,7 +117,7 @@ public sealed class LearningService : ILearningService
             var schema8Result = await database.RunInTransactionAsync<LearningLoadResult?>(connection =>
             {
                 var capability = LearningSchemaCapability.Resolve(connection);
-                if (IsSchema14(capability) && TargetLearningRepository.CountTargets(connection) > 0)
+                if (IsSchema14(capability))
                 {
                     return GetOrStartSchema14(connection);
                 }
@@ -167,7 +167,7 @@ public sealed class LearningService : ILearningService
             await database.RunInTransactionAsync(connection =>
             {
                 var capability = LearningSchemaCapability.Resolve(connection);
-                if (IsSchema14(capability) && TargetLearningRepository.CountTargets(connection) > 0)
+                if (IsSchema14(capability))
                 {
                     RevealAnswerSchema14(connection, queueItemId);
                     return true;
@@ -212,7 +212,7 @@ public sealed class LearningService : ILearningService
             var outcome = await database.RunInTransactionAsync(connection =>
             {
                 var capability = LearningSchemaCapability.Resolve(connection);
-                if (IsSchema14(capability) && TargetLearningRepository.CountTargets(connection) > 0)
+                if (IsSchema14(capability))
                 {
                     return CheckSpellingSchema14(connection, queueItemId, enteredAnswer);
                 }
@@ -326,7 +326,7 @@ public sealed class LearningService : ILearningService
             var schema8Outcome = await database.RunInTransactionAsync<Schema8RatingOutcome?>(connection =>
             {
                 var capability = LearningSchemaCapability.Resolve(connection);
-                if (IsSchema14(capability) && TargetLearningRepository.CountTargets(connection) > 0)
+                if (IsSchema14(capability))
                 {
                     return PersistRatingSchema14(
                         connection, queueItemId, rating, fromIncorrectSpellingCheck: false);
@@ -416,7 +416,7 @@ public sealed class LearningService : ILearningService
             return await database.RunInTransactionAsync(connection =>
             {
                 var capability = LearningSchemaCapability.Resolve(connection);
-                if (IsSchema14(capability) && TargetLearningRepository.CountTargets(connection) > 0)
+                if (IsSchema14(capability))
                 {
                     return MarkPermanentlyKnownSchema14(connection, wordId);
                 }

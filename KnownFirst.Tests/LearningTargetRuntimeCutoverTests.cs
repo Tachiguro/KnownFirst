@@ -8,6 +8,7 @@ using KnownFirst.Core.Settings;
 using KnownFirst.Core.Text;
 using KnownFirst.Data;
 using KnownFirst.Data.Entities;
+using KnownFirst.Data.Schema13;
 using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 using KnownFirst.Services;
@@ -248,20 +249,148 @@ public sealed class LearningTargetRuntimeCutoverTests
     }
 
     [TestMethod]
-    public async Task Slice4_WorkflowStateService_ReportsTargetDueAndNewCountsOnSchema14()
+    public async Task Schema14_ZeroTargets_DoesNotInvokeLegacyScheduler()
     {
         await using var database = new ProductionInitializedDatabase();
         await database.InitializeAsync();
 
         var clock = new FakeClock(TestStartTime);
-        await SeedPreparedWordWithTranslationAsync(database, clock);
+        var cardId = await SeedLegacyReadingCardAsync(database, TestStartTime);
 
-        var workflowStateService = new WorkflowStateService(database, clock);
-        var snapshot = await workflowStateService.GetSnapshotAsync();
+        var observableScheduler = new ObservableLegacyScheduler();
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            database,
+            observableScheduler,
+            new SpellingAnswerComparer(),
+            clock,
+            new TestAppSettings(LearningMode.Automatic),
+            fsrs6SchedulingService: fsrs);
 
-        Assert.IsNotNull(snapshot);
-        Assert.AreEqual(1, snapshot.PreparedNewItemCount, "PreparedNewItemCount must report the prepared word target on Schema 14.");
-        Assert.AreEqual(0, snapshot.DueCardCount, "DueCardCount should be 0 before initial review.");
+        var loadResult = await learningService.GetOrStartAsync();
+        if (loadResult.Card is not null)
+        {
+            await learningService.RevealAnswerAsync(loadResult.Card.QueueItemId);
+            await learningService.RateAsync(loadResult.Card.QueueItemId, ReviewRating.Good);
+        }
+
+        Assert.AreEqual(0, observableScheduler.InvocationCount,
+            "Legacy scheduler must not be invoked on Schema 14 even when target count is zero.");
+    }
+
+    [TestMethod]
+    public async Task Schema14_ZeroTargets_GetOrStartAsync_DoesNotDispatchToLegacyScheduler()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(TestStartTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            database,
+            new SpellingAnswerComparer(),
+            clock,
+            fsrs,
+            new TestAppSettings(LearningMode.Automatic));
+
+        var result = await learningService.GetOrStartAsync();
+        Assert.IsNull(result.Card, "On Schema 14 with zero targets, GetOrStartAsync must return null card.");
+        Assert.IsNull(result.CompletedSummary, "On Schema 14 with zero targets, completed summary must be null when no sessions exist.");
+    }
+
+    [TestMethod]
+    public async Task Schema14_ZeroTargets_RevealAnswerAsync_UsesTargetRuntimeValidation()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(TestStartTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            database,
+            new SpellingAnswerComparer(),
+            clock,
+            fsrs,
+            new TestAppSettings(LearningMode.Automatic));
+
+        var ex = await Assert.ThrowsAsync<Schema8LearningDataException>(() => learningService.RevealAnswerAsync(99999));
+        Assert.AreEqual(Schema8LearningDataErrorCode.QueueItemNotFound, ex.Code);
+    }
+
+    [TestMethod]
+    public async Task Schema14_ZeroTargets_CheckSpellingAsync_UsesTargetRuntimeValidation()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(TestStartTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            database,
+            new SpellingAnswerComparer(),
+            clock,
+            fsrs,
+            new TestAppSettings(LearningMode.Typing));
+
+        var ex = await Assert.ThrowsAsync<Schema8LearningDataException>(() => learningService.CheckSpellingAsync(99999, "answer"));
+        Assert.AreEqual(Schema8LearningDataErrorCode.QueueItemNotFound, ex.Code);
+    }
+
+    [TestMethod]
+    public async Task Schema14_ZeroTargets_RateAsync_UsesTargetRuntimeValidation()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(TestStartTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            database,
+            new SpellingAnswerComparer(),
+            clock,
+            fsrs,
+            new TestAppSettings(LearningMode.Automatic));
+
+        var ex = await Assert.ThrowsAsync<Schema8LearningDataException>(() => learningService.RateAsync(99999, ReviewRating.Good));
+        Assert.AreEqual(Schema8LearningDataErrorCode.QueueItemNotFound, ex.Code);
+    }
+
+    [TestMethod]
+    public async Task Schema14_ZeroTargets_MarkPermanentlyKnownAsync_UsesTargetRuntimeAuthority()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        var clock = new FakeClock(TestStartTime);
+        var fsrs = new Fsrs6SchedulingService(clock);
+        var learningService = new LearningService(
+            database,
+            new SpellingAnswerComparer(),
+            clock,
+            fsrs,
+            new TestAppSettings(LearningMode.Automatic));
+
+        var notFoundResult = await learningService.MarkPermanentlyKnownAsync(99999, confirmed: true);
+        Assert.IsFalse(notFoundResult, "Nonexistent word must return false.");
+    }
+
+    private sealed class ObservableLegacyScheduler : ISpacedRepetitionScheduler
+    {
+        public int InvocationCount { get; private set; }
+
+        public CardSchedule Schedule(CardSchedule current, ReviewRating rating, DateTime reviewedAtUtc)
+        {
+            InvocationCount++;
+            return new CardSchedule(
+                current.State,
+                reviewedAtUtc.AddDays(1),
+                1,
+                2.5,
+                current.SuccessfulReviewCount + 1,
+                current.LapseCount,
+                reviewedAtUtc,
+                rating);
+        }
     }
 
     private sealed class TargetReviewRow
@@ -269,6 +398,96 @@ public sealed class LearningTargetRuntimeCutoverTests
         public int TargetId { get; set; }
         public int Rating { get; set; }
         public int? MatchedAnswerVariantId { get; set; }
+    }
+
+    private static async Task<int> SeedLegacyReadingCardAsync(IKnownFirstDatabase database, DateTime now)
+    {
+        return await database.RunInTransactionAsync(connection =>
+        {
+            connection.Execute(
+                """
+                INSERT INTO Words (
+                    Language, CanonicalTerm, NormalizedTerm, Status, TokenKind, PreparationState,
+                    TotalOccurrenceCount, DocumentCount, AutomaticInteractionMode,
+                    ConsecutiveRecallSuccessCount, ConsecutiveTypingSuccessCount, ConsecutiveTypingFailureCount,
+                    MasteryReviewExtensionScheduled, CreatedAt, UpdatedAt)
+                VALUES ('en', 'cutover', 'cutover', 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, ?, ?)
+                """,
+                now,
+                now);
+            var wordId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            connection.Execute(
+                """
+                INSERT INTO Senses (
+                    StableId, WordId, SourceLanguage, ExplanationLanguage, Status, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('cutover-sense', ?, 'en', 'en', 0, ?, ?)
+                """,
+                wordId,
+                now,
+                now);
+            var senseId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            connection.Execute(
+                """
+                INSERT INTO Meanings (
+                    WordId, SenseId, ExplanationLanguage, SourceLanguage, DisplayTerm, EncounteredSurfaceForm,
+                    GrammaticalRelationship, TokenKind, Translation, Definition, DictionaryExample, AdditionalNote,
+                    AcceptedAliasesJson, TranslationOrDefinition, Source, SourceProject, SourcePageTitle, Attribution,
+                    ConfirmedByUser, CreatedAt, UpdatedAt, PreparedAt, StableId)
+                VALUES (?, ?, 'de', 'en', 'cutover', 'cutover', '', 0, 'Schnitt', 'a production cutover', '', '',
+                        '[]', 'Schnitt', 'test', 'test', 'test', 'test', 1, ?, ?, ?, 'cutover-meaning')
+                """,
+                wordId,
+                senseId,
+                now,
+                now,
+                now);
+            var meaningId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            connection.Execute("UPDATE Senses SET DefaultMeaningId = ? WHERE Id = ?", meaningId, senseId);
+
+            connection.Execute(
+                """
+                INSERT INTO LearningCards (
+                    WordId, SenseId, PreferredMeaningId, Direction, State, DueAtUtc, IntervalDays,
+                    EaseFactor, SuccessfulReviewCount, LapseCount, CreatedAtUtc, UpdatedAtUtc)
+                VALUES (?, ?, ?, 0, 0, ?, 0, 2.5, 0, 0, ?, ?)
+                """,
+                wordId,
+                senseId,
+                meaningId,
+                now,
+                now,
+                now);
+            var cardId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+
+            connection.Execute(
+                """
+                INSERT INTO AnswerVariants (
+                    StableId, SenseId, AnswerLanguage, DisplayText, NormalizedText, SourceMeaningId,
+                    CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('cutover-answer', ?, 'de', 'Schnitt', 'schnitt', ?, ?, ?)
+                """,
+                senseId,
+                meaningId,
+                now,
+                now);
+            var variantId = connection.ExecuteScalar<int>("SELECT last_insert_rowid()");
+            connection.Execute(
+                """
+                INSERT INTO SenseAnswerVariantAssignments (
+                    StableId, SenseId, CardDirection, AnswerVariantId, Requirement, IsPreferred,
+                    RequiredSinceUtc, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ('cutover-assignment', ?, 0, ?, 0, 1, ?, ?, ?)
+                """,
+                senseId,
+                variantId,
+                now,
+                now,
+                now);
+            Schema13LearningRepository.InsertCleanNewState(connection, cardId);
+            return cardId;
+        });
     }
 
     private static async Task SeedPreparedWordWithTranslationAsync(

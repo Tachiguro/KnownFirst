@@ -2980,7 +2980,7 @@ public sealed class LearningService : ILearningService
         }
     }
 
-    private static string? EmptyToNull(string value) =>
+    private static string? EmptyToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
 
     private LearningLoadResult? GetOrStartSchema14(SQLiteConnection connection)

@@ -19,13 +19,19 @@ public sealed record ValidatedBackupArchiveV3(
     BackupManifestV3 Manifest,
     BackupPayloadV3 Payload);
 
+/// <summary>Archive format v4 counterpart of <see cref="ValidatedBackupArchive"/>.</summary>
+public sealed record ValidatedBackupArchiveV4(
+    BackupManifestV4 Manifest,
+    BackupPayloadV4 Payload);
+
 /// <summary>Discriminated result of <see cref="BackupArchiveReader.ValidateVersionedAsync"/> — exactly
-/// one of <see cref="V1"/>/<see cref="V2"/>/<see cref="V3"/> is populated, selected by <see cref="FormatVersion"/>.</summary>
+/// one of <see cref="V1"/>/<see cref="V2"/>/<see cref="V3"/>/<see cref="V4"/> is populated, selected by <see cref="FormatVersion"/>.</summary>
 public sealed record ValidatedBackupArchiveEnvelope(
     int FormatVersion,
     ValidatedBackupArchive? V1,
     ValidatedBackupArchiveV2? V2,
-    ValidatedBackupArchiveV3? V3 = null);
+    ValidatedBackupArchiveV3? V3 = null,
+    ValidatedBackupArchiveV4? V4 = null);
 
 public static class BackupArchiveReader
 {
@@ -145,7 +151,7 @@ public static class BackupArchiveReader
                     null,
                     new ValidatedBackupArchiveV2(manifest, payload));
             }
-            else
+            else if (formatVersion == 3)
             {
                 var manifest = BackupJsonCodecV3.DeserializeManifest(manifestBytes);
                 ArchiveLearningReviewCausalOrderPolicy.ValidateV3Features(
@@ -173,6 +179,33 @@ public static class BackupArchiveReader
                     null,
                     null,
                     new ValidatedBackupArchiveV3(manifest, payload));
+            }
+            else
+            {
+                var manifest = BackupJsonCodecV4.DeserializeManifest(manifestBytes);
+                ArchiveLearningReviewCausalOrderPolicy.ValidateV3Features(
+                    manifest.RequiredFeatures,
+                    manifest.OptionalFeatures);
+
+                var dataBytes = await ReadEntryAsync(dataEntry, BackupFormatLimits.MaxDataUncompressedBytes, cancellationToken);
+                VerifyChecksum(manifest.DataChecksum, dataBytes);
+                ValidateNoDuplicateProperties(dataBytes, BackupErrorCodes.DataJsonInvalid);
+                var payload = BackupJsonCodecV4.DeserializeData(dataBytes);
+                if (payload.Extensions.Features.Count != 0)
+                {
+                    throw new BackupFormatException(BackupErrorCodes.UnsupportedRequiredFeature);
+                }
+
+                BackupModelContractV4.ValidateRecordCounts(manifest, payload);
+                BackupArchiveWriterV4.ValidatePayloadGraphV4(payload);
+                ValidatePortableRecoveryScopeV4(payload);
+
+                return new ValidatedBackupArchiveEnvelope(
+                    formatVersion,
+                    null,
+                    null,
+                    null,
+                    new ValidatedBackupArchiveV4(manifest, payload));
             }
         }
         catch (OperationCanceledException)
@@ -503,6 +536,17 @@ public static class BackupArchiveReader
     }
 
     private static void ValidatePortableRecoveryScopeV3(BackupPayloadV3 payload)
+    {
+        if (payload.Workflows.VocabularyReviews.Any(
+                workflow => workflow.Status == BackupReviewSessionStatus.Active)
+            || payload.Workflows.PreparationBatches.Any(
+                workflow => workflow.Status == BackupPreparationSessionStatus.Active))
+        {
+            throw new BackupFormatException(BackupErrorCodes.ActiveWorkflowUnsupported);
+        }
+    }
+
+    private static void ValidatePortableRecoveryScopeV4(BackupPayloadV4 payload)
     {
         if (payload.Workflows.VocabularyReviews.Any(
                 workflow => workflow.Status == BackupReviewSessionStatus.Active)

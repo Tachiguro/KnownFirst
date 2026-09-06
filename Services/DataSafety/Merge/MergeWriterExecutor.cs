@@ -135,7 +135,9 @@ internal sealed class MergeWriterExecutor
         return new MergeWriterExecutionMaps(
             new Dictionary<string, int>(executor._wordIds, StringComparer.Ordinal),
             new Dictionary<string, int>(executor._senseIds, StringComparer.Ordinal),
-            new Dictionary<string, int>(executor._cardIds, StringComparer.Ordinal));
+            new Dictionary<string, int>(executor._cardIds, StringComparer.Ordinal),
+            new Dictionary<string, int>(executor._meaningIds, StringComparer.Ordinal),
+            new Dictionary<string, int>(executor._learningSessionIds, StringComparer.Ordinal));
     }
 
     private void Run()

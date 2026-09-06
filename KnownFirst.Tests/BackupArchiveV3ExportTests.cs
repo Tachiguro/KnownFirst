@@ -168,7 +168,7 @@ public sealed class BackupArchiveV3ExportTests
     }
 
     [TestMethod]
-    public async Task CreatePortableArchiveAsync_FromEmptySchema14Database_ProducesValidArchiveV3()
+    public async Task CreatePortableArchiveAsync_FromEmptySchema14Database_ProducesValidArchiveV4()
     {
         await using var db = await CreateValidSchema14DatabaseAsync();
         var service = new BackupService(db, new FakePlatformInfo());
@@ -179,14 +179,14 @@ public sealed class BackupArchiveV3ExportTests
         ms.Position = 0;
         var envelope = await BackupArchiveReader.ValidateVersionedAsync(ms, CancellationToken.None);
 
-        Assert.AreEqual(3, envelope.FormatVersion);
-        Assert.IsNotNull(envelope.V3);
-        Assert.AreEqual(3, envelope.V3.Manifest.FormatVersion);
-        Assert.AreEqual(13, envelope.V3.Manifest.SourceDatabaseSchemaVersion);
+        Assert.AreEqual(4, envelope.FormatVersion);
+        Assert.IsNotNull(envelope.V4);
+        Assert.AreEqual(4, envelope.V4.Manifest.FormatVersion);
+        Assert.AreEqual(14, envelope.V4.Manifest.SourceDatabaseSchemaVersion);
     }
 
     [TestMethod]
-    public async Task CreatePortableArchiveAsync_Schema14WithLearningTargets_FailsClosedBeforeV3Transport()
+    public async Task EnsureV3TransportCompatible_Schema14WithLearningTargets_FailsClosed()
     {
         await using var db = await CreateValidSchema14DatabaseAsync();
         await db.RunInTransactionAsync(conn =>
@@ -201,18 +201,19 @@ public sealed class BackupArchiveV3ExportTests
             return true;
         });
 
-        var service = new BackupService(db, new FakePlatformInfo());
-        using var ms = new MemoryStream();
+        var capability = await db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));
+        var schema14 = Assert.IsInstanceOfType<Schema14CapabilityResult>(capability);
+        Assert.IsTrue(schema14.Capability.HasTargetData);
 
-        var ex = await Assert.ThrowsExactlyAsync<BackupSchemaCapabilityException>(() =>
-            service.CreatePortableArchiveAsync(ms, CancellationToken.None));
+        var ex = Assert.ThrowsExactly<BackupSchemaCapabilityException>(() =>
+            schema14.Capability.EnsureV3TransportCompatible());
 
         Assert.AreEqual(14, ex.FoundVersion);
         Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, ex.ErrorCode);
     }
 
     [TestMethod]
-    public async Task CreatePortableArchiveAsync_Schema14WithTargetAnswerVariants_FailsClosedBeforeV3Transport()
+    public async Task EnsureV3TransportCompatible_Schema14WithTargetAnswerVariants_FailsClosed()
     {
         await using var db = await CreateValidSchema14DatabaseAsync();
         await db.RunInTransactionAsync(conn =>
@@ -233,18 +234,19 @@ public sealed class BackupArchiveV3ExportTests
             return true;
         });
 
-        var service = new BackupService(db, new FakePlatformInfo());
-        using var ms = new MemoryStream();
+        var capability = await db.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));
+        var schema14 = Assert.IsInstanceOfType<Schema14CapabilityResult>(capability);
+        Assert.IsTrue(schema14.Capability.HasTargetData);
 
-        var ex = await Assert.ThrowsExactlyAsync<BackupSchemaCapabilityException>(() =>
-            service.CreatePortableArchiveAsync(ms, CancellationToken.None));
+        var ex = Assert.ThrowsExactly<BackupSchemaCapabilityException>(() =>
+            schema14.Capability.EnsureV3TransportCompatible());
 
         Assert.AreEqual(14, ex.FoundVersion);
         Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, ex.ErrorCode);
     }
 
     [TestMethod]
-    public async Task CaptureForMergeSafetyCopy_Schema14WithTargetData_FailsClosedBeforeMutation()
+    public async Task MergePreflight_V3ArchiveIntoSchema14WithTargetData_FailsClosed()
     {
         await using var db = await CreateValidSchema14DatabaseAsync();
         await db.RunInTransactionAsync(conn =>
@@ -259,11 +261,13 @@ public sealed class BackupArchiveV3ExportTests
             return true;
         });
 
-        var ex = await Assert.ThrowsExactlyAsync<BackupSchemaCapabilityException>(() =>
-            db.ExecuteSnapshotAsync(BackupMergeSafetyCopySnapshotCapture.CaptureForMergeSafetyCopy));
+        using var v3ArchiveStream = BackupArchiveV3Tests.BuildArchiveV3();
+        var preflight = new MergePreflightService(db);
+        var plan = await preflight.CreatePreflightPlanAsync(v3ArchiveStream, CancellationToken.None);
 
-        Assert.AreEqual(14, ex.FoundVersion);
-        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, ex.ErrorCode);
+        Assert.AreEqual(MergePreflightStatus.Failed, plan.Status);
+        Assert.IsFalse(plan.IsExecutable);
+        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, plan.ErrorCode);
     }
 
     [TestMethod]

@@ -94,7 +94,7 @@ public sealed class PreparationTargetCutoverTests
     }
 
     [TestMethod]
-    public async Task PreparationCreatedTarget_FailsClosedForV3ExportAndMergeSafetyCopy()
+    public async Task PreparationCreatedTarget_ExportsV4AndFailsClosedForV3TransportCheck()
     {
         await using var database = new ProductionInitializedDatabase();
         await database.InitializeAsync();
@@ -121,14 +121,24 @@ public sealed class PreparationTargetCutoverTests
         Assert.AreEqual(1, targetCount, "The guard must run after the actual preparation path created target data.");
 
         using var archive = new MemoryStream();
-        var exportException = await Assert.ThrowsExactlyAsync<BackupSchemaCapabilityException>(() =>
-            new BackupService(database, new FakeBackupPlatformInfo())
-                .CreatePortableArchiveAsync(archive, CancellationToken.None));
-        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, exportException.ErrorCode);
+        await new BackupService(database, new FakeBackupPlatformInfo())
+            .CreatePortableArchiveAsync(archive, CancellationToken.None);
 
-        var safetyCopyException = await Assert.ThrowsExactlyAsync<BackupSchemaCapabilityException>(() =>
-            database.ExecuteSnapshotAsync(BackupMergeSafetyCopySnapshotCapture.CaptureForMergeSafetyCopy));
-        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, safetyCopyException.ErrorCode);
+        archive.Position = 0;
+        var envelope = await BackupArchiveReader.ValidateVersionedAsync(archive, CancellationToken.None);
+        Assert.AreEqual(4, envelope.FormatVersion);
+        Assert.IsNotNull(envelope.V4);
+        Assert.AreEqual(1, envelope.V4.Payload.LearningTargets.Count);
+        Assert.AreEqual(1, envelope.V4.Payload.TargetAnswerVariants.Count);
+
+        var safetyCopyEnvelope = await database.ExecuteSnapshotAsync(BackupMergeSafetyCopySnapshotCapture.CaptureForMergeSafetyCopy);
+        Assert.IsInstanceOfType<MergeSafetyCopySchema14Captured>(safetyCopyEnvelope);
+
+        var capability = await database.ExecuteSnapshotAsync(conn => BackupSchemaCapability.Resolve(conn));
+        var schema14 = Assert.IsInstanceOfType<Schema14CapabilityResult>(capability);
+        Assert.IsTrue(schema14.Capability.HasTargetData);
+        var v3TransportEx = Assert.ThrowsExactly<BackupSchemaCapabilityException>(() => schema14.Capability.EnsureV3TransportCompatible());
+        Assert.AreEqual(BackupErrorCodes.Schema14TargetDataIncompatibleWithV3Transport, v3TransportEx.ErrorCode);
     }
 
     [TestMethod]

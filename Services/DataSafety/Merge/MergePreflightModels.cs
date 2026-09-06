@@ -320,7 +320,8 @@ public sealed record MergePreflightPlan(
     IReadOnlyList<string> WarningCodes,
     bool RequiresSchedulerReplay,
     string? ErrorCode,
-    Schema13MergePreflightPlan? Schema13Plan = null)
+    Schema13MergePreflightPlan? Schema13Plan = null,
+    Schema14MergePreflightPlan? Schema14Plan = null)
 {
     public const int MaxSampleDetailsPerCategory = 20;
 

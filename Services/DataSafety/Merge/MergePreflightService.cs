@@ -1,6 +1,7 @@
 using KnownFirst.Data;
 using KnownFirst.Data.Migrations.Schema13;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Schema14;
 using KnownFirst.Models.Backup;
 
 namespace KnownFirst.Services.DataSafety.Merge;
@@ -76,14 +77,30 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             createdAtUtc = v2.Manifest.CreatedAtUtc;
             sourcePlatform = v2.Manifest.SourcePlatform;
         }
-        else
+        else if (validated.V3 is { } v3)
         {
-            var v3 = validated.V3!;
             sourceAppVersion = v3.Manifest.SourceAppVersion;
             sourceDatabaseSchemaVersion = v3.Manifest.SourceDatabaseSchemaVersion;
             createdAtUtc = v3.Manifest.CreatedAtUtc;
             sourcePlatform = v3.Manifest.SourcePlatform;
         }
+        else if (validated.V4 is { } v4)
+        {
+            sourceAppVersion = v4.Manifest.SourceAppVersion;
+            sourceDatabaseSchemaVersion = v4.Manifest.SourceDatabaseSchemaVersion;
+            createdAtUtc = v4.Manifest.CreatedAtUtc;
+            sourcePlatform = v4.Manifest.SourcePlatform;
+        }
+        else
+        {
+            throw new InvalidOperationException("Unrecognized backup archive envelope version.");
+        }
+
+        var isCausalOrderRequired = (validated.V4?.Manifest.RequiredFeatures
+            ?? validated.V3?.Manifest.RequiredFeatures
+            ?? Array.Empty<string>()).Contains(
+                ArchiveLearningReviewCausalOrderPolicy.RequiredFeature,
+                StringComparer.Ordinal);
 
         var manifestInfo = new MergeManifestInfo(
             validated.FormatVersion,
@@ -91,11 +108,10 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             sourceDatabaseSchemaVersion,
             createdAtUtc,
             sourcePlatform,
-            validated.V3?.Manifest.RequiredFeatures.Contains(
-                ArchiveLearningReviewCausalOrderPolicy.RequiredFeature,
-                StringComparer.Ordinal) == true);
+            isCausalOrderRequired);
 
-        var archiveLearningSessions = validated.V3?.Payload.Workflows.LearningSessions
+        var archiveLearningSessions = validated.V4?.Payload.Workflows.LearningSessions
+            ?? validated.V3?.Payload.Workflows.LearningSessions
             ?? validated.V2?.Payload.Workflows.LearningSessions
             ?? [];
         var archiveContainsActiveLearning = archiveLearningSessions
@@ -107,7 +123,7 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
             targetCapability = await database.ExecuteSnapshotAsync(connection =>
             {
                 var capability = BackupSchemaCapability.Resolve(connection);
-                if (capability is Schema14CapabilityResult schema14)
+                if (validated.V4 is null && capability is Schema14CapabilityResult schema14)
                 {
                     schema14.Capability.EnsureV3TransportCompatible();
                 }
@@ -125,6 +141,64 @@ public sealed class MergePreflightService(IKnownFirstDatabase database) : IMerge
         catch (Exception)
         {
             return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+        }
+
+        if (validated.V4 is not null)
+        {
+            if (targetCapability is not Schema14CapabilityResult)
+            {
+                return MergePreflightPlan.ForEarlyExit(
+                    MergePreflightStatus.Failed,
+                    manifestInfo,
+                    true,
+                    BackupErrorCodes.Schema14ArchiveIncompatibleWithLegacyTarget);
+            }
+
+            Schema14PortableSnapshotCaptureResult schema14Capture;
+            try
+            {
+                schema14Capture = await database.ExecuteSnapshotAsync(
+                    Schema14BackupSnapshotRepository.CapturePortableSnapshotForMergeSafetyCopy);
+            }
+            catch (OperationCanceledException)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Cancelled, manifestInfo, true, BackupErrorCodes.OperationCancelled);
+            }
+            catch (BackupSchemaCapabilityException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.ValidationFailed, manifestInfo, true, exception.ErrorCode);
+            }
+            catch (Exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+            }
+
+            if (schema14Capture.Status == PortableSnapshotCaptureStatus.BlockedByActiveWorkflow)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.BlockedByActiveWorkflow, manifestInfo, true, BackupErrorCodes.ActiveWorkflowUnsupported);
+            }
+
+            var targetSnapshot = schema14Capture.Snapshot
+                ?? throw new InvalidOperationException("Schema-14 capture reported success without a snapshot.");
+            var targetPayload = BackupModelMapperV4.MapToExternal(targetSnapshot);
+            var sourcePayload = validated.V4.Payload;
+
+            try
+            {
+                return Schema14MergePreflightPlanner.CreateCombinedPlan(targetPayload, sourcePayload, manifestInfo);
+            }
+            catch (MergePlanningException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, exception.Code);
+            }
+            catch (BackupFormatException exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.ValidationFailed, manifestInfo, true, exception.Code);
+            }
+            catch (Exception)
+            {
+                return MergePreflightPlan.ForEarlyExit(MergePreflightStatus.Failed, manifestInfo, true, MergePreflightErrorCodes.UnexpectedFailure);
+            }
         }
 
         if (targetCapability is Schema13CapabilityResult or Schema14CapabilityResult)

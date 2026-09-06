@@ -34,6 +34,11 @@ internal static class MergeWritePlanComparer
             return false;
         }
 
+        if (!Schema14PlansMatch(supplied.Schema14Plan, recomputed.Schema14Plan))
+        {
+            return false;
+        }
+
         if (!supplied.BlockingPrerequisites.SequenceEqual(recomputed.BlockingPrerequisites, StringComparer.Ordinal))
         {
             return false;
@@ -80,6 +85,45 @@ internal static class MergeWritePlanComparer
                 || left.ControlPresent != right.ControlPresent
                 || left.ControlDecidedAtUtc != right.ControlDecidedAtUtc
                 || left.FsrsCardState != right.FsrsCardState
+                || !left.FsrsHistory.SequenceEqual(right.FsrsHistory))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool Schema14PlansMatch(
+        Schema14MergePreflightPlan? supplied,
+        Schema14MergePreflightPlan? recomputed)
+    {
+        if (supplied is null || recomputed is null)
+        {
+            return supplied is null && recomputed is null;
+        }
+
+        if (!string.Equals(
+                supplied.ExpectedTargetFingerprint,
+                recomputed.ExpectedTargetFingerprint,
+                StringComparison.Ordinal)
+            || !supplied.Actions.SequenceEqual(recomputed.Actions)
+            || !supplied.Conflicts.SequenceEqual(recomputed.Conflicts)
+            || supplied.TargetExpectations.Count != recomputed.TargetExpectations.Count)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < supplied.TargetExpectations.Count; index++)
+        {
+            var left = supplied.TargetExpectations[index];
+            var right = recomputed.TargetExpectations[index];
+            if (left.Kind != right.Kind
+                || !string.Equals(left.SemanticIdentity, right.SemanticIdentity, StringComparison.Ordinal)
+                || left.SemanticEntityPresent != right.SemanticEntityPresent
+                || left.ControlPresent != right.ControlPresent
+                || left.ControlDecidedAtUtc != right.ControlDecidedAtUtc
+                || left.FsrsState != right.FsrsState
                 || !left.FsrsHistory.SequenceEqual(right.FsrsHistory))
             {
                 return false;

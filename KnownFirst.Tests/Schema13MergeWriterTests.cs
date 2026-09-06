@@ -1192,6 +1192,14 @@ public sealed class Schema13MergeWriterTests
             Schema13Calls++;
             return Task.FromResult(MergeWriteResult.SuccessResult);
         }
+
+        public Task<MergeWriteResult> ApplySchema14Async(
+            BackupPayloadV4 archive,
+            MergePreflightPlan plan,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(MergeWriteResult.SuccessResult);
+        }
     }
 
     private sealed class RecordingDelegatingWriterService(IMergeWriterService inner) : IMergeWriterService
@@ -1211,6 +1219,14 @@ public sealed class Schema13MergeWriterTests
         {
             Schema13Calls++;
             return inner.ApplySchema13Async(archive, plan, cancellationToken);
+        }
+
+        public Task<MergeWriteResult> ApplySchema14Async(
+            BackupPayloadV4 archive,
+            MergePreflightPlan plan,
+            CancellationToken cancellationToken)
+        {
+            return inner.ApplySchema14Async(archive, plan, cancellationToken);
         }
     }
 

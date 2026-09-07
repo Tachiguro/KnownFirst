@@ -18,11 +18,13 @@ public sealed partial class MeaningRanker
             {
                 Meaning = meaning,
                 Index = index,
+                RelevanceTier = MeaningRelevancePolicy.Classify(meaning).Tier,
                 TokenKindMatch = GetTokenKindMatch(meaning, tokenKind),
                 Overlap = NormalizeWords($"{meaning.Definition} {meaning.Example}")
                     .Count(contextWords.Contains)
             })
-            .OrderByDescending(item => item.TokenKindMatch)
+            .OrderBy(item => item.RelevanceTier)
+            .ThenByDescending(item => item.TokenKindMatch)
             .ThenByDescending(item => item.Overlap)
             .ThenBy(item => item.Index)
             .Select(item => item.Meaning)

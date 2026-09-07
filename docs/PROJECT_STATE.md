@@ -132,6 +132,41 @@ This package establishes the target-centric architecture, Schema 14 persistence,
 - Merge: Transactional populated-target merge with validated pre-merge Archive V4 safety copy. Causal history prefix check enforces that equal timestamps resolve by causal insertion order; divergent non-prefix histories fail closed with `CausalHistoryConflict`.
 - Cross-database target identity is based on resolved semantic Sense + `TargetKind` + `SourceLanguage` + `TargetLanguage`. Local SQLite IDs are never cross-database identities.
 
+## Meaning Relevance Ranking in Word Preparation (KF-PREP-004 Candidate State)
+
+**Lifecycle status:** Implemented across 3 ordered slices and consolidated package review approved (`PACKAGE_REVIEW_APPROVED`) on feature branch `feature/prep-meaning-relevance-ranking-v1` at candidate HEAD `d1bcd2f30679fa4b03db23c922900644a072ed88`. Exact-candidate `FULL_VALIDATION` gate remains pending following documentation finalization. Merged `master` baseline remains unranked pending candidate validation, push, PR creation, and manual merge.
+
+This package establishes conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C product decision):
+
+**1. Presentation Priority Only & Lossless Selectability**
+- Ranking affects presentation order in the preparation workflow and meaning picker only.
+- Every genuine eligible meaning returned by lexical providers remains available and selectable; relevance never removes, filters, or deletes meanings.
+- Word, Sense, Meaning/AnswerVariant, and LearningTarget identities remain separate and immutable.
+
+**2. Deterministic Usage-Label Classification (`MeaningRelevancePolicy`)**
+- Strong recognized demotion labels assign `MeaningRelevanceTier.Demoted`, demoting obsolete/archaic senses below `Standard` meanings:
+  - English: `obsolete`, `archaic`, `historical`, `dated`
+  - German: `veraltet`, `historisch`, `obsolet`, `veraltend`
+- Neutral labels remain in `MeaningRelevanceTier.Standard`: `rare`, `selten`, register/style (`formal`, `informal`, `colloquial`, `slang`), domain (`technical`, `computing`, `scientific`, `botany`), and unknown labels.
+- Label matching is culture-independent, case-insensitive, conservatively punctuation-normalized, and exact after normalization.
+
+**3. Hybrid Combined Enrichment Ranking (`MeaningRanker`)**
+- Combined ranking precedence:
+  1. `MeaningRelevancePolicy` tier ascending (`Standard = 0` before `Demoted = 1`);
+  2. Existing `TokenKindMatch` descending (acronym/abbreviation/technical-term matching);
+  3. Existing lexical context `Overlap` descending (exact word matching against Definition + Example);
+  4. Original/current input index ascending as the final deterministic tie-break.
+- Strong explicit demotion outranks both higher context overlap and stronger token-kind matching. Existing token-kind matching and context overlap continue to rank meanings within the same relevance tier.
+
+**4. Meaning Picker Ordering & Selection Safety (`MeaningPreviewPolicy`)**
+- Relevance ordering is applied strictly after display eligibility calculation and first-occurrence display-signature deduplication.
+- `SelectableMeaning.OriginalIndex` immutably references the original item in the post-enrichment `LexicalResult.Meanings` collection.
+- In `PrepareWords.razor`, `SelectMeaningAsync(meaningIndex)` maps directly to the displayed item without identity drift.
+
+**5. System & Persistence Boundary**
+- Local text context from the preparation candidate's document sentence is reused without new context sources, AI, LLM, embeddings, or network requests.
+- Database schema (Schema 14), persistence, Archive V4, LearningTarget identity, and FSRS-6 scheduling are unchanged.
+
 ## Schema-13 / FSRS-6 Merged Production State (KF-FSRS-003)
 
 Current `master` implements the clean Schema-13 production cutover, FSRS-6 authority, factual FSRS state/history persistence, Archive V3 integrity and causal interaction ordering, and Repairs 001–006. This records source/runtime truth only; it does not establish GUI, device, package, release, or distribution evidence.

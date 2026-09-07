@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-07 (Synchronized `master` at merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43` following verified merge of PR #202 `KF-LEARN-011`; active work package is documentation reconciliation `docs/reconcile-kf-learn-011-lifecycle-v1`).
+2026-09-07 (Synchronized `master` at base commit `c036fc5739eb5531ab62085433f866cd9346e26c`; active work package is KF-PREP-004 `feature/prep-meaning-relevance-ranking-v1`).
 
 ## Repository and Worktree Governance
 
@@ -17,10 +17,16 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `docs/reconcile-kf-learn-011-lifecycle-v1` (documentation reconciliation)
-- **Active branch:** `docs/reconcile-kf-learn-011-lifecycle-v1`
-- **Base commit:** `35dc4b20986f6eaf3d8c48c9da75635bfea38d43` (`master` / `origin/master`).
-- **Working state:** `KF-LEARN-011` is merged and complete on `master` via PR #202 (merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43`, validated PR head `675bd149c95bdf32ace36344955f886dfe9c60c8`). `POST_MERGE_SYNC_ONLY` completed and verified local `master` is clean and synchronized. No prior `KF-LEARN-011` implementation package remains active. Current slice is executing documentation-only reconciliation for post-merge lifecycle tracking.
+- **Active package:** `KF-PREP-004` (Conservative hybrid Meaning/Sense relevance ranking in word preparation)
+- **Active branch:** `feature/prep-meaning-relevance-ranking-v1`
+- **Base commit:** `c036fc5739eb5531ab62085433f866cd9346e26c` (`master` / `origin/master`).
+- **Product decision:** Option C (conservative hybrid ranking: ranking changes presentation priority only; every genuine meaning remains selectable; stable provider order is fallback; strong obsolete/archaic/historical signals demote; reliable context promotion deferred to Slice 3).
+- **Declared package slices:**
+  - `Slice 1/3`: Durable tracking + pure usage-label relevance policy (`MeaningRelevancePolicy`).
+  - `Slice 2/3`: Integrate deterministic ranking into `MeaningPreviewPolicy` / meaning-picker ordering while preserving `OriginalIndex` and all alternatives.
+  - `Slice 3/3`: Reconcile reliable existing context signals with the ranking contract, only if they can be added deterministically without AI, embeddings, new network calls, or semantic mutation.
+- **Current lifecycle:** `DOCUMENT_ONLY` (Package-level documentation reconciliation).
+- **Working state:** `KF-PREP-004` implementation complete across 3 slices (Slice 1 `60998cdcf5a731ec8a1dc0cf04fec3c7c8089a0c`, Slice 2 `526b0963981ee04d4ffb9df5711239c5bf4758da`, Slice 3 `d1bcd2f30679fa4b03db23c922900644a072ed88`). Consolidated package review approved (`PACKAGE_REVIEW_APPROVED`; 29/29 package tests, 484/484 meaning/prep sweep, 35/35 lexical routing, clean diff check). Candidate implements conservative hybrid meaning relevance ranking (Option C: presentation priority only, strong obsolete/archaic/historical demotion, context and token-kind ranking within relevance tiers, provider-order fallback, complete preservation of selectable alternatives).
 - **Durable technical baseline (Package KF-LEARN-011 - Merged Production State):**
   - `Core domain concepts`: Pure `LearningTargetKind` (Definition, Translation), `LearningTargetIdentity` (Kind, SourceLanguage, TargetLanguage with validation and invariant normalization), `LearningTarget` (identity plus per-target typing opt-out), `TargetInteractionEvent` (pure factual event representation with UTC enforcement, rating, typing modality, correctness, and session-repeat classification).
   - `Target-centric Automatic progression`: Pure `TargetAutomaticProgressionPolicy` and `TargetAutomaticProgressionState` implementing the 14-point Automatic typing qualification lifecycle: low-friction Reading first $\to$ 2 qualifying scheduled recall successes $\to$ Typing qualification $\to$ 2 distinct scheduled typing checks $\to$ low-friction Reading maintenance; genuine scheduled lapse re-arms exactly one typing re-check; successful re-check restores qualified maintenance; failed re-check lapses out of qualified maintenance back to recall qualification; same-session Again tail repeats isolated from qualification review counting; per-target typing opt-out prevents typing qualification without altering FSRS identity; timestamp ordering validation.
@@ -40,9 +46,10 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - Factual replay-safe progression: Automatic progression is derivable from factual committed events.
 - **Verification evidence:**
   - PR #202 exact candidate-HEAD `FULL_VALIDATION` passed: ValidateAll exit code 0; 3361 tests passed, 0 failed, 0 skipped; Windows Debug/Release PASS; Android Debug/Release PASS; strict trimming/linking and AOT gates PASS.
-- **Next governed lifecycle:** For current documentation reconciliation package: `DOCUMENT_ONLY` $\to$ `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ exact-candidate-HEAD `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ manual user merge $\to$ `POST_MERGE_SYNC_ONLY`.
+- **Next governed lifecycle:** `COMMIT_ONLY` (if documentation changes are committed) $\to$ exact-candidate-HEAD `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ manual user merge $\to$ `POST_MERGE_SYNC_ONLY`.
 
 - **Previous merged packages:**
+  - PR #203 (`docs: reconcile kf-learn-011 post-merge documentation`): Reconciled durable documentation after KF-LEARN-011 merge. Merged to `master`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #202 (`feature/learning-targets-definition-translation-v1` / `KF-LEARN-011`): Implemented Definition and Translation learning-target behavior, Schema 14 persistence, Archive V4 portable transport, target-centric runtime and session queue authority, 14-point Automatic typing qualification lifecycle, and independent 1-to-1 FSRS-6 scheduling identity per target. Merged to `master` via merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43` (validated PR head `675bd149c95bdf32ace36344955f886dfe9c60c8`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #201 (`feature/learn-next-review-phrasing-v1` / `KF-LEARN-007`): Improved user-facing learning/session progress and next-due phrasing across Learn session summary and dashboard with learning-timezone-aware availability projection, pluralization, and logical day completion. Merged to `master` via merge commit `f6364057de2a961f39155226adb8426365fa26c5`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #200 (`fix/learn-stale-action-error-v1` / `KF-LEARN-009`): Cleared stale Learn action-error feedback (`_actionFailed`) before `try` in `RevealAsync` and `ConfirmPermanentKnownAsync`, and reset in `ApplyLoadResult` upon fresh load state. Merged to `master` via merge commit `d3f48dc6d0cb08885524e1e55249bac1f83b4729` (validated PR head `8ef8011c759556214ea638aa6fe7d8ba1bb0f59c`). `POST_MERGE_SYNC_ONLY` completed.

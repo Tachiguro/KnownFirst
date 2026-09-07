@@ -143,7 +143,15 @@ public static class MeaningPreviewPolicy
             }
         }
 
-        return result;
+        if (result.Count <= 1)
+        {
+            return result;
+        }
+
+        return result
+            .OrderBy(selectable => MeaningRelevancePolicy.Classify(meanings[selectable.OriginalIndex]).Tier)
+            .ThenBy(selectable => selectable.OriginalIndex)
+            .ToArray();
     }
 
     public static string GetPrimaryTextForMode(string definition, string translation, LexicalLookupMode? lookupMode)

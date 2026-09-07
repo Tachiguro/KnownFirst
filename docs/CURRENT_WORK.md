@@ -25,8 +25,8 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - `Slice 1/3`: Durable tracking + pure usage-label relevance policy (`MeaningRelevancePolicy`).
   - `Slice 2/3`: Integrate deterministic ranking into `MeaningPreviewPolicy` / meaning-picker ordering while preserving `OriginalIndex` and all alternatives.
   - `Slice 3/3`: Reconcile reliable existing context signals with the ranking contract, only if they can be added deterministically without AI, embeddings, new network calls, or semantic mutation.
-- **Current lifecycle:** `IMPLEMENT_SLICE 1/3` (Pure usage-label relevance policy foundation in Core).
-- **Working state:** Branch created from verified clean `master` baseline `c036fc5739eb5531ab62085433f866cd9346e26c`. Slice 1 implements `MeaningRelevancePolicy` with deterministic label classification and stable original index tie-breaking without mutating meanings, schema, or persistence.
+- **Current lifecycle:** `IMPLEMENT_SLICE 2/3` (MeaningPreviewPolicy / picker integration).
+- **Working state:** Slice 1/3 completed at checkpoint `60998cdcf5a731ec8a1dc0cf04fec3c7c8089a0c` (`feat(prep): add meaning relevance label policy`). Slice 2/3 integrates deterministic usage-label relevance ranking into `MeaningPreviewPolicy.GetSelectableMeanings` while preserving `OriginalIndex` identity, first-occurrence deduplication representative semantics, lossless selectability, and stable provider-order tie-breaking. Slice 3/3 remains pending context signal reconciliation.
 - **Durable technical baseline (Package KF-LEARN-011 - Merged Production State):**
   - `Core domain concepts`: Pure `LearningTargetKind` (Definition, Translation), `LearningTargetIdentity` (Kind, SourceLanguage, TargetLanguage with validation and invariant normalization), `LearningTarget` (identity plus per-target typing opt-out), `TargetInteractionEvent` (pure factual event representation with UTC enforcement, rating, typing modality, correctness, and session-repeat classification).
   - `Target-centric Automatic progression`: Pure `TargetAutomaticProgressionPolicy` and `TargetAutomaticProgressionState` implementing the 14-point Automatic typing qualification lifecycle: low-friction Reading first $\to$ 2 qualifying scheduled recall successes $\to$ Typing qualification $\to$ 2 distinct scheduled typing checks $\to$ low-friction Reading maintenance; genuine scheduled lapse re-arms exactly one typing re-check; successful re-check restores qualified maintenance; failed re-check lapses out of qualified maintenance back to recall qualification; same-session Again tail repeats isolated from qualification review counting; per-target typing opt-out prevents typing qualification without altering FSRS identity; timestamp ordering validation.
@@ -46,7 +46,7 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - Factual replay-safe progression: Automatic progression is derivable from factual committed events.
 - **Verification evidence:**
   - PR #202 exact candidate-HEAD `FULL_VALIDATION` passed: ValidateAll exit code 0; 3361 tests passed, 0 failed, 0 skipped; Windows Debug/Release PASS; Android Debug/Release PASS; strict trimming/linking and AOT gates PASS.
-- **Next governed lifecycle:** After Slice 1/3 checkpoint commit: `IMPLEMENT_SLICE 2/3` (MeaningPreviewPolicy / picker integration).
+- **Next governed lifecycle:** After Slice 2/3 checkpoint commit: `IMPLEMENT_SLICE 3/3` (Context signal reconciliation).
 
 - **Previous merged packages:**
   - PR #203 (`docs: reconcile kf-learn-011 post-merge documentation`): Reconciled durable documentation after KF-LEARN-011 merge. Merged to `master`. `POST_MERGE_SYNC_ONLY` completed.

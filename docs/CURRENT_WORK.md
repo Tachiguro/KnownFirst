@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-06 (KF-LEARN-011 technically accepted candidate at HEAD `b65e7c7e337cd36073c59982bd1ff3ca9df22d73` on `feature/learning-targets-definition-translation-v1`; base `master` commit `f6364057de2a961f39155226adb8426365fa26c5`).
+2026-09-07 (Synchronized `master` at merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43` following verified merge of PR #202 `KF-LEARN-011`; active work package is documentation reconciliation `docs/reconcile-kf-learn-011-lifecycle-v1`).
 
 ## Repository and Worktree Governance
 
@@ -17,18 +17,11 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** `KF-LEARN-011`
-- **Active branch:** `feature/learning-targets-definition-translation-v1`
-- **Base commit:** `f6364057de2a961f39155226adb8426365fa26c5` (`master` / `origin/master`).
-- **Approved ordered package slices:**
-  1. `1/6 core-targets-and-governance`: Durable P1 LearningTarget product contract and pure Core foundation for target identity and replay-safe Automatic typing qualification.
-  2. `2/6 target-persistence-foundation`: Clean physical target/card persistence entities, schema foundation, and repositories.
-  3. `3/6 preparation-target-cutover`: Preparation pipeline creating clean target identities and cards.
-  4. `4/6 learning-runtime-cutover`: LearningService, active session queue, and review runtime cutover to target-centric authority.
-  5. `5/6 backup-current-format-cutover`: Portable backup export, restore, and merge cutover for the new current format.
-  6. `6/6 integration-and-legacy-decommissioning`: Full integration, legacy column/entity decommissioning, and final verification.
-- **Working state:** Technical implementation is complete across all 6 approved slices; consolidated technical review and review repair are complete; package is technically accepted (`REVIEW_APPROVED` at candidate commit `b65e7c7e337cd36073c59982bd1ff3ca9df22d73`). Current lifecycle is `DOCUMENT_ONLY`. Final candidate-HEAD `FULL_VALIDATION`, push, PR creation, manual merge, and release have NOT yet occurred.
-- **Scope & implemented behavior (Package KF-LEARN-011):**
+- **Active package:** `docs/reconcile-kf-learn-011-lifecycle-v1` (documentation reconciliation)
+- **Active branch:** `docs/reconcile-kf-learn-011-lifecycle-v1`
+- **Base commit:** `35dc4b20986f6eaf3d8c48c9da75635bfea38d43` (`master` / `origin/master`).
+- **Working state:** `KF-LEARN-011` is merged and complete on `master` via PR #202 (merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43`, validated PR head `675bd149c95bdf32ace36344955f886dfe9c60c8`). `POST_MERGE_SYNC_ONLY` completed and verified local `master` is clean and synchronized. No prior `KF-LEARN-011` implementation package remains active. Current slice is executing documentation-only reconciliation for post-merge lifecycle tracking.
+- **Durable technical baseline (Package KF-LEARN-011 - Merged Production State):**
   - `Core domain concepts`: Pure `LearningTargetKind` (Definition, Translation), `LearningTargetIdentity` (Kind, SourceLanguage, TargetLanguage with validation and invariant normalization), `LearningTarget` (identity plus per-target typing opt-out), `TargetInteractionEvent` (pure factual event representation with UTC enforcement, rating, typing modality, correctness, and session-repeat classification).
   - `Target-centric Automatic progression`: Pure `TargetAutomaticProgressionPolicy` and `TargetAutomaticProgressionState` implementing the 14-point Automatic typing qualification lifecycle: low-friction Reading first $\to$ 2 qualifying scheduled recall successes $\to$ Typing qualification $\to$ 2 distinct scheduled typing checks $\to$ low-friction Reading maintenance; genuine scheduled lapse re-arms exactly one typing re-check; successful re-check restores qualified maintenance; failed re-check lapses out of qualified maintenance back to recall qualification; same-session Again tail repeats isolated from qualification review counting; per-target typing opt-out prevents typing qualification without altering FSRS identity; timestamp ordering validation.
   - `Schema-14 target persistence`: Introduced clean Schema 14 physical tables (`LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`), shape builder and validator, and repositories. Canonical bootstrap creates validated Schema 14 directly for fresh databases (`user_version = 14`).
@@ -46,12 +39,11 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
   - Pre-release no-migration policy: no production user dataset must be migrated; no Schema-13 $\to$ Schema-14 user data migration or conversion; old dev databases fail closed.
   - Factual replay-safe progression: Automatic progression is derivable from factual committed events.
 - **Verification evidence:**
-  - Consolidated code review completed: `REVIEW_APPROVED` at candidate `b65e7c7e337cd36073c59982bd1ff3ca9df22d73`.
-  - Focused automated test suites for Core progression, preparation target generation, runtime dispatch, Schema-14 persistence, and Archive V4 backup/merge passed during implementation and repair slices.
-  - Pre-PR Candidate-HEAD `FULL_VALIDATION` gate remains strictly pending on the final candidate HEAD after documentation commit.
-- **Next governed lifecycle:** Candidate finalization / `COMMIT_ONLY` (if documentation files are modified), followed by exact-candidate-HEAD `FULL_VALIDATION`, then `PUSH_ONLY`, `PR_ONLY`, manual user merge, and `POST_MERGE_SYNC_ONLY`.
+  - PR #202 exact candidate-HEAD `FULL_VALIDATION` passed: ValidateAll exit code 0; 3361 tests passed, 0 failed, 0 skipped; Windows Debug/Release PASS; Android Debug/Release PASS; strict trimming/linking and AOT gates PASS.
+- **Next governed lifecycle:** For current documentation reconciliation package: `DOCUMENT_ONLY` $\to$ `REVIEW_ONLY` $\to$ `COMMIT_ONLY` $\to$ exact-candidate-HEAD `FULL_VALIDATION` $\to$ `PUSH_ONLY` $\to$ `PR_ONLY` $\to$ manual user merge $\to$ `POST_MERGE_SYNC_ONLY`.
 
 - **Previous merged packages:**
+  - PR #202 (`feature/learning-targets-definition-translation-v1` / `KF-LEARN-011`): Implemented Definition and Translation learning-target behavior, Schema 14 persistence, Archive V4 portable transport, target-centric runtime and session queue authority, 14-point Automatic typing qualification lifecycle, and independent 1-to-1 FSRS-6 scheduling identity per target. Merged to `master` via merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43` (validated PR head `675bd149c95bdf32ace36344955f886dfe9c60c8`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #201 (`feature/learn-next-review-phrasing-v1` / `KF-LEARN-007`): Improved user-facing learning/session progress and next-due phrasing across Learn session summary and dashboard with learning-timezone-aware availability projection, pluralization, and logical day completion. Merged to `master` via merge commit `f6364057de2a961f39155226adb8426365fa26c5`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #200 (`fix/learn-stale-action-error-v1` / `KF-LEARN-009`): Cleared stale Learn action-error feedback (`_actionFailed`) before `try` in `RevealAsync` and `ConfirmPermanentKnownAsync`, and reset in `ApplyLoadResult` upon fresh load state. Merged to `master` via merge commit `d3f48dc6d0cb08885524e1e55249bac1f83b4729` (validated PR head `8ef8011c759556214ea638aa6fe7d8ba1bb0f59c`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #199 (`fix/context-mask-grapheme-length-v1` / `KF-LEARN-006`): Masked context sentence target in `ContextView.razor` using Unicode text element length (`ContextTargetMaskPolicy`) rather than hardcoded 5 underscores. Merged to `master` via merge commit `91c2ab8afecb9c668f7c9d90ff1c7425856d24e9` (validated PR head `b0f4b0123f06569639e6a322cf399d7e7dd85ac7`). `POST_MERGE_SYNC_ONLY` completed.

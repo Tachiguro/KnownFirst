@@ -101,7 +101,7 @@ The following initiatives represent accepted product directions whose individual
 
 ### 5. Preparation & Lexical Relevance
 - **Packages:**
-  - `KF-PREP-004`: Conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C product decision: presentation priority only, strong obsolete/archaic/historical label demotion, reliable context and token-kind ranking within relevance tiers, provider-order fallback, complete preservation of selectable alternatives). *Status: Implementation complete and reviewed candidate on `feature/prep-meaning-relevance-ranking-v1`; validation/merge pending.*
+  - `KF-PREP-004`: Conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C product decision: presentation priority only, strong obsolete/archaic/historical label demotion, reliable context and token-kind ranking within relevance tiers, provider-order fallback, complete preservation of selectable alternatives). *Status: Complete on master.*
   - `KF-PREP-002`: Re-preparation / fresh lexical lookup for existing vocabulary. *Status: Open, accepted work.*
 
 ## Cleanup & Release Sequence

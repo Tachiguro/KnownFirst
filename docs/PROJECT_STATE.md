@@ -132,11 +132,9 @@ This package establishes the target-centric architecture, Schema 14 persistence,
 - Merge: Transactional populated-target merge with validated pre-merge Archive V4 safety copy. Causal history prefix check enforces that equal timestamps resolve by causal insertion order; divergent non-prefix histories fail closed with `CausalHistoryConflict`.
 - Cross-database target identity is based on resolved semantic Sense + `TargetKind` + `SourceLanguage` + `TargetLanguage`. Local SQLite IDs are never cross-database identities.
 
-## Meaning Relevance Ranking in Word Preparation (KF-PREP-004 Candidate State)
+## Meaning Relevance Ranking in Word Preparation — Merged Production State (KF-PREP-004)
 
-**Lifecycle status:** Implemented across 3 ordered slices and consolidated package review approved (`PACKAGE_REVIEW_APPROVED`) on feature branch `feature/prep-meaning-relevance-ranking-v1` at candidate HEAD `d1bcd2f30679fa4b03db23c922900644a072ed88`. Exact-candidate `FULL_VALIDATION` gate remains pending following documentation finalization. Merged `master` baseline remains unranked pending candidate validation, push, PR creation, and manual merge.
-
-This package establishes conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C product decision):
+Production `master` implements conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C product decision):
 
 **1. Presentation Priority Only & Lossless Selectability**
 - Ranking affects presentation order in the preparation workflow and meaning picker only.

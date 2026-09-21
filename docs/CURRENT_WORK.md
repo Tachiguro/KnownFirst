@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-21 (Package KF-ANALYSIS-001 Slice 3 active on branch `feature/kf-analysis-001-german-gold-corpus-v1` from base `377a2da98521d35e5ab5191199f6e3d15b34ae6c`).
+2026-09-21 (Package KF-ANALYSIS-001 documentation reconciled after consolidated REVIEW_ONLY approval on branch `feature/kf-analysis-001-german-gold-corpus-v1` from base `377a2da98521d35e5ab5191199f6e3d15b34ae6c`).
 
 ## Repository and Worktree Governance
 
@@ -24,10 +24,10 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 - **Declared slice sequence:**
   1. `analysis-evidence-harness-foundation` (checkpointed at `a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`)
   2. `review-admission-correlation` (checkpointed at `cc4a72d223215f599f50d1a3d8c8ce09d53532df`)
-  3. `german-gold-corpus` (active)
-- **Current lifecycle:** `IMPLEMENT_SLICE`, Slice 3/3 active (`german-gold-corpus`).
-- **Working state:** Slice 1/3 checkpoint completed at `a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`; Slice 2/3 checkpoint completed at `cc4a72d223215f599f50d1a3d8c8ce09d53532df`. Implementing test-only German gold corpus fixtures, German gold corpus characterization tests, and deterministic evidence artifact writer (`KnownFirst.Tests/Corpus/GermanGoldCorpusFixtures.cs`, `KnownFirst.Tests/Corpus/GermanGoldCorpusTests.cs`, `KnownFirst.Tests/AnalysisEvidence/EvidenceArtifactWriter.cs`, `KnownFirst.Tests/EvidenceArtifactWriterTests.cs`); no production code changes. Consolidated package REVIEW_ONLY has not yet occurred; package-level DOCUMENT_ONLY has not yet occurred; candidate FULL_VALIDATION has not occurred; branch remains unpushed; no PR exists.
-- **Next governed lifecycle:** Checkpoint commit for Slice 3 upon focused GREEN verification, followed by package-level REVIEW_ONLY.
+  3. `german-gold-corpus` (checkpointed at `a5dae1ba54f419e1edae28d3c7eb0cf6c99d633a`)
+- **Current lifecycle:** `DOCUMENT_ONLY` completed; candidate finalization / `COMMIT_ONLY` pending.
+- **Working state:** All 3 declared implementation slices completed and checkpointed (`a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`, `cc4a72d223215f599f50d1a3d8c8ce09d53532df`, `a5dae1ba54f419e1edae28d3c7eb0cf6c99d633a`). Consolidated package `REVIEW_ONLY` approved (`REVIEW_APPROVED`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 1 report NIT). Package-level `DOCUMENT_ONLY` reconciled durable documentation across `docs/CURRENT_WORK.md`, `docs/BACKLOG.md`, `docs/ROADMAP.md`, `docs/PROJECT_STATE.md`, and `docs/TESTING.md`. German-first evidence foundation completed on branch (17 cases: 11 BindingContract / 6 VerifiedCurrentBehavior / 0 CharacterizationExpectation / 0 UnspecifiedRequiresDecision; test-only source-generated JSON metadata; isolated temporary SQLite review-admission evidence; exact UTF-16 coordinate fidelity; no production code changes). English corpus extension remains accepted open follow-up under `KF-ANALYSIS-001`. Branch has not yet passed candidate `FULL_VALIDATION`; branch remains unpushed; no PR exists.
+- **Next governed lifecycle:** Candidate finalization / `COMMIT_ONLY` (to stage and commit package-level documentation reconciliation), followed by exact-candidate-HEAD `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`), `PUSH_ONLY`, `PR_ONLY`, manual user merge on GitHub, and `POST_MERGE_SYNC_ONLY`.
 
 - **Previous merged packages:**
   - PR #207 (`docs/reconcile-core-reliability-roadmap-v1`): Reconciled documentation with merged `KF-LEX-004` baseline and registered Core Reliability sequence (`KF-ANALYSIS-001` → `KF-LEX-005` → `KF-TRANS-001`). Merged to `master` via merge commit `377a2da98521d35e5ab5191199f6e3d15b34ae6c` (validated PR head `f5a6e309bb61f6b0a1fc5c002090ac3399104807`). `POST_MERGE_SYNC_ONLY` completed.

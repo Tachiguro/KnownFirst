@@ -186,6 +186,28 @@ Merged to `master` via PR #206 (`fix(lexical): improve German Wiktionary lookup 
   - Focused TDD: Checkpoint 1/2 (21 passed), Checkpoint 2/2 (43 passed).
   - Pre-PR Exact-Head `FULL_VALIDATION` passed (2983 / 2983 tests, Windows Debug/Release PASS, Android Debug/Release PASS, AOT/warning gates PASS).
 
+## Text Analysis Evidence & German Gold Corpus Foundation — Task Branch Implementation (KF-ANALYSIS-001)
+
+**Lifecycle status:** Implemented on dedicated task branch `feature/kf-analysis-001-german-gold-corpus-v1` across 3 completed checkpoint commits (`a8a846c`, `cc4a72d`, `a5dae1b`) from base `377a2da98521d35e5ab5191199f6e3d15b34ae6c`. Consolidated package review approved (`REVIEW_APPROVED`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 1 report NIT); documentation reconciled. This is test-only evidence and characterization infrastructure on the task branch; it is not yet merged to `master`; branch remains unpushed, with no PR, pending candidate finalization / full validation. English corpus extension remains accepted open work under `KF-ANALYSIS-001`. Full operational status: [docs/CURRENT_WORK.md](CURRENT_WORK.md).
+
+This package establishes deterministic text-analysis and review-admission evidence infrastructure and a 17-case German gold corpus:
+
+**1. Three-Layer Evidence Architecture**
+- **Analyzer Evidence Layer (`AnalysisEvidenceCollector`):** Executes real `TextAnalyzer.Analyze(...)` without mocking; captures original raw input, SHA-256 document fingerprint, sentence segmentation spans, token classification, include/exclude decisions with explicit reason codes, canonical/normalized terms, TokenKind, occurrences, surface forms, candidate grouping, context selection, and coordinate/invariant validation.
+- **Review-Admission Correlation Layer (`ReviewAdmissionCorrelator`):** Bridges text analysis to persistence and review admission; snapshots pre-import vocabulary state; executes real `TextReviewService.ImportAsync` against isolated temporary SQLite databases; categorizes post-import outcomes (`NewVocabulary`, `ExistingUnreviewed`, `UnknownBacklog`, `Known`, `Ignored`, `NoNewVocabulary`, `ExactDuplicate`).
+- **Evidence Artifact Generation (`EvidenceArtifactWriter`, `AnalysisEvidenceTextFormatter`, `AnalysisEvidenceJsonFormatter`):** Produces deterministic human-readable `.txt` reports and structured machine-readable JSON exports under `artifacts/text-analysis-evidence/german-gold-corpus/`.
+
+**2. Deterministic German Gold Corpus v1**
+- **17 Corpus Cases:** Implemented in `GermanGoldCorpusFixtures` and asserted in `GermanGoldCorpusTests`.
+- **Authority Classification:** 11 `BindingContract`, 6 `VerifiedCurrentBehavior`, 0 `CharacterizationExpectation`, 0 `UnspecifiedRequiresDecision`.
+- **Linguistic & Pipeline Coverage:** Exact original input, UTF-16 coordinate fidelity, line endings, Unicode/umlauts/ß, punctuation, abbreviations and decimal numbers, technical tokens (SHA/CVE), URL and email exclusions, frequency 1 terms, context deduplication, coordinated compounds (`Dampf- und Gasturbinen`), conservative compound decomposition (`Informationssicherheit`, `Handschuh`), analyzer collision behavior, and review admission against existing vocabulary states.
+
+**3. Preserved Architecture Boundaries & Invariants**
+- **Zero Production Code / Behavior Change:** Strictly test-only evidence infrastructure; no production source code modified; no analyzer heuristics changed.
+- **No Schema or Archive Mutation:** Database schema remains Schema 14; archive format remains V4.
+- **Test-Only Source-Generated JSON:** `KnownFirst.Tests` uses `AnalysisEvidenceJsonSerializerContext` (`[JsonSerializable]`) for JSON formatting because reflection-based serialization is disabled under AOT/trimming test constraints; no production JSON/AOT/trimming surface added.
+- **Safety, Privacy & Clean DB Isolation:** Automated tests use synthetic/public texts only (no real user database, no private user text, no live network requests). Review admission tests use isolated temporary SQLite databases initialized from clean schema. Generated evidence artifacts are Git-ignored and not committed.
+
 ## Schema-13 / FSRS-6 Merged Production State (KF-FSRS-003)
 
 Current `master` implements the clean Schema-13 production cutover, FSRS-6 authority, factual FSRS state/history persistence, Archive V3 integrity and causal interaction ordering, and Repairs 001–006. This records source/runtime truth only; it does not establish GUI, device, package, release, or distribution evidence.

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-21 (Package KF-ANALYSIS-001 Slice 1 active on branch `feature/kf-analysis-001-german-gold-corpus-v1` from base `377a2da98521d35e5ab5191199f6e3d15b34ae6c`).
+2026-09-21 (Package KF-ANALYSIS-001 Slice 3 active on branch `feature/kf-analysis-001-german-gold-corpus-v1` from base `377a2da98521d35e5ab5191199f6e3d15b34ae6c`).
 
 ## Repository and Worktree Governance
 
@@ -23,11 +23,11 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 - **Package objective:** INPUT → SENTENCE SPANS → TOKEN DECISIONS → ANALYZER CANDIDATES → ACTUAL REVIEW CANDIDATES. Build reproducible corpus fixtures, diagnostic evidence capture, and regression assertions for German text analysis.
 - **Declared slice sequence:**
   1. `analysis-evidence-harness-foundation` (checkpointed at `a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`)
-  2. `review-admission-correlation` (active)
-  3. `german-gold-corpus` (pending)
-- **Current lifecycle:** `IMPLEMENT_SLICE`, Slice 2/3 active (`review-admission-correlation`).
-- **Working state:** Slice 1/3 checkpoint completed at `a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`. Implementing test-only review admission correlation (`KnownFirst.Tests/AnalysisEvidence/ReviewAdmissionModels.cs`, `KnownFirst.Tests/AnalysisEvidence/ReviewAdmissionCorrelator.cs`, `KnownFirst.Tests/ReviewAdmissionCorrelationTests.cs`) via focused TDD against real `TextReviewService.ImportAsync` and isolated temporary SQLite data; no production code changes. No package-level review/documentation/full validation has occurred; no push or PR exists.
-- **Next governed lifecycle:** Checkpoint commit for Slice 2 upon focused GREEN verification, followed by Slice 3.
+  2. `review-admission-correlation` (checkpointed at `cc4a72d223215f599f50d1a3d8c8ce09d53532df`)
+  3. `german-gold-corpus` (active)
+- **Current lifecycle:** `IMPLEMENT_SLICE`, Slice 3/3 active (`german-gold-corpus`).
+- **Working state:** Slice 1/3 checkpoint completed at `a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`; Slice 2/3 checkpoint completed at `cc4a72d223215f599f50d1a3d8c8ce09d53532df`. Implementing test-only German gold corpus fixtures, German gold corpus characterization tests, and deterministic evidence artifact writer (`KnownFirst.Tests/Corpus/GermanGoldCorpusFixtures.cs`, `KnownFirst.Tests/Corpus/GermanGoldCorpusTests.cs`, `KnownFirst.Tests/AnalysisEvidence/EvidenceArtifactWriter.cs`, `KnownFirst.Tests/EvidenceArtifactWriterTests.cs`); no production code changes. Consolidated package REVIEW_ONLY has not yet occurred; package-level DOCUMENT_ONLY has not yet occurred; candidate FULL_VALIDATION has not occurred; branch remains unpushed; no PR exists.
+- **Next governed lifecycle:** Checkpoint commit for Slice 3 upon focused GREEN verification, followed by package-level REVIEW_ONLY.
 
 - **Previous merged packages:**
   - PR #207 (`docs/reconcile-core-reliability-roadmap-v1`): Reconciled documentation with merged `KF-LEX-004` baseline and registered Core Reliability sequence (`KF-ANALYSIS-001` → `KF-LEX-005` → `KF-TRANS-001`). Merged to `master` via merge commit `377a2da98521d35e5ab5191199f6e3d15b34ae6c` (validated PR head `f5a6e309bb61f6b0a1fc5c002090ac3399104807`). `POST_MERGE_SYNC_ONLY` completed.

@@ -292,7 +292,7 @@ public sealed class ReviewAdmissionCorrelationTests
         });
     }
 
-    private sealed class ThrowingGermanLexicon : IGermanLexicon
+    internal sealed class ThrowingGermanLexicon : IGermanLexicon
     {
         public bool TryLookupLemma(string form, out GermanLexemeEntry? entry) =>
             throw new InvalidOperationException("The German lexicon must not be queried when enhanced recognition is inactive.");
@@ -301,7 +301,7 @@ public sealed class ReviewAdmissionCorrelationTests
             throw new InvalidOperationException("The German lexicon must not be queried when enhanced recognition is inactive.");
     }
 
-    private sealed class AdmissionTestDatabase : IKnownFirstDatabase, IAsyncDisposable
+    internal sealed class AdmissionTestDatabase : IKnownFirstDatabase, IAsyncDisposable
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private SQLiteAsyncConnection? _connection;

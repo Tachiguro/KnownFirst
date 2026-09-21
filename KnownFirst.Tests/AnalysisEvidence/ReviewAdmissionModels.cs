@@ -53,4 +53,50 @@ public sealed record ReviewAdmissionEvidence(
 {
     public bool HasAcceptedReviewSession =>
         ImportResult.Outcome == ImportAnalysisOutcome.Accepted && ImportResult.SessionId > 0;
+
+    public ReviewAdmissionArtifactEvidence ToArtifactEvidence()
+    {
+        var preVocab = PreImportVocabulary
+            .Select(v => new PreImportVocabularyEntryArtifact(
+                v.Identity,
+                v.CanonicalTerm,
+                v.Status,
+                v.TotalOccurrenceCount,
+                v.DocumentCount))
+            .ToArray();
+
+        var admissions = CandidateAdmissions
+            .Select(a => new CandidateAdmissionEntryArtifact(
+                a.Identity,
+                a.CanonicalTerm,
+                a.PreImportStatus,
+                a.Disposition,
+                a.PersistedReviewOrder,
+                a.WasWordCreatedForSession,
+                a.TotalOccurrenceCountBefore,
+                a.TotalOccurrenceCountAfter,
+                a.DocumentCountBefore,
+                a.DocumentCountAfter,
+                a.OccurrenceContributionCount))
+            .ToArray();
+
+        var persisted = PersistedReviewCandidates
+            .Select(p => new PersistedReviewCandidateEntryArtifact(
+                p.Order,
+                p.Identity,
+                p.CanonicalTerm,
+                p.Status,
+                p.PreviousWordStatus,
+                p.WasWordCreatedForSession,
+                p.OccurrenceCount))
+            .ToArray();
+
+        return new ReviewAdmissionArtifactEvidence(
+            AdmissionExecuted: true,
+            Outcome: ImportResult.Outcome,
+            CandidateCount: ImportResult.CandidateCount,
+            PreImportVocabulary: preVocab,
+            CandidateAdmissions: admissions,
+            PersistedReviewCandidates: persisted);
+    }
 }

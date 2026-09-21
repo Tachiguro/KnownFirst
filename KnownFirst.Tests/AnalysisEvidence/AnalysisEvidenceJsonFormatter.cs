@@ -33,4 +33,17 @@ public static class AnalysisEvidenceJsonFormatter
         return JsonSerializer.Deserialize(json, DefaultContext.AnalysisEvidenceDocument)
             ?? throw new InvalidOperationException("Failed to deserialize AnalysisEvidenceDocument.");
     }
+
+    public static string Format(GermanGoldCorpusEvidenceArtifact artifact)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        return JsonSerializer.Serialize(artifact, DefaultContext.GermanGoldCorpusEvidenceArtifact);
+    }
+
+    public static GermanGoldCorpusEvidenceArtifact DeserializeCorpusArtifact(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        return JsonSerializer.Deserialize(json, DefaultContext.GermanGoldCorpusEvidenceArtifact)
+            ?? throw new InvalidOperationException("Failed to deserialize GermanGoldCorpusEvidenceArtifact.");
+    }
 }

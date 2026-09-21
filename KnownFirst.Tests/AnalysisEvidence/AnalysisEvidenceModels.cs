@@ -1,4 +1,5 @@
 using KnownFirst.Core.Text;
+using KnownFirst.Models;
 
 namespace KnownFirst.Tests.AnalysisEvidence;
 
@@ -108,3 +109,67 @@ public sealed record AnalysisEvidenceDocument(
 {
     public bool InvariantsPassed => InvariantFailures.Count == 0;
 }
+
+public enum CorpusExpectationAuthority
+{
+    BindingContract,
+    VerifiedCurrentBehavior,
+    CharacterizationExpectation,
+    UnspecifiedRequiresDecision
+}
+
+public sealed record PreImportVocabularyEntryArtifact(
+    string Identity,
+    string? CanonicalTerm,
+    WordStatus Status,
+    int TotalOccurrenceCount,
+    int DocumentCount);
+
+public sealed record CandidateAdmissionEntryArtifact(
+    string Identity,
+    string CanonicalTerm,
+    WordStatus? PreImportStatus,
+    ReviewAdmissionDisposition Disposition,
+    int? PersistedReviewOrder,
+    bool WasWordCreatedForSession,
+    int TotalOccurrenceCountBefore,
+    int TotalOccurrenceCountAfter,
+    int DocumentCountBefore,
+    int DocumentCountAfter,
+    int OccurrenceContributionCount);
+
+public sealed record PersistedReviewCandidateEntryArtifact(
+    int Order,
+    string Identity,
+    string CanonicalTerm,
+    WordStatus Status,
+    WordStatus PreviousWordStatus,
+    bool WasWordCreatedForSession,
+    int OccurrenceCount);
+
+public sealed record ReviewAdmissionArtifactEvidence(
+    bool AdmissionExecuted,
+    ImportAnalysisOutcome? Outcome,
+    int? CandidateCount,
+    IReadOnlyList<PreImportVocabularyEntryArtifact>? PreImportVocabulary,
+    IReadOnlyList<CandidateAdmissionEntryArtifact>? CandidateAdmissions,
+    IReadOnlyList<PersistedReviewCandidateEntryArtifact>? PersistedReviewCandidates,
+    string? Notes = null)
+{
+    public static ReviewAdmissionArtifactEvidence None() =>
+        new(
+            AdmissionExecuted: false,
+            Outcome: null,
+            CandidateCount: null,
+            PreImportVocabulary: null,
+            CandidateAdmissions: null,
+            PersistedReviewCandidates: null,
+            Notes: "Review admission execution was not requested for this case.");
+}
+
+public sealed record GermanGoldCorpusEvidenceArtifact(
+    string CaseId,
+    string Description,
+    CorpusExpectationAuthority Authority,
+    AnalysisEvidenceDocument AnalyzerEvidence,
+    ReviewAdmissionArtifactEvidence ReviewAdmission);

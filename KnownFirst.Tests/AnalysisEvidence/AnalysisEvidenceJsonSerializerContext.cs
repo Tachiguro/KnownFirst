@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using KnownFirst.Core.Text;
+using KnownFirst.Models;
 
 namespace KnownFirst.Tests.AnalysisEvidence;
 
@@ -33,6 +34,19 @@ namespace KnownFirst.Tests.AnalysisEvidence;
 [JsonSerializable(typeof(IReadOnlyList<AnalysisContextDecisionEvidence>))]
 [JsonSerializable(typeof(IReadOnlyList<AnalysisInvariantFailureEvidence>))]
 [JsonSerializable(typeof(IReadOnlyList<string>))]
+[JsonSerializable(typeof(GermanGoldCorpusEvidenceArtifact))]
+[JsonSerializable(typeof(CorpusExpectationAuthority))]
+[JsonSerializable(typeof(ReviewAdmissionArtifactEvidence))]
+[JsonSerializable(typeof(PreImportVocabularyEntryArtifact))]
+[JsonSerializable(typeof(CandidateAdmissionEntryArtifact))]
+[JsonSerializable(typeof(PersistedReviewCandidateEntryArtifact))]
+[JsonSerializable(typeof(ReviewAdmissionDisposition))]
+[JsonSerializable(typeof(ImportAnalysisOutcome))]
+[JsonSerializable(typeof(WordStatus))]
+[JsonSerializable(typeof(IReadOnlyList<PreImportVocabularyEntryArtifact>))]
+[JsonSerializable(typeof(IReadOnlyList<CandidateAdmissionEntryArtifact>))]
+[JsonSerializable(typeof(IReadOnlyList<PersistedReviewCandidateEntryArtifact>))]
+[JsonSerializable(typeof(IReadOnlyList<GermanGoldCorpusEvidenceArtifact>))]
 public sealed partial class AnalysisEvidenceJsonSerializerContext : JsonSerializerContext
 {
 }

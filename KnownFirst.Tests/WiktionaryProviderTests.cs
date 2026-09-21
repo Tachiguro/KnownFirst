@@ -1591,8 +1591,285 @@ public sealed class WiktionaryProviderTests
     {
         var provider = CreateProvider(_ => new HttpResponseMessage());
         Assert.AreEqual(WiktionaryLookupProvider.SchemaVersion, provider.ProviderSchemaVersion);
-        Assert.AreEqual(6, provider.ProviderSchemaVersion);
+        Assert.AreEqual(7, provider.ProviderSchemaVersion);
+
+        var request = Request("Geht", "de", LexicalLookupMode.Definition, null);
+        var v6Key = LexicalCacheRepository.CreateCacheKey(request, WiktionaryLookupProvider.Name, 6);
+        var v7Key = LexicalCacheRepository.CreateCacheKey(request, WiktionaryLookupProvider.Name, 7);
+        Assert.AreNotEqual(v6Key, v7Key);
     }
+
+    [TestMethod]
+    public async Task Lookup_GermanCapitalizedWord_FallsBackToLowercaseWhenMissing()
+    {
+        var requestedUris = new List<Uri>();
+        var provider = CreateProvider(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            if (request.RequestUri!.Query.Contains("page=Geht"))
+            {
+                return JsonResponse(LoadFixture("missing-page.json"));
+            }
+            if (request.RequestUri.Query.Contains("page=geht"))
+            {
+                return JsonResponse(GermanEntryJson("geht", "sich fortbewegen", 123456));
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var request = Request("Geht", "de", LexicalLookupMode.Definition, null);
+        var result = await provider.LookupAsync(request);
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.AreEqual("Geht", result.QueriedLemma);
+        Assert.AreEqual("Geht", result.DisplayTerm);
+        Assert.AreEqual("geht", result.PageTitle);
+        Assert.AreEqual(123456L, result.RevisionId);
+        Assert.IsTrue(result.HasUsableData);
+        Assert.AreEqual(0, result.RedirectDepth);
+        Assert.IsNull(result.EncounteredSurfaceForm);
+        Assert.IsNull(result.GrammaticalRelationship);
+        Assert.AreEqual(2, requestedUris.Count);
+        StringAssert.Contains(requestedUris[0].Query, "page=Geht");
+        StringAssert.Contains(requestedUris[1].Query, "page=geht");
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanExistingCapitalizedNoun_DoesNotFallbackToLowercase()
+    {
+        var requestedUris = new List<Uri>();
+        var provider = CreateProvider(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            if (request.RequestUri!.Query.Contains("page=Haus"))
+            {
+                return JsonResponse(LoadFixture("german-haus.json"));
+            }
+            return JsonResponse(LoadFixture("missing-page.json"));
+        });
+
+        var request = Request("Haus", "de", LexicalLookupMode.Definition, null);
+        var result = await provider.LookupAsync(request);
+
+        Assert.AreEqual(LexicalLookupStatus.Success, result.Status);
+        Assert.AreEqual("Haus", result.PageTitle);
+        Assert.AreEqual(1, requestedUris.Count);
+        StringAssert.Contains(requestedUris[0].Query, "page=Haus");
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanCapitalizedWord_BothMissing_FailsClosedWithMissingPage()
+    {
+        var requestedUris = new List<Uri>();
+        var provider = CreateProvider(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            return JsonResponse(LoadFixture("missing-page.json"));
+        });
+
+        var request = Request("Unbekannteswort", "de", LexicalLookupMode.Definition, null);
+        var result = await provider.LookupAsync(request);
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("missing-page", result.ErrorCode);
+        Assert.AreEqual("Unbekannteswort", result.QueriedLemma);
+        Assert.AreEqual("Unbekannteswort", result.DisplayTerm);
+        Assert.AreEqual(2, requestedUris.Count);
+        StringAssert.Contains(requestedUris[0].Query, "page=Unbekannteswort");
+        StringAssert.Contains(requestedUris[1].Query, "page=unbekannteswort");
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanAlreadyLowercase_DoesNotCreateFallbackCandidate()
+    {
+        var requestedUris = new List<Uri>();
+        var provider = CreateProvider(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            return JsonResponse(LoadFixture("missing-page.json"));
+        });
+
+        var request = Request("fehlt", "de", LexicalLookupMode.Definition, null);
+        var result = await provider.LookupAsync(request);
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual("missing-page", result.ErrorCode);
+        Assert.AreEqual(1, requestedUris.Count);
+        StringAssert.Contains(requestedUris[0].Query, "page=fehlt");
+    }
+
+    [TestMethod]
+    public async Task Lookup_NonMissingPageOutcomes_NeverTriggerCaseFallback()
+    {
+        // 1. Language section missing (parser-derived NotFound)
+        var requestedUris1 = new List<Uri>();
+        var provider1 = CreateProvider(request =>
+        {
+            requestedUris1.Add(request.RequestUri!);
+            return JsonResponse(LoadFixture("language-section-missing.json"));
+        });
+        var result1 = await provider1.LookupAsync(Request("Sektion", "de", LexicalLookupMode.Definition, null));
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result1.Status);
+        Assert.AreEqual("language-section-not-found", result1.ErrorCode);
+        Assert.AreEqual(1, requestedUris1.Count);
+
+        // 2. Transient server failure (HTTP 500)
+        var requestedUris2 = new List<Uri>();
+        var provider2 = CreateProvider(request =>
+        {
+            requestedUris2.Add(request.RequestUri!);
+            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        });
+        var result2 = await provider2.LookupAsync(Request("Fehler", "de", LexicalLookupMode.Definition, null));
+        Assert.AreEqual(LexicalLookupStatus.TransientFailure, result2.Status);
+        Assert.AreEqual("transient-server-error", result2.ErrorCode);
+        Assert.AreEqual(3, requestedUris2.Count);
+        Assert.IsTrue(requestedUris2.All(uri => uri.Query.Contains("page=Fehler")));
+
+        // 3. English capitalized term missing does not trigger German fallback
+        var requestedUris3 = new List<Uri>();
+        var provider3 = CreateProvider(request =>
+        {
+            requestedUris3.Add(request.RequestUri!);
+            return JsonResponse(LoadFixture("missing-page.json"));
+        });
+        var result3 = await provider3.LookupAsync(Request("Network", "en", LexicalLookupMode.Definition, null));
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result3.Status);
+        Assert.AreEqual("missing-page", result3.ErrorCode);
+        Assert.AreEqual(1, requestedUris3.Count);
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanAcronym_DoesNotTriggerCaseFallback()
+    {
+        var requestedUris = new List<Uri>();
+        var provider = CreateProvider(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            return JsonResponse(LoadFixture("missing-page.json"));
+        });
+
+        var request = new LexicalLookupRequest(
+            "de",
+            LexicalLookupMode.Definition,
+            null,
+            "ADAC",
+            TokenKind.Acronym,
+            WiktionaryLookupProvider.Name,
+            "ADAC",
+            "ADAC");
+        var result = await provider.LookupAsync(request);
+
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result.Status);
+        Assert.AreEqual(1, requestedUris.Count);
+        StringAssert.Contains(requestedUris[0].Query, "page=ADAC");
+    }
+
+    [TestMethod]
+    public async Task Enrichment_GermanCapitalizedWord_CaseFallback_CachesUnderOriginalRequest()
+    {
+        await using var database = new TemporaryKnownFirstDatabase("knownfirst-enrichment-case-fallback");
+        await database.InitializeAsync();
+        var cache = new LexicalCacheRepository(database);
+
+        var requestedUris = new List<Uri>();
+        var provider = CreateProvider(request =>
+        {
+            requestedUris.Add(request.RequestUri!);
+            if (request.RequestUri!.Query.Contains("page=Geht"))
+            {
+                return JsonResponse(LoadFixture("missing-page.json"));
+            }
+            if (request.RequestUri.Query.Contains("page=geht"))
+            {
+                return JsonResponse(GermanEntryJson("geht", "sich fortbewegen", 98765));
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+
+        var service = new LexicalEnrichmentService(
+            new AcronymExpansionDetector(),
+            new MeaningRanker(),
+            cache,
+            new LexicalLookupProviderResolver([provider]));
+
+        var request = Request("Geht", "de", LexicalLookupMode.Definition, null);
+
+        var firstResult = await service.EnrichAsync(
+            request,
+            "Document content that remains local.",
+            "Sentence context that remains local.");
+
+        Assert.AreEqual(LexicalLookupStatus.Success, firstResult.Status);
+        Assert.IsFalse(firstResult.IsFromCache);
+        Assert.AreEqual("Geht", firstResult.DisplayTerm);
+        Assert.AreEqual("geht", firstResult.PageTitle);
+        Assert.AreEqual(2, requestedUris.Count);
+
+        var secondResult = await service.EnrichAsync(
+            request,
+            "Document content that remains local.",
+            "Sentence context that remains local.");
+
+        Assert.AreEqual(LexicalLookupStatus.Success, secondResult.Status);
+        Assert.IsTrue(secondResult.IsFromCache);
+        Assert.AreEqual("Geht", secondResult.DisplayTerm);
+        Assert.AreEqual(2, requestedUris.Count, "Second lookup must be satisfied from cache without network calls.");
+    }
+
+    [TestMethod]
+    public async Task Lookup_GermanCaseFallback_PreservesFallbackSpecificErrors()
+    {
+        // Fallback returns language-section-not-found
+        var provider1 = CreateProvider(request =>
+        {
+            if (request.RequestUri!.Query.Contains("page=Geht"))
+            {
+                return JsonResponse(LoadFixture("missing-page.json"));
+            }
+            return JsonResponse(LoadFixture("language-section-missing.json"));
+        });
+        var result1 = await provider1.LookupAsync(Request("Geht", "de", LexicalLookupMode.Definition, null));
+        Assert.AreEqual(LexicalLookupStatus.NotFound, result1.Status);
+        Assert.AreEqual("language-section-not-found", result1.ErrorCode);
+
+        // Fallback returns transient server error (500)
+        var provider2 = CreateProvider(request =>
+        {
+            if (request.RequestUri!.Query.Contains("page=Geht"))
+            {
+                return JsonResponse(LoadFixture("missing-page.json"));
+            }
+            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+        });
+        var result2 = await provider2.LookupAsync(Request("Geht", "de", LexicalLookupMode.Definition, null));
+        Assert.AreEqual(LexicalLookupStatus.TransientFailure, result2.Status);
+        Assert.AreEqual("transient-server-error", result2.ErrorCode);
+
+        // Fallback returns malformed JSON
+        var provider3 = CreateProvider(request =>
+        {
+            if (request.RequestUri!.Query.Contains("page=Geht"))
+            {
+                return JsonResponse(LoadFixture("missing-page.json"));
+            }
+            return JsonResponse("{ not-valid-json");
+        });
+        var result3 = await provider3.LookupAsync(Request("Geht", "de", LexicalLookupMode.Definition, null));
+        Assert.AreEqual(LexicalLookupStatus.ParseFailure, result3.Status);
+        Assert.AreEqual("malformed-json", result3.ErrorCode);
+    }
+
+    private static string GermanEntryJson(string title, string definition, long revid = 123456) =>
+        $$"""
+        {
+          "parse": {
+            "title": "{{title}}",
+            "revid": {{revid}},
+            "text": "<div class=\"mw-heading mw-heading2\"><h2 id=\"{{title}}_(Deutsch)\">{{title}} (Deutsch)</h2></div><div class=\"mw-heading mw-heading3\"><h3>Verb</h3></div><p style=\"font-weight:bold;\">Bedeutungen:</p><dl><dd>[1] {{definition}}</dd></dl>"
+          }
+        }
+        """;
 
     private static WiktionaryLookupProvider CreateProvider(
         Func<HttpRequestMessage, HttpResponseMessage> handler,

@@ -1,11 +1,14 @@
 using KnownFirst.Core.Learning;
 using KnownFirst.Core.Preparation;
+using KnownFirst.Core.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 
 namespace KnownFirst.Services.Lexical;
@@ -13,7 +16,7 @@ namespace KnownFirst.Services.Lexical;
 public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
 {
     public const string Name = "Wiktionary";
-    public const int SchemaVersion = 6;
+    public const int SchemaVersion = 7;
     public const string UserAgent =
         "KnownFirst/1.0 (https://github.com/Tachiguro/KnownFirst; read-only dictionary lookup)";
     public const string AttributionText =
@@ -82,6 +85,30 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         {
             _diagnosticLog.Write(Event(request, "provider.concurrency-wait.complete"));
             var result = await SendWithRetryAsync(request, cancellationToken);
+            if (TryCreateCaseFallbackRequest(request, result, out var fallbackRequest))
+            {
+                _diagnosticLog.Write(Event(request, "provider.case-fallback.start"));
+                _logger.LogInformation(
+                    "Primary dictionary lookup returned missing-page. Attempting case fallback. Provider = {Provider}, original term = {OriginalTerm}, fallback candidate = {FallbackCandidate}",
+                    Name,
+                    request.CanonicalLookupTerm,
+                    fallbackRequest.CanonicalLookupTerm);
+
+                var fallbackResult = await SendWithRetryAsync(fallbackRequest, cancellationToken);
+                _diagnosticLog.Write(Event(request, "provider.case-fallback.complete"));
+
+                result = fallbackResult with
+                {
+                    QueriedLemma = request.NormalizedLemma,
+                    DisplayTerm = request.Term,
+                    TokenKind = request.TokenKind,
+                    SourceLanguage = request.SourceLanguage,
+                    ExplanationLanguage = request.ExplanationLanguage,
+                    LookupMode = request.LookupMode,
+                    TargetLanguage = request.TargetLanguage
+                };
+            }
+
             _logger.LogInformation(
                 "Dictionary lookup completed. Provider = {Provider}, outcome = {LookupStatus}, error code = {ErrorCode}, cache result = {IsFromCache}, duration milliseconds = {DurationMilliseconds}",
                 Name,
@@ -430,4 +457,76 @@ public sealed class WiktionaryLookupProvider : IDictionaryLookupProvider
         Name,
         HttpOutcome: httpOutcome,
         ParserOutcome: parserOutcome);
+
+    private static bool TryCreateCaseFallbackRequest(
+        LexicalLookupRequest request,
+        LexicalResult primaryResult,
+        [NotNullWhen(true)] out LexicalLookupRequest? fallbackRequest)
+    {
+        fallbackRequest = null;
+        if (!string.Equals(request.SourceLanguage, "de", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (request.TokenKind != TokenKind.Word)
+        {
+            return false;
+        }
+
+        if (primaryResult.Status != LexicalLookupStatus.NotFound
+            || !string.Equals(primaryResult.ErrorCode, "missing-page", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!TryCreateLowercaseFirstRuneCandidate(request.CanonicalLookupTerm, out var fallbackTerm))
+        {
+            return false;
+        }
+
+        if (string.Equals(fallbackTerm, request.CanonicalLookupTerm, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        fallbackRequest = new LexicalLookupRequest(
+            request.SourceLanguage,
+            request.LookupMode,
+            request.TargetLanguage,
+            fallbackTerm,
+            request.TokenKind,
+            request.Provider,
+            displayedSurfaceForm: request.DisplayedSurfaceForm,
+            vocabularyCanonicalTerm: request.VocabularyCanonicalTerm);
+
+        return true;
+    }
+
+    private static bool TryCreateLowercaseFirstRuneCandidate(
+        string term,
+        [NotNullWhen(true)] out string? candidate)
+    {
+        candidate = null;
+        if (string.IsNullOrEmpty(term))
+        {
+            return false;
+        }
+
+        if (!Rune.TryGetRuneAt(term, 0, out var firstRune))
+        {
+            return false;
+        }
+
+        var lowerFirstRune = Rune.ToLowerInvariant(firstRune);
+        if (lowerFirstRune == firstRune)
+        {
+            return false;
+        }
+
+        var rest = term.AsSpan(firstRune.Utf16SequenceLength);
+        candidate = string.Concat(lowerFirstRune.ToString(), rest);
+
+        return !string.Equals(candidate, term, StringComparison.Ordinal);
+    }
 }

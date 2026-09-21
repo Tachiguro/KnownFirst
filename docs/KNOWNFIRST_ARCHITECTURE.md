@@ -613,7 +613,7 @@ Requirements:
 - retain source attribution and revision information
 - never fabricate a missing definition or translation
 
-Every request carries its lexical languages explicitly. `SourceLanguage` is the imported-text language. `Definition` requires a null target and requests a definition in the source language. `Translation` and `DefinitionAndTranslation` require a supported target language different from the source. UI culture is never consulted when building a lexical request or cache key. Ordinary English `Word` tokens use a lowercase canonical lookup term while their exact display/context forms remain unchanged; acronym and case-sensitive technical token kinds retain case (`IT` never becomes `it`).
+Every request carries its lexical languages explicitly. `SourceLanguage` is the imported-text language. `Definition` requires a null target and requests a definition in the source language. `Translation` and `DefinitionAndTranslation` require a supported target language different from the source. UI culture is never consulted when building a lexical request or cache key. Ordinary English `Word` tokens use a lowercase canonical lookup term while their exact display/context forms remain unchanged; acronym and case-sensitive technical token kinds retain case (`IT` never becomes `it`). German `Word` tokens query their exact capitalization first, preserving capitalized German noun page precedence; if and only if an exact German word lookup yields `NotFound` with error code `missing-page`, the provider executes a single lowercase-first-rune fallback candidate while preserving original external vocabulary and request identity.
 
 Lookup results use the explicit outcomes `Success`, `NotFound`, `TransientFailure`, `PermanentFailure`, and `ParseFailure`. Retry is offered only for `TransientFailure` when online lookup consent is active. A successful result, a missing entry, a parse failure, a permanent failure, and lookup without active consent do not present a retry action.
 
@@ -646,7 +646,7 @@ A stable cache key includes at least:
 - provider
 - provider schema version
 
-The key format is versioned. Schema version 6 invalidates legacy lexical-cache rows whose keys omit request mode or target language, preventing old results from crossing language or lookup-mode boundaries.
+The key format is versioned. Schema version 7 invalidates legacy lexical-cache rows whose keys omit request mode or target language, or that precede German grammatical-relation and case-fallback reliability improvements, preventing stale provider-cache semantics.
 
 The cache stores:
 

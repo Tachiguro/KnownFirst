@@ -17,35 +17,39 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** None (No active implementation package currently selected).
-- **Active branch:** None (`master` synchronized).
-- **Base commit:** `e18eaaed26b5f662798d827f9199c77a18dc39fa` (`master` / `origin/master`).
-- **Product decision:** Baseline synchronized. No open implementation package.
-- **Declared package slices:** None.
-- **Current lifecycle:** None (operational baseline clean).
-- **Working state:** All previous work packages merged and synchronized on `master`.
-- **Durable technical baseline (Package KF-LEARN-011 - Merged Production State):**
-  - `Core domain concepts`: Pure `LearningTargetKind` (Definition, Translation), `LearningTargetIdentity` (Kind, SourceLanguage, TargetLanguage with validation and invariant normalization), `LearningTarget` (identity plus per-target typing opt-out), `TargetInteractionEvent` (pure factual event representation with UTC enforcement, rating, typing modality, correctness, and session-repeat classification).
-  - `Target-centric Automatic progression`: Pure `TargetAutomaticProgressionPolicy` and `TargetAutomaticProgressionState` implementing the 14-point Automatic typing qualification lifecycle: low-friction Reading first $\to$ 2 qualifying scheduled recall successes $\to$ Typing qualification $\to$ 2 distinct scheduled typing checks $\to$ low-friction Reading maintenance; genuine scheduled lapse re-arms exactly one typing re-check; successful re-check restores qualified maintenance; failed re-check lapses out of qualified maintenance back to recall qualification; same-session Again tail repeats isolated from qualification review counting; per-target typing opt-out prevents typing qualification without altering FSRS identity; timestamp ordering validation.
-  - `Schema-14 target persistence`: Introduced clean Schema 14 physical tables (`LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`), shape builder and validator, and repositories. Canonical bootstrap creates validated Schema 14 directly for fresh databases (`user_version = 14`).
-  - `Preparation target cutover`: Preparation pipeline generates explicit language-specific Definition and Translation targets under one unified Sense. Supports multi-target learning under one Sense and adding later targets to previously prepared words without corrupting existing target histories.
-  - `Learning runtime cutover`: `LearningService`, active session queues, and `WorkflowState` are target-authoritative in Schema 14. One LearningTarget = one TargetFsrsState = one FSRS scheduling identity. Session queue items reference target IDs. Reviews record factual `TargetReviews` and append-only `TargetFsrsReviewHistoryEntries`.
-  - `AlreadyKnown non-destructive preservation`: `MarkPermanentlyKnownAsync` in Schema 14 records the word-level `WordLearningControl` decision, suppresses active learning for that Word, clears incomplete session queue items only, and preserves the semantic graph, `LearningTargets`, `TargetAnswerVariants`, `TargetFsrsStates`, `TargetFsrsReviewHistoryEntries`, `TargetReviews`, completed queue items, and completed sessions without mutating `Words.Status` as a competing authority.
-  - `Archive V4 portable backup & merge`: Dedicated target-aware Archive V4 payload (`BackupPayloadV4`), deterministic export, transactional restore into empty databases, preflight planning with Archive V4 pre-merge safety copies, and transactional populated-target merge writer with causal history prefix verification and fail-closed conflict handling (`CausalHistoryConflict`).
+- **Active package:** `KF-LEX-004` (Wiktionary False-NotFound Reliability).
+- **Active branch:** `bugfix/kf-lex-004-wiktionary-reliability-v1`
+- **Base commit:** `44068da7b4fa506d71167d8cb9200ad0fd1efe0b` (`master` / `origin/master`).
+- **Product decision:** Bounded German Wiktionary lookup recovery: `UL/LI` markup support, expanded verb/adjective relation patterns, and exact `missing-page` lowercase-first-rune fallback with provider cache version 7 invalidation.
+- **Declared package slices:**
+  - Slice 1/2: `german-inflected-form-markup-and-relation-policy` (commit `b83c425de9cb12c623dc25ac6a8e5728b203752e`) — support `UL/LI` grammatical feature markup in `WiktionaryHtmlParser` and expanded German relation regex patterns in `ProviderFormRelationPolicy`.
+  - Slice 2/2: `german-case-fallback-and-cache-version` (commit `3fac99570fc4fefd17f4c0cbe94ed50c318a18f2`) — lowercase-first-rune fallback in `WiktionaryLookupProvider` on exact German `missing-page` `NotFound`, bumped `WiktionaryLookupProvider.SchemaVersion` to 7 to invalidate stale cache.
+- **Current lifecycle:** Reviewed candidate package (Consolidated `REVIEW_ONLY` reported `REVIEW_PASS`; candidate finalization and exact-candidate-HEAD validation pending).
+- **Working state:** All declared package slices implemented and focused-green; consolidated review passed; documentation reconciliation active.
+- **Durable technical baseline (Package KF-LEX-004 - Candidate State):**
+  - `German inflected-form parsing`: `WiktionaryHtmlParser` parses `UL/LI` grammatical feature blocks when `DL/DD` is absent; `ProviderFormRelationPolicy` matches expanded German verb and adjective patterns; fail-closed on unsupported/ambiguous forms; no new grammatical relation enums.
+  - `German initial-case recovery`: Exact lookup first (German nouns retain capitalized page precedence); single lowercase-first-rune fallback if and only if exact `TokenKind.Word` lookup yields `NotFound` (`missing-page`); original request/term identity preserved; PageTitle/revision provenance tied to actual fetched page; provider cache invalidated via `SchemaVersion = 7`.
 - **Preserved boundaries & invariants:**
-  - One real semantic Sense remains one Sense; a Word is not duplicated for additional targets.
-  - Exactly: `LearningTarget -> one TargetFsrsState -> one FSRS-6 schedule`.
-  - Reviewing another target under the same Sense must never mutate or postpone this target.
-  - Interaction is not scheduling identity (`Reading`, `Typing`, `Automatic` are presentation/qualification policies, not separate FSRS cards).
-  - Explicit semantic language identity (source language, target/definition language; UI locale is never semantic truth).
-  - Existing active-session Again tail-repeat invariant preserved (every committed Again appends one repeat to tail, incomplete work ahead, unbound chaining, distinct from DueAtUtc).
-  - Pre-release no-migration policy: no production user dataset must be migrated; no Schema-13 $\to$ Schema-14 user data migration or conversion; old dev databases fail closed.
-  - Factual replay-safe progression: Automatic progression is derivable from factual committed events.
+  - Wiktionary remains provider-specific.
+  - Source-language project routing remains intact.
+  - German exact-case lookup retains precedence.
+  - Case fallback occurs only after exact `missing-page`.
+  - Fallback does not alter vocabulary identity.
+  - Form relation resolution remains explicit and fail-closed.
+  - Frequency does not determine lexical existence.
+  - Word, Sense, Meaning/AnswerVariant, and LearningTarget remain separate.
+  - No Schema 14 migration or table modifications.
+  - No Archive V4 change.
+  - AOT/trimming and source-generated JSON constraints remain binding.
 - **Verification evidence:**
-  - Previous package validations passed on candidate HEADs before merge.
-- **Next governed lifecycle:** None. Awaiting next package definition and `PLAN_ONLY`.
+  - Checkpoint 1/2 focused TDD: 21 passed / 0 failed (`German_InflectedForm_Markup_And_Relation_Policy`).
+  - Checkpoint 2/2 focused TDD: 43 passed / 0 failed (`German_Case_Fallback_And_Cache_Version`).
+  - Consolidated code review: `REVIEW_PASS` (0 BLOCKER / 0 MAJOR / 0 MINOR / 0 NIT; 1 non-blocking test-hardening observation evaluated under Follow-Up Closure Audit).
+  - Exact-candidate pre-PR `FULL_VALIDATION` gate remains pending.
+- **Next governed lifecycle:** Candidate finalization (`COMMIT_ONLY`) followed by exact-candidate-HEAD `FULL_VALIDATION`.
 
 - **Previous merged packages:**
+  - PR #205 (`docs/reconcile-kf-prep-004-state-v1`): Reconciled durable documentation for merged KF-PREP-004 state. Merged to `master` via merge commit `44068da7b4fa506d71167d8cb9200ad0fd1efe0b`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #204 (`feature/prep-meaning-relevance-ranking-v1` / `KF-PREP-004`): Implemented conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C: presentation priority only, strong obsolete/archaic/historical label demotion, reliable context and token-kind ranking within relevance tiers, provider-order fallback, complete preservation of selectable alternatives). Merged to `master` via merge commit `e18eaaed26b5f662798d827f9199c77a18dc39fa` (validated PR head `8e1aaa8d0db3373c2edfd959b856d65bd5e36360`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #203 (`docs: reconcile kf-learn-011 post-merge documentation`): Reconciled durable documentation after KF-LEARN-011 merge. Merged to `master`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #202 (`feature/learning-targets-definition-translation-v1` / `KF-LEARN-011`): Implemented Definition and Translation learning-target behavior, Schema 14 persistence, Archive V4 portable transport, target-centric runtime and session queue authority, 14-point Automatic typing qualification lifecycle, and independent 1-to-1 FSRS-6 scheduling identity per target. Merged to `master` via merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43` (validated PR head `675bd149c95bdf32ace36344955f886dfe9c60c8`). `POST_MERGE_SYNC_ONLY` completed.

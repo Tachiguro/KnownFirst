@@ -158,6 +158,11 @@ public sealed partial class WiktionaryHtmlParser
                 var definitionItems = GetDirectItems(child, "DL", "DD");
                 if (definitionItems.Count == 0)
                 {
+                    definitionItems = GetDirectItems(child, "UL", "LI");
+                }
+
+                if (definitionItems.Count == 0)
+                {
                     continue;
                 }
 

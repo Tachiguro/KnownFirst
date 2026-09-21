@@ -52,10 +52,10 @@ public static partial class ProviderFormRelationPolicy
             ?? Match(value, PresentParticiplePattern(), GrammaticalRelationKind.PresentParticiple, "present participle of")
             ?? Match(value, ComparativePattern(), GrammaticalRelationKind.Comparative, "comparative of")
             ?? Match(value, SuperlativePattern(), GrammaticalRelationKind.Superlative, "superlative of")
+            ?? Match(value, GermanPastTensePattern(), GrammaticalRelationKind.PastTense, "past tense of")
             ?? Match(value, GermanPluralPattern(), GrammaticalRelationKind.Plural, "plural of")
             ?? Match(value, GermanSingularPattern(), GrammaticalRelationKind.Singular, "singular of")
             ?? Match(value, GermanThirdPersonPattern(), GrammaticalRelationKind.ThirdPersonSingular, "third-person singular of")
-            ?? Match(value, GermanPastTensePattern(), GrammaticalRelationKind.PastTense, "past tense of")
             ?? Match(value, GermanPastParticiplePattern(), GrammaticalRelationKind.PastParticiple, "past participle of")
             ?? Match(value, GermanPresentParticiplePattern(), GrammaticalRelationKind.PresentParticiple, "present participle of")
             ?? Match(value, GermanComparativePattern(), GrammaticalRelationKind.Comparative, "comparative of")
@@ -103,16 +103,16 @@ public static partial class ProviderFormRelationPolicy
     [GeneratedRegex(@"^(?:the\s+)?superlative(?:\s+form)?\s+of\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex SuperlativePattern();
 
-    [GeneratedRegex(@"^(?:(?:nominativ|genitiv|dativ|akkusativ)\s+)?plural\s+des\s+(?:substantivs|nomens)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:(?:(?:nominativ|genitiv|dativ|akkusativ)\s+)?|(?:(?:\d+\.|erste|zweite|dritte)(?:\s*(?:und|oder|,)\s*(?:\d+\.|erste|zweite|dritte))*\s+person\s+)?)plural(?:\s+[\p{L}\p{M}-]+){0,6}\s+(?:des\s+(?:substantivs|nomens|adjektivs|verbs)|vom\s+adjektiv|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GermanPluralPattern();
 
-    [GeneratedRegex(@"^(?:(?:nominativ|genitiv|dativ|akkusativ)\s+)?singular\s+des\s+(?:substantivs|nomens)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:(?:nominativ|genitiv|dativ|akkusativ)\s+)?singular(?:\s+[\p{L}\p{M}-]+){0,6}\s+(?:des\s+(?:substantivs|nomens|adjektivs)|vom\s+adjektiv)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GermanSingularPattern();
 
-    [GeneratedRegex(@"^(?:\d+\.|erste|zweite|dritte)\s+person\s+singular(?:\s+[\p{L}\p{M}-]+){0,5}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:(?:(?:1\.\s+und\s+|erste\s+und\s+)?(?:3\.|dritte))\s+person\s+singular)(?:\s+[\p{L}\p{M}-]+){0,5}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GermanThirdPersonPattern();
 
-    [GeneratedRegex(@"^(?:präteritum|imperfekt)(?:\s+[\p{L}\p{M}-]+){0,4}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(?:(?:\d+\.|erste|zweite|dritte)(?:\s*(?:und|oder|,)\s*(?:\d+\.|erste|zweite|dritte))*\s+person\s+(?:singular|plural)\s+)?(?:[\p{L}\p{M}-]+\s+){0,3}(?:präteritum|imperfekt)(?:\s+[\p{L}\p{M}-]+){0,4}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GermanPastTensePattern();
 
     [GeneratedRegex(@"^(?:partizip\s+(?:ii|2)|partizip\s+perfekt)(?:\s+[\p{L}\p{M}-]+){0,4}\s+(?:des\s+verbs|von)\s+" + LemmaCapture + @"(?:[\s.,;:]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

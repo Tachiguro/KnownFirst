@@ -172,6 +172,12 @@ public sealed class MvpCorePolicyTests
     [DataRow("Präteritum Indikativ Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.PastTense)]
     [DataRow("Partizip II des Verbs laufen", "laufen", GrammaticalRelationKind.PastParticiple)]
     [DataRow("Komparativ des Adjektivs sicher", "sicher", GrammaticalRelationKind.Comparative)]
+    [DataRow("3. Person Plural Indikativ Präsens Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.Plural)]
+    [DataRow("1. und 3. Person Plural Indikativ Präsens Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.Plural)]
+    [DataRow("1. Person Singular Indikativ Präteritum Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.PastTense)]
+    [DataRow("1. und 3. Person Singular Indikativ Präteritum Aktiv des Verbs laufen", "laufen", GrammaticalRelationKind.PastTense)]
+    [DataRow("Nominativ Singular Maskulinum der starken Deklination des Adjektivs groß", "groß", GrammaticalRelationKind.Singular)]
+    [DataRow("Nominativ Plural alle Genera der starken Deklination des Adjektivs groß", "groß", GrammaticalRelationKind.Plural)]
     public void ProviderFormRelations_ResolveExplicitGermanRelations(
         string providerText,
         string expectedLemma,
@@ -182,6 +188,16 @@ public sealed class MvpCorePolicyTests
         Assert.IsNotNull(relation);
         Assert.AreEqual(expectedLemma, relation.BaseLemma);
         Assert.AreEqual(expectedKind, relation.Kind);
+    }
+
+    [TestMethod]
+    [DataRow("deklinierte Form des Adjektivs groß")]
+    [DataRow("konjugierte Form des Verbs laufen")]
+    [DataRow("Partizip des Verbs laufen")]
+    [DataRow("1. Person Singular Indikativ Präsens Aktiv des Verbs laufen")]
+    public void ProviderFormRelations_UnsupportedOrAmbiguousGermanRelationsFailClosed(string input)
+    {
+        Assert.IsNull(ProviderFormRelationPolicy.Resolve(input));
     }
 
     [TestMethod]

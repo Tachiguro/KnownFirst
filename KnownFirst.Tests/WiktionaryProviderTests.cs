@@ -167,6 +167,22 @@ public sealed class WiktionaryProviderTests
     }
 
     [TestMethod]
+    public void Parser_GermanFormUl_ExtractsFormRelationFromUnorderedList()
+    {
+        var fixture = LoadFixture("german-form-ul.json");
+        using var jsonDoc = System.Text.Json.JsonDocument.Parse(fixture);
+        var html = jsonDoc.RootElement.GetProperty("parse").GetProperty("text").GetString()!;
+
+        var parser = new WiktionaryHtmlParser();
+        var result = parser.ParseEntry(html, "de", "de", "-", LexicalLookupMode.Definition);
+
+        Assert.IsTrue(result.LanguageSectionFound);
+        Assert.AreEqual(1, result.FormRelations.Count);
+        Assert.AreEqual("laufen", result.FormRelations[0].BaseLemma);
+        Assert.AreEqual(GrammaticalRelationKind.PastTense, result.FormRelations[0].Kind);
+    }
+
+    [TestMethod]
     public async Task Lookup_MissingPageReturnsNotFound()
     {
         var provider = CreateProvider(_ => JsonResponse(LoadFixture("missing-page.json")));

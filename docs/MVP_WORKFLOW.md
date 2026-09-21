@@ -482,7 +482,7 @@ For every selected vocabulary item:
 
 Supported relations are explicit singular, plural, third-person singular, past tense, past participle, present participle, comparative, and superlative forms. Direct senses outrank grammatical descriptions, so `data` remains `data` when a direct sense exists; form-only `systems`, `risks`, and `protects` may resolve to their provider-supplied base lemmas. Store the canonical learning term, encountered surface form, and grammatical relationship while keeping the original context unchanged. Use a visited set and fixed redirect-depth limit. Never infer a lemma with broad stemming: `risky`/`risk`, `protection`/`protect`, and `networking`/`network` remain separate without provider evidence.
 
-Ordinary English words use the lowercase canonical lookup term (`Contact` -> `contact`, `Information` -> `information`, ordinary `NETWORK` -> `network`) while the exact displayed surface and coordinates remain unchanged. Acronyms and case-sensitive technical tokens retain their case (`IT` remains `IT`).
+Ordinary English words use the lowercase canonical lookup term (`Contact` -> `contact`, `Information` -> `information`, ordinary `NETWORK` -> `network`) while the exact displayed surface and coordinates remain unchanged. Acronyms and case-sensitive technical tokens retain their case (`IT` remains `IT`). German words query their exact capitalization first (preserving German noun capitalization precedence). If and only if an exact German `Word` lookup returns `NotFound` (`missing-page`), the provider performs a single lowercase-first-rune fallback candidate without changing external vocabulary identity or display metadata.
 
 Progress example:
 

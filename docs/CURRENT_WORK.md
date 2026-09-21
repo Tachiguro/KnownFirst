@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-21 (Synchronized `master` at commit `d765e85c6f600827acfd5bdbc2c39347fb988914`; documentation reconciliation on branch `docs/reconcile-core-reliability-roadmap-v1`).
+2026-09-21 (Package KF-ANALYSIS-001 Slice 1 active on branch `feature/kf-analysis-001-german-gold-corpus-v1` from base `377a2da98521d35e5ab5191199f6e3d15b34ae6c`).
 
 ## Repository and Worktree Governance
 
@@ -17,15 +17,20 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 
 ## Active Work Package State
 
-- **Active package:** Documentation-only reconciliation (Post-`KF-LEX-004` & Core-Reliability Priority Sequence).
-- **Active branch:** `docs/reconcile-core-reliability-roadmap-v1`
-- **Base commit:** `d765e85c6f600827acfd5bdbc2c39347fb988914` (`master` / `origin/master`).
-- **Package objective:** Reconcile repository documentation with the merged `KF-LEX-004` production baseline on `master`, durably register the newly accepted Core Reliability sequence (`KF-ANALYSIS-001` → `KF-LEX-005` → `KF-TRANS-001`), and align model-routing governance.
-- **Current lifecycle:** `DOCUMENT_ONLY` active following completed `PLAN_ONLY`.
-- **Working state:** Documentation updates applied across `docs/CURRENT_WORK.md`, `docs/BACKLOG.md`, `docs/ROADMAP.md`, `docs/PROJECT_STATE.md`, and `docs/PROMPT_AND_TASK_ROUTING.md`.
-- **Next governed lifecycle:** Consolidated read-only diff review (`REVIEW_ONLY`), followed by candidate finalization (`COMMIT_ONLY`) and exact-candidate-HEAD `FULL_VALIDATION`.
+- **Active package:** `KF-ANALYSIS-001 — Text Analysis Corpus & Evidence`
+- **Active branch:** `feature/kf-analysis-001-german-gold-corpus-v1`
+- **Base commit:** `377a2da98521d35e5ab5191199f6e3d15b34ae6c` (`master` / `origin/master`).
+- **Package objective:** INPUT → SENTENCE SPANS → TOKEN DECISIONS → ANALYZER CANDIDATES → ACTUAL REVIEW CANDIDATES. Build reproducible corpus fixtures, diagnostic evidence capture, and regression assertions for German text analysis.
+- **Declared slice sequence:**
+  1. `analysis-evidence-harness-foundation`
+  2. `review-admission-correlation`
+  3. `german-gold-corpus`
+- **Current lifecycle:** `IMPLEMENT_SLICE`, Slice 1/3 active (`analysis-evidence-harness-foundation`).
+- **Working state:** Implementing test-only analyzer evidence harness foundation (`KnownFirst.Tests/AnalysisEvidence/`) via focused TDD; no production code changes.
+- **Next governed lifecycle:** Checkpoint commit for Slice 1 upon focused GREEN verification, followed by Slice 2.
 
 - **Previous merged packages:**
+  - PR #207 (`docs/reconcile-core-reliability-roadmap-v1`): Reconciled documentation with merged `KF-LEX-004` baseline and registered Core Reliability sequence (`KF-ANALYSIS-001` → `KF-LEX-005` → `KF-TRANS-001`). Merged to `master` via merge commit `377a2da98521d35e5ab5191199f6e3d15b34ae6c` (validated PR head `f5a6e309bb61f6b0a1fc5c002090ac3399104807`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #206 (`bugfix/kf-lex-004-wiktionary-reliability-v1` / `KF-LEX-004`): Improved German Wiktionary lookup reliability (`UL/LI` grammatical feature markup support in `WiktionaryHtmlParser`, expanded verb/adjective relation regex patterns in `ProviderFormRelationPolicy`, lowercase-first-rune fallback on exact German `missing-page` `NotFound` in `WiktionaryLookupProvider`, and provider cache version bumped to 7). Merged to `master` via merge commit `d765e85c6f600827acfd5bdbc2c39347fb988914` (validated PR head `c751e31c1fa672d31c5d7fa9cfbb064be464e492`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #205 (`docs/reconcile-kf-prep-004-state-v1`): Reconciled durable documentation for merged KF-PREP-004 state. Merged to `master` via merge commit `44068da7b4fa506d71167d8cb9200ad0fd1efe0b`. `POST_MERGE_SYNC_ONLY` completed.
   - PR #204 (`feature/prep-meaning-relevance-ranking-v1` / `KF-PREP-004`): Implemented conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C: presentation priority only, strong obsolete/archaic/historical label demotion, reliable context and token-kind ranking within relevance tiers, provider-order fallback, complete preservation of selectable alternatives). Merged to `master` via merge commit `e18eaaed26b5f662798d827f9199c77a18dc39fa` (validated PR head `8e1aaa8d0db3373c2edfd959b856d65bd5e36360`). `POST_MERGE_SYNC_ONLY` completed.

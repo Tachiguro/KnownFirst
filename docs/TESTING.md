@@ -12,7 +12,7 @@ Test classes do not currently use formal MSTest category attributes; filtering r
 ### A. FOCUSED_AUTOMATED
 - **Definition:** Unit, integration, and contract tests directly affected by the current approved implementation.
 - **Usage:** Used during TDD red/green development loop.
-- **Filter pattern:** Filter by exact class, namespace, or test name (e.g. `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~TextAnalyzerTests"` or targeted FSRS-6 package regression `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~Fsrs6"`).
+- **Filter pattern:** Filter by exact class, namespace, or test name (e.g. `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~TextAnalyzerTests"`, `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~GermanGoldCorpusTests"`, or targeted FSRS-6 package regression `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~Fsrs6"`).
 - **Boundaries:** Does not include unrelated persistence, provider, or UI markup tests. Does not perform builds or launch application processes. Oracle vector tests (`Fsrs6OracleVectorTests`) execute against static committed in-tree data (`Fsrs6OracleVectors.cs`) pinned to `py-fsrs v6.3.2` commit `9446cb06605c597a063aeee49f7d188d42e34dc2` and require no Python runtime or network connectivity. Focused execution does not replace `ALL_AUTOMATED` or the mandatory pre-PR `FULL_VALIDATION` gate.
 
 ### B. ALL_AUTOMATED
@@ -118,6 +118,26 @@ Test classes do not currently use formal MSTest category attributes; filtering r
   - Certificate signing execution or signature validity;
   - Microsoft Store submission, ingestion, or verification;
   - Microsoft Store update delivery behavior.
+
+### J. TEXT_ANALYSIS_EVIDENCE_HARNESS_AND_GOLD_CORPUS
+- **Definition:** Test-only evidence capture, review-admission correlation, and gold-corpus characterization testing for the text-analysis and review-admission pipeline (`KnownFirst.Tests/AnalysisEvidenceHarnessTests.cs`, `KnownFirst.Tests/ReviewAdmissionCorrelationTests.cs`, `KnownFirst.Tests/EvidenceArtifactWriterTests.cs`, `KnownFirst.Tests/Corpus/GermanGoldCorpusTests.cs`).
+- **Commands:**
+  ```powershell
+  dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~GermanGoldCorpusTests"
+  dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj --filter "FullyQualifiedName~AnalysisEvidence|FullyQualifiedName~ReviewAdmissionCorrelation"
+  ```
+- **Scope & Characterization Coverage:**
+  - `AnalysisEvidenceCollector`: captures exact raw source input, SHA-256 document fingerprint, sentence segmentation spans, token classification and include/exclude decisions with explicit reason codes, canonical/normalized terms, TokenKind, occurrences, surface forms, candidate grouping, and context selection.
+  - `ReviewAdmissionCorrelator`: evaluates review admission via `TextReviewService.ImportAsync` across pre-import vocabulary states (`NewVocabulary`, `ExistingUnreviewed`, `UnknownBacklog`, `Known`, `Ignored`, `NoNewVocabulary`, `ExactDuplicate`).
+  - `EvidenceArtifactWriter`: generates deterministic human-readable `.txt` reports and structured JSON exports under `artifacts/text-analysis-evidence/german-gold-corpus/`.
+  - `GermanGoldCorpusFixtures`: 17 deterministic German corpus cases covering 11 `BindingContract` and 6 `VerifiedCurrentBehavior` expectations (0 `CharacterizationExpectation`, 0 `UnspecifiedRequiresDecision`).
+- **Safety, Privacy & Execution Invariants:**
+  - **Characterization & Evidence Coverage:** Corpus tests characterize and assert current behavior and binding contracts; they do not alter analyzer heuristics or production code.
+  - **Structural Assertions Authoritative:** Automated structural assertions in C# test code are the authoritative pass/fail oracle; generated TXT and JSON files are diagnostic evidence artifacts, not primary snapshot oracles.
+  - **Generated Artifact Path & Git-Ignore:** Evidence is written to `artifacts/text-analysis-evidence/` and is Git-ignored; generated evidence files must never be committed to Git.
+  - **Isolated Temporary Databases:** Review admission correlation executes exclusively against isolated temporary SQLite databases initialized with canonical schema; no real user database is ever accessed or modified.
+  - **Synthetic / Offline Fixtures Only:** All corpus fixtures use synthetic or public text only; no private user text and no live network requests in automated tests.
+  - **Source-Generated JSON in Tests:** `KnownFirst.Tests` uses `AnalysisEvidenceJsonSerializerContext` (`[JsonSerializable]`) for JSON formatting because reflection-based serialization is disabled under AOT/trimming test constraints; no production JSON/AOT/trimming surface is added.
 
 ## Layered Confidence Model
 

@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
-**Status date:** 2026-09-06
-**State source:** technically accepted Schema-14 LearningTarget architecture, Archive V4, and target-centric runtime candidate (`KF-LEARN-011` candidate HEAD `b65e7c7e337cd36073c59982bd1ff3ca9df22d73` on `feature/learning-targets-definition-translation-v1`; base `master` commit `f6364057de2a961f39155226adb8426365fa26c5`). Live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Status date:** 2026-09-21
+**State source:** verified merged `master` state at commit `d765e85c6f600827acfd5bdbc2c39347fb988914` (following PR #206 `KF-LEX-004` German Wiktionary lookup reliability, PR #205 `KF-PREP-004` documentation reconciliation, and PR #202 `KF-LEARN-011` LearningTarget architecture and Schema-14 cutover). Live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -11,7 +11,7 @@ This document records stable, verified architectural facts and current capabilit
 | :--- | :--- |
 | **Project** | KnownFirst |
 | **Source Version (`master`)** | `1.0.0-beta.13` (build 15) — prepared via release-identity package KF-RELEASE-002 |
-| **Active Database Schema** | SQLite `PRAGMA user_version` 14 in active feature candidate (`KF-LEARN-011`); fresh databases bootstrap directly to canonical Schema 14; existing Schema 1–13 databases fail closed in the production startup path; merged `master` baseline remains Schema 13 pending candidate validation and PR merge |
+| **Active Database Schema** | SQLite `PRAGMA user_version` 14 (fresh databases bootstrap directly to canonical Schema 14; existing Schema 1–13 databases fail closed in the production startup path; merged to `master` via PR #202) |
 | **Active Archive Format** | Portable `.kfarchive` format V4 (target-aware, Schema 14 payload) |
 | **Package ID** | `com.tachiguro.knownfirst` |
 | **Target Distribution** | Google Play Internal Testing |
@@ -28,7 +28,7 @@ This document records stable, verified architectural facts and current capabilit
 
 The reviewed KF-WINDOWS-001 source sets `Platforms/Windows/Package.appxmanifest` `PublisherDisplayName` to the stable publisher `Tachiguro`. Ordinary Windows application ID `com.tachiguro.knownfirst` and product name `KnownFirst` remain unchanged. MAUI 10.0.20 reads the generated manifest's `PublisherDisplayName` into `Microsoft.Maui.ApplicationModel.AppInfo.PublisherName` assembly metadata; unpackaged `FileSystem.AppDataDirectory` combines that publisher with the package name and `Data`. The expected logical path is `%LOCALAPPDATA%\Tachiguro\com.tachiguro.knownfirst\Data`. This is a source/toolchain-derived expectation, not an observed post-change directory. Active branch and merge state belong in [CURRENT_WORK.md](CURRENT_WORK.md).
 
-Schema 13 is the persistence baseline on `master`, advancing to Schema 14 under `KF-LEARN-011`. Pre-baseline local app-data paths/databases are disposable and unsupported; this package adds no historical path migration, fallback lookup, directory deletion, or older schema compatibility. Any removal of historical `%LOCALAPPDATA%\User Name\...` data is a separate user action, not repository behavior. Future forward database migration compatibility is separate deferred work under `KF-PERSIST-002` in [BACKLOG.md](BACKLOG.md).
+Schema 14 is the persistence baseline on `master` (merged via PR #202). Pre-baseline local app-data paths/databases are disposable and unsupported; this package adds no historical path migration, fallback lookup, directory deletion, or older schema compatibility. Any removal of historical `%LOCALAPPDATA%\User Name\...` data is a separate user action, not repository behavior. Future forward database migration compatibility is separate deferred work under `KF-PERSIST-002` in [BACKLOG.md](BACKLOG.md).
 
 The development MSIX `Identity/@Publisher="CN=User Name"` and package-name/version placeholders remain intentional; future Partner Center/Store identity and Windows distribution readiness remain separate under `KF-RELEASE-002`. Focused source/XML, classifier, and MSBuild configuration contracts plus toolchain analysis establish the identity boundaries. This package establishes no fresh generated-assembly verification, runtime AppData creation, fresh Schema-14 database startup, real import/export, application launch, GUI/device, packaging, signing, or Store-readiness evidence. Runtime scenario evidence remains under `KF-GUI-002`. See [BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) for the development MSIX boundary and [TESTING.md](TESTING.md#layered-confidence-model) for evidence levels.
 
@@ -41,7 +41,7 @@ The development MSIX `Identity/@Publisher="CN=User Name"` and package-name/versi
 - resumable Known/Unknown vocabulary review with persisted decisions and Undo;
 - language-scoped vocabulary identity and global minimal known-word markers;
 - frequency-prioritized automatic or manual preparation;
-- explicit online-lookup consent (governed post-onboarding by Settings with fail-closed transport authorization gating, authorization epochs, and revocation cancellation), read-only Wiktionary lookup with automatic Wikipedia definition fallback, local SQLite lexical cache, and disabled/blocked Prepare Words state when consent is absent;
+- explicit online-lookup consent (governed post-onboarding by Settings with fail-closed transport authorization gating, authorization epochs, and revocation cancellation), read-only Wiktionary lookup with automatic Wikipedia definition fallback, bounded `UL/LI` grammatical feature parsing, expanded German verb/adjective relation matching, exact German lookup with lowercase-first-rune fallback on exact `missing-page` `NotFound` (`SchemaVersion = 7`), local SQLite lexical cache, and disabled/blocked Prepare Words state when consent is absent;
 - source attribution, alternative-meaning selection, manual correction, and context snapshots;
 - target-centric learning architecture with explicit Definition and Translation `LearningTargets` under unified Senses;
 - one-target = one `TargetFsrsState` = one independent FSRS-6 scheduling identity;
@@ -78,9 +78,9 @@ The development MSIX `Identity/@Publisher="CN=User Name"` and package-name/versi
 - authoritative post-onboarding online lookup consent enforcement and fail-closed privacy architecture (merged via PR #181 / KF-ONLINE-LOOKUP-CONSENT-001): `IOnlineLookupAuthorizationGate` / `OnlineLookupAuthorizationHandler` transport gate blocking unauthorized outbound lexical HTTP; authorization-epoch-bound orchestration and prefetch safety with immediate cancellation on consent revocation; contextual consent disclosure removed from Prepare Words so Settings is the sole post-onboarding authority; dedicated blocked-candidate state with Settings navigation and manual fallback without data loss; Automatic Online method disabled and lookup retry disabled while consent is absent; *(merged via PR #194 / KF-PREP-001: Prepare Words disabled Online Dictionary "Open Settings" actions deep-link to `#online-lookup-title` and reveal/focus the section heading once; verified by automated source/contract tests on master; KF-SETTINGS-001 is also merged on master and provides visible standard error feedback upon learning-timezone persistence failure, verified by automated source/contract tests without claiming real storage-failure or rendered GUI evidence);*
 - transactional first-run onboarding settings and startup recovery (merged via PR #182 / KF-TRANSACTIONAL-ONBOARDING-001): versioned persisted `OnboardingDraft` accumulating setup choices across steps with persisted restart resume; Finish Setup as the sole atomic commit boundary; immediate non-persisting language and theme preview during setup; deterministic `OnboardingCompletionJournal` with SHA-256 fingerprint and pre-write durability barrier; idempotent startup recovery executing before database initialization; fail-closed handling of unsupported future journal versions; crash-safe legacy migration with consent reconfirmation; and strict preservation of Package A's fail-closed online-lookup transport authorization gate (draft consent true does not authorize transport until verified completion roll-forward).
 
-## LearningTarget Architecture, Schema 14 & Archive V4 (KF-LEARN-011 Candidate State)
+## LearningTarget Architecture, Schema 14 & Archive V4 (Merged Production State - KF-LEARN-011)
 
-**Lifecycle status:** Technically implemented and consolidated technical review approved (`REVIEW_APPROVED`) on feature branch `feature/learning-targets-definition-translation-v1` at candidate HEAD `b65e7c7e337cd36073c59982bd1ff3ca9df22d73`. Pre-PR exact candidate-HEAD `FULL_VALIDATION` gate remains pending on the final candidate commit following documentation finalization. Merged `master` baseline remains Schema 13 / Archive V3 pending candidate validation, push, PR creation, and manual merge.
+**Lifecycle status:** Merged production `master` state via PR #202 (`feature/learning-targets-definition-translation-v1` / `KF-LEARN-011`; merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43`; validated PR head `675bd149c95bdf32ace36344955f886dfe9c60c8`). Exact candidate `FULL_VALIDATION` passed with 2942 / 2942 tests and all Windows/Android Debug/Release plus AOT/trimming/linker gates. `POST_MERGE_SYNC_ONLY` completed. Schema 14 is the canonical persistence baseline and Archive V4 is the canonical portable transport format on `master`.
 
 This package establishes the target-centric architecture, Schema 14 persistence, Archive V4 portable transport, and replay-safe Automatic typing qualification:
 
@@ -164,6 +164,27 @@ Production `master` implements conservative hybrid Meaning/Sense relevance ranki
 **5. System & Persistence Boundary**
 - Local text context from the preparation candidate's document sentence is reused without new context sources, AI, LLM, embeddings, or network requests.
 - Database schema (Schema 14), persistence, Archive V4, LearningTarget identity, and FSRS-6 scheduling are unchanged.
+
+## German Wiktionary Lookup Reliability — Merged Production State (KF-LEX-004)
+
+Merged to `master` via PR #206 (`fix(lexical): improve German Wiktionary lookup reliability` / `KF-LEX-004`; merge commit `d765e85c6f600827acfd5bdbc2c39347fb988914`; validated PR head `c751e31c1fa672d31c5d7fa9cfbb064be464e492`). Full operational/lifecycle status: [docs/CURRENT_WORK.md](CURRENT_WORK.md).
+
+- **Scope & Improvements:**
+  - **German Inflected-Form Parsing:** `WiktionaryHtmlParser` parses `UL/LI` grammatical feature blocks when `DL/DD` is absent; `ProviderFormRelationPolicy` matches expanded German verb and adjective relation patterns; unsupported/ambiguous forms fail closed without fabricating relation enums.
+  - **German Initial-Case Recovery:** Exact lookup executes first (preserving German noun capitalization precedence); bounded lowercase-first-rune fallback executes if and only if an exact German `TokenKind.Word` lookup yields `NotFound` (`missing-page`).
+  - **Identity & Provenance:** Original request/vocabulary identity is preserved; page title and revision provenance reflect the actual retrieved Wiktionary page.
+  - **Cache Version Invalidation:** `WiktionaryLookupProvider.SchemaVersion` advanced from 6 to 7, cleanly invalidating stale pre-recovery cache entries.
+- **Preserved Boundaries & Invariants:**
+  - Wiktionary remains provider-specific.
+  - Source-language project routing remains intact.
+  - Frequency does not determine lexical existence; Frequency = 1 remains valid.
+  - Word, Sense, Meaning/AnswerVariant, and LearningTarget remain separate layers.
+  - No database schema migration or table modifications (Schema 14 unchanged).
+  - No Archive V4 change.
+  - AOT/trimming and source-generated JSON constraints remain binding.
+- **Verification Evidence:**
+  - Focused TDD: Checkpoint 1/2 (21 passed), Checkpoint 2/2 (43 passed).
+  - Pre-PR Exact-Head `FULL_VALIDATION` passed (2983 / 2983 tests, Windows Debug/Release PASS, Android Debug/Release PASS, AOT/warning gates PASS).
 
 ## Schema-13 / FSRS-6 Merged Production State (KF-FSRS-003)
 

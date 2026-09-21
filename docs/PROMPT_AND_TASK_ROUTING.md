@@ -33,7 +33,7 @@ Before every coding-agent prompt:
    - `Modell`
    - `Effort`
    - `Präferenz/Bewertung`
-   The table must contain rows for `Anti-Gravity`, `Claude`, and `Codex` in that exact order, with the recommended choice visibly marked as the best choice.
+   The table must contain rows for `Anti-Gravity`, `Claude`, and `Codex` in that exact order, with the recommended choice visibly marked as the best choice. Claude is a fixed governance-compatibility row (`—` / `—` / `Nicht freigegeben / nicht auswählen`) and must not be recommended or selected.
 3. Provide exactly one contiguous copyable fenced code block per prompt block.
 4. Begin every agent prompt exactly with `PROMPT START`.
 5. End every agent prompt exactly with `PROMPT ENDE`.
@@ -44,23 +44,30 @@ Before every coding-agent prompt:
 
 ## C. Model Routing
 
-Prompts must select the least expensive capable model:
+Prompts must select the least expensive capable model among currently approved providers and options:
 
-- **Mechanical (file moves, lint fixes, link audits):** `Anti-Gravity` with Gemini 3.6 Flash Low
-- **Routine (scoped single-file features, documentation updates):** `Anti-Gravity` with Gemini 3.6 Flash Medium
-- **Substantial (multi-file features, structured refactoring):** `Anti-Gravity` with Gemini 3.6 Flash High
-- **Difficult multi-file coding (complex domain logic, intricate UI/state):** Claude Sonnet 4.6 Thinking
-- **Complex migration, data integrity, concurrency, difficult AOT/trimming, or core architecture:** `Anti-Gravity` with Gemini 3.1 Pro High
-- **Emergency (only after strong models failed on a verified bug):** Claude Opus 4.6 Thinking
-- **Independent read-only review:** `Anti-Gravity` with GPT-OSS 120B Medium or an appropriate local model
+### 1. Provider Roles
+- **`Anti-Gravity` (Default Execution Route):** Primary agent environment for routine and substantial development, documentation reconciliation, and standard multi-slice feature packages.
+  - **Effort Policy:** Do not recommend Low effort.
+  - **Routine work (scoped features, documentation updates, mechanical audits):** `Anti-Gravity` with approved Flash/standard model at **Medium** effort.
+  - **Substantial work (multi-file features, structured refactoring, slice TDD):** `Anti-Gravity` with approved Flash/standard model at **High** effort.
+  - The exact approved model/version is resolved dynamically from current session runtime context rather than hardcoded as a permanent technical fact.
+- **`Codex` (Selective Escalation & Deep Analysis Route):** Reserved selectively for higher-risk or unusually difficult tasks, such as:
+  - critical architecture or persistence/schema design;
+  - subtle data integrity and merge conflict semantics;
+  - difficult root-cause investigations;
+  - intricate AOT, trimming, or concurrency bugs;
+  - high-sensitivity independent read-only reviews.
+  - Routine work must not automatically route to Codex.
+- **`Claude` (Governance Compatibility Row):** Maintained exclusively as a fixed comparison-table row for governance compatibility. Claude is not approved for KnownFirst prompt execution. Prompts must display `—` for Model and Effort, and state `Nicht freigegeben / nicht auswählen`.
 
-### Escalation and User Override Rules
-- Gemini 3.1 Pro is **not** the default model.
-- Task importance, prompt length, number of files, tests, documentation, or PR creation alone do **not** justify using Pro.
-- Escalation occurs only after a concrete failure or newly discovered technical risk.
-- Ignore visible quota percentages when selecting the technically appropriate model, unless the user explicitly asks for quota-aware routing.
+### 2. Cost and Escalation Discipline
+- Technical correctness comes first, but select the least costly approved option capable of the task.
+- Stronger models/tiers are **not** the default. Task importance, prompt length, number of files, test counts, documentation scope, or PR creation alone do **not** justify escalation.
+- Escalation to Codex or higher reasoning tiers occurs only after a concrete technical barrier, complex risk, or verified failure.
+- Ignore visible quota percentages when selecting the technically appropriate model, unless the user explicitly requests quota-aware routing.
 - **Advisory nature:** Model routing is a recommendation based on technical scope and risk. The user may explicitly override the recommended model. A user override does not expand task scope or authorize additional operation modes.
-- **Transient vs Durable:** Do not claim that Anti-Gravity, Claude, Codex, or a named model is currently available merely because it appears in the routing table. Current provider access, current model access, and quotas are transient runtime facts. Do not persist quota percentages or current availability statements.
+- **Transient vs Durable:** Current provider access, current model access, quotas, and temporary usage limits are transient runtime facts. Do not persist quota percentages, transient availability claims, or ephemeral model version numbers as authoritative repository facts.
 
 ### Delegation and Evidence Verification Rules
 - Subagents, delegated writers, background processes, task trackers, or parallel execution require explicit user authorization.

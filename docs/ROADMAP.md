@@ -1,6 +1,6 @@
 # KnownFirst Roadmap
 
-**Prioritization date:** 2026-09-06
+**Prioritization date:** 2026-09-21
 
 This roadmap records intended sequence and priority. Verified current implementation state belongs in [PROJECT_STATE.md](PROJECT_STATE.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md); durable accepted open work and initiative dependencies belong in [BACKLOG.md](BACKLOG.md).
 
@@ -8,11 +8,18 @@ This roadmap records intended sequence and priority. Verified current implementa
 
 The **First-Run Onboarding + Daily New-Word Budget UX** program is completed and merged to `master` (PRs #153, #155, #156, #158, #181, #182). Learning UX improvements `KF-LEARN-003`, `KF-LEARN-004`, `KF-LEARN-006`, `KF-LEARN-007` (PR #201), and `KF-LEARN-009` (PR #200) are merged on `master`.
 
-The **LearningTarget Definition/Translation Architecture (KF-LEARN-011)** is completed and merged to `master` via PR #202 (merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43`), establishing independent target scheduling, Schema 14, Archive V4, and replay-safe Automatic typing qualification. Current direction remains product-first: complete remaining product behaviors, then perform a consolidated architecture/code review and bounded refactoring, and only afterward return to GUI/release/package/distribution work.
+The **LearningTarget Definition/Translation Architecture (KF-LEARN-011)** is completed and merged to `master` via PR #202 (merge commit `35dc4b20986f6eaf3d8c48c9da75635bfea38d43`), establishing independent target scheduling, Schema 14, Archive V4, and replay-safe Automatic typing qualification. The **German Wiktionary Lookup Reliability (KF-LEX-004)** package is completed and merged to `master` via PR #206 (merge commit `d765e85c6f600827acfd5bdbc2c39347fb988914`).
+
+The current active sequence is the **Core Reliability & Evidence Program**, prioritized as:
+1. **Priority 1 (`KF-ANALYSIS-001`):** German-first Text Analysis Corpus & Evidence Harness (P1) for the production-near text-analysis and review-admission path ($\text{INPUT} \to \text{SENTENCE SPANS} \to \text{TOKEN DECISIONS} \to \text{ANALYZER CANDIDATES} \to \text{ACTUAL REVIEW CANDIDATES}$). German corpus evidence comes first; English follows. Empirical evidence precedes heuristic text-analysis fixes.
+2. **Priority 2 (`KF-LEX-005`):** Lexical Lookup Evidence & Coverage (P1) for actual preparation candidates, evaluated once the text-analysis pipeline is proven reliable.
+3. **Priority 3 (`KF-TRANS-001`):** Translation-provider investigation/reassessment (P2), evaluated strictly after empirical evidence from the first two packages identifies whether remaining failures stem from parsing, missing provider data, sense selection, or the genuine need for an auxiliary translation provider.
+
+PDF import remains explicitly deferred until the plain-text path is demonstrably reliable. This roadmap sequence defines the evidence-gathering and investigation order and does not itself implement new provider or analysis behaviors.
 
 Durable backlog tracking and repository governance are established through [docs/BACKLOG.md](BACKLOG.md), which serves as the authoritative single source of truth for all accepted open work, product decisions, deferred follow-ups, and multi-package initiatives outside active implementation branches. Active operational task state is discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) and tracked in [docs/CURRENT_WORK.md](CURRENT_WORK.md).
 
-Accepted multi-package initiatives (FSRS Production Cutover & Clean Domain Persistence, Vocabulary Management Area, Learning Interaction & Direction UX, and Navigation/Settings Corrections) have their requirements, constraints, and dependencies established in [docs/BACKLOG.md](BACKLOG.md); their global execution sequence is recorded under Accepted Initiatives below, pending explicit product prioritization.
+Accepted multi-package initiatives have their requirements, constraints, and dependencies established in [docs/BACKLOG.md](BACKLOG.md); their global execution sequence is recorded under Accepted Initiatives below.
 
 Beta-13 Build-14 AAB creation and packaging evidence are recorded as completed in repository history (PR #152); Google Play Internal Testing distribution (`KF-RELEASE-005`) and Public-Release Readiness (Priority 20) remain separately deferred until explicitly authorized.
 
@@ -101,8 +108,15 @@ The following initiatives represent accepted product directions whose individual
 
 ### 5. Preparation & Lexical Relevance
 - **Packages:**
-  - `KF-PREP-004`: Conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C product decision: presentation priority only, strong obsolete/archaic/historical label demotion, reliable context and token-kind ranking within relevance tiers, provider-order fallback, complete preservation of selectable alternatives). *Status: Complete on master.*
+  - `KF-LEX-004`: German Wiktionary lookup reliability (`UL/LI` grammatical feature markup, expanded German verb/adjective relation patterns, and lowercase-first-rune fallback on exact German `missing-page` `NotFound` with provider cache version 7 invalidation). *Status: Merged to `master` via PR #206 (merge commit `d765e85c6f600827acfd5bdbc2c39347fb988914`).*
+  - `KF-PREP-004`: Conservative hybrid Meaning/Sense relevance ranking in word preparation (Option C product decision: presentation priority only, strong obsolete/archaic/historical label demotion, reliable context and token-kind ranking within relevance tiers, provider-order fallback, complete preservation of selectable alternatives). *Status: Merged to `master` via PR #204.*
   - `KF-PREP-002`: Re-preparation / fresh lexical lookup for existing vocabulary. *Status: Open, accepted work.*
+
+### 6. Core Reliability & Evidence Track
+- **Sequence:**
+  - `KF-ANALYSIS-001` (Priority 1): Text Analysis Corpus & Evidence Harness for production-near text analysis and review admission ($\text{INPUT} \to \text{SENTENCE SPANS} \to \text{TOKEN DECISIONS} \to \text{ANALYZER CANDIDATES} \to \text{ACTUAL REVIEW CANDIDATES}$). German corpus first; English follows; 100% German gold-corpus pass requirement; fixtures must be synthetic/public only with no live network dependency in deterministic automated tests. *Status: Open, accepted work (P1).*
+  - `KF-LEX-005` (Priority 2): Lexical Lookup Evidence & Coverage across preparation candidate dimensions, evaluating quantitative coverage and concrete failed terms without changing provider behavior. *Status: Open, accepted work (P1).*
+  - `KF-TRANS-001` (Priority 3): Translation-provider investigation/reassessment (P2) evaluating whether remaining gaps require an auxiliary translation provider, preserving credential safety (no hardcoded keys) and leaving word vs. context privacy decisions unresolved. *Status: Deferred investigation, not implemented (P2).*
 
 ## Cleanup & Release Sequence
 

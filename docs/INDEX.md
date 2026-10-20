@@ -5,15 +5,15 @@ This document is the canonical task router for KnownFirst. Coding agents use thi
 ## Baseline Reading Rules
 
 - **Always read:** [AGENTS.md](../AGENTS.md) (universal repository and safety rules).
-- **New session discovery:** Consult [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) for dynamic new-chat discovery, PR inspection, and local task branch discovery.
-- **Prompt formulation & task isolation:** Consult [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) for operation modes, standing delegation, and multi-slice risk rules.
+- **New session discovery:** Consult [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md) for dynamic new-chat discovery, GitHub Issue and PR inspection, and local task branch discovery.
+- **Prompt formulation & task isolation:** Consult [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) for ChatGPT-first coordination, dynamic three-agent routing, operation modes, standing delegation, and multi-slice risk rules.
 - **Read [docs/AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) when:** writing or modifying repository files, executing multi-slice packages, managing checkpoint commits, or resuming interrupted work packages.
 - **Read [docs/TESTING.md](TESTING.md) for:** test scopes, failure policies, and execution rules.
 - **Read [docs/CURRENT_WORK.md](CURRENT_WORK.md) only when:** continuing the active package, reviewing the active branch, changing operational task state, or explicitly requested by the task.
 - **Read [docs/BUILD_AND_RELEASE.md](BUILD_AND_RELEASE.md) only after:** an explicit build, configuration, packaging, signing, APK, AAB, release, artifact-reconstruction, or store request.
 - **Read [docs/BETA_TESTING.md](BETA_TESTING.md) for:** manual Android device testing procedures.
 - **Read [docs/GUI_TEST_MATRIX.md](GUI_TEST_MATRIX.md) for:** manual cross-platform GUI testing.
-- **Read [docs/BACKLOG.md](BACKLOG.md) for:** internal bugs, small UX improvements, and deferred observations tracked outside GitHub Issues.
+- **Track new accepted work in GitHub Issues; read [docs/BACKLOG.md](BACKLOG.md) for:** transitional `KF-*` backlog entries, open product decisions (`REQUIRES_PRODUCT_DECISION`), and historical package provenance preserved prior to GitHub Issue migration.
 - **Learning-target semantics:** [architecture/learning-target-semantics.md](architecture/learning-target-semantics.md) records the resolved Definition/Translation learning-target product and architecture contract (resolved under `KF-LEARN-010`, implemented under `KF-LEARN-011`).
 - **Do NOT read routine status or historical docs** ([PROJECT_STATE.md](PROJECT_STATE.md), [ROADMAP.md](ROADMAP.md), [CHANGELOG.md](../CHANGELOG.md), audits, handoffs, backup plans) unless directly required by the task category below.
 

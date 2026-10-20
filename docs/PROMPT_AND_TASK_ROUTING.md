@@ -1,6 +1,6 @@
 # KnownFirst Prompt and Task Routing Guide
 
-This document governs the conversion of user requests into KnownFirst agent prompts. It is read before preparing any KnownFirst coding-agent prompt. Reading this guide does not authorize repository modification by itself; it enforces strict, low-context operation boundaries and prevents the automatic bundling of unrelated operations.
+This document governs ChatGPT-first coordination, dynamic agent routing, and the conversion of user requests into KnownFirst coding-agent prompts. Reading this guide does not authorize repository modification by itself; it enforces strict, low-context operation boundaries and prevents the automatic bundling of unrelated operations.
 
 ## A. Governance Classification
 
@@ -8,76 +8,92 @@ Governance policies in KnownFirst are categorized into four exact classes:
 
 1. `DURABLE_REPOSITORY_GOVERNANCE`
    - Repository safety, Git authorization, operation isolation, data protection, single canonical repository and single writing agent rules, test boundaries, and manual user merge policy.
-   - These rules belong in tracked repository documentation (`AGENTS.md`, `docs/`).
+   - These rules belong in tracked repository documentation (`AGENTS.md`, `docs/`) and remain independently usable for any contributor without access to private governance repositories.
 
 2. `DURABLE_PROMPT_AUTHORING_GOVERNANCE`
-   - Required user-facing explanation language (German), prompt language (English), requested technical report language (English), comparison-table format, prompt-block framing (`PROMPT START` / `PROMPT ENDE`), and one-task-per-prompt rules.
+   - ChatGPT-first coordination, required user-facing explanation language (German, 1–3 concise sentences), prompt language (English), requested technical report language (English), dynamic three-agent comparison-table format, prompt-block framing (beginning with `TASK:` on the first line and ending with `HARD STOP` on the last line), and one-task-per-prompt rules.
    - These rules belong in tracked repository documentation.
 
 3. `KNOWNFIRST_ORCHESTRATION_PREFERENCE`
-   - Preferred provider rows, task-to-model routing recommendations, model-cost discipline, and independent-review preferences.
-   - The fixed provider rows `Anti-Gravity`, `Claude`, and `Codex` are orchestration comparison preferences; they are not declarations that those providers or models are currently connected or available.
+   - Alignment with the central handoff contract (`Tachiguro/project-governance/UNIVERSAL_PROJECT_HANDOFF_BLUEPRINT.md`, V3.12 when accessible to the coordinator), evaluation across the three approved agent interfaces (`Anti-Gravity`, `ChatGPT Codex`, and `Standalone Claude Code`), dynamic task-to-model/effort selection, usage/cost discipline, and independent-review routing.
+   - Do not copy the private model catalog, personal subscription timelines, or usage/quota figures into this public repository.
 
 4. `TRANSIENT_RUNTIME_AVAILABILITY`
-   - Current provider access, current model access, quota percentages, temporary tool availability, session-specific capability, and similar runtime facts.
+   - Current provider access, current model access, subscription tier status, quota percentages, temporary tool availability, host attachment, and similar session-specific runtime facts.
    - These facts must be discovered in the current session when relevant.
    - They must never be persisted as authoritative repository state or treated as durable availability guarantees. Do not record any current quota percentage or provider availability claim.
 
-## B. Required Prompt Presentation
+## B. ChatGPT-First Coordination and Required Prompt Presentation
 
+### 1. ChatGPT-First Division of Labor
+Before delegating to any coding agent, the coordinating ChatGPT session performs all steps it can reliably complete directly with its own tools:
+- verifying GitHub repository identity, default branch, commits, branches, open/closed pull requests, and active GitHub Issues;
+- reading and analyzing repository source code, architecture contracts, diffs, and logs;
+- falsifying hypotheses and isolating root causes, file boundaries, and focused regression scopes;
+- performing routine scoped GitHub Issue triage, deduplication, creation, comments, checklist updates, and verified status transitions under standing delegation (see Section D).
+
+Delegate to a local coding agent **only** when the step requires the local Windows worktree (`C:\Dev\KnownFirst`), native `.NET 10` / MAUI build or test execution, inspection of uncommitted/unpushed local state, or repository file edits. When no coding-agent execution is needed, answer or complete the coordinator step directly without outputting an artificial agent comparison table.
+
+### 2. Required Prompt Presentation (When an Agent Prompt Is Needed)
 Before every coding-agent prompt:
 
-1. Provide a brief user-facing explanation in German.
-2. Include exactly one Markdown comparison table with these exact columns:
+1. Provide a brief user-facing explanation in German (1–3 concise sentences covering the decision, why this step is next, and any relevant boundary).
+2. Include exactly one compact Markdown comparison table with these columns:
    - `Agent`
    - `Modell`
    - `Effort`
-   - `Präferenz/Bewertung`
-   The table must contain rows for `Anti-Gravity`, `Claude`, and `Codex` in that exact order, with the recommended choice visibly marked as the best choice. Claude is a fixed governance-compatibility row (`—` / `—` / `Nicht freigegeben / nicht auswählen`) and must not be recommended or selected.
-3. Provide exactly one contiguous copyable fenced code block per prompt block.
-4. Begin every agent prompt exactly with `PROMPT START`.
-5. End every agent prompt exactly with `PROMPT ENDE`.
-6. Place no prose or explanations after the prompt block.
-7. Do not place a fenced code block inside an agent prompt.
-8. Request technical reports from programming agents in English.
-9. Contain only one next agent task per prompt.
+   - `Empfehlung`
+   The table must list the three approved agent interfaces — `Anti-Gravity`, `ChatGPT Codex`, and `Standalone Claude Code` — exactly once each, sorted dynamically by suitability and current availability for the concrete task:
+   1. `**Bevorzugt**` (with a 2–6 word task-specific rationale)
+   2. `**Alternative**` (with a 2–6 word task-specific rationale)
+   3. `**Nicht verwenden**` (task-specific, with a 2–6 word rationale; or `Nicht verfügbar` when quota or required host access is absent)
+   No agent interface is permanently prohibited in project-local rules; the `Nicht verwenden` row is strictly task-specific.
+3. Present the prompt with its exact `TASK: ...` first line visibly shown above the copy action (using a compact copyable prompt card when reliably supported by the UI, or a single contiguous copyable fenced code block as fallback).
+4. Begin every agent prompt on the first line with `TASK:`.
+5. End every agent prompt on the last line with `HARD STOP` (do not use decorative start or end wrapper markers).
+6. Place no prose, summaries, or follow-up questions after the prompt block.
+7. Do not place a nested fenced code block inside an agent prompt.
+8. Request verifiable technical reports from programming agents in English (decision code, findings, exact changed-file list and diff summary, tests run and not run with exit codes, local Git status, and the single next recommended lifecycle step).
+9. Contain only one next isolated agent task per prompt.
 
-## C. Model Routing
+## C. Agent Interfaces, Dynamic Model Routing, and Host Preflight
 
-Prompts must select the least expensive capable model among currently approved providers and options:
+When a coding-agent prompt is required, select the least usage-intensive approved agent interface, model, and effort level capable of completing the concrete task reliably:
 
-### 1. Provider Roles
-- **`Anti-Gravity` (Default Execution Route):** Primary agent environment for routine and substantial development, documentation reconciliation, and standard multi-slice feature packages.
-  - **Effort Policy:** Do not recommend Low effort.
-  - **Routine work (scoped features, documentation updates, mechanical audits):** `Anti-Gravity` with approved Flash/standard model at **Medium** effort.
-  - **Substantial work (multi-file features, structured refactoring, slice TDD):** `Anti-Gravity` with approved Flash/standard model at **High** effort.
-  - The exact approved model/version is resolved dynamically from current session runtime context rather than hardcoded as a permanent technical fact.
-- **`Codex` (Selective Escalation & Deep Analysis Route):** Reserved selectively for higher-risk or unusually difficult tasks, such as:
-  - critical architecture or persistence/schema design;
-  - subtle data integrity and merge conflict semantics;
-  - difficult root-cause investigations;
-  - intricate AOT, trimming, or concurrency bugs;
-  - high-sensitivity independent read-only reviews.
-  - Routine work must not automatically route to Codex.
-- **`Claude` (Governance Compatibility Row):** Maintained exclusively as a fixed comparison-table row for governance compatibility. Claude is not approved for KnownFirst prompt execution. Prompts must display `—` for Model and Effort, and state `Nicht freigegeben / nicht auswählen`.
+### 1. Three Approved Agent Interfaces
+- **`Anti-Gravity` (Single Agent Interface with Multiple Model Routes):** Supports approved Gemini models (fast standard model for routine implementation, documentation reconciliation, and focused testing; higher-reasoning model when available and justified for complex multi-step engineering) as well as embedded Claude models for bounded `MICRO_TASK_ONLY` tasks (single script, small diff, or isolated high-difficulty review/root-cause question requiring few tool calls) when embedded quota is available. All model routes within Anti-Gravity share the single `Anti-Gravity` row in the comparison table.
+- **`ChatGPT Codex` (Independent Coding Agent):** Separate agent interface with its own model selection and independent usage budget, used for implementation, focused fixes, deep architecture/persistence/schema/concurrency analysis, and independent read-only reviews.
+- **`Standalone Claude Code` (Independent Coding Agent):** Separate agent interface (distinct from embedded Claude inside Anti-Gravity, with its own session, local host binding, tools, and independent usage budget), used for implementation, debugging, and independent reviews when attached to the required local Windows host.
 
-### 2. Cost and Escalation Discipline
-- Technical correctness comes first, but select the least costly approved option capable of the task.
-- Stronger models/tiers are **not** the default. Task importance, prompt length, number of files, test counts, documentation scope, or PR creation alone do **not** justify escalation.
-- Escalation to Codex or higher reasoning tiers occurs only after a concrete technical barrier, complex risk, or verified failure.
-- Ignore visible quota percentages when selecting the technically appropriate model, unless the user explicitly requests quota-aware routing.
-- **Advisory nature:** Model routing is a recommendation based on technical scope and risk. The user may explicitly override the recommended model. A user override does not expand task scope or authorize additional operation modes.
-- **Transient vs Durable:** Current provider access, current model access, quotas, and temporary usage limits are transient runtime facts. Do not persist quota percentages, transient availability claims, or ephemeral model version numbers as authoritative repository facts.
+### 2. Effort, Cost, and Escalation Discipline
+- Technical correctness and data safety come first; among capable approved options, select the lowest-usage model and effort tier (`Low`, `Medium`, `High`, and selectively `Extra High` on standalone agents only for proven exceptional blockers).
+- **Effort proportionality:**
+  - `Low`: simple read-only inspections, triage, or straightforward verification checks.
+  - `Medium`: standard feature slices, bounded bug fixes, documentation reconciliation, and focused automated test runs.
+  - `High`: complex state or concurrency logic, persistence/schema/archive safety, intricate AOT/trimming issues, or high-sensitivity independent reviews.
+- Stronger models or higher effort tiers are **not** the default. Prompt length, file count, or routine PR preparation alone do **not** justify escalation.
+- Keep separate usage pools distinct (Anti-Gravity Gemini budget, Anti-Gravity embedded Claude/GPT budget, Standalone Claude Code budget, and ChatGPT Codex budget). Never infer one surface's quota or host access from another surface sharing a model name.
+- **Advisory nature:** Routing recommendations reflect technical scope, host access, and usage efficiency. The user may override the selected agent or model; a user override does not expand task scope or authorize additional operation modes.
+- **Transient vs Durable:** Current provider access, model catalog versions, subscription tiers, and remaining quotas are transient runtime facts governed by the central handoff blueprint and active session inspection. Never persist personal quota numbers or full private model tables in tracked repository files.
 
-### Delegation and Evidence Verification Rules
+### 3. Native Windows Host Preflight and Usage-Stop Rules
+- KnownFirst is bound to a `Local Windows` development and verification environment (canonical checkout `C:\Dev\KnownFirst`, PowerShell, `.NET 10` / MAUI toolchain via `.\scripts\knownfirst.ps1` and `dotnet test ./KnownFirst.Tests/KnownFirst.Tests.csproj`).
+- Before running local tests, builds, or environment-dependent work, the executing agent must perform a brief host preflight (target $\le 2$ minutes) verifying Windows OS, canonical repository top-level, branch/HEAD, and clean/protected worktree status.
+- If the required `Local Windows` host or toolchain is unavailable, the agent must stop immediately and report `ENVIRONMENT_BLOCKED` (listing unexecuted tests) rather than attempting Linux, cloud, container, or WSL workarounds.
+- An identical failing command may be retried at most once with a specific diagnostic reason before reporting the blocker. If a stuck diagnosis makes no verifiable progress within ~10 minutes (excluding authorized long-running gates such as `ValidateAll`), the agent must stop and report.
+
+### 4. Delegation and Evidence Verification Rules
 - Subagents, delegated writers, background processes, task trackers, or parallel execution require explicit user authorization.
 - One physical repository and one writing agent remain the default.
-- An agent report is evidence to evaluate, not authoritative proof; verify GitHub, commits, branches, PR metadata, changed files, and deterministic validation directly before claiming completion when those sources are available.
+- An agent report is evidence to evaluate, not authoritative proof; verify GitHub Issues, commits, branches, PR metadata, changed files, and deterministic validation directly before claiming completion when those sources are available.
 
 ## D. Operation Modes
 
 The repository enforces strict mutual isolation between task phases:
 
+- `ISSUE_TRIAGE_ONLY`: Read-only inventory, deduplication, and prioritization of GitHub Issues and transitional backlog items.
+- `ISSUE_DRAFT_ONLY`: Preparing an issue or comment draft without publishing to GitHub.
+- `ISSUE_UPDATE_ONLY`: Explicitly authorized or standing-delegated GitHub Issue creation, commenting, checklist updates, or status maintenance.
 - `PLAN_ONLY`: Read-only research, architecture, and multi-slice design plan creation.
 - `IMPLEMENT_SLICE`: Explicitly authorized composite operation executing focused TDD for exactly one declared slice, followed immediately by checkpoint staging/commit with a checkpoint trailer and a hard stop.
 - `CHECKPOINT_COMMIT_ONLY`: Staging and committing a single completed slice that is already focused-green.
@@ -97,7 +113,7 @@ The repository enforces strict mutual isolation between task phases:
 - Pull-request merges are performed exclusively by the user manually through GitHub. Automated agents never merge pull requests, enable auto-merge, or execute `MERGE_ONLY` operations.
 - Multiple modes may be combined **only** when the user explicitly requests the combination or when executing `IMPLEMENT_SLICE` whose exact sub-operations and hard stop are defined by governance.
 - **Agent-level isolation (absolute, never delegated):** the programming agent executing a prompt must never continue from its assigned mode into another mode on its own, and must not infer additional execution authority from completion of its current prompt or from prior work packages. A checkpoint commit does not imply package review or push; push does not imply PR; PR does not imply merge; merge does not imply build, package, or release work.
-- **Orchestrator-level standing delegation** governs only whether ChatGPT may issue the *next* isolated prompt without additional per-phase user typing — see "Standing Orchestration Delegation" below. Standing delegation never authorizes an agent to self-advance within a single prompt beyond an authorized composite's defined hard stop.
+- **Orchestrator-level standing delegation** governs only whether ChatGPT may issue the *next* isolated prompt or perform routine scoped GitHub Issue maintenance without additional per-step user typing — see "Standing Orchestration Delegation" below. Standing delegation never authorizes an agent to self-advance within a single prompt beyond an authorized composite's defined hard stop.
 - Every final report must explicitly state which operations were intentionally not performed.
 
 ### Standing Orchestration Delegation
@@ -105,6 +121,7 @@ The repository enforces strict mutual isolation between task phases:
 Once (1) a concrete KnownFirst work package is established, (2) its scope is bounded, (3) repository/GitHub state has been directly verified, and (4) no unresolved material product, architecture, data-integrity, or scope decision remains, the user's standing delegation authorizes ChatGPT — the orchestrator, not the executing agent — to evaluate each phase's report and issue the next correctly isolated, single-mode prompt without requiring the user to type the phase name or separately approve each routine transition.
 
 Standing delegation covers exactly these modes, applied one at a time in isolated prompts:
+- `ISSUE_TRIAGE_ONLY` / `ISSUE_DRAFT_ONLY` / `ISSUE_UPDATE_ONLY` (performed directly by the ChatGPT coordinator for routine scoped issue maintenance)
 - `PLAN_ONLY`
 - `IMPLEMENT_SLICE`
 - `CHECKPOINT_COMMIT_ONLY`
@@ -116,6 +133,8 @@ Standing delegation covers exactly these modes, applied one at a time in isolate
 - `PUSH_ONLY`
 - `PR_ONLY`
 - `POST_MERGE_SYNC_ONLY` (after verified manual user merge on GitHub)
+
+**Standing Delegation for Routine GitHub Issue Management:** Within an already authorized, bounded task scope on `Tachiguro/KnownFirst`, the ChatGPT coordinator may directly deduplicate, create, comment on, update checklists/status (`BACKLOG`, `TRIAGE`, `READY`, `IN_PROGRESS`, `REVIEW`, `BLOCKED`, `DONE`), and close GitHub Issues once acceptance criteria and verification evidence are met, without requiring a local coding agent or separate per-action user confirmation. ChatGPT must verify project identity and evidence before mutating an issue and re-read the GitHub Issue afterward to confirm the published state. Read-only issue modes (`ISSUE_TRIAGE_ONLY`, `ISSUE_DRAFT_ONLY`) perform no mutations. Issue delegation never authorizes unapproved product scope, publishing private data, commits, pushes, PRs, merges, releases, or data deletion.
 
 Standing delegation covers mandatory pre-PR validation without requiring fresh per-PR user build authorization. For example: an approved, decision-free `PLAN_ONLY` may progress to `IMPLEMENT_SLICE` without a ceremonial "approve plan" message; completed slices loop through checkpoint commits; when all slices finish, the package progresses through consolidated `REVIEW_ONLY`, package-level `DOCUMENT_ONLY`, candidate `COMMIT_ONLY` (if documentation edited), mandatory candidate-HEAD `FULL_VALIDATION` (`TEST_ONLY`), `PUSH_ONLY`, and `PR_ONLY` in separate isolated prompts without fresh per-phase user authorization, provided the package remains within its established, bounded scope.
 
@@ -322,17 +341,19 @@ PLAN_ONLY
 
 Update only:
 - directly affected product, architecture, database, UI, or workflow contracts;
-- `docs/BACKLOG.md` to register newly discovered defects, deferred follow-ups, open product decisions, or downstream packages per the Follow-Up Closure Audit;
+- GitHub Issues on `Tachiguro/KnownFirst` (primarily through the ChatGPT coordinator's standing issue delegation) to track newly accepted defects, deferred follow-ups, or downstream packages, and `docs/BACKLOG.md` only where transitional `KF-*` records or open `REQUIRES_PRODUCT_DECISION` items are directly updated;
 - `CHANGELOG.md` for verified user-visible or internal-foundation behavior changes;
 - concise user-facing release notes for the intended future release (see [docs/VERSIONING.md](VERSIONING.md));
-- `docs/CURRENT_WORK.md` when operational task state changes.
+- `docs/CURRENT_WORK.md` when local branch/checkpoint operational task state changes.
 
-**Follow-Up Closure Audit & Foundation Milestone Rule:**
-- An agent prompt cannot declare a package fully reconciled when accepted deferred follow-ups, defects, or downstream requirements remain untracked. Every deferred or downstream item must either reference an existing open `KF-*` ID in `docs/BACKLOG.md` or be added to `docs/BACKLOG.md` before reconciliation is declared complete.
+**Issue-First Tracking, Follow-Up Closure Audit & Foundation Milestone Rule:**
+- GitHub Issues in `Tachiguro/KnownFirst` are the primary tracking system for newly accepted tasks, bugs, governance items, and their live status. Existing `KF-*` records in `docs/BACKLOG.md` remain preserved as transitional and historical evidence until separately verified and migrated to GitHub Issues with their original `KF-*` provenance.
+- An agent prompt cannot declare a package fully reconciled when accepted deferred follow-ups, defects, or downstream requirements remain untracked. Every deferred or downstream item must be tracked in a verified GitHub Issue (or reference an existing open transitional `KF-*` ID in `docs/BACKLOG.md` prior to migration) before reconciliation is declared complete.
 - Merging a foundation package (such as a core scheduling engine or clean domain model) never marks a parent initiative or roadmap milestone complete while downstream packages (persistence, archive, runtime cutover, UI) remain open.
 
 **Anti-Treadmill Discipline:**
-- Do **not** record exact `FULL_VALIDATION` test totals, PR numbers, or merge commit SHAs in durable project status documents (`docs/PROJECT_STATE.md`, `docs/ROADMAP.md`). Those facts belong to Git history, validation logs, and the PR body.
+- Do **not** duplicate changing task-status lists across multiple Markdown files. Live task status belongs in GitHub Issues; durable specifications and verified architecture belong in `docs/`.
+- Do **not** record exact `FULL_VALIDATION` test totals, PR numbers, or merge commit SHAs in durable project status documents (`docs/PROJECT_STATE.md`, `docs/ROADMAP.md`). Those facts belong to Git history, validation logs, GitHub Issues, and the PR body.
 - No mandatory post-merge documentation PR shall exist merely to record lifecycle metadata.
 - Avoid transient lifecycle-phase prose (e.g. "DOCUMENT_ONLY in progress", "waiting for PUSH_ONLY") in durable documents.
 
@@ -351,4 +372,4 @@ No Git mode may rewrite published history or force-push.
 
 ## K. New-Chat Bootstrap Protocol
 
-Dynamic discovery for new ChatGPT or prompt-authoring sessions is governed by [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Refer to that document for the complete initialization sequence, repository access gate, pull-request inspection rules, and evergreen user bootstrap prompt.
+Dynamic discovery for new ChatGPT or prompt-authoring sessions is governed by [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md). Refer to that document for the complete initialization sequence, central governance check, repository and issue access gate, GitHub Issue and pull-request inspection rules, and evergreen user bootstrap prompt.

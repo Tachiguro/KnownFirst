@@ -1,4 +1,5 @@
 using KnownFirst.Core.Text;
+using KnownFirst.Models;
 using KnownFirst.Tests.AnalysisEvidence;
 
 namespace KnownFirst.Tests.Corpus;
@@ -351,9 +352,181 @@ public sealed class EnglishGoldCorpusTests
     }
 
     [TestMethod]
+    public async Task EN006_ReviewAdmissionNewAndExistingUnreviewed_AssertStructuralExpectations()
+    {
+        var artifact = await EnglishGoldCorpusFixtures.ExecuteCaseAsync(
+            EnglishGoldCorpusFixtures.EN006_ReviewAdmissionNewAndExistingUnreviewed, _analyzer);
+
+        Assert.AreEqual(CorpusExpectationAuthority.BindingContract, artifact.Authority);
+        Assert.AreEqual("en", artifact.AnalyzerEvidence.Input.SourceLanguage);
+        Assert.IsTrue(artifact.AnalyzerEvidence.InvariantsPassed);
+        Assert.IsTrue(artifact.ReviewAdmission.AdmissionExecuted);
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, artifact.ReviewAdmission.Outcome);
+
+        var preVocab = artifact.ReviewAdmission.PreImportVocabulary!;
+        Assert.HasCount(1, preVocab);
+        Assert.AreEqual("W:packet", preVocab[0].Identity);
+        Assert.AreEqual("Packet", preVocab[0].CanonicalTerm);
+        Assert.AreEqual(WordStatus.Unreviewed, preVocab[0].Status);
+        Assert.AreEqual(2, preVocab[0].TotalOccurrenceCount);
+        Assert.AreEqual(1, preVocab[0].DocumentCount);
+
+        var admissions = artifact.ReviewAdmission.CandidateAdmissions!;
+        Assert.HasCount(2, admissions);
+
+        var signal = admissions.Single(a => a.Identity == "W:signal");
+        Assert.AreEqual("Signal", signal.CanonicalTerm);
+        Assert.IsNull(signal.PreImportStatus);
+        Assert.AreEqual(ReviewAdmissionDisposition.AdmittedNewWord, signal.Disposition);
+        Assert.AreEqual(0, signal.PersistedReviewOrder);
+        Assert.IsTrue(signal.WasWordCreatedForSession);
+        Assert.AreEqual(0, signal.TotalOccurrenceCountBefore);
+        Assert.AreEqual(1, signal.TotalOccurrenceCountAfter);
+        Assert.AreEqual(0, signal.DocumentCountBefore);
+        Assert.AreEqual(1, signal.DocumentCountAfter);
+        Assert.AreEqual(1, signal.OccurrenceContributionCount);
+
+        var packet = admissions.Single(a => a.Identity == "W:packet");
+        Assert.AreEqual("Packet", packet.CanonicalTerm);
+        Assert.AreEqual(WordStatus.Unreviewed, packet.PreImportStatus);
+        Assert.AreEqual(ReviewAdmissionDisposition.AdmittedExistingUnreviewed, packet.Disposition);
+        Assert.AreEqual(1, packet.PersistedReviewOrder);
+        Assert.IsFalse(packet.WasWordCreatedForSession);
+        Assert.AreEqual(2, packet.TotalOccurrenceCountBefore);
+        Assert.AreEqual(3, packet.TotalOccurrenceCountAfter);
+        Assert.AreEqual(1, packet.DocumentCountBefore);
+        Assert.AreEqual(2, packet.DocumentCountAfter);
+        Assert.AreEqual(1, packet.OccurrenceContributionCount);
+
+        var persisted = artifact.ReviewAdmission.PersistedReviewCandidates!;
+        Assert.HasCount(2, persisted);
+        Assert.AreEqual(0, persisted[0].Order);
+        Assert.AreEqual("W:signal", persisted[0].Identity);
+        Assert.IsTrue(persisted[0].WasWordCreatedForSession);
+        Assert.AreEqual(1, persisted[1].Order);
+        Assert.AreEqual("W:packet", persisted[1].Identity);
+        Assert.IsFalse(persisted[1].WasWordCreatedForSession);
+    }
+
+    [TestMethod]
+    public async Task EN007_ReviewAdmissionStatusExclusions_AssertStructuralExpectations()
+    {
+        var artifact = await EnglishGoldCorpusFixtures.ExecuteCaseAsync(
+            EnglishGoldCorpusFixtures.EN007_ReviewAdmissionStatusExclusions, _analyzer);
+
+        Assert.AreEqual(CorpusExpectationAuthority.BindingContract, artifact.Authority);
+        Assert.AreEqual("en", artifact.AnalyzerEvidence.Input.SourceLanguage);
+        Assert.IsTrue(artifact.AnalyzerEvidence.InvariantsPassed);
+        Assert.IsTrue(artifact.ReviewAdmission.AdmissionExecuted);
+        Assert.AreEqual(ImportAnalysisOutcome.Accepted, artifact.ReviewAdmission.Outcome);
+
+        var admissions = artifact.ReviewAdmission.CandidateAdmissions!;
+        Assert.HasCount(4, admissions);
+
+        var beacon = admissions.Single(a => a.Identity == "W:beacon");
+        Assert.AreEqual("Beacon", beacon.CanonicalTerm);
+        Assert.IsNull(beacon.PreImportStatus);
+        Assert.AreEqual(ReviewAdmissionDisposition.AdmittedNewWord, beacon.Disposition);
+        Assert.AreEqual(0, beacon.PersistedReviewOrder);
+        Assert.IsTrue(beacon.WasWordCreatedForSession);
+        Assert.AreEqual(1, beacon.OccurrenceContributionCount);
+
+        var backlog = admissions.Single(a => a.Identity == "W:backlog");
+        Assert.AreEqual(WordStatus.UnknownBacklog, backlog.PreImportStatus);
+        Assert.AreEqual(ReviewAdmissionDisposition.NotAdmittedExistingUnknownBacklog, backlog.Disposition);
+        Assert.IsNull(backlog.PersistedReviewOrder);
+        Assert.IsFalse(backlog.WasWordCreatedForSession);
+        Assert.AreEqual(2, backlog.TotalOccurrenceCountBefore);
+        Assert.AreEqual(3, backlog.TotalOccurrenceCountAfter);
+        Assert.AreEqual(1, backlog.DocumentCountBefore);
+        Assert.AreEqual(2, backlog.DocumentCountAfter);
+        Assert.AreEqual(1, backlog.OccurrenceContributionCount);
+
+        var known = admissions.Single(a => a.Identity == "W:known");
+        Assert.AreEqual(WordStatus.Known, known.PreImportStatus);
+        Assert.AreEqual(ReviewAdmissionDisposition.NotAdmittedExistingKnown, known.Disposition);
+        Assert.IsNull(known.PersistedReviewOrder);
+        Assert.IsFalse(known.WasWordCreatedForSession);
+        Assert.AreEqual(3, known.TotalOccurrenceCountBefore);
+        Assert.AreEqual(3, known.TotalOccurrenceCountAfter);
+        Assert.AreEqual(1, known.DocumentCountBefore);
+        Assert.AreEqual(1, known.DocumentCountAfter);
+        Assert.AreEqual(0, known.OccurrenceContributionCount);
+
+        var ignored = admissions.Single(a => a.Identity == "W:ignored");
+        Assert.AreEqual(WordStatus.Ignored, ignored.PreImportStatus);
+        Assert.AreEqual(ReviewAdmissionDisposition.NotAdmittedExistingIgnored, ignored.Disposition);
+        Assert.IsNull(ignored.PersistedReviewOrder);
+        Assert.IsFalse(ignored.WasWordCreatedForSession);
+        Assert.AreEqual(4, ignored.TotalOccurrenceCountBefore);
+        Assert.AreEqual(4, ignored.TotalOccurrenceCountAfter);
+        Assert.AreEqual(1, ignored.DocumentCountBefore);
+        Assert.AreEqual(1, ignored.DocumentCountAfter);
+        Assert.AreEqual(0, ignored.OccurrenceContributionCount);
+
+        var persisted = artifact.ReviewAdmission.PersistedReviewCandidates!;
+        Assert.HasCount(1, persisted);
+        Assert.AreEqual("W:beacon", persisted[0].Identity);
+        Assert.AreEqual(0, persisted[0].Order);
+    }
+
+    [TestMethod]
+    public async Task EN008_ReviewAdmissionNoNewVocabulary_AssertStructuralExpectations()
+    {
+        var artifact = await EnglishGoldCorpusFixtures.ExecuteCaseAsync(
+            EnglishGoldCorpusFixtures.EN008_ReviewAdmissionNoNewVocabulary, _analyzer);
+
+        Assert.AreEqual(CorpusExpectationAuthority.BindingContract, artifact.Authority);
+        Assert.AreEqual("en", artifact.AnalyzerEvidence.Input.SourceLanguage);
+        Assert.IsTrue(artifact.AnalyzerEvidence.InvariantsPassed);
+        Assert.IsTrue(artifact.ReviewAdmission.AdmissionExecuted);
+        Assert.AreEqual(ImportAnalysisOutcome.NoNewVocabulary, artifact.ReviewAdmission.Outcome);
+
+        var admissions = artifact.ReviewAdmission.CandidateAdmissions!;
+        Assert.HasCount(2, admissions);
+
+        var known = admissions.Single(a => a.Identity == "W:known");
+        Assert.AreEqual(ReviewAdmissionDisposition.NotAdmittedExistingKnown, known.Disposition);
+        Assert.IsNull(known.PersistedReviewOrder);
+        Assert.IsFalse(known.WasWordCreatedForSession);
+        Assert.AreEqual(5, known.TotalOccurrenceCountBefore);
+        Assert.AreEqual(5, known.TotalOccurrenceCountAfter);
+        Assert.AreEqual(2, known.DocumentCountBefore);
+        Assert.AreEqual(2, known.DocumentCountAfter);
+        Assert.AreEqual(0, known.OccurrenceContributionCount);
+
+        var backlog = admissions.Single(a => a.Identity == "W:backlog");
+        Assert.AreEqual(ReviewAdmissionDisposition.NotAdmittedExistingUnknownBacklog, backlog.Disposition);
+        Assert.IsNull(backlog.PersistedReviewOrder);
+        Assert.IsFalse(backlog.WasWordCreatedForSession);
+        Assert.AreEqual(3, backlog.TotalOccurrenceCountBefore);
+        Assert.AreEqual(3, backlog.TotalOccurrenceCountAfter);
+        Assert.AreEqual(1, backlog.DocumentCountBefore);
+        Assert.AreEqual(1, backlog.DocumentCountAfter);
+        Assert.AreEqual(0, backlog.OccurrenceContributionCount);
+
+        Assert.HasCount(0, artifact.ReviewAdmission.PersistedReviewCandidates!);
+    }
+
+    [TestMethod]
+    public async Task EN009_ReviewAdmissionExactDuplicate_AssertStructuralExpectations()
+    {
+        var artifact = await EnglishGoldCorpusFixtures.ExecuteCaseAsync(
+            EnglishGoldCorpusFixtures.EN009_ReviewAdmissionExactDuplicate, _analyzer);
+
+        Assert.AreEqual(CorpusExpectationAuthority.BindingContract, artifact.Authority);
+        Assert.AreEqual("en", artifact.AnalyzerEvidence.Input.SourceLanguage);
+        Assert.IsTrue(artifact.AnalyzerEvidence.InvariantsPassed);
+        Assert.IsTrue(artifact.ReviewAdmission.AdmissionExecuted);
+        Assert.AreEqual(ImportAnalysisOutcome.ExactDuplicate, artifact.ReviewAdmission.Outcome);
+        Assert.HasCount(0, artifact.ReviewAdmission.CandidateAdmissions!);
+        Assert.HasCount(0, artifact.ReviewAdmission.PersistedReviewCandidates!);
+    }
+
+    [TestMethod]
     public void AllEnglishCorpusCases_VerifyInvariantsExactSubstringsAndDeterminism()
     {
-        Assert.HasCount(5, EnglishGoldCorpusFixtures.AllCases);
+        Assert.HasCount(9, EnglishGoldCorpusFixtures.AllCases);
 
         foreach (var corpusCase in EnglishGoldCorpusFixtures.AllCases)
         {
@@ -361,6 +534,11 @@ public sealed class EnglishGoldCorpusTests
             Assert.IsFalse(string.IsNullOrWhiteSpace(corpusCase.Description));
             Assert.IsFalse(string.IsNullOrWhiteSpace(corpusCase.Input));
             Assert.AreEqual("en", corpusCase.SourceLanguage);
+            if (corpusCase.SeedWords is { Count: > 0 } seedWords)
+            {
+                Assert.IsTrue(seedWords.All(s => s.Language == "en"), $"Non-English seed language in case {corpusCase.Id}.");
+            }
+
             Assert.IsTrue(
                 corpusCase.Authority is CorpusExpectationAuthority.BindingContract
                     or CorpusExpectationAuthority.VerifiedCurrentBehavior,
@@ -393,6 +571,80 @@ public sealed class EnglishGoldCorpusTests
             var firstJson = AnalysisEvidenceJsonFormatter.Format(firstRun.AnalyzerEvidence);
             var secondJson = AnalysisEvidenceJsonFormatter.Format(secondRun.AnalyzerEvidence);
             Assert.AreEqual(firstJson, secondJson, $"Non-deterministic JSON report for {corpusCase.Id}.");
+        }
+    }
+
+    [TestMethod]
+    public async Task AllEnglishCorpusCases_GenerateArtifacts_VerifyDeterminismAndRoundTrip()
+    {
+        var targetDir = EvidenceArtifactWriter.GetEnglishArtifactDirectory();
+        Assert.AreEqual(targetDir, EvidenceArtifactWriter.GetArtifactDirectory("en"));
+
+        var artifacts = new List<GermanGoldCorpusEvidenceArtifact>();
+        foreach (var corpusCase in EnglishGoldCorpusFixtures.AllCases)
+        {
+            var artifact = await EnglishGoldCorpusFixtures.ExecuteCaseAsync(corpusCase, _analyzer);
+            artifacts.Add(artifact);
+
+            Assert.IsTrue(
+                artifact.AnalyzerEvidence.InvariantsPassed,
+                $"Invariant failure in case {corpusCase.Id}: {string.Join(", ", artifact.AnalyzerEvidence.InvariantFailures.Select(f => f.Explanation))}");
+        }
+
+        Assert.HasCount(9, artifacts);
+
+        var writtenFiles = EvidenceArtifactWriter.WriteAll(artifacts, targetDir);
+        Assert.HasCount(9, writtenFiles);
+
+        for (var i = 0; i < writtenFiles.Count; i++)
+        {
+            var (txtPath, jsonPath) = writtenFiles[i];
+            var expectedArtifact = artifacts[i];
+
+            Assert.IsTrue(File.Exists(txtPath), $"Missing TXT artifact: {txtPath}");
+            Assert.IsTrue(File.Exists(jsonPath), $"Missing JSON artifact: {jsonPath}");
+            StringAssert.EndsWith(
+                Path.GetDirectoryName(txtPath)!,
+                Path.Combine("artifacts", "text-analysis-evidence", "english-gold-corpus"));
+
+            var txtContent = File.ReadAllText(txtPath);
+            StringAssert.StartsWith(txtContent, "=== ENGLISH GOLD CORPUS EVIDENCE ARTIFACT ===\n");
+            Assert.IsFalse(txtContent.Contains("=== GERMAN GOLD CORPUS EVIDENCE ARTIFACT ===", StringComparison.Ordinal));
+            Assert.IsTrue(txtContent.Contains("Source Language: en\n", StringComparison.Ordinal));
+
+            var jsonContent = File.ReadAllText(jsonPath);
+            var deserialized = AnalysisEvidenceJsonFormatter.DeserializeCorpusArtifact(jsonContent);
+            Assert.IsNotNull(deserialized);
+            Assert.AreEqual(Path.GetFileNameWithoutExtension(jsonPath), deserialized.CaseId);
+            Assert.AreEqual(expectedArtifact.AnalyzerEvidence.Input.Text, deserialized.AnalyzerEvidence.Input.Text);
+            Assert.AreEqual("en", deserialized.AnalyzerEvidence.Input.SourceLanguage);
+            Assert.HasCount(expectedArtifact.AnalyzerEvidence.Sentences.Count, deserialized.AnalyzerEvidence.Sentences);
+            Assert.HasCount(expectedArtifact.AnalyzerEvidence.Candidates.Count, deserialized.AnalyzerEvidence.Candidates);
+            Assert.AreEqual(expectedArtifact.ReviewAdmission.AdmissionExecuted, deserialized.ReviewAdmission.AdmissionExecuted);
+            Assert.AreEqual(expectedArtifact.ReviewAdmission.Outcome, deserialized.ReviewAdmission.Outcome);
+        }
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"kf-en-determinism-{Guid.NewGuid():N}");
+        try
+        {
+            var repeatFiles = EvidenceArtifactWriter.WriteAll(artifacts, tempDir);
+            for (var i = 0; i < writtenFiles.Count; i++)
+            {
+                var txtOriginal = File.ReadAllBytes(writtenFiles[i].TxtPath);
+                var txtRepeat = File.ReadAllBytes(repeatFiles[i].TxtPath);
+                CollectionAssert.AreEqual(txtOriginal, txtRepeat, $"TXT artifact {writtenFiles[i].TxtPath} not byte-for-byte identical.");
+
+                var jsonOriginal = File.ReadAllBytes(writtenFiles[i].JsonPath);
+                var jsonRepeat = File.ReadAllBytes(repeatFiles[i].JsonPath);
+                CollectionAssert.AreEqual(jsonOriginal, jsonRepeat, $"JSON artifact {writtenFiles[i].JsonPath} not byte-for-byte identical.");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
         }
     }
 }

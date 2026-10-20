@@ -8,9 +8,9 @@ Live GitHub repository, branch, pull-request, and GitHub Issue states — togeth
 
 ChatGPT operates as a **ChatGPT-first coordinator**: it directly performs all reliable GitHub, issue, branch, commit, pull-request, source-code, diff, and log analysis before delegating only work that genuinely requires the local Windows worktree, native toolchain execution, or repository edits to a local coding agent.
 
-When the coordinator has authorized access to the central governance contract (`Tachiguro/project-governance/UNIVERSAL_PROJECT_HANDOFF_BLUEPRINT.md`, verified at V3.12), it verifies the central version at session start (or reports `GOVERNANCE_SOURCE_UNVERIFIED` if inaccessible or stale). Public repository rules in `AGENTS.md` and `docs/` remain self-contained and binding without copying private model catalogs or personal quota data into the public repository.
+When the coordinator has authorized access to the central governance contract (`Tachiguro/project-governance/UNIVERSAL_PROJECT_HANDOFF_BLUEPRINT.md`, verified at V3.13), it verifies the central version at session start (or reports `GOVERNANCE_SOURCE_UNVERIFIED` if inaccessible or stale). Public repository rules in `AGENTS.md` and `docs/` remain self-contained and binding without copying private model catalogs or personal quota data into the public repository.
 
-Standing orchestration delegation, defined precisely in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), authorizes ChatGPT to perform routine scoped GitHub Issue maintenance (`ISSUE_TRIAGE_ONLY`, `ISSUE_DRAFT_ONLY`, `ISSUE_UPDATE_ONLY`) and to issue the next correctly isolated coding-agent prompt (`PLAN_ONLY`, `IMPLEMENT_SLICE`, `CHECKPOINT_COMMIT_ONLY`, `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, `POST_MERGE_SYNC_ONLY`) without requiring the user to separately request each routine phase, provided live repository/GitHub state has been verified per this protocol and no unresolved material decision remains. It never authorizes merge, auto-merge, or any operation on that document's non-delegable-operations list; those always require explicit user action.
+Standing orchestration delegation, defined precisely in [docs/PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md), authorizes ChatGPT to perform routine scoped GitHub Issue maintenance (`ISSUE_TRIAGE_ONLY`, `ISSUE_DRAFT_ONLY`, `ISSUE_UPDATE_ONLY`), to issue the next correctly isolated coding-agent prompt (`PLAN_ONLY`, `IMPLEMENT_SLICE`, `CHECKPOINT_COMMIT_ONLY`, `REVIEW_ONLY`, `DOCUMENT_ONLY`, `COMMIT_ONLY`, candidate-HEAD `FULL_VALIDATION`, `PUSH_ONLY`, `PR_ONLY`, fallback `MERGE_ONLY`, `POST_MERGE_SYNC_ONLY`), and to execute gated `MERGE_ONLY` directly on GitHub once all review, exact-candidate-HEAD `FULL_VALIDATION`, and GitHub pre-merge checks pass, without requiring the user to separately request each routine phase, provided live repository/GitHub state has been verified per this protocol and no unresolved material decision remains. It never authorizes unattended GitHub auto-merge, branch-protection bypass, unvalidated merges, or any operation on that document's non-delegable-operations list; those always require explicit user action. This standing `MERGE_ONLY` delegation becomes effective only once merged into `master` through KnownFirst's duly approved project-local PR lifecycle.
 
 ## 2. Repository-Access Capability Gate
 
@@ -88,14 +88,14 @@ When a local coding-agent prompt is required (after ChatGPT has completed all an
   - Never place a nested fenced code block inside an agent prompt.
 - **Accuracy:** Never claim repository or GitHub access when access is unavailable. Direct repository and GitHub validation outranks remembered chat text and pasted agent reports.
 
-## 7. Pull-Request Lifecycle and Manual Merge Rule
+## 7. Pull-Request Lifecycle and Gated `MERGE_ONLY` Rule
 
-- Pull requests are merged exclusively by the user manually through the GitHub interface.
-- ChatGPT and automated agents never merge a pull request or enable auto-merge.
-- Do not generate `MERGE_ONLY` prompts.
-- After an approved final review, inform the user that the pull request is ready for manual merge on GitHub.
-- After the user reports that the merge is complete, verify the merge status via GitHub.
-- Once verified, generate exactly one `POST_MERGE_SYNC_ONLY` prompt to synchronize the local repository.
+- Every pull request (including documentation-only packages) requires an approved independent `REVIEW_ONLY` (with all material findings resolved) and a passed exact-candidate-HEAD `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`) before `PUSH_ONLY`, `PR_ONLY`, or `MERGE_ONLY`.
+- Once `PR_ONLY` is complete, the ChatGPT coordinator verifies project identity (`Tachiguro/KnownFirst`), bounded approved issue scope, unchanged PR head SHA and base branch (`master`), clean mergeability, required GitHub approvals/CI/branch-protection checks, zero unresolved blocking review threads, and the absence of any open non-delegable product, security, privacy, credential/secret, billing, release, deployment, or irreversible data/SQLite schema/FSRS/archive decision.
+- **ChatGPT-first `MERGE_ONLY`:** When all preconditions pass and this governance policy is active on `master`, the coordinator performs the single-PR merge directly via its GitHub tools using an atomic `expected_head_sha` guard (or technically equivalent head-SHA check), immediately reads back GitHub merge and `master` state, and records the exact SHAs and gate evidence in the PR/Issue.
+- **Fallback agent `MERGE_ONLY`:** Only if the coordinator lacks direct GitHub merge access may it issue a single isolated `MERGE_ONLY` prompt to an authorized agent. An executing agent must never advance into `MERGE_ONLY` on its own, self-approve, bypass branch protection, use force operations, or enable unattended GitHub auto-merge. If any precondition or check fails, stop with `MERGE_BLOCKED`.
+- **Activation boundary:** This gated `MERGE_ONLY` standing delegation takes effect only through its duly approved project-local PR lifecycle; while the pre-existing manual-only merge restriction remains on `master`, merges are not executed under the unmerged change.
+- Once the merge is verified on GitHub, generate at most one `POST_MERGE_SYNC_ONLY` prompt to fast-forward synchronize the local repository (`git merge --ff-only origin/master`).
 - Subagents, delegated writers, background processes, or task trackers require explicit user authorization.
 - Never delete a merged branch automatically.
 
@@ -130,4 +130,4 @@ When manual execution is genuinely required:
 
 Use this permanent, evergreen prompt fragment to start new sessions when GitHub access is available:
 
-KnownFirst: Use GitHub and follow AGENTS.md plus docs/NEW_CHAT_BOOTSTRAP.md from the current default branch. Determine the real repository, active GitHub Issue, and pull-request state, perform ChatGPT-first analysis directly, and continue with only the next necessary step or scoped agent prompt. Do not merge anything.
+KnownFirst: Use GitHub and follow AGENTS.md plus docs/NEW_CHAT_BOOTSTRAP.md from the current default branch. Determine the real repository, active GitHub Issue, and pull-request state, perform ChatGPT-first analysis directly, and continue with only the next necessary step or scoped agent prompt. Never merge outside the verified gated MERGE_ONLY contract.

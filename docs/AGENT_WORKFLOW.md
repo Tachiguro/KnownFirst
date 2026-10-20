@@ -20,7 +20,7 @@ PLAN_ONLY (declare coherent objective & ordered slices)
   → Exact-Candidate-HEAD FULL_VALIDATION (TEST_ONLY)
   → PUSH_ONLY
   → PR_ONLY
-  → Manual User Merge on GitHub
+  → MERGE_ONLY (gated ChatGPT-first merge on GitHub)
   → POST_MERGE_SYNC_ONLY
 ```
 
@@ -36,7 +36,7 @@ PLAN_ONLY
   → FULL_VALIDATION
   → PUSH_ONLY
   → PR_ONLY
-  → Manual User Merge on GitHub
+  → MERGE_ONLY (gated ChatGPT-first merge on GitHub)
   → POST_MERGE_SYNC_ONLY
 ```
 
@@ -109,6 +109,6 @@ Every behavior-changing slice must produce and report this evidence sequence:
    ```
    Any subsequent commit or file edit invalidates this evidence and requires `ValidateAll` to run again on the new candidate HEAD.
 4. **Authorized Publication:** Pushing an approved branch (`PUSH_ONLY`) and opening/updating its pull request (`PR_ONLY`) are covered by standing orchestration delegation once exact-HEAD validation passes.
-5. **Manual PR Merge Only:** Pull requests are merged exclusively by the repository owner manually through GitHub. Automated agents never merge PRs or enable auto-merge.
-6. **Post-Merge Synchronization:** After verified manual merge, local `master` is synchronized using `POST_MERGE_SYNC_ONLY` (`git merge --ff-only origin/master`). No branch deletion or code modification occurs during sync.
+5. **Gated PR Merge (`MERGE_ONLY`):** Once a pull request for an already authorized, bounded `Tachiguro/KnownFirst` work package has passed independent `REVIEW_ONLY` (with all material findings resolved), exact-candidate-HEAD `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`, required for every PR including documentation-only packages), and pre-merge GitHub verification (unchanged head and base SHAs, clean mergeability, required GitHub approvals/CI/branch-protection checks, and zero unresolved blocking review threads), and no non-delegable product, security, privacy, credential/secret, billing, release, deployment, or irreversible data/SQLite schema/FSRS/archive decision remains open, the ChatGPT coordinator executes `MERGE_ONLY` directly via its GitHub tools using an atomic `expected_head_sha` guard (or technically equivalent head-SHA check), followed by GitHub readback and PR/Issue evidence recording. Only if the coordinator lacks direct GitHub merge access may it issue a single isolated `MERGE_ONLY` fallback prompt to an authorized agent; an executing agent must never self-advance into `MERGE_ONLY` from another mode, self-approve, bypass branch protection, use force operations, or enable unattended GitHub auto-merge (halting with `MERGE_BLOCKED` on any missing precondition). This project-local `MERGE_ONLY` standing delegation becomes effective only through its duly approved project-local PR lifecycle (prior to its merge onto `master`, the pre-existing manual-only merge restriction on `master` remains binding).
+6. **Post-Merge Synchronization:** After a verified PR merge and GitHub readback, local `master` is synchronized using `POST_MERGE_SYNC_ONLY` (`git merge --ff-only origin/master`). No branch deletion, destructive Git operation, or code modification occurs during sync.
 7. **Direct Verification Outranks Claims:** Direct repository and GitHub verification outranks remembered chat text and pasted agent reports. Technical reports from programming agents are written in English.

@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-10-20 (Slice 1/2 implementation for [GitHub Issue #213](https://github.com/Tachiguro/KnownFirst/issues/213) / `KF-ANALYSIS-001` English gold corpus extension on branch `test/kf-analysis-001-english-corpus-v1` from verified `master` baseline `ee6ee4ab88364dd4f1c06810624b0b16f6575784`).
+2026-10-20 (Package-level `DOCUMENT_ONLY` reconciliation for [GitHub Issue #213](https://github.com/Tachiguro/KnownFirst/issues/213) / `KF-ANALYSIS-001` English gold corpus extension on branch `test/kf-analysis-001-english-corpus-v1` from verified `master` baseline `ee6ee4ab88364dd4f1c06810624b0b16f6575784`; final checkpoint HEAD `8843d30bbf09b1a77f5958a808e385913ea8721b`).
 
 ## Repository and Worktree Governance
 
@@ -18,13 +18,18 @@ Every repository-writing package follows the governed multi-slice lifecycle: `PL
 ## Active Work Package State
 
 - **Active GitHub Issue:** [Issue #213 (`KF-ANALYSIS-001 — English Gold Corpus Extension`)](https://github.com/Tachiguro/KnownFirst/issues/213)
-- **Active package:** `KF-ANALYSIS-001` (English Gold Corpus Extension — approved 2-slice package)
+- **Active package:** `KF-ANALYSIS-001` (English gold corpus extension — approved 2-slice package)
 - **Active branch:** `test/kf-analysis-001-english-corpus-v1`
 - **Base commit:** `ee6ee4ab88364dd4f1c06810624b0b16f6575784` (`master` / `origin/master`).
-- **Package objective:** Extend the `KF-ANALYSIS-001` text-analysis evidence and gold-corpus suite with deterministic synthetic English (`sourceLanguage: "en"`) characterization and contract cases without altering production analyzer behavior.
-- **Declared slices:**
-  - **Slice 1/2 (`english-analysis-corpus` — Current work):** Add `KnownFirst.Tests/Corpus/EnglishGoldCorpusFixtures.cs` and `KnownFirst.Tests/Corpus/EnglishGoldCorpusTests.cs` covering five deterministic synthetic English analyzer cases (`EN-001` through `EN-005`).
-  - **Slice 2/2 (Pending):** English review-admission evidence and language-correct artifact output.
+- **Final checkpoint HEAD:** `8843d30bbf09b1a77f5958a808e385913ea8721b`
+- **Package objective:** Extend the `KF-ANALYSIS-001` text-analysis evidence and gold-corpus suite with nine deterministic synthetic English (`sourceLanguage: "en"`) characterization and contract cases (`EN-001` through `EN-009`: 7 `BindingContract`, 2 `VerifiedCurrentBehavior`), isolated SQLite review-admission coverage, and language-specific English evidence artifacts without altering production analyzer behavior.
+- **Completed implementation slices:**
+  - **Slice 1/2 (`english-analysis-corpus` — Completed):** Added `KnownFirst.Tests/Corpus/EnglishGoldCorpusFixtures.cs` and `KnownFirst.Tests/Corpus/EnglishGoldCorpusTests.cs` covering five deterministic synthetic English analyzer cases (`EN-001` through `EN-005`) and cross-case invariant/determinism verification (`AllEnglishCorpusCases_VerifyInvariantsExactSubstringsAndDeterminism`). Checkpoint commit `d12440766e9354ee90769f8b761eecac142c26a2` (trailer `KnownFirst-Checkpoint: KF-ANALYSIS-001 1/2 english-analysis-corpus`).
+  - **Slice 2/2 (`english-admission-artifacts` — Completed):** Extended `KnownFirst.Tests/Corpus/EnglishGoldCorpusFixtures.cs` and `KnownFirst.Tests/Corpus/EnglishGoldCorpusTests.cs` with four deterministic English review-admission cases (`EN-006` through `EN-009`) against isolated temporary SQLite databases and artifact round-trip/determinism verification (`AllEnglishCorpusCases_GenerateArtifacts_VerifyDeterminismAndRoundTrip`), and updated `KnownFirst.Tests/AnalysisEvidence/EvidenceArtifactWriter.cs` and `KnownFirst.Tests/EvidenceArtifactWriterTests.cs` for separate English artifact directory (`artifacts/text-analysis-evidence/english-gold-corpus/`) and report header (`=== ENGLISH GOLD CORPUS EVIDENCE ARTIFACT ===`) while preserving the existing 17-case German corpus (`DE-001` through `DE-017`). Checkpoint commit `8843d30bbf09b1a77f5958a808e385913ea8721b` (trailer `KnownFirst-Checkpoint: KF-ANALYSIS-001 2/2 english-admission-artifacts`).
+- **Review & lifecycle status:**
+  - **Consolidated independent review (`REVIEW_ONLY`):** `REVIEW_APPROVED` with 0 BLOCKER, 0 MAJOR, and 0 MINOR findings ([review evidence](https://github.com/Tachiguro/KnownFirst/issues/213#issuecomment-6293928487)).
+  - **Current lifecycle phase:** Package-level `DOCUMENT_ONLY` reconciliation.
+  - **Pending lifecycle phases:** Candidate finalization (`COMMIT_ONLY`), mandatory exact-candidate-HEAD `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`), `PUSH_ONLY`, `PR_ONLY`, gated `MERGE_ONLY`, and `POST_MERGE_SYNC_ONLY`.
 
 - **Previous merged packages:**
   - PR #212 (`docs/kf-gov-merge-001-v3-13` / [Issue #211](https://github.com/Tachiguro/KnownFirst/issues/211) / `KF-GOV-MERGE-001`): Aligned KnownFirst's project-local, public-safe governance documentation (`AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, `docs/AGENT_WORKFLOW.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, and `docs/CURRENT_WORK.md`) with central Universal Blueprint V3.13 (`41ccb5b1b1252927c206ac3ec718f8a0742f1189`, §4.1) to establish the gated `MERGE_ONLY` lifecycle between `PR_ONLY` and `POST_MERGE_SYNC_ONLY` (ChatGPT-first merge with atomic `expected_head_sha` guard, pre-merge GitHub verification, post-merge readback, and PR/Issue evidence recording, with isolated agent `MERGE_ONLY` as fallback only), while preserving the mandatory exact-candidate-HEAD `FULL_VALIDATION` gate (`.\scripts\knownfirst.ps1 -Action ValidateAll`), all repository/data/privacy safety rules, and transitional `KF-*` backlog records. Merged to `master` via merge commit `ee6ee4ab88364dd4f1c06810624b0b16f6575784` (validated PR head `d5f68e0994d029a990cc9f77890beb09a9a6dcad`). `POST_MERGE_SYNC_ONLY` completed.

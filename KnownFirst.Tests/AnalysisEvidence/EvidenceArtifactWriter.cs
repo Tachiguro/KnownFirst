@@ -26,12 +26,25 @@ public static class EvidenceArtifactWriter
     public static string GetArtifactDirectory() =>
         Path.Combine(ResolveRepositoryRoot(), "artifacts", "text-analysis-evidence", "german-gold-corpus");
 
+    public static string GetEnglishArtifactDirectory() =>
+        Path.Combine(ResolveRepositoryRoot(), "artifacts", "text-analysis-evidence", "english-gold-corpus");
+
+    public static string GetArtifactDirectory(string? sourceLanguage) =>
+        IsEnglishLanguage(sourceLanguage)
+            ? GetEnglishArtifactDirectory()
+            : GetArtifactDirectory();
+
+    private static bool IsEnglishLanguage(string? sourceLanguage) =>
+        string.Equals(sourceLanguage?.Trim(), "en", StringComparison.OrdinalIgnoreCase);
+
     public static string FormatText(GermanGoldCorpusEvidenceArtifact artifact)
     {
         ArgumentNullException.ThrowIfNull(artifact);
 
         var sb = new StringBuilder();
-        sb.Append("=== GERMAN GOLD CORPUS EVIDENCE ARTIFACT ===\n");
+        sb.Append(IsEnglishLanguage(artifact.AnalyzerEvidence.Input.SourceLanguage)
+            ? "=== ENGLISH GOLD CORPUS EVIDENCE ARTIFACT ===\n"
+            : "=== GERMAN GOLD CORPUS EVIDENCE ARTIFACT ===\n");
         sb.Append("Case ID: ").Append(artifact.CaseId).Append('\n');
         sb.Append("Description: ").Append(artifact.Description).Append('\n');
         sb.Append("Authority: ").Append(artifact.Authority switch
@@ -126,7 +139,7 @@ public static class EvidenceArtifactWriter
     {
         ArgumentNullException.ThrowIfNull(artifact);
 
-        targetDirectory ??= GetArtifactDirectory();
+        targetDirectory ??= GetArtifactDirectory(artifact.AnalyzerEvidence.Input.SourceLanguage);
         Directory.CreateDirectory(targetDirectory);
 
         var txtPath = Path.Combine(targetDirectory, $"{artifact.CaseId}.txt");

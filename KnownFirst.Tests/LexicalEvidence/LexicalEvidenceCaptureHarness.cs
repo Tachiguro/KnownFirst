@@ -33,7 +33,17 @@ public sealed record LexicalEvidencePreparationCaptureOptions(
     IWikipediaApiClient? SimulatedWikipediaApiClient = null,
     IReadOnlyList<ILexicalLookupProvider>? CustomProviders = null,
     ILexicalCacheRepository? CacheRepository = null,
-    DateTime? UtcNow = null);
+    DateTime? UtcNow = null,
+    int RequestedSessionLimit = 1,
+    Func<PreparationService, PreparationItem, CancellationToken, Task>? PostLookupAction = null);
+
+public sealed record PreparationLookupCorrelationResult(
+    LexicalCandidateEvidence Evidence,
+    PreparationItem ItemAfterLookup,
+    PreparationItem? ItemAfterPostLookupAction,
+    PreparationCandidateEntity PersistedCandidate,
+    PreparationCandidatePayloadV1? PersistedEnvelope,
+    IReadOnlyList<string> IsolatedPrefetchTerms);
 
 public static class LexicalEvidenceCaptureHarness
 {
@@ -106,6 +116,14 @@ public static class LexicalEvidenceCaptureHarness
         LexicalEvidencePreparationCaptureOptions options,
         CancellationToken cancellationToken = default)
     {
+        var correlation = await CapturePreparationCorrelationAsync(options, cancellationToken);
+        return correlation.Evidence;
+    }
+
+    public static async Task<PreparationLookupCorrelationResult> CapturePreparationCorrelationAsync(
+        LexicalEvidencePreparationCaptureOptions options,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.CaseId);
         ArgumentNullException.ThrowIfNull(options.Database);
@@ -153,15 +171,28 @@ public static class LexicalEvidenceCaptureHarness
             var currentBeforeStart = await preparationService.GetCurrentAsync();
             if (currentBeforeStart is null)
             {
-                await preparationService.StartAsync(PreparationMethod.AutomaticOnline, requestedLimit: 5);
+                var sessionLimit = Math.Max(1, options.RequestedSessionLimit);
+                await preparationService.StartAsync(
+                    PreparationMethod.AutomaticOnline,
+                    requestedLimit: sessionLimit);
             }
 
             var itemAfterLookup = await preparationService.LookupCurrentAsync(cancellationToken)
                 ?? throw new InvalidOperationException($"PreparationService.LookupCurrentAsync returned null for case '{options.CaseId}'.");
 
+            PreparationItem? itemAfterPostAction = null;
+            if (options.PostLookupAction is not null)
+            {
+                await options.PostLookupAction(preparationService, itemAfterLookup, cancellationToken);
+                itemAfterPostAction = await preparationService.GetCurrentAsync();
+            }
+
             var candidateEntity = await options.Database.ReadAsync(connection =>
                 connection.FindAsync<PreparationCandidateEntity>(itemAfterLookup.CandidateId))
                 ?? throw new InvalidOperationException($"PreparationCandidateEntity {itemAfterLookup.CandidateId} not found after LookupCurrentAsync.");
+
+            var payloadRead = PreparationCandidatePayloadCodec.Read(candidateEntity.ResultJson);
+            var persistedEnvelope = payloadRead.Envelope;
 
             var capturedRequest = capturingEnrichmentService.LastRequest
                 ?? throw new InvalidOperationException($"No LexicalLookupRequest was captured during PreparationService lookup for case '{options.CaseId}'.");
@@ -170,7 +201,7 @@ public static class LexicalEvidenceCaptureHarness
                 ?? itemAfterLookup.Result
                 ?? throw new InvalidOperationException($"No LexicalResult was produced during PreparationService lookup for case '{options.CaseId}'.");
 
-            return BuildCandidateEvidence(
+            var evidence = BuildCandidateEvidence(
                 caseId: options.CaseId,
                 description: options.Description,
                 executionMode: LexicalEvidenceExecutionMode.PreparationServiceLookup,
@@ -185,6 +216,14 @@ public static class LexicalEvidenceCaptureHarness
                 wikiTracker: wikiTracker,
                 delayRecorder: delayRecorder,
                 diagnosticLog: diagnosticLog);
+
+            return new PreparationLookupCorrelationResult(
+                Evidence: evidence,
+                ItemAfterLookup: itemAfterLookup,
+                ItemAfterPostLookupAction: itemAfterPostAction,
+                PersistedCandidate: candidateEntity,
+                PersistedEnvelope: persistedEnvelope,
+                IsolatedPrefetchTerms: capturingEnrichmentService.IsolatedPrefetchTerms);
         }
         finally
         {
@@ -924,9 +963,24 @@ public static class LexicalEvidenceCaptureHarness
 
     private sealed class CapturingLexicalEnrichmentService(ILexicalEnrichmentService inner) : ILexicalEnrichmentService
     {
+        private readonly object _sync = new();
+        private readonly List<string> _isolatedPrefetchTerms = [];
+        private bool _primaryLookupClaimed;
+
         public LexicalLookupRequest? LastRequest { get; private set; }
         public string? LastRepresentativeContext { get; private set; }
         public LexicalResult? LastResult { get; private set; }
+
+        public IReadOnlyList<string> IsolatedPrefetchTerms
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return [.. _isolatedPrefetchTerms];
+                }
+            }
+        }
 
         public async Task<LexicalResult> EnrichAsync(
             LexicalLookupRequest request,
@@ -934,8 +988,28 @@ public static class LexicalEvidenceCaptureHarness
             string? representativeContext,
             CancellationToken cancellationToken = default)
         {
-            LastRequest = request;
-            LastRepresentativeContext = representativeContext;
+            var isPrimary = false;
+            lock (_sync)
+            {
+                if (!_primaryLookupClaimed)
+                {
+                    _primaryLookupClaimed = true;
+                    isPrimary = true;
+                    LastRequest = request;
+                    LastRepresentativeContext = representativeContext;
+                }
+                else
+                {
+                    _isolatedPrefetchTerms.Add(request.CanonicalLookupTerm);
+                }
+            }
+
+            if (!isPrimary)
+            {
+                // Isolate background prefetch from contaminating the primary candidate's evidence or shared cache.
+                throw new OperationCanceledException(cancellationToken);
+            }
+
             var result = await inner.EnrichAsync(request, originalDocumentContent, representativeContext, cancellationToken);
             LastResult = result;
             return result;
@@ -1192,6 +1266,11 @@ public static class LexicalEvidenceCaptureHarness
 
         public void Write(LexicalDiagnosticEvent diagnosticEvent, Exception? exception = null)
         {
+            if (diagnosticEvent.Phase.StartsWith("prefetch.", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
             _events.Add(new LexicalDiagnosticEventEvidence(
                 Order: _events.Count + 1,
                 Phase: diagnosticEvent.Phase,

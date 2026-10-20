@@ -2,7 +2,7 @@
 
 ## Last updated
 
-2026-09-21 (Package KF-ANALYSIS-001 documentation reconciled after consolidated REVIEW_ONLY approval on branch `feature/kf-analysis-001-german-gold-corpus-v1` from base `377a2da98521d35e5ab5191199f6e3d15b34ae6c`).
+2026-10-20 (Slice A governance documentation reconciliation for [GitHub Issue #209](https://github.com/Tachiguro/KnownFirst/issues/209) / `KF-GOV-ISSUES-001` on branch `docs/kf-gov-issues-001-governance-v1` from verified `master` baseline `5a3f10d5e723a437954c64ef3953946d692433d7`).
 
 ## Repository and Worktree Governance
 
@@ -13,23 +13,18 @@
 
 ## Mandatory Documentation Governance
 
-Every repository-writing package follows the governed multi-slice lifecycle: `PLAN_ONLY` → `IMPLEMENT_SLICE` loop (with each `IMPLEMENT_SLICE` executing focused RED → minimum implementation → focused GREEN → checkpoint commit) → consolidated `REVIEW_ONLY` → mandatory package-level `DOCUMENT_ONLY` → candidate finalization / `COMMIT_ONLY` (if documentation edited) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`. Documentation-only packages omit `IMPLEMENT`. See [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) and [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) for binding rules.
+Every repository-writing package follows the governed multi-slice lifecycle: `PLAN_ONLY` → `IMPLEMENT_SLICE` loop (with each `IMPLEMENT_SLICE` executing focused RED → minimum implementation → focused GREEN → checkpoint commit) → consolidated `REVIEW_ONLY` → mandatory package-level `DOCUMENT_ONLY` → candidate finalization / `COMMIT_ONLY` (if documentation edited) → exact-candidate-HEAD `FULL_VALIDATION` → `PUSH_ONLY` → `PR_ONLY` → manual user merge → `POST_MERGE_SYNC_ONLY`. Documentation-only packages omit `IMPLEMENT`. GitHub Issues on `Tachiguro/KnownFirst` are the primary system of record for newly accepted tasks and their live status, while `docs/CURRENT_WORK.md` records local branch/checkpoint operational context without duplicating changing task-status lists. See [PROMPT_AND_TASK_ROUTING.md](PROMPT_AND_TASK_ROUTING.md) and [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) for binding rules.
 
 ## Active Work Package State
 
-- **Active package:** `KF-ANALYSIS-001 — Text Analysis Corpus & Evidence`
-- **Active branch:** `feature/kf-analysis-001-german-gold-corpus-v1`
-- **Base commit:** `377a2da98521d35e5ab5191199f6e3d15b34ae6c` (`master` / `origin/master`).
-- **Package objective:** INPUT → SENTENCE SPANS → TOKEN DECISIONS → ANALYZER CANDIDATES → ACTUAL REVIEW CANDIDATES. Build reproducible corpus fixtures, diagnostic evidence capture, and regression assertions for German text analysis.
-- **Declared slice sequence:**
-  1. `analysis-evidence-harness-foundation` (checkpointed at `a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`)
-  2. `review-admission-correlation` (checkpointed at `cc4a72d223215f599f50d1a3d8c8ce09d53532df`)
-  3. `german-gold-corpus` (checkpointed at `a5dae1ba54f419e1edae28d3c7eb0cf6c99d633a`)
-- **Current lifecycle:** `DOCUMENT_ONLY` completed; candidate finalization / `COMMIT_ONLY` pending.
-- **Working state:** All 3 declared implementation slices completed and checkpointed (`a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`, `cc4a72d223215f599f50d1a3d8c8ce09d53532df`, `a5dae1ba54f419e1edae28d3c7eb0cf6c99d633a`). Consolidated package `REVIEW_ONLY` approved (`REVIEW_APPROVED`; 0 BLOCKER / 0 MAJOR / 0 MINOR / 1 report NIT). Package-level `DOCUMENT_ONLY` reconciled durable documentation across `docs/CURRENT_WORK.md`, `docs/BACKLOG.md`, `docs/ROADMAP.md`, `docs/PROJECT_STATE.md`, and `docs/TESTING.md`. German-first evidence foundation completed on branch (17 cases: 11 BindingContract / 6 VerifiedCurrentBehavior / 0 CharacterizationExpectation / 0 UnspecifiedRequiresDecision; test-only source-generated JSON metadata; isolated temporary SQLite review-admission evidence; exact UTF-16 coordinate fidelity; no production code changes). English corpus extension remains accepted open follow-up under `KF-ANALYSIS-001`. Branch has not yet passed candidate `FULL_VALIDATION`; branch remains unpushed; no PR exists.
-- **Next governed lifecycle:** Candidate finalization / `COMMIT_ONLY` (to stage and commit package-level documentation reconciliation), followed by exact-candidate-HEAD `FULL_VALIDATION` (`.\scripts\knownfirst.ps1 -Action ValidateAll`), `PUSH_ONLY`, `PR_ONLY`, manual user merge on GitHub, and `POST_MERGE_SYNC_ONLY`.
+- **Active GitHub Issue:** [Issue #209 (`[GOV] KF-GOV-ISSUES-001`)](https://github.com/Tachiguro/KnownFirst/issues/209) ([coordinator plan](https://github.com/Tachiguro/KnownFirst/issues/209#issuecomment-6288587701))
+- **Active slice:** Slice A — project governance alignment (`DOCUMENT_ONLY`)
+- **Active branch:** `docs/kf-gov-issues-001-governance-v1`
+- **Base commit:** `5a3f10d5e723a437954c64ef3953946d692433d7` (`master` / `origin/master`).
+- **Slice objective:** Reconcile `AGENTS.md`, `docs/PROMPT_AND_TASK_ROUTING.md`, `docs/NEW_CHAT_BOOTSTRAP.md`, and minimal consistency references in `docs/BACKLOG.md`, `docs/CURRENT_WORK.md`, and `docs/INDEX.md` against central Blueprint V3.12 (`6576d63c3d07602a7b8c6bc43e15f9ce11ded56c`), establishing ChatGPT-first coordination, `TASK:` / `HARD STOP` prompt delimiters, dynamic three-agent routing, and GitHub Issues as the primary tracker for newly accepted work while preserving all `KF-*` records, repository safety rules, and the mandatory pre-PR `FULL_VALIDATION` gate.
 
 - **Previous merged packages:**
+  - PR #208 (`feature/kf-analysis-001-german-gold-corpus-v1` / `KF-ANALYSIS-001`): Added reproducible German-first v1 text-analysis evidence harness (`AnalysisEvidenceCollector`, `ReviewAdmissionCorrelator`, `EvidenceArtifactWriter`) and 17-case deterministic German gold corpus (11 `BindingContract` / 6 `VerifiedCurrentBehavior` expectations; checkpoint commits `a8a846cbbe3044a97c63ee7b762c3a4a068a4c97`, `cc4a72d223215f599f50d1a3d8c8ce09d53532df`, `a5dae1ba54f419e1edae28d3c7eb0cf6c99d633a`; validated PR head `8107d310b942ccbc3a213868d82fb1c8e7ecbe05`). Merged to `master` via merge commit `5a3f10d5e723a437954c64ef3953946d692433d7`. `POST_MERGE_SYNC_ONLY` completed. English corpus extension remains accepted open follow-up work under `KF-ANALYSIS-001`.
   - PR #207 (`docs/reconcile-core-reliability-roadmap-v1`): Reconciled documentation with merged `KF-LEX-004` baseline and registered Core Reliability sequence (`KF-ANALYSIS-001` → `KF-LEX-005` → `KF-TRANS-001`). Merged to `master` via merge commit `377a2da98521d35e5ab5191199f6e3d15b34ae6c` (validated PR head `f5a6e309bb61f6b0a1fc5c002090ac3399104807`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #206 (`bugfix/kf-lex-004-wiktionary-reliability-v1` / `KF-LEX-004`): Improved German Wiktionary lookup reliability (`UL/LI` grammatical feature markup support in `WiktionaryHtmlParser`, expanded verb/adjective relation regex patterns in `ProviderFormRelationPolicy`, lowercase-first-rune fallback on exact German `missing-page` `NotFound` in `WiktionaryLookupProvider`, and provider cache version bumped to 7). Merged to `master` via merge commit `d765e85c6f600827acfd5bdbc2c39347fb988914` (validated PR head `c751e31c1fa672d31c5d7fa9cfbb064be464e492`). `POST_MERGE_SYNC_ONLY` completed.
   - PR #205 (`docs/reconcile-kf-prep-004-state-v1`): Reconciled durable documentation for merged KF-PREP-004 state. Merged to `master` via merge commit `44068da7b4fa506d71167d8cb9200ad0fd1efe0b`. `POST_MERGE_SYNC_ONLY` completed.

@@ -1970,7 +1970,7 @@
     <value>Завершить настройку</value>
   </data>
   <data name="Vocabulary_ScopeNotice" xml:space="preserve">
-    <value>Этот обзор в режиме чтения показывает до 30 недавно добавленных слов. Полный поиск по словарю и подробные сведения о словах пока недоступны.</value>
+    <value>Этот обзор в режиме чтения без активного поиска показывает до 30 недавно добавленных слов. Подробные сведения о словах и редактирование недоступны.</value>
   </data>
   <data name="Vocabulary_Loading" xml:space="preserve">
     <value>Загрузка обзора словаря…</value>
@@ -1995,5 +1995,71 @@
   </data>
   <data name="Home_ViewVocabularyOverview" xml:space="preserve">
     <value>Посмотреть недавние слова</value>
+  </data>
+  <data name="Vocabulary_SearchTitle" xml:space="preserve">
+    <value>Поиск по словарю</value>
+  </data>
+  <data name="Vocabulary_SearchScopeNotice" xml:space="preserve">
+    <value>Поиск использует только нормализованное совпадение по префиксу. Нечёткий поиск, поиск по произвольной подстроке, полнотекстовый поиск по значениям и подробные сведения о словах недоступны.</value>
+  </data>
+  <data name="Vocabulary_SearchInputLabel" xml:space="preserve">
+    <value>Поисковый запрос (префикс)</value>
+  </data>
+  <data name="Vocabulary_SearchInputPlaceholder" xml:space="preserve">
+    <value>Введите начало слова…</value>
+  </data>
+  <data name="Vocabulary_SearchLanguageLabel" xml:space="preserve">
+    <value>Исходный язык словаря</value>
+  </data>
+  <data name="Vocabulary_SearchSubmitAction" xml:space="preserve">
+    <value>Найти</value>
+  </data>
+  <data name="Vocabulary_SearchClearAction" xml:space="preserve">
+    <value>Сбросить</value>
+  </data>
+  <data name="Vocabulary_SearchLoading" xml:space="preserve">
+    <value>Поиск по словарю…</value>
+  </data>
+  <data name="Vocabulary_SearchResultsTitle" xml:space="preserve">
+    <value>Результаты поиска</value>
+  </data>
+  <data name="Vocabulary_SearchPageCountNotice" xml:space="preserve">
+    <value>Показано подходящих слов на странице {1}: {0}</value>
+  </data>
+  <data name="Vocabulary_SearchPageIndicator" xml:space="preserve">
+    <value>Страница {0}</value>
+  </data>
+  <data name="Vocabulary_SearchPaginationLabel" xml:space="preserve">
+    <value>Страницы результатов поиска</value>
+  </data>
+  <data name="Vocabulary_SearchPreviousPage" xml:space="preserve">
+    <value>Назад</value>
+  </data>
+  <data name="Vocabulary_SearchNextPage" xml:space="preserve">
+    <value>Далее</value>
+  </data>
+  <data name="Vocabulary_SearchNoResultsTitle" xml:space="preserve">
+    <value>Подходящие слова не найдены</value>
+  </data>
+  <data name="Vocabulary_SearchNoResultsMessage" xml:space="preserve">
+    <value>В выбранном исходном языке нет сохранённых слов, начинающихся с этого префикса.</value>
+  </data>
+  <data name="Vocabulary_SearchError" xml:space="preserve">
+    <value>Не удалось выполнить поиск по словарю.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidSourceLanguage" xml:space="preserve">
+    <value>Выберите поддерживаемый исходный язык словаря (английский или немецкий).</value>
+  </data>
+  <data name="Vocabulary_SearchQueryTooLong" xml:space="preserve">
+    <value>Поисковый запрос слишком длинный. Введите не более {0} символов.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidUnicode" xml:space="preserve">
+    <value>Поисковый запрос содержит недопустимые символы. Введите корректный текст.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidCursor" xml:space="preserve">
+    <value>Состояние навигации по страницам устарело. Выполните поиск заново.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidPageSize" xml:space="preserve">
+    <value>Запрошенный размер страницы недопустим.</value>
   </data>
 </root>

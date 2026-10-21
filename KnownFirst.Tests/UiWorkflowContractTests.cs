@@ -3306,10 +3306,13 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("Dictionary.razor");
 
-        // No fake search input or filtering controls
-        Assert.DoesNotContain("<input", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("type=\"search\"", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("<select", markup, StringComparison.Ordinal);
+        // Functional local search input and source-language selector are wired to IVocabularySearchService
+        Assert.Contains("IVocabularySearchService VocabularySearchService", markup);
+        Assert.Contains("<input", markup, StringComparison.Ordinal);
+        Assert.Contains("type=\"search\"", markup, StringComparison.Ordinal);
+        Assert.Contains("id=\"vocabulary-search-input\"", markup, StringComparison.Ordinal);
+        Assert.Contains("<select", markup, StringComparison.Ordinal);
+        Assert.Contains("id=\"vocabulary-source-language\"", markup, StringComparison.Ordinal);
 
         // No detail inspection links or editing actions
         Assert.DoesNotContain("edit", markup, StringComparison.OrdinalIgnoreCase);
@@ -3319,6 +3322,150 @@ public sealed class UiWorkflowContractTests
         Assert.DoesNotContain("WordStatus", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("SenseLearningControl", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("AlreadyKnown", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Dictionary_SearchFormAndSourceLanguageSelectorFollowBoundedLocalContract()
+    {
+        var markup = LoadUi("Dictionary.razor");
+
+        // Labeled search input and source-language selector
+        Assert.Contains("<label for=\"vocabulary-search-input\">", markup);
+        Assert.Contains("Vocabulary_SearchInputLabel", markup);
+        Assert.Contains("Vocabulary_SearchInputPlaceholder", markup);
+        Assert.Contains("<label for=\"vocabulary-source-language\">", markup);
+        Assert.Contains("Vocabulary_SearchLanguageLabel", markup);
+
+        // Source-language selector limited to English (en) and German (de), defaulting deterministically to "en"
+        Assert.Contains("private string _selectedSourceLanguage = \"en\";", markup);
+        Assert.Contains("<option value=\"en\">@Localizer[\"Settings_English\"]</option>", markup);
+        Assert.Contains("<option value=\"de\">@Localizer[\"Settings_German\"]</option>", markup);
+        Assert.DoesNotContain("<option value=\"ru\">", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("CurrentUICulture", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("ILanguageSelectionService", markup, StringComparison.Ordinal);
+
+        // Explicit Search action, Enter-key submission, and Clear action
+        Assert.Contains("id=\"vocabulary-search-submit\"", markup);
+        Assert.Contains("Vocabulary_SearchSubmitAction", markup);
+        Assert.Contains("@onclick=\"SubmitSearchAsync\"", markup);
+        Assert.Contains("@onkeydown=\"HandleSearchKeyDownAsync\"", markup);
+        Assert.Contains("args.Key == \"Enter\"", markup);
+        Assert.Contains("id=\"vocabulary-search-clear\"", markup);
+        Assert.Contains("Vocabulary_SearchClearAction", markup);
+        Assert.Contains("@onclick=\"ClearSearchAsync\"", markup);
+
+        // Clear resets submitted query, results, cursor, history, validation, and errors
+        var clearBody = ExtractMethodBody(markup, "private async Task ClearSearchAsync()");
+        Assert.Contains("++_activeRequestId", clearBody);
+        Assert.Contains("_queryInput = string.Empty;", clearBody);
+        Assert.Contains("_submittedQuery = string.Empty;", clearBody);
+        Assert.Contains("_activeSearchPage = null;", clearBody);
+        Assert.Contains("_currentCursor = null;", clearBody);
+        Assert.Contains("_cursorHistory.Clear();", clearBody);
+        Assert.Contains("_validationMessageKey = null;", clearBody);
+        Assert.Contains("_searchLoadFailed = false;", clearBody);
+
+        // Query or source-language scope change invalidates previous search pagination
+        Assert.Contains("InvalidateSearchPagination()", markup);
+        var invalidateBody = ExtractMethodBody(markup, "private void InvalidateSearchPagination()");
+        Assert.Contains("_cursorHistory.Clear();", invalidateBody);
+        Assert.Contains("_currentCursor = null;", invalidateBody);
+        Assert.Contains("_activeSearchPage = null;", invalidateBody);
+
+        // Empty query retains recent overview
+        Assert.Contains("UseRecentOverview", markup);
+        Assert.Contains("Vocabulary_SearchScopeNotice", markup);
+    }
+
+    [TestMethod]
+    public void Dictionary_PaginationCursorHistoryAndBoundedItemRenderingFollowKeysetContract()
+    {
+        var markup = LoadUi("Dictionary.razor");
+
+        // Invokes IVocabularySearchService.SearchAsync with bounded request contract
+        Assert.Contains("VocabularySearchService.SearchAsync(", markup);
+        Assert.Contains("IVocabularySearchService.DefaultPageSize", markup);
+
+        // Preserves distinction between multiple Word IDs even if CanonicalTerm matches
+        Assert.Contains("@key=\"item.WordId\"", markup);
+        Assert.Contains("data-word-id=\"@item.WordId\"", markup);
+        Assert.Contains("@item.CanonicalTerm", markup);
+        Assert.Contains("item.SourceLanguage", markup);
+
+        // Finite in-memory cursor history for backward navigation and NextCursor/HasMore forward navigation
+        Assert.Contains("MaxCursorHistoryDepth", markup);
+        Assert.Contains("_cursorHistory", markup);
+        Assert.Contains("_currentCursor", markup);
+        Assert.Contains("id=\"vocabulary-page-previous\"", markup);
+        Assert.Contains("@onclick=\"GoToPreviousPageAsync\"", markup);
+        Assert.Contains("disabled=\"@(!CanMovePrevious)\"", markup);
+        Assert.Contains("id=\"vocabulary-page-next\"", markup);
+        Assert.Contains("@onclick=\"GoToNextPageAsync\"", markup);
+        Assert.Contains("disabled=\"@(!CanMoveNext)\"", markup);
+
+        var nextBody = ExtractMethodBody(markup, "private async Task GoToNextPageAsync()");
+        Assert.Contains("NextCursor", nextBody);
+        Assert.Contains("_cursorHistory.Add(_currentCursor)", nextBody);
+
+        var prevBody = ExtractMethodBody(markup, "private async Task GoToPreviousPageAsync()");
+        Assert.Contains("_cursorHistory.RemoveAt(", prevBody);
+
+        // Truthful localized page indicator and no invented total row counts
+        Assert.Contains("Vocabulary_SearchPageIndicator", markup);
+        Assert.Contains("Vocabulary_SearchPageCountNotice", markup);
+        Assert.DoesNotContain("TotalCount", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("TotalPages", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Dictionary_HandlesValidationDatabaseFailureRetryAndStaleResponsesSafely()
+    {
+        var markup = LoadUi("Dictionary.razor");
+
+        // Active search loading and no-results states
+        Assert.Contains("_isSearching", markup);
+        Assert.Contains("Vocabulary_SearchLoading", markup);
+        Assert.Contains("Vocabulary_SearchNoResultsTitle", markup);
+        Assert.Contains("Vocabulary_SearchNoResultsMessage", markup);
+
+        // All validation statuses handled
+        var mapBody = ExtractMethodBody(markup, "private static string? MapValidationStatusKey(VocabularySearchStatus status)");
+        Assert.Contains("VocabularySearchStatus.InvalidSourceLanguage => \"Vocabulary_SearchInvalidSourceLanguage\"", mapBody);
+        Assert.Contains("VocabularySearchStatus.QueryTooLong => \"Vocabulary_SearchQueryTooLong\"", mapBody);
+        Assert.Contains("VocabularySearchStatus.InvalidUnicode => \"Vocabulary_SearchInvalidUnicode\"", mapBody);
+        Assert.Contains("VocabularySearchStatus.InvalidCursor => \"Vocabulary_SearchInvalidCursor\"", mapBody);
+        Assert.Contains("VocabularySearchStatus.InvalidPageSize => \"Vocabulary_SearchInvalidPageSize\"", mapBody);
+
+        // Search database failure and Retry
+        Assert.Contains("_searchLoadFailed", markup);
+        Assert.Contains("Vocabulary_SearchError", markup);
+        Assert.Contains("id=\"vocabulary-search-retry\"", markup);
+        Assert.Contains("@onclick=\"RetrySearchAsync\"", markup);
+
+        // Stale-response protection and duplicate-submission prevention
+        Assert.Contains("IsRequestActive", markup);
+        Assert.Contains("disabled=\"@IsRequestActive\"", markup);
+        var executeBody = ExtractMethodBody(markup, "private async Task ExecuteSearchRequestAsync(");
+        Assert.Contains("var requestId = ++_activeRequestId;", executeBody);
+        Assert.Contains("if (requestId != _activeRequestId)", executeBody);
+        Assert.Contains("_activeSearchPage = null;", executeBody);
+    }
+
+    [TestMethod]
+    public void Dictionary_ResponsiveCssAndAccessibilityContractsPreventNarrowViewportOverflow()
+    {
+        var styles = LoadUi("Dictionary.razor.css");
+
+        Assert.AreEqual(CountOccurrences(styles, "{"), CountOccurrences(styles, "}"));
+        Assert.Contains(".dictionary-page", styles);
+        Assert.Contains(".vocabulary-search-card", styles);
+        Assert.Contains(".vocabulary-search-controls", styles);
+        Assert.Contains(".vocabulary-pagination", styles);
+        Assert.Contains("min-width: 0;", styles);
+        Assert.Contains("overflow-wrap: anywhere;", styles);
+        Assert.Contains("@media (max-width: 520px)", styles);
+        Assert.Contains("@media (max-width: 380px)", styles);
+        Assert.Contains("@media (max-width: 320px)", styles);
     }
 
     [TestMethod]

@@ -1970,7 +1970,7 @@
     <value>Finish Setup</value>
   </data>
   <data name="Vocabulary_ScopeNotice" xml:space="preserve">
-    <value>This read-only overview shows up to 30 recently recorded vocabulary items. Full dictionary search and word details are not yet available.</value>
+    <value>This read-only overview shows up to 30 recently recorded vocabulary items when no search is active. Word details and editing are not available.</value>
   </data>
   <data name="Vocabulary_Loading" xml:space="preserve">
     <value>Loading vocabulary overview…</value>
@@ -1995,5 +1995,71 @@
   </data>
   <data name="Home_ViewVocabularyOverview" xml:space="preserve">
     <value>View recent vocabulary</value>
+  </data>
+  <data name="Vocabulary_SearchTitle" xml:space="preserve">
+    <value>Search vocabulary</value>
+  </data>
+  <data name="Vocabulary_SearchScopeNotice" xml:space="preserve">
+    <value>Search uses normalized prefix matching only. Fuzzy search, arbitrary substring search, full-text meanings search, and word details are not available.</value>
+  </data>
+  <data name="Vocabulary_SearchInputLabel" xml:space="preserve">
+    <value>Search term (prefix)</value>
+  </data>
+  <data name="Vocabulary_SearchInputPlaceholder" xml:space="preserve">
+    <value>Enter the beginning of a word…</value>
+  </data>
+  <data name="Vocabulary_SearchLanguageLabel" xml:space="preserve">
+    <value>Vocabulary source language</value>
+  </data>
+  <data name="Vocabulary_SearchSubmitAction" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Vocabulary_SearchClearAction" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Vocabulary_SearchLoading" xml:space="preserve">
+    <value>Searching vocabulary…</value>
+  </data>
+  <data name="Vocabulary_SearchResultsTitle" xml:space="preserve">
+    <value>Search results</value>
+  </data>
+  <data name="Vocabulary_SearchPageCountNotice" xml:space="preserve">
+    <value>Showing {0} matching words on page {1}</value>
+  </data>
+  <data name="Vocabulary_SearchPageIndicator" xml:space="preserve">
+    <value>Page {0}</value>
+  </data>
+  <data name="Vocabulary_SearchPaginationLabel" xml:space="preserve">
+    <value>Search result pages</value>
+  </data>
+  <data name="Vocabulary_SearchPreviousPage" xml:space="preserve">
+    <value>Previous</value>
+  </data>
+  <data name="Vocabulary_SearchNextPage" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="Vocabulary_SearchNoResultsTitle" xml:space="preserve">
+    <value>No matching vocabulary found</value>
+  </data>
+  <data name="Vocabulary_SearchNoResultsMessage" xml:space="preserve">
+    <value>No recorded words in the selected source language start with this prefix.</value>
+  </data>
+  <data name="Vocabulary_SearchError" xml:space="preserve">
+    <value>The vocabulary search could not be completed.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidSourceLanguage" xml:space="preserve">
+    <value>Please select a supported vocabulary source language (English or German).</value>
+  </data>
+  <data name="Vocabulary_SearchQueryTooLong" xml:space="preserve">
+    <value>The search query is too long. Please enter at most {0} characters.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidUnicode" xml:space="preserve">
+    <value>The search query contains invalid characters. Please enter valid text.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidCursor" xml:space="preserve">
+    <value>The page navigation state is no longer valid. Please run the search again.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidPageSize" xml:space="preserve">
+    <value>The requested page size is invalid.</value>
   </data>
 </root>

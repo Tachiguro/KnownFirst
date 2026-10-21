@@ -1320,6 +1320,148 @@ public sealed class LocalizationResourceTests
         Assert.Contains("префикс", russian["Vocabulary_SearchScopeNotice"], StringComparison.OrdinalIgnoreCase);
     }
 
+    [TestMethod]
+    public void VocabularyDetail_RequiredKeysExistAcrossAllSupportedLanguagesWithPlaceholderParity()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        var placeholderPattern = new System.Text.RegularExpressions.Regex(@"\{\d+\}");
+
+        (string Key, int ExpectedPlaceholders)[] requiredDetailKeys =
+        [
+            ("VocabularyDetail_PageTitle", 0),
+            ("VocabularyDetail_BackToVocabulary", 0),
+            ("VocabularyDetail_ReadOnlyNotice", 0),
+            ("VocabularyDetail_Loading", 0),
+            ("VocabularyDetail_LoadError", 0),
+            ("VocabularyDetail_NotFoundTitle", 0),
+            ("VocabularyDetail_NotFoundMessage", 0),
+            ("VocabularyDetail_InvalidTitle", 0),
+            ("VocabularyDetail_InvalidMessage", 0),
+            ("VocabularyDetail_LimitedNotice", 1),
+            ("VocabularyDetail_ValueNotRecorded", 0),
+            ("VocabularyDetail_SourceLanguage", 0),
+            ("VocabularyDetail_TokenKind", 0),
+            ("VocabularyDetail_Occurrences", 0),
+            ("VocabularyDetail_Documents", 0),
+            ("VocabularyDetail_CreatedAt", 0),
+            ("VocabularyDetail_UpdatedAt", 0),
+            ("VocabularyDetail_WordControlTitle", 0),
+            ("VocabularyDetail_WordMarkedAlreadyKnown", 0),
+            ("VocabularyDetail_WordNoControl", 0),
+            ("VocabularyDetail_SensesTitle", 0),
+            ("VocabularyDetail_SenseHeading", 1),
+            ("VocabularyDetail_NoSenses", 0),
+            ("VocabularyDetail_PartOfSpeech", 0),
+            ("VocabularyDetail_TopicOrDomain", 0),
+            ("VocabularyDetail_Grammar", 0),
+            ("VocabularyDetail_AcronymExpansion", 0),
+            ("VocabularyDetail_ExplanationLanguage", 0),
+            ("VocabularyDetail_SenseControlTitle", 0),
+            ("VocabularyDetail_SenseStopped", 0),
+            ("VocabularyDetail_SenseNoControl", 0),
+            ("VocabularyDetail_MeaningsTitle", 0),
+            ("VocabularyDetail_NoMeanings", 0),
+            ("VocabularyDetail_DefaultMeaning", 0),
+            ("VocabularyDetail_ConfirmedByUser", 0),
+            ("VocabularyDetail_Definition", 0),
+            ("VocabularyDetail_NoDefinition", 0),
+            ("VocabularyDetail_Translation", 0),
+            ("VocabularyDetail_NoTranslation", 0),
+            ("VocabularyDetail_DictionaryExample", 0),
+            ("VocabularyDetail_AdditionalNote", 0),
+            ("VocabularyDetail_AcceptedAliases", 0),
+            ("VocabularyDetail_ProvenanceTitle", 0),
+            ("VocabularyDetail_Source", 0),
+            ("VocabularyDetail_SourceProject", 0),
+            ("VocabularyDetail_SourcePageTitle", 0),
+            ("VocabularyDetail_SourceRevision", 0),
+            ("VocabularyDetail_Attribution", 0),
+            ("VocabularyDetail_NoProvenance", 0),
+            ("VocabularyDetail_PreparedAt", 0),
+            ("VocabularyDetail_ContextsTitle", 0),
+            ("VocabularyDetail_NoContexts", 0),
+            ("VocabularyDetail_ContextSourceDocument", 0),
+            ("VocabularyDetail_TargetsTitle", 0),
+            ("VocabularyDetail_NoTargets", 0),
+            ("VocabularyDetail_TargetKindDefinition", 0),
+            ("VocabularyDetail_TargetKindTranslation", 0),
+            ("VocabularyDetail_TargetLanguages", 2),
+            ("VocabularyDetail_TypingOptOut", 0),
+            ("VocabularyDetail_TargetEligible", 0),
+            ("VocabularyDetail_TargetSuppressed", 0),
+            ("VocabularyDetail_FsrsTitle", 0),
+            ("VocabularyDetail_NoFsrsState", 0),
+            ("VocabularyDetail_CardState", 0),
+            ("VocabularyDetail_CardStateNew", 0),
+            ("VocabularyDetail_CardStateLearning", 0),
+            ("VocabularyDetail_CardStateReview", 0),
+            ("VocabularyDetail_CardStateRelearning", 0),
+            ("VocabularyDetail_Due", 0),
+            ("VocabularyDetail_LastReviewed", 0),
+            ("VocabularyDetail_Stability", 0),
+            ("VocabularyDetail_Difficulty", 0),
+            ("VocabularyDetail_LearningStep", 0),
+            ("VocabularyDetail_AnswerVariantsTitle", 0),
+            ("VocabularyDetail_NoAnswerVariants", 0),
+            ("VocabularyDetail_VariantRequired", 0),
+            ("VocabularyDetail_VariantAcceptedOnly", 0),
+            ("VocabularyDetail_VariantPreferred", 0),
+            ("VocabularyDetail_ReviewHistoryTitle", 0),
+            ("VocabularyDetail_NoReviewHistory", 0),
+            ("VocabularyDetail_ReviewEntry", 1)
+        ];
+
+        foreach (var (key, expectedPlaceholders) in requiredDetailKeys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), $"English resource is missing '{key}'.");
+            Assert.IsTrue(german.ContainsKey(key), $"German resource is missing '{key}'.");
+            Assert.IsTrue(russian.ContainsKey(key), $"Russian resource is missing '{key}'.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), $"English resource '{key}' is blank.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), $"German resource '{key}' is blank.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), $"Russian resource '{key}' is blank.");
+
+            Assert.HasCount(expectedPlaceholders, placeholderPattern.Matches(english[key]), $"English '{key}' placeholder count mismatch.");
+            Assert.HasCount(expectedPlaceholders, placeholderPattern.Matches(german[key]), $"German '{key}' placeholder count mismatch.");
+            Assert.HasCount(expectedPlaceholders, placeholderPattern.Matches(russian[key]), $"Russian '{key}' placeholder count mismatch.");
+        }
+
+        // Definition and Translation targets are distinguishable in every language
+        Assert.AreNotEqual(english["VocabularyDetail_TargetKindDefinition"], english["VocabularyDetail_TargetKindTranslation"]);
+        Assert.AreNotEqual(german["VocabularyDetail_TargetKindDefinition"], german["VocabularyDetail_TargetKindTranslation"]);
+        Assert.AreNotEqual(russian["VocabularyDetail_TargetKindDefinition"], russian["VocabularyDetail_TargetKindTranslation"]);
+
+        // The overview scope notice no longer claims that word details are unavailable
+        Assert.DoesNotContain("Word details and editing are not available", english["Vocabulary_ScopeNotice"], StringComparison.Ordinal);
+        Assert.DoesNotContain("Wortdetails und Bearbeitung sind nicht verfügbar", german["Vocabulary_ScopeNotice"], StringComparison.Ordinal);
+        Assert.DoesNotContain("Подробные сведения о словах и редактирование недоступны", russian["Vocabulary_ScopeNotice"], StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void VocabularyDetail_PresentationEnumKeysExistInAllSupportedLanguages()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        var keys = new List<string>();
+        keys.AddRange(Enum.GetValues<KnownFirst.Core.Learning.Fsrs6.Fsrs6CardState>().Select(KnownFirst.Components.Pages.VocabularyWordDetailPresentation.GetCardStateKey));
+        keys.AddRange(Enum.GetValues<KnownFirst.Core.Learning.ReviewRating>().Select(KnownFirst.Components.Pages.VocabularyWordDetailPresentation.GetRatingKey));
+        keys.AddRange(Enum.GetValues<KnownFirst.Data.Migrations.Schema8.AnswerVariantRequirement>().Select(KnownFirst.Components.Pages.VocabularyWordDetailPresentation.GetRequirementKey));
+        keys.AddRange(Enum.GetValues<KnownFirst.Core.Learning.LearningTargetKind>().Select(KnownFirst.Components.Pages.VocabularyWordDetailPresentation.GetTargetKindKey));
+        keys.AddRange(Enum.GetValues<KnownFirst.Core.Text.TokenKind>().Select(KnownFirst.Components.Pages.VocabularyWordDetailPresentation.GetTokenKindKey));
+
+        Assert.IsNotEmpty(keys);
+        foreach (var key in keys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), $"English resource is missing '{key}'.");
+            Assert.IsTrue(german.ContainsKey(key), $"German resource is missing '{key}'.");
+            Assert.IsTrue(russian.ContainsKey(key), $"Russian resource is missing '{key}'.");
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

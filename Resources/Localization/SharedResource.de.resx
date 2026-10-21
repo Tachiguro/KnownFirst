@@ -1970,7 +1970,7 @@
     <value>Einrichtung abschließen</value>
   </data>
   <data name="Vocabulary_ScopeNotice" xml:space="preserve">
-    <value>Diese schreibgeschützte Übersicht zeigt ohne aktive Suche bis zu 30 zuletzt erfasste Wörter. Wortdetails und Bearbeitung sind nicht verfügbar.</value>
+    <value>Diese schreibgeschützte Übersicht zeigt ohne aktive Suche bis zu 30 zuletzt erfasste Wörter. Wähle ein Wort aus, um seine gespeicherten Details anzuzeigen. Bearbeitung ist nicht verfügbar.</value>
   </data>
   <data name="Vocabulary_Loading" xml:space="preserve">
     <value>Wortübersicht wird geladen…</value>
@@ -2061,5 +2061,248 @@
   </data>
   <data name="Vocabulary_SearchInvalidPageSize" xml:space="preserve">
     <value>Die angeforderte Seitengröße ist ungültig.</value>
+  </data>
+  <data name="VocabularyDetail_PageTitle" xml:space="preserve">
+    <value>Wortdetails</value>
+  </data>
+  <data name="VocabularyDetail_BackToVocabulary" xml:space="preserve">
+    <value>Zurück zum Wörterbuch</value>
+  </data>
+  <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
+    <value>Diese Seite ist schreibgeschützt. Sie zeigt nur die für dieses Wort gespeicherten Daten; hier kann nichts geändert werden.</value>
+  </data>
+  <data name="VocabularyDetail_Loading" xml:space="preserve">
+    <value>Wortdetails werden geladen…</value>
+  </data>
+  <data name="VocabularyDetail_LoadError" xml:space="preserve">
+    <value>Die Wortdetails konnten nicht geladen werden.</value>
+  </data>
+  <data name="VocabularyDetail_NotFoundTitle" xml:space="preserve">
+    <value>Wort nicht gefunden</value>
+  </data>
+  <data name="VocabularyDetail_NotFoundMessage" xml:space="preserve">
+    <value>Für diesen Link ist kein gespeichertes Wort vorhanden. Es wurde möglicherweise entfernt.</value>
+  </data>
+  <data name="VocabularyDetail_InvalidTitle" xml:space="preserve">
+    <value>Ungültiger Wortlink</value>
+  </data>
+  <data name="VocabularyDetail_InvalidMessage" xml:space="preserve">
+    <value>Dieser Link verweist auf kein gültiges Wort.</value>
+  </data>
+  <data name="VocabularyDetail_LimitedNotice" xml:space="preserve">
+    <value>Nur die ersten {0} Einträge dieser Liste werden angezeigt.</value>
+  </data>
+  <data name="VocabularyDetail_ValueNotRecorded" xml:space="preserve">
+    <value>Nicht erfasst</value>
+  </data>
+  <data name="VocabularyDetail_SourceLanguage" xml:space="preserve">
+    <value>Ausgangssprache</value>
+  </data>
+  <data name="VocabularyDetail_TokenKind" xml:space="preserve">
+    <value>Typ</value>
+  </data>
+  <data name="VocabularyDetail_Occurrences" xml:space="preserve">
+    <value>Erfasste Vorkommen</value>
+  </data>
+  <data name="VocabularyDetail_Documents" xml:space="preserve">
+    <value>Texte</value>
+  </data>
+  <data name="VocabularyDetail_CreatedAt" xml:space="preserve">
+    <value>Erfasst</value>
+  </data>
+  <data name="VocabularyDetail_UpdatedAt" xml:space="preserve">
+    <value>Zuletzt aktualisiert</value>
+  </data>
+  <data name="VocabularyDetail_WordControlTitle" xml:space="preserve">
+    <value>Lernsteuerung für das Wort</value>
+  </data>
+  <data name="VocabularyDetail_WordMarkedAlreadyKnown" xml:space="preserve">
+    <value>Als bereits bekannt markiert. Erfasst:</value>
+  </data>
+  <data name="VocabularyDetail_WordNoControl" xml:space="preserve">
+    <value>Für das Wort ist keine Lernsteuerung erfasst.</value>
+  </data>
+  <data name="VocabularyDetail_SensesTitle" xml:space="preserve">
+    <value>Bedeutungen</value>
+  </data>
+  <data name="VocabularyDetail_SenseHeading" xml:space="preserve">
+    <value>Bedeutung {0}</value>
+  </data>
+  <data name="VocabularyDetail_NoSenses" xml:space="preserve">
+    <value>Für dieses Wort wurden noch keine Bedeutungen vorbereitet.</value>
+  </data>
+  <data name="VocabularyDetail_PartOfSpeech" xml:space="preserve">
+    <value>Wortart</value>
+  </data>
+  <data name="VocabularyDetail_TopicOrDomain" xml:space="preserve">
+    <value>Thema oder Fachgebiet</value>
+  </data>
+  <data name="VocabularyDetail_Grammar" xml:space="preserve">
+    <value>Grammatische Beziehung</value>
+  </data>
+  <data name="VocabularyDetail_AcronymExpansion" xml:space="preserve">
+    <value>Ausgeschriebene Form</value>
+  </data>
+  <data name="VocabularyDetail_ExplanationLanguage" xml:space="preserve">
+    <value>Erklärungssprache</value>
+  </data>
+  <data name="VocabularyDetail_SenseControlTitle" xml:space="preserve">
+    <value>Lernsteuerung für die Bedeutung</value>
+  </data>
+  <data name="VocabularyDetail_SenseStopped" xml:space="preserve">
+    <value>Das Lernen ist für diese Bedeutung gestoppt. Erfasst:</value>
+  </data>
+  <data name="VocabularyDetail_SenseNoControl" xml:space="preserve">
+    <value>Für diese Bedeutung ist keine Lernsteuerung erfasst.</value>
+  </data>
+  <data name="VocabularyDetail_MeaningsTitle" xml:space="preserve">
+    <value>Erklärungen</value>
+  </data>
+  <data name="VocabularyDetail_NoMeanings" xml:space="preserve">
+    <value>Für diese Bedeutung sind keine Erklärungen gespeichert.</value>
+  </data>
+  <data name="VocabularyDetail_DefaultMeaning" xml:space="preserve">
+    <value>Standarderklärung</value>
+  </data>
+  <data name="VocabularyDetail_ConfirmedByUser" xml:space="preserve">
+    <value>Von dir bestätigt</value>
+  </data>
+  <data name="VocabularyDetail_Definition" xml:space="preserve">
+    <value>Definition</value>
+  </data>
+  <data name="VocabularyDetail_NoDefinition" xml:space="preserve">
+    <value>Keine Definition gespeichert.</value>
+  </data>
+  <data name="VocabularyDetail_Translation" xml:space="preserve">
+    <value>Übersetzung</value>
+  </data>
+  <data name="VocabularyDetail_NoTranslation" xml:space="preserve">
+    <value>Keine Übersetzung gespeichert.</value>
+  </data>
+  <data name="VocabularyDetail_DictionaryExample" xml:space="preserve">
+    <value>Wörterbuchbeispiel</value>
+  </data>
+  <data name="VocabularyDetail_AdditionalNote" xml:space="preserve">
+    <value>Notiz</value>
+  </data>
+  <data name="VocabularyDetail_AcceptedAliases" xml:space="preserve">
+    <value>Akzeptierte Alternativen</value>
+  </data>
+  <data name="VocabularyDetail_ProvenanceTitle" xml:space="preserve">
+    <value>Quellenangaben</value>
+  </data>
+  <data name="VocabularyDetail_Source" xml:space="preserve">
+    <value>Quelle</value>
+  </data>
+  <data name="VocabularyDetail_SourceProject" xml:space="preserve">
+    <value>Projekt</value>
+  </data>
+  <data name="VocabularyDetail_SourcePageTitle" xml:space="preserve">
+    <value>Seite</value>
+  </data>
+  <data name="VocabularyDetail_SourceRevision" xml:space="preserve">
+    <value>Revision</value>
+  </data>
+  <data name="VocabularyDetail_Attribution" xml:space="preserve">
+    <value>Namensnennung</value>
+  </data>
+  <data name="VocabularyDetail_NoProvenance" xml:space="preserve">
+    <value>Keine Quellenangaben gespeichert.</value>
+  </data>
+  <data name="VocabularyDetail_PreparedAt" xml:space="preserve">
+    <value>Vorbereitet</value>
+  </data>
+  <data name="VocabularyDetail_ContextsTitle" xml:space="preserve">
+    <value>Kontextbeispiele</value>
+  </data>
+  <data name="VocabularyDetail_NoContexts" xml:space="preserve">
+    <value>Für diese Bedeutung sind keine Kontextbeispiele gespeichert.</value>
+  </data>
+  <data name="VocabularyDetail_ContextSourceDocument" xml:space="preserve">
+    <value>Importierter Text</value>
+  </data>
+  <data name="VocabularyDetail_TargetsTitle" xml:space="preserve">
+    <value>Lernziele</value>
+  </data>
+  <data name="VocabularyDetail_NoTargets" xml:space="preserve">
+    <value>Für diese Bedeutung gibt es keine Lernziele.</value>
+  </data>
+  <data name="VocabularyDetail_TargetKindDefinition" xml:space="preserve">
+    <value>Lernziel Definition</value>
+  </data>
+  <data name="VocabularyDetail_TargetKindTranslation" xml:space="preserve">
+    <value>Lernziel Übersetzung</value>
+  </data>
+  <data name="VocabularyDetail_TargetLanguages" xml:space="preserve">
+    <value>{0} → {1}</value>
+  </data>
+  <data name="VocabularyDetail_TypingOptOut" xml:space="preserve">
+    <value>Getippte Antworten deaktiviert</value>
+  </data>
+  <data name="VocabularyDetail_TargetEligible" xml:space="preserve">
+    <value>In aktivem Lernen enthalten</value>
+  </data>
+  <data name="VocabularyDetail_TargetSuppressed" xml:space="preserve">
+    <value>Durch eine Lernsteuerung ausgeschlossen</value>
+  </data>
+  <data name="VocabularyDetail_FsrsTitle" xml:space="preserve">
+    <value>Planung (FSRS-6)</value>
+  </data>
+  <data name="VocabularyDetail_NoFsrsState" xml:space="preserve">
+    <value>Für dieses Lernziel ist noch kein Planungsstand gespeichert.</value>
+  </data>
+  <data name="VocabularyDetail_CardState" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="VocabularyDetail_CardStateNew" xml:space="preserve">
+    <value>Neu</value>
+  </data>
+  <data name="VocabularyDetail_CardStateLearning" xml:space="preserve">
+    <value>Lernen</value>
+  </data>
+  <data name="VocabularyDetail_CardStateReview" xml:space="preserve">
+    <value>Wiederholung</value>
+  </data>
+  <data name="VocabularyDetail_CardStateRelearning" xml:space="preserve">
+    <value>Erneutes Lernen</value>
+  </data>
+  <data name="VocabularyDetail_Due" xml:space="preserve">
+    <value>Fällig</value>
+  </data>
+  <data name="VocabularyDetail_LastReviewed" xml:space="preserve">
+    <value>Zuletzt wiederholt</value>
+  </data>
+  <data name="VocabularyDetail_Stability" xml:space="preserve">
+    <value>Stabilität</value>
+  </data>
+  <data name="VocabularyDetail_Difficulty" xml:space="preserve">
+    <value>Schwierigkeit</value>
+  </data>
+  <data name="VocabularyDetail_LearningStep" xml:space="preserve">
+    <value>Lernschritt</value>
+  </data>
+  <data name="VocabularyDetail_AnswerVariantsTitle" xml:space="preserve">
+    <value>Akzeptierte Antworten</value>
+  </data>
+  <data name="VocabularyDetail_NoAnswerVariants" xml:space="preserve">
+    <value>Für dieses Lernziel sind keine Antworten gespeichert.</value>
+  </data>
+  <data name="VocabularyDetail_VariantRequired" xml:space="preserve">
+    <value>Erforderlich</value>
+  </data>
+  <data name="VocabularyDetail_VariantAcceptedOnly" xml:space="preserve">
+    <value>Ebenfalls akzeptiert</value>
+  </data>
+  <data name="VocabularyDetail_VariantPreferred" xml:space="preserve">
+    <value>Bevorzugt</value>
+  </data>
+  <data name="VocabularyDetail_ReviewHistoryTitle" xml:space="preserve">
+    <value>Wiederholungsverlauf</value>
+  </data>
+  <data name="VocabularyDetail_NoReviewHistory" xml:space="preserve">
+    <value>Für dieses Lernziel sind keine Wiederholungen erfasst.</value>
+  </data>
+  <data name="VocabularyDetail_ReviewEntry" xml:space="preserve">
+    <value>Wiederholung {0}</value>
   </data>
 </root>

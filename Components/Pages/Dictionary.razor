@@ -107,7 +107,9 @@
                     @foreach (var item in searchPage.Items)
                     {
                         <li class="vocabulary-item" @key="item.WordId" id="@($"vocab-search-word-{item.WordId}")" data-word-id="@item.WordId">
-                            <span class="vocabulary-term">@item.CanonicalTerm</span>
+                            <a class="vocabulary-item-link" href="@($"dictionary/{item.WordId}")">
+                                <span class="vocabulary-term">@item.CanonicalTerm</span>
+                            </a>
                             <div class="vocabulary-item-meta">
                                 <span class="vocabulary-token-tag">@GetTokenKindLabel(item.TokenKind)</span>
                                 <span class="vocabulary-language-tag" aria-label="@(Localizer["Vocabulary_SourceLanguageLabel", item.SourceLanguage])">
@@ -172,7 +174,9 @@
                 @foreach (var item in _items)
                 {
                     <li class="vocabulary-item" @key="item.WordId" id="@($"vocab-word-{item.WordId}")" data-word-id="@item.WordId">
-                        <span class="vocabulary-term">@item.CanonicalTerm</span>
+                        <a class="vocabulary-item-link" href="@($"dictionary/{item.WordId}")">
+                            <span class="vocabulary-term">@item.CanonicalTerm</span>
+                        </a>
                         <span class="vocabulary-language-tag" aria-label="@(Localizer["Vocabulary_SourceLanguageLabel", item.SourceLanguage])">
                             @item.SourceLanguage.ToUpperInvariant()
                         </span>

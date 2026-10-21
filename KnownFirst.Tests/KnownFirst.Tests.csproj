@@ -163,6 +163,8 @@
     <Compile Include="..\Services\Settings\*.cs" Link="Production\Services\Settings\%(Filename)%(Extension)" />
     <Compile Include="..\Services\Onboarding\*.cs" Link="Production\Services\Onboarding\%(Filename)%(Extension)" />
     <Compile Include="..\Components\Pages\LearningSummaryDueMonitor.cs" Link="Production\Components\Pages\LearningSummaryDueMonitor.cs" />
+    <Compile Include="..\Components\Pages\VocabularyWordDetailLoader.cs" Link="Production\Components\Pages\VocabularyWordDetailLoader.cs" />
+    <Compile Include="..\Components\Pages\VocabularyWordDetailPresentation.cs" Link="Production\Components\Pages\VocabularyWordDetailPresentation.cs" />
   </ItemGroup>
 
   <ItemGroup>

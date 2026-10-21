@@ -114,6 +114,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IPortableArchiveFileService, AndroidPortableArchiveFileService>();
 #endif
         builder.Services.AddSingleton<IDashboardService, DashboardService>();
+        builder.Services.AddSingleton<IVocabularyOverviewService, VocabularyOverviewService>();
         builder.Services.AddSingleton<ISentenceSegmenter, DeterministicSentenceSegmenter>();
         builder.Services.AddSingleton<TextAnalyzer>();
         // German Enhanced Term Recognition (Package 2): the production offline IGermanLexicon,

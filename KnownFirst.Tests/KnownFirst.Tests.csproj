@@ -129,6 +129,8 @@
     <Compile Include="..\Services\IDashboardService.cs" Link="Production\Services\IDashboardService.cs" />
     <Compile Include="..\Services\DashboardStatistics.cs" Link="Production\Services\DashboardStatistics.cs" />
     <Compile Include="..\Services\DashboardService.cs" Link="Production\Services\DashboardService.cs" />
+    <Compile Include="..\Services\IVocabularyOverviewService.cs" Link="Production\Services\IVocabularyOverviewService.cs" />
+    <Compile Include="..\Services\VocabularyOverviewService.cs" Link="Production\Services\VocabularyOverviewService.cs" />
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
     <Compile Include="..\Services\IAppSettingsService.cs" Link="Production\Services\IAppSettingsService.cs" />

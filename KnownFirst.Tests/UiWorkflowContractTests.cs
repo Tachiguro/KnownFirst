@@ -3253,6 +3253,101 @@ public sealed class UiWorkflowContractTests
         return string.Empty;
     }
 
+    [TestMethod]
+    public void Dictionary_ReplacesPlaceholderWithVocabularyOverviewServiceIntegration()
+    {
+        var markup = LoadUi("Dictionary.razor");
+
+        Assert.Contains("@page \"/dictionary\"", markup);
+        Assert.DoesNotContain("Placeholder_Message", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("placeholder-card", markup, StringComparison.Ordinal);
+
+        Assert.Contains("IVocabularyOverviewService VocabularyOverviewService", markup);
+        Assert.Contains("VocabularyOverviewService.GetRecentVocabularyAsync", markup);
+    }
+
+    [TestMethod]
+    public void Dictionary_MarkupDeclaresLoadingEmptyPopulatedAndFailureRetryStates()
+    {
+        var markup = LoadUi("Dictionary.razor");
+
+        // Loading state
+        Assert.Contains("_isLoading", markup);
+        Assert.Contains("loading-message", markup);
+        Assert.Contains("role=\"status\"", markup);
+        Assert.Contains("Vocabulary_Loading", markup);
+
+        // Failure & Retry state
+        Assert.Contains("_loadFailed", markup);
+        Assert.Contains("inline-message-error", markup);
+        Assert.Contains("role=\"alert\"", markup);
+        Assert.Contains("Vocabulary_LoadError", markup);
+        Assert.Contains("Common_Retry", markup);
+        Assert.Contains("@onclick=\"LoadVocabularyAsync\"", markup);
+
+        // Empty state
+        Assert.Contains("vocabulary-empty-card", markup);
+        Assert.Contains("Vocabulary_EmptyTitle", markup);
+        Assert.Contains("Vocabulary_EmptyMessage", markup);
+
+        // Populated state with bounded/recent list semantics
+        Assert.Contains("vocabulary-overview-card", markup);
+        Assert.Contains("vocabulary-list", markup);
+        Assert.Contains("vocabulary-item", markup);
+        Assert.Contains("CanonicalTerm", markup);
+        Assert.Contains("SourceLanguage", markup);
+        Assert.Contains("Vocabulary_RecentListTitle", markup);
+        Assert.Contains("Vocabulary_RecentCountNotice", markup);
+        Assert.Contains("Vocabulary_ScopeNotice", markup);
+    }
+
+    [TestMethod]
+    public void Dictionary_HasNoFakeSearchFiltersDetailsOrFabricatedSchema14Status()
+    {
+        var markup = LoadUi("Dictionary.razor");
+
+        // No fake search input or filtering controls
+        Assert.DoesNotContain("<input", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("type=\"search\"", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("<select", markup, StringComparison.Ordinal);
+
+        // No detail inspection links or editing actions
+        Assert.DoesNotContain("edit", markup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("detail", markup, StringComparison.OrdinalIgnoreCase);
+
+        // No fabricated Whole-Word or Schema 14 status display
+        Assert.DoesNotContain("WordStatus", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("SenseLearningControl", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("AlreadyKnown", markup, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void Home_ProvidesSecondaryVocabularyOverviewEntryPointWithoutAlteringPrimaryNavigationOrder()
+    {
+        var home = LoadUi("Home.razor");
+        var navMenu = LoadUi("NavMenu.razor");
+
+        // Home contains secondary entry point link to dictionary
+        Assert.Contains("href=\"dictionary\"", home);
+        Assert.Contains("home-vocabulary-link", home);
+        Assert.Contains("Home_ViewVocabularyOverview", home);
+
+        // Secondary entry point is placed after the statistics section
+        var statsIndex = home.IndexOf("<section class=\"statistics-grid\">", StringComparison.Ordinal);
+        var vocabLinkIndex = home.IndexOf("href=\"dictionary\"", StringComparison.Ordinal);
+        Assert.IsTrue(vocabLinkIndex > statsIndex, "Secondary vocabulary link should be located after statistics on Home.");
+
+        // Primary navigation order in NavMenu is strictly preserved: Learn -> Prepare Words -> Import Text -> Settings
+        var learn = navMenu.IndexOf("href=\"learn\"", StringComparison.Ordinal);
+        var prepare = navMenu.IndexOf("href=\"prepare-words\"", StringComparison.Ordinal);
+        var import = navMenu.IndexOf("href=\"import-text\"", StringComparison.Ordinal);
+        var settings = navMenu.IndexOf("href=\"settings\"", StringComparison.Ordinal);
+        Assert.IsTrue(learn >= 0 && learn < prepare && prepare < import && import < settings);
+
+        // NavMenu must NOT contain a dictionary link (no new primary navigation item)
+        Assert.IsFalse(navMenu.Contains("href=\"dictionary\"", StringComparison.Ordinal), "NavMenu must not include dictionary as a primary navigation item.");
+    }
+
     private static string ExtractCssRule(string styles, string selector)
     {
         var start = styles.IndexOf(selector, StringComparison.Ordinal);

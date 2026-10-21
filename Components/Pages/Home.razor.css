@@ -154,6 +154,35 @@ h1 {
     color: var(--color-muted);
 }
 
+.home-secondary-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: var(--space-4) 0 0;
+}
+
+.home-secondary-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: 0.5rem;
+    color: var(--color-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 120ms ease, background-color 120ms ease;
+}
+
+.home-secondary-link:hover {
+    color: var(--color-primary);
+    background-color: var(--color-surface-muted);
+}
+
+.home-secondary-link span[aria-hidden="true"] {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
 @media (max-width: 680px) {
     .continue-review-card {
         grid-template-columns: 1fr;

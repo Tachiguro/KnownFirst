@@ -1969,4 +1969,31 @@
   <data name="Onboarding_FinishSetup" xml:space="preserve">
     <value>Einrichtung abschließen</value>
   </data>
+  <data name="Vocabulary_ScopeNotice" xml:space="preserve">
+    <value>Diese schreibgeschützte Übersicht zeigt bis zu 30 zuletzt erfasste Wörter. Eine vollständige Wörterbuchsuche und Wortdetails sind noch nicht verfügbar.</value>
+  </data>
+  <data name="Vocabulary_Loading" xml:space="preserve">
+    <value>Wortübersicht wird geladen…</value>
+  </data>
+  <data name="Vocabulary_LoadError" xml:space="preserve">
+    <value>Die Wortübersicht konnte nicht geladen werden.</value>
+  </data>
+  <data name="Vocabulary_EmptyTitle" xml:space="preserve">
+    <value>Noch kein Wortschatz erfasst</value>
+  </data>
+  <data name="Vocabulary_EmptyMessage" xml:space="preserve">
+    <value>Wörter erscheinen hier, sobald Sie Texte importieren oder neue Wörter durchsehen.</value>
+  </data>
+  <data name="Vocabulary_RecentListTitle" xml:space="preserve">
+    <value>Zuletzt erfasste Wörter</value>
+  </data>
+  <data name="Vocabulary_RecentCountNotice" xml:space="preserve">
+    <value>{0} von bis zu {1} kürzlichen Wörtern</value>
+  </data>
+  <data name="Vocabulary_SourceLanguageLabel" xml:space="preserve">
+    <value>Sprache: {0}</value>
+  </data>
+  <data name="Home_ViewVocabularyOverview" xml:space="preserve">
+    <value>Zuletzt erfasste Wörter ansehen</value>
+  </data>
 </root>

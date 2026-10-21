@@ -1228,6 +1228,38 @@ public sealed class LocalizationResourceTests
             string.Join("\n", failures.Distinct(StringComparer.Ordinal)));
     }
 
+    [TestMethod]
+    public void VocabularyOverview_RequiredKeysExistAcrossAllSupportedLanguagesWithParity()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+
+        string[] requiredVocabularyKeys =
+        [
+            "Vocabulary_ScopeNotice",
+            "Vocabulary_Loading",
+            "Vocabulary_LoadError",
+            "Vocabulary_EmptyTitle",
+            "Vocabulary_EmptyMessage",
+            "Vocabulary_RecentListTitle",
+            "Vocabulary_RecentCountNotice",
+            "Vocabulary_SourceLanguageLabel",
+            "Home_ViewVocabularyOverview"
+        ];
+
+        foreach (var key in requiredVocabularyKeys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), $"English resource is missing '{key}'.");
+            Assert.IsTrue(german.ContainsKey(key), $"German resource is missing '{key}'.");
+            Assert.IsTrue(russian.ContainsKey(key), $"Russian resource is missing '{key}'.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), $"English resource '{key}' is blank.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), $"German resource '{key}' is blank.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), $"Russian resource '{key}' is blank.");
+        }
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

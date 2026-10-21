@@ -1,7 +1,7 @@
 # KnownFirst Project State
 
-**Status date:** 2026-10-20
-**State source:** verified merged `master` capabilities (the document was originally established at the 2026-09-21 baseline following PR #206 `KF-LEX-004` German Wiktionary lookup reliability, PR #205 `KF-PREP-004` documentation reconciliation, and PR #202 `KF-LEARN-011` LearningTarget architecture and Schema-14 cutover, and has since been extended for merged text-analysis evidence work). Per-package sections preserve their original merge provenance. The section on the lexical lookup evidence harness (`KF-LEX-005`) describes unmerged local test evidence only and is not a `master` capability. Live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
+**Status date:** 2026-10-21
+**State source:** verified merged `master` capabilities (the document was originally established at the 2026-09-21 baseline following PR #206 `KF-LEX-004` German Wiktionary lookup reliability, PR #205 `KF-PREP-004` documentation reconciliation, and PR #202 `KF-LEARN-011` LearningTarget architecture and Schema-14 cutover, and has since been extended for merged text-analysis and lexical lookup evidence work). Per-package sections preserve their original merge provenance. The section on the Vocabulary area foundation (`KF-VOCAB-001`) describes unmerged local implementation only and is not a `master` capability. Live Git remains authoritative for branch and pull-request state, discovered dynamically per [docs/NEW_CHAT_BOOTSTRAP.md](NEW_CHAT_BOOTSTRAP.md).
 
 This document records stable, verified architectural facts and current capabilities. Plans belong in [ROADMAP.md](ROADMAP.md); active operational task state belongs in [CURRENT_WORK.md](CURRENT_WORK.md).
 
@@ -213,9 +213,9 @@ This package establishes deterministic text-analysis and review-admission eviden
 - **Test-Only Source-Generated JSON:** `KnownFirst.Tests` uses `AnalysisEvidenceJsonSerializerContext` (`[JsonSerializable]`) for JSON formatting because reflection-based serialization is disabled under AOT/trimming test constraints; no production JSON/AOT/trimming surface added.
 - **Safety, Privacy & Clean DB Isolation:** Automated tests use synthetic/public texts only (no real user database, no private user text, no live network requests). Review admission tests use isolated temporary SQLite databases initialized from clean schema. Generated evidence artifacts are Git-ignored and not committed.
 
-## Lexical Lookup Evidence Harness (KF-LEX-005 — Unmerged Local Implementation)
+## Lexical Lookup Evidence Harness (KF-LEX-005 — Merged Test Evidence Infrastructure)
 
-**Lifecycle status:** Not yet on `master`. The harness is implemented and independently reviewed (`REVIEW_APPROVED`) on local task branch `test/kf-lex-005-lexical-lookup-evidence-v1` ([GitHub Issue #215](https://github.com/Tachiguro/KnownFirst/issues/215)); it is unvalidated, unpushed, and unmerged. Nothing in this section is a capability of `master` until the package is merged. Live status is owned by the Issue and [CURRENT_WORK.md](CURRENT_WORK.md).
+**Lifecycle status:** Merged to `master` via PR #216 (merge commit `ec00787286b0348da1f475abf2e929e7036ffbb6`; Issue #215 closed). Test-only evidence infrastructure in `KnownFirst.Tests`; not a new production provider or runtime behavior change.
 
 - **Test-only infrastructure:** Located in `KnownFirst.Tests` (`LexicalEvidence/` harness plus three test classes). No production source, schema, archive, provider, parser, or ranking behavior is changed.
 - **Offline capture:** Records Wiktionary and Wikipedia lookups through the real lexical enrichment and provider path using mock HTTP handlers and synthetic fixtures; automated tests make no live Wikimedia requests.
@@ -223,6 +223,19 @@ This package establishes deterministic text-analysis and review-admission eviden
 - **Preparation correlation:** Correlates current Schema 14 preparation candidates with their lookup evidence.
 - **Artifacts:** Deterministic `.txt` reports and source-generated JSON summaries under the Git-ignored `artifacts/lexical-lookup-evidence/`.
 - **Evidence limits:** Results come from simulated deterministic fixtures. They are not real-world lexical provider coverage and not application-user success rates.
+
+## Vocabulary Area Foundation (KF-VOCAB-001 — Unmerged Local Implementation)
+
+**Lifecycle status:** Not yet on `master`. The read-only recent vocabulary overview is implemented and independently reviewed (`REVIEW_APPROVED`, [GitHub Issue #217](https://github.com/Tachiguro/KnownFirst/issues/217)) on local task branch `feature/kf-vocab-001-readonly-overview-v1` across two checkpoint commits (`12284b03c76eedb36ee03852c443058c52066ef9` and `28dfb15f1619e8b61ed2cec747405821cede2daa`); it is unvalidated, unpushed, and unmerged. Nothing in this section is a capability of `master` until the package is merged. Live status is owned by the Issue and [CURRENT_WORK.md](CURRENT_WORK.md).
+
+- **Read-only service boundary:** `IVocabularyOverviewService` / `VocabularyOverviewService` in `KnownFirst.Services`, registered as a singleton service in `MauiProgram.cs`. Executes deterministic read-only queries against SQLite snapshot (`database.ExecuteSnapshotAsync`) returning `VocabularyOverviewItem` projections.
+- **Persisted identity type:** `VocabularyOverviewItem` declares integer primary key `WordId` (`public sealed record VocabularyOverviewItem(int WordId, string CanonicalTerm, string SourceLanguage, DateTime CreatedAt)` with `int Id => WordId`), mapping directly to SQLite entity `Words.Id` (`public int Id { get; set; }`). It does not use Guids.
+- **Bounded query and deterministic ordering:** Query is bounded by `LIMIT ?` with `DefaultLimit = 30` and `MaxLimit = 30`, ordered deterministically by `CreatedAt DESC, Id DESC` (creation timestamp descending with persistent Word ID descending tie-breaker).
+- **Schema 14 status-authority boundary:** Reads `Id`, `CanonicalTerm`, `Language`, `CreatedAt` from `Words`. Preserves Schema 14 integrity; does not read or mutate `WordStates` or `WordLearningControls`.
+- **Read-only /dictionary UI:** Replaces the static placeholder card in `Components/Pages/Dictionary.razor` with a reactive overview component handling loading (`_isLoading`), empty list (`_items.Count == 0`), populated list, and error with Retry (`_loadFailed`, `Common_Retry`).
+- **Secondary Home access:** Exposes a secondary link (`#home-vocabulary-link`) on `Home.razor` under `.home-secondary-actions` without altering primary navigation structure or order in `NavMenu.razor`.
+- **Localization parity:** Full localized string parity across English (`SharedResource.resx`), German (`SharedResource.de.resx`), and Russian (`SharedResource.ru.resx`).
+- **Evidence limits:** Verified by automated unit, service, UI workflow contract, and localization resource tests. Not released or user-validated on Windows or Android; rendered WebView appearance, focus behavior, and touch interaction are not proven by contract tests. Downstream search, detail, editing, and status reversal workflows remain separate open packages (`KF-VOCAB-002` through `KF-VOCAB-006`, `KF-PREP-002`).
 
 ## Schema-13 / FSRS-6 Merged Production State (KF-FSRS-003)
 

@@ -8,6 +8,7 @@ and uses the application's prerelease version identifiers.
 
 ### Added
 
+- Read-only Vocabulary overview (`/dictionary`) displaying a bounded recent list of up to 30 vocabulary terms ordered by creation date, with loading, empty, populated, and retry states, secondary Home navigation access, and EN/DE/RU localization parity (KF-VOCAB-001).
 - Schema-14 LearningTarget architecture supporting distinct Definition and Translation learning intentions under a single semantic Sense (e.g. German definition vs English/French translation of the same Sense without artificial Sense duplication or unintended collapse) with independent 1-to-1 FSRS-6 scheduling identity per target (KF-LEARN-011).
 - Portable archive format V4 (`.kfarchive`) transporting LearningTargets, TargetAnswerVariants, TargetFsrsStates, TargetFsrsReviewHistoryEntries, TargetReviews, WordLearningControls, and SenseLearningControls with ordered-prefix causal merge and conflict detection (KF-LEARN-011).
 - Preparation pipeline and staging cutover to create and stage distinct Definition and Translation LearningTargets with accepted and preferred TargetAnswerVariants, including adding later targets under existing Senses (KF-LEARN-011).

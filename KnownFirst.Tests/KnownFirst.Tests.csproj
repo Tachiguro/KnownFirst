@@ -133,6 +133,8 @@
     <Compile Include="..\Services\VocabularyOverviewService.cs" Link="Production\Services\VocabularyOverviewService.cs" />
     <Compile Include="..\Services\IVocabularySearchService.cs" Link="Production\Services\IVocabularySearchService.cs" />
     <Compile Include="..\Services\VocabularySearchService.cs" Link="Production\Services\VocabularySearchService.cs" />
+    <Compile Include="..\Services\IVocabularyDetailService.cs" Link="Production\Services\IVocabularyDetailService.cs" />
+    <Compile Include="..\Services\VocabularyDetailService.cs" Link="Production\Services\VocabularyDetailService.cs" />
     <Compile Include="..\Services\ITextReviewService.cs" Link="Production\Services\ITextReviewService.cs" />
     <Compile Include="..\Services\TextReviewService.cs" Link="Production\Services\TextReviewService.cs" />
     <Compile Include="..\Services\IAppSettingsService.cs" Link="Production\Services\IAppSettingsService.cs" />

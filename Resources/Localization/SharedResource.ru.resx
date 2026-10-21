@@ -1969,4 +1969,31 @@
   <data name="Onboarding_FinishSetup" xml:space="preserve">
     <value>Завершить настройку</value>
   </data>
+  <data name="Vocabulary_ScopeNotice" xml:space="preserve">
+    <value>Этот обзор в режиме чтения показывает до 30 недавно добавленных слов. Полный поиск по словарю и подробные сведения о словах пока недоступны.</value>
+  </data>
+  <data name="Vocabulary_Loading" xml:space="preserve">
+    <value>Загрузка обзора словаря…</value>
+  </data>
+  <data name="Vocabulary_LoadError" xml:space="preserve">
+    <value>Не удалось загрузить обзор словаря.</value>
+  </data>
+  <data name="Vocabulary_EmptyTitle" xml:space="preserve">
+    <value>Словарь пока не содержит записей</value>
+  </data>
+  <data name="Vocabulary_EmptyMessage" xml:space="preserve">
+    <value>Слова появятся здесь, как только вы импортируете тексты или разберёте новые слова.</value>
+  </data>
+  <data name="Vocabulary_RecentListTitle" xml:space="preserve">
+    <value>Недавние слова</value>
+  </data>
+  <data name="Vocabulary_RecentCountNotice" xml:space="preserve">
+    <value>Показано {0} из не более чем {1} недавних слов</value>
+  </data>
+  <data name="Vocabulary_SourceLanguageLabel" xml:space="preserve">
+    <value>Язык: {0}</value>
+  </data>
+  <data name="Home_ViewVocabularyOverview" xml:space="preserve">
+    <value>Посмотреть недавние слова</value>
+  </data>
 </root>

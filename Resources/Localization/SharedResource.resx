@@ -1969,4 +1969,31 @@
   <data name="Onboarding_FinishSetup" xml:space="preserve">
     <value>Finish Setup</value>
   </data>
+  <data name="Vocabulary_ScopeNotice" xml:space="preserve">
+    <value>This read-only overview shows up to 30 recently recorded vocabulary items. Full dictionary search and word details are not yet available.</value>
+  </data>
+  <data name="Vocabulary_Loading" xml:space="preserve">
+    <value>Loading vocabulary overview…</value>
+  </data>
+  <data name="Vocabulary_LoadError" xml:space="preserve">
+    <value>The vocabulary overview could not be loaded.</value>
+  </data>
+  <data name="Vocabulary_EmptyTitle" xml:space="preserve">
+    <value>No vocabulary recorded yet</value>
+  </data>
+  <data name="Vocabulary_EmptyMessage" xml:space="preserve">
+    <value>Words will appear here once you import texts or review new vocabulary.</value>
+  </data>
+  <data name="Vocabulary_RecentListTitle" xml:space="preserve">
+    <value>Recent vocabulary</value>
+  </data>
+  <data name="Vocabulary_RecentCountNotice" xml:space="preserve">
+    <value>Showing {0} of up to {1} recent words</value>
+  </data>
+  <data name="Vocabulary_SourceLanguageLabel" xml:space="preserve">
+    <value>Language: {0}</value>
+  </data>
+  <data name="Home_ViewVocabularyOverview" xml:space="preserve">
+    <value>View recent vocabulary</value>
+  </data>
 </root>

@@ -1,8 +1,90 @@
 @page "/dictionary"
+@inject IVocabularyOverviewService VocabularyOverviewService
+@inject ILogger<Dictionary> Logger
 
 <PageTitle>@Localizer["Navigation_Dictionary"]</PageTitle>
 
-<section class="placeholder-card">
+<section class="vocabulary-page">
     <PageHeader Title="@(Localizer["Navigation_Dictionary"])" />
-    <p>@Localizer["Placeholder_Message"]</p>
+
+    <p class="vocabulary-scope-notice">@Localizer["Vocabulary_ScopeNotice"]</p>
+
+    @if (_isLoading)
+    {
+        <p class="loading-message" role="status">@Localizer["Vocabulary_Loading"]</p>
+    }
+    else if (_loadFailed)
+    {
+        <div class="inline-message inline-message-error" role="alert">
+            <span>@Localizer["Vocabulary_LoadError"]</span>
+            <button type="button" class="button button-secondary" disabled="@_isLoading" @onclick="LoadVocabularyAsync">
+                @Localizer["Common_Retry"]
+            </button>
+        </div>
+    }
+    else if (_items.Count == 0)
+    {
+        <section class="vocabulary-empty-card" aria-labelledby="vocabulary-empty-title">
+            <h2 id="vocabulary-empty-title">@Localizer["Vocabulary_EmptyTitle"]</h2>
+            <p>@Localizer["Vocabulary_EmptyMessage"]</p>
+        </section>
+    }
+    else
+    {
+        <section class="vocabulary-overview-card" aria-labelledby="vocabulary-list-title">
+            <div class="vocabulary-header-row">
+                <h2 id="vocabulary-list-title">@Localizer["Vocabulary_RecentListTitle"]</h2>
+                <span class="vocabulary-count-notice" role="status">
+                    @Localizer["Vocabulary_RecentCountNotice", _items.Count, IVocabularyOverviewService.DefaultLimit]
+                </span>
+            </div>
+            <ul class="vocabulary-list" aria-label="@(Localizer["Vocabulary_RecentListTitle"])">
+                @foreach (var item in _items)
+                {
+                    <li class="vocabulary-item" id="@($"vocab-word-{item.WordId}")">
+                        <span class="vocabulary-term">@item.CanonicalTerm</span>
+                        <span class="vocabulary-language-tag" aria-label="@(Localizer["Vocabulary_SourceLanguageLabel", item.SourceLanguage])">
+                            @item.SourceLanguage.ToUpperInvariant()
+                        </span>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
 </section>
+
+@code {
+    private IReadOnlyList<VocabularyOverviewItem> _items = Array.Empty<VocabularyOverviewItem>();
+    private bool _isLoading = true;
+    private bool _loadFailed;
+    private bool _isExecutingLoad;
+
+    protected override Task OnInitializedAsync() => LoadVocabularyAsync();
+
+    private async Task LoadVocabularyAsync()
+    {
+        if (_isExecutingLoad)
+        {
+            return;
+        }
+
+        _isExecutingLoad = true;
+        _isLoading = true;
+        _loadFailed = false;
+
+        try
+        {
+            _items = await VocabularyOverviewService.GetRecentVocabularyAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Recent vocabulary overview could not be loaded.");
+            _loadFailed = true;
+        }
+        finally
+        {
+            _isLoading = false;
+            _isExecutingLoad = false;
+        }
+    }
+}

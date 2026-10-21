@@ -1970,7 +1970,7 @@
     <value>Einrichtung abschließen</value>
   </data>
   <data name="Vocabulary_ScopeNotice" xml:space="preserve">
-    <value>Diese schreibgeschützte Übersicht zeigt bis zu 30 zuletzt erfasste Wörter. Eine vollständige Wörterbuchsuche und Wortdetails sind noch nicht verfügbar.</value>
+    <value>Diese schreibgeschützte Übersicht zeigt ohne aktive Suche bis zu 30 zuletzt erfasste Wörter. Wortdetails und Bearbeitung sind nicht verfügbar.</value>
   </data>
   <data name="Vocabulary_Loading" xml:space="preserve">
     <value>Wortübersicht wird geladen…</value>
@@ -1995,5 +1995,71 @@
   </data>
   <data name="Home_ViewVocabularyOverview" xml:space="preserve">
     <value>Zuletzt erfasste Wörter ansehen</value>
+  </data>
+  <data name="Vocabulary_SearchTitle" xml:space="preserve">
+    <value>Wortschatz durchsuchen</value>
+  </data>
+  <data name="Vocabulary_SearchScopeNotice" xml:space="preserve">
+    <value>Die Suche verwendet ausschließlich normalisierte Präfixübereinstimmung. Unscharfe Suche, beliebige Teilzeichenkettensuche, Volltextsuche in Bedeutungen und Wortdetails sind nicht verfügbar.</value>
+  </data>
+  <data name="Vocabulary_SearchInputLabel" xml:space="preserve">
+    <value>Suchbegriff (Präfix)</value>
+  </data>
+  <data name="Vocabulary_SearchInputPlaceholder" xml:space="preserve">
+    <value>Wortanfang eingeben…</value>
+  </data>
+  <data name="Vocabulary_SearchLanguageLabel" xml:space="preserve">
+    <value>Quellsprache des Wortschatzes</value>
+  </data>
+  <data name="Vocabulary_SearchSubmitAction" xml:space="preserve">
+    <value>Suchen</value>
+  </data>
+  <data name="Vocabulary_SearchClearAction" xml:space="preserve">
+    <value>Zurücksetzen</value>
+  </data>
+  <data name="Vocabulary_SearchLoading" xml:space="preserve">
+    <value>Wortschatz wird durchsucht…</value>
+  </data>
+  <data name="Vocabulary_SearchResultsTitle" xml:space="preserve">
+    <value>Suchergebnisse</value>
+  </data>
+  <data name="Vocabulary_SearchPageCountNotice" xml:space="preserve">
+    <value>{0} passende Wörter auf Seite {1}</value>
+  </data>
+  <data name="Vocabulary_SearchPageIndicator" xml:space="preserve">
+    <value>Seite {0}</value>
+  </data>
+  <data name="Vocabulary_SearchPaginationLabel" xml:space="preserve">
+    <value>Suchergebnisseiten</value>
+  </data>
+  <data name="Vocabulary_SearchPreviousPage" xml:space="preserve">
+    <value>Zurück</value>
+  </data>
+  <data name="Vocabulary_SearchNextPage" xml:space="preserve">
+    <value>Weiter</value>
+  </data>
+  <data name="Vocabulary_SearchNoResultsTitle" xml:space="preserve">
+    <value>Keine passenden Wörter gefunden</value>
+  </data>
+  <data name="Vocabulary_SearchNoResultsMessage" xml:space="preserve">
+    <value>In der gewählten Quellsprache beginnen keine erfassten Wörter mit diesem Präfix.</value>
+  </data>
+  <data name="Vocabulary_SearchError" xml:space="preserve">
+    <value>Die Wortschatzsuche konnte nicht durchgeführt werden.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidSourceLanguage" xml:space="preserve">
+    <value>Bitte wählen Sie eine unterstützte Quellsprache (Englisch oder Deutsch).</value>
+  </data>
+  <data name="Vocabulary_SearchQueryTooLong" xml:space="preserve">
+    <value>Der Suchbegriff ist zu lang. Bitte geben Sie höchstens {0} Zeichen ein.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidUnicode" xml:space="preserve">
+    <value>Der Suchbegriff enthält ungültige Zeichen. Bitte geben Sie gültigen Text ein.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidCursor" xml:space="preserve">
+    <value>Der Seitenstatus ist nicht mehr gültig. Bitte starten Sie die Suche erneut.</value>
+  </data>
+  <data name="Vocabulary_SearchInvalidPageSize" xml:space="preserve">
+    <value>Die angeforderte Seitengröße ist ungültig.</value>
   </data>
 </root>

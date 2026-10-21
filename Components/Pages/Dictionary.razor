@@ -1,15 +1,145 @@
 @page "/dictionary"
+@using KnownFirst.Core.Text
 @inject IVocabularyOverviewService VocabularyOverviewService
+@inject IVocabularySearchService VocabularySearchService
 @inject ILogger<Dictionary> Logger
 
 <PageTitle>@Localizer["Navigation_Dictionary"]</PageTitle>
 
-<section class="vocabulary-page">
+<section class="vocabulary-page dictionary-page" aria-busy="@IsRequestActive">
     <PageHeader Title="@(Localizer["Navigation_Dictionary"])" />
 
     <p class="vocabulary-scope-notice">@Localizer["Vocabulary_ScopeNotice"]</p>
 
-    @if (_isLoading)
+    <section class="vocabulary-search-card" aria-labelledby="vocabulary-search-title">
+        <h2 id="vocabulary-search-title">@Localizer["Vocabulary_SearchTitle"]</h2>
+        <p id="vocabulary-search-scope-notice" class="setting-help vocabulary-search-scope-notice">
+            @Localizer["Vocabulary_SearchScopeNotice"]
+        </p>
+
+        <div class="vocabulary-search-controls">
+            <div class="field-group vocabulary-search-field">
+                <label for="vocabulary-search-input">@Localizer["Vocabulary_SearchInputLabel"]</label>
+                <input id="vocabulary-search-input"
+                       type="search"
+                       class="text-input"
+                       placeholder="@(Localizer["Vocabulary_SearchInputPlaceholder"])"
+                       value="@_queryInput"
+                       @oninput="OnQueryInputChanged"
+                       @onkeydown="HandleSearchKeyDownAsync"
+                       disabled="@IsRequestActive"
+                       aria-describedby="vocabulary-search-scope-notice" />
+            </div>
+
+            <div class="field-group vocabulary-language-field">
+                <label for="vocabulary-source-language">@Localizer["Vocabulary_SearchLanguageLabel"]</label>
+                <select id="vocabulary-source-language"
+                        class="text-input vocabulary-language-select"
+                        value="@_selectedSourceLanguage"
+                        @onchange="OnSourceLanguageChangedAsync"
+                        disabled="@IsRequestActive">
+                    <option value="en">@Localizer["Settings_English"]</option>
+                    <option value="de">@Localizer["Settings_German"]</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="button-row vocabulary-search-actions">
+            <button id="vocabulary-search-submit"
+                    type="button"
+                    class="button button-primary"
+                    disabled="@IsRequestActive"
+                    @onclick="SubmitSearchAsync">
+                @Localizer["Vocabulary_SearchSubmitAction"]
+            </button>
+            <button id="vocabulary-search-clear"
+                    type="button"
+                    class="button button-secondary"
+                    disabled="@IsRequestActive"
+                    @onclick="ClearSearchAsync">
+                @Localizer["Vocabulary_SearchClearAction"]
+            </button>
+        </div>
+    </section>
+
+    @if (_isSearching)
+    {
+        <p class="loading-message" role="status" aria-live="polite">@Localizer["Vocabulary_SearchLoading"]</p>
+    }
+    else if (_validationMessageKey is not null)
+    {
+        <div id="vocabulary-search-validation" class="inline-message inline-message-error" role="alert">
+            <span>@FormatValidationMessage(_validationMessageKey)</span>
+        </div>
+    }
+    else if (_searchLoadFailed)
+    {
+        <div id="vocabulary-search-error" class="inline-message inline-message-error" role="alert">
+            <span>@Localizer["Vocabulary_SearchError"]</span>
+            <button id="vocabulary-search-retry"
+                    type="button"
+                    class="button button-secondary"
+                    disabled="@IsRequestActive"
+                    @onclick="RetrySearchAsync">
+                @Localizer["Common_Retry"]
+            </button>
+        </div>
+    }
+    else if (_activeSearchPage is { IsSearchActive: true } searchPage)
+    {
+        @if (searchPage.Items.Count == 0)
+        {
+            <section class="vocabulary-empty-card vocabulary-no-results-card" role="status" aria-live="polite" aria-labelledby="vocabulary-no-results-title">
+                <h2 id="vocabulary-no-results-title">@Localizer["Vocabulary_SearchNoResultsTitle"]</h2>
+                <p>@Localizer["Vocabulary_SearchNoResultsMessage"]</p>
+            </section>
+        }
+        else
+        {
+            <section class="vocabulary-overview-card vocabulary-search-results-card" aria-labelledby="vocabulary-search-results-title">
+                <div class="vocabulary-header-row">
+                    <h2 id="vocabulary-search-results-title">@Localizer["Vocabulary_SearchResultsTitle"]</h2>
+                    <span class="vocabulary-count-notice" role="status" aria-live="polite">
+                        @Localizer["Vocabulary_SearchPageCountNotice", searchPage.Items.Count, CurrentPageNumber]
+                    </span>
+                </div>
+                <ul class="vocabulary-list" aria-labelledby="vocabulary-search-results-title">
+                    @foreach (var item in searchPage.Items)
+                    {
+                        <li class="vocabulary-item" @key="item.WordId" id="@($"vocab-search-word-{item.WordId}")" data-word-id="@item.WordId">
+                            <span class="vocabulary-term">@item.CanonicalTerm</span>
+                            <div class="vocabulary-item-meta">
+                                <span class="vocabulary-token-tag">@GetTokenKindLabel(item.TokenKind)</span>
+                                <span class="vocabulary-language-tag" aria-label="@(Localizer["Vocabulary_SourceLanguageLabel", item.SourceLanguage])">
+                                    @item.SourceLanguage.ToUpperInvariant()
+                                </span>
+                            </div>
+                        </li>
+                    }
+                </ul>
+                <nav class="vocabulary-pagination" aria-label="@(Localizer["Vocabulary_SearchPaginationLabel"])">
+                    <button id="vocabulary-page-previous"
+                            type="button"
+                            class="button button-secondary vocabulary-page-button"
+                            disabled="@(!CanMovePrevious)"
+                            @onclick="GoToPreviousPageAsync">
+                        @Localizer["Vocabulary_SearchPreviousPage"]
+                    </button>
+                    <span id="vocabulary-page-indicator" class="vocabulary-page-indicator" role="status" aria-live="polite">
+                        @Localizer["Vocabulary_SearchPageIndicator", CurrentPageNumber]
+                    </span>
+                    <button id="vocabulary-page-next"
+                            type="button"
+                            class="button button-secondary vocabulary-page-button"
+                            disabled="@(!CanMoveNext)"
+                            @onclick="GoToNextPageAsync">
+                        @Localizer["Vocabulary_SearchNextPage"]
+                    </button>
+                </nav>
+            </section>
+        }
+    }
+    else if (_isLoading)
     {
         <p class="loading-message" role="status">@Localizer["Vocabulary_Loading"]</p>
     }
@@ -17,7 +147,7 @@
     {
         <div class="inline-message inline-message-error" role="alert">
             <span>@Localizer["Vocabulary_LoadError"]</span>
-            <button type="button" class="button button-secondary" disabled="@_isLoading" @onclick="LoadVocabularyAsync">
+            <button type="button" class="button button-secondary" disabled="@IsRequestActive" @onclick="LoadVocabularyAsync">
                 @Localizer["Common_Retry"]
             </button>
         </div>
@@ -41,7 +171,7 @@
             <ul class="vocabulary-list" aria-label="@(Localizer["Vocabulary_RecentListTitle"])">
                 @foreach (var item in _items)
                 {
-                    <li class="vocabulary-item" id="@($"vocab-word-{item.WordId}")">
+                    <li class="vocabulary-item" @key="item.WordId" id="@($"vocab-word-{item.WordId}")" data-word-id="@item.WordId">
                         <span class="vocabulary-term">@item.CanonicalTerm</span>
                         <span class="vocabulary-language-tag" aria-label="@(Localizer["Vocabulary_SourceLanguageLabel", item.SourceLanguage])">
                             @item.SourceLanguage.ToUpperInvariant()
@@ -54,37 +184,304 @@
 </section>
 
 @code {
+    private const int SearchPageSize = IVocabularySearchService.DefaultPageSize;
+    private const int MaxCursorHistoryDepth = 256;
+
+    private readonly List<VocabularySearchCursor?> _cursorHistory = [];
     private IReadOnlyList<VocabularyOverviewItem> _items = Array.Empty<VocabularyOverviewItem>();
+    private VocabularySearchPage? _activeSearchPage;
+    private VocabularySearchCursor? _currentCursor;
+    private string _selectedSourceLanguage = "en";
+    private string _queryInput = string.Empty;
+    private string _submittedQuery = string.Empty;
+    private string _submittedSourceLanguage = "en";
+    private string? _validationMessageKey;
     private bool _isLoading = true;
     private bool _loadFailed;
     private bool _isExecutingLoad;
+    private bool _isSearching;
+    private bool _searchLoadFailed;
+    private int _activeRequestId;
+
+    private bool IsRequestActive => _isExecutingLoad || _isSearching;
+
+    private int CurrentPageNumber => _cursorHistory.Count + 1;
+
+    private bool CanMovePrevious =>
+        !IsRequestActive
+        && _activeSearchPage is { IsSearchActive: true }
+        && _cursorHistory.Count > 0;
+
+    private bool CanMoveNext =>
+        !IsRequestActive
+        && _activeSearchPage is { IsSearchActive: true, HasMore: true, NextCursor: not null }
+        && _cursorHistory.Count < MaxCursorHistoryDepth;
 
     protected override Task OnInitializedAsync() => LoadVocabularyAsync();
 
     private async Task LoadVocabularyAsync()
     {
-        if (_isExecutingLoad)
+        if (IsRequestActive)
         {
             return;
         }
 
+        var requestId = ++_activeRequestId;
         _isExecutingLoad = true;
         _isLoading = true;
         _loadFailed = false;
 
         try
         {
-            _items = await VocabularyOverviewService.GetRecentVocabularyAsync();
+            var items = await VocabularyOverviewService.GetRecentVocabularyAsync();
+            if (requestId != _activeRequestId)
+            {
+                return;
+            }
+
+            _items = items;
         }
         catch (Exception exception)
         {
+            if (requestId != _activeRequestId)
+            {
+                return;
+            }
+
             Logger.LogError(exception, "Recent vocabulary overview could not be loaded.");
+            _items = Array.Empty<VocabularyOverviewItem>();
             _loadFailed = true;
         }
         finally
         {
-            _isLoading = false;
-            _isExecutingLoad = false;
+            if (requestId == _activeRequestId)
+            {
+                _isLoading = false;
+                _isExecutingLoad = false;
+            }
         }
     }
+
+    private void InvalidateSearchPagination()
+    {
+        _cursorHistory.Clear();
+        _currentCursor = null;
+        _activeSearchPage = null;
+        _validationMessageKey = null;
+        _searchLoadFailed = false;
+    }
+
+    private void OnQueryInputChanged(ChangeEventArgs args)
+    {
+        _queryInput = args.Value?.ToString() ?? string.Empty;
+        _validationMessageKey = null;
+
+        if (!string.Equals(_queryInput, _submittedQuery, StringComparison.Ordinal))
+        {
+            InvalidateSearchPagination();
+        }
+    }
+
+    private async Task OnSourceLanguageChangedAsync(ChangeEventArgs args)
+    {
+        if (IsRequestActive)
+        {
+            return;
+        }
+
+        _selectedSourceLanguage = args.Value?.ToString() ?? "en";
+        InvalidateSearchPagination();
+
+        if (!string.IsNullOrWhiteSpace(_queryInput))
+        {
+            await SubmitSearchAsync();
+        }
+    }
+
+    private async Task HandleSearchKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await SubmitSearchAsync();
+        }
+    }
+
+    private async Task SubmitSearchAsync()
+    {
+        if (IsRequestActive)
+        {
+            return;
+        }
+
+        InvalidateSearchPagination();
+        _submittedSourceLanguage = _selectedSourceLanguage;
+        _submittedQuery = _queryInput;
+
+        await ExecuteSearchRequestAsync(_submittedSourceLanguage, _submittedQuery, cursor: null);
+    }
+
+    private async Task GoToNextPageAsync()
+    {
+        if (!CanMoveNext || _activeSearchPage?.NextCursor is not { } nextCursor)
+        {
+            return;
+        }
+
+        _cursorHistory.Add(_currentCursor);
+        _currentCursor = nextCursor;
+
+        await ExecuteSearchRequestAsync(_submittedSourceLanguage, _submittedQuery, _currentCursor);
+    }
+
+    private async Task GoToPreviousPageAsync()
+    {
+        if (!CanMovePrevious)
+        {
+            return;
+        }
+
+        var lastIndex = _cursorHistory.Count - 1;
+        var previousCursor = _cursorHistory[lastIndex];
+        _cursorHistory.RemoveAt(lastIndex);
+        _currentCursor = previousCursor;
+
+        await ExecuteSearchRequestAsync(_submittedSourceLanguage, _submittedQuery, _currentCursor);
+    }
+
+    private async Task RetrySearchAsync()
+    {
+        if (IsRequestActive)
+        {
+            return;
+        }
+
+        await ExecuteSearchRequestAsync(_submittedSourceLanguage, _submittedQuery, _currentCursor);
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        if (IsRequestActive)
+        {
+            return;
+        }
+
+        ++_activeRequestId;
+        _queryInput = string.Empty;
+        _submittedQuery = string.Empty;
+        _activeSearchPage = null;
+        _currentCursor = null;
+        _cursorHistory.Clear();
+        _validationMessageKey = null;
+        _searchLoadFailed = false;
+        _isSearching = false;
+
+        if (_loadFailed)
+        {
+            await LoadVocabularyAsync();
+        }
+    }
+
+    private async Task ExecuteSearchRequestAsync(
+        string sourceLanguage,
+        string rawQuery,
+        VocabularySearchCursor? cursor)
+    {
+        if (IsRequestActive)
+        {
+            return;
+        }
+
+        var requestId = ++_activeRequestId;
+        _isSearching = true;
+        _searchLoadFailed = false;
+        _validationMessageKey = null;
+        _activeSearchPage = null;
+
+        try
+        {
+            var page = await VocabularySearchService.SearchAsync(
+                sourceLanguage,
+                rawQuery,
+                SearchPageSize,
+                cursor);
+
+            if (requestId != _activeRequestId)
+            {
+                return;
+            }
+
+            if (page.UseRecentOverview)
+            {
+                _submittedQuery = string.Empty;
+                _currentCursor = null;
+                _cursorHistory.Clear();
+                _activeSearchPage = null;
+                _isSearching = false;
+
+                if (_loadFailed)
+                {
+                    await LoadVocabularyAsync();
+                }
+
+                return;
+            }
+
+            if (!page.IsValid)
+            {
+                _currentCursor = null;
+                _cursorHistory.Clear();
+                _activeSearchPage = null;
+                _validationMessageKey = MapValidationStatusKey(page.Status);
+                return;
+            }
+
+            _activeSearchPage = page;
+        }
+        catch (Exception exception)
+        {
+            if (requestId != _activeRequestId)
+            {
+                return;
+            }
+
+            Logger.LogError(exception, "Vocabulary search request could not be completed.");
+            _activeSearchPage = null;
+            _searchLoadFailed = true;
+        }
+        finally
+        {
+            if (requestId == _activeRequestId)
+            {
+                _isSearching = false;
+            }
+        }
+    }
+
+    private static string? MapValidationStatusKey(VocabularySearchStatus status) => status switch
+    {
+        VocabularySearchStatus.InvalidSourceLanguage => "Vocabulary_SearchInvalidSourceLanguage",
+        VocabularySearchStatus.QueryTooLong => "Vocabulary_SearchQueryTooLong",
+        VocabularySearchStatus.InvalidUnicode => "Vocabulary_SearchInvalidUnicode",
+        VocabularySearchStatus.InvalidCursor => "Vocabulary_SearchInvalidCursor",
+        VocabularySearchStatus.InvalidPageSize => "Vocabulary_SearchInvalidPageSize",
+        _ => null
+    };
+
+    private string FormatValidationMessage(string validationKey) => validationKey switch
+    {
+        "Vocabulary_SearchInvalidSourceLanguage" => Localizer["Vocabulary_SearchInvalidSourceLanguage"],
+        "Vocabulary_SearchQueryTooLong" => Localizer["Vocabulary_SearchQueryTooLong", VocabularySearchKeyPolicy.MaxQueryScalarCount],
+        "Vocabulary_SearchInvalidUnicode" => Localizer["Vocabulary_SearchInvalidUnicode"],
+        "Vocabulary_SearchInvalidCursor" => Localizer["Vocabulary_SearchInvalidCursor"],
+        "Vocabulary_SearchInvalidPageSize" => Localizer["Vocabulary_SearchInvalidPageSize"],
+        _ => Localizer[validationKey]
+    };
+
+    private string GetTokenKindLabel(TokenKind tokenKind) => tokenKind switch
+    {
+        TokenKind.Acronym => Localizer["TokenKind_Acronym"],
+        TokenKind.Abbreviation => Localizer["TokenKind_Abbreviation"],
+        TokenKind.TechnicalTerm => Localizer["TokenKind_TechnicalTerm"],
+        _ => Localizer["TokenKind_Word"]
+    };
 }

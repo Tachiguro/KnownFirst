@@ -1260,6 +1260,66 @@ public sealed class LocalizationResourceTests
         }
     }
 
+    [TestMethod]
+    public void VocabularySearch_RequiredKeysExistAcrossAllSupportedLanguagesWithParityAndHonestScope()
+    {
+        var english = LoadResources("SharedResource.resx");
+        var german = LoadResources("SharedResource.de.resx");
+        var russian = LoadResources("SharedResource.ru.resx");
+        var placeholderPattern = new System.Text.RegularExpressions.Regex(@"\{\d+\}");
+
+        (string Key, int ExpectedPlaceholders)[] requiredSearchKeys =
+        [
+            ("Vocabulary_SearchTitle", 0),
+            ("Vocabulary_SearchScopeNotice", 0),
+            ("Vocabulary_SearchInputLabel", 0),
+            ("Vocabulary_SearchInputPlaceholder", 0),
+            ("Vocabulary_SearchLanguageLabel", 0),
+            ("Vocabulary_SearchSubmitAction", 0),
+            ("Vocabulary_SearchClearAction", 0),
+            ("Vocabulary_SearchLoading", 0),
+            ("Vocabulary_SearchResultsTitle", 0),
+            ("Vocabulary_SearchPageCountNotice", 2),
+            ("Vocabulary_SearchPageIndicator", 1),
+            ("Vocabulary_SearchPaginationLabel", 0),
+            ("Vocabulary_SearchPreviousPage", 0),
+            ("Vocabulary_SearchNextPage", 0),
+            ("Vocabulary_SearchNoResultsTitle", 0),
+            ("Vocabulary_SearchNoResultsMessage", 0),
+            ("Vocabulary_SearchError", 0),
+            ("Vocabulary_SearchInvalidSourceLanguage", 0),
+            ("Vocabulary_SearchQueryTooLong", 1),
+            ("Vocabulary_SearchInvalidUnicode", 0),
+            ("Vocabulary_SearchInvalidCursor", 0),
+            ("Vocabulary_SearchInvalidPageSize", 0)
+        ];
+
+        foreach (var (key, expectedPlaceholders) in requiredSearchKeys)
+        {
+            Assert.IsTrue(english.ContainsKey(key), $"English resource is missing '{key}'.");
+            Assert.IsTrue(german.ContainsKey(key), $"German resource is missing '{key}'.");
+            Assert.IsTrue(russian.ContainsKey(key), $"Russian resource is missing '{key}'.");
+
+            Assert.IsFalse(string.IsNullOrWhiteSpace(english[key]), $"English resource '{key}' is blank.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(german[key]), $"German resource '{key}' is blank.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(russian[key]), $"Russian resource '{key}' is blank.");
+
+            Assert.HasCount(expectedPlaceholders, placeholderPattern.Matches(english[key]), $"English '{key}' placeholder count mismatch.");
+            Assert.HasCount(expectedPlaceholders, placeholderPattern.Matches(german[key]), $"German '{key}' placeholder count mismatch.");
+            Assert.HasCount(expectedPlaceholders, placeholderPattern.Matches(russian[key]), $"Russian '{key}' placeholder count mismatch.");
+        }
+
+        // Old misleading scope claim that search is not available must not remain in Vocabulary_ScopeNotice
+        Assert.DoesNotContain("Full dictionary search and word details are not yet available", english["Vocabulary_ScopeNotice"], StringComparison.Ordinal);
+        Assert.DoesNotContain("Eine vollständige Wörterbuchsuche und Wortdetails sind noch nicht verfügbar", german["Vocabulary_ScopeNotice"], StringComparison.Ordinal);
+        Assert.DoesNotContain("Полный поиск по словарю и подробные сведения о словах пока недоступны", russian["Vocabulary_ScopeNotice"], StringComparison.Ordinal);
+
+        // Search scope notice honestly communicates prefix matching only
+        Assert.Contains("prefix", english["Vocabulary_SearchScopeNotice"], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Präfix", german["Vocabulary_SearchScopeNotice"], StringComparison.Ordinal);
+        Assert.Contains("префикс", russian["Vocabulary_SearchScopeNotice"], StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

@@ -3495,6 +3495,240 @@ public sealed class UiWorkflowContractTests
         Assert.IsFalse(navMenu.Contains("href=\"dictionary\"", StringComparison.Ordinal), "NavMenu must not include dictionary as a primary navigation item.");
     }
 
+    [TestMethod]
+    public void Dictionary_RecentAndSearchRowsLinkToTypedWordDetailRoutePreservingWordId()
+    {
+        var markup = LoadUi("Dictionary.razor");
+        const string detailLink = "href=\"@($\"dictionary/{item.WordId}\")\"";
+
+        // Both the recent overview rows and the indexed search result rows navigate by persisted WordId
+        Assert.AreEqual(2, CountOccurrences(markup, detailLink), "Recent and search rows must each link to /dictionary/{WordId}.");
+        Assert.AreEqual(2, CountOccurrences(markup, "class=\"vocabulary-item-link\""));
+
+        var searchListStart = markup.IndexOf("id=\"vocabulary-search-results-title\"", StringComparison.Ordinal);
+        var recentListStart = markup.IndexOf("id=\"vocabulary-list-title\"", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, searchListStart);
+        Assert.IsGreaterThan(searchListStart, recentListStart);
+        Assert.IsGreaterThan(searchListStart, markup.IndexOf(detailLink, searchListStart, StringComparison.Ordinal));
+        Assert.IsGreaterThan(recentListStart, markup.IndexOf(detailLink, recentListStart, StringComparison.Ordinal));
+
+        // Native anchors remain keyboard accessible; no click handlers or programmatic navigation replace them
+        Assert.DoesNotContain("NavigateTo", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("tabindex=\"-1\"", markup, StringComparison.Ordinal);
+
+        // Search normalization, keyset pagination, and page-size contracts stay untouched
+        Assert.Contains("private const int SearchPageSize = IVocabularySearchService.DefaultPageSize;", markup);
+        Assert.Contains("VocabularySearchService.SearchAsync(", markup);
+
+        var styles = LoadUi("Dictionary.razor.css");
+        Assert.Contains(".vocabulary-item-link", styles);
+        Assert.Contains(".vocabulary-item-link:focus-visible", styles);
+        Assert.AreEqual(CountOccurrences(styles, "{"), CountOccurrences(styles, "}"));
+    }
+
+    [TestMethod]
+    public void VocabularyWordDetail_DeclaresTypedRouteAndReadOnlyDetailServiceIntegration()
+    {
+        var markup = LoadUi("VocabularyWordDetail.razor");
+
+        Assert.Contains("@page \"/dictionary/{WordId:int}\"", markup);
+        Assert.Contains("[Parameter]", markup);
+        Assert.Contains("public int WordId { get; set; }", markup);
+        Assert.Contains("@inject IVocabularyDetailService VocabularyDetailService", markup);
+        Assert.Contains("@implements IDisposable", markup);
+        Assert.Contains("new VocabularyWordDetailLoader(VocabularyDetailService, Logger)", markup);
+
+        // Reloads on every WordId parameter change; stale responses are isolated by the loader
+        var parametersBody = ExtractMethodBody(markup, "protected override async Task OnParametersSetAsync()");
+        Assert.Contains("_loader.LoadAsync(WordId)", parametersBody);
+        Assert.Contains("_loader.Dispose()", ExtractMethodBody(markup, "public void Dispose()"));
+
+        // The page never uses the overview/search write paths or any other service
+        Assert.DoesNotContain("@inject IVocabularyOverviewService", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("@inject IVocabularySearchService", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("IKnownFirstDatabase", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavigateTo", markup, StringComparison.Ordinal);
+
+        // Primary navigation is unchanged: no new NavMenu entry for word details
+        var navMenu = LoadUi("NavMenu.razor");
+        Assert.IsFalse(navMenu.Contains("dictionary", StringComparison.OrdinalIgnoreCase), "NavMenu must not gain a dictionary or detail entry.");
+    }
+
+    [TestMethod]
+    public void VocabularyWordDetail_DeclaresLoadingMissingInvalidFailureRetryAndReturnStates()
+    {
+        var markup = LoadUi("VocabularyWordDetail.razor");
+
+        // Accessible return link to the Vocabulary overview without inventing search-state restoration
+        Assert.Contains("id=\"vocabulary-detail-back\"", markup);
+        Assert.Contains("href=\"dictionary\"", markup);
+        Assert.Contains("VocabularyDetail_BackToVocabulary", markup);
+        Assert.DoesNotContain("_queryInput", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("_cursorHistory", markup, StringComparison.Ordinal);
+
+        // Loading announcement
+        Assert.Contains("VocabularyWordDetailViewState.Loading", markup);
+        Assert.Contains("id=\"vocabulary-detail-loading\"", markup);
+        Assert.Contains("role=\"status\" aria-live=\"polite\"", markup);
+        Assert.Contains("VocabularyDetail_Loading", markup);
+
+        // Missing and invalid Word states are distinct
+        Assert.Contains("VocabularyWordDetailViewState.NotFound", markup);
+        Assert.Contains("VocabularyDetail_NotFoundTitle", markup);
+        Assert.Contains("VocabularyDetail_NotFoundMessage", markup);
+        Assert.Contains("VocabularyWordDetailViewState.InvalidWordId", markup);
+        Assert.Contains("VocabularyDetail_InvalidTitle", markup);
+        Assert.Contains("VocabularyDetail_InvalidMessage", markup);
+
+        // Safe failure text with retry affordance
+        Assert.Contains("VocabularyWordDetailViewState.Failed", markup);
+        Assert.Contains("id=\"vocabulary-detail-error\"", markup);
+        Assert.Contains("role=\"alert\"", markup);
+        Assert.Contains("VocabularyDetail_LoadError", markup);
+        Assert.Contains("id=\"vocabulary-detail-retry\"", markup);
+        Assert.Contains("@onclick=\"RetryAsync\"", markup);
+        Assert.Contains("Common_Retry", markup);
+        Assert.Contains("_loader.LoadAsync(WordId)", ExtractMethodBody(markup, "private async Task RetryAsync()"));
+        Assert.DoesNotContain(".Message", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("StackTrace", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToString()", markup, StringComparison.Ordinal);
+
+        // Loaded state, busy semantics and read-only notice
+        Assert.Contains("VocabularyWordDetailViewState.Loaded", markup);
+        Assert.Contains("aria-busy=\"@_loader.IsLoading\"", markup);
+        Assert.Contains("VocabularyDetail_ReadOnlyNotice", markup);
+    }
+
+    [TestMethod]
+    public void VocabularyWordDetail_PresentsPersistedHierarchyPerTargetFsrsAndLimitedSections()
+    {
+        var markup = LoadUi("VocabularyWordDetail.razor");
+
+        // Word header and explicit word-level learning control
+        Assert.Contains("detail.CanonicalTerm", markup);
+        Assert.Contains("detail.SourceLanguage", markup);
+        Assert.Contains("detail.WordLearningControl", markup);
+        Assert.Contains("VocabularyDetail_WordControlTitle", markup);
+        Assert.Contains("VocabularyDetail_WordNoControl", markup);
+
+        // Semantic headings and lists for Senses -> Meanings / Contexts / Targets
+        Assert.Contains("<h2 id=\"vocabulary-detail-term\"", markup);
+        Assert.Contains("@foreach (var sense in detail.Senses)", markup);
+        Assert.Contains("@foreach (var meaning in sense.Meanings)", markup);
+        Assert.Contains("@foreach (var context in sense.ContextSnapshots)", markup);
+        Assert.Contains("@foreach (var target in sense.LearningTargets)", markup);
+        Assert.Contains("@foreach (var variant in target.AnswerVariants)", markup);
+        Assert.Contains("@foreach (var entry in target.ReviewHistory)", markup);
+        Assert.Contains("<h3", markup);
+        Assert.Contains("<h4", markup);
+        Assert.Contains("<ol class=\"vocabulary-detail-sense-list\"", markup);
+        Assert.Contains("sense.SenseLearningControl", markup);
+
+        // Meaning definitions and translations kept distinct with provenance
+        Assert.Contains("meaning.Definition", markup);
+        Assert.Contains("meaning.Translation", markup);
+        Assert.Contains("VocabularyDetail_NoDefinition", markup);
+        Assert.Contains("VocabularyDetail_NoTranslation", markup);
+        Assert.Contains("meaning.SourceProject", markup);
+        Assert.Contains("meaning.SourcePageTitle", markup);
+        Assert.Contains("meaning.Attribution", markup);
+        Assert.Contains("context.SourceDocumentTitle", markup);
+
+        // Target identity, independent per-target FSRS state, due and factual review history
+        Assert.Contains("VocabularyWordDetailPresentation.GetTargetKindKey(target.TargetKind)", markup);
+        Assert.Contains("target.FsrsState is { } fsrs", markup);
+        Assert.Contains("fsrs.DueAtUtc", markup);
+        Assert.Contains("fsrs.LastReviewedAtUtc", markup);
+        Assert.Contains("VocabularyDetail_NoFsrsState", markup);
+        Assert.Contains("VocabularyDetail_NoReviewHistory", markup);
+        Assert.Contains("<time datetime=", markup);
+
+        // Target badges report only Word/Sense learning controls, never active-learning admission
+        Assert.Contains("target.IsUnblockedByLearningControls", markup);
+        Assert.Contains("VocabularyDetail_TargetNoLearningControl", markup);
+        Assert.Contains("VocabularyDetail_TargetBlockedByWordControl", markup);
+        Assert.Contains("VocabularyDetail_TargetBlockedBySenseControl", markup);
+        Assert.DoesNotContain("IsEligibleForActiveLearning", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("VocabularyDetail_TargetEligible", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("VocabularyDetail_TargetSuppressed", markup, StringComparison.Ordinal);
+
+        // No Word-level or aggregated learning state is synthesized
+        Assert.DoesNotContain("detail.FsrsState", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("WordStatus", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Sum(", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Min(", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain(".Max(", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectMany", markup, StringComparison.Ordinal);
+
+        // Explicit empty states for every repeating section
+        Assert.Contains("VocabularyDetail_NoSenses", markup);
+        Assert.Contains("VocabularyDetail_NoMeanings", markup);
+        Assert.Contains("VocabularyDetail_NoContexts", markup);
+        Assert.Contains("VocabularyDetail_NoTargets", markup);
+        Assert.Contains("VocabularyDetail_NoAnswerVariants", markup);
+        Assert.Contains("VocabularyDetail_ValueNotRecorded", markup);
+
+        // Slice 1 HasMore flags drive limited-section notices
+        Assert.Contains("detail.HasMoreSenses", markup);
+        Assert.Contains("sense.HasMoreMeanings", markup);
+        Assert.Contains("sense.HasMoreContextSnapshots", markup);
+        Assert.Contains("sense.HasMoreLearningTargets", markup);
+        Assert.Contains("target.HasMoreAnswerVariants", markup);
+        Assert.Contains("target.HasMoreReviewHistory", markup);
+        Assert.Contains("detail.MaxItemsPerCollection", markup);
+        Assert.Contains("VocabularyDetail_LimitedNotice", markup);
+    }
+
+    [TestMethod]
+    public void VocabularyWordDetail_IsReadOnlyAndRendersPersistedTextSafely()
+    {
+        var markup = LoadUi("VocabularyWordDetail.razor");
+
+        // Exactly one actionable control: the retry button
+        Assert.AreEqual(1, CountOccurrences(markup, "<button"), "Only the retry button may be rendered.");
+        Assert.AreEqual(1, CountOccurrences(markup, "@onclick"));
+        Assert.DoesNotContain("<input", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("<select", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("<textarea", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("<form", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("EditForm", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("contenteditable", markup, StringComparison.OrdinalIgnoreCase);
+
+        // No write paths, learning-control actions or provider calls
+        Assert.DoesNotContain("Async(WordId, ", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("PreparationService", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("StudyWorkflow", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Lexical", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("HttpClient", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("IJSRuntime", markup, StringComparison.Ordinal);
+
+        // Persisted provider text is rendered as encoded text and never as raw HTML or live links
+        Assert.DoesNotContain("MarkupString", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("target=\"_blank\"", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"@meaning", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"@context", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("src=\"@", markup, StringComparison.Ordinal);
+        Assert.AreEqual(1, CountOccurrences(markup, "href="), "Only the static return link may be rendered.");
+        Assert.Contains("VocabularyWordDetailPresentation.TrySplitContext(context)", markup);
+        Assert.Contains("<mark", markup);
+    }
+
+    [TestMethod]
+    public void VocabularyWordDetail_ScopedCssWrapsToNarrowViewportsAndShowsFocus()
+    {
+        var styles = LoadUi("VocabularyWordDetail.razor.css");
+
+        Assert.AreEqual(CountOccurrences(styles, "{"), CountOccurrences(styles, "}"));
+        Assert.Contains(".vocabulary-detail-page", styles);
+        Assert.Contains(".vocabulary-detail-back-link", styles);
+        Assert.Contains(".vocabulary-detail-back-link:focus-visible", styles);
+        Assert.Contains("min-width: 0;", styles);
+        Assert.Contains("overflow-wrap: anywhere;", styles);
+        Assert.Contains("@media (max-width: 520px)", styles);
+        Assert.Contains("@media (max-width: 320px)", styles);
+        Assert.DoesNotContain("display: none", styles, StringComparison.Ordinal);
+    }
+
     private static string ExtractCssRule(string styles, string selector)
     {
         var start = styles.IndexOf(selector, StringComparison.Ordinal);

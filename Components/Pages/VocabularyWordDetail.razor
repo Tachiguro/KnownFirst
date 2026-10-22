@@ -1,0 +1,525 @@
+@page "/dictionary/{WordId:int}"
+@implements IDisposable
+@inject IVocabularyDetailService VocabularyDetailService
+@inject ILogger<VocabularyWordDetail> Logger
+
+<PageTitle>@Localizer["VocabularyDetail_PageTitle"]</PageTitle>
+
+<section class="vocabulary-detail-page" aria-busy="@_loader.IsLoading">
+    <PageHeader Title="@(Localizer["Navigation_Dictionary"])" />
+
+    <nav class="vocabulary-detail-nav" aria-label="@(Localizer["VocabularyDetail_BackToVocabulary"])">
+        <a id="vocabulary-detail-back" class="vocabulary-detail-back-link" href="dictionary">
+            <span aria-hidden="true">&#8592;</span>
+            <span>@Localizer["VocabularyDetail_BackToVocabulary"]</span>
+        </a>
+    </nav>
+
+    <p class="vocabulary-detail-notice">@Localizer["VocabularyDetail_ReadOnlyNotice"]</p>
+
+    @switch (_loader.State)
+    {
+        case VocabularyWordDetailViewState.Loading:
+            <p id="vocabulary-detail-loading" class="loading-message" role="status" aria-live="polite">@Localizer["VocabularyDetail_Loading"]</p>
+            break;
+
+        case VocabularyWordDetailViewState.Failed:
+            <div id="vocabulary-detail-error" class="inline-message inline-message-error" role="alert">
+                <span>@Localizer["VocabularyDetail_LoadError"]</span>
+                <button id="vocabulary-detail-retry"
+                        type="button"
+                        class="button button-secondary"
+                        disabled="@_loader.IsLoading"
+                        @onclick="RetryAsync">
+                    @Localizer["Common_Retry"]
+                </button>
+            </div>
+            break;
+
+        case VocabularyWordDetailViewState.NotFound:
+            <section class="vocabulary-detail-card vocabulary-detail-state-card" role="status" aria-labelledby="vocabulary-detail-missing-title">
+                <h2 id="vocabulary-detail-missing-title">@Localizer["VocabularyDetail_NotFoundTitle"]</h2>
+                <p>@Localizer["VocabularyDetail_NotFoundMessage"]</p>
+            </section>
+            break;
+
+        case VocabularyWordDetailViewState.InvalidWordId:
+            <section class="vocabulary-detail-card vocabulary-detail-state-card" role="status" aria-labelledby="vocabulary-detail-invalid-title">
+                <h2 id="vocabulary-detail-invalid-title">@Localizer["VocabularyDetail_InvalidTitle"]</h2>
+                <p>@Localizer["VocabularyDetail_InvalidMessage"]</p>
+            </section>
+            break;
+
+        case VocabularyWordDetailViewState.Loaded when _loader.Detail is { } detail:
+            <article class="vocabulary-detail-card" aria-labelledby="vocabulary-detail-term" data-word-id="@detail.WordId">
+                <header class="vocabulary-detail-word-header">
+                    <h2 id="vocabulary-detail-term" class="vocabulary-detail-term" lang="@detail.SourceLanguage">@detail.CanonicalTerm</h2>
+                    <span class="vocabulary-detail-tag">@detail.SourceLanguage.ToUpperInvariant()</span>
+                </header>
+
+                <dl class="vocabulary-detail-facts">
+                    <div>
+                        <dt>@Localizer["VocabularyDetail_SourceLanguage"]</dt>
+                        <dd>@detail.SourceLanguage.ToUpperInvariant()</dd>
+                    </div>
+                    <div>
+                        <dt>@Localizer["VocabularyDetail_TokenKind"]</dt>
+                        <dd>@Localizer[VocabularyWordDetailPresentation.GetTokenKindKey(detail.TokenKind)]</dd>
+                    </div>
+                    <div>
+                        <dt>@Localizer["VocabularyDetail_Occurrences"]</dt>
+                        <dd>@detail.TotalOccurrenceCount</dd>
+                    </div>
+                    <div>
+                        <dt>@Localizer["VocabularyDetail_Documents"]</dt>
+                        <dd>@detail.DocumentCount</dd>
+                    </div>
+                    <div>
+                        <dt>@Localizer["VocabularyDetail_CreatedAt"]</dt>
+                        <dd>@RenderTimestamp(detail.CreatedAtUtc)</dd>
+                    </div>
+                    <div>
+                        <dt>@Localizer["VocabularyDetail_UpdatedAt"]</dt>
+                        <dd>@RenderTimestamp(detail.UpdatedAtUtc)</dd>
+                    </div>
+                </dl>
+
+                <section class="vocabulary-detail-section" aria-labelledby="vocabulary-detail-word-control-title">
+                    <h3 id="vocabulary-detail-word-control-title">@Localizer["VocabularyDetail_WordControlTitle"]</h3>
+                    @if (detail.WordLearningControl is { } wordControl)
+                    {
+                        <p>@Localizer["VocabularyDetail_WordMarkedAlreadyKnown"] @RenderTimestamp(wordControl.DecidedAtUtc)</p>
+                    }
+                    else
+                    {
+                        <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_WordNoControl"]</p>
+                    }
+                </section>
+
+                <section class="vocabulary-detail-section" aria-labelledby="vocabulary-detail-senses-title">
+                    <h3 id="vocabulary-detail-senses-title">@Localizer["VocabularyDetail_SensesTitle"]</h3>
+                    @if (detail.Senses.Count == 0)
+                    {
+                        <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoSenses"]</p>
+                    }
+                    else
+                    {
+                        var senseNumber = 0;
+                        <ol class="vocabulary-detail-sense-list">
+                            @foreach (var sense in detail.Senses)
+                            {
+                                senseNumber++;
+                                <li class="vocabulary-detail-sense" @key="sense.SenseId" data-sense-id="@sense.SenseId">
+                                    <h4 id="@($"vocabulary-detail-sense-{sense.SenseId}")">@Localizer["VocabularyDetail_SenseHeading", senseNumber]</h4>
+
+                                    @if (HasSenseMetadata(sense))
+                                    {
+                                        <dl class="vocabulary-detail-facts">
+                                            @if (VocabularyWordDetailPresentation.HasText(sense.PartOfSpeech))
+                                            {
+                                                <div><dt>@Localizer["VocabularyDetail_PartOfSpeech"]</dt><dd>@sense.PartOfSpeech</dd></div>
+                                            }
+                                            @if (VocabularyWordDetailPresentation.HasText(sense.TopicOrDomain))
+                                            {
+                                                <div><dt>@Localizer["VocabularyDetail_TopicOrDomain"]</dt><dd>@sense.TopicOrDomain</dd></div>
+                                            }
+                                            @if (VocabularyWordDetailPresentation.HasText(sense.GrammaticalRelationship))
+                                            {
+                                                <div><dt>@Localizer["VocabularyDetail_Grammar"]</dt><dd>@sense.GrammaticalRelationship</dd></div>
+                                            }
+                                            @if (VocabularyWordDetailPresentation.HasText(sense.AcronymExpansion))
+                                            {
+                                                <div><dt>@Localizer["VocabularyDetail_AcronymExpansion"]</dt><dd>@sense.AcronymExpansion</dd></div>
+                                            }
+                                            @if (VocabularyWordDetailPresentation.HasText(sense.ExplanationLanguage))
+                                            {
+                                                <div><dt>@Localizer["VocabularyDetail_ExplanationLanguage"]</dt><dd>@sense.ExplanationLanguage.ToUpperInvariant()</dd></div>
+                                            }
+                                        </dl>
+                                    }
+
+                                    <section class="vocabulary-detail-subsection" aria-labelledby="@($"vocabulary-detail-sense-control-{sense.SenseId}")">
+                                        <h5 id="@($"vocabulary-detail-sense-control-{sense.SenseId}")">@Localizer["VocabularyDetail_SenseControlTitle"]</h5>
+                                        @if (sense.SenseLearningControl is { } senseControl)
+                                        {
+                                            <p>@Localizer["VocabularyDetail_SenseStopped"] @RenderTimestamp(senseControl.DecidedAtUtc)</p>
+                                        }
+                                        else
+                                        {
+                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_SenseNoControl"]</p>
+                                        }
+                                    </section>
+
+                                    <section class="vocabulary-detail-subsection" aria-labelledby="@($"vocabulary-detail-meanings-{sense.SenseId}")">
+                                        <h5 id="@($"vocabulary-detail-meanings-{sense.SenseId}")">@Localizer["VocabularyDetail_MeaningsTitle"]</h5>
+                                        @if (sense.Meanings.Count == 0)
+                                        {
+                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoMeanings"]</p>
+                                        }
+                                        else
+                                        {
+                                            <ul class="vocabulary-detail-list">
+                                                @foreach (var meaning in sense.Meanings)
+                                                {
+                                                    <li class="vocabulary-detail-entry" @key="meaning.MeaningId" data-meaning-id="@meaning.MeaningId">
+                                                        @if (sense.DefaultMeaningId == meaning.MeaningId || meaning.ConfirmedByUser)
+                                                        {
+                                                            <p class="vocabulary-detail-badges">
+                                                                @if (sense.DefaultMeaningId == meaning.MeaningId)
+                                                                {
+                                                                    <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_DefaultMeaning"]</span>
+                                                                }
+                                                                @if (meaning.ConfirmedByUser)
+                                                                {
+                                                                    <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_ConfirmedByUser"]</span>
+                                                                }
+                                                            </p>
+                                                        }
+                                                        <dl class="vocabulary-detail-facts">
+                                                            <div>
+                                                                <dt>@Localizer["VocabularyDetail_Definition"]</dt>
+                                                                @if (VocabularyWordDetailPresentation.HasText(meaning.Definition))
+                                                                {
+                                                                    <dd>@meaning.Definition</dd>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <dd class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoDefinition"]</dd>
+                                                                }
+                                                            </div>
+                                                            <div>
+                                                                <dt>@Localizer["VocabularyDetail_Translation"]</dt>
+                                                                @if (VocabularyWordDetailPresentation.HasText(meaning.Translation))
+                                                                {
+                                                                    <dd>@meaning.Translation</dd>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <dd class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoTranslation"]</dd>
+                                                                }
+                                                            </div>
+                                                            @if (VocabularyWordDetailPresentation.HasText(meaning.DictionaryExample))
+                                                            {
+                                                                <div><dt>@Localizer["VocabularyDetail_DictionaryExample"]</dt><dd>@meaning.DictionaryExample</dd></div>
+                                                            }
+                                                            @if (VocabularyWordDetailPresentation.HasText(meaning.AdditionalNote))
+                                                            {
+                                                                <div><dt>@Localizer["VocabularyDetail_AdditionalNote"]</dt><dd>@meaning.AdditionalNote</dd></div>
+                                                            }
+                                                            @if (meaning.AcceptedAliases.Count > 0)
+                                                            {
+                                                                <div><dt>@Localizer["VocabularyDetail_AcceptedAliases"]</dt><dd>@string.Join(", ", meaning.AcceptedAliases)</dd></div>
+                                                            }
+                                                            <div>
+                                                                <dt>@Localizer["VocabularyDetail_PreparedAt"]</dt>
+                                                                <dd>@RenderTimestamp(meaning.PreparedAtUtc)</dd>
+                                                            </div>
+                                                        </dl>
+
+                                                        <p class="vocabulary-detail-label">@Localizer["VocabularyDetail_ProvenanceTitle"]</p>
+                                                        @if (HasProvenance(meaning))
+                                                        {
+                                                            <dl class="vocabulary-detail-facts vocabulary-detail-provenance">
+                                                                @if (VocabularyWordDetailPresentation.HasText(meaning.Source))
+                                                                {
+                                                                    <div><dt>@Localizer["VocabularyDetail_Source"]</dt><dd>@meaning.Source</dd></div>
+                                                                }
+                                                                @if (VocabularyWordDetailPresentation.HasText(meaning.SourceProject))
+                                                                {
+                                                                    <div><dt>@Localizer["VocabularyDetail_SourceProject"]</dt><dd>@meaning.SourceProject</dd></div>
+                                                                }
+                                                                @if (VocabularyWordDetailPresentation.HasText(meaning.SourcePageTitle))
+                                                                {
+                                                                    <div><dt>@Localizer["VocabularyDetail_SourcePageTitle"]</dt><dd>@meaning.SourcePageTitle</dd></div>
+                                                                }
+                                                                @if (meaning.SourceRevisionId is { } revisionId)
+                                                                {
+                                                                    <div><dt>@Localizer["VocabularyDetail_SourceRevision"]</dt><dd>@revisionId</dd></div>
+                                                                }
+                                                                @if (VocabularyWordDetailPresentation.HasText(meaning.Attribution))
+                                                                {
+                                                                    <div><dt>@Localizer["VocabularyDetail_Attribution"]</dt><dd>@meaning.Attribution</dd></div>
+                                                                }
+                                                            </dl>
+                                                        }
+                                                        else
+                                                        {
+                                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoProvenance"]</p>
+                                                        }
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                        @if (sense.HasMoreMeanings)
+                                        {
+                                            @RenderLimitedNotice(detail.MaxItemsPerCollection)
+                                        }
+                                    </section>
+
+                                    <section class="vocabulary-detail-subsection" aria-labelledby="@($"vocabulary-detail-contexts-{sense.SenseId}")">
+                                        <h5 id="@($"vocabulary-detail-contexts-{sense.SenseId}")">@Localizer["VocabularyDetail_ContextsTitle"]</h5>
+                                        @if (sense.ContextSnapshots.Count == 0)
+                                        {
+                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoContexts"]</p>
+                                        }
+                                        else
+                                        {
+                                            <ul class="vocabulary-detail-list">
+                                                @foreach (var context in sense.ContextSnapshots)
+                                                {
+                                                    <li class="vocabulary-detail-entry" @key="context.ContextSnapshotId">
+                                                        <blockquote class="vocabulary-detail-context" lang="@sense.SourceLanguage">
+                                                            @if (VocabularyWordDetailPresentation.TrySplitContext(context) is { } segments)
+                                                            {
+                                                                @(segments.Before)<mark>@(segments.Target)</mark>@(segments.After)
+                                                            }
+                                                            else
+                                                            {
+                                                                @context.Text
+                                                            }
+                                                        </blockquote>
+                                                        <dl class="vocabulary-detail-facts">
+                                                            <div>
+                                                                <dt>@Localizer["VocabularyDetail_ContextSourceDocument"]</dt>
+                                                                @if (VocabularyWordDetailPresentation.HasText(context.SourceDocumentTitle))
+                                                                {
+                                                                    <dd>@context.SourceDocumentTitle</dd>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <dd class="vocabulary-detail-muted">@Localizer["VocabularyDetail_ValueNotRecorded"]</dd>
+                                                                }
+                                                            </div>
+                                                            <div>
+                                                                <dt>@Localizer["VocabularyDetail_CreatedAt"]</dt>
+                                                                <dd>@RenderTimestamp(context.CreatedAtUtc)</dd>
+                                                            </div>
+                                                        </dl>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                        @if (sense.HasMoreContextSnapshots)
+                                        {
+                                            @RenderLimitedNotice(detail.MaxItemsPerCollection)
+                                        }
+                                    </section>
+
+                                    <section class="vocabulary-detail-subsection" aria-labelledby="@($"vocabulary-detail-targets-{sense.SenseId}")">
+                                        <h5 id="@($"vocabulary-detail-targets-{sense.SenseId}")">@Localizer["VocabularyDetail_TargetsTitle"]</h5>
+                                        @if (sense.LearningTargets.Count == 0)
+                                        {
+                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoTargets"]</p>
+                                        }
+                                        else
+                                        {
+                                            <ul class="vocabulary-detail-list">
+                                                @foreach (var target in sense.LearningTargets)
+                                                {
+                                                    <li class="vocabulary-detail-entry vocabulary-detail-target" @key="target.TargetId" data-target-id="@target.TargetId">
+                                                        <h6 id="@($"vocabulary-detail-target-{target.TargetId}")">@Localizer[VocabularyWordDetailPresentation.GetTargetKindKey(target.TargetKind)]</h6>
+                                                        <p class="vocabulary-detail-badges">
+                                                            <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetLanguages", target.SourceLanguage.ToUpperInvariant(), target.TargetLanguage.ToUpperInvariant()]</span>
+                                                            @if (target.IsUnblockedByLearningControls)
+                                                            {
+                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetNoLearningControl"]</span>
+                                                            }
+                                                            @if (detail.WordLearningControl is not null)
+                                                            {
+                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetBlockedByWordControl"]</span>
+                                                            }
+                                                            @if (sense.SenseLearningControl is not null)
+                                                            {
+                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetBlockedBySenseControl"]</span>
+                                                            }
+                                                            @if (target.TypingOptOut)
+                                                            {
+                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TypingOptOut"]</span>
+                                                            }
+                                                        </p>
+
+                                                        <p class="vocabulary-detail-label">@Localizer["VocabularyDetail_FsrsTitle"]</p>
+                                                        @if (target.FsrsState is { } fsrs)
+                                                        {
+                                                            <dl class="vocabulary-detail-facts">
+                                                                <div>
+                                                                    <dt>@Localizer["VocabularyDetail_CardState"]</dt>
+                                                                    <dd>@Localizer[VocabularyWordDetailPresentation.GetCardStateKey(fsrs.State)]</dd>
+                                                                </div>
+                                                                <div>
+                                                                    <dt>@Localizer["VocabularyDetail_Due"]</dt>
+                                                                    <dd>@RenderOptionalTimestamp(fsrs.DueAtUtc)</dd>
+                                                                </div>
+                                                                <div>
+                                                                    <dt>@Localizer["VocabularyDetail_LastReviewed"]</dt>
+                                                                    <dd>@RenderOptionalTimestamp(fsrs.LastReviewedAtUtc)</dd>
+                                                                </div>
+                                                                <div>
+                                                                    <dt>@Localizer["VocabularyDetail_Stability"]</dt>
+                                                                    <dd>@RenderOptionalNumber(fsrs.Stability)</dd>
+                                                                </div>
+                                                                <div>
+                                                                    <dt>@Localizer["VocabularyDetail_Difficulty"]</dt>
+                                                                    <dd>@RenderOptionalNumber(fsrs.Difficulty)</dd>
+                                                                </div>
+                                                                <div>
+                                                                    <dt>@Localizer["VocabularyDetail_LearningStep"]</dt>
+                                                                    <dd>@RenderOptionalNumber(fsrs.StepIndex)</dd>
+                                                                </div>
+                                                            </dl>
+                                                        }
+                                                        else
+                                                        {
+                                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoFsrsState"]</p>
+                                                        }
+
+                                                        <p class="vocabulary-detail-label" id="@($"vocabulary-detail-variants-{target.TargetId}")">@Localizer["VocabularyDetail_AnswerVariantsTitle"]</p>
+                                                        @if (target.AnswerVariants.Count == 0)
+                                                        {
+                                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoAnswerVariants"]</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <ul class="vocabulary-detail-inline-list" aria-labelledby="@($"vocabulary-detail-variants-{target.TargetId}")">
+                                                                @foreach (var variant in target.AnswerVariants)
+                                                                {
+                                                                    <li @key="variant.VariantId">
+                                                                        <span class="vocabulary-detail-answer" lang="@variant.AnswerLanguage">@variant.DisplayText</span>
+                                                                        <span class="vocabulary-detail-tag">@Localizer[VocabularyWordDetailPresentation.GetRequirementKey(variant.Requirement)]</span>
+                                                                        @if (variant.IsPreferred)
+                                                                        {
+                                                                            <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_VariantPreferred"]</span>
+                                                                        }
+                                                                    </li>
+                                                                }
+                                                            </ul>
+                                                        }
+                                                        @if (target.HasMoreAnswerVariants)
+                                                        {
+                                                            @RenderLimitedNotice(detail.MaxItemsPerCollection)
+                                                        }
+
+                                                        <p class="vocabulary-detail-label" id="@($"vocabulary-detail-history-{target.TargetId}")">@Localizer["VocabularyDetail_ReviewHistoryTitle"]</p>
+                                                        @if (target.ReviewHistory.Count == 0)
+                                                        {
+                                                            <p class="vocabulary-detail-muted">@Localizer["VocabularyDetail_NoReviewHistory"]</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <ol class="vocabulary-detail-history" aria-labelledby="@($"vocabulary-detail-history-{target.TargetId}")">
+                                                                @foreach (var entry in target.ReviewHistory)
+                                                                {
+                                                                    <li @key="entry.EntryId">
+                                                                        <span>@Localizer["VocabularyDetail_ReviewEntry", entry.SequenceNumber]</span>
+                                                                        <span class="vocabulary-detail-tag">@Localizer[VocabularyWordDetailPresentation.GetRatingKey(entry.Rating)]</span>
+                                                                        @RenderTimestamp(entry.ReviewedAtUtc)
+                                                                    </li>
+                                                                }
+                                                            </ol>
+                                                        }
+                                                        @if (target.HasMoreReviewHistory)
+                                                        {
+                                                            @RenderLimitedNotice(detail.MaxItemsPerCollection)
+                                                        }
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                        @if (sense.HasMoreLearningTargets)
+                                        {
+                                            @RenderLimitedNotice(detail.MaxItemsPerCollection)
+                                        }
+                                    </section>
+                                </li>
+                            }
+                        </ol>
+                    }
+                    @if (detail.HasMoreSenses)
+                    {
+                        @RenderLimitedNotice(detail.MaxItemsPerCollection)
+                    }
+                </section>
+            </article>
+            break;
+    }
+</section>
+
+@code {
+    private VocabularyWordDetailLoader _loader = null!;
+    private int? _requestedWordId;
+
+    [Parameter]
+    public int WordId { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _loader = new VocabularyWordDetailLoader(VocabularyDetailService, Logger);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_requestedWordId == WordId)
+        {
+            return;
+        }
+
+        _requestedWordId = WordId;
+        await _loader.LoadAsync(WordId);
+    }
+
+    private async Task RetryAsync()
+    {
+        if (_loader.IsLoading)
+        {
+            return;
+        }
+
+        await _loader.LoadAsync(WordId);
+    }
+
+    public void Dispose()
+    {
+        _loader.Dispose();
+    }
+
+    private static bool HasSenseMetadata(VocabularySenseDetail sense) =>
+        VocabularyWordDetailPresentation.HasText(sense.PartOfSpeech)
+        || VocabularyWordDetailPresentation.HasText(sense.TopicOrDomain)
+        || VocabularyWordDetailPresentation.HasText(sense.GrammaticalRelationship)
+        || VocabularyWordDetailPresentation.HasText(sense.AcronymExpansion)
+        || VocabularyWordDetailPresentation.HasText(sense.ExplanationLanguage);
+
+    private static bool HasProvenance(VocabularyMeaningDetail meaning) =>
+        meaning.HasProviderAttribution
+        || VocabularyWordDetailPresentation.HasText(meaning.SourcePageTitle)
+        || meaning.SourceRevisionId is not null;
+
+    private RenderFragment RenderTimestamp(DateTimeOffset value) =>
+        @<time datetime="@VocabularyWordDetailPresentation.ToMachineTimestamp(value)">@VocabularyWordDetailPresentation.ToDisplayTimestamp(value)</time>;
+
+    private RenderFragment RenderOptionalTimestamp(DateTimeOffset? value)
+    {
+        if (value is { } timestamp)
+        {
+            return RenderTimestamp(timestamp);
+        }
+
+        return RenderNotRecorded();
+    }
+
+    private RenderFragment RenderOptionalNumber(double? value)
+    {
+        if (value is { } number)
+        {
+            return @<span>@VocabularyWordDetailPresentation.FormatNumber(number)</span>;
+        }
+
+        return RenderNotRecorded();
+    }
+
+    private RenderFragment RenderNotRecorded() =>
+        @<span class="vocabulary-detail-muted">@Localizer["VocabularyDetail_ValueNotRecorded"]</span>;
+
+    private RenderFragment RenderLimitedNotice(int maxItems) =>
+        @<p class="vocabulary-detail-limited" role="note">@Localizer["VocabularyDetail_LimitedNotice", maxItems]</p>;
+}

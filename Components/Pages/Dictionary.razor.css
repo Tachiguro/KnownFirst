@@ -156,6 +156,27 @@
     word-break: break-word;
 }
 
+.vocabulary-item-link {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    min-height: 2.75rem;
+    border-radius: 0.35rem;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--color-border-strong);
+    text-underline-offset: 0.2em;
+}
+
+.vocabulary-item-link:hover {
+    text-decoration-color: currentColor;
+}
+
+.vocabulary-item-link:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+}
+
 .vocabulary-item-meta {
     display: flex;
     flex-wrap: wrap;

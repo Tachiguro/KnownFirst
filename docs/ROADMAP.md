@@ -79,14 +79,14 @@ The following initiatives represent accepted product directions whose individual
 - **Dependency Sequence:** Documentation/backlog reconciliation → explicit product decisions (`KF-LEARN-005`, `KF-METRIC-001`, `KF-LEARN-010`, `KF-PREP-003`) → intended product implementation → consolidated review/refactoring (`KF-ARCH-001`) → later GUI/release/package/distribution work.
 
 ### 2. Vocabulary Management Area
-- **Objective:** Replace the `/dictionary` placeholder card (`KF-VOCAB-001`) with a real, production-grade Vocabulary area. The initial read-only recent-overview foundation (`KF-VOCAB-001`, [GitHub Issue #217](https://github.com/Tachiguro/KnownFirst/issues/217), PR #218) is merged to `master` (merge commit `e40e271346e951ed4878eda5ff717f2ad8d56ee1`). The indexed prefix-search package (`KF-VOCAB-002`, [GitHub Issue #219](https://github.com/Tachiguro/KnownFirst/issues/219)) is currently in progress: its three implementation checkpoints are committed on a local, unpublished feature branch and independently review-approved, but it is not yet validated, pushed, merged, or released. The broader Vocabulary initiative remains open for detail, editing, and status management.
-- **Open Packages:**
-  - `KF-VOCAB-002`: Scalable database-backed, normalization-aware, paginated search. *Status: In progress (Issue #219); reviewed local candidate, not yet merged or released.*
-  - `KF-VOCAB-003`: Vocabulary detail view for senses, definitions, contexts, and learning history.
-  - `KF-VOCAB-004`: Post-acceptance correction/editing of definitions, translations, and answer variants.
-  - `KF-PREP-002`: Re-preparation / fresh lexical lookup for existing vocabulary.
-  - `KF-VOCAB-005`: AlreadyKnown reversal user-facing/service workflow; Schema-13 persistence foundation already exists ("learn this after all").
-  - `KF-VOCAB-006`: Sense-level Stop Learning / Resume Learning user-facing/service workflow; Schema-13 persistence foundation already exists.
+- **Objective:** Replace the `/dictionary` placeholder card (`KF-VOCAB-001`) with a real, production-grade Vocabulary area. The initial read-only recent-overview foundation (`KF-VOCAB-001`, PR #218) and indexed prefix-search capability (`KF-VOCAB-002`, [GitHub Issue #219](https://github.com/Tachiguro/KnownFirst/issues/219)) are merged to `master` (`KF-VOCAB-001` merge commit `e40e271346e951ed4878eda5ff717f2ad8d56ee1`). The vocabulary word detail package (`KF-VOCAB-003`, [GitHub Issue #221](https://github.com/Tachiguro/KnownFirst/issues/221)) is in progress as a reviewed local candidate across three checkpoints on an unpublished local branch, but is not yet validated, pushed, merged, or released. The broader Vocabulary initiative remains open for editing, re-preparation, reversal, and Sense control workflows.
+- **Packages:**
+  - `KF-VOCAB-002`: Scalable database-backed, normalization-aware, paginated search. *Status: Merged on master (Issue #219).*
+  - `KF-VOCAB-003`: Vocabulary detail view for senses, definitions, contexts, learning controls, and learning history. *Status: In progress (Issue #221); reviewed local candidate, not yet merged or released.*
+  - `KF-VOCAB-004`: Post-acceptance correction/editing of definitions, translations, and answer variants. *Status: Open.*
+  - `KF-PREP-002`: Re-preparation / fresh lexical lookup for existing vocabulary. *Status: Open.*
+  - `KF-VOCAB-005`: AlreadyKnown reversal user-facing/service workflow; Schema-13 persistence foundation already exists ("learn this after all"). *Status: Open.*
+  - `KF-VOCAB-006`: Sense-level Stop Learning / Resume Learning user-facing/service workflow; Schema-13 persistence foundation already exists. *Status: Open.*
 
 ### 3. Learning Interaction & Direction UX
 - **Objective:** Align learning card presentation, targets, and progression with genuine direction and target semantics.

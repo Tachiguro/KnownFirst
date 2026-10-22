@@ -1970,7 +1970,7 @@
     <value>Завершить настройку</value>
   </data>
   <data name="Vocabulary_ScopeNotice" xml:space="preserve">
-    <value>Этот обзор в режиме чтения без активного поиска показывает до 30 недавно добавленных слов. Подробные сведения о словах и редактирование недоступны.</value>
+    <value>Этот обзор в режиме чтения без активного поиска показывает до 30 недавно добавленных слов. Выберите слово, чтобы просмотреть сохранённые сведения о нём. Редактирование недоступно.</value>
   </data>
   <data name="Vocabulary_Loading" xml:space="preserve">
     <value>Загрузка обзора словаря…</value>
@@ -2061,5 +2061,251 @@
   </data>
   <data name="Vocabulary_SearchInvalidPageSize" xml:space="preserve">
     <value>Запрошенный размер страницы недопустим.</value>
+  </data>
+  <data name="VocabularyDetail_PageTitle" xml:space="preserve">
+    <value>Сведения о слове</value>
+  </data>
+  <data name="VocabularyDetail_BackToVocabulary" xml:space="preserve">
+    <value>Назад к словарю</value>
+  </data>
+  <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
+    <value>Эта страница доступна только для чтения. Она показывает только сохранённые данные этого слова; здесь ничего нельзя изменить.</value>
+  </data>
+  <data name="VocabularyDetail_Loading" xml:space="preserve">
+    <value>Загрузка сведений о слове…</value>
+  </data>
+  <data name="VocabularyDetail_LoadError" xml:space="preserve">
+    <value>Не удалось загрузить сведения о слове.</value>
+  </data>
+  <data name="VocabularyDetail_NotFoundTitle" xml:space="preserve">
+    <value>Слово не найдено</value>
+  </data>
+  <data name="VocabularyDetail_NotFoundMessage" xml:space="preserve">
+    <value>Для этой ссылки нет сохранённого слова. Возможно, оно было удалено.</value>
+  </data>
+  <data name="VocabularyDetail_InvalidTitle" xml:space="preserve">
+    <value>Недействительная ссылка на слово</value>
+  </data>
+  <data name="VocabularyDetail_InvalidMessage" xml:space="preserve">
+    <value>Эта ссылка не указывает на допустимое слово.</value>
+  </data>
+  <data name="VocabularyDetail_LimitedNotice" xml:space="preserve">
+    <value>Показаны только первые {0} записей этого списка.</value>
+  </data>
+  <data name="VocabularyDetail_ValueNotRecorded" xml:space="preserve">
+    <value>Не записано</value>
+  </data>
+  <data name="VocabularyDetail_SourceLanguage" xml:space="preserve">
+    <value>Исходный язык</value>
+  </data>
+  <data name="VocabularyDetail_TokenKind" xml:space="preserve">
+    <value>Тип</value>
+  </data>
+  <data name="VocabularyDetail_Occurrences" xml:space="preserve">
+    <value>Зафиксированные вхождения</value>
+  </data>
+  <data name="VocabularyDetail_Documents" xml:space="preserve">
+    <value>Тексты</value>
+  </data>
+  <data name="VocabularyDetail_CreatedAt" xml:space="preserve">
+    <value>Записано</value>
+  </data>
+  <data name="VocabularyDetail_UpdatedAt" xml:space="preserve">
+    <value>Последнее обновление</value>
+  </data>
+  <data name="VocabularyDetail_WordControlTitle" xml:space="preserve">
+    <value>Управление изучением слова</value>
+  </data>
+  <data name="VocabularyDetail_WordMarkedAlreadyKnown" xml:space="preserve">
+    <value>Отмечено как уже известное. Записано:</value>
+  </data>
+  <data name="VocabularyDetail_WordNoControl" xml:space="preserve">
+    <value>Для слова не записано управление изучением.</value>
+  </data>
+  <data name="VocabularyDetail_SensesTitle" xml:space="preserve">
+    <value>Значения</value>
+  </data>
+  <data name="VocabularyDetail_SenseHeading" xml:space="preserve">
+    <value>Значение {0}</value>
+  </data>
+  <data name="VocabularyDetail_NoSenses" xml:space="preserve">
+    <value>Для этого слова ещё не подготовлены значения.</value>
+  </data>
+  <data name="VocabularyDetail_PartOfSpeech" xml:space="preserve">
+    <value>Часть речи</value>
+  </data>
+  <data name="VocabularyDetail_TopicOrDomain" xml:space="preserve">
+    <value>Тема или область</value>
+  </data>
+  <data name="VocabularyDetail_Grammar" xml:space="preserve">
+    <value>Грамматическая связь</value>
+  </data>
+  <data name="VocabularyDetail_AcronymExpansion" xml:space="preserve">
+    <value>Расшифровка аббревиатуры</value>
+  </data>
+  <data name="VocabularyDetail_ExplanationLanguage" xml:space="preserve">
+    <value>Язык объяснения</value>
+  </data>
+  <data name="VocabularyDetail_SenseControlTitle" xml:space="preserve">
+    <value>Управление изучением значения</value>
+  </data>
+  <data name="VocabularyDetail_SenseStopped" xml:space="preserve">
+    <value>Изучение этого значения остановлено. Записано:</value>
+  </data>
+  <data name="VocabularyDetail_SenseNoControl" xml:space="preserve">
+    <value>Для этого значения не записано управление изучением.</value>
+  </data>
+  <data name="VocabularyDetail_MeaningsTitle" xml:space="preserve">
+    <value>Толкования</value>
+  </data>
+  <data name="VocabularyDetail_NoMeanings" xml:space="preserve">
+    <value>Для этого значения не сохранены толкования.</value>
+  </data>
+  <data name="VocabularyDetail_DefaultMeaning" xml:space="preserve">
+    <value>Основное толкование</value>
+  </data>
+  <data name="VocabularyDetail_ConfirmedByUser" xml:space="preserve">
+    <value>Подтверждено вами</value>
+  </data>
+  <data name="VocabularyDetail_Definition" xml:space="preserve">
+    <value>Определение</value>
+  </data>
+  <data name="VocabularyDetail_NoDefinition" xml:space="preserve">
+    <value>Определение не сохранено.</value>
+  </data>
+  <data name="VocabularyDetail_Translation" xml:space="preserve">
+    <value>Перевод</value>
+  </data>
+  <data name="VocabularyDetail_NoTranslation" xml:space="preserve">
+    <value>Перевод не сохранён.</value>
+  </data>
+  <data name="VocabularyDetail_DictionaryExample" xml:space="preserve">
+    <value>Пример из словаря</value>
+  </data>
+  <data name="VocabularyDetail_AdditionalNote" xml:space="preserve">
+    <value>Примечание</value>
+  </data>
+  <data name="VocabularyDetail_AcceptedAliases" xml:space="preserve">
+    <value>Допустимые варианты</value>
+  </data>
+  <data name="VocabularyDetail_ProvenanceTitle" xml:space="preserve">
+    <value>Сведения об источнике</value>
+  </data>
+  <data name="VocabularyDetail_Source" xml:space="preserve">
+    <value>Источник</value>
+  </data>
+  <data name="VocabularyDetail_SourceProject" xml:space="preserve">
+    <value>Проект</value>
+  </data>
+  <data name="VocabularyDetail_SourcePageTitle" xml:space="preserve">
+    <value>Страница</value>
+  </data>
+  <data name="VocabularyDetail_SourceRevision" xml:space="preserve">
+    <value>Версия</value>
+  </data>
+  <data name="VocabularyDetail_Attribution" xml:space="preserve">
+    <value>Указание авторства</value>
+  </data>
+  <data name="VocabularyDetail_NoProvenance" xml:space="preserve">
+    <value>Сведения об источнике не сохранены.</value>
+  </data>
+  <data name="VocabularyDetail_PreparedAt" xml:space="preserve">
+    <value>Подготовлено</value>
+  </data>
+  <data name="VocabularyDetail_ContextsTitle" xml:space="preserve">
+    <value>Примеры контекста</value>
+  </data>
+  <data name="VocabularyDetail_NoContexts" xml:space="preserve">
+    <value>Для этого значения не сохранены примеры контекста.</value>
+  </data>
+  <data name="VocabularyDetail_ContextSourceDocument" xml:space="preserve">
+    <value>Импортированный текст</value>
+  </data>
+  <data name="VocabularyDetail_TargetsTitle" xml:space="preserve">
+    <value>Цели изучения</value>
+  </data>
+  <data name="VocabularyDetail_NoTargets" xml:space="preserve">
+    <value>Для этого значения нет целей изучения.</value>
+  </data>
+  <data name="VocabularyDetail_TargetKindDefinition" xml:space="preserve">
+    <value>Цель: определение</value>
+  </data>
+  <data name="VocabularyDetail_TargetKindTranslation" xml:space="preserve">
+    <value>Цель: перевод</value>
+  </data>
+  <data name="VocabularyDetail_TargetLanguages" xml:space="preserve">
+    <value>{0} → {1}</value>
+  </data>
+  <data name="VocabularyDetail_TypingOptOut" xml:space="preserve">
+    <value>Ввод ответа отключён</value>
+  </data>
+  <data name="VocabularyDetail_TargetNoLearningControl" xml:space="preserve">
+    <value>Управление изучением не применяется</value>
+  </data>
+  <data name="VocabularyDetail_TargetBlockedByWordControl" xml:space="preserve">
+    <value>Заблокировано: слово отмечено как уже известное</value>
+  </data>
+  <data name="VocabularyDetail_TargetBlockedBySenseControl" xml:space="preserve">
+    <value>Заблокировано: изучение этого значения остановлено</value>
+  </data>
+  <data name="VocabularyDetail_FsrsTitle" xml:space="preserve">
+    <value>Планирование (FSRS-6)</value>
+  </data>
+  <data name="VocabularyDetail_NoFsrsState" xml:space="preserve">
+    <value>Для этой цели ещё не сохранено состояние планирования.</value>
+  </data>
+  <data name="VocabularyDetail_CardState" xml:space="preserve">
+    <value>Состояние</value>
+  </data>
+  <data name="VocabularyDetail_CardStateNew" xml:space="preserve">
+    <value>Новое</value>
+  </data>
+  <data name="VocabularyDetail_CardStateLearning" xml:space="preserve">
+    <value>Изучение</value>
+  </data>
+  <data name="VocabularyDetail_CardStateReview" xml:space="preserve">
+    <value>Повторение</value>
+  </data>
+  <data name="VocabularyDetail_CardStateRelearning" xml:space="preserve">
+    <value>Повторное изучение</value>
+  </data>
+  <data name="VocabularyDetail_Due" xml:space="preserve">
+    <value>Срок</value>
+  </data>
+  <data name="VocabularyDetail_LastReviewed" xml:space="preserve">
+    <value>Последнее повторение</value>
+  </data>
+  <data name="VocabularyDetail_Stability" xml:space="preserve">
+    <value>Стабильность</value>
+  </data>
+  <data name="VocabularyDetail_Difficulty" xml:space="preserve">
+    <value>Сложность</value>
+  </data>
+  <data name="VocabularyDetail_LearningStep" xml:space="preserve">
+    <value>Шаг изучения</value>
+  </data>
+  <data name="VocabularyDetail_AnswerVariantsTitle" xml:space="preserve">
+    <value>Принимаемые ответы</value>
+  </data>
+  <data name="VocabularyDetail_NoAnswerVariants" xml:space="preserve">
+    <value>Для этой цели не сохранены ответы.</value>
+  </data>
+  <data name="VocabularyDetail_VariantRequired" xml:space="preserve">
+    <value>Обязательный</value>
+  </data>
+  <data name="VocabularyDetail_VariantAcceptedOnly" xml:space="preserve">
+    <value>Также принимается</value>
+  </data>
+  <data name="VocabularyDetail_VariantPreferred" xml:space="preserve">
+    <value>Предпочтительный</value>
+  </data>
+  <data name="VocabularyDetail_ReviewHistoryTitle" xml:space="preserve">
+    <value>История повторений</value>
+  </data>
+  <data name="VocabularyDetail_NoReviewHistory" xml:space="preserve">
+    <value>Для этой цели не записаны повторения.</value>
+  </data>
+  <data name="VocabularyDetail_ReviewEntry" xml:space="preserve">
+    <value>Повторение {0}</value>
   </data>
 </root>

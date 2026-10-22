@@ -87,6 +87,8 @@
     <None Include="..\scripts\gui-tests\windows\scenarios\PreparationInvalidContextRecovery.ps1" Link="Ui\PreparationInvalidContextRecovery.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Data\BackupSnapshotRepository.cs" Link="Ui\BackupSnapshotRepository.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Data\BackupImportRepository.cs" Link="Ui\BackupImportRepository.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\VocabularyWordDetail.razor" Link="Ui\VocabularyWordDetail.razor" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Components\Pages\VocabularyWordDetail.razor.css" Link="Ui\VocabularyWordDetail.razor.css" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -167,6 +169,7 @@
     <Compile Include="..\Components\Pages\LearningSummaryDueMonitor.cs" Link="Production\Components\Pages\LearningSummaryDueMonitor.cs" />
     <Compile Include="..\Components\Pages\VocabularyWordDetailLoader.cs" Link="Production\Components\Pages\VocabularyWordDetailLoader.cs" />
     <Compile Include="..\Components\Pages\VocabularyWordDetailPresentation.cs" Link="Production\Components\Pages\VocabularyWordDetailPresentation.cs" />
+    <Compile Include="..\Components\Pages\VocabularyWordDetailEquivalentAnswerCoordinator.cs" Link="Production\Components\Pages\VocabularyWordDetailEquivalentAnswerCoordinator.cs" />
   </ItemGroup>
 
   <ItemGroup>

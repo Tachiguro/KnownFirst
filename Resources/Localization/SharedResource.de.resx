@@ -2068,8 +2068,8 @@
   <data name="VocabularyDetail_BackToVocabulary" xml:space="preserve">
     <value>Zurück zum Wörterbuch</value>
   </data>
-  <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
-    <value>Diese Seite ist schreibgeschützt. Sie zeigt nur die für dieses Wort gespeicherten Daten; hier kann nichts geändert werden.</value>
+    <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
+    <value>Diese Seite zeigt die für dieses Wort gespeicherten Daten. Bestehende Einträge sind schreibgeschützt; gleichwertige akzeptierte Antworten können zu Lernzielen hinzugefügt werden.</value>
   </data>
   <data name="VocabularyDetail_Loading" xml:space="preserve">
     <value>Wortdetails werden geladen…</value>
@@ -2307,5 +2307,59 @@
   </data>
   <data name="VocabularyDetail_ReviewEntry" xml:space="preserve">
     <value>Wiederholung {0}</value>
+  </data>
+    <data name="VocabularyDetail_AddEquivalentAnswerTitle" xml:space="preserve">
+    <value>Gleichwertige Antwort hinzufügen</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerClarification" xml:space="preserve">
+    <value>Dies fügt eine zusätzliche akzeptierte Antwortvariante hinzu. Die erforderliche oder bevorzugte Antwort wird dadurch nicht ersetzt.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerLanguage" xml:space="preserve">
+    <value>Zielsprache: {0}</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerInputLabel" xml:space="preserve">
+    <value>Gleichwertige Antwort</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerInputPlaceholder" xml:space="preserve">
+    <value>Gleichwertige Antwort eingeben …</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSameMeaningConfirmation" xml:space="preserve">
+    <value>Ich bestätige, dass dieser Wortlaut dieselbe Bedeutung wie die bestehende Antwort hat.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSaveButton" xml:space="preserve">
+    <value>Gleichwertige Antwort speichern</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSaving" xml:space="preserve">
+    <value>Wird gespeichert …</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSuccess" xml:space="preserve">
+    <value>Gleichwertige Antwort erfolgreich hinzugefügt.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerDuplicate" xml:space="preserve">
+    <value>Dieses Lernziel enthält bereits diese gleichwertige Antwort.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerWorkflowBlocked" xml:space="preserve">
+    <value>Während einer aktiven Lerneinheit kann keine Antwort hinzugefügt werden. Bitte beende oder pausiere zuerst die Sitzung.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerEmpty" xml:space="preserve">
+    <value>Bitte gib einen Antworttext ein.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerTooLong" xml:space="preserve">
+    <value>Der Antworttext darf maximal 200 Zeichen lang sein.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerConfirmationRequired" xml:space="preserve">
+    <value>Bitte bestätige, dass der Wortlaut dieselbe Bedeutung hat.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerLanguageMismatch" xml:space="preserve">
+    <value>Die Antwortsprache stimmt nicht mit diesem Lernziel überein.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerFailure" xml:space="preserve">
+    <value>Beim Hinzufügen der gleichwertigen Antwort ist ein Fehler aufgetreten. Bitte versuche es erneut.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerTruncatedNotice" xml:space="preserve">
+    <value>Gleichwertige Antworten können nicht hinzugefügt werden, da die Antwortliste unvollständig angezeigt wird.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerUnavailableNotice" xml:space="preserve">
+    <value>Gleichwertige Antworten können nicht hinzugefügt werden, da die Lernzielangaben unvollständig sind.</value>
   </data>
 </root>

@@ -3684,10 +3684,10 @@ public sealed class UiWorkflowContractTests
     {
         var markup = LoadUi("VocabularyWordDetail.razor");
 
-        // Exactly one actionable control: the retry button
-        Assert.AreEqual(1, CountOccurrences(markup, "<button"), "Only the retry button may be rendered.");
-        Assert.AreEqual(1, CountOccurrences(markup, "@onclick"));
-        Assert.DoesNotContain("<input", markup, StringComparison.Ordinal);
+        // Actionable controls: retry button and equivalent-answer submit button
+        Assert.AreEqual(2, CountOccurrences(markup, "<button"), "Only the retry button and equivalent-answer submit button may be rendered.");
+        Assert.AreEqual(2, CountOccurrences(markup, "@onclick"));
+        Assert.AreEqual(2, CountOccurrences(markup, "<input"), "Only the equivalent answer text input and same-meaning confirmation checkbox may be rendered.");
         Assert.DoesNotContain("<select", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("<textarea", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("<form", markup, StringComparison.Ordinal);

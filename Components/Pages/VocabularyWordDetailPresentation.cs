@@ -13,7 +13,7 @@ namespace KnownFirst.Components.Pages;
 public readonly record struct VocabularyContextSegments(string Before, string Target, string After);
 
 /// <summary>
-/// Pure presentation helpers for the read-only Vocabulary Word Detail page.
+/// Pure presentation helpers for the Vocabulary Word Detail page.
 /// Maps persisted enum values to localization keys and formats persisted values without fabricating data.
 /// </summary>
 public static class VocabularyWordDetailPresentation
@@ -97,4 +97,22 @@ public static class VocabularyWordDetailPresentation
             text.Substring(start, length),
             text[(start + length)..]);
     }
+
+    public static string GetEquivalentAnswerStatusKey(AddAcceptedAnswerVariantStatus status) => status switch
+    {
+        AddAcceptedAnswerVariantStatus.Success => "VocabularyDetail_EquivalentAnswerSuccess",
+        AddAcceptedAnswerVariantStatus.DuplicateAnswer => "VocabularyDetail_EquivalentAnswerDuplicate",
+        AddAcceptedAnswerVariantStatus.BlockedByActiveWorkflow => "VocabularyDetail_EquivalentAnswerWorkflowBlocked",
+        AddAcceptedAnswerVariantStatus.EmptyAnswerText => "VocabularyDetail_EquivalentAnswerEmpty",
+        AddAcceptedAnswerVariantStatus.AnswerTextTooLong => "VocabularyDetail_EquivalentAnswerTooLong",
+        AddAcceptedAnswerVariantStatus.InvalidAnswerLanguage => "VocabularyDetail_EquivalentAnswerLanguageMismatch",
+        _ => "VocabularyDetail_EquivalentAnswerFailure"
+    };
+
+    public static string GetEligibilityNoticeKey(TargetEquivalentAnswerEligibility eligibility) => eligibility switch
+    {
+        TargetEquivalentAnswerEligibility.TruncatedVariants => "VocabularyDetail_EquivalentAnswerTruncatedNotice",
+        TargetEquivalentAnswerEligibility.IncompleteOrAmbiguous => "VocabularyDetail_EquivalentAnswerUnavailableNotice",
+        _ => string.Empty
+    };
 }

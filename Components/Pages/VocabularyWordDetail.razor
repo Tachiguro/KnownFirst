@@ -1,6 +1,7 @@
 @page "/dictionary/{WordId:int}"
 @implements IDisposable
 @inject IVocabularyDetailService VocabularyDetailService
+@inject IVocabularyCorrectionService VocabularyCorrectionService
 @inject ILogger<VocabularyWordDetail> Logger
 
 <PageTitle>@Localizer["VocabularyDetail_PageTitle"]</PageTitle>
@@ -399,6 +400,8 @@
                                                             @RenderLimitedNotice(detail.MaxItemsPerCollection)
                                                         }
 
+                                                        @RenderEquivalentAnswerSection(detail, sense, target)
+
                                                         <p class="vocabulary-detail-label" id="@($"vocabulary-detail-history-{target.TargetId}")">@Localizer["VocabularyDetail_ReviewHistoryTitle"]</p>
                                                         @if (target.ReviewHistory.Count == 0)
                                                         {
@@ -446,6 +449,7 @@
 
 @code {
     private VocabularyWordDetailLoader _loader = null!;
+    private VocabularyWordDetailEquivalentAnswerCoordinator _answerCoordinator = null!;
     private int? _requestedWordId;
 
     [Parameter]
@@ -454,6 +458,7 @@
     protected override void OnInitialized()
     {
         _loader = new VocabularyWordDetailLoader(VocabularyDetailService, Logger);
+        _answerCoordinator = new VocabularyWordDetailEquivalentAnswerCoordinator(VocabularyCorrectionService, _loader.LoadAsync, Logger);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -464,6 +469,7 @@
         }
 
         _requestedWordId = WordId;
+        _answerCoordinator.ResetForWord(WordId);
         await _loader.LoadAsync(WordId);
     }
 
@@ -480,6 +486,7 @@
     public void Dispose()
     {
         _loader.Dispose();
+        _answerCoordinator.Dispose();
     }
 
     private static bool HasSenseMetadata(VocabularySenseDetail sense) =>
@@ -522,4 +529,105 @@
 
     private RenderFragment RenderLimitedNotice(int maxItems) =>
         @<p class="vocabulary-detail-limited" role="note">@Localizer["VocabularyDetail_LimitedNotice", maxItems]</p>;
+
+    private RenderFragment RenderEquivalentAnswerSection(
+        VocabularyDetail detail,
+        VocabularySenseDetail sense,
+        VocabularyLearningTargetDetail target)
+    {
+        var eligibility = _answerCoordinator.GetEligibility(detail, sense, target);
+        if (eligibility == TargetEquivalentAnswerEligibility.TruncatedVariants)
+        {
+            return @<p class="vocabulary-detail-muted vocabulary-detail-action-notice" role="note" id="@($"vocabulary-detail-equivalent-note-{target.TargetId}")">
+                @Localizer["VocabularyDetail_EquivalentAnswerTruncatedNotice"]
+            </p>;
+        }
+
+        if (eligibility == TargetEquivalentAnswerEligibility.IncompleteOrAmbiguous)
+        {
+            return @<p class="vocabulary-detail-muted vocabulary-detail-action-notice" role="note" id="@($"vocabulary-detail-equivalent-note-{target.TargetId}")">
+                @Localizer["VocabularyDetail_EquivalentAnswerUnavailableNotice"]
+            </p>;
+        }
+
+        var state = _answerCoordinator.GetOrCreateState(detail, sense, target);
+        var inputId = $"vocabulary-detail-answer-input-{target.TargetId}";
+        var confirmId = $"vocabulary-detail-confirm-{target.TargetId}";
+        var clarificationId = $"vocabulary-detail-equivalent-clarification-{target.TargetId}";
+        var feedbackId = $"vocabulary-detail-equivalent-feedback-{target.TargetId}";
+
+        return @<section class="vocabulary-detail-equivalent-answer-card" id="@($"vocabulary-detail-equivalent-form-{target.TargetId}")" aria-labelledby="@($"vocabulary-detail-equivalent-title-{target.TargetId}")">
+            <h6 id="@($"vocabulary-detail-equivalent-title-{target.TargetId}")" class="vocabulary-detail-equivalent-title">
+                @Localizer["VocabularyDetail_AddEquivalentAnswerTitle"]
+            </h6>
+
+            <p id="@clarificationId" class="vocabulary-detail-clarification">
+                @Localizer["VocabularyDetail_EquivalentAnswerClarification"]
+            </p>
+
+            <div class="field-group vocabulary-detail-field">
+                <label for="@inputId" class="vocabulary-detail-field-label">
+                    <span>@Localizer["VocabularyDetail_EquivalentAnswerInputLabel"]</span>
+                    <span class="vocabulary-detail-tag">@target.TargetLanguage.ToUpperInvariant()</span>
+                </label>
+                <input id="@inputId"
+                       type="text"
+                       class="text-input vocabulary-detail-answer-input"
+                       maxlength="200"
+                       placeholder="@(Localizer["VocabularyDetail_EquivalentAnswerInputPlaceholder"])"
+                       aria-describedby="@clarificationId"
+                       aria-required="true"
+                       disabled="@state.IsSubmitting"
+                       value="@state.AnswerText"
+                       @oninput="(e => state.AnswerText = (string?)e.Value ?? string.Empty)" />
+            </div>
+
+            <div class="vocabulary-detail-checkbox-row">
+                <input id="@confirmId"
+                       type="checkbox"
+                       class="vocabulary-detail-checkbox"
+                       disabled="@state.IsSubmitting"
+                       checked="@state.IsSameMeaningConfirmed"
+                       @onchange="(e => state.IsSameMeaningConfirmed = (bool)(e.Value ?? false))" />
+                <label for="@confirmId" class="vocabulary-detail-checkbox-label">
+                    @Localizer["VocabularyDetail_EquivalentAnswerSameMeaningConfirmation"]
+                </label>
+            </div>
+
+            <div class="button-row vocabulary-detail-actions">
+                <button id="@($"vocabulary-detail-submit-{target.TargetId}")"
+                        type="button"
+                        class="button button-primary"
+                        disabled="@(!state.CanSubmit || _answerCoordinator.IsSubmitting)"
+                        @onclick="() => HandleSubmitEquivalentAnswerAsync(detail, sense, target)">
+                    @if (state.IsSubmitting)
+                    {
+                        <span>@Localizer["VocabularyDetail_EquivalentAnswerSaving"]</span>
+                    }
+                    else
+                    {
+                        <span>@Localizer["VocabularyDetail_EquivalentAnswerSaveButton"]</span>
+                    }
+                </button>
+            </div>
+
+            @if (state.FeedbackMessageKey is not null)
+            {
+                <div id="@feedbackId"
+                     class="@($"inline-message {(state.IsSuccessFeedback ? "inline-message-success" : "inline-message-error")}")"
+                     role="@(state.IsSuccessFeedback ? "status" : "alert")"
+                     aria-live="polite">
+                    <span>@Localizer[state.FeedbackMessageKey]</span>
+                </div>
+            }
+        </section>;
+    }
+
+    private async Task HandleSubmitEquivalentAnswerAsync(
+        VocabularyDetail detail,
+        VocabularySenseDetail sense,
+        VocabularyLearningTargetDetail target)
+    {
+        await _answerCoordinator.SubmitAsync(detail, sense, target);
+    }
 }

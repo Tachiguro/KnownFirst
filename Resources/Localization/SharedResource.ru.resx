@@ -2068,8 +2068,8 @@
   <data name="VocabularyDetail_BackToVocabulary" xml:space="preserve">
     <value>Назад к словарю</value>
   </data>
-  <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
-    <value>Эта страница доступна только для чтения. Она показывает только сохранённые данные этого слова; здесь ничего нельзя изменить.</value>
+    <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
+    <value>Эта страница показывает сохранённые данные этого слова. Существующие записи доступны только для чтения; к целям обучения можно добавлять эквивалентные принятые ответы.</value>
   </data>
   <data name="VocabularyDetail_Loading" xml:space="preserve">
     <value>Загрузка сведений о слове…</value>
@@ -2307,5 +2307,59 @@
   </data>
   <data name="VocabularyDetail_ReviewEntry" xml:space="preserve">
     <value>Повторение {0}</value>
+  </data>
+    <data name="VocabularyDetail_AddEquivalentAnswerTitle" xml:space="preserve">
+    <value>Добавить эквивалентный ответ</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerClarification" xml:space="preserve">
+    <value>Это добавляет дополнительный принятый вариант ответа. Он не заменяет обязательный или предпочтительный ответ.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerLanguage" xml:space="preserve">
+    <value>Целевой язык: {0}</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerInputLabel" xml:space="preserve">
+    <value>Эквивалентный ответ</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerInputPlaceholder" xml:space="preserve">
+    <value>Введите эквивалентный ответ…</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSameMeaningConfirmation" xml:space="preserve">
+    <value>Я подтверждаю, что эта формулировка имеет то же значение, что и существующий ответ.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSaveButton" xml:space="preserve">
+    <value>Сохранить эквивалентный ответ</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSaving" xml:space="preserve">
+    <value>Сохранение…</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSuccess" xml:space="preserve">
+    <value>Эквивалентный ответ успешно добавлен.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerDuplicate" xml:space="preserve">
+    <value>Эта цель обучения уже содержит такой эквивалентный ответ.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerWorkflowBlocked" xml:space="preserve">
+    <value>Нельзя добавить ответ во время активной учебной сессии. Сначала завершите или приостановите сессию.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerEmpty" xml:space="preserve">
+    <value>Пожалуйста, введите текст ответа.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerTooLong" xml:space="preserve">
+    <value>Текст ответа не может превышать 200 символов.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerConfirmationRequired" xml:space="preserve">
+    <value>Пожалуйста, подтвердите, что формулировка имеет то же значение.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerLanguageMismatch" xml:space="preserve">
+    <value>Язык ответа не соответствует этой цели обучения.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerFailure" xml:space="preserve">
+    <value>Произошла ошибка при добавлении эквивалентного ответа. Пожалуйста, попробуйте ещё раз.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerTruncatedNotice" xml:space="preserve">
+    <value>Добавление эквивалентных ответов недоступно, так как список ответов усечён.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerUnavailableNotice" xml:space="preserve">
+    <value>Добавление эквивалентных ответов недоступно, так как данные цели обучения неполные.</value>
   </data>
 </root>

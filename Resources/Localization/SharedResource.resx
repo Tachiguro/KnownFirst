@@ -2068,8 +2068,8 @@
   <data name="VocabularyDetail_BackToVocabulary" xml:space="preserve">
     <value>Back to dictionary</value>
   </data>
-  <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
-    <value>This page is read-only. It shows only the data stored for this word; nothing can be changed here.</value>
+    <data name="VocabularyDetail_ReadOnlyNotice" xml:space="preserve">
+    <value>This page shows the data stored for this word. Existing entries are read-only; equivalent accepted answers can be added to learning targets.</value>
   </data>
   <data name="VocabularyDetail_Loading" xml:space="preserve">
     <value>Loading word details…</value>
@@ -2307,5 +2307,59 @@
   </data>
   <data name="VocabularyDetail_ReviewEntry" xml:space="preserve">
     <value>Review {0}</value>
+  </data>
+    <data name="VocabularyDetail_AddEquivalentAnswerTitle" xml:space="preserve">
+    <value>Add equivalent answer</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerClarification" xml:space="preserve">
+    <value>This adds an additional accepted answer variant. It does not replace the required or preferred answer.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerLanguage" xml:space="preserve">
+    <value>Target language: {0}</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerInputLabel" xml:space="preserve">
+    <value>Equivalent answer</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerInputPlaceholder" xml:space="preserve">
+    <value>Enter equivalent answer…</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSameMeaningConfirmation" xml:space="preserve">
+    <value>I confirm that this wording has the same meaning as the existing answer.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSaveButton" xml:space="preserve">
+    <value>Save equivalent answer</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSaving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerSuccess" xml:space="preserve">
+    <value>Equivalent answer added successfully.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerDuplicate" xml:space="preserve">
+    <value>This learning target already contains this equivalent answer.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerWorkflowBlocked" xml:space="preserve">
+    <value>Cannot add an answer while a study session is active. Please finish or pause your session first.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerEmpty" xml:space="preserve">
+    <value>Please enter an answer text.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerTooLong" xml:space="preserve">
+    <value>Answer text cannot exceed 200 characters.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerConfirmationRequired" xml:space="preserve">
+    <value>Please confirm that the wording has the same meaning.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerLanguageMismatch" xml:space="preserve">
+    <value>The answer language does not match this learning target.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerFailure" xml:space="preserve">
+    <value>An error occurred while adding the equivalent answer. Please try again.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerTruncatedNotice" xml:space="preserve">
+    <value>Adding equivalent answers is unavailable because the answer list is truncated.</value>
+  </data>
+  <data name="VocabularyDetail_EquivalentAnswerUnavailableNotice" xml:space="preserve">
+    <value>Adding equivalent answers is unavailable because the learning target information is incomplete.</value>
   </data>
 </root>

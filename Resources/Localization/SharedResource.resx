@@ -2239,11 +2239,14 @@
   <data name="VocabularyDetail_TypingOptOut" xml:space="preserve">
     <value>Typed answers disabled</value>
   </data>
-  <data name="VocabularyDetail_TargetEligible" xml:space="preserve">
-    <value>Included in active learning</value>
+  <data name="VocabularyDetail_TargetNoLearningControl" xml:space="preserve">
+    <value>No learning control applies</value>
   </data>
-  <data name="VocabularyDetail_TargetSuppressed" xml:space="preserve">
-    <value>Excluded by a learning control</value>
+  <data name="VocabularyDetail_TargetBlockedByWordControl" xml:space="preserve">
+    <value>Blocked: word marked as already known</value>
+  </data>
+  <data name="VocabularyDetail_TargetBlockedBySenseControl" xml:space="preserve">
+    <value>Blocked: learning stopped for this sense</value>
   </data>
   <data name="VocabularyDetail_FsrsTitle" xml:space="preserve">
     <value>Scheduling (FSRS-6)</value>

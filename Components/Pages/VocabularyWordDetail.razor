@@ -320,13 +320,17 @@
                                                         <h6 id="@($"vocabulary-detail-target-{target.TargetId}")">@Localizer[VocabularyWordDetailPresentation.GetTargetKindKey(target.TargetKind)]</h6>
                                                         <p class="vocabulary-detail-badges">
                                                             <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetLanguages", target.SourceLanguage.ToUpperInvariant(), target.TargetLanguage.ToUpperInvariant()]</span>
-                                                            @if (target.IsEligibleForActiveLearning)
+                                                            @if (target.IsUnblockedByLearningControls)
                                                             {
-                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetEligible"]</span>
+                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetNoLearningControl"]</span>
                                                             }
-                                                            else
+                                                            @if (detail.WordLearningControl is not null)
                                                             {
-                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetSuppressed"]</span>
+                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetBlockedByWordControl"]</span>
+                                                            }
+                                                            @if (sense.SenseLearningControl is not null)
+                                                            {
+                                                                <span class="vocabulary-detail-tag">@Localizer["VocabularyDetail_TargetBlockedBySenseControl"]</span>
                                                             }
                                                             @if (target.TypingOptOut)
                                                             {

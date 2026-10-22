@@ -6,6 +6,7 @@ using KnownFirst.Data;
 using KnownFirst.Data.Entities;
 using KnownFirst.Data.Migrations.Schema8;
 using KnownFirst.Data.Schema13;
+using KnownFirst.Data.Targets;
 using KnownFirst.Models;
 using KnownFirst.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -583,7 +584,8 @@ public sealed class VocabularyDetailServiceTests
         Assert.AreEqual("en", defTarget.SourceLanguage);
         Assert.AreEqual("en", defTarget.TargetLanguage);
         Assert.IsTrue(defTarget.TypingOptOut);
-        Assert.IsTrue(defTarget.IsEligibleForActiveLearning);
+        Assert.IsTrue(IsUnblockedByLearningControls(defTarget), "No Word/Sense learning control applies to this target.");
+        AssertTargetDetailMakesNoActiveLearningClaim();
         Assert.IsTrue(defTarget.HasFsrsState);
         Assert.IsNotNull(defTarget.FsrsState);
         Assert.AreEqual(defTargetId, defTarget.FsrsState.TargetId);
@@ -843,7 +845,7 @@ public sealed class VocabularyDetailServiceTests
         Assert.AreEqual(senseControlDecidedAt, controlledSense.SenseLearningControl.DecidedAtUtc);
 
         var controlledTarget = controlledSense.LearningTargets.Single();
-        Assert.IsFalse(controlledTarget.IsEligibleForActiveLearning, "Explicit controls suppress active learning eligibility.");
+        Assert.IsFalse(IsUnblockedByLearningControls(controlledTarget), "Explicit Word/Sense learning controls block the target.");
         Assert.IsTrue(controlledTarget.HasFsrsState, "Explicit controls must not erase or overwrite persisted TargetFsrsState.");
         Assert.AreEqual(Fsrs6CardState.Review, controlledTarget.FsrsState!.State);
         Assert.AreEqual(19.0, controlledTarget.FsrsState.Stability!.Value, 1e-6);
@@ -863,7 +865,8 @@ public sealed class VocabularyDetailServiceTests
         Assert.AreEqual(legacyTargetWithoutStateId, legacyTarget.TargetId);
         Assert.IsFalse(legacyTarget.HasFsrsState, "Legacy LearningCards/FsrsCardStates must never fabricate TargetFsrsState.");
         Assert.IsNull(legacyTarget.FsrsState);
-        Assert.IsTrue(legacyTarget.IsEligibleForActiveLearning);
+        Assert.IsTrue(IsUnblockedByLearningControls(legacyTarget), "Absence of Word/Sense learning controls is a control-only fact.");
+        AssertTargetDetailMakesNoActiveLearningClaim();
 
         // Verify DTOs do not expose legacy WordStatus, PreparationState, or SenseStatus properties.
         var detailProps = typeof(VocabularyDetail).GetProperties().Select(static p => p.Name).ToArray();
@@ -874,6 +877,137 @@ public sealed class VocabularyDetailServiceTests
         var senseProps = typeof(VocabularySenseDetail).GetProperties().Select(static p => p.Name).ToArray();
         CollectionAssert.DoesNotContain(senseProps, "Status");
         CollectionAssert.DoesNotContain(senseProps, "SenseStatus");
+    }
+
+    [TestMethod]
+    public async Task TargetsWithoutLearningControls_AreNotRepresentedAsActiveLearningWhenSchedulerRequirementsAreMissing()
+    {
+        await using var database = new ProductionInitializedDatabase();
+        await database.InitializeAsync();
+
+        int wordId = 0;
+        int targetWithoutStateId = 0;
+        int acceptedOnlyTargetId = 0;
+
+        await database.RunInTransactionAsync(connection =>
+        {
+            wordId = InsertWord(
+                connection,
+                canonicalTerm: "harbor",
+                normalizedTerm: "W:harbor",
+                language: "en",
+                tokenKind: TokenKind.Word,
+                status: WordStatus.UnknownBacklog,
+                totalOccurrences: 1,
+                documentCount: 1,
+                createdAt: BaseTimeUtc,
+                updatedAt: BaseTimeUtc);
+
+            var senseId = InsertSense(
+                connection,
+                wordId: wordId,
+                stableId: "sense-harbor",
+                sourceLanguage: "en",
+                explanationLanguage: "de",
+                providerSenseId: "",
+                topicOrDomain: "",
+                partOfSpeech: "Noun",
+                grammaticalRelationship: "",
+                acronymExpansion: "",
+                defaultMeaningId: null,
+                status: SenseStatus.Learning,
+                createdAtUtc: BaseOffsetUtc,
+                updatedAtUtc: BaseOffsetUtc);
+
+            // Required variant, but no TargetFsrsStates row.
+            targetWithoutStateId = InsertLearningTarget(
+                connection,
+                senseId: senseId,
+                stableId: "target-harbor-def",
+                targetKind: LearningTargetKind.Definition,
+                sourceLanguage: "en",
+                targetLanguage: "en",
+                typingOptOut: false,
+                createdAtUtc: BaseOffsetUtc,
+                updatedAtUtc: BaseOffsetUtc);
+
+            InsertAnswerVariant(
+                connection,
+                targetId: targetWithoutStateId,
+                stableId: "var-harbor-def-required",
+                answerLanguage: "en",
+                displayText: "A sheltered place for ships.",
+                normalizedText: "a sheltered place for ships",
+                requirement: AnswerVariantRequirement.Required,
+                isPreferred: true,
+                requiredSinceUtc: BaseOffsetUtc,
+                sourceMeaningId: null,
+                createdAtUtc: BaseOffsetUtc,
+                updatedAtUtc: BaseOffsetUtc);
+
+            // TargetFsrsStates row, but only AcceptedOnly variants.
+            acceptedOnlyTargetId = InsertLearningTarget(
+                connection,
+                senseId: senseId,
+                stableId: "target-harbor-trn",
+                targetKind: LearningTargetKind.Translation,
+                sourceLanguage: "en",
+                targetLanguage: "de",
+                typingOptOut: false,
+                createdAtUtc: BaseOffsetUtc.AddMinutes(1),
+                updatedAtUtc: BaseOffsetUtc.AddMinutes(1));
+
+            InsertAnswerVariant(
+                connection,
+                targetId: acceptedOnlyTargetId,
+                stableId: "var-harbor-trn-accepted",
+                answerLanguage: "de",
+                displayText: "Hafen",
+                normalizedText: "hafen",
+                requirement: AnswerVariantRequirement.AcceptedOnly,
+                isPreferred: false,
+                requiredSinceUtc: null,
+                sourceMeaningId: null,
+                createdAtUtc: BaseOffsetUtc.AddMinutes(1),
+                updatedAtUtc: BaseOffsetUtc.AddMinutes(1));
+
+            InsertTargetFsrsState(
+                connection,
+                targetId: acceptedOnlyTargetId,
+                state: Fsrs6CardState.Review,
+                stability: 9.0,
+                difficulty: 5.0,
+                lastReviewedAtUtc: BaseOffsetUtc.AddDays(-1),
+                stepIndex: null,
+                dueAtUtc: BaseOffsetUtc.AddDays(3));
+
+            return true;
+        });
+
+        // The real active-learning query admits neither target, although no learning control applies.
+        var activeLearningTargetIds = await database.ExecuteSnapshotAsync(connection =>
+            TargetLearningRepository.LoadActiveLearningTargets(connection).Select(static row => row.Id).ToList());
+        CollectionAssert.DoesNotContain(activeLearningTargetIds, targetWithoutStateId, "A target without TargetFsrsState is not admitted.");
+        CollectionAssert.DoesNotContain(activeLearningTargetIds, acceptedOnlyTargetId, "A target without a Required variant is not admitted.");
+
+        var lookup = await new VocabularyDetailService(database).GetVocabularyDetailAsync(wordId);
+        Assert.IsTrue(lookup.IsFound);
+        Assert.IsNull(lookup.Detail!.WordLearningControl);
+        var sense = lookup.Detail.Senses.Single();
+        Assert.IsNull(sense.SenseLearningControl);
+
+        var targetWithoutState = sense.LearningTargets.Single(target => target.TargetId == targetWithoutStateId);
+        Assert.IsFalse(targetWithoutState.HasFsrsState);
+        Assert.IsTrue(targetWithoutState.AnswerVariants.Single().IsRequired);
+        Assert.IsTrue(IsUnblockedByLearningControls(targetWithoutState), "Only the absence of learning controls is reported.");
+
+        var acceptedOnlyTarget = sense.LearningTargets.Single(target => target.TargetId == acceptedOnlyTargetId);
+        Assert.IsTrue(acceptedOnlyTarget.HasFsrsState);
+        Assert.AreEqual(AnswerVariantRequirement.AcceptedOnly, acceptedOnlyTarget.AnswerVariants.Single().Requirement);
+        Assert.IsFalse(acceptedOnlyTarget.AnswerVariants.Single().IsRequired);
+        Assert.IsTrue(IsUnblockedByLearningControls(acceptedOnlyTarget), "Only the absence of learning controls is reported.");
+
+        AssertTargetDetailMakesNoActiveLearningClaim();
     }
 
     [TestMethod]
@@ -2161,6 +2295,32 @@ public sealed class VocabularyDetailServiceTests
             """,
             senseId,
             Schema13TimestampCodec.FormatUtc(decidedAtUtc));
+    }
+
+    // The target detail states only whether a Word/Sense learning control blocks the target. Active-learning
+    // admission additionally requires a TargetFsrsStates row and a Required answer variant, so the flag is read
+    // by name and no target member may claim eligibility, scheduling, admission, or inclusion.
+    private static bool IsUnblockedByLearningControls(VocabularyLearningTargetDetail target)
+    {
+        var property = typeof(VocabularyLearningTargetDetail).GetProperty("IsUnblockedByLearningControls");
+        Assert.IsNotNull(property, "VocabularyLearningTargetDetail must expose the control-only IsUnblockedByLearningControls flag.");
+        return (bool)property.GetValue(target)!;
+    }
+
+    private static void AssertTargetDetailMakesNoActiveLearningClaim()
+    {
+        string[] unsupportedClaimFragments = ["ActiveLearning", "Eligib", "Schedul", "Admit", "Admission", "Included"];
+        foreach (var propertyName in typeof(VocabularyLearningTargetDetail).GetProperties().Select(static property => property.Name))
+        {
+            foreach (var fragment in unsupportedClaimFragments)
+            {
+                Assert.DoesNotContain(
+                    fragment,
+                    propertyName,
+                    StringComparison.Ordinal,
+                    $"VocabularyLearningTargetDetail.{propertyName} implies an unsupported active-learning claim.");
+            }
+        }
     }
 
     private static string FindRepositoryRoot()

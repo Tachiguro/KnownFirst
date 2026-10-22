@@ -1389,8 +1389,9 @@ public sealed class LocalizationResourceTests
             ("VocabularyDetail_TargetKindTranslation", 0),
             ("VocabularyDetail_TargetLanguages", 2),
             ("VocabularyDetail_TypingOptOut", 0),
-            ("VocabularyDetail_TargetEligible", 0),
-            ("VocabularyDetail_TargetSuppressed", 0),
+            ("VocabularyDetail_TargetNoLearningControl", 0),
+            ("VocabularyDetail_TargetBlockedByWordControl", 0),
+            ("VocabularyDetail_TargetBlockedBySenseControl", 0),
             ("VocabularyDetail_FsrsTitle", 0),
             ("VocabularyDetail_NoFsrsState", 0),
             ("VocabularyDetail_CardState", 0),
@@ -1432,6 +1433,23 @@ public sealed class LocalizationResourceTests
         Assert.AreNotEqual(english["VocabularyDetail_TargetKindDefinition"], english["VocabularyDetail_TargetKindTranslation"]);
         Assert.AreNotEqual(german["VocabularyDetail_TargetKindDefinition"], german["VocabularyDetail_TargetKindTranslation"]);
         Assert.AreNotEqual(russian["VocabularyDetail_TargetKindDefinition"], russian["VocabularyDetail_TargetKindTranslation"]);
+
+        // Target badges describe only Word/Sense learning controls and never claim active-learning inclusion
+        foreach (var resources in new[] { english, german, russian })
+        {
+            Assert.IsFalse(resources.ContainsKey("VocabularyDetail_TargetEligible"), "The misleading active-learning badge must be removed.");
+            Assert.IsFalse(resources.ContainsKey("VocabularyDetail_TargetSuppressed"), "The generic suppression badge must be replaced by control-specific badges.");
+        }
+
+        Assert.AreEqual("No learning control applies", english["VocabularyDetail_TargetNoLearningControl"]);
+        Assert.AreEqual("Keine Lernsteuerung wirksam", german["VocabularyDetail_TargetNoLearningControl"]);
+        Assert.AreEqual("Управление изучением не применяется", russian["VocabularyDetail_TargetNoLearningControl"]);
+        Assert.Contains("already known", english["VocabularyDetail_TargetBlockedByWordControl"], StringComparison.Ordinal);
+        Assert.Contains("bereits bekannt", german["VocabularyDetail_TargetBlockedByWordControl"], StringComparison.Ordinal);
+        Assert.Contains("уже известное", russian["VocabularyDetail_TargetBlockedByWordControl"], StringComparison.Ordinal);
+        Assert.Contains("stopped", english["VocabularyDetail_TargetBlockedBySenseControl"], StringComparison.Ordinal);
+        Assert.Contains("gestoppt", german["VocabularyDetail_TargetBlockedBySenseControl"], StringComparison.Ordinal);
+        Assert.Contains("остановлено", russian["VocabularyDetail_TargetBlockedBySenseControl"], StringComparison.Ordinal);
 
         // The overview scope notice no longer claims that word details are unavailable
         Assert.DoesNotContain("Word details and editing are not available", english["Vocabulary_ScopeNotice"], StringComparison.Ordinal);

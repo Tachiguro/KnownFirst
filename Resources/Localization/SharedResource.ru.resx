@@ -2239,11 +2239,14 @@
   <data name="VocabularyDetail_TypingOptOut" xml:space="preserve">
     <value>Ввод ответа отключён</value>
   </data>
-  <data name="VocabularyDetail_TargetEligible" xml:space="preserve">
-    <value>Включено в активное изучение</value>
+  <data name="VocabularyDetail_TargetNoLearningControl" xml:space="preserve">
+    <value>Управление изучением не применяется</value>
   </data>
-  <data name="VocabularyDetail_TargetSuppressed" xml:space="preserve">
-    <value>Исключено управлением изучением</value>
+  <data name="VocabularyDetail_TargetBlockedByWordControl" xml:space="preserve">
+    <value>Заблокировано: слово отмечено как уже известное</value>
+  </data>
+  <data name="VocabularyDetail_TargetBlockedBySenseControl" xml:space="preserve">
+    <value>Заблокировано: изучение этого значения остановлено</value>
   </data>
   <data name="VocabularyDetail_FsrsTitle" xml:space="preserve">
     <value>Планирование (FSRS-6)</value>

@@ -3641,8 +3641,16 @@ public sealed class UiWorkflowContractTests
         Assert.Contains("fsrs.LastReviewedAtUtc", markup);
         Assert.Contains("VocabularyDetail_NoFsrsState", markup);
         Assert.Contains("VocabularyDetail_NoReviewHistory", markup);
-        Assert.Contains("target.IsEligibleForActiveLearning", markup);
         Assert.Contains("<time datetime=", markup);
+
+        // Target badges report only Word/Sense learning controls, never active-learning admission
+        Assert.Contains("target.IsUnblockedByLearningControls", markup);
+        Assert.Contains("VocabularyDetail_TargetNoLearningControl", markup);
+        Assert.Contains("VocabularyDetail_TargetBlockedByWordControl", markup);
+        Assert.Contains("VocabularyDetail_TargetBlockedBySenseControl", markup);
+        Assert.DoesNotContain("IsEligibleForActiveLearning", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("VocabularyDetail_TargetEligible", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("VocabularyDetail_TargetSuppressed", markup, StringComparison.Ordinal);
 
         // No Word-level or aggregated learning state is synthesized
         Assert.DoesNotContain("detail.FsrsState", markup, StringComparison.Ordinal);

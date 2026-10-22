@@ -167,7 +167,7 @@ public sealed class VocabularyDetailService(IKnownFirstDatabase database) : IVoc
         foreach (var senseRow in keptSenseRows)
         {
             senseControlsBySenseId.TryGetValue(senseRow.Id, out var senseControl);
-            var isSenseEligible = wordControl is null && senseControl is null;
+            var isSenseUnblockedByLearningControls = wordControl is null && senseControl is null;
 
             var meanings = meaningsBySenseId.TryGetValue(senseRow.Id, out var senseMeanings)
                 ? senseMeanings
@@ -211,7 +211,7 @@ public sealed class VocabularyDetailService(IKnownFirstDatabase database) : IVoc
                         hasMoreAnswerVariants: hasMoreVariants,
                         reviewHistory: history,
                         hasMoreReviewHistory: hasMoreHistory,
-                        isEligibleForActiveLearning: isSenseEligible));
+                        isUnblockedByLearningControls: isSenseUnblockedByLearningControls));
                 }
             }
 

@@ -2239,11 +2239,14 @@
   <data name="VocabularyDetail_TypingOptOut" xml:space="preserve">
     <value>Getippte Antworten deaktiviert</value>
   </data>
-  <data name="VocabularyDetail_TargetEligible" xml:space="preserve">
-    <value>In aktivem Lernen enthalten</value>
+  <data name="VocabularyDetail_TargetNoLearningControl" xml:space="preserve">
+    <value>Keine Lernsteuerung wirksam</value>
   </data>
-  <data name="VocabularyDetail_TargetSuppressed" xml:space="preserve">
-    <value>Durch eine Lernsteuerung ausgeschlossen</value>
+  <data name="VocabularyDetail_TargetBlockedByWordControl" xml:space="preserve">
+    <value>Gesperrt: Wort als bereits bekannt markiert</value>
+  </data>
+  <data name="VocabularyDetail_TargetBlockedBySenseControl" xml:space="preserve">
+    <value>Gesperrt: Lernen für diese Bedeutung gestoppt</value>
   </data>
   <data name="VocabularyDetail_FsrsTitle" xml:space="preserve">
     <value>Planung (FSRS-6)</value>

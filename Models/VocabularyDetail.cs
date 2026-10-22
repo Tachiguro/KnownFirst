@@ -492,7 +492,8 @@ public sealed record VocabularyContextSnapshotDetail
 
 /// <summary>
 /// Read-only projection of a persisted LearningTarget belonging to a Sense, including its
-/// Target-owned FSRS state, bounded AnswerVariants, bounded factual review history, and active-learning eligibility.
+/// Target-owned FSRS state, bounded AnswerVariants, bounded factual review history, and whether a Word or Sense
+/// learning control blocks it.
 /// </summary>
 public sealed record VocabularyLearningTargetDetail
 {
@@ -511,7 +512,7 @@ public sealed record VocabularyLearningTargetDetail
         bool hasMoreAnswerVariants,
         IReadOnlyList<VocabularyTargetReviewHistoryEntryDetail> reviewHistory,
         bool hasMoreReviewHistory,
-        bool isEligibleForActiveLearning)
+        bool isUnblockedByLearningControls)
     {
         ArgumentNullException.ThrowIfNull(stableId);
         ArgumentNullException.ThrowIfNull(sourceLanguage);
@@ -533,7 +534,7 @@ public sealed record VocabularyLearningTargetDetail
         HasMoreAnswerVariants = hasMoreAnswerVariants;
         ReviewHistory = reviewHistory;
         HasMoreReviewHistory = hasMoreReviewHistory;
-        IsEligibleForActiveLearning = isEligibleForActiveLearning;
+        IsUnblockedByLearningControls = isUnblockedByLearningControls;
     }
 
     public int TargetId { get; }
@@ -573,10 +574,12 @@ public sealed record VocabularyLearningTargetDetail
     public bool HasMoreReviewHistory { get; }
 
     /// <summary>
-    /// Indicates whether the target is eligible for active learning after applying explicit
-    /// <c>WordLearningControls</c> and <c>SenseLearningControls</c> suppression rules.
+    /// Indicates that neither a <c>WordLearningControls</c> row for the Word nor a <c>SenseLearningControls</c> row
+    /// for the Sense blocks this target. This is a learning-control fact only: it does not mean the target is
+    /// admitted, scheduled, or due for active learning, which additionally requires a <c>TargetFsrsStates</c> row
+    /// and a Required answer variant.
     /// </summary>
-    public bool IsEligibleForActiveLearning { get; }
+    public bool IsUnblockedByLearningControls { get; }
 
     public bool HasAnyTruncatedCollection => HasMoreAnswerVariants || HasMoreReviewHistory;
 
